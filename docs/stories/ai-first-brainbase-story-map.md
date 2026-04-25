@@ -13,14 +13,24 @@
 ```yaml
 frame_id: frame-2026-ai-first-company-os
 name: "AI が安全に仕事できる会社 OS"
-user_ecosystem: "少人数で複数事業を運営し、AI agent に作業を委譲したいが、文脈・判断・状態が散らばっている組織"
-value_hypothesis: "会社の意味と状態を AI が読める正本に集約し、agent fleet と mana が観測・実行・検証を回すことで、人間は判断と例外処理に集中できる"
+user_ecosystem: "少人数（社員＋業務委託）で複数事業を運営し、AI agent に作業を委譲したいが、文脈・判断・状態が複数の人間と複数の PC に散らばっている組織"
+value_hypothesis: "会社の情報を、集約すべき層（Meaning / State / Evidence）と分散すべき層（各メンバーの作業文脈）に分離し、それぞれを AI が読める形で接続する。集約層は Brainbase 正本に集約し、分散層は各メンバー PC 上の AI agent がローカルで保持したまま、必要時にリアルタイム問い合わせで橋渡す。これにより agent fleet と mana が観測・実行・検証を回し、人間は判断と例外処理に集中できる。"
 delivery_model: "Brainbase 内部で運用を確立し、VibePro の control plane として外部化する"
 ```
 
+### 情報の二層モデル
+
+| 層 | 内容 | 居場所 | 接続方法 |
+|---|---|---|---|
+| **集約層 (Aggregation)** | Meaning（会社の意図・原則・ストーリー）、State（タスク・スプリント・シップ）、Evidence（成果物・証跡） | Git/_codex、NocoDB、GitHub/Drive | 全メンバーが直接参照 |
+| **分散層 (Distribution)** | 各メンバーの作業文脈（コード状態、worktree、Claude Code 会話履歴、試行錯誤、暗黙知） | 各メンバーの PC | Mesh 経由のリアルタイム問い合わせ |
+
+**集約層は移動可能、分散層は移動不能** という現実に基づく。会話ログや作業文脈を中央に集約しようとすると、情報量爆発・個人情報漏洩・SSOT 肥大化を引き起こす。
+
 ### 固定すること
 
-- 正本は「AI が読むもの」として設計する
+- 集約層の正本は「AI が読むもの」として設計する
+- 分散層は集約せず、各メンバー PC に残したまま AI 同士のリアルタイム問い合わせで橋渡す
 - Slack と会議はフローであり、正本ではない
 - タスクは「やることメモ」ではなく、会社の現在状態である
 - 人間は line-level reviewer ではなく、判断者、設計者、例外処理者である
@@ -30,6 +40,7 @@ delivery_model: "Brainbase 内部で運用を確立し、VibePro の control pla
 
 - 何でも自動化すること
 - 人間の承認なしに外部送信、課金、削除、公開を行うこと
+- 分散層を強制的に集約しようとすること（個人情報・暗黙知・会話履歴の中央収集）
 - UI やドキュメント整備だけで AI-first とみなすこと
 - Ship を先に増やして Story Map を後追いにすること
 
@@ -50,15 +61,19 @@ non_goal:
   - "Brainbase を単なるドキュメント管理やタスク管理に留めること"
 criteria:
   - type: commit
-    description: "会社の意味、状態、判断基準、実行ログが Brainbase の正本スタックに接続されている"
+    description: "集約層: 会社の意味、状態、判断基準、実行ログが Brainbase の正本スタックに接続されている"
   - type: commit
-    description: "mana が観測、通知、起票、追跡を担い、人間が探しに行かなくても停滞や異常が浮上する"
+    description: "分散層: 各メンバー PC 上の AI agent がローカル文脈を保持したまま、権限付きで相互に問い合わせ・応答できる"
   - type: commit
-    description: "Codex/Claude が正本を読み、制約付きで実行し、機械 gate と証跡を通して作業できる"
+    description: "mana が集約層の状態変化を観測、通知、起票、追跡を担い、人間が探しに行かなくても停滞や異常が浮上する"
+  - type: commit
+    description: "Codex/Claude が集約層の正本を読み、必要に応じて分散層の他ノードに問い合わせ、制約付きで実行し、機械 gate と証跡を通して作業できる"
   - type: signal
     description: "会議が情報共有ではなく意思決定に寄る"
   - type: signal
-    description: "佐藤への口頭確認や文脈補足が減り、メンバーと AI が正本を見て自走する"
+    description: "佐藤への口頭確認や文脈補足が減り、メンバーと AI が正本＋分散ノードを参照して自走する"
+  - type: signal
+    description: "業務委託メンバー間の連携で社長を経由する回数が減る"
 ```
 
 ### 意味
@@ -222,6 +237,55 @@ criteria:
 
 ---
 
+## Quarter 3.5 / Distributed
+
+```yaml
+story_id: quarter.brainbase.distributed-agent-mesh
+parent_story_id: annual.brainbase.ai-first-operating-loop
+horizon: quarter
+view: dev
+name: "分散層: 各メンバー PC 上の AI agent をリアルタイム連携基盤で繋ぐ"
+enemy: "業務委託メンバーの作業文脈が各自の PC に閉じ、社長の脳が唯一の全体像統合ポイントになっていること"
+non_goal:
+  - "各メンバーの会話ログ・terminal output・個人ファイルを中央に集約しないこと"
+  - "agent の自由裁量で会社運営を進めないこと（権限境界を破らない）"
+  - "メンバー追加のたびに招待コードや個別設定を強いること"
+criteria:
+  - type: commit
+    description: "各メンバー PC で起動した Brainbase が、Slack ログイン後に自動でメッシュへ参加できる"
+  - type: commit
+    description: "あるノードの AI agent が、権限の範囲内で他ノードの AI agent に問い合わせ、ローカル文脈に基づく構造化応答を受け取れる"
+  - type: commit
+    description: "問い合わせ・応答は暗号化され、Relay 管理者を含む第三者は内容を復元できない"
+  - type: commit
+    description: "ROLE_RANK と config.yml の assignees に基づき、誰がどのノードに何を聞けるかが組織権限と一致する"
+  - type: commit
+    description: "メンバーオフボーディング時に暗号鍵を失効し、以後の問い合わせを遮断できる"
+  - type: signal
+    description: "社長への口頭・Slack確認の頻度が下がり、社長 AI が一斉問い合わせで全体像を構築できる"
+  - type: signal
+    description: "業務委託メンバー間の連携が社長を経由せずに成立する"
+```
+
+### 集約層との関係
+
+このストーリーは **集約層を置き換えるものではなく、補完するもの**：
+
+- 集約すべき情報（タスク、マイルストーン、シップ）は引き続き NocoDB に集約
+- 分散したままにすべき情報（コード変更、worktree 状態、Claude Code 文脈）はメンバー PC に残す
+- Mesh はその橋渡しのみ
+- mana は集約層を観測し続ける（Mesh の Query/Response はフロー、Evidence にはしない）
+
+### 初期 Event の種
+
+- `decision`: 分散層を集約せず Mesh で橋渡す方針を採択した
+- `work`: Mesh MVP（暗号化 envelope + Relay + QueryHandler）を実装する
+- `work`: Slack ログインから自動メッシュ参加までの統合を実装する
+- `work`: ROLE_RANK ベースの権限チェックを実装する
+- `ship`: 業務委託メンバーへ配布し、社長 AI からの一斉問い合わせを実運用する
+
+---
+
 ## Quarter 4 / Product
 
 ```yaml
@@ -340,6 +404,20 @@ criteria:
   - "診断、実装、継続改善への接続が説明できる"
 ```
 
+### Month 7: Mesh MVP Foundation
+
+```yaml
+story_id: month.brainbase.mesh-mvp-foundation
+parent_story_id: quarter.brainbase.distributed-agent-mesh
+name: "Mesh MVP の通信・暗号・問い合わせ基盤を実装する"
+criteria:
+  - "暗号化 envelope と Relay Server で 2 ノード間の安全な通信が成立する"
+  - "QueryHandler が config.yml の workspace scope に従ってローカル文脈を構造化応答する"
+  - "ROLE_RANK ベースの権限チェックが Worker / GM / CEO で正しく分岐する"
+  - "MCP Tool（mesh_query / mesh_peers）が Claude Code から呼べる"
+  - "Slack ログイン → Node Profile 構築 → メッシュ参加が自動化されている"
+```
+
 ---
 
 ## Story 間の接続
@@ -356,6 +434,9 @@ frame-2026-ai-first-company-os
         -> month.brainbase.mana-detection-contract
       -> quarter.brainbase.agent-fleet-execution
         -> month.brainbase.agent-fleet-contract
+      -> quarter.brainbase.distributed-agent-mesh
+        -> month.brainbase.mesh-mvp-foundation
+          -> sprint: STR-001 mesh-agent-query (docs/stories/mesh-agent-query-story.md)
       -> quarter.vibepro.control-plane-productization
         -> month.vibepro.control-plane-definition
 ```

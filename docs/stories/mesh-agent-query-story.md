@@ -1,28 +1,20 @@
 ---
-story_id: STR-001
-frame_id: mesh-ai-driven-management
-horizon: quarter
-view: business
-name: "社長として、全委託メンバーのAIに一斉問い合わせして、数秒で全体像を統合したい"
-enemy: "Slackで個別に聞いて回る → 返事待ち数時間 → 脳内統合という人力プロセス"
+story_id: sprint.brainbase.mesh-agent-query
+parent_story_id: month.brainbase.mesh-mvp-foundation
+legacy_story_id: STR-001
+frame_id: frame-2026-ai-first-company-os
+horizon: sprint
+view: dev
+name: "社長として、全委託メンバーのAIに一斉問い合わせして数秒で全体像を統合したい"
+enemy: "Slackで個別に聞いて回り、返事待ちと脳内統合に依存する人力マネジメント"
 criteria:
   - type: commit
-    description: "CEOのClaude Codeからmesh_queryで全ノードに一斉問い合わせし、各AIのローカル文脈に基づいた構造化応答が返る"
+    description: "CEO が mesh_query で全ノードへ一斉問い合わせし、各AIのローカル文脈に基づく構造化応答を受け取れる"
   - type: commit
-    description: "委託メンバー同士がmesh_queryで直接やりとりできる（同プロジェクト内のみ）"
-  - type: commit
-    description: "npm start + Slackログインだけでメッシュに自動参加できる（招待コード不要）"
-  - type: commit
-    description: "Relay Serverは暗号化envelopeを転送するのみ。管理者でも内容を復号できない"
-  - type: commit
-    description: "異なるプロジェクトの委託メンバーからの問い合わせは権限エラーで拒否される"
+    description: "同一プロジェクト内の委託メンバー同士が自動参加済みメッシュ上で安全に直接連携できる"
   - type: signal
-    description: "社長の状況把握にかかる時間が30分/日 → 5分/日以下に減る"
-  - type: signal
-    description: "委託メンバー間の連携で社長を経由する回数が半減する"
-status: in_progress
-created_at: 2026-03-29
-updated_at: 2026-03-29
+    description: "社長の状況把握時間が日次30分規模から5分以下へ縮む"
+parent_story_id: null
 ---
 
 # ストーリー: 全委託メンバーのAIに一斉問い合わせして数秒で全体像を統合したい
