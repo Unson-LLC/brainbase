@@ -61,6 +61,37 @@ describe('learning-service helpers', () => {
         expect(output).toContain('## Linked Wiki');
         expect(output).toContain('architecture/xterm-wrap');
     });
+
+    // codex/Claude skill loader 互換: name は 64 文字以下、description は YAML 安全
+    it('skill name フィールドは codex 制限の 64 文字以下に切り詰める', () => {
+        const longSummary = 'codex skill loader は name フィールドが 64 文字を超えるとエラーになるため slugify と name フィールドを短く保つこと';
+        const output = buildSkillCandidateContent({
+            source_type: 'review',
+            outcome: 'failure',
+            summary: longSummary,
+            project_id: 'brainbase',
+            evidence: {}
+        }, 'architecture/long-summary');
+
+        const nameLine = output.split('\n').find((line) => line.startsWith('name:'));
+        expect(nameLine).toBeDefined();
+        const nameValue = nameLine.replace(/^name:\s*/, '').replace(/^"|"$/g, '');
+        expect(nameValue.length).toBeLessThanOrEqual(64);
+    });
+
+    it('description に `:` を含む場合は YAML 安全に quote する', () => {
+        const output = buildSkillCandidateContent({
+            source_type: 'review',
+            outcome: 'failure',
+            summary: 'DEPRECATED: 古いskillは使用しない。新規はXを使う',
+            evidence: {}
+        }, 'architecture/deprecated');
+
+        const descLine = output.split('\n').find((line) => line.startsWith('description:'));
+        expect(descLine).toBeDefined();
+        // `:` を含む値は double quote で囲まれている必要がある
+        expect(descLine).toMatch(/^description: "[^"]*"$/);
+    });
 });
 
 describe('LearningService', () => {

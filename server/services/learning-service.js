@@ -57,12 +57,28 @@ function countKeywords(text, keywords) {
     ), 0);
 }
 
-function slugify(value) {
+// Codex/Claude skill loader は SKILL.md frontmatter の `name` フィールドに
+// 64 文字上限を要求する（exceeds maximum length of 64 characters エラー）。
+// project segment + skill slug の合計が 64 を超えないよう保守的に絞る。
+const SKILL_SLUG_MAX = 48;
+
+function slugify(value, maxLen = SKILL_SLUG_MAX) {
     return (value || 'untitled')
         .toLowerCase()
         .replace(/[^a-z0-9\u3040-\u30ff\u4e00-\u9faf]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .slice(0, 80) || 'untitled';
+        .slice(0, maxLen) || 'untitled';
+}
+
+// YAML 値に特殊文字（`:`, `#`, `&`, `*`, `?`, `|`, `<`, `>`, `=`, `!`, `%`, `@`,
+// `` ` ``, 改行, 先頭/末尾の空白）が含まれる場合は double quote で囲む。
+// 含まないキーは plain で出力（読みやすさ優先）。
+function yamlQuote(value) {
+    const text = String(value ?? '');
+    const needsQuote = /[:#&*?|<>=!%@`\n]|^\s|\s$/.test(text)
+        || text.startsWith('-') || text === '';
+    if (!needsQuote) return text;
+    return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
 }
 
 function truncate(value, max = 120) {
@@ -371,14 +387,16 @@ export function buildWikiCandidateContent(episode, targetRef, docType = classify
 }
 
 export function buildSkillCandidateContent(episode, wikiTargetRef, targetRef = deriveSkillTargetRef(episode)) {
-    const skillName = targetRef.split('/').slice(-2, -1)[0] || slugify(episode.summary);
+    const rawName = targetRef.split('/').slice(-2, -1)[0] || slugify(episode.summary);
+    // codex skill loader の 64 文字上限を満たすよう保守的に切る
+    const skillName = rawName.slice(0, 64);
     const description = truncate(episode.summary, 100);
     const proposedSteps = episode.evidence?.proposed_steps;
 
     return [
         '---',
-        `name: ${skillName}`,
-        `description: ${description}`,
+        `name: ${yamlQuote(skillName)}`,
+        `description: ${yamlQuote(description)}`,
         '---',
         '',
         `# ${skillName}`,
