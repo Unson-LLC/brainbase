@@ -316,6 +316,7 @@ const {
     learningService,
     learningHealthService,
     worktreeService,
+    archiveFinalizer,
     sessionServices,
     tmuxCaptureCache,
     terminalTransportService,
@@ -394,6 +395,7 @@ registerStaticRoutes(app, {
 void initializeSessionRuntime({
     stateStore,
     sessionServices,
+    archiveFinalizer,
     conversationLinker,
     testMode: TEST_MODE,
     log: console

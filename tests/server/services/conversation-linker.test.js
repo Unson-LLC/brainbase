@@ -81,4 +81,36 @@ describe('ConversationLinker', () => {
     expect(result.updated).toBe(2);
     expect(stateStore.mutateSessions).toHaveBeenCalled();
   });
+
+  it('linkAllはlimit指定時_一部セッションだけ処理してcursorを進める', async () => {
+    const sessions = [
+      { id: 'session-1', name: 'one' },
+      { id: 'session-2', name: 'two' },
+      { id: 'session-3', name: 'three' }
+    ];
+    const stateStore = {
+      get: vi.fn(() => ({ sessions })),
+      mutateSessions: vi.fn(async (mutator) => ({ sessions: await mutator(sessions) }))
+    };
+
+    const linker = new ConversationLinker({ stateStore });
+    linker._buildCodexIndex = vi.fn(async () => new Map());
+    linker._linkSession = vi.fn(async (session) => ({
+      totalConversations: 1,
+      lastAssistantSnippet: `snippet:${session.id}`,
+      lastAssistantSnippetAt: '2026-04-03T00:00:00.000Z'
+    }));
+
+    const first = await linker.linkAll({ limit: 2 });
+    const second = await linker.linkAll({ limit: 2 });
+
+    expect(first.processed).toBe(2);
+    expect(second.processed).toBe(2);
+    expect(linker._linkSession.mock.calls.map(([session]) => session.id)).toEqual([
+      'session-1',
+      'session-2',
+      'session-3',
+      'session-1'
+    ]);
+  });
 });

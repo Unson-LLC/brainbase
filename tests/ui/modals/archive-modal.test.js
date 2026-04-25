@@ -17,6 +17,7 @@ vi.mock('../../../public/modules/domain/session/session-service.js', () => {
                 this.loadSessions = vi.fn(async () => []);
                 this.unarchiveSession = vi.fn();
                 this.deleteSession = vi.fn();
+                this.finalizeArchiveSession = vi.fn();
                 this.getUniqueProjects = vi.fn(() => []);
             }
         }
@@ -108,8 +109,8 @@ describe('ArchiveModal', () => {
 
         it('should render archived sessions', async () => {
             const archivedSessions = [
-                { id: 'session-1', name: 'Archived 1', archived: true, path: '/tmp/.worktrees/session-1-brainbase' },
-                { id: 'session-2', name: 'Archived 2', archived: true, path: '/tmp/.worktrees/session-2-unson' }
+                { id: 'session-1', name: 'Archived 1', archived: true, path: '/tmp/.worktrees/session-1-brainbase', archive: { status: 'cleaned' } },
+                { id: 'session-2', name: 'Archived 2', archived: true, path: '/tmp/.worktrees/session-2-unson', archive: { status: 'queued' } }
             ];
             mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
 
@@ -118,6 +119,23 @@ describe('ArchiveModal', () => {
             const archiveList = document.getElementById('archive-list');
             expect(archiveList.innerHTML).toContain('Archived 1');
             expect(archiveList.innerHTML).toContain('Archived 2');
+            expect(archiveList.innerHTML).toContain('完了');
+            expect(archiveList.innerHTML).toContain('finalize待ち');
+        });
+
+        it('should render blocked sessions first with retry button', async () => {
+            const archivedSessions = [
+                { id: 'session-1', name: 'Cleaned', archived: true, path: '/tmp/.worktrees/session-1-brainbase', archive: { status: 'cleaned' } },
+                { id: 'session-2', name: 'Blocked', archived: true, path: '/tmp/.worktrees/session-2-brainbase', archive: { status: 'blocked', blockerReason: 'working copy has changes' } }
+            ];
+            mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
+
+            await modal.open();
+
+            const items = Array.from(document.querySelectorAll('.archive-item-name')).map((el) => el.textContent);
+            expect(items[0]).toBe('Blocked');
+            expect(document.querySelector('[data-action="retry-finalize"][data-id="session-2"]')).toBeTruthy();
+            expect(document.getElementById('archive-list').innerHTML).toContain('要対応');
         });
 
         it('should display empty state when no archived sessions', async () => {
@@ -297,6 +315,35 @@ describe('ArchiveModal', () => {
 
             await vi.waitFor(() => {
                 expect(mockSessionService.deleteSession).not.toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('retry finalize', () => {
+        beforeEach(() => {
+            const archivedSessions = [
+                {
+                    id: 'session-1',
+                    name: 'Blocked Session',
+                    project: 'brainbase',
+                    archived: true,
+                    path: '/tmp/.worktrees/session-1-brainbase',
+                    archive: { status: 'blocked', blockerReason: 'working copy has changes' }
+                }
+            ];
+            mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
+            modal.mount();
+            return modal.open();
+        });
+
+        it('should retry archive finalizer on button click', async () => {
+            mockSessionService.finalizeArchiveSession.mockResolvedValue({ success: true });
+
+            const retryBtn = modalElement.querySelector('[data-action="retry-finalize"]');
+            retryBtn.click();
+
+            await vi.waitFor(() => {
+                expect(mockSessionService.finalizeArchiveSession).toHaveBeenCalledWith('session-1');
             });
         });
     });

@@ -6595,6 +6595,27 @@ body.resizing iframe {
     opacity: 0.7;
 }
 
+.archive-status {
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.archive-status-pending {
+    background: rgba(59, 130, 246, 0.12);
+    color: #2563eb;
+}
+
+.archive-status-cleaned {
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+}
+
+.archive-status-blocked {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+}
+
 .archive-item-actions {
     display: flex;
     gap: 0.5rem;

@@ -31,6 +31,7 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
         terminalInputProbe: sessionServices?.terminal?.inputProbe,
         snapshot: sessionServices?.terminal?.snapshot,
         worktreeService,
+        archiveFinalizer: sessionServices?.archiveFinalizer,
         stateStore,
         ...pathOptions
     });
@@ -57,6 +58,8 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.post('/start', controller.start);
     router.post('/:id/stop', controller.stop);
     router.post('/:id/archive', controller.archive);
+    router.get('/:id/archive-status', controller.getArchiveStatus);
+    router.post('/:id/archive/finalize', controller.finalizeArchive);
     router.post('/:id/restore', controller.restore);
     router.post('/:id/ask-ai-integration', controller.askAiIntegration);
 

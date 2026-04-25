@@ -96,9 +96,16 @@ export class ArchiveModal extends BaseModal {
 
         archiveEmptyEl.style.display = 'none';
 
-        archiveListEl.innerHTML = archivedSessions.map(session => {
+        const sortedSessions = [...archivedSessions].sort((a, b) => {
+            if (a.archive?.status === 'blocked' && b.archive?.status !== 'blocked') return -1;
+            if (a.archive?.status !== 'blocked' && b.archive?.status === 'blocked') return 1;
+            return 0;
+        });
+
+        archiveListEl.innerHTML = sortedSessions.map(session => {
             const name = session.name || session.id;
             const project = getProjectFromPath(session.path);
+            const archiveStatus = this._formatArchiveStatus(session.archive);
 
             let dateValue = session.archivedAt || session.createdDate || session.createdAt;
 
@@ -118,6 +125,13 @@ export class ArchiveModal extends BaseModal {
             const escapedName = escapeHtml(name);
             const escapedProject = escapeHtml(project);
             const escapedDate = escapeHtml(date);
+            const escapedStatusLabel = escapeHtml(archiveStatus.label);
+            const escapedBlocker = escapeHtml(session.archive?.blockerReason || '');
+            const retryButton = session.archive?.status === 'blocked'
+                ? `<button class="btn-secondary" data-action="retry-finalize" data-id="${escapedId}" title="後処理を再実行">
+                    <i data-lucide="refresh-cw"></i>
+                </button>`
+                : '';
             return `
                 <div class="archive-item" data-id="${escapedId}">
                     <div class="archive-item-info">
@@ -125,9 +139,11 @@ export class ArchiveModal extends BaseModal {
                         <div class="archive-item-meta">
                             <span class="archive-item-project">${escapedProject}</span>
                             <span class="archive-item-date">${dateIcon} ${escapedDate}</span>
+                            <span class="archive-status archive-status-${archiveStatus.kind}" title="${escapedBlocker}">${escapedStatusLabel}</span>
                         </div>
                     </div>
                     <div class="archive-item-actions">
+                        ${retryButton}
                         <button class="btn-secondary" data-action="unarchive" data-id="${escapedId}" title="復元">
                             <i data-lucide="archive-restore"></i>
                         </button>
@@ -142,6 +158,27 @@ export class ArchiveModal extends BaseModal {
         refreshIcons();
 
         this._attachListEventHandlers();
+    }
+
+    _formatArchiveStatus(archive) {
+        const status = archive?.status || 'unknown';
+        const labels = {
+            queued: 'finalize待ち',
+            recording: '記録中',
+            recorded: '記録済み',
+            integrating: '統合中',
+            cleaning: '片付け中',
+            cleaned: '完了',
+            blocked: '要対応',
+            unknown: '未確認'
+        };
+        const kind = status === 'blocked'
+            ? 'blocked'
+            : (status === 'cleaned' ? 'cleaned' : 'pending');
+        return {
+            label: labels[status] || status,
+            kind
+        };
     }
 
     _attachEventHandlers() {
@@ -187,6 +224,17 @@ export class ArchiveModal extends BaseModal {
                 );
                 if (!confirmed) return;
                 await this.sessionService.deleteSession(sessionId);
+                this._renderList();
+            });
+        });
+
+        const retryBtns = this.modalElement.querySelectorAll('[data-action="retry-finalize"]');
+        retryBtns.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const sessionId = /** @type {HTMLElement} */ (btn).dataset.id;
+                if (!sessionId) return;
+                await this.sessionService.finalizeArchiveSession(sessionId);
                 this._renderList();
             });
         });

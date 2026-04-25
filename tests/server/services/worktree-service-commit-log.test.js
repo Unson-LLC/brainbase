@@ -166,7 +166,8 @@ describe('WorktreeService Git compatibility helpers', () => {
         );
         expect(mockExec).toHaveBeenNthCalledWith(1, 'git -C "/tmp/repo" rev-parse HEAD');
         expect(mockExec).toHaveBeenNthCalledWith(2, 'git -C "/tmp/repo" branch --force "session/session-1" "abc123"');
-        expect(mockExec).toHaveBeenNthCalledWith(3, 'git -C "/tmp/worktrees/session-1-repo" reset --mixed HEAD');
+        expect(mockExec).toHaveBeenNthCalledWith(3, 'git -C "/tmp/worktrees/session-1-repo" rm -r --cached .jj/ 2>/dev/null || true');
+        expect(mockExec).toHaveBeenNthCalledWith(4, 'git -C "/tmp/worktrees/session-1-repo" reset --hard HEAD');
     });
 
     it('Git互換メタデータ削除時_worktree管理情報とbranchを掃除する', async () => {
@@ -194,14 +195,15 @@ describe('WorktreeService Git compatibility helpers', () => {
             gitWorktreePath: '/tmp/repo/.git/worktrees/session-1-repo'
         });
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
+        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('develop');
+        vi.spyOn(service, '_getWorkspaceStartCommit').mockResolvedValue('abc123');
 
         mockExec
             .mockResolvedValueOnce({ stdout: '' })
             .mockRejectedValueOnce(new Error("Error: The working copy is stale\nHint: Run 'jj workspace update-stale'"))
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
-            .mockResolvedValueOnce({ stdout: '' })
-            .mockResolvedValueOnce({ stdout: 'abc123\n' });
+            .mockResolvedValueOnce({ stdout: '' });
 
         const result = await service.create('session-1', '/tmp/repo', { skipFetch: true });
 
@@ -209,7 +211,7 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(result.startCommit).toBe('abc123');
         expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" workspace update-stale');
         expect(mockExec).toHaveBeenCalledWith(
-            'jj -R "/tmp/repo" workspace add --name "session-1-repo" "/tmp/worktrees/session-1-repo"'
+            'jj -R "/tmp/repo" workspace add --name "session-1-repo" -r "develop" --sparse-patterns full "/tmp/worktrees/session-1-repo"'
         );
         expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark create -r develop session-1');
     });
@@ -377,5 +379,40 @@ describe('WorktreeService.autoHealArchiveState', () => {
             'jj -R "/tmp/repo" bookmark set "session/session-1" -r "fix/bug-131"'
         );
         expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark delete "session-1"');
+    });
+});
+
+describe('WorktreeService.merge', () => {
+    let service;
+    let mockExec;
+
+    beforeEach(() => {
+        mockExec = vi.fn();
+        service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
+    });
+
+    it('PR作成時_ローカルパスではなくGitHub repo specを渡す', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '- feat: archive\n' })
+            .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/pull/123\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service.merge('session-1', '/tmp/repo', 'Archive flow');
+
+        expect(result.success).toBe(true);
+        expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('--repo "Unson-LLC/brainbase"'));
+        expect(mockExec).toHaveBeenCalledWith(
+            'gh pr merge "https://github.com/Unson-LLC/brainbase/pull/123" --repo "Unson-LLC/brainbase" --merge --delete-branch'
+        );
+        expect(mockExec).not.toHaveBeenCalledWith(expect.stringContaining('--repo "/tmp/repo"'));
     });
 });

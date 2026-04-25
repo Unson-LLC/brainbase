@@ -748,6 +748,7 @@ describe('SessionController (Server)', () => {
       // Verify state was updated to archived
       const updateCall = mockStateStore.update.mock.calls[0][0];
       expect(updateCall.sessions[0].intendedState).toBe('archived');
+      expect(updateCall.sessions[0].archive.status).toBe('queued');
     });
 
     it('archive呼び出し時_直接tmux kill-sessionを呼び出さない', async () => {
@@ -781,7 +782,7 @@ describe('SessionController (Server)', () => {
       expect(execPromiseMock).not.toHaveBeenCalled();
     });
 
-    it('safeなself-heal後は確認なしでarchiveを続行する', async () => {
+    it('worktreeに変更があってもarchiveはqueuedにしてfinalizerへ渡す', async () => {
       const sessionId = 'session-safe-heal';
       const mockState = {
         sessions: [
@@ -799,24 +800,8 @@ describe('SessionController (Server)', () => {
       mockStateStore.get.mockReturnValue(mockState);
       mockStateStore.update.mockResolvedValue(mockState);
       mockSessionManager.stopTtyd.mockResolvedValue(true);
-      mockWorktreeService.getStatus.mockResolvedValue({
-        needsIntegration: true,
-        needsMerge: true,
-        changesNotPushed: 0,
-        hasWorkingCopyChanges: true
-      });
-      mockWorktreeService.autoHealArchiveState.mockResolvedValue({
-        attempted: true,
-        healed: true,
-        reason: 'healed',
-        actions: ['reset-working-copy:session/session-safe-heal'],
-        statusAfter: {
-          needsIntegration: false,
-          needsMerge: false,
-          changesNotPushed: 0,
-          hasWorkingCopyChanges: false
-        }
-      });
+      const archiveFinalizer = { enqueue: vi.fn(async () => ({ success: true })) };
+      sessionController = new SessionController(buildControllerDeps({ archiveFinalizer }));
 
       const req = {
         params: { id: sessionId },
@@ -825,18 +810,16 @@ describe('SessionController (Server)', () => {
 
       await sessionController.archive(req, mockRes);
 
-      expect(mockWorktreeService.autoHealArchiveState).toHaveBeenCalledWith(
-        sessionId,
-        '/tmp/repo',
-        '/tmp/worktrees/session-safe-heal-repo',
-        'abc123'
-      );
-      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+      expect(mockWorktreeService.getStatus).not.toHaveBeenCalled();
+      expect(mockWorktreeService.autoHealArchiveState).not.toHaveBeenCalled();
+      expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith(sessionId);
+      expect(archiveFinalizer.enqueue).toHaveBeenCalledWith(sessionId);
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true, archive: { status: 'queued' } });
     });
 
-    it('self-healで解消できない場合は従来どおり確認レスポンスを返す', async () => {
+    it('dirty worktreeでも確認レスポンスを返さずarchiveを完了する', async () => {
       const sessionId = 'session-unsafe-heal';
-      mockStateStore.get.mockReturnValue({
+      const mockState = {
         sessions: [
           {
             id: sessionId,
@@ -848,29 +831,10 @@ describe('SessionController (Server)', () => {
             }
           }
         ]
-      });
-      mockWorktreeService.getStatus.mockResolvedValue({
-        needsIntegration: true,
-        needsMerge: true,
-        changesNotPushed: 0,
-        hasWorkingCopyChanges: true,
-        bookmarkName: sessionId,
-        bookmarkPushed: false
-      });
-      mockWorktreeService.autoHealArchiveState.mockResolvedValue({
-        attempted: false,
-        healed: false,
-        reason: 'working_copy_differs',
-        actions: [],
-        statusAfter: {
-          needsIntegration: true,
-          needsMerge: true,
-          changesNotPushed: 0,
-          hasWorkingCopyChanges: true,
-          bookmarkName: sessionId,
-          bookmarkPushed: false
-        }
-      });
+      };
+      mockStateStore.get.mockReturnValue(mockState);
+      mockStateStore.update.mockResolvedValue(mockState);
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
 
       const req = {
         params: { id: sessionId },
@@ -879,19 +843,13 @@ describe('SessionController (Server)', () => {
 
       await sessionController.archive(req, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        needsConfirmation: true,
-        status: expect.objectContaining({
-          autoHealApplied: false,
-          autoHealReason: 'working_copy_differs'
-        })
-      }));
-      expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true, archive: { status: 'queued' } });
+      expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith(sessionId);
     });
 
-    it('working copyがcleanでも未マージcommitがあれば確認レスポンスを返す', async () => {
+    it('working copyがcleanでも未マージcommitがあればqueuedにする', async () => {
       const sessionId = 'session-unmerged-only';
-      mockStateStore.get.mockReturnValue({
+      const mockState = {
         sessions: [
           {
             id: sessionId,
@@ -903,33 +861,10 @@ describe('SessionController (Server)', () => {
             }
           }
         ]
-      });
-      mockWorktreeService.getStatus.mockResolvedValue({
-        needsIntegration: false,
-        needsMerge: true,
-        commitsAheadOfBase: 2,
-        mainBranch: 'develop',
-        changesNotPushed: 0,
-        hasWorkingCopyChanges: false,
-        bookmarkName: sessionId,
-        bookmarkPushed: true
-      });
-      mockWorktreeService.autoHealArchiveState.mockResolvedValue({
-        attempted: false,
-        healed: false,
-        reason: 'changes_not_pushed',
-        actions: [],
-        statusAfter: {
-          needsIntegration: false,
-          needsMerge: true,
-          commitsAheadOfBase: 2,
-          mainBranch: 'develop',
-          changesNotPushed: 0,
-          hasWorkingCopyChanges: false,
-          bookmarkName: sessionId,
-          bookmarkPushed: true
-        }
-      });
+      };
+      mockStateStore.get.mockReturnValue(mockState);
+      mockStateStore.update.mockResolvedValue(mockState);
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
 
       const req = {
         params: { id: sessionId },
@@ -938,15 +873,9 @@ describe('SessionController (Server)', () => {
 
       await sessionController.archive(req, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        needsConfirmation: true,
-        status: expect.objectContaining({
-          needsMerge: true,
-          commitsAheadOfBase: 2,
-          mainBranch: 'develop'
-        })
-      }));
-      expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
+      expect(mockWorktreeService.getStatus).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true, archive: { status: 'queued' } });
+      expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith(sessionId);
     });
   });
 
