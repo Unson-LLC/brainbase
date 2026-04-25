@@ -613,8 +613,9 @@ export class TerminalTransportClient {
                     wsState: this.ws?.readyState,
                     sessionId: this.sessionId
                 });
-                // ゴーストエコー（pty に届いていない文字）を即座にクリアする
-                void this._refreshSnapshot();
+                // ゴーストエコーを pty スナップショットで上書きしてクリアする。
+                // preserveMode:true で mode を 'live' から 'snapshot' に変えない。
+                void this._refreshSnapshot({ preserveMode: true });
                 return;
             }
         }
@@ -742,7 +743,7 @@ export class TerminalTransportClient {
         return result;
     }
 
-    async _refreshSnapshot() {
+    async _refreshSnapshot({ preserveMode = false } = {}) {
         if (!this.sessionId) return;
         try {
             const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}`);
@@ -750,8 +751,10 @@ export class TerminalTransportClient {
                 this._queueOrApplySnapshot(res.colorText || res.text);
                 this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();
                 this.status.copyMode = Boolean(res.copyMode);
-                this.status.mode = 'snapshot';
-                this.status.transport = 'snapshot';
+                if (!preserveMode) {
+                    this.status.mode = 'snapshot';
+                    this.status.transport = 'snapshot';
+                }
                 if (typeof this.onSnapshotChange === 'function') {
                     this.onSnapshotChange({
                         sessionId: this.sessionId,
