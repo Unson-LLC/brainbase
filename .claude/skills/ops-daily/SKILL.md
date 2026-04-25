@@ -1,6 +1,6 @@
 ---
 name: ops-daily
-description: ⚠️ DEPRECATED: /ohayo に統合済み。このスキルは使用しないこと。KPI・週次レポートは /retro を使用。
+description: "⚠️ DEPRECATED - /ohayo に統合済み。このスキルは使用しないこと。KPI・週次レポートは /retro を使用。"
 tools: []
 skills: []
 teammates:

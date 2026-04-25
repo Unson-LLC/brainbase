@@ -1,0 +1,175 @@
+---
+spec_id: SPEC-vibepro-brainbase-self-evaluation
+title: VibePro Brainbase dogfood評価分離仕様
+source_story: docs/stories/vibepro-brainbase-dogfood-story.md
+source_architecture: docs/architecture/vibepro-brainbase-dogfood-architecture.md
+status: draft
+created_at: 2026-04-25
+updated_at: 2026-04-25
+---
+
+# SPEC-vibepro-brainbase-self-evaluation
+
+## 1. 正本
+
+| 対象 | 正本 |
+|---|---|
+| VibePro思想 | Brainbase Graph `frame: frm_vibepro` |
+| 日本語指標 | Brainbase Graph `frm_vibepro.core_metrics` |
+| run保存先 | `docs/internal/vibepro-dogfood/runs/<run_id>/` |
+
+## 2. run構成
+
+```text
+docs/internal/vibepro-dogfood/runs/<run_id>/observation.json
+docs/internal/vibepro-dogfood/runs/<run_id>/diagnosis.json
+docs/internal/vibepro-dogfood/runs/<run_id>/outcome.json
+docs/internal/vibepro-dogfood/runs/<run_id>/labels.json
+docs/internal/vibepro-dogfood/runs/<run_id>/score.json
+docs/internal/vibepro-dogfood/runs/<run_id>/feedback.md
+docs/internal/vibepro-dogfood/runs/<run_id>/report.md
+```
+
+## 3. observation.json
+
+機械観測 snapshot。診断結果を読まずに生成する。
+
+```json
+{
+  "run_id": "vibepro-brainbase-yyyymmdd-hhmmss",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "ISO-8601",
+  "repo": {
+    "branch": "develop",
+    "upstream": "origin/develop",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": "string",
+        "status": "string",
+        "category": "vibepro_dogfood|unrelated|skill|other"
+      }
+    ]
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.behind_origin",
+      "kind": "operational_freshness",
+      "severity": "medium",
+      "summary": "develop is behind origin/develop",
+      "evidence": ["string"]
+    }
+  ]
+}
+```
+
+## 4. diagnosis.json
+
+VibePro の診断判断。正解ラベルは含めない。
+
+```json
+{
+  "run_id": "string",
+  "status": "diagnosed",
+  "detected_gaps": [
+    {
+      "gap_id": "gap.brainbase.example",
+      "title": "string",
+      "severity": "high|medium|low",
+      "category": "string",
+      "evidence_fact_ids": ["fact.repo.behind_origin"],
+      "recommended_route": "string",
+      "gate_required": false
+    }
+  ]
+}
+```
+
+## 5. outcome.json
+
+観測事実から機械生成される事後アウトカム。診断結果を読まない。
+
+```json
+{
+  "run_id": "string",
+  "status": "generated",
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.behind_origin",
+      "fact_ids": ["fact.repo.behind_origin"],
+      "severity": "medium",
+      "category": "operational_freshness",
+      "reason": "string"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}
+```
+
+## 6. labels.json
+
+`outcome.json` と `diagnosis.json` の照合結果。LLMが直接書かない。
+
+```json
+{
+  "run_id": "string",
+  "status": "generated",
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.behind_origin",
+      "matched_detected_gap_id": "gap.brainbase.repo.behind-origin",
+      "judgment": "true_positive|missed"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}
+```
+
+## 7. 指標
+
+### 本番化ギャップ捕捉率
+
+```text
+matched actual gaps / actual_gaps
+```
+
+### 本番化ギャップ的中率
+
+```text
+detected gaps matched by actual_gaps / detected_gaps
+```
+
+### ゲート違反流出率
+
+```text
+escaped gate violations / gate_violations
+```
+
+ゲート違反が0件の場合は `0` とする。
+
+## 8. CLI
+
+```bash
+node scripts/vibepro-score-run.mjs observe <run-dir>
+node scripts/vibepro-score-run.mjs generate-outcome <run-dir>
+node scripts/vibepro-score-run.mjs generate-labels <run-dir>
+node scripts/vibepro-score-run.mjs score <run-dir>
+node scripts/vibepro-score-run.mjs run <run-dir>
+```
+
+`run` は `generate-outcome -> generate-labels -> score` を順に実行する。
+
+## 9. 受け入れ条件との接続
+
+| Story AC | Spec |
+|---|---|
+| `observation.json` が機械観測 | 3 |
+| `diagnosis.json` が正解ラベルを含まない | 4 |
+| `outcome.json` が診断非依存 | 5 |
+| `labels.json` が機械生成 | 6 |
+| 日本語指標を決定論的計算 | 7 |
+| feedback/report生成 | 8 |
