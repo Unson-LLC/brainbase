@@ -13,7 +13,7 @@ import type {
 /**
  * Create an empty entity index
  */
-function createEmptyIndex(): EntityIndex {
+export function createEmptyIndex(): EntityIndex {
   return {
     projects: new Map(),
     people: new Map(),

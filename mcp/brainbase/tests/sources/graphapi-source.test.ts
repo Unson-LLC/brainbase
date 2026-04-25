@@ -19,14 +19,15 @@ describe('GraphAPISource', () => {
 
       // Mock fetch
       const mockFetch = mock.fn(async (url: string, options: any) => {
+        const type = new URL(url).searchParams.get('type') || 'project';
         return {
           ok: true,
           status: 200,
           json: async () => ({
             entities: [
               {
-                entity_id: 'prj_001',
-                entity_type: 'project',
+                entity_id: `${type}_001`,
+                entity_type: type,
                 payload: {
                   code: 'brainbase',
                   name: 'brainbase',
@@ -36,8 +37,8 @@ describe('GraphAPISource', () => {
                 },
               },
               {
-                entity_id: 'per_001',
-                entity_type: 'person',
+                entity_id: `${type}_002`,
+                entity_type: type,
                 payload: {
                   name: '佐藤圭吾',
                   role: 'CEO',
@@ -55,9 +56,9 @@ describe('GraphAPISource', () => {
       await source.initialize();
 
       // Verify fetch was called with correct parameters
-      assert.strictEqual(mockFetch.mock.callCount(), 1);
+      assert.strictEqual(mockFetch.mock.callCount(), 7);
       const [url, options] = mockFetch.mock.calls[0].arguments;
-      assert.strictEqual(url, 'http://localhost:31013/api/info/graph/entities');
+      assert.strictEqual(url, 'http://localhost:31013/api/info/graph/entities?type=project&limit=500');
       assert.strictEqual(options.headers['Authorization'], 'Bearer mock-token');
     });
 
@@ -95,8 +96,8 @@ describe('GraphAPISource', () => {
 
       // Verify refresh was called
       assert.strictEqual((mockTokenManager.refresh as any).mock.callCount(), 1);
-      // Verify retry succeeded
-      assert.strictEqual(mockFetch.mock.callCount(), 2);
+      // Verify retry succeeded for the first entity type, then continued with remaining types.
+      assert.strictEqual(mockFetch.mock.callCount(), 8);
     });
   });
 
@@ -107,37 +108,40 @@ describe('GraphAPISource', () => {
         refresh: mock.fn(async () => {}),
       } as unknown as TokenManager;
 
-      const mockFetch = mock.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          entities: [
-            {
-              entity_id: 'prj_001',
-              entity_type: 'project',
-              payload: {
-                code: 'brainbase',
-                name: 'brainbase Project',
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        return {
+          ok: true,
+          json: async () => ({
+            entities: type === 'project' ? [
+              {
+                entity_id: 'prj_001',
+                entity_type: 'project',
+                payload: {
+                  code: 'brainbase',
+                  name: 'brainbase Project',
+                },
               },
-            },
-            {
-              entity_id: 'prj_002',
-              entity_type: 'project',
-              payload: {
-                code: 'zeims',
-                name: 'zeims Project',
+              {
+                entity_id: 'prj_002',
+                entity_type: 'project',
+                payload: {
+                  code: 'zeims',
+                  name: 'zeims Project',
+                },
               },
-            },
-            {
-              entity_id: 'prj_003',
-              entity_type: 'project',
-              payload: {
-                code: 'other',
-                name: 'Other Project',
+              {
+                entity_id: 'prj_003',
+                entity_type: 'project',
+                payload: {
+                  code: 'other',
+                  name: 'Other Project',
+                },
               },
-            },
-          ],
-        }),
-      }));
+            ] : [],
+          }),
+        };
+      });
 
       global.fetch = mockFetch as any;
 
@@ -160,28 +164,31 @@ describe('GraphAPISource', () => {
         refresh: mock.fn(async () => {}),
       } as unknown as TokenManager;
 
-      const mockFetch = mock.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          entities: [
-            {
-              entity_id: 'dec_001',
-              entity_type: 'decision',
-              payload: {
-                decision_id: 'dec_001',
-                title: 'brainbase MCPのDecision統合',
-                content: 'Graph SSOT APIにDecision entity typeを追加する',
-                decided_at: '2026-02-07T09:00:00Z',
-                decider: '佐藤圭吾',
-                project_id: 'brainbase',
-                status: 'decided',
-                tags: ['tech', 'architecture'],
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        return {
+          ok: true,
+          json: async () => ({
+            entities: type === 'decision' ? [
+              {
+                entity_id: 'dec_001',
+                entity_type: 'decision',
+                payload: {
+                  decision_id: 'dec_001',
+                  title: 'brainbase MCPのDecision統合',
+                  content: 'Graph SSOT APIにDecision entity typeを追加する',
+                  decided_at: '2026-02-07T09:00:00Z',
+                  decider: '佐藤圭吾',
+                  project_id: 'brainbase',
+                  status: 'decided',
+                  tags: ['tech', 'architecture'],
+                },
+                updated_at: '2026-02-07T10:00:00Z',
               },
-              updated_at: '2026-02-07T10:00:00Z',
-            },
-          ],
-        }),
-      }));
+            ] : [],
+          }),
+        };
+      });
 
       global.fetch = mockFetch as any;
 
@@ -198,6 +205,47 @@ describe('GraphAPISource', () => {
       assert.strictEqual(decisions[0].project_id, 'brainbase');
       assert.strictEqual(decisions[0].status, 'decided');
       assert.deepStrictEqual(decisions[0].tags, ['tech', 'architecture']);
+    });
+  });
+
+  describe('getPhilosophyContext', () => {
+    it('should fetch philosophy context from Graph context API', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+
+      const mockFetch = mock.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          philosophy_context: {
+            mode: 'graph_operation_context',
+            project_code: 'brainbase',
+            scope: 'crm',
+            prompt_block: 'Brainbase Philosophy Context\nScope: crm',
+            applied_ids: ['phi_push_case_center'],
+          },
+        }),
+      }));
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      const context = await source.getPhilosophyContext({
+        projectCode: 'brainbase',
+        scope: 'crm',
+        objectType: 'push_case',
+        operation: 'write',
+        maxRecommended: 4,
+      });
+
+      assert.strictEqual(context.prompt_block, 'Brainbase Philosophy Context\nScope: crm');
+      const [url, options] = mockFetch.mock.calls[0].arguments;
+      assert.strictEqual(
+        url,
+        'http://localhost:31013/api/info/context?project=brainbase&types=project&includePhilosophy=true&scope=crm&objectType=push_case&operation=write&maxRecommended=4'
+      );
+      assert.strictEqual(options.headers['Authorization'], 'Bearer mock-token');
     });
   });
 });
