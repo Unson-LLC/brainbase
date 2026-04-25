@@ -151,13 +151,23 @@ export class InfoSSOTController {
             const limit = req.query.limit || null;
             const humanReadable = String(req.query.humanReadable || '').toLowerCase() === 'true';
             const includeEdges = String(req.query.includeEdges || '').toLowerCase() === 'true';
+            const includePhilosophy = String(req.query.includePhilosophy || '').toLowerCase() === 'true';
+            const scope = req.query.scope || null;
+            const objectType = req.query.objectType || null;
+            const operation = req.query.operation || null;
+            const maxRecommended = req.query.maxRecommended || null;
 
             const result = await this.infoSSOTService.getContext(access, {
                 projectCode,
                 entityTypes,
                 limit,
                 humanReadable,
-                includeEdges
+                includeEdges,
+                includePhilosophy,
+                scope,
+                objectType,
+                operation,
+                maxRecommended
             });
 
             res.json(result);

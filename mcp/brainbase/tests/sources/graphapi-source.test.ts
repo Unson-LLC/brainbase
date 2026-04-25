@@ -60,6 +60,9 @@ describe('GraphAPISource', () => {
       const [url, options] = mockFetch.mock.calls[0].arguments;
       assert.strictEqual(url, 'http://localhost:31013/api/info/graph/entities?type=project&limit=500');
       assert.strictEqual(options.headers['Authorization'], 'Bearer mock-token');
+      assert.strictEqual(options.headers['x-brainbase-role'], 'gm');
+      assert.strictEqual(options.headers['x-brainbase-projects'], 'brainbase');
+      assert.strictEqual(options.headers['x-brainbase-clearance'], 'internal,restricted,finance,hr,contract');
     });
 
     it('should handle 401 and refresh token', async () => {
@@ -246,6 +249,8 @@ describe('GraphAPISource', () => {
         'http://localhost:31013/api/info/context?project=brainbase&types=project&includePhilosophy=true&scope=crm&objectType=push_case&operation=write&maxRecommended=4'
       );
       assert.strictEqual(options.headers['Authorization'], 'Bearer mock-token');
+      assert.strictEqual(options.headers['x-brainbase-role'], 'gm');
+      assert.strictEqual(options.headers['x-brainbase-projects'], 'brainbase');
     });
   });
 });

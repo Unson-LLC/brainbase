@@ -115,10 +115,7 @@ export class GraphAPISource implements EntitySource {
    */
   private async fetchWithRetry(url: string, token: string): Promise<Response> {
     let response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(token),
     });
 
     // Retry on 401 (token expired)
@@ -128,14 +125,21 @@ export class GraphAPISource implements EntitySource {
       const newToken = await this.tokenManager.getToken();
 
       response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${newToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: this.buildHeaders(newToken),
       });
     }
 
     return response;
+  }
+
+  private buildHeaders(token: string): Record<string, string> {
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'x-brainbase-role': process.env.BRAINBASE_ROLE || 'gm',
+      'x-brainbase-projects': this.projectCodes?.join(',') || process.env.BRAINBASE_PROJECTS || 'brainbase',
+      'x-brainbase-clearance': process.env.BRAINBASE_CLEARANCE || 'internal,restricted,finance,hr,contract',
+    };
   }
 
   /**

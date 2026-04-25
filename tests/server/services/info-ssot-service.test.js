@@ -37,6 +37,148 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('getContext呼び出し時_includePhilosophy未指定_既存レスポンスを維持する', async () => {
+        const { service } = buildService();
+        const fetchSpy = vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
+            if (entityType === 'project') {
+                return [{
+                    id: 'prj_brainbase',
+                    entity_type: 'project',
+                    payload: { code: 'brainbase', name: 'Brainbase' }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext(accessContext, {
+            projectCode: 'brainbase',
+            entityTypes: 'project',
+            includePhilosophy: false
+        });
+
+        expect(result.philosophy_context).toBeUndefined();
+        expect(result.entities.project).toHaveLength(1);
+        expect(fetchSpy).not.toHaveBeenCalledWith(
+            expect.anything(),
+            expect.anything(),
+            expect.objectContaining({ entityType: 'philosophy' })
+        );
+    });
+
+    it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
+            if (entityType === 'project') {
+                return [{
+                    id: 'prj_brainbase',
+                    entity_type: 'project',
+                    payload: { code: 'brainbase', name: 'Brainbase' }
+                }];
+            }
+            if (entityType === 'philosophy') {
+                return [
+                    {
+                        id: 'phi_graph_ssot_first',
+                        entity_type: 'philosophy',
+                        payload: {
+                            philosophy_id: 'phi_graph_ssot_first',
+                            display_name: 'Graph SSOTを一次情報にする',
+                            statement: '固有名詞、関係、判断、進行状態はGraphを一次情報として扱う。',
+                            priority: 'core',
+                            decision_tests: ['Graphを一次情報として確認したか'],
+                            anti_patterns: ['議事録だけを正本にする']
+                        }
+                    },
+                    {
+                        id: 'phi_push_case_center',
+                        entity_type: 'philosophy',
+                        payload: {
+                            philosophy_id: 'phi_push_case_center',
+                            display_name: 'CRMの中心は推進案件',
+                            statement: 'CRMは顧客台帳ではなく、価値仮説を前に進める push_case を中心に設計する。',
+                            priority: 'core'
+                        }
+                    },
+                    {
+                        id: 'phi_ui_is_projection',
+                        entity_type: 'philosophy',
+                        payload: {
+                            philosophy_id: 'phi_ui_is_projection',
+                            display_name: 'UIは正本ではなく投影',
+                            statement: 'UIは表示・操作の入口であり、正本は用途別のデータ層に置く。',
+                            priority: 'core'
+                        }
+                    },
+                    {
+                        id: 'phi_data_ownership_by_use',
+                        entity_type: 'philosophy',
+                        payload: {
+                            philosophy_id: 'phi_data_ownership_by_use',
+                            display_name: '用途ごとに正本を分ける',
+                            statement: '全データを1箇所に集めず、用途別に正本を分ける。',
+                            priority: 'recommended',
+                            decision_tests: ['正本と投影を分けているか'],
+                            anti_patterns: ['NocoDBを顧客正本にする']
+                        }
+                    }
+                ];
+            }
+            return [];
+        });
+
+        const result = await service.getContext(accessContext, {
+            projectCode: 'brainbase',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'crm',
+            maxRecommended: 8
+        });
+
+        expect(result.entities.project).toHaveLength(1);
+        expect(result.philosophy_context).toMatchObject({
+            mode: 'graph_operation_context',
+            project_code: 'brainbase',
+            scope: 'crm'
+        });
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toEqual(
+            expect.arrayContaining(['phi_graph_ssot_first', 'phi_push_case_center', 'phi_ui_is_projection'])
+        );
+        expect(result.philosophy_context.recommended.map(item => item.philosophy_id)).toContain('phi_data_ownership_by_use');
+        expect(result.philosophy_context.applied_ids).toEqual(
+            expect.arrayContaining(['phi_push_case_center', 'phi_ui_is_projection', 'phi_data_ownership_by_use'])
+        );
+        expect(result.philosophy_context.prompt_block).toContain('Brainbase Philosophy Context');
+        expect(result.philosophy_context.prompt_block).toContain('CRMの中心は推進案件');
+        expect(result.philosophy_context.decision_tests).toContain('正本と投影を分けているか');
+        expect(result.philosophy_context.anti_patterns).toContain('NocoDBを顧客正本にする');
+    });
+
+    it('getContext呼び出し時_includePhilosophy有効でcore思想がない場合_失敗する', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
+            if (entityType === 'philosophy') {
+                return [{
+                    id: 'phi_data_ownership_by_use',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_data_ownership_by_use',
+                        display_name: '用途ごとに正本を分ける',
+                        statement: '用途別に正本を分ける。',
+                        priority: 'recommended'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        await expect(service.getContext(accessContext, {
+            projectCode: 'brainbase',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'crm'
+        })).rejects.toThrow('Core philosophy context is not configured');
+    });
+
     it('createDecision writes graph entity and edges', async () => {
         const { service, client } = buildService();
 
