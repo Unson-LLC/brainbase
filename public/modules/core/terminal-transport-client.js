@@ -218,14 +218,18 @@ export class TerminalTransportClient {
         // ウィンドウが前面に戻った時、live セッションのフォーカスを復元する。
         // relatedTarget===undefined の focusout はウィンドウレベルのフォーカス喪失で発生し、
         // ブラウザは window.focus 後も textarea のフォーカスを自動復元しない。
+        this._focusLostToIframe = false;
         this._windowBlurHandler = () => {
-            console.log('[TTC-PROBE][window] blur, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'activeEl:', document.activeElement?.tagName);
+            this._focusLostToIframe = document.activeElement?.tagName === 'IFRAME';
+            console.log('[TTC-PROBE][window] blur, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'activeEl:', document.activeElement?.tagName, 'iframeCaused:', this._focusLostToIframe);
         };
         window.addEventListener('blur', this._windowBlurHandler);
 
         this._windowFocusHandler = () => {
-            console.log('[TTC-PROBE][window] focus, isFocused:', this.status.isFocused, 'mode:', this.status.mode);
-            if (!this.status.isFocused && (this.status.mode === 'live' || this.status.mode === 'waiting')) {
+            const wasIframeCaused = this._focusLostToIframe;
+            this._focusLostToIframe = false;
+            console.log('[TTC-PROBE][window] focus, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'wasIframeCaused:', wasIframeCaused);
+            if (!wasIframeCaused && !this.status.isFocused && (this.status.mode === 'live' || this.status.mode === 'waiting')) {
                 console.log('[TTC-PROBE][window] refocusing terminal');
                 this.terminal?.focus();
             }
