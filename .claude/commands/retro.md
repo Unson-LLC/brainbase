@@ -65,18 +65,32 @@
    ---
    ```
 
-5. **詳細レポートを /tmp/retro/ に保存**
+5. **詳細レポートを Wiki SSOT に保存（永続）**
    ```bash
+   # /tmp/retro は中間成果物（揮発OK）
    mkdir -p /tmp/retro
-   # weekly_report_{date}.md に出力
+   # まず /tmp に書き出してから Wiki に POST する
+   ```
+
+   Wiki 投入:
+   ```bash
+   TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
+   jq -Rs --arg p "_common/retros/YYYY-MM-DD" '{path:$p, content:.}' \
+     < /tmp/retro/weekly_report_YYYY-MM-DD.md > /tmp/wiki-retro.json
+   curl -s -X POST "http://localhost:31013/api/wiki/page" \
+     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+     --data-binary "@/tmp/wiki-retro.json"
    ```
 
 ## 出力先
 
-| 出力 | パス |
-|------|------|
-| Inboxエントリ | `_inbox/pending.md` に追記 |
-| 詳細レポート | `/tmp/retro/weekly_report_{YYYY-MM-DD}.md` |
+| 出力 | パス | 永続化 |
+|------|------|------|
+| **詳細レポート（正本）** | Wiki `_common/retros/YYYY-MM-DD` (`localhost:31013/api/wiki/page`) | ✅ Wiki SSOT |
+| 中間成果物 | `/tmp/retro/weekly_report_{YYYY-MM-DD}.md` | ❌ 揮発（再起動で消える） |
+| Inboxエントリ | `_inbox/pending.md` に追記 | （現状未使用） |
+
+正本は Wiki SSOT。`/tmp` は中間成果物として一時的に置くだけ。
 
 ## 注意
 
