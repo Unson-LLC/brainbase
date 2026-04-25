@@ -171,14 +171,15 @@ task を受ける
 
 ### 0.7 Graph SSOT First
 
-**原則**: 固有名詞・組織・顧客・パートナー・プロジェクト・用語・意思決定を書く前に、brainbase Graph SSOT (`https://bb.unson.jp`) を一次情報として確認する。議事録・transcript・memory・推測は参考値であり、Graph と食い違えば **Graph を優先**。
+**原則**: 固有名詞・組織・顧客・パートナー・プロジェクト・用語・意思決定を書く前に、brainbase Graph SSOT (`https://bb.unson.jp`) を一次情報として確認する。Graph操作時は、Graph本体のentityだけでなく `Brainbase Philosophy Context` も `CLAUDE.md` 的な判断前提として扱う。議事録・transcript・memory・推測は参考値であり、Graph と食い違えば **Graph を優先**。
 
 **Why**:
 - 議事録は Tactiq の話者名推測や AI 要約を経由するため、固有名詞が誤認されやすい（例: 正「川合 秀明」→ 誤「河合 英明」）
 - 組織名・顧客名・用語の表記ゆれ（雲孫 / Unson LLC / UNSON など）が memory や doc に混在している
 - Graph は `aliases` を持つので逆引きで正本に戻せる
+- `philosophy` はUI表示項目ではなく、Graph操作前にagent/toolへ注入される思想・判断基準である
 
-**Graph に格納されているエンティティ（13 type / 約400件）**:
+**Graph に格納されているエンティティ（14 type / 約400件）**:
 
 | type | 内容 | 主な payload フィールド |
 |---|---|---|
@@ -191,6 +192,7 @@ task を受ける
 | `app` | アプリ | name, orgs, app_id, status, projects |
 | `brand` | ブランドガイド | title, brand_id, projects |
 | `frame` | 運用フレームワーク（UNSON OS 等） | code, name, source |
+| `philosophy` | 思想・哲学 | philosophy_id, display_name, statement, priority, scope |
 | `glossary_term` | 用語集 | term, definition, context |
 | `decision` | 意思決定ログ（ADR） | title, status, decided_at, decision_domain |
 | `story` | 開発ストーリー | title, source, story_id |
@@ -203,6 +205,11 @@ TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
 # type 指定で一覧取得（limit は最大 500〜1000）
 curl -s -H "Authorization: Bearer $TOKEN" \
   "https://bb.unson.jp/api/info/graph/entities?type=<type>&limit=500" | jq
+
+# Graph操作前の思想context取得（MCP Graph系ツールはデフォルトでこれを注入）
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://bb.unson.jp/api/info/context?project=brainbase&types=project&includePhilosophy=true&scope=graph" \
+  | jq '.philosophy_context.prompt_block'
 
 # 例: 組織名を aliases 含めて逆引き
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -219,13 +226,14 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 ```
 固有名詞・社名・人名・用語を書く
 → 先に Graph を引いたか？
+→ Graph操作なら Brainbase Philosophy Context を前提にしたか？
 → 議事録や memory と食い違ったか？
 → Graph を正、他を参考値として扱う
 ```
 
 **Enforcement**:
 - hook: `.claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts`（毎プロンプト時に注入）
-- skill: `people-meta` / `customers-meta` / `brainbase-content-ssot`
+- skill: `people-meta` / `customers-meta` / `brainbase-content-ssot` / `brainbase-graph-philosophy-context`
 
 ---
 

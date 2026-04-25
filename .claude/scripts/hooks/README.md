@@ -142,6 +142,7 @@
 | --------------------------- | -------------------------------- | ----------------------------------- | -------------------- | ---- | --- |
 | `activity-bridge.ts`        | 全プロンプト                     | brainbase turn開始通知              | ✅                   | ✅   |
 | `context-loader-wrapper.ts` | 全プロンプト（セッション開始時） | CLAUDE.md参照ファイルの自動読み込み | ✅                   | ✅   |
+| `graph-ssot-reminder.ts`    | 全プロンプト                     | Graph SSOT確認とPhilosophy Context前提化 | ✅              | ✅   |
 | `test-enforcer.ts`          | テスト言及時（`._test._          | ._テスト._`）                       | テスト実行の強制検証 | ✅   | ✅  |
 
 ### Stop Hooks（停止時）
