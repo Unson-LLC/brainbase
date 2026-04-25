@@ -613,6 +613,8 @@ export class TerminalTransportClient {
                     wsState: this.ws?.readyState,
                     sessionId: this.sessionId
                 });
+                // ゴーストエコー（pty に届いていない文字）を即座にクリアする
+                void this._refreshSnapshot();
                 return;
             }
         }
