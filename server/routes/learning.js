@@ -14,6 +14,8 @@ export function createLearningRouter(learningService, learningHealthService = nu
     router.post('/promotions/:id/apply', controller.markApplied);
     router.post('/promotions/:id/reject', controller.rejectPromotion);
     router.post('/promotions/:id/applied', controller.markApplied);
+    router.post('/usage', controller.recordSkillUsage);
+    router.get('/usage/stale', controller.listStaleSkills);
 
     return router;
 }

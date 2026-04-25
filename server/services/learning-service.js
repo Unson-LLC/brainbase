@@ -1249,4 +1249,64 @@ export class LearningService {
 
         return created;
     }
+
+    async recordSkillUsage(payload = {}) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const skillName = typeof payload.skill_name === 'string' ? payload.skill_name.trim() : '';
+        if (!skillName) {
+            throw new Error('skill_name is required');
+        }
+
+        const outcome = typeof payload.outcome === 'string' ? payload.outcome : 'completed';
+        if (!['started', 'completed', 'errored'].includes(outcome)) {
+            throw new Error('outcome must be started, completed, or errored');
+        }
+
+        const durationMsRaw = payload.duration_ms;
+        const durationMs = Number.isFinite(durationMsRaw) && durationMsRaw >= 0
+            ? Math.floor(durationMsRaw)
+            : null;
+
+        const id = `sul_${ulid()}`;
+        await this.pool.query(
+            `INSERT INTO skill_usage_logs (
+                id, skill_name, session_id, turn_id, project_id, outcome, duration_ms, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`,
+            [
+                id,
+                skillName,
+                typeof payload.session_id === 'string' ? payload.session_id : null,
+                typeof payload.turn_id === 'string' ? payload.turn_id : null,
+                typeof payload.project_id === 'string' ? payload.project_id : null,
+                outcome,
+                durationMs
+            ]
+        );
+
+        return { id, skill_name: skillName, outcome, duration_ms: durationMs };
+    }
+
+    async listStaleSkills({ days = 90 } = {}) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const safeDays = Number.isFinite(days) && days > 0 ? Math.floor(days) : 90;
+        const result = await this.pool.query(
+            `SELECT skill_name, MAX(created_at) AS last_used_at, COUNT(*) AS uses
+             FROM skill_usage_logs
+             GROUP BY skill_name
+             HAVING MAX(created_at) < NOW() - ($1::int * INTERVAL '1 day')
+             ORDER BY last_used_at ASC`,
+            [safeDays]
+        );
+
+        return result.rows.map((row) => ({
+            skill_name: row.skill_name,
+            last_used_at: row.last_used_at,
+            uses: Number(row.uses) || 0,
+            stale_threshold_days: safeDays
+        }));
+    }
 }

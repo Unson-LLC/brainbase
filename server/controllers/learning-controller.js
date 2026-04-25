@@ -103,4 +103,27 @@ export class LearningController {
             res.status(500).json({ error: 'Failed to get learning health' });
         }
     };
+
+    recordSkillUsage = async (req, res) => {
+        try {
+            const result = await this.learningService.recordSkillUsage(req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to record skill usage', { error });
+            res.status(400).json({ error: error.message || 'Failed to record skill usage' });
+        }
+    };
+
+    listStaleSkills = async (req, res) => {
+        try {
+            const days = Number(req.query.days);
+            const result = await this.learningService.listStaleSkills({
+                days: Number.isFinite(days) ? days : undefined
+            });
+            res.json({ stale_skills: result });
+        } catch (error) {
+            logger.error('Failed to list stale skills', { error });
+            res.status(500).json({ error: 'Failed to list stale skills' });
+        }
+    };
 }

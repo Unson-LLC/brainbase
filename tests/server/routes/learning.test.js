@@ -16,7 +16,9 @@ describe('learning routes', () => {
             listPromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki', status: 'evaluated' }]),
             getPromotion: vi.fn(async () => ({ id: 'prm_1', pillar: 'wiki', status: 'evaluated' })),
             applyPromotion: vi.fn(async () => ({ success: true, candidate: { id: 'prm_1' } })),
-            markPromotionRejected: vi.fn(async () => ({ success: true }))
+            markPromotionRejected: vi.fn(async () => ({ success: true })),
+            recordSkillUsage: vi.fn(async (payload) => ({ id: 'sul_1', ...payload })),
+            listStaleSkills: vi.fn(async () => [{ skill_name: 'old', last_used_at: new Date(), uses: 1, stale_threshold_days: 90 }])
         };
         healthService = {
             getHealth: vi.fn(async () => ({ status: 'healthy' }))
@@ -92,5 +94,26 @@ describe('learning routes', () => {
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('healthy');
         expect(healthService.getHealth).toHaveBeenCalled();
+    });
+
+    it('POST /usage records skill usage', async () => {
+        const res = await request(app)
+            .post('/api/learning/usage')
+            .send({ skill_name: 'commit', session_id: 'sess_1', turn_id: 'claude-1' });
+
+        expect(res.status).toBe(201);
+        expect(service.recordSkillUsage).toHaveBeenCalledWith({
+            skill_name: 'commit',
+            session_id: 'sess_1',
+            turn_id: 'claude-1'
+        });
+    });
+
+    it('GET /usage/stale returns stale skills', async () => {
+        const res = await request(app).get('/api/learning/usage/stale?days=30');
+
+        expect(res.status).toBe(200);
+        expect(res.body.stale_skills).toHaveLength(1);
+        expect(service.listStaleSkills).toHaveBeenCalledWith({ days: 30 });
     });
 });
