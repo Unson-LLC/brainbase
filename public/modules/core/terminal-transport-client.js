@@ -590,6 +590,10 @@ export class TerminalTransportClient {
             inputReady: this.status.inputReady
         });
         if (!value) return;
+        // probe 前にローカルエコーを適用して視覚フィードバックを即時にする。
+        // probe が 300ms 以上かかる場合でもユーザーは自分の入力が見える。
+        // probe 失敗 (drop) 時はエコーが残るが稀なケースなので許容する。
+        this._applyLocalEcho(value);
         if (!this.canSendInput(this.sessionId)) {
             console.log('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
@@ -622,7 +626,7 @@ export class TerminalTransportClient {
                 await this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
                 continue;
             }
-            this._applyLocalEcho(seg.value);
+            // local echo は sendText 先頭で適用済みのためスキップ
 
             if (this._shouldSendTextImmediately(seg.value)) {
                 await this._flushBufferedText({ enqueueIfUnavailable: true });
