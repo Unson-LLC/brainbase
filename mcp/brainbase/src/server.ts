@@ -38,9 +38,30 @@ const brainbaseApiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
 let globalTokenManager: TokenManager;
+let globalGraphSource: GraphAPISource | null = null;
+let defaultProjectCode = 'brainbase';
 
 const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
 const WIKI_RESOURCE_TEMPLATE = 'brainbase://wiki/page/{path}';
+
+async function prependPhilosophyContext(
+  body: string,
+  args: Record<string, unknown>,
+  defaults: { scope: string; objectType?: string; operation?: string }
+): Promise<string> {
+  const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
+  if (!includePhilosophy || !globalGraphSource) return body;
+
+  const context = await globalGraphSource.getPhilosophyContext({
+    projectCode: (args.project as string) || defaultProjectCode,
+    scope: (args.scope as string) || defaults.scope,
+    objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+    operation: (args.operation as string) || defaults.operation,
+    maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+  });
+
+  return `${context.prompt_block}\n\n---\n\n${body}`;
+}
 
 /**
  * Format entity for output
@@ -233,6 +254,26 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The topic, project name, person name, or org name to get context for',
         },
+        project: {
+          type: 'string',
+          description: 'Project code used to resolve Brainbase philosophy context. Defaults to first configured project or brainbase.',
+        },
+        scope: {
+          type: 'string',
+          description: 'Philosophy context scope. Examples: graph, crm, growth, automation, data, development.',
+        },
+        objectType: {
+          type: 'string',
+          description: 'Optional Graph object type being operated on, e.g. push_case or decision.',
+        },
+        operation: {
+          type: 'string',
+          description: 'Optional operation kind, e.g. read, write, review, upsert.',
+        },
+        includePhilosophy: {
+          type: 'boolean',
+          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
+        },
       },
       required: ['topic'],
     },
@@ -247,6 +288,18 @@ const tools: Tool[] = [
           type: 'string',
           enum: ['project', 'person', 'org', 'raci', 'app', 'customer', 'decision'],
           description: 'The entity type to list',
+        },
+        project: {
+          type: 'string',
+          description: 'Project code used to resolve Brainbase philosophy context.',
+        },
+        scope: {
+          type: 'string',
+          description: 'Philosophy context scope. Defaults to graph.',
+        },
+        includePhilosophy: {
+          type: 'boolean',
+          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
         },
       },
       required: ['type'],
@@ -267,6 +320,18 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The entity ID, name, or alias',
         },
+        project: {
+          type: 'string',
+          description: 'Project code used to resolve Brainbase philosophy context.',
+        },
+        scope: {
+          type: 'string',
+          description: 'Philosophy context scope. Defaults to graph.',
+        },
+        includePhilosophy: {
+          type: 'boolean',
+          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
+        },
       },
       required: ['type', 'id'],
     },
@@ -280,6 +345,18 @@ const tools: Tool[] = [
         query: {
           type: 'string',
           description: 'The search query',
+        },
+        project: {
+          type: 'string',
+          description: 'Project code used to resolve Brainbase philosophy context.',
+        },
+        scope: {
+          type: 'string',
+          description: 'Philosophy context scope. Defaults to graph.',
+        },
+        includePhilosophy: {
+          type: 'boolean',
+          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
         },
       },
       required: ['query'],
@@ -357,13 +434,21 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         }
       }
 
-      return lines.join('\n');
+      return prependPhilosophyContext(lines.join('\n'), args, {
+        scope: (args.scope as string) || 'graph',
+        objectType: 'context',
+        operation: 'read',
+      });
     }
 
     case 'list_entities': {
       const type = args.type as EntityType;
       const entities = getEntitiesByType(entityIndex, type);
-      return `# ${type} entities (${entities.length})\n\n${formatEntityList(entities)}`;
+      return prependPhilosophyContext(
+        `# ${type} entities (${entities.length})\n\n${formatEntityList(entities)}`,
+        args,
+        { scope: 'graph', objectType: type, operation: 'read' }
+      );
     }
 
     case 'get_entity': {
@@ -375,7 +460,11 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         return `Entity not found: ${type}/${id}`;
       }
 
-      return formatEntity(entity);
+      return prependPhilosophyContext(formatEntity(entity), args, {
+        scope: 'graph',
+        objectType: type,
+        operation: 'read',
+      });
     }
 
     case 'search': {
@@ -399,7 +488,11 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         lines.push(`... and ${results.length - 10} more results.`);
       }
 
-      return lines.join('\n');
+      return prependPhilosophyContext(lines.join('\n'), args, {
+        scope: 'graph',
+        objectType: 'search',
+        operation: 'read',
+      });
     }
 
     case 'search_wiki': {
@@ -457,6 +550,8 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   globalTokenManager = tokenManager;
   wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
+  globalGraphSource = source;
+  defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
   console.error('[brainbase] Using Graph API source');
 
   // Keep wiki resources/tools available even when the graph API is down.

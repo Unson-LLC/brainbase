@@ -7,6 +7,7 @@ import { SqliteStore as StateStore } from '../../lib/sqlite-store.js';
 import { ConfigParser } from '../../lib/config-parser.js';
 import { InboxParser } from '../../lib/inbox-parser.js';
 import { createSessionServices } from '../services/create-session-services.js';
+import { ArchiveFinalizerService } from '../services/archive-finalizer-service.js';
 import { TerminalTransportService } from '../services/terminal-transport-service.js';
 import { TerminalInputProbeService } from '../services/terminal-input-probe-service.js';
 import { TerminalRuntimeReconciler } from '../services/terminal-runtime-reconciler.js';
@@ -68,6 +69,12 @@ export function createCoreServices({
         brainbaseRoot,
         execPromise
     );
+    const archiveFinalizer = new ArchiveFinalizerService({
+        stateStore,
+        worktreeService,
+        execPromise,
+        repoRoot: serverDir
+    });
 
     const sessionServices = createSessionServices({
         serverDir,
@@ -76,6 +83,7 @@ export function createCoreServices({
         worktreeService,
         uiPort: port
     });
+    sessionServices.archiveFinalizer = archiveFinalizer;
     const tmuxCaptureCache = new TmuxCaptureCache({ snapshotService: sessionServices.terminal.snapshot });
     const tmuxControlRegistry = new TmuxControlRegistry();
     const terminalRuntimeRegistry = new TerminalRuntimeRegistry({
@@ -153,6 +161,7 @@ export function createCoreServices({
         learningService,
         learningHealthService,
         worktreeService,
+        archiveFinalizer,
         sessionServices,
         terminalRuntimeRegistry,
         terminalRuntimeReconciler,

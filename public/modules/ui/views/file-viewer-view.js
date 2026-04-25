@@ -116,6 +116,7 @@ export class FileViewerView extends BaseView {
         // Markdownレンダリング内のリンクを新しいタブで開く
         this.container.querySelector('.file-viewer-markdown')
             ?.addEventListener('click', (e) => {
+                if (!(e.target instanceof Element)) return;
                 const anchor = e.target.closest('a');
                 if (!anchor) return;
                 e.preventDefault();

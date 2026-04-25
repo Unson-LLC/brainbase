@@ -79,7 +79,14 @@ export const terminalIoMethods = {
             throw new Error('Type must be key or text');
         }
 
-        await this._capturePromptInput(sessionId, input, type);
+        const normalizedInput = type === 'text'
+            ? this._stripTerminalFocusEvents(input)
+            : input;
+        if (!normalizedInput) {
+            return;
+        }
+
+        await this._capturePromptInput(sessionId, normalizedInput, type);
 
         await this._enqueueTerminalMutation(sessionId, async () => {
             // copy-mode中はまず解除してからinputを送る（scrollSession後に入力できなくなる問題を防止）
@@ -87,18 +94,23 @@ export const terminalIoMethods = {
             const target = sessionId.replace(/"/g, '\\"');
             await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
 
-            if (type === 'key' && this.ALLOWED_KEYS.includes(input)) {
-                await this._sendNamedKey(sessionId, input);
+            if (type === 'key' && this.ALLOWED_KEYS.includes(normalizedInput)) {
+                await this._sendNamedKey(sessionId, normalizedInput);
                 return;
             }
 
-            if (this._shouldUseLiteralText(input, type)) {
-                await this._sendLiteralText(sessionId, input);
+            if (this._shouldUseLiteralText(normalizedInput, type)) {
+                await this._sendLiteralText(sessionId, normalizedInput);
                 return;
             }
 
-            await this._pasteInputFromTempFile(sessionId, input);
+            await this._pasteInputFromTempFile(sessionId, normalizedInput);
         });
+    },
+
+    _stripTerminalFocusEvents(input) {
+        if (typeof input !== 'string') return input;
+        return input.replace(/\x1b\[(?:I|O)/g, '');
     },
 
     _withTimeout(promise, ms, onTimeout) {

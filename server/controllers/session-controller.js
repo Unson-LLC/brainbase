@@ -21,8 +21,9 @@ export class SessionController {
      *   terminalIo?: any,
      *   terminalInputProbe?: any,
      *   snapshot?: any,
-     *   worktreeService?: any,
-     *   stateStore?: any,
+ *   worktreeService?: any,
+ *   archiveFinalizer?: any,
+ *   stateStore?: any,
      *   projectsRoot?: string | null,
      *   codeProjectsRoot?: string | null,
      *   captureCache?: any
@@ -40,6 +41,7 @@ export class SessionController {
         this.terminalInputProbe = deps.terminalInputProbe || null;
         this.snapshot = deps.snapshot || null;
         this.worktreeService = deps.worktreeService;
+        this.archiveFinalizer = deps.archiveFinalizer || null;
         this.stateStore = deps.stateStore;
         this.projectsRoot = typeof deps.projectsRoot === 'string' && deps.projectsRoot.trim()
             ? deps.projectsRoot

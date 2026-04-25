@@ -22,7 +22,6 @@ export class SessionService {
     /**
      * @param {Object} [options] - オプション
      * @param {Object} [options.recoveryService] - RecoveryService
-     * @param {boolean} [options.skipMergeCheck] - マージチェックをスキップ
      */
     constructor(options = {}) {
         this.httpClient = httpClient;
@@ -646,28 +645,19 @@ export class SessionService {
     }
 
     /**
-     * セッションをアーカイブ（worktreeマージチェック付き）
+     * セッションをアーカイブ（後処理はArchive Finalizerが非同期実行）
      * @param {string} sessionId - アーカイブするセッションのID
-     * @param {Object} [options] - オプション
-     * @param {boolean} [options.skipMergeCheck] - マージチェックをスキップするか
-     * @returns {Promise<{success?: boolean, needsConfirmation?: boolean, status?: Object}>}
+     * @returns {Promise<{success?: boolean, archive?: Object}>}
      */
-    async archiveSession(sessionId, options = {}) {
-        const { skipMergeCheck = false } = options;
-
+    async archiveSession(sessionId) {
         // アーカイブ前に現在表示中のセッションかチェック
         const { currentSessionId } = this.store.getState();
         const wasCurrentSession = currentSessionId === sessionId;
 
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/archive`,
-            { skipMergeCheck }
+            {}
         );
-
-        if (result.needsConfirmation) {
-            // 呼び出し元で警告表示が必要
-            return result;
-        }
 
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
@@ -676,7 +666,18 @@ export class SessionService {
             await this._switchToNextActive(sessionId);
         }
 
-        return { success: true };
+        return result || { success: true };
+    }
+
+    async getArchiveStatus(sessionId) {
+        return await this.httpClient.get(`/api/sessions/${sessionId}/archive-status`);
+    }
+
+    async finalizeArchiveSession(sessionId) {
+        const result = await this.httpClient.post(`/api/sessions/${sessionId}/archive/finalize`, {});
+        await this.loadSessions();
+        await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId });
+        return result;
     }
 
     /**

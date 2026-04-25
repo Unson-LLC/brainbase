@@ -208,4 +208,47 @@ describe('StateController CRUD session routes', () => {
     }));
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('GET /api/state returns archive finalizer fields', async () => {
+    const state = {
+      sessions: [
+        {
+          id: 'session-archived',
+          name: 'archived',
+          intendedState: 'archived',
+          archivedAt: '2026-04-25T10:00:00.000Z',
+          archive: {
+            status: 'blocked',
+            blockerReason: 'working copy has changes',
+            recordPath: 'docs/session-archives/2026/04/session-archived.md',
+            recordPrUrl: 'https://github.com/Unson-LLC/brainbase/pull/1'
+          },
+          merged: true,
+          mergedPrUrl: 'https://github.com/Unson-LLC/brainbase/pull/2'
+        }
+      ]
+    };
+    stateStore.get.mockReturnValue(state);
+    const res = createRes();
+    const next = vi.fn();
+
+    controller.get({}, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      sessions: [
+        expect.objectContaining({
+          id: 'session-archived',
+          archive: expect.objectContaining({
+            status: 'blocked',
+            recordPath: 'docs/session-archives/2026/04/session-archived.md'
+          }),
+          mergedPrUrl: 'https://github.com/Unson-LLC/brainbase/pull/2'
+        })
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
 });

@@ -414,43 +414,10 @@ export function installRuntimeHandlers(controller) {
 
     controller.archive = async (req, res) => {
         const { id } = req.params;
-        const { skipMergeCheck } = req.body;
 
         try {
             const session = controller._findSessionOrFail(id, res);
             if (!session) return;
-
-            if (session.worktree?.repo && !skipMergeCheck) {
-                let status = await controller.worktreeService.getStatus(
-                    id,
-                    session.worktree.repo,
-                    session.worktree.startCommit || null
-                );
-                let autoHealResult = null;
-
-                if (status.needsIntegration || status.needsMerge) {
-                    autoHealResult = await controller.worktreeService.autoHealArchiveState(
-                        id,
-                        session.worktree.repo,
-                        session.worktree.path,
-                        session.worktree.startCommit || null
-                    );
-
-                    status = autoHealResult.statusAfter || status;
-                    status.autoHealAttempted = Boolean(autoHealResult.attempted);
-                    status.autoHealApplied = Boolean(autoHealResult.healed && autoHealResult.actions?.length);
-                    status.autoHealReason = autoHealResult.reason || null;
-                    status.autoHealActions = autoHealResult.actions || [];
-                }
-
-                if (status.needsIntegration || status.needsMerge) {
-                    return res.json({
-                        needsConfirmation: true,
-                        status,
-                        message: 'Workspace has changes not pushed to remote'
-                    });
-                }
-            }
 
             try {
                 await controller.runtimeLifecycle.stopTtyd(id);
@@ -460,15 +427,53 @@ export function installRuntimeHandlers(controller) {
 
             await controller._updateStateWithRetry((state) => {
                 const updatedSessions = state.sessions.map((session) =>
-                    session.id === id ? { ...session, intendedState: 'archived', archivedAt: new Date().toISOString() } : session
+                    session.id === id
+                        ? {
+                            ...session,
+                            intendedState: 'archived',
+                            archivedAt: new Date().toISOString(),
+                            archive: {
+                                ...(session.archive || {}),
+                                status: 'queued',
+                                blockerReason: null,
+                                updatedAt: new Date().toISOString()
+                            }
+                        }
+                        : session
                 );
                 return { ...state, sessions: updatedSessions };
             });
 
-            res.json({ success: true });
+            await controller.archiveFinalizer?.enqueue?.(id);
+
+            res.json({ success: true, archive: { status: 'queued' } });
         } catch (error) {
             logger.error(`[archive] Error archiving session ${id}:`, error);
             res.status(500).json({ error: 'Failed to archive session', detail: error.message });
+        }
+    };
+
+    controller.getArchiveStatus = async (req, res) => {
+        const { id } = req.params;
+        try {
+            const session = controller._findSessionOrFail(id, res);
+            if (!session) return;
+            res.json({ success: true, archive: session.archive || null });
+        } catch (error) {
+            controller._respondError(res, 'Failed to get archive status', error);
+        }
+    };
+
+    controller.finalizeArchive = async (req, res) => {
+        const { id } = req.params;
+        try {
+            if (!controller.archiveFinalizer?.finalize) {
+                return res.status(503).json({ error: 'Archive finalizer is not available' });
+            }
+            const result = await controller.archiveFinalizer.finalize(id);
+            res.json(result);
+        } catch (error) {
+            controller._respondError(res, 'Failed to finalize archive', error);
         }
     };
 

@@ -16,6 +16,14 @@
 2. **今週のWorkを集計**
    - NocoDB ストーリーテーブルから `ステータス=active` の進捗率変化を確認
    - ブロッカー欄が埋まっているタスクを抽出
+   - archive finalizer の blocked を抽出
+
+   ```bash
+   cd /Users/ksato/workspace/code/brainbase
+   node scripts/archive-blocked-report.mjs --limit 50
+   ```
+
+   archive blocked は週次レトロの Block に必ず含める。残件は owner / next action / due を付け、無期限の持ち越しを禁止する。
 
 3. **学習候補の一括レビュー** ⭐ 週次決裁ポイント
 
@@ -47,6 +55,8 @@
 
    ## 🔴 Block（ブロッカー）
    - [項目]: [状況と対応方針]
+   - Archive blocked: [件数]件
+     - [session-id]: [reason] → [owner / next action / due]
 
    ## 📊 メトリクス
    - Ship数: X件
@@ -97,6 +107,7 @@
 - Ship = 「外部に価値が到達した」もののみ（ドラフト生成 ≠ Ship）
 - Learn は wiki/skill に **apply 済み** のもののみカウント（pending は count しない）
 - Block は現在進行中のブロッカーのみ
+- Archive blocked は `/ohayo` で検知、`/oyasumi` で日次整理、`/retro` で週次エスカレーションする
 
 ## 学習候補の補給ルート
 

@@ -71,6 +71,10 @@ node dist/index.js
 
 ## MCPツール
 
+Graph系ツール（`get_context` / `list_entities` / `get_entity` / `search`）は、デフォルトでBrainbase Philosophy Contextを先頭に付与する。これはUI表示ではなく、Graph操作前に `CLAUDE.md` 的な判断前提を注入するためのもの。
+
+無効化が必要な場合のみ `includePhilosophy: false` を渡す。scopeを指定する場合は `scope: "crm"` のように渡す。
+
 ### `get_context`
 
 トピック/エンティティに関連するコンテキストを取得。
@@ -79,6 +83,7 @@ node dist/index.js
 ```typescript
 // Claude Codeから実行
 mcp__brainbase__get_context({ topic: "佐藤圭吾" })
+mcp__brainbase__get_context({ topic: "推進案件", scope: "crm", objectType: "push_case" })
 ```
 
 ### `list_entities`

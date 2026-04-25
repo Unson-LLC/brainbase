@@ -13,6 +13,22 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger.js';
 
+function parseGitHubRepoSpec(remoteUrl) {
+    const value = String(remoteUrl || '').trim();
+    const patterns = [
+        /^https:\/\/github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/,
+        /^git@github\.com:([^/]+\/[^/.]+?)(?:\.git)?$/,
+        /^ssh:\/\/git@github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/
+    ];
+
+    for (const pattern of patterns) {
+        const match = value.match(pattern);
+        if (match) return match[1];
+    }
+
+    return null;
+}
+
 export class WorktreeService {
     /**
      * @param {string} worktreesDir - workspaces保存ディレクトリ
@@ -787,6 +803,15 @@ export class WorktreeService {
         return mainBranch.trim() || 'main';
     }
 
+    async _getGitHubRepoSpec(repoPath) {
+        const { stdout } = await this.execPromise(`git -C "${repoPath}" remote get-url origin`);
+        const repoSpec = parseGitHubRepoSpec(stdout);
+        if (!repoSpec) {
+            throw new Error(`Unable to derive GitHub repo from origin remote: ${stdout.trim() || '(empty)'}`);
+        }
+        return repoSpec;
+    }
+
     async _resolveWorkspaceBaseRevision(repoPath, preferredRevision) {
         const candidates = [preferredRevision, 'main', 'trunk()']
             .filter(Boolean)
@@ -844,6 +869,7 @@ export class WorktreeService {
         try {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
+            const ghRepoSpec = await this._getGitHubRepoSpec(repoPath);
 
             // Push bookmark to remote
             logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
@@ -879,12 +905,12 @@ ${commits || 'No commit messages'}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
-)" --repo "${repoPath}"
+)" --repo "${ghRepoSpec}"
             `);
 
             // Merge PR
             logger.info(`[merge] Merging PR`);
-            await this.execPromise(`gh pr merge --merge --delete-branch`);
+            await this.execPromise(`gh pr merge "${prUrl.trim()}" --repo "${ghRepoSpec}" --merge --delete-branch`);
 
             // Cleanup workspace
             const workspaceName = `${sessionId}-${path.basename(repoPath)}`;
@@ -919,7 +945,7 @@ EOF
             }
 
             logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
-            return { success: true, message: 'Merged via PR', prUrl: prUrl.trim() };
+            return { success: true, message: 'Merged via PR', prUrl: prUrl.trim(), mergedAt: new Date().toISOString() };
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             logger.error(`Failed to merge workspace for ${sessionId}:`, message);

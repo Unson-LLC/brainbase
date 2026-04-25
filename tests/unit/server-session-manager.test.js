@@ -67,6 +67,73 @@ describe('SessionManager (Server)', () => {
     });
   });
 
+  describe('cleanupArchivedSessions', () => {
+    it('finalizer未完了のarchived sessionはTTLを過ぎても削除しない', async () => {
+      const oldDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+      const update = vi.fn();
+      const remove = vi.fn(async () => true);
+      sessionManager.stateStore = {
+        get: vi.fn().mockReturnValue({
+          sessions: [
+            {
+              id: 'session-queued',
+              intendedState: 'archived',
+              archivedAt: oldDate,
+              archive: { status: 'queued' },
+              worktree: { repo: '/repo' }
+            },
+            {
+              id: 'session-blocked',
+              intendedState: 'archived',
+              archivedAt: oldDate,
+              archive: { status: 'blocked' },
+              worktree: { repo: '/repo' }
+            }
+          ]
+        }),
+        update
+      };
+      sessionManager.worktreeService = { remove };
+
+      await sessionManager.cleanupArchivedSessions();
+
+      expect(update).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it('cleanedのarchived sessionだけTTL削除する', async () => {
+      const oldDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+      const update = vi.fn();
+      const remove = vi.fn(async () => true);
+      sessionManager.stateStore = {
+        get: vi.fn().mockReturnValue({
+          sessions: [
+            {
+              id: 'session-cleaned',
+              intendedState: 'archived',
+              archivedAt: oldDate,
+              archive: { status: 'cleaned' },
+              worktree: { repo: '/repo' }
+            },
+            {
+              id: 'session-active',
+              intendedState: 'active'
+            }
+          ]
+        }),
+        update
+      };
+      sessionManager.worktreeService = { remove };
+
+      await sessionManager.cleanupArchivedSessions();
+
+      expect(remove).toHaveBeenCalledWith('session-cleaned', '/repo');
+      expect(update).toHaveBeenCalledWith({
+        sessions: [{ id: 'session-active', intendedState: 'active' }]
+      });
+    });
+  });
+
   describe('cleanupOrphans', () => {
     it('state.jsonのactive/pausedセッションは保護される', async () => {
       sessionManager.stateStore = {

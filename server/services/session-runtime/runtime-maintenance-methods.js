@@ -19,6 +19,11 @@ export const runtimeMaintenanceMethods = {
             if (activeSessions.length === 0) {
                 return;
             }
+            const restoreLimit = Math.max(0, parseInt(process.env.BRAINBASE_RESTORE_ACTIVE_LIMIT || '0', 10) || 0);
+            const sessionsToRestore = restoreLimit > 0 ? activeSessions.slice(0, restoreLimit) : [];
+            if (sessionsToRestore.length < activeSessions.length) {
+                logger.info(`[restoreActiveSessions] Restoring ${sessionsToRestore.length}/${activeSessions.length} active session(s); remaining sessions stay lazy until opened`);
+            }
 
             const { stdout: tmuxOut } = await this.execPromise(
                 'tmux list-sessions -F "#{session_name}" 2>/dev/null || echo ""'
@@ -51,7 +56,7 @@ export const runtimeMaintenanceMethods = {
 
             const pauseSessionIds = new Set();
 
-            for (const session of activeSessions) {
+            for (const session of sessionsToRestore) {
                 const sessionId = session.id;
                 const engine = session.engine || 'claude';
                 const initialCommand = session.initialCommand || '';
@@ -315,6 +320,13 @@ export const runtimeMaintenanceMethods = {
 
         const sessionsToKeep = state.sessions.filter(session => {
             if (session.intendedState === 'archived' && session.archivedAt) {
+                if (session.archive?.status && session.archive.status !== 'cleaned') {
+                    return true;
+                }
+                if (!session.archive?.status && session.worktree) {
+                    return true;
+                }
+
                 const archivedTime = new Date(session.archivedAt).getTime();
 
                 if (now - archivedTime > ARCHIVED_TTL) {

@@ -44,6 +44,7 @@ export class ConversationLinker {
         this._isLinking = false;
         this._codexIndexCache = null;
         this._codexIndexCacheTime = 0;
+        this._linkCursor = 0;
     }
 
     /**
@@ -295,7 +296,8 @@ export class ConversationLinker {
      * 全セッションの会話ログ紐付けを実行
      * @returns {Promise<{updated: number, total: number, errors: string[]}>}
      */
-    async linkAll() {
+    async linkAll(options = {}) {
+        const { limit = Infinity } = options;
         if (this._isLinking) {
             logger.warn('[ConversationLinker] linkAll already in progress, skipping');
             return { updated: 0, total: 0, errors: [], skipped: true };
@@ -306,15 +308,24 @@ export class ConversationLinker {
             const sessions = state.sessions || [];
             const errors = [];
             let updated = 0;
+            const startIndex = Number.isFinite(limit) && sessions.length > 0
+                ? Math.min(this._linkCursor, sessions.length - 1)
+                : 0;
+            const targetSessions = Number.isFinite(limit)
+                ? [
+                    ...sessions.slice(startIndex, startIndex + limit),
+                    ...sessions.slice(0, Math.max(0, startIndex + limit - sessions.length))
+                ].slice(0, limit)
+                : sessions;
 
-            logger.info(`[ConversationLinker] Starting linkAll for ${sessions.length} session(s)...`);
+            logger.info(`[ConversationLinker] Starting linkAll for ${targetSessions.length}/${sessions.length} session(s)...`);
 
             // Build Codex session index (cwd → files) once
             const codexIndex = await this._buildCodexIndex();
 
             const updatedSessions = [];
 
-            for (const session of sessions) {
+            for (const session of targetSessions) {
                 try {
                     const summary = await this._linkSession(session, codexIndex);
                     if (summary) {
@@ -350,7 +361,7 @@ export class ConversationLinker {
 
                     return mergedSessions;
                 });
-                logger.info(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
+                logger.info(`[ConversationLinker] Updated ${updated}/${targetSessions.length} session(s)`);
             } else {
                 logger.info(`[ConversationLinker] No updates needed`);
             }
@@ -359,7 +370,11 @@ export class ConversationLinker {
                 logger.warn(`[ConversationLinker] ${errors.length} error(s):`, errors.slice(0, 5));
             }
 
-            return { updated, total: sessions.length, errors };
+            if (Number.isFinite(limit) && sessions.length > 0) {
+                this._linkCursor = (startIndex + targetSessions.length) % sessions.length;
+            }
+
+            return { updated, total: sessions.length, processed: targetSessions.length, errors };
         } finally {
             this._isLinking = false;
         }
@@ -658,7 +673,7 @@ export class ConversationLinker {
 
         this._intervalTimer = setInterval(async () => {
             try {
-                await this.linkAll();
+                await this.linkAll({ limit: 25 });
             } catch (err) {
                 logger.error('[ConversationLinker] Periodic link error:', err.message);
             }

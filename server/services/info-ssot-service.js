@@ -11,6 +11,44 @@ const ROLE_RANK = {
 const ROLE_VALUES = Object.keys(ROLE_RANK);
 const SENSITIVITY_VALUES = ['internal', 'restricted', 'finance', 'hr', 'contract'];
 const HIGH_SENSITIVITY_VALUES = ['finance', 'hr', 'contract'];
+const PHILOSOPHY_SCOPE_IDS = {
+    graph: [
+        'phi_graph_ssot_first',
+        'phi_ssot_or_nonexistent',
+        'phi_context_is_asset',
+        'phi_machine_readable_ssot'
+    ],
+    data: [
+        'phi_data_ownership_by_use',
+        'phi_flow_stack_separation',
+        'phi_transcript_is_substrate',
+        'phi_conversation_to_actionable_records'
+    ],
+    crm: [
+        'phi_push_case_center',
+        'phi_ui_is_projection',
+        'phi_data_ownership_by_use',
+        'phi_learning_loop'
+    ],
+    growth: [
+        'phi_value_expression_distribution',
+        'phi_n1_pain_marketing',
+        'phi_assets_not_one_offs',
+        'phi_pmf_before_build'
+    ],
+    automation: [
+        'phi_human_decides_ai_runs',
+        'phi_self_driving_with_guardrails',
+        'phi_deterministic_guards',
+        'phi_material_ambiguity_only'
+    ],
+    development: [
+        'phi_story_drives_specs',
+        'phi_dag_over_prompt',
+        'phi_value_loop_compounds',
+        'phi_learning_loop'
+    ]
+};
 
 export class InfoSSOTService {
     constructor() {
@@ -1025,7 +1063,18 @@ export class InfoSSOTService {
         });
     }
 
-    async getContext(access, { projectCode, entityTypes, limit, humanReadable, includeEdges }) {
+    async getContext(access, {
+        projectCode,
+        entityTypes,
+        limit,
+        humanReadable,
+        includeEdges,
+        includePhilosophy,
+        scope,
+        objectType,
+        operation,
+        maxRecommended
+    }) {
         this.assertReady();
         if (!projectCode) {
             throw new Error('projectCode is required');
@@ -1080,8 +1129,117 @@ export class InfoSSOTService {
                 entity_count: this._countEntities(entities)
             };
 
-            return { entities, edges, report, meta };
+            const result = { entities, edges, report, meta };
+            if (includePhilosophy) {
+                result.philosophy_context = await this.resolvePhilosophyContext(client, access, {
+                    projectCode,
+                    scope,
+                    objectType,
+                    operation,
+                    maxRecommended
+                });
+            }
+
+            return result;
         });
+    }
+
+    async resolvePhilosophyContext(client, access, { projectCode, scope, objectType, operation, maxRecommended }) {
+        const requestedScope = this._normalizePhilosophyScope(scope);
+        const safeMaxRecommended = Math.min(Math.max(Number(maxRecommended) || 8, 0), 20);
+        const records = await this.fetchGraphEntities(client, access, {
+            projectCode,
+            entityType: 'philosophy',
+            limit: 500
+        });
+        const philosophies = records.map(record => this._normalizePhilosophyRecord(record));
+        const core = philosophies.filter(item => item.priority === 'core');
+        if (!core.length) {
+            throw new Error('Core philosophy context is not configured');
+        }
+
+        const scopeIds = PHILOSOPHY_SCOPE_IDS[requestedScope] || PHILOSOPHY_SCOPE_IDS.graph;
+        const recommended = philosophies
+            .filter(item => item.priority !== 'core' && scopeIds.includes(item.philosophy_id))
+            .slice(0, safeMaxRecommended);
+        const selected = this._dedupePhilosophies([
+            ...core,
+            ...philosophies.filter(item => scopeIds.includes(item.philosophy_id)),
+            ...recommended
+        ]);
+
+        return {
+            mode: 'graph_operation_context',
+            project_code: projectCode,
+            scope: requestedScope,
+            object_type: objectType || null,
+            operation: operation || null,
+            core,
+            recommended,
+            applied_ids: selected.map(item => item.philosophy_id),
+            prompt_block: this._buildPhilosophyPromptBlock({ scope: requestedScope, philosophies: selected }),
+            decision_tests: this._uniqueFlatMap(selected, 'decision_tests'),
+            anti_patterns: this._uniqueFlatMap(selected, 'anti_patterns')
+        };
+    }
+
+    _normalizePhilosophyScope(scope) {
+        const normalized = typeof scope === 'string' && scope.trim() ? scope.trim().toLowerCase() : 'graph';
+        return PHILOSOPHY_SCOPE_IDS[normalized] ? normalized : 'graph';
+    }
+
+    _normalizePhilosophyRecord(record) {
+        const payload = typeof record?.payload === 'string'
+            ? JSON.parse(record.payload)
+            : (record?.payload || {});
+        const philosophyId = payload.philosophy_id || record?.id;
+        return {
+            id: record?.id || philosophyId,
+            philosophy_id: philosophyId,
+            title: payload.title || null,
+            display_name: payload.display_name || payload.title || philosophyId,
+            statement: payload.statement || '',
+            why: payload.why || null,
+            scope: Array.isArray(payload.scope) ? payload.scope : [],
+            status: payload.status || 'active',
+            priority: payload.priority || 'recommended',
+            decision_tests: Array.isArray(payload.decision_tests) ? payload.decision_tests : [],
+            anti_patterns: Array.isArray(payload.anti_patterns) ? payload.anti_patterns : [],
+            source_refs: Array.isArray(payload.source_refs) ? payload.source_refs : []
+        };
+    }
+
+    _dedupePhilosophies(items) {
+        const seen = new Set();
+        return items.filter(item => {
+            if (!item?.philosophy_id || seen.has(item.philosophy_id)) return false;
+            seen.add(item.philosophy_id);
+            return true;
+        });
+    }
+
+    _uniqueFlatMap(items, key) {
+        return Array.from(new Set(items.flatMap(item => Array.isArray(item[key]) ? item[key] : [])));
+    }
+
+    _buildPhilosophyPromptBlock({ scope, philosophies }) {
+        const lines = [
+            'Brainbase Philosophy Context',
+            `Scope: ${scope}`,
+            '',
+            'You must follow these operating philosophies before reading or writing Graph:'
+        ];
+        for (const item of philosophies) {
+            lines.push(`- ${item.display_name}: ${item.statement}`);
+        }
+        const decisionTests = this._uniqueFlatMap(philosophies, 'decision_tests');
+        if (decisionTests.length) {
+            lines.push('', 'Decision tests:');
+            for (const test of decisionTests) {
+                lines.push(`- ${test}`);
+            }
+        }
+        return lines.join('\n');
     }
 
     _parseEntityTypes(entityTypes) {

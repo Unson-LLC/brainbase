@@ -35,6 +35,24 @@ interface GraphEntitiesResponse {
   entities: GraphEntity[];
 }
 
+export interface PhilosophyContextRequest {
+  projectCode: string;
+  scope?: string;
+  objectType?: string;
+  operation?: string;
+  maxRecommended?: number;
+}
+
+export interface PhilosophyContext {
+  mode: string;
+  project_code: string;
+  scope: string;
+  prompt_block: string;
+  applied_ids?: string[];
+  decision_tests?: string[];
+  anti_patterns?: string[];
+}
+
 /**
  * GraphAPISource
  * Fetches entities from Graph SSOT API
@@ -97,10 +115,7 @@ export class GraphAPISource implements EntitySource {
    */
   private async fetchWithRetry(url: string, token: string): Promise<Response> {
     let response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(token),
     });
 
     // Retry on 401 (token expired)
@@ -110,14 +125,21 @@ export class GraphAPISource implements EntitySource {
       const newToken = await this.tokenManager.getToken();
 
       response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${newToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: this.buildHeaders(newToken),
       });
     }
 
     return response;
+  }
+
+  private buildHeaders(token: string): Record<string, string> {
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'x-brainbase-role': process.env.BRAINBASE_ROLE || 'gm',
+      'x-brainbase-projects': this.projectCodes?.join(',') || process.env.BRAINBASE_PROJECTS || 'brainbase',
+      'x-brainbase-clearance': process.env.BRAINBASE_CLEARANCE || 'internal,restricted,finance,hr,contract',
+    };
   }
 
   /**
@@ -195,6 +217,29 @@ export class GraphAPISource implements EntitySource {
   async getDecisions(): Promise<Decision[]> {
     const decisionEntities = this.entities.filter(e => e.entity_type === 'decision');
     return decisionEntities.map(e => this.convertToDecision(e));
+  }
+
+  async getPhilosophyContext(request: PhilosophyContextRequest): Promise<PhilosophyContext> {
+    const token = await this.tokenManager.getToken();
+    const params = new URLSearchParams({
+      project: request.projectCode,
+      types: 'project',
+      includePhilosophy: 'true',
+    });
+    if (request.scope) params.set('scope', request.scope);
+    if (request.objectType) params.set('objectType', request.objectType);
+    if (request.operation) params.set('operation', request.operation);
+    if (request.maxRecommended !== undefined) params.set('maxRecommended', String(request.maxRecommended));
+
+    const response = await this.fetchWithRetry(`${this.apiUrl}/api/info/context?${params.toString()}`, token);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch philosophy context: ${response.status}`);
+    }
+    const data = await response.json() as { philosophy_context?: PhilosophyContext };
+    if (!data.philosophy_context?.prompt_block) {
+      throw new Error('Philosophy context is missing from Graph API response');
+    }
+    return data.philosophy_context;
   }
 
   /**
