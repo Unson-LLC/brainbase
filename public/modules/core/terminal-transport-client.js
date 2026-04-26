@@ -115,9 +115,11 @@ export class TerminalTransportClient {
         this._lastSentCols = 0;
         this._lastSentRows = 0;
         // xterm.js 5.x: short IME commit後にbare EnterでonData('\r')が発火しない場合がある。
-        // _imeEnterPending で\rを補完し、_imeEnterJustFired で自然発火時の重複を除去する。
-        this._imeEnterPending = false;
-        this._imeEnterJustFired = false;
+        // IME確定Enter(isComposing=true)でフラグを立て、直後のbare Enter(isComposing=false)を
+        // xtermが握り潰したと判断できるタイマーで\rを補完する。IME確定Enter自体は\rを送らない。
+        this._imeJustCommittedWithEnter = false;
+        this._imePostEnterPending = false;
+        this._imePostEnterTimer = null;
     }
 
     async init(hostEl) {
@@ -154,8 +156,12 @@ export class TerminalTransportClient {
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
             const token = this._connectToken;
-            const imeEnterPending = this._imeEnterPending;
-            this._imeEnterPending = false;
+            // xterm が自然に '\r' を発火した場合はタイマー補完をキャンセルする
+            if (data === '\r' && this._imePostEnterPending) {
+                this._imePostEnterPending = false;
+                clearTimeout(this._imePostEnterTimer);
+                console.log('[TTC-PROBE][onData] IME post-Enter: natural \\r arrived, timer cancelled');
+            }
             console.log('[TTC-PROBE][onData] fired', {
                 len: data.length,
                 preview: data.slice(0, 20),
@@ -163,23 +169,17 @@ export class TerminalTransportClient {
                 currentToken: this._connectToken,
                 mode: this.status.mode,
                 isFocused: this.status.isFocused,
-                imeEnterPending,
                 activeEl: document.activeElement?.tagName + (document.activeElement?.className ? '.' + document.activeElement.className.split(' ')[0] : '')
             });
             const enqueueAt = performance.now();
             this._inputQueue = this._inputQueue
-                .then(async () => {
-                    // 直前のIME補完\rと同一Enterから来た自然\rを重複除去する
-                    const imeEnterJustFired = this._imeEnterJustFired;
-                    this._imeEnterJustFired = false;
-
+                .then(() => {
                     const resumedAt = performance.now();
                     console.log('[TTC-PROBE][onData] chain resumed', {
                         len: data.length,
                         waitMs: Math.round(resumedAt - enqueueAt),
                         capturedToken: token,
-                        currentToken: this._connectToken,
-                        imeEnterJustFired
+                        currentToken: this._connectToken
                     });
                     if (this._connectToken !== token) {
                         console.warn('[TTC-PROBE][onData] DROPPED token mismatch', {
@@ -190,18 +190,7 @@ export class TerminalTransportClient {
                         });
                         return;
                     }
-                    if (data === '\r' && imeEnterJustFired) {
-                        console.log('[TTC-PROBE][onData] IME Enter dedup: natural \\r skipped');
-                        return;
-                    }
-                    await this.sendText(data);
-                    // xterm.js 5.x がIME確定Enterでondata('\r')を発火しない場合に補完する。
-                    // _imeEnterJustFired を立てて、直後に来る自然\rを重複除去できるようにする。
-                    if (imeEnterPending && data.length > 0) {
-                        console.log('[TTC-PROBE][onData] IME Enter補完: sending \\r');
-                        this._imeEnterJustFired = true;
-                        await this.sendText('\r');
-                    }
+                    return this.sendText(data);
                 })
                 .catch((err) => {
                     console.error('[TTC-PROBE][onData] chain error', err);
@@ -221,8 +210,9 @@ export class TerminalTransportClient {
             this._emitStatus();
         });
         // hostEl 配下の keydown を capture で監視。onData が来ない時にキーが届いているか確認する。
-        // xterm.js 5.x: IME確定Enter（isComposing=true）を検出してフラグを立てる。
-        // 確定後にbare EnterでonData('\r')が発火しない場合に\rを補完する（onData側で処理）。
+        // xterm.js 5.x: IME確定Enter(isComposing=true)の後に来るbare Enter(isComposing=false)を
+        // xtermが握り潰す場合がある。bare Enterを検知してタイマーで\rを補完する。
+        // IME確定Enter自体では\rを送らない（確定だけで送信しない）。
         this.hostEl.addEventListener('keydown', (e) => {
             console.log('[TTC-PROBE][hostEl-keydown]', {
                 key: e.key.slice(0, 10),
@@ -231,7 +221,21 @@ export class TerminalTransportClient {
                 activeEl: document.activeElement?.tagName
             });
             if (e.key === 'Enter' && e.isComposing) {
-                this._imeEnterPending = true;
+                this._imeJustCommittedWithEnter = true;
+            }
+            if (e.key === 'Enter' && !e.isComposing && this._imeJustCommittedWithEnter) {
+                this._imeJustCommittedWithEnter = false;
+                // このbare EnterをxtermがonData('\r')として発火するか50ms待つ。
+                // 発火しない場合（xterm握り潰しバグ）は手動で\rを補完する。
+                const capturedToken = this._connectToken;
+                clearTimeout(this._imePostEnterTimer);
+                this._imePostEnterPending = true;
+                this._imePostEnterTimer = setTimeout(() => {
+                    if (!this._imePostEnterPending || this._connectToken !== capturedToken) return;
+                    this._imePostEnterPending = false;
+                    console.log('[TTC-PROBE][hostEl-keydown] IME post-Enter補完: sending \\r');
+                    this._inputQueue = this._inputQueue.then(() => this.sendText('\r')).catch(() => {});
+                }, 50);
             }
         }, true);
         this.hostEl.addEventListener('focusout', (e) => {
