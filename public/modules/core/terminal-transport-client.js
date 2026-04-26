@@ -114,7 +114,6 @@ export class TerminalTransportClient {
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
         this._lastSentCols = 0;
         this._lastSentRows = 0;
-        this._imeEnterPending = false;
     }
 
     async init(hostEl) {
@@ -151,10 +150,6 @@ export class TerminalTransportClient {
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
             const token = this._connectToken;
-            // xterm.js 5.x では IME commit の Enter で onData('\r') が発火しない。
-            // keydown(Enter, isComposing=true) で立てたフラグをここで消費し、composedText の後に \r を補完する。
-            const imeEnterPending = this._imeEnterPending;
-            this._imeEnterPending = false;
             console.log('[TTC-PROBE][onData] fired', {
                 len: data.length,
                 preview: data.slice(0, 20),
@@ -162,12 +157,11 @@ export class TerminalTransportClient {
                 currentToken: this._connectToken,
                 mode: this.status.mode,
                 isFocused: this.status.isFocused,
-                imeEnterPending,
                 activeEl: document.activeElement?.tagName + (document.activeElement?.className ? '.' + document.activeElement.className.split(' ')[0] : '')
             });
             const enqueueAt = performance.now();
             this._inputQueue = this._inputQueue
-                .then(async () => {
+                .then(() => {
                     const resumedAt = performance.now();
                     console.log('[TTC-PROBE][onData] chain resumed', {
                         len: data.length,
@@ -184,11 +178,7 @@ export class TerminalTransportClient {
                         });
                         return;
                     }
-                    await this.sendText(data);
-                    if (imeEnterPending && data.length > 0) {
-                        console.log('[TTC-PROBE][onData] IME Enter補完: sending \\r');
-                        await this.sendText('\r');
-                    }
+                    return this.sendText(data);
                 })
                 .catch((err) => {
                     console.error('[TTC-PROBE][onData] chain error', err);
@@ -208,8 +198,6 @@ export class TerminalTransportClient {
             this._emitStatus();
         });
         // hostEl 配下の keydown を capture で監視。onData が来ない時にキーが届いているか確認する。
-        // xterm.js 5.x は IME commit の Enter に対して onData('\r') を発火しないため、
-        // isComposing=true の Enter を検出して _imeEnterPending フラグを立て、onData で補完する。
         this.hostEl.addEventListener('keydown', (e) => {
             console.log('[TTC-PROBE][hostEl-keydown]', {
                 key: e.key.slice(0, 10),
@@ -217,9 +205,6 @@ export class TerminalTransportClient {
                 target: e.target?.tagName,
                 activeEl: document.activeElement?.tagName
             });
-            if (e.key === 'Enter' && e.isComposing) {
-                this._imeEnterPending = true;
-            }
         }, true);
         this.hostEl.addEventListener('focusout', (e) => {
             this.status.isFocused = false;
