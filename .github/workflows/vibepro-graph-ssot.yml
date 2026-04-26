@@ -1,0 +1,48 @@
+name: VibePro Graph SSOT Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop, 'session/**']
+  schedule:
+    - cron: '45 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  graph-ssot:
+    name: Verify VibePro Graph SSOT
+    runs-on: ubuntu-latest
+
+    env:
+      BRAINBASE_GRAPH_API_URL: https://bb.unson.jp
+      BRAINBASE_GRAPH_API_TOKEN: ${{ secrets.BRAINBASE_GRAPH_API_TOKEN }}
+      BRAINBASE_ROLE: gm
+      BRAINBASE_PROJECTS: brainbase
+      BRAINBASE_CLEARANCE: internal,restricted,finance,hr,contract
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Graph SSOT checker unit tests
+        run: npm run test:run -- tests/unit/vibepro-graph-ssot-check.test.js
+
+      - name: Require Graph API token
+        run: |
+          if [ -z "$BRAINBASE_GRAPH_API_TOKEN" ]; then
+            echo "BRAINBASE_GRAPH_API_TOKEN secret is required for VibePro Graph SSOT verification."
+            exit 1
+          fi
+
+      - name: Verify VibePro Graph SSOT
+        run: npm run vibepro:graph-ssot

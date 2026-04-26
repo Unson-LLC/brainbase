@@ -28,7 +28,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      include: ['public/modules/**/*.js', 'lib/**/*.js'],
+      include: ['public/modules/**/*.js', 'lib/**/*.js', 'scripts/vibepro-score-run.mjs'],
     },
   },
 });

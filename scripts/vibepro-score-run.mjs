@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import yaml from 'js-yaml';
 
 const CORE_METRICS = [
   '本番化ギャップ捕捉率',
@@ -10,6 +13,31 @@ const CORE_METRICS = [
 ];
 
 const DOGFOOD_PREFIX = 'docs/internal/vibepro-dogfood/';
+const REQUIRED_RUN_OUTPUTS = [
+  'observation.json',
+  'diagnosis.json',
+  'outcome.json',
+  'labels.json',
+  'score.json',
+  'feedback.md',
+  'report.md',
+];
+
+const VIBEPRO_SCOPE_FILES = new Set([
+  '.claude/scripts/hooks/enforce-nocodb-lookup.ts',
+  '.github/workflows/vibepro-graph-ssot.yml',
+  '.github/workflows/vibepro-score-run.yml',
+  '_codex/common/ops/scheduled-jobs.md',
+  'docs/architecture/vibepro-brainbase-dogfood-architecture.md',
+  'docs/specs/vibepro-brainbase-self-evaluation-spec.md',
+  'docs/stories/vibepro-brainbase-dogfood-story.md',
+  'package.json',
+  'scripts/vibepro-graph-ssot-check.mjs',
+  'scripts/vibepro-score-run.mjs',
+  'tests/unit/vibepro-graph-ssot-check.test.js',
+  'tests/unit/vibepro-score-run.test.js',
+  'vitest.config.js',
+]);
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
@@ -35,9 +63,10 @@ function parseAheadBehind(value) {
   };
 }
 
-function parseStatusLine(line) {
-  const status = line.slice(0, 2).trim() || line.slice(0, 2);
-  const rawPath = line.slice(3).trim();
+export function parseGitStatusLine(line) {
+  const match = line.match(/^(.{1,2})\s+(.+)$/);
+  const status = (match?.[1] ?? line.slice(0, 2)).trim() || line.slice(0, 2).trim();
+  const rawPath = (match?.[2] ?? line.slice(3)).trim();
   const filePath = rawPath.replace(/^"|"$/g, '');
   return {
     path: filePath,
@@ -47,19 +76,30 @@ function parseStatusLine(line) {
 }
 
 function categorizeChangedFile(filePath) {
-  if (filePath.startsWith(DOGFOOD_PREFIX) || filePath === 'scripts/vibepro-score-run.mjs') {
+  if (
+    filePath.startsWith(DOGFOOD_PREFIX)
+    || VIBEPRO_SCOPE_FILES.has(filePath)
+  ) {
     return 'vibepro_dogfood';
   }
+  if (filePath === '.mcp.json') return 'security_config';
   if (filePath.startsWith('.claude/skills/')) return 'skill';
   if (filePath.startsWith('.claude/commands/')) return 'unrelated';
   return 'other';
 }
 
-export function collectObservedFacts(repo) {
+export function collectObservedFacts(repo, system = {}) {
   const facts = [];
   const unrelatedFiles = (repo.changed_files ?? [])
     .filter((file) => file.category === 'unrelated' || file.category === 'other')
     .map((file) => file.path);
+  const dirtySecurityConfigFiles = (repo.changed_files ?? [])
+    .filter((file) => file.category === 'security_config')
+    .map((file) => file.path);
+  const incompleteRuns = system.dogfood?.incomplete_previous_runs ?? [];
+  const missingWorkflows = system.workflows?.missing_workflows ?? [];
+  const dogfoodStoryUnshipped = system.story_to_ship?.dogfood_story_unshipped === true;
+  const scorerInCoverageScope = system.coverage?.scorer_in_coverage_scope;
 
   if (repo.run_count_before_current === 0) {
     facts.push({
@@ -68,6 +108,16 @@ export function collectObservedFacts(repo) {
       severity: 'high',
       summary: 'VibePro dogfood has no previous run history',
       evidence: ['run_count_before_current = 0'],
+    });
+  }
+
+  if (repo.branch === 'HEAD') {
+    facts.push({
+      fact_id: 'fact.repo.detached_head',
+      kind: 'change_control',
+      severity: 'medium',
+      summary: 'Repository is currently on detached HEAD',
+      evidence: ['git rev-parse --abbrev-ref HEAD returned HEAD'],
     });
   }
 
@@ -91,6 +141,16 @@ export function collectObservedFacts(repo) {
     });
   }
 
+  if (dirtySecurityConfigFiles.length > 0) {
+    facts.push({
+      fact_id: 'fact.repo.dirty_security_config_files',
+      kind: 'security_change_control',
+      severity: 'medium',
+      summary: 'Security-sensitive config files are dirty and need explicit review',
+      evidence: dirtySecurityConfigFiles,
+    });
+  }
+
   if (repo.scorer_exists === true && repo.scorer_workflow_exists !== true) {
     facts.push({
       fact_id: 'fact.vibepro.scorer_manual_only',
@@ -98,6 +158,56 @@ export function collectObservedFacts(repo) {
       severity: 'medium',
       summary: 'The VibePro scorer exists but is not connected to an automatic workflow',
       evidence: ['scripts/vibepro-score-run.mjs exists', 'no scorer workflow detected'],
+    });
+  }
+
+  if (incompleteRuns.length > 0) {
+    facts.push({
+      fact_id: 'fact.vibepro.incomplete_run_outputs',
+      kind: 'evaluation_unavailable',
+      severity: 'medium',
+      summary: `${incompleteRuns.length} previous VibePro dogfood runs are missing required outputs`,
+      evidence: incompleteRuns.map((run) => `${run.run_id}: missing ${run.missing_outputs.join(', ')}`),
+    });
+  }
+
+  if (missingWorkflows.includes('vibepro-score-run.yml')) {
+    facts.push({
+      fact_id: 'fact.workflows.vibepro_score_not_automated',
+      kind: 'automation',
+      severity: 'medium',
+      summary: 'VibePro score workflow is not present',
+      evidence: ['.github/workflows/vibepro-score-run.yml missing'],
+    });
+  }
+
+  if (missingWorkflows.includes('vibepro-graph-ssot.yml')) {
+    facts.push({
+      fact_id: 'fact.graph.ssot_not_automatically_verified',
+      kind: 'ssot_integrity',
+      severity: 'medium',
+      summary: 'Graph SSOT projection is not automatically verified',
+      evidence: ['.github/workflows/vibepro-graph-ssot.yml missing'],
+    });
+  }
+
+  if (dogfoodStoryUnshipped) {
+    facts.push({
+      fact_id: 'fact.story_to_ship.vibepro_dogfood_unshipped',
+      kind: 'story_to_ship_gap',
+      severity: 'medium',
+      summary: 'VibePro dogfood story has not reached shipped evidence',
+      evidence: ['story status is not shipped or ship evidence is missing'],
+    });
+  }
+
+  if (scorerInCoverageScope === false) {
+    facts.push({
+      fact_id: 'fact.ci.vibepro_scorer_outside_coverage_scope',
+      kind: 'ci_evaluation_gap',
+      severity: 'medium',
+      summary: 'VibePro scorer is tested but not included in coverage scope',
+      evidence: ['coverage include does not match scripts/vibepro-score-run.mjs'],
     });
   }
 
@@ -123,6 +233,149 @@ async function countPreviousRuns(runDir) {
   }
 }
 
+function extractFrontmatter(content) {
+  if (!content.startsWith('---\n')) return null;
+  const end = content.indexOf('\n---', 4);
+  if (end === -1) return null;
+  return content.slice(4, end);
+}
+
+function extractYamlField(markdown, fieldName) {
+  const frontmatter = extractFrontmatter(markdown);
+  if (frontmatter === null) return null;
+  try {
+    const parsed = yaml.load(frontmatter) ?? {};
+    return parsed[fieldName] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function readTextIfExists(filePath, fallback = '') {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch {
+    return fallback;
+  }
+}
+
+async function readJsonIfExists(filePath, fallback) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+export async function collectDogfoodRunHealth(runDir) {
+  const runsDir = path.dirname(runDir);
+  if (!runsDir.endsWith('docs/internal/vibepro-dogfood/runs')) {
+    return {
+      previous_run_count: 0,
+      incomplete_previous_runs: [],
+    };
+  }
+  let entries;
+  try {
+    entries = await fs.readdir(runsDir, { withFileTypes: true });
+  } catch {
+    return {
+      previous_run_count: 0,
+      incomplete_previous_runs: [],
+    };
+  }
+
+  const incomplete = [];
+  for (const entry of entries.filter((candidate) => candidate.isDirectory())) {
+    if (entry.name === path.basename(runDir)) continue;
+    const candidateDir = path.join(runsDir, entry.name);
+    const missingOutputs = [];
+    for (const output of REQUIRED_RUN_OUTPUTS) {
+      if (!(await pathExists(path.join(candidateDir, output)))) {
+        missingOutputs.push(output);
+      }
+    }
+    if (missingOutputs.length > 0) {
+      incomplete.push({
+        run_id: entry.name,
+        missing_outputs: missingOutputs,
+      });
+    }
+  }
+
+  return {
+    previous_run_count: entries.filter((entry) => entry.isDirectory() && entry.name !== path.basename(runDir)).length,
+    incomplete_previous_runs: incomplete.sort((a, b) => a.run_id.localeCompare(b.run_id)),
+  };
+}
+
+async function listWorkflowFiles(repoRoot) {
+  const workflowsDir = path.join(repoRoot, '.github/workflows');
+  try {
+    const entries = await fs.readdir(workflowsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => path.join('.github/workflows', entry.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+export function collectWorkflowHealth(workflowFiles) {
+  const basenames = new Set(workflowFiles.map((filePath) => path.basename(filePath)));
+  const required = ['vibepro-score-run.yml', 'vibepro-graph-ssot.yml'];
+  return {
+    workflow_count: workflowFiles.length,
+    missing_workflows: required.filter((workflow) => !basenames.has(workflow)),
+  };
+}
+
+export function collectStoryToShipHealth(input) {
+  return {
+    vibepro_story_status: input.vibeproStoryStatus ?? 'unknown',
+    has_ship_evidence: input.hasShipEvidence === true,
+    dogfood_story_unshipped: input.vibeproStoryStatus !== 'shipped' || input.hasShipEvidence !== true,
+  };
+}
+
+function globMayMatchPath(globPattern, filePath) {
+  if (globPattern === filePath) return true;
+  if (globPattern.endsWith('/**/*')) {
+    return filePath.startsWith(globPattern.slice(0, -4));
+  }
+  if (globPattern.includes('**/*')) {
+    const [prefix, suffix] = globPattern.split('**/*');
+    return filePath.startsWith(prefix) && filePath.endsWith(suffix.replace('*', ''));
+  }
+  if (globPattern.includes('*')) {
+    const [prefix, suffix] = globPattern.split('*');
+    return filePath.startsWith(prefix) && filePath.endsWith(suffix);
+  }
+  return false;
+}
+
+export function collectCoverageHealth(input) {
+  const coverageIncludes = input.coverageIncludes ?? [];
+  const scorerPath = input.scorerPath ?? 'scripts/vibepro-score-run.mjs';
+  return {
+    coverage_includes: coverageIncludes,
+    scorer_path: scorerPath,
+    scorer_in_coverage_scope: coverageIncludes.some((pattern) => globMayMatchPath(pattern, scorerPath)),
+  };
+}
+
+export function extractCoverageIncludesFromVitestConfig(configText) {
+  return unique(
+    [...configText.matchAll(/['"]([^'"]+)['"]/g)]
+      .map((match) => match[1])
+      .filter((value) => (
+        value.includes('*')
+        || /\.(?:cjs|js|mjs|ts)$/.test(value)
+      )),
+  );
+}
+
 export async function collectObservation(runDir, options = {}) {
   const repoRoot = options.repoRoot ?? process.cwd();
   const branch = readGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot);
@@ -134,9 +387,26 @@ export async function collectObservation(runDir, options = {}) {
   const changedFiles = statusOutput
     .split('\n')
     .filter(Boolean)
-    .map(parseStatusLine);
+    .map(parseGitStatusLine);
   const scorerExists = await pathExists(path.join(repoRoot, 'scripts/vibepro-score-run.mjs'));
   const scorerWorkflowExists = await pathExists(path.join(repoRoot, '.github/workflows/vibepro-score-run.yml'));
+
+  const [dogfood, workflowFiles, storyText, vitestConfigText] = await Promise.all([
+    collectDogfoodRunHealth(runDir),
+    listWorkflowFiles(repoRoot),
+    readTextIfExists(path.join(repoRoot, 'docs/stories/vibepro-brainbase-dogfood-story.md')),
+    readTextIfExists(path.join(repoRoot, 'vitest.config.js')),
+  ]);
+
+  const workflows = collectWorkflowHealth(workflowFiles);
+  const story_to_ship = collectStoryToShipHealth({
+    vibeproStoryStatus: extractYamlField(storyText, 'status') ?? 'unknown',
+    hasShipEvidence: await pathExists(path.join(repoRoot, 'docs/internal/vibepro-dogfood/ship.md')),
+  });
+  const coverage = collectCoverageHealth({
+    coverageIncludes: extractCoverageIncludesFromVitestConfig(vitestConfigText),
+    scorerPath: 'scripts/vibepro-score-run.mjs',
+  });
 
   const repo = {
     branch,
@@ -155,7 +425,40 @@ export async function collectObservation(runDir, options = {}) {
     frame_id: 'frm_vibepro',
     observed_at: new Date().toISOString(),
     repo,
-    observed_facts: collectObservedFacts(repo),
+    dogfood,
+    workflows,
+    story_to_ship,
+    coverage,
+    observed_facts: collectObservedFacts(repo, {
+      dogfood,
+      workflows,
+      story_to_ship,
+      coverage,
+    }),
+  };
+}
+
+export function validateObservationCompleteness(observation) {
+  const requiredObjectKeys = ['repo', 'dogfood', 'workflows', 'story_to_ship', 'coverage'];
+  const missingKeys = requiredObjectKeys.filter((key) => (
+    !observation[key] || typeof observation[key] !== 'object'
+  ));
+  const repo = observation.repo ?? {};
+  const missingRepoKeys = ['branch', 'changed_files', 'scorer_exists', 'scorer_workflow_exists']
+    .filter((key) => repo[key] === undefined || repo[key] === null);
+  const checks = {
+    has_required_sections: missingKeys.length === 0,
+    has_repo_minimum_fields: missingRepoKeys.length === 0,
+    has_workflow_inventory: Number.isInteger(observation.workflows?.workflow_count),
+    has_story_to_ship_result: typeof observation.story_to_ship?.dogfood_story_unshipped === 'boolean',
+    has_coverage_result: typeof observation.coverage?.scorer_in_coverage_scope === 'boolean',
+  };
+
+  return {
+    status: Object.values(checks).every(Boolean) ? 'passed' : 'failed',
+    checks,
+    missing_keys: missingKeys,
+    missing_repo_keys: missingRepoKeys,
   };
 }
 
@@ -173,6 +476,28 @@ export function generateOutcomeFromObservation(observation) {
     })),
     gate_violations: [],
     intervention_outcomes: [],
+  };
+}
+
+function factIdToGapId(factId) {
+  return `gap.${factId.replace(/^fact\./, '').replaceAll('_', '-')}`;
+}
+
+export function generateDiagnosisFromObservation(observation) {
+  return {
+    run_id: observation.run_id,
+    target_project: observation.target_project ?? 'brainbase',
+    frame_id: observation.frame_id ?? 'frm_vibepro',
+    status: 'generated',
+    generated_from: 'observation.json',
+    diagnosed_at: new Date().toISOString(),
+    scope: unique((observation.observed_facts ?? []).map((fact) => fact.kind)),
+    detected_gaps: (observation.observed_facts ?? []).map((fact) => ({
+      gap_id: factIdToGapId(fact.fact_id),
+      evidence_fact_ids: [fact.fact_id],
+      severity: fact.severity,
+      reason: fact.summary,
+    })),
   };
 }
 
@@ -268,6 +593,35 @@ export function calculateScore(diagnosis, labels) {
         weakInterventions,
       }),
     },
+  };
+}
+
+export function validateScoreGate({ observation, score }) {
+  const observationCheck = validateObservationCompleteness(observation);
+  const metrics = score.metrics ?? {};
+  const recall = metrics['本番化ギャップ捕捉率'];
+  const precision = metrics['本番化ギャップ的中率'];
+  const escapedGateRate = metrics['ゲート違反流出率'];
+  const failures = [];
+
+  if (observationCheck.status !== 'passed') {
+    failures.push('observation_completeness_failed');
+  }
+  if (recall !== 'not_applicable' && recall < 1) {
+    failures.push('本番化ギャップ捕捉率_below_gate');
+  }
+  if (precision !== 'not_applicable' && precision < 1) {
+    failures.push('本番化ギャップ的中率_below_gate');
+  }
+  if (escapedGateRate !== 0) {
+    failures.push('ゲート違反流出率_nonzero');
+  }
+
+  return {
+    status: failures.length === 0 ? 'passed' : 'failed',
+    failures,
+    observation_check: observationCheck,
+    metrics,
   };
 }
 
@@ -395,6 +749,13 @@ export async function observeRunDirectory(runDir, options = {}) {
   return observation;
 }
 
+export async function generateDiagnosisDirectory(runDir) {
+  const observation = await readJson(path.join(runDir, 'observation.json'));
+  const diagnosis = generateDiagnosisFromObservation(observation);
+  await writeJson(path.join(runDir, 'diagnosis.json'), diagnosis);
+  return diagnosis;
+}
+
 export async function generateOutcomeDirectory(runDir) {
   const observation = await readJson(path.join(runDir, 'observation.json'));
   const outcome = generateOutcomeFromObservation(observation);
@@ -432,10 +793,24 @@ export async function runEvaluationPipeline(runDir) {
   return scoreRunDirectory(runDir);
 }
 
+export async function runAutomationPipeline(runDir, options = {}) {
+  await observeRunDirectory(runDir, options);
+  await generateDiagnosisDirectory(runDir);
+  return runEvaluationPipeline(runDir);
+}
+
+export async function gateRunDirectory(runDir) {
+  const [observation, score] = await Promise.all([
+    readJson(path.join(runDir, 'observation.json')),
+    readJson(path.join(runDir, 'score.json')),
+  ]);
+  return validateScoreGate({ observation, score });
+}
+
 async function main() {
   const [command, runDir] = process.argv.slice(2);
   if (!command || !runDir) {
-    console.error('Usage: node scripts/vibepro-score-run.mjs <observe|generate-outcome|generate-labels|score|run> <run-dir>');
+    console.error('Usage: node scripts/vibepro-score-run.mjs <observe|generate-diagnosis|generate-outcome|generate-labels|score|run|auto-run|gate> <run-dir>');
     process.exitCode = 1;
     return;
   }
@@ -443,6 +818,8 @@ async function main() {
   let result;
   if (command === 'observe') {
     result = await observeRunDirectory(runDir);
+  } else if (command === 'generate-diagnosis') {
+    result = await generateDiagnosisDirectory(runDir);
   } else if (command === 'generate-outcome') {
     result = await generateOutcomeDirectory(runDir);
   } else if (command === 'generate-labels') {
@@ -451,6 +828,10 @@ async function main() {
     result = await scoreRunDirectory(runDir);
   } else if (command === 'run') {
     result = await runEvaluationPipeline(runDir);
+  } else if (command === 'auto-run') {
+    result = await runAutomationPipeline(runDir);
+  } else if (command === 'gate') {
+    result = await gateRunDirectory(runDir);
   } else {
     throw new Error(`Unknown command: ${command}`);
   }
@@ -459,7 +840,11 @@ async function main() {
     run_id: result.run_id,
     status: result.status ?? 'generated',
     metrics: result.metrics,
+    failures: result.failures,
   }, null, 2));
+  if (command === 'gate' && result.status !== 'passed') {
+    process.exitCode = 1;
+  }
 }
 
 const currentFile = fileURLToPath(import.meta.url);

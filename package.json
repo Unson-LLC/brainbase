@@ -45,6 +45,8 @@
     "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "vibepro:ci": "node scripts/vibepro-score-run.mjs auto-run \"${VIBEPRO_RUN_DIR:-var/vibepro-ci-run}\"",
+    "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh"
