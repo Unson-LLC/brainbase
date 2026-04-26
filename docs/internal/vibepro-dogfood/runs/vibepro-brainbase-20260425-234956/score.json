@@ -1,5 +1,5 @@
 {
-  "run_id": "vibepro-brainbase-20260425-205821",
+  "run_id": "vibepro-brainbase-20260425-234956",
   "status": "scored",
   "metrics": {
     "本番化ギャップ捕捉率": 1,
@@ -8,7 +8,9 @@
   },
   "feedback": {
     "detected_correctly": [
-      "gap.vibepro.archival-run-without-observation"
+      "gap.brainbase.change-control.unrelated-dirty-files",
+      "gap.brainbase.vibepro.scorer-manual-only",
+      "gap.brainbase.vibepro.incomplete-run-outputs"
     ],
     "missed_gaps": [],
     "over_detected_gaps": [],

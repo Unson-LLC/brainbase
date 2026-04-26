@@ -1,0 +1,144 @@
+{
+  "run_id": "vibepro-brainbase-20260426-000422",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "diagnosed",
+  "diagnosed_at": "2026-04-26T00:04:22+09:00",
+  "diagnosis_method": "vibepro_control_plane_wide_observation",
+  "detected_gaps": [
+    {
+      "gap_id": "gap.brainbase.change-control.detached-head",
+      "title": "detached HEAD上でVibePro検証が進んでいる",
+      "severity": "medium",
+      "category": "change_control",
+      "evidence_fact_ids": [
+        "fact.repo.detached_head"
+      ],
+      "business_impact": "作業の所属ブランチが不明確になり、ship/merge/pushの追跡が難しくなる",
+      "recommended_route": "意図したbranchまたはworktreeへ移してからcommit単位を確定する",
+      "gate_required": true
+    },
+    {
+      "gap_id": "gap.brainbase.change-control.unrelated-dirty-files",
+      "title": "VibePro検証と別意図の未コミット変更が混在している",
+      "severity": "medium",
+      "category": "change_control",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "business_impact": "評価用変更と実装変更が同じ差分に混ざり、原因追跡とrollback判断が難しくなる",
+      "recommended_route": "VibePro差分と別作業差分を別commitまたは別worktreeに分離する",
+      "gate_required": true
+    },
+    {
+      "gap_id": "gap.brainbase.vibepro.scorer-manual-only",
+      "title": "VibePro採点CLIがworkflowに接続されていない",
+      "severity": "medium",
+      "category": "automation",
+      "evidence_fact_ids": [
+        "fact.vibepro.scorer_manual_only"
+      ],
+      "business_impact": "正解ラベル確定後の採点忘れにより、AI診断の改善履歴が途切れる",
+      "recommended_route": "labels/outcome更新後にscoreとfeedbackを自動再生成するworkflowを追加する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.vibepro.incomplete-run-outputs",
+      "title": "過去のVibePro dogfood runに必須成果物の欠落がある",
+      "severity": "medium",
+      "category": "evaluation_unavailable",
+      "evidence_fact_ids": [
+        "fact.vibepro.incomplete_run_outputs"
+      ],
+      "business_impact": "run間比較が不完全になり、本番化ギャップ捕捉率や的中率の時系列評価が壊れる",
+      "recommended_route": "既存runを補完するか、無効runとして明示的に除外する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.mcp.secret-values-in-repo-config",
+      "title": "MCP設定に秘匿値らしきenv値がrepo内で管理されている",
+      "severity": "high",
+      "category": "secret_management",
+      "evidence_fact_ids": [
+        "fact.mcp.secret_values_in_repo_config"
+      ],
+      "business_impact": "AI agentのtooling設定が漏洩リスクを持ち、外部共有やcommit時の安全性が下がる",
+      "recommended_route": "MCP env値をローカルsecret storeまたは環境変数参照へ移し、repoにはキー名だけを残す",
+      "gate_required": true
+    },
+    {
+      "gap_id": "gap.brainbase.hooks.missing-referenced-scripts",
+      "title": "Claude settingsが存在しないhook scriptを参照している",
+      "severity": "high",
+      "category": "agent_recovery_blocker",
+      "evidence_fact_ids": [
+        "fact.hooks.missing_referenced_scripts"
+      ],
+      "business_impact": "UserPromptSubmitなどのagent guardrailが実行時に失敗し、AI自走の前提が崩れる",
+      "recommended_route": "settingsの参照を実在scriptへ修正するか、未実装hook参照を削除する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.workflows.vibepro-score-not-automated",
+      "title": "VibePro採点workflowが存在しない",
+      "severity": "medium",
+      "category": "automation",
+      "evidence_fact_ids": [
+        "fact.workflows.vibepro_score_not_automated"
+      ],
+      "business_impact": "dogfood runが増えても採点とfeedback生成が手動依存になり、改善ループが途切れる",
+      "recommended_route": ".github/workflows/vibepro-score-run.ymlを追加し、run成果物変更時に採点を検証する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.graph.ssot-not-automatically-verified",
+      "title": "Graph SSOTとdocs投影の自動照合がない",
+      "severity": "medium",
+      "category": "ssot_integrity",
+      "evidence_fact_ids": [
+        "fact.graph.ssot_not_automatically_verified"
+      ],
+      "business_impact": "VibePro思想・用語・指標のGraph正本とrepo投影がズレても検知できない",
+      "recommended_route": "Graph frame/glossary/decisionを読み、docs投影との差分をCIで検証する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.story-to-ship.vibepro-dogfood-unshipped",
+      "title": "VibePro dogfood storyがship証跡まで到達していない",
+      "severity": "medium",
+      "category": "story_to_ship_gap",
+      "evidence_fact_ids": [
+        "fact.story_to_ship.vibepro_dogfood_unshipped"
+      ],
+      "business_impact": "Story/Architecture/Spec/Code/runの接続はあるが、出荷完了として追跡できない",
+      "recommended_route": "dogfood runの合格条件とship証跡を定義し、完了時にStory statusを更新する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.ci.vibepro-scorer-outside-coverage-scope",
+      "title": "VibePro採点CLIがcoverage対象外になっている",
+      "severity": "medium",
+      "category": "ci_evaluation_gap",
+      "evidence_fact_ids": [
+        "fact.ci.vibepro_scorer_outside_coverage_scope"
+      ],
+      "business_impact": "採点ロジックが壊れてもcoverage低下として検知できず、AI自走指標の信頼性が落ちる",
+      "recommended_route": "coverage includeにscripts/vibepro-score-run.mjsを含めるか、別の品質ゲートを設定する",
+      "gate_required": false
+    }
+  ],
+  "gate_requirements": [
+    {
+      "gate": "human_review",
+      "required_when": "別意図の未コミット変更を同じcommitに含める時"
+    },
+    {
+      "gate": "human_review",
+      "required_when": "MCP設定やsecret管理方針を変更する時"
+    },
+    {
+      "gate": "human_review",
+      "required_when": "本番データ移行、外部公開、顧客通知、課金、削除を伴う時"
+    }
+  ]
+}

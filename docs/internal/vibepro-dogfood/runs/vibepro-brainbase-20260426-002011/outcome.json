@@ -1,0 +1,81 @@
+{
+  "run_id": "vibepro-brainbase-20260426-002011",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.detached_head",
+      "fact_ids": [
+        "fact.repo.detached_head"
+      ],
+      "severity": "medium",
+      "category": "change_control",
+      "reason": "Repository is currently on detached HEAD"
+    },
+    {
+      "actual_gap_id": "actual.gap.repo.unrelated_dirty_files",
+      "fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "category": "change_control",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    },
+    {
+      "actual_gap_id": "actual.gap.vibepro.scorer_manual_only",
+      "fact_ids": [
+        "fact.vibepro.scorer_manual_only"
+      ],
+      "severity": "medium",
+      "category": "automation",
+      "reason": "The VibePro scorer exists but is not connected to an automatic workflow"
+    },
+    {
+      "actual_gap_id": "actual.gap.vibepro.incomplete_run_outputs",
+      "fact_ids": [
+        "fact.vibepro.incomplete_run_outputs"
+      ],
+      "severity": "medium",
+      "category": "evaluation_unavailable",
+      "reason": "2 previous VibePro dogfood runs are missing required outputs"
+    },
+    {
+      "actual_gap_id": "actual.gap.workflows.vibepro_score_not_automated",
+      "fact_ids": [
+        "fact.workflows.vibepro_score_not_automated"
+      ],
+      "severity": "medium",
+      "category": "automation",
+      "reason": "VibePro score workflow is not present"
+    },
+    {
+      "actual_gap_id": "actual.gap.graph.ssot_not_automatically_verified",
+      "fact_ids": [
+        "fact.graph.ssot_not_automatically_verified"
+      ],
+      "severity": "medium",
+      "category": "ssot_integrity",
+      "reason": "Graph SSOT projection is not automatically verified"
+    },
+    {
+      "actual_gap_id": "actual.gap.story_to_ship.vibepro_dogfood_unshipped",
+      "fact_ids": [
+        "fact.story_to_ship.vibepro_dogfood_unshipped"
+      ],
+      "severity": "medium",
+      "category": "story_to_ship_gap",
+      "reason": "VibePro dogfood story has not reached shipped evidence"
+    },
+    {
+      "actual_gap_id": "actual.gap.ci.vibepro_scorer_outside_coverage_scope",
+      "fact_ids": [
+        "fact.ci.vibepro_scorer_outside_coverage_scope"
+      ],
+      "severity": "medium",
+      "category": "ci_evaluation_gap",
+      "reason": "VibePro scorer is tested but not included in coverage scope"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

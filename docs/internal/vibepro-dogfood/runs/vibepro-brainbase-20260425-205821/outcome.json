@@ -1,21 +1,18 @@
 {
   "run_id": "vibepro-brainbase-20260425-205821",
-  "target_project": "brainbase",
-  "frame_id": "frm_vibepro",
   "status": "generated",
   "generated_from": "observation.json",
-  "diagnosed_at": "2026-04-26T00:10:02.099Z",
-  "scope": [
-    "evaluation_traceability"
-  ],
-  "detected_gaps": [
+  "actual_gaps": [
     {
-      "gap_id": "gap.vibepro.archival-run-without-observation",
-      "evidence_fact_ids": [
+      "actual_gap_id": "actual.gap.vibepro.archival_run_without_observation",
+      "fact_ids": [
         "fact.vibepro.archival_run_without_observation"
       ],
       "severity": "medium",
+      "category": "evaluation_traceability",
       "reason": "This early exploratory run was created before observation snapshots became mandatory"
     }
-  ]
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
 }

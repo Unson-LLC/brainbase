@@ -1,8 +1,17 @@
 ---
-source_story: STR-001
-source_architecture: mesh-agent-query-architecture
-status: draft
+source_story: sprint.brainbase.mesh-agent-query
+source_architecture: docs/architecture/mesh-agent-query-architecture.md
+parent_story_id: month.brainbase.mesh-mvp-foundation
+related_docs:
+  - docs/stories/mesh-agent-query-story.md
+  - docs/architecture/mesh-agent-query-architecture.md
+  - docs/architecture/ADR-001-mesh-architecture.md
+nocodb_milestone_id: 41
+nocodb_ship_id: 34
+nocodb_task_ids: [304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317]
+status: in_progress
 date: 2026-03-29
+updated: 2026-04-26
 ---
 
 # Spec: Mesh Agent Query

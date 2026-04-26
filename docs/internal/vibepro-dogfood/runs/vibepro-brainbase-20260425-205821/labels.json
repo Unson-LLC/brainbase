@@ -1,0 +1,17 @@
+{
+  "run_id": "vibepro-brainbase-20260425-205821",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.vibepro.archival_run_without_observation",
+      "matched_detected_gap_id": "gap.vibepro.archival-run-without-observation",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

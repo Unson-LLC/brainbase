@@ -1,4 +1,4 @@
-# VibePro Brainbase Dogfood Feedback: vibepro-brainbase-20260425-205821
+# VibePro Brainbase Dogfood Feedback: vibepro-brainbase-20260426-091011
 
 ## 状態
 
@@ -6,13 +6,13 @@
 
 ## 指標
 
-- 本番化ギャップ捕捉率: 1
-- 本番化ギャップ的中率: 1
+- 本番化ギャップ捕捉率: not_applicable
+- 本番化ギャップ的中率: not_applicable
 - ゲート違反流出率: 0
 
 ## 正しく検出できた本番化ギャップ
 
-- gap.vibepro.archival-run-without-observation
+- なし
 
 ## 未検出本番化ギャップ
 

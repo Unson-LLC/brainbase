@@ -1,0 +1,395 @@
+{
+  "run_id": "vibepro-brainbase-20260426-011234",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-04-25T16:12:35.164Z",
+  "repo": {
+    "branch": "HEAD",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": ".claude/scripts/hooks/enforce-nocodb-lookup.ts",
+        "status": "A",
+        "category": "other"
+      },
+      {
+        "path": ".github/workflows/vibepro-graph-ssot.yml",
+        "status": "A",
+        "category": "other"
+      },
+      {
+        "path": ".github/workflows/vibepro-score-run.yml",
+        "status": "A",
+        "category": "other"
+      },
+      {
+        "path": ".mcp.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/control-plane-assessment.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/control-plane-assessment.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/remediation-assessment.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-002011/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005152/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/automation-assessment.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-005323/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "package.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "scripts/vibepro-graph-ssot-check.mjs",
+        "status": "A",
+        "category": "other"
+      },
+      {
+        "path": "scripts/vibepro-score-run.mjs",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "tests/unit/vibepro-graph-ssot-check.test.js",
+        "status": "A",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/vibepro-score-run.test.js",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "vitest.config.js",
+        "status": "M",
+        "category": "other"
+      }
+    ],
+    "run_count_before_current": 7,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "skills": {
+    "total": 129,
+    "invalid": []
+  },
+  "dogfood": {
+    "previous_run_count": 7,
+    "incomplete_previous_runs": [
+      {
+        "run_id": "vibepro-brainbase-20260425-205821",
+        "missing_outputs": [
+          "observation.json",
+          "outcome.json"
+        ]
+      },
+      {
+        "run_id": "vibepro-brainbase-20260425-233604",
+        "missing_outputs": [
+          "diagnosis.json",
+          "outcome.json",
+          "labels.json",
+          "score.json",
+          "feedback.md",
+          "report.md"
+        ]
+      }
+    ]
+  },
+  "mcp": {
+    "server_count": 6,
+    "secret_env_refs": [],
+    "missing_commands": []
+  },
+  "hooks": {
+    "hook_script_refs": [
+      ".claude/scripts/hooks/enforce-nocodb-lookup.ts",
+      ".claude/scripts/hooks/post-tool-use/activity-bridge.ts",
+      ".claude/scripts/hooks/post-tool-use/edit-validator.ts",
+      ".claude/scripts/hooks/post-tool-use/git-notification-wrapper.ts",
+      ".claude/scripts/hooks/post-tool-use/interrupt-detector.ts",
+      ".claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts",
+      ".claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts",
+      ".claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts",
+      ".claude/scripts/hooks/pre-tool-use/edit-comprehensive-validator.ts",
+      ".claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts",
+      ".claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts",
+      ".claude/scripts/hooks/stop/activity-bridge.ts",
+      ".claude/scripts/hooks/stop/completion-notifier-wrapper.ts",
+      ".claude/scripts/hooks/stop/jj-commit-guard.ts",
+      ".claude/scripts/hooks/stop/push-guard.ts",
+      ".claude/scripts/hooks/user-prompt-submit/activity-bridge.ts",
+      ".claude/scripts/hooks/user-prompt-submit/autonomy-reminder.ts",
+      ".claude/scripts/hooks/user-prompt-submit/context-loader-wrapper.ts",
+      ".claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts",
+      ".claude/scripts/hooks/user-prompt-submit/skill-reminder.ts",
+      ".claude/scripts/hooks/user-prompt-submit/test-enforcer.ts"
+    ],
+    "missing_hook_scripts": []
+  },
+  "workflows": {
+    "workflow_count": 7,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "draft",
+    "has_ship_evidence": false,
+    "dogfood_story_unshipped": true
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.detached_head",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "Repository is currently on detached HEAD",
+      "evidence": [
+        "git branch --show-current returned empty branch / HEAD"
+      ]
+    },
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        ".claude/scripts/hooks/enforce-nocodb-lookup.ts",
+        ".github/workflows/vibepro-graph-ssot.yml",
+        ".github/workflows/vibepro-score-run.yml",
+        ".mcp.json",
+        "package.json",
+        "scripts/vibepro-graph-ssot-check.mjs",
+        "tests/unit/vibepro-graph-ssot-check.test.js",
+        "vitest.config.js"
+      ]
+    },
+    {
+      "fact_id": "fact.vibepro.incomplete_run_outputs",
+      "kind": "evaluation_unavailable",
+      "severity": "medium",
+      "summary": "2 previous VibePro dogfood runs are missing required outputs",
+      "evidence": [
+        "vibepro-brainbase-20260425-205821: missing observation.json, outcome.json",
+        "vibepro-brainbase-20260425-233604: missing diagnosis.json, outcome.json, labels.json, score.json, feedback.md, report.md"
+      ]
+    },
+    {
+      "fact_id": "fact.story_to_ship.vibepro_dogfood_unshipped",
+      "kind": "story_to_ship_gap",
+      "severity": "medium",
+      "summary": "VibePro dogfood story has not reached shipped evidence",
+      "evidence": [
+        "story status is not shipped or ship evidence is missing"
+      ]
+    }
+  ]
+}

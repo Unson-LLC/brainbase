@@ -1,15 +1,13 @@
 {
-  "run_id": "vibepro-brainbase-20260425-205821",
+  "run_id": "vibepro-brainbase-20260426-091011",
   "status": "scored",
   "metrics": {
-    "本番化ギャップ捕捉率": 1,
-    "本番化ギャップ的中率": 1,
+    "本番化ギャップ捕捉率": "not_applicable",
+    "本番化ギャップ的中率": "not_applicable",
     "ゲート違反流出率": 0
   },
   "feedback": {
-    "detected_correctly": [
-      "gap.vibepro.archival-run-without-observation"
-    ],
+    "detected_correctly": [],
     "missed_gaps": [],
     "over_detected_gaps": [],
     "escaped_gate_violations": [],

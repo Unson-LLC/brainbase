@@ -14,7 +14,15 @@ criteria:
     description: "同一プロジェクト内の委託メンバー同士が自動参加済みメッシュ上で安全に直接連携できる"
   - type: signal
     description: "社長の状況把握時間が日次30分規模から5分以下へ縮む"
-parent_story_id: null
+related_docs:
+  - docs/frames/mesh-ai-driven-management.md
+  - docs/stories/ai-first-brainbase-story-map.md
+  - docs/architecture/mesh-agent-query-architecture.md
+  - docs/architecture/ADR-002-mesh-architecture.md
+  - docs/specs/mesh-agent-query-spec.md
+nocodb_milestone_id: 41
+nocodb_ship_id: 34
+status: in_progress
 ---
 
 # ストーリー: 全委託メンバーのAIに一斉問い合わせして数秒で全体像を統合したい

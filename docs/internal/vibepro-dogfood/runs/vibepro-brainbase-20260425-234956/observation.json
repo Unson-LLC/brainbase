@@ -1,0 +1,101 @@
+{
+  "run_id": "vibepro-brainbase-20260425-234956",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-04-25T14:53:06.237Z",
+  "repo": {
+    "branch": "HEAD",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "scripts/vibepro-score-run.mjs",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "server/services/learning-service.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/services/learning-service.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/vibepro-score-run.test.js",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      }
+    ],
+    "run_count_before_current": 2,
+    "scorer_exists": true,
+    "scorer_workflow_exists": false
+  },
+  "skills": {
+    "total": 128,
+    "invalid": []
+  },
+  "dogfood": {
+    "previous_run_count": 2,
+    "incomplete_previous_runs": [
+      {
+        "run_id": "vibepro-brainbase-20260425-205821",
+        "missing_outputs": [
+          "observation.json",
+          "outcome.json"
+        ]
+      },
+      {
+        "run_id": "vibepro-brainbase-20260425-233604",
+        "missing_outputs": [
+          "diagnosis.json",
+          "outcome.json",
+          "labels.json",
+          "score.json",
+          "feedback.md",
+          "report.md"
+        ]
+      }
+    ]
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js"
+      ]
+    },
+    {
+      "fact_id": "fact.vibepro.scorer_manual_only",
+      "kind": "automation",
+      "severity": "medium",
+      "summary": "The VibePro scorer exists but is not connected to an automatic workflow",
+      "evidence": [
+        "scripts/vibepro-score-run.mjs exists",
+        "no scorer workflow detected"
+      ]
+    },
+    {
+      "fact_id": "fact.vibepro.incomplete_run_outputs",
+      "kind": "evaluation_unavailable",
+      "severity": "medium",
+      "summary": "2 previous VibePro dogfood runs are missing required outputs",
+      "evidence": [
+        "vibepro-brainbase-20260425-205821: missing observation.json, outcome.json",
+        "vibepro-brainbase-20260425-233604: missing diagnosis.json, outcome.json, labels.json, score.json, feedback.md, report.md"
+      ]
+    }
+  ]
+}

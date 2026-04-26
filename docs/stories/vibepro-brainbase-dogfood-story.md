@@ -5,10 +5,10 @@ source_requirement:
   requirement_title: "BrainbaseでVibeProを試す"
 architecture_docs:
   - path: docs/architecture/vibepro-brainbase-dogfood-architecture.md
-    status: created
-status: draft
+    status: accepted
+status: shipped
 created_at: 2026-04-25
-updated_at: 2026-04-25
+updated_at: 2026-04-26
 ---
 
 # STR-vibepro-brainbase-dogfood: BrainbaseでVibeProの評価分離dogfoodを回す
@@ -33,12 +33,16 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 
 ## 受け入れ基準
 
-- [ ] `observation.json` が機械観測の snapshot として保存される
-- [ ] `diagnosis.json` は VibePro の診断判断だけを保存し、正解ラベルを含まない
-- [ ] `outcome.json` は観測事実から機械生成され、診断結果に依存しない
-- [ ] `labels.json` は `outcome.json` と `diagnosis.json` の照合で機械生成される
-- [ ] `score.json` は日本語指標を決定論的に計算する
-- [ ] `feedback.md` と `report.md` は採点結果から生成される
+- [x] `observation.json` が機械観測の snapshot として保存される
+- [x] `diagnosis.json` は VibePro の診断判断だけを保存し、正解ラベルを含まない
+- [x] `outcome.json` は観測事実から機械生成され、診断結果に依存しない
+- [x] `labels.json` は `outcome.json` と `diagnosis.json` の照合で機械生成される
+- [x] `score.json` は日本語指標を決定論的に計算する
+- [x] `feedback.md` と `report.md` は採点結果から生成される
+
+## Ship 証跡
+
+- `docs/internal/vibepro-dogfood/ship.md`
 
 ## スコープ外
 

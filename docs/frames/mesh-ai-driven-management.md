@@ -1,3 +1,18 @@
+---
+frame_id: frame-2026-mesh-ai-driven-management
+parent_frame_id: frame-2026-ai-first-company-os
+title: "Mesh — AI Agent間リアルタイム連携による経営の脱・属人化"
+status: active
+date: 2026-03-29
+related_docs:
+  - docs/stories/ai-first-brainbase-story-map.md
+  - docs/stories/mesh-agent-query-story.md
+  - docs/architecture/mesh-agent-query-architecture.md
+  - docs/architecture/ADR-002-mesh-architecture.md
+  - docs/specs/mesh-agent-query-spec.md
+note: "frame-2026-ai-first-company-os の分散層側（distributed layer）の詳細を補足する子フレーム。Story Map本体（ai-first-brainbase-story-map.md）の Frame セクションと整合する。"
+---
+
 # Frame: Mesh — AI Agent間リアルタイム連携による経営の脱・属人化
 
 ## この世界では何が真か

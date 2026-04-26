@@ -1,0 +1,10 @@
+{
+  "run_id": "vibepro-brainbase-20260426-091011",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-04-26T00:10:12.111Z",
+  "scope": [],
+  "detected_gaps": []
+}

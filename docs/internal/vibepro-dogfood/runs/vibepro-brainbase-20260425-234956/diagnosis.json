@@ -1,0 +1,56 @@
+{
+  "run_id": "vibepro-brainbase-20260425-234956",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "diagnosed",
+  "diagnosed_at": "2026-04-25T23:49:56+09:00",
+  "diagnosis_method": "vibepro_control_plane_dogfood_from_observation",
+  "detected_gaps": [
+    {
+      "gap_id": "gap.brainbase.change-control.unrelated-dirty-files",
+      "title": "VibePro dogfoodと別意図の未コミット変更が混在している",
+      "severity": "medium",
+      "category": "change_control",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "business_impact": "意図の異なる変更が同じ出荷単位に混ざり、原因追跡とrollback判断が難しくなる",
+      "recommended_route": "VibePro dogfood差分とlearning-service差分を別commitまたは別worktreeに分離する",
+      "gate_required": true
+    },
+    {
+      "gap_id": "gap.brainbase.vibepro.scorer-manual-only",
+      "title": "VibePro採点CLIがworkflowに接続されていない",
+      "severity": "medium",
+      "category": "automation",
+      "evidence_fact_ids": [
+        "fact.vibepro.scorer_manual_only"
+      ],
+      "business_impact": "正解ラベル確定後の採点忘れにより、AI診断の改善履歴が途切れる",
+      "recommended_route": "labels/outcome更新後にscoreとfeedbackを自動再生成するhookまたはworkflowを追加する",
+      "gate_required": false
+    },
+    {
+      "gap_id": "gap.brainbase.vibepro.incomplete-run-outputs",
+      "title": "過去のVibePro dogfood runに必須成果物の欠落がある",
+      "severity": "medium",
+      "category": "evaluation_unavailable",
+      "evidence_fact_ids": [
+        "fact.vibepro.incomplete_run_outputs"
+      ],
+      "business_impact": "run間比較が不完全になり、本番化ギャップ捕捉率や的中率の時系列評価が壊れる",
+      "recommended_route": "既存runを補完するか、無効runとして明示的に除外する",
+      "gate_required": false
+    }
+  ],
+  "gate_requirements": [
+    {
+      "gate": "human_review",
+      "required_when": "別意図の未コミット変更を同じcommitに含める時"
+    },
+    {
+      "gate": "human_review",
+      "required_when": "本番データ移行、外部公開、顧客通知、課金、削除を伴う時"
+    }
+  ]
+}

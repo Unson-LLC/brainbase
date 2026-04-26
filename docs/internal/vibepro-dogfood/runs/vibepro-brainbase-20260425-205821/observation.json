@@ -1,0 +1,28 @@
+{
+  "run_id": "vibepro-brainbase-20260425-205821",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-04-25T20:58:21+09:00",
+  "archival_backfill": true,
+  "repo": {
+    "branch": "develop",
+    "upstream": "origin/develop",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [],
+    "run_count_before_current": 0,
+    "scorer_exists": true,
+    "scorer_workflow_exists": false
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.vibepro.archival_run_without_observation",
+      "kind": "evaluation_traceability",
+      "severity": "medium",
+      "summary": "This early exploratory run was created before observation snapshots became mandatory",
+      "evidence": [
+        "observation.json was backfilled to preserve run completeness"
+      ]
+    }
+  ]
+}

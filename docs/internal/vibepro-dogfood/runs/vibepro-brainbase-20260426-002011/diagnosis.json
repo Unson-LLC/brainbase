@@ -1,0 +1,77 @@
+{
+  "run_id": "vibepro-brainbase-20260426-002011",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "diagnosed_at": "2026-04-26T00:20:11+09:00",
+  "status": "diagnosed",
+  "scope": [
+    "repo change control",
+    "VibePro dogfood runs",
+    "workflow automation",
+    "Graph SSOT automation",
+    "Story-to-Ship closure",
+    "coverage scope"
+  ],
+  "resolved_since_previous_run": [
+    {
+      "fact_id": "fact.mcp.secret_values_in_repo_config",
+      "judgment": "resolved",
+      "evidence": "secret-like MCP env values are now placeholders in repo config"
+    },
+    {
+      "fact_id": "fact.hooks.missing_referenced_scripts",
+      "judgment": "resolved",
+      "evidence": "the referenced enforce-nocodb-lookup hook script now exists"
+    }
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.brainbase.change-control.detached-head",
+      "evidence_fact_ids": ["fact.repo.detached_head"],
+      "severity": "medium",
+      "reason": "detached HEAD makes change ownership and promotion harder to verify"
+    },
+    {
+      "gap_id": "gap.brainbase.change-control.unrelated-dirty-files",
+      "evidence_fact_ids": ["fact.repo.unrelated_dirty_files"],
+      "severity": "medium",
+      "reason": "unrelated dirty files make remediation effects harder to isolate"
+    },
+    {
+      "gap_id": "gap.brainbase.vibepro.scorer-manual-only",
+      "evidence_fact_ids": ["fact.vibepro.scorer_manual_only"],
+      "severity": "medium",
+      "reason": "the scorer exists but still depends on manual execution"
+    },
+    {
+      "gap_id": "gap.brainbase.vibepro.incomplete-run-outputs",
+      "evidence_fact_ids": ["fact.vibepro.incomplete_run_outputs"],
+      "severity": "medium",
+      "reason": "incomplete historical runs weaken evaluation continuity"
+    },
+    {
+      "gap_id": "gap.brainbase.workflows.vibepro-score-not-automated",
+      "evidence_fact_ids": ["fact.workflows.vibepro_score_not_automated"],
+      "severity": "medium",
+      "reason": "VibePro scoring is not yet a CI or scheduled control-plane loop"
+    },
+    {
+      "gap_id": "gap.brainbase.graph.ssot-not-automatically-verified",
+      "evidence_fact_ids": ["fact.graph.ssot_not_automatically_verified"],
+      "severity": "medium",
+      "reason": "Graph SSOT integrity is not yet continuously checked"
+    },
+    {
+      "gap_id": "gap.brainbase.story-to-ship.vibepro-dogfood-unshipped",
+      "evidence_fact_ids": ["fact.story_to_ship.vibepro_dogfood_unshipped"],
+      "severity": "medium",
+      "reason": "the dogfood story has not reached shipped evidence"
+    },
+    {
+      "gap_id": "gap.brainbase.ci.vibepro-scorer-outside-coverage-scope",
+      "evidence_fact_ids": ["fact.ci.vibepro_scorer_outside_coverage_scope"],
+      "severity": "medium",
+      "reason": "the evaluator is tested but outside the configured coverage include set"
+    }
+  ]
+}

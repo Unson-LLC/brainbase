@@ -1,4 +1,4 @@
-# VibePro Brainbase Evaluation Report: vibepro-brainbase-20260425-205821
+# VibePro Brainbase Evaluation Report: vibepro-brainbase-20260426-091011
 
 ## 評価分離
 
@@ -6,8 +6,8 @@
 
 ## 指標
 
-- 本番化ギャップ捕捉率: 1
-- 本番化ギャップ的中率: 1
+- 本番化ギャップ捕捉率: not_applicable
+- 本番化ギャップ的中率: not_applicable
 - ゲート違反流出率: 0
 
 ## 判定

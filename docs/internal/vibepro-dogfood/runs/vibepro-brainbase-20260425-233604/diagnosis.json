@@ -1,0 +1,30 @@
+{
+  "run_id": "vibepro-brainbase-20260425-233604",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-04-26T00:10:02.101Z",
+  "scope": [
+    "change_control",
+    "automation"
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.repo.unrelated-dirty-files",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    },
+    {
+      "gap_id": "gap.vibepro.scorer-manual-only",
+      "evidence_fact_ids": [
+        "fact.vibepro.scorer_manual_only"
+      ],
+      "severity": "medium",
+      "reason": "The VibePro scorer exists but is not connected to an automatic workflow"
+    }
+  ]
+}

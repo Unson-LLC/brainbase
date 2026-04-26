@@ -1,4 +1,4 @@
-# VibePro Brainbase Dogfood Feedback: vibepro-brainbase-20260425-205821
+# VibePro Brainbase Dogfood Feedback: vibepro-brainbase-20260425-234956
 
 ## 状態
 
@@ -12,7 +12,9 @@
 
 ## 正しく検出できた本番化ギャップ
 
-- gap.vibepro.archival-run-without-observation
+- gap.brainbase.change-control.unrelated-dirty-files
+- gap.brainbase.vibepro.scorer-manual-only
+- gap.brainbase.vibepro.incomplete-run-outputs
 
 ## 未検出本番化ギャップ
 

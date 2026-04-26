@@ -1,12 +1,14 @@
 ---
-adr_id: ADR-001
+adr_id: ADR-002
 title: Mesh MVP アーキテクチャ - Agent間リアルタイム問い合わせ基盤
 status: accepted
 date: 2026-03-29
 deciders: keigo
+related_story: sprint.brainbase.mesh-agent-query
+related_architecture: docs/architecture/mesh-agent-query-architecture.md
 ---
 
-# ADR-001: Mesh MVP アーキテクチャ
+# ADR-002: Mesh MVP アーキテクチャ
 
 ## コンテキスト
 

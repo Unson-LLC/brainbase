@@ -1,8 +1,16 @@
 ---
-source_story: STR-001
-source_frame: mesh-ai-driven-management
+source_story: sprint.brainbase.mesh-agent-query
+source_frame: frame-2026-ai-first-company-os
+parent_story_id: month.brainbase.mesh-mvp-foundation
+related_docs:
+  - docs/stories/mesh-agent-query-story.md
+  - docs/frames/mesh-ai-driven-management.md
+  - docs/stories/ai-first-brainbase-story-map.md
+  - docs/specs/mesh-agent-query-spec.md
+  - docs/architecture/ADR-001-mesh-architecture.md
 status: accepted
 date: 2026-03-29
+updated: 2026-04-26
 ---
 
 # Architecture: Mesh Agent Query

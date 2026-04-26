@@ -1,0 +1,38 @@
+{
+  "run_id": "vibepro-brainbase-20260426-011858",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-04-25T16:18:59.430Z",
+  "scope": [
+    "change_control",
+    "evaluation_unavailable"
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.repo.detached-head",
+      "evidence_fact_ids": [
+        "fact.repo.detached_head"
+      ],
+      "severity": "medium",
+      "reason": "Repository is currently on detached HEAD"
+    },
+    {
+      "gap_id": "gap.repo.unrelated-dirty-files",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    },
+    {
+      "gap_id": "gap.vibepro.incomplete-run-outputs",
+      "evidence_fact_ids": [
+        "fact.vibepro.incomplete_run_outputs"
+      ],
+      "severity": "medium",
+      "reason": "2 previous VibePro dogfood runs are missing required outputs"
+    }
+  ]
+}

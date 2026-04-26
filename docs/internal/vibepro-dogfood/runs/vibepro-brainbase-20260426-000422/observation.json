@@ -1,0 +1,276 @@
+{
+  "run_id": "vibepro-brainbase-20260426-000422",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-04-25T15:08:09.164Z",
+  "repo": {
+    "branch": "HEAD",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/control-plane-assessment.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260425-234956/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-000422/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "scripts/vibepro-score-run.mjs",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "server/services/learning-service.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/services/learning-service.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/vibepro-score-run.test.js",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      }
+    ],
+    "run_count_before_current": 3,
+    "scorer_exists": true,
+    "scorer_workflow_exists": false
+  },
+  "skills": {
+    "total": 129,
+    "invalid": []
+  },
+  "dogfood": {
+    "previous_run_count": 3,
+    "incomplete_previous_runs": [
+      {
+        "run_id": "vibepro-brainbase-20260425-205821",
+        "missing_outputs": [
+          "observation.json",
+          "outcome.json"
+        ]
+      },
+      {
+        "run_id": "vibepro-brainbase-20260425-233604",
+        "missing_outputs": [
+          "diagnosis.json",
+          "outcome.json",
+          "labels.json",
+          "score.json",
+          "feedback.md",
+          "report.md"
+        ]
+      }
+    ]
+  },
+  "mcp": {
+    "server_count": 6,
+    "secret_env_refs": [
+      "jibble.env.JIBBLE_CLIENT_SECRET",
+      "nocodb.env.NOCODB_TOKEN",
+      "slack.env.SLACK_MCP_XOXP_TOKEN"
+    ],
+    "missing_commands": []
+  },
+  "hooks": {
+    "hook_script_refs": [
+      ".claude/scripts/hooks/enforce-nocodb-lookup.ts",
+      ".claude/scripts/hooks/post-tool-use/activity-bridge.ts",
+      ".claude/scripts/hooks/post-tool-use/edit-validator.ts",
+      ".claude/scripts/hooks/post-tool-use/git-notification-wrapper.ts",
+      ".claude/scripts/hooks/post-tool-use/interrupt-detector.ts",
+      ".claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts",
+      ".claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts",
+      ".claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts",
+      ".claude/scripts/hooks/pre-tool-use/edit-comprehensive-validator.ts",
+      ".claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts",
+      ".claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts",
+      ".claude/scripts/hooks/stop/activity-bridge.ts",
+      ".claude/scripts/hooks/stop/completion-notifier-wrapper.ts",
+      ".claude/scripts/hooks/stop/jj-commit-guard.ts",
+      ".claude/scripts/hooks/stop/push-guard.ts",
+      ".claude/scripts/hooks/user-prompt-submit/activity-bridge.ts",
+      ".claude/scripts/hooks/user-prompt-submit/autonomy-reminder.ts",
+      ".claude/scripts/hooks/user-prompt-submit/context-loader-wrapper.ts",
+      ".claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts",
+      ".claude/scripts/hooks/user-prompt-submit/skill-reminder.ts",
+      ".claude/scripts/hooks/user-prompt-submit/test-enforcer.ts"
+    ],
+    "missing_hook_scripts": [
+      ".claude/scripts/hooks/enforce-nocodb-lookup.ts"
+    ]
+  },
+  "workflows": {
+    "workflow_count": 5,
+    "missing_workflows": [
+      "vibepro-score-run.yml",
+      "vibepro-graph-ssot.yml"
+    ]
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "draft",
+    "has_ship_evidence": false,
+    "dogfood_story_unshipped": true
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": false
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.detached_head",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "Repository is currently on detached HEAD",
+      "evidence": [
+        "git branch --show-current returned empty branch / HEAD"
+      ]
+    },
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js"
+      ]
+    },
+    {
+      "fact_id": "fact.vibepro.scorer_manual_only",
+      "kind": "automation",
+      "severity": "medium",
+      "summary": "The VibePro scorer exists but is not connected to an automatic workflow",
+      "evidence": [
+        "scripts/vibepro-score-run.mjs exists",
+        "no scorer workflow detected"
+      ]
+    },
+    {
+      "fact_id": "fact.vibepro.incomplete_run_outputs",
+      "kind": "evaluation_unavailable",
+      "severity": "medium",
+      "summary": "2 previous VibePro dogfood runs are missing required outputs",
+      "evidence": [
+        "vibepro-brainbase-20260425-205821: missing observation.json, outcome.json",
+        "vibepro-brainbase-20260425-233604: missing diagnosis.json, outcome.json, labels.json, score.json, feedback.md, report.md"
+      ]
+    },
+    {
+      "fact_id": "fact.mcp.secret_values_in_repo_config",
+      "kind": "secret_management",
+      "severity": "high",
+      "summary": "3 MCP env values look like real secrets in repo config",
+      "evidence": [
+        "jibble.env.JIBBLE_CLIENT_SECRET",
+        "nocodb.env.NOCODB_TOKEN",
+        "slack.env.SLACK_MCP_XOXP_TOKEN"
+      ]
+    },
+    {
+      "fact_id": "fact.hooks.missing_referenced_scripts",
+      "kind": "agent_recovery_blocker",
+      "severity": "high",
+      "summary": "1 hook scripts referenced by settings are missing",
+      "evidence": [
+        ".claude/scripts/hooks/enforce-nocodb-lookup.ts"
+      ]
+    },
+    {
+      "fact_id": "fact.workflows.vibepro_score_not_automated",
+      "kind": "automation",
+      "severity": "medium",
+      "summary": "VibePro score workflow is not present",
+      "evidence": [
+        ".github/workflows/vibepro-score-run.yml missing"
+      ]
+    },
+    {
+      "fact_id": "fact.graph.ssot_not_automatically_verified",
+      "kind": "ssot_integrity",
+      "severity": "medium",
+      "summary": "Graph SSOT projection is not automatically verified",
+      "evidence": [
+        ".github/workflows/vibepro-graph-ssot.yml missing"
+      ]
+    },
+    {
+      "fact_id": "fact.story_to_ship.vibepro_dogfood_unshipped",
+      "kind": "story_to_ship_gap",
+      "severity": "medium",
+      "summary": "VibePro dogfood story has not reached shipped evidence",
+      "evidence": [
+        "story status is not shipped or ship evidence is missing"
+      ]
+    },
+    {
+      "fact_id": "fact.ci.vibepro_scorer_outside_coverage_scope",
+      "kind": "ci_evaluation_gap",
+      "severity": "medium",
+      "summary": "VibePro scorer is tested but not included in coverage scope",
+      "evidence": [
+        "coverage include does not match scripts/vibepro-score-run.mjs"
+      ]
+    }
+  ]
+}

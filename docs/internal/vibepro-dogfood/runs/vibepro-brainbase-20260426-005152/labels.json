@@ -1,0 +1,42 @@
+{
+  "run_id": "vibepro-brainbase-20260426-005152",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.detached_head",
+      "matched_detected_gap_id": "gap.repo.detached-head",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.repo.unrelated_dirty_files",
+      "matched_detected_gap_id": "gap.repo.unrelated-dirty-files",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.vibepro.incomplete_run_outputs",
+      "matched_detected_gap_id": "gap.vibepro.incomplete-run-outputs",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.graph.ssot_not_automatically_verified",
+      "matched_detected_gap_id": "gap.graph.ssot-not-automatically-verified",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.story_to_ship.vibepro_dogfood_unshipped",
+      "matched_detected_gap_id": "gap.story-to-ship.vibepro-dogfood-unshipped",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.ci.vibepro_scorer_outside_coverage_scope",
+      "matched_detected_gap_id": "gap.ci.vibepro-scorer-outside-coverage-scope",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

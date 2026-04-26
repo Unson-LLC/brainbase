@@ -1,0 +1,29 @@
+{
+  "run_id": "vibepro-brainbase-20260426-002011",
+  "status": "scored",
+  "metrics": {
+    "本番化ギャップ捕捉率": 1,
+    "本番化ギャップ的中率": 1,
+    "ゲート違反流出率": 0
+  },
+  "feedback": {
+    "detected_correctly": [
+      "gap.brainbase.change-control.detached-head",
+      "gap.brainbase.change-control.unrelated-dirty-files",
+      "gap.brainbase.vibepro.scorer-manual-only",
+      "gap.brainbase.vibepro.incomplete-run-outputs",
+      "gap.brainbase.workflows.vibepro-score-not-automated",
+      "gap.brainbase.graph.ssot-not-automatically-verified",
+      "gap.brainbase.story-to-ship.vibepro-dogfood-unshipped",
+      "gap.brainbase.ci.vibepro-scorer-outside-coverage-scope"
+    ],
+    "missed_gaps": [],
+    "over_detected_gaps": [],
+    "escaped_gate_violations": [],
+    "effective_interventions": [],
+    "weak_interventions": [],
+    "next_rule_updates": [
+      "現在の診断ルールを維持し、次runで再測定する"
+    ]
+  }
+}
