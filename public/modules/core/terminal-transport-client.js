@@ -542,7 +542,7 @@ export class TerminalTransportClient {
                 const isExpected = closeCode != null && this._isExpectedClose(closeCode);
 
                 if (!this._manualClose && !isExpected && this.sessionId === sessionId && this.status.mode !== 'blocked') {
-                    void this._refreshSnapshot();
+                    void this._refreshSnapshot({ preserveMode: true });
                     this._scheduleReconnect(sessionId);
                 }
             }, { once: true });
@@ -587,6 +587,8 @@ export class TerminalTransportClient {
     }
 
     async sendText(value) {
+        const capturedToken = this._connectToken;
+        const capturedSessionId = this.sessionId;
         console.log('[TTC-PROBE][sendText] entered', {
             len: value?.length,
             canSend: this.canSendInput(this.sessionId),
@@ -604,6 +606,15 @@ export class TerminalTransportClient {
             const ok = await this._ensureInputReadyForUserInput();
             const probeMs = Math.round(performance.now() - probeStart);
             console.log('[TTC-PROBE][sendText] probe returned', { ok, probeMs });
+            // probe 中にセッション切り替えが発生した場合は別セッションに誤送しない。
+            if (this._connectToken !== capturedToken || this.sessionId !== capturedSessionId) {
+                console.warn('[TTC-PROBE] sendText dropped: session changed during probe', {
+                    capturedToken, currentToken: this._connectToken,
+                    capturedSession: capturedSessionId, currentSession: this.sessionId
+                });
+                void this._refreshSnapshot({ preserveMode: true });
+                return;
+            }
             if (!ok) {
                 console.warn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
                     len: value.length,
