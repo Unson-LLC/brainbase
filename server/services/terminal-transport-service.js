@@ -265,6 +265,17 @@ export class TerminalTransportService {
 
             let outputBatch = '';
             let outputBatchTimer = null;
+            // streaming 中は touchTerminalOwnership を呼ぶパスがないため、
+            // 出力が来るたびに throttle して ownership を refresh する。
+            const OWNERSHIP_TOUCH_INTERVAL_MS = 60_000;
+            let lastOwnershipTouchAt = Date.now();
+            const touchOwnershipThrottled = () => {
+                const now = Date.now();
+                if (now - lastOwnershipTouchAt >= OWNERSHIP_TOUCH_INTERVAL_MS) {
+                    lastOwnershipTouchAt = now;
+                    this.ownershipService.touchTerminalOwnership(connection.sessionId, connection.viewerId, connection.viewerLabel);
+                }
+            };
             const flushOutputBatch = () => {
                 outputBatchTimer = null;
                 if (!outputBatch || connection.closed || connection.ws.readyState !== 1) {
@@ -281,6 +292,7 @@ export class TerminalTransportService {
             };
             const handleOutput = (data) => {
                 if (connection.closed || connection.ws.readyState !== 1 || !data) return;
+                touchOwnershipThrottled();
                 connection.initialFrameDelivered = true;
                 if (connection.initialSnapshotTimer) {
                     clearTimeout(connection.initialSnapshotTimer);
