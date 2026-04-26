@@ -405,6 +405,9 @@ Slackログイン成功後:
 | `MESH_SLACK_USER_ID` | Slackユーザーid（auth-service未統合時のフォールバック） | 空文字 | ✅ 実装済み |
 | `MESH_TASK_TABLE_ID` | NocoDBタスクテーブルID（暫定） | 空文字 | ⚠️ 未使用（NodeProfile.projects[].nocodbBaseIdへ移行予定） |
 | `MESH_MILESTONE_TABLE_ID` | NocoDBマイルストーンテーブルID（暫定） | 空文字 | ⚠️ 未使用 |
+| `MESH_CEO_PUBLIC_KEY` | **Relay側のみ**: CEO の Ed25519 公開鍵（カンマ区切りで複数可） | なし | ⏳ Phase 3（§9 認可で必要） |
+| `MESH_MAX_CONNECTIONS` | **Relay側のみ**: 同時接続数上限 | `50` | ⏳ Phase 3（§12 セキュリティ境界） |
+| `MESH_DENY_LIST_PATH` | **Relay側のみ**: deny-list SQLite ファイルパス | `relay/data/deny-list.sqlite` | ⏳ Phase 3 |
 
 ## 8. Relay Server仕様
 
@@ -447,6 +450,31 @@ Slackログイン成功後:
 - サイズ超過時 `MESH_ENVELOPE_TOO_LARGE` を返却（接続は維持）
 - リプレイ検出時 `MESH_ENVELOPE_EXPIRED` を返却（接続は維持、但し連続発生時は切断）
 
+### デプロイ方針（AWS Lightsail）
+
+既存 brainbase インフラ（`brainbase-nocodb`, `paperclip-prod` Lightsail インスタンス）と同じ AWS アカウント (k.sato profile, ap-northeast-1) で運用する。
+
+**新規 Lightsail インスタンス**: `brainbase-relay`
+
+| 項目 | 値 |
+|---|---|
+| Region | ap-northeast-1 |
+| Bundle | `micro_3_0` (1 vCPU / 1GB RAM / 40GB SSD / 月額 約$5) |
+| Blueprint | Ubuntu 22.04 |
+| ソフトウェア | Node.js 20 + relay/server.js + Caddy 2 (TLS 終端 + WebSocket プロキシ) |
+| 永続化 | `/var/lib/brainbase-relay/deny-list.sqlite` |
+| ドメイン | `relay.brain-base.work` (Route53 で A レコード作成) |
+| TLS | Caddy が Let's Encrypt 自動取得 |
+| 環境変数管理 | `/etc/brainbase-relay.env` (mode 0600) → systemd EnvironmentFile |
+| プロセス管理 | systemd unit `brainbase-relay.service` |
+
+**理由**:
+- 既存 brainbase インフラ運用パターン（Lightsail）と統一 → 学習コストゼロ
+- 月額約$5でMVPには十分（3-7人チーム想定）
+- 独立インスタンスで障害分離（brainbase-nocodbと連鎖しない）
+- Lightsail snapshot で簡単バックアップ
+- Phase 4+ でトラフィック増加時は ECS/EKS への移行容易
+
 ## 9. オフボーディング仕様
 
 ### CLI（Phase 3 対象、未実装）
@@ -473,6 +501,35 @@ type RevokeMessage = {
 - Relay 側で署名を CEO の公開鍵で検証
 - CEO 公開鍵未登録 or 検証失敗時 → `MESH_AUTH_FAILED` を返却して拒否
 - ts > 60秒経過は `MESH_ENVELOPE_EXPIRED`
+
+### CEO 公開鍵の Relay への登録方法
+
+Relay 起動時の環境変数 `MESH_CEO_PUBLIC_KEY` で事前登録する（Option B 採用）。
+
+```bash
+# 単一CEO
+MESH_CEO_PUBLIC_KEY=<Ed25519 公開鍵 base64>
+
+# 複数CEO（カンマ区切り）
+MESH_CEO_PUBLIC_KEY=<key1>,<key2>,<key3>
+```
+
+セットアップフロー：
+
+```
+1. CEO: brainbase mesh export-pubkey 実行 → signPub (base64) を出力
+2. Relay デプロイ時に環境変数 MESH_CEO_PUBLIC_KEY にセット
+3. Relay 起動時にカンマ split → メモリ上の Set に保持
+4. revoke envelope 受信時、署名をこの Set 内の各公開鍵で検証
+5. いずれかで成功すれば認可、全失敗で MESH_AUTH_FAILED
+```
+
+**理由**:
+- Slack 連携不要・TOCTOU なし・MVP 最小設計
+- 複数 CEO（共同経営者）対応可能
+- CEO 交代時は環境変数更新 + Relay 再起動
+
+**追加 CLI**: `brainbase mesh export-pubkey` (Phase 3 対象)
 
 ### フロー
 
@@ -737,6 +794,8 @@ WebSocket フレームレベルでは `ws` ライブラリの `maxPayload` オ�
 | §8 revoke / peer_revoked プロトコル | ⏳ Phase 3 | 新規Task |
 | §8 構造化エラー (type='error', code) | ⏳ Phase 3 | 新規Task |
 | §9 mesh revoke CLI | ⏳ Phase 3 | 新規Task |
+| §9 brainbase mesh export-pubkey CLI | ⏳ Phase 3 | 新規Task |
+| §9 MESH_CEO_PUBLIC_KEY による認可 | ⏳ Phase 3 | 新規Task (revoke実装と同梱) |
 | §11 MeshErrorCodes 定義 | ⏳ Phase 3 | 新規Task: server/mesh/errors.js |
 | §12 envelope ts/nonce 検証 (リプレイ対策) | ⏳ Phase 3 | 新規Task |
 | §12 envelope サイズ上限 | ⏳ Phase 3 | 新規Task |
