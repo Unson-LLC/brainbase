@@ -80,7 +80,25 @@ tests/mesh/                     # 41テスト全通過
 |---|---|---|
 | Phase 1 | 暗号層 + Relay + MeshService + QueryHandler + MCP Tools | ✅ 完了 |
 | Phase 2 | NodeProfile + server.js統合 + DRYリファクタ + Story駆動 | ✅ 完了 |
-| Phase 3 | Relayデプロイ + E2E検証 + Slack統合 + 配布 | ⏳ 未着手 |
+| Spec 補強 | エラーモデル + セキュリティ境界 + 実装ステータスマトリクス + 用語集 (§11-§16) | ✅ 完了 |
+| Phase 3 | Relayデプロイ + E2E検証 + Slack統合 + 配布 + Spec乖離解消 | ⏳ 未着手 |
+
+### Spec §15 実装ステータスマトリクスより、Phase 3 で追加すべき新規タスク
+
+- POST /api/mesh/query を同期+30秒タイムアウト化
+- routes/mesh.js を asyncHandler + AppError 統一
+- MCP Tool エラーレスポンス（isError:true）対応
+- LocalContextCollector を NodeProfile.projects[] 全プロジェクト対応
+- MESH_AGENT_RUNTIME 環境変数の実装結合
+- revoke / peer_revoked プロトコル実装（Relay側 + CLI側）
+- mesh revoke CLI 実装
+- server/mesh/errors.js 新規作成 (MeshErrorCodes)
+- envelope ts/nonce 検証 (リプレイ攻撃対策)
+- envelope サイズ上限（1MB / 64KB / 512KB）
+- Relay 同時接続数制限 + 重複nodeId拒否
+- Relay deny-list SQLite 永続化
+- Phase 3 追加テスト（リプレイ、サイズ、接続数、deny-list、revoke、Slack統合）
+- ログフォーマット統一 `[Mesh][${nodeId.slice(0,8)}] ...`
 
 ## 関連 Hydra 特許 (技術的着想元)
 
