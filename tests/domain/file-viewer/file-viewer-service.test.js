@@ -60,7 +60,12 @@ describe('FileViewerService', () => {
 
     it('close呼び出し時_ストアがクリアされFILE_VIEWER_CLOSEDイベントが発火される', async () => {
         appStore.setState({
-            fileViewer: { fileName: 'test.md', content: 'test' }
+            fileViewer: {
+                sessionId: 'session-1',
+                relativePath: 'docs/test.md',
+                fileName: 'test.md',
+                content: 'test'
+            }
         });
 
         const listener = vi.fn();
@@ -69,7 +74,10 @@ describe('FileViewerService', () => {
         await service.close();
 
         expect(appStore.getState().fileViewer).toBeNull();
-        expect(listener).toHaveBeenCalled();
+        expect(listener.mock.calls[0][0].detail).toEqual(expect.objectContaining({
+            sessionId: 'session-1',
+            relativePath: 'docs/test.md'
+        }));
 
         unsub();
     });

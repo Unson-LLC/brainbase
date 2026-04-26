@@ -669,14 +669,10 @@ if (shouldAutoStart) {
         const bottomNav = document.getElementById('mobile-bottom-nav');
         if (!bottomNav) return;
 
-        // キーボード表示中は非表示のまま（要件通り）
-        const keyboardOpen = document.body.classList.contains('keyboard-open');
-        if (keyboardOpen) {
-            bottomNav.style.display = 'none';
-        } else {
-            // キーボード非表示の場合は必ず表示
-            bottomNav.style.display = 'flex';
-        }
+        // Requirement: mobile bottom navigation must remain visible even while
+        // the visual keyboard is open. Do not let stale inline display:none
+        // survive bfcache/visibility restores.
+        bottomNav.style.display = 'flex';
     };
 
     // ページが visible になった時（バックグラウンドから復帰）

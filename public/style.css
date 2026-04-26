@@ -6748,6 +6748,24 @@ body.resizing iframe {
     color: var(--text-primary);
 }
 
+.mobile-input-btn,
+.mobile-send-btn,
+.mobile-composer-btn,
+.mobile-bottom-nav button {
+    transition: background-color 0.12s ease, color 0.12s ease, transform 0.12s ease, opacity 0.12s ease;
+}
+
+.mobile-input-btn.pressed,
+.mobile-input-btn:active,
+.mobile-send-btn.pressed,
+.mobile-send-btn:active,
+.mobile-composer-btn.pressed,
+.mobile-composer-btn:active,
+.mobile-bottom-nav button.pressed {
+    transform: scale(0.94);
+    opacity: 0.82;
+}
+
 .mobile-bottom-nav button i {
     width: 20px;
     height: 20px;

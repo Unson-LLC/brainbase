@@ -78,8 +78,12 @@ export class FileViewerService {
      * ファイルビューアを閉じる
      */
     async close() {
+        const closedFile = this.store.getState().fileViewer || {};
         this.store.setState({ fileViewer: null });
-        await this.eventBus.emit(EVENTS.FILE_VIEWER_CLOSED, {});
+        await this.eventBus.emit(EVENTS.FILE_VIEWER_CLOSED, {
+            sessionId: closedFile.sessionId || null,
+            relativePath: closedFile.relativePath || null
+        });
     }
 
     /**

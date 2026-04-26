@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MobileInputFocusManager } from '../../../public/modules/ui/mobile-input-focus-manager.js';
 import { MobileInputUIController } from '../../../public/modules/ui/mobile-input-ui-controller.js';
 
+const mockAppState = vi.hoisted(() => ({
+    currentSessionId: 'test-session',
+    sessions: []
+}));
+
+const mockDraftStorage = vi.hoisted(() => new Map());
+
 describe('MobileInputFocusManager focus tracking', () => {
     let focusManager;
     let elements;
@@ -124,6 +131,19 @@ describe('MobileInputFocusManager visual viewport sync', () => {
             keyboardOpen: false
         });
     });
+
+    it('keyboard-open中も下ナビゲーションバーを表示したままにする', () => {
+        const bottomNav = document.createElement('nav');
+        bottomNav.id = 'mobile-bottom-nav';
+        bottomNav.style.display = 'none';
+        document.body.appendChild(bottomNav);
+        document.body.classList.add('keyboard-open');
+        vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390);
+
+        focusManager.updateBottomNavVisibility();
+
+        expect(bottomNav.style.display).toBe('flex');
+    });
 });
 
 describe('MobileInputUIController Enterキー挙動', () => {
@@ -194,7 +214,7 @@ vi.mock('../../../public/modules/toast.js', () => ({
 
 vi.mock('../../../public/modules/core/store.js', () => ({
     appStore: {
-        getState: () => ({ currentSessionId: 'test-session' }),
+        getState: () => mockAppState,
     },
 }));
 
@@ -209,12 +229,12 @@ vi.mock('../../../public/modules/ui-helpers.js', () => ({
 
 vi.mock('../../../public/modules/utils/local-storage.js', () => ({
     loadJson: vi.fn((key, fallback) => {
-        const raw = localStorage.getItem(key);
+        const raw = mockDraftStorage.get(key) ?? null;
         if (!raw) return fallback;
         try { return JSON.parse(raw); } catch { return fallback; }
     }),
     saveJson: vi.fn((key, value) => {
-        localStorage.setItem(key, JSON.stringify(value));
+        mockDraftStorage.set(key, JSON.stringify(value));
     }),
 }));
 
@@ -224,6 +244,8 @@ describe('MobileInputUIController 二重送信防止', () => {
     let mockFocusManager;
 
     beforeEach(() => {
+        mockAppState.currentSessionId = 'test-session';
+        mockAppState.sessions = [];
         document.body.innerHTML = `
             <textarea id="mobile-dock-input"></textarea>
             <textarea id="mobile-composer-input"></textarea>
@@ -235,6 +257,7 @@ describe('MobileInputUIController 二重送信防止', () => {
 
         mockTerminalInput = {
             sendInput: vi.fn().mockResolvedValue(undefined),
+            sendKey: vi.fn().mockResolvedValue(undefined),
         };
         mockFocusManager = {
             inputFocused: false,
@@ -330,12 +353,62 @@ describe('MobileInputUIController 二重送信防止', () => {
         expect(btn.disabled).toBe(false);
         expect(btn.classList.contains('sending')).toBe(false);
     });
+
+    it('codexセッションでは送信後にEnterキーも送信する', async () => {
+        mockAppState.sessions = [{ id: 'test-session', engine: 'codex' }];
+        vi.spyOn(controller, 'waitForSubmitKeyReady').mockResolvedValue(undefined);
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'run codex';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledWith('test-session', 'run codex');
+        expect(mockTerminalInput.sendKey).toHaveBeenCalledWith('test-session', 'Enter');
+    });
+
+    it('claudeセッションでは追加Enterを送らない', async () => {
+        mockAppState.sessions = [{ id: 'test-session', engine: 'claude' }];
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'run claude';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledWith('test-session', 'run claude');
+        expect(mockTerminalInput.sendKey).not.toHaveBeenCalled();
+    });
+
+    it('セッション一覧未ロード時はDOMのdata-engineでcodex判定する', async () => {
+        mockAppState.sessions = [];
+        document.body.insertAdjacentHTML('beforeend', '<div data-id="test-session" data-engine="codex"></div>');
+        vi.spyOn(controller, 'waitForSubmitKeyReady').mockResolvedValue(undefined);
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'dom fallback';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendKey).toHaveBeenCalledWith('test-session', 'Enter');
+    });
 });
 
 describe('MobileInputDraftManager ドラフトクリア', () => {
     let draftManager;
+    let originalWindowLocalStorage;
+    let originalGlobalLocalStorage;
 
     beforeEach(async () => {
+        mockDraftStorage.clear();
+        mockAppState.currentSessionId = 'test-session';
+        mockAppState.sessions = [];
+        originalWindowLocalStorage = window.localStorage;
+        originalGlobalLocalStorage = globalThis.localStorage;
+        const storageShim = {
+            getItem: (key) => mockDraftStorage.get(key) ?? null,
+            setItem: (key, value) => mockDraftStorage.set(key, String(value)),
+            removeItem: (key) => mockDraftStorage.delete(key),
+            clear: () => mockDraftStorage.clear()
+        };
+        Object.defineProperty(window, 'localStorage', { value: storageShim, configurable: true });
+        Object.defineProperty(globalThis, 'localStorage', { value: storageShim, configurable: true });
         document.body.innerHTML = `
             <textarea id="mobile-dock-input"></textarea>
             <textarea id="mobile-composer-input"></textarea>
@@ -349,7 +422,9 @@ describe('MobileInputDraftManager ドラフトクリア', () => {
     });
 
     afterEach(() => {
-        localStorage.clear();
+        mockDraftStorage.clear();
+        Object.defineProperty(window, 'localStorage', { value: originalWindowLocalStorage, configurable: true });
+        Object.defineProperty(globalThis, 'localStorage', { value: originalGlobalLocalStorage, configurable: true });
     });
 
     it('空文字の場合localStorageからドラフトが削除される', () => {
@@ -358,11 +433,11 @@ describe('MobileInputDraftManager ドラフトクリア', () => {
 
         input.value = 'draft text';
         draftManager.saveDraft('dock', input);
-        expect(localStorage.getItem(key)).not.toBeNull();
+        expect(mockDraftStorage.get(key)).toBeTruthy();
 
         input.value = '';
         draftManager.saveDraft('dock', input);
-        expect(localStorage.getItem(key)).toBeNull();
+        expect(mockDraftStorage.has(key)).toBe(false);
     });
 
     it('cancelPendingTimerでペンディングタイマーがキャンセルされる', () => {
@@ -375,8 +450,20 @@ describe('MobileInputDraftManager ドラフトクリア', () => {
 
         vi.advanceTimersByTime(500);
         const key = 'bb_mobile_draft:test-session:dock';
-        expect(localStorage.getItem(key)).toBeNull();
+        expect(mockDraftStorage.has(key)).toBe(false);
 
         vi.useRealTimers();
+    });
+
+    it('復元先セッションにドラフトがない場合は前セッションの入力を残さない', () => {
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'old session text';
+        input.setSelectionRange(4, 4);
+
+        draftManager.restoreDraftFor('dock', 'empty-session', input);
+
+        expect(input.value).toBe('');
+        expect(input.selectionStart).toBe(0);
+        expect(input.selectionEnd).toBe(0);
     });
 });

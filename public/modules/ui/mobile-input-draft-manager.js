@@ -39,15 +39,16 @@ export class MobileInputDraftManager {
         }
     }
 
-    saveDraftNow(mode) {
+    saveDraftNow(mode, sessionId = null) {
+        this.cancelPendingTimer(mode);
         const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
         if (!inputEl) return;
-        this.saveDraft(mode, inputEl);
+        this.saveDraft(mode, inputEl, sessionId);
     }
 
-    saveDraft(mode, inputEl) {
-        const sessionId = appStore.getState().currentSessionId || 'general';
-        const key = `${STORAGE_KEYS.draft}:${sessionId}:${mode}`;
+    saveDraft(mode, inputEl, explicitSessionId = null) {
+        const sessionId = explicitSessionId || appStore.getState().currentSessionId || 'general';
+        const key = this.getDraftKey(sessionId, mode);
 
         if (!inputEl.value.trim()) {
             try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
@@ -64,21 +65,29 @@ export class MobileInputDraftManager {
         eventBus.emit(EVENTS.MOBILE_INPUT_DRAFT_SAVED, { mode, sessionId });
     }
 
-    restoreDrafts() {
-        const sessionId = appStore.getState().currentSessionId || 'general';
+    restoreDrafts(sessionId = null) {
+        sessionId = sessionId || appStore.getState().currentSessionId || 'general';
         this.restoreDraftFor('dock', sessionId, this.elements.dockInput);
         this.restoreDraftFor('composer', sessionId, this.elements.composerInput);
     }
 
     restoreDraftFor(mode, sessionId, inputEl) {
         if (!inputEl) return;
-        const draft = loadJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, null);
+        const draft = loadJson(this.getDraftKey(sessionId, mode), null);
         console.log(`[draft] Restoring draft for session ${sessionId} (${mode}):`, draft ? draft.value.substring(0, 50) : '(empty)');
-        if (!draft) return;
+        if (!draft) {
+            inputEl.value = '';
+            inputEl.setSelectionRange(0, 0);
+            return;
+        }
         inputEl.value = draft.value || '';
         const start = draft.selectionStart ?? 0;
         const end = draft.selectionEnd ?? start;
         inputEl.setSelectionRange(start, end);
+    }
+
+    getDraftKey(sessionId, mode) {
+        return `${STORAGE_KEYS.draft}:${sessionId}:${mode}`;
     }
 
     // loadJson / saveJson imported from utils/local-storage.js

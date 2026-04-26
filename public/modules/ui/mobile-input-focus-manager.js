@@ -67,7 +67,7 @@ export class MobileInputFocusManager {
             this.updateKeyboardDebug(this.lastKeyboardData);
         }
 
-        // モバイルボトムナビの表示制御（キーボード状態に応じて）
+        // モバイルボトムナビの表示制御
         this.updateBottomNavVisibility();
     }
 
@@ -78,9 +78,7 @@ export class MobileInputFocusManager {
         const bottomNav = document.getElementById('mobile-bottom-nav');
         if (!bottomNav) return;
 
-        // キーボード表示中は非表示、それ以外は表示
-        const keyboardOpen = document.body.classList.contains('keyboard-open');
-        bottomNav.style.display = keyboardOpen ? 'none' : 'flex';
+        bottomNav.style.display = 'flex';
     }
 
     updateTerminalReserve(viewportHeight, viewportTop = 0) {

@@ -127,9 +127,11 @@ export function applyPluginRegistrationMixin(AppClass) {
                             );
                             this.showFileViewer?.();
                         });
-                        const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, () => {
+                        const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, (event) => {
                             const state = appStore.getState();
                             const currentSessionId = state.currentSessionId || null;
+                            const closedSessionId = event.detail?.sessionId || null;
+                            const targetSessionId = closedSessionId || currentSessionId;
                             const folderTree = state.folderTree || {};
                             const activeFileBySessionId = {
                                 ...(folderTree.activeFileBySessionId || {})
@@ -137,9 +139,9 @@ export function applyPluginRegistrationMixin(AppClass) {
                             const rootOverrideBySessionId = {
                                 ...(folderTree.rootOverrideBySessionId || {})
                             };
-                            if (currentSessionId) {
-                                delete activeFileBySessionId[currentSessionId];
-                                delete rootOverrideBySessionId[currentSessionId];
+                            if (targetSessionId) {
+                                delete activeFileBySessionId[targetSessionId];
+                                delete rootOverrideBySessionId[targetSessionId];
                             }
                             appStore.setState({
                                 ui: {
@@ -152,12 +154,17 @@ export function applyPluginRegistrationMixin(AppClass) {
                                     rootOverrideBySessionId
                                 }
                             });
-                            if (this.isMobile() && this.mobileTabController) {
-                                this.mobileTabController.switchTab('terminal');
-                            } else {
-                                this.showConsole?.();
-                            }
-                            this._scheduleTerminalViewportSync();
+                            void (async () => {
+                                if (targetSessionId && targetSessionId !== currentSessionId) {
+                                    await this.switchSession?.(targetSessionId);
+                                }
+                                if (this.isMobile() && this.mobileTabController) {
+                                    this.mobileTabController.switchTab('terminal');
+                                } else {
+                                    this.showConsole?.();
+                                }
+                                this._scheduleTerminalViewportSync();
+                            })();
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();

@@ -109,13 +109,13 @@ export class MobileInputController {
     bindSessionChanges() {
         this.unsubscribeSession = appStore.subscribeToSelector(
             state => state.currentSessionId,
-            (newSessionId, oldSessionId) => {
+            ({ value: newSessionId, oldValue: oldSessionId }) => {
                 console.log('[mobile-input] Session changed:', oldSessionId, '→', newSessionId);
                 console.log('[mobile-input] Saving draft for old session:', oldSessionId);
-                this.draftManager.saveDraftNow('dock');
-                this.draftManager.saveDraftNow('composer');
+                this.draftManager.saveDraftNow('dock', oldSessionId);
+                this.draftManager.saveDraftNow('composer', oldSessionId);
                 console.log('[mobile-input] Restoring draft for new session:', newSessionId);
-                this.draftManager.restoreDrafts();
+                this.draftManager.restoreDrafts(newSessionId);
                 this.uiController.updateSendAvailability();
             }
         );

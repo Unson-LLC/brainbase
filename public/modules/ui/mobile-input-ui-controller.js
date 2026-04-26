@@ -133,6 +133,7 @@ export class MobileInputUIController {
             e.preventDefault();
             if (!touchHandled) {
                 touchHandled = true;
+                this.signalButtonPress(element);
                 handler();
             }
         }, { passive: false });
@@ -142,8 +143,20 @@ export class MobileInputUIController {
                 touchHandled = false;
                 return;
             }
+            this.signalButtonPress(element);
             handler();
         });
+    }
+
+    signalButtonPress(element) {
+        if (!element) return;
+        element.classList.add('pressed');
+        if (navigator.vibrate) {
+            try { navigator.vibrate(8); } catch (_) { /* ignore */ }
+        }
+        window.setTimeout(() => {
+            element.classList.remove('pressed');
+        }, 160);
     }
 
     bindComposer() {
@@ -272,6 +285,7 @@ export class MobileInputUIController {
         button.addEventListener('touchstart', (e) => {
             e.preventDefault();                    // フォーカスが外れるのを防ぐ
             touchHandled = true;
+            this.signalButtonPress(button);
             this.handleSend(mode);
             this.focusManager.refocusInput(focusInput);
         }, { passive: false });
@@ -281,6 +295,7 @@ export class MobileInputUIController {
                 touchHandled = false;
                 return;
             }
+            this.signalButtonPress(button);
             this.handleSend(mode);
             this.focusManager.refocusInput(focusInput);
         });
@@ -446,6 +461,10 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendInput(sessionId, payload);
+            if (this.shouldSubmitWithEnter(sessionId)) {
+                await this.waitForSubmitKeyReady();
+                await this.terminalInput.sendKey(sessionId, 'Enter');
+            }
 
             inputEl.value = '';
             this.autoResize(inputEl);
@@ -466,6 +485,26 @@ export class MobileInputUIController {
             this._sending = false;
             this._updateSendButton(mode, false);
         }
+    }
+
+    shouldSubmitWithEnter(sessionId) {
+        if (!sessionId) return false;
+        const state = appStore.getState();
+        const currentSession = Array.isArray(state.sessions)
+            ? state.sessions.find((session) => session.id === sessionId)
+            : null;
+        if (currentSession?.engine === 'codex') return true;
+        if (currentSession?.engine && currentSession.engine !== 'codex') return false;
+
+        const escapedSessionId = window.CSS?.escape ? window.CSS.escape(sessionId) : sessionId.replace(/"/g, '\\"');
+        const sessionRow = document.querySelector(`[data-id="${escapedSessionId}"]`);
+        return sessionRow?.dataset?.engine === 'codex';
+    }
+
+    waitForSubmitKeyReady() {
+        return new Promise((resolve) => {
+            window.setTimeout(resolve, 120);
+        });
     }
 
     _updateSendButton(mode, sending) {
