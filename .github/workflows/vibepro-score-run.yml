@@ -33,7 +33,10 @@ jobs:
         run: npm ci
 
       - name: Run scorer unit tests
-        run: npm run test:run -- tests/unit/vibepro-score-run.test.js
+        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-doc-trace-check.test.js
+
+      - name: Enforce Story Architecture Spec trace for dogfood runs
+        run: npm run vibepro:doc-trace
 
       - name: Run VibePro self-evaluation
         run: npm run vibepro:ci

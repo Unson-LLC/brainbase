@@ -202,6 +202,7 @@ escaped gate violations / gate_violations
 ## 9. CLI
 
 ```bash
+node scripts/vibepro-doc-trace-check.mjs
 node scripts/vibepro-score-run.mjs observe <run-dir>
 node scripts/vibepro-score-run.mjs generate-outcome <run-dir>
 node scripts/vibepro-score-run.mjs generate-labels <run-dir>
@@ -211,6 +212,7 @@ node scripts/vibepro-score-run.mjs auto-run <run-dir>
 node scripts/vibepro-score-run.mjs gate <run-dir>
 ```
 
+`vibepro-doc-trace-check.mjs` は `docs/internal/vibepro-dogfood/runs/` の差分がある時に、同じ差分内で Story / Architecture / Spec の正本更新を要求する。
 `run` は `generate-outcome -> generate-labels -> score` を順に実行する。
 `auto-run` は `observe -> diagnosis/outcome/labels/score/feedback/report` をまとめて生成する。
 `gate` は日本語指標を判定し、流出してはいけない違反を検出する。
