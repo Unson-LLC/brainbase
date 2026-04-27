@@ -18,7 +18,19 @@ import { AppError, ErrorCodes } from '../lib/errors.js';
  *   path?: string,
  *   cwd?: string,
  *   worktree?: { path?: string, repo?: string, startCommit?: string } | null,
- *   conversationSummary?: { totalConversations?: number, lastConversation?: { lastActivity?: string | null } | null } | null,
+ *   conversationSummary?: {
+ *     totalConversations?: number,
+ *     lastConversation?: { lastActivity?: string | null } | null,
+ *     tokenUsage?: {
+ *       source?: string,
+ *       contextWindow?: number,
+ *       usedTokens?: number,
+ *       remainingTokens?: number,
+ *       usedPercent?: number,
+ *       remainingPercent?: number,
+ *       updatedAt?: string | null
+ *     } | null
+ *   } | null,
  *   [key: string]: any
  * }} SessionRecord
  */
@@ -99,9 +111,19 @@ export class StateController {
             const runtimeStatus = this.runtimeQuery.getRuntimeStatus(session);
 
             const { conversationSummary, ...rest } = safeSession;
+            const tokenUsage = conversationSummary?.tokenUsage ? {
+                source: conversationSummary.tokenUsage.source || null,
+                contextWindow: conversationSummary.tokenUsage.contextWindow || null,
+                usedTokens: conversationSummary.tokenUsage.usedTokens || null,
+                remainingTokens: conversationSummary.tokenUsage.remainingTokens ?? null,
+                usedPercent: conversationSummary.tokenUsage.usedPercent ?? null,
+                remainingPercent: conversationSummary.tokenUsage.remainingPercent ?? null,
+                updatedAt: conversationSummary.tokenUsage.updatedAt || null
+            } : null;
             const convLight = conversationSummary ? {
                 totalConversations: conversationSummary.totalConversations || 0,
-                lastActivity: conversationSummary.lastConversation?.lastActivity || null
+                lastActivity: conversationSummary.lastConversation?.lastActivity || null,
+                ...(tokenUsage && { tokenUsage })
             } : undefined;
 
             return {

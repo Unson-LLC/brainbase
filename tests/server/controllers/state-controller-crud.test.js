@@ -209,6 +209,66 @@ describe('StateController CRUD session routes', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('GET /api/state exposes lightweight conversation token usage', async () => {
+    const state = {
+      sessions: [
+        {
+          id: 'session-token',
+          name: 'token usage',
+          conversationSummary: {
+            totalConversations: 1,
+            lastConversation: {
+              lastActivity: '2026-04-27T01:00:00.000Z',
+              tokenUsage: {
+                totalTokenUsage: { total_tokens: 999999 }
+              }
+            },
+            tokenUsage: {
+              source: 'codex',
+              contextWindow: 258400,
+              usedTokens: 169200,
+              remainingTokens: 89200,
+              usedPercent: 65.48,
+              remainingPercent: 34.52,
+              updatedAt: '2026-04-27T01:00:00.000Z',
+              totalTokenUsage: { total_tokens: 2000000 }
+            }
+          }
+        }
+      ]
+    };
+    stateStore.get.mockReturnValue(state);
+    const res = createRes();
+    const next = vi.fn();
+
+    controller.get({}, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      sessions: [
+        expect.objectContaining({
+          id: 'session-token',
+          conversationSummary: {
+            totalConversations: 1,
+            lastActivity: '2026-04-27T01:00:00.000Z',
+            tokenUsage: {
+              source: 'codex',
+              contextWindow: 258400,
+              usedTokens: 169200,
+              remainingTokens: 89200,
+              usedPercent: 65.48,
+              remainingPercent: 34.52,
+              updatedAt: '2026-04-27T01:00:00.000Z'
+            }
+          }
+        })
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('GET /api/state returns archive finalizer fields', async () => {
     const state = {
       sessions: [

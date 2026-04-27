@@ -51,6 +51,45 @@ describe('ConversationLinker', () => {
       .resolves.toBe('このセッションでは回答断片だけを表示します');
   });
 
+  it('Codexログのtoken_countからcontext残量を取得する', async () => {
+    const jsonlPath = await createJsonlFile([
+      JSON.stringify({ type: 'session_meta', cwd: '/tmp/project' }),
+      JSON.stringify({
+        timestamp: '2026-04-27T00:00:00.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: {
+            last_token_usage: {
+              input_tokens: 159000,
+              output_tokens: 1000,
+              total_tokens: 160000
+            },
+            total_token_usage: {
+              total_tokens: 320000
+            },
+            model_context_window: 200000
+          }
+        }
+      })
+    ]);
+
+    const linker = new ConversationLinker({
+      stateStore: { get: () => ({ sessions: [] }), update: async () => ({ sessions: [] }) }
+    });
+
+    await expect(linker.getCodexTokenUsage(jsonlPath))
+      .resolves.toMatchObject({
+        source: 'codex',
+        contextWindow: 200000,
+        usedTokens: 160000,
+        remainingTokens: 40000,
+        usedPercent: 80,
+        remainingPercent: 20,
+        updatedAt: '2026-04-27T00:00:00.000Z'
+      });
+  });
+
   it('linkAllは実行中に追加されたsessionを落とさずにmerge保存する', async () => {
     const initialSessions = [
       { id: 'session-1', name: 'one' },

@@ -298,6 +298,64 @@ export function applyTerminalInputUxMixin(AppClass) {
         el.title = title || '';
     };
 
+    AppClass.prototype._formatTerminalTokenCount = function(value) {
+        const numberValue = Number(value);
+        if (!Number.isFinite(numberValue)) return '';
+        if (numberValue >= 1_000_000) return `${(numberValue / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+        if (numberValue >= 1_000) return `${Math.round(numberValue / 1_000)}K`;
+        return `${Math.round(numberValue)}`;
+    };
+
+    AppClass.prototype._getCurrentSessionTokenUsage = function(sessionId = appStore.getState().currentSessionId) {
+        if (!sessionId) return null;
+        const session = (appStore.getState().sessions || []).find(item => item.id === sessionId);
+        return session?.conversationSummary?.tokenUsage || null;
+    };
+
+    AppClass.prototype._updateTerminalTokenStatus = function(sessionId = appStore.getState().currentSessionId) {
+        const el = this.terminalTokenStatusEl;
+        if (!el) return;
+
+        const tokenUsage = this._getCurrentSessionTokenUsage(sessionId);
+        const remainingPercent = Number(tokenUsage?.remainingPercent);
+        const contextWindow = Number(tokenUsage?.contextWindow);
+        const usedTokens = Number(tokenUsage?.usedTokens);
+        const remainingTokens = Number(tokenUsage?.remainingTokens);
+
+        if (
+            !Number.isFinite(remainingPercent)
+            || !Number.isFinite(contextWindow)
+            || !Number.isFinite(usedTokens)
+            || !Number.isFinite(remainingTokens)
+        ) {
+            el.classList.add('hidden');
+            el.textContent = '';
+            el.title = '';
+            this._lastTerminalTokenStatusKey = 'hidden';
+            return;
+        }
+
+        const roundedRemaining = Math.max(0, Math.round(remainingPercent));
+        const toneClass = roundedRemaining <= 15
+            ? 'is-danger'
+            : roundedRemaining <= 35
+                ? 'is-warn'
+                : 'is-ok';
+        const remainingText = this._formatTerminalTokenCount(remainingTokens);
+        const contextText = this._formatTerminalTokenCount(contextWindow);
+        const usedText = this._formatTerminalTokenCount(usedTokens);
+        const text = `ctx ${roundedRemaining}% · ${remainingText} / ${contextText}`;
+        const title = `Context remaining ${remainingText} / ${contextText} (used ${usedText})`;
+        const key = `${toneClass}|${text}|${title}`;
+        if (this._lastTerminalTokenStatusKey === key) return;
+        this._lastTerminalTokenStatusKey = key;
+
+        el.classList.remove('hidden', 'is-ok', 'is-warn', 'is-danger');
+        el.classList.add(toneClass);
+        el.textContent = text;
+        el.title = title;
+    };
+
     AppClass.prototype._setTerminalHeaderAction = function(button, visible) {
         if (!button) return;
         button.classList.toggle('hidden', !visible);
@@ -342,6 +400,8 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._setTerminalHeaderChip(this.terminalOwnerLabelEl, { hidden: true });
         this._setTerminalHeaderChip(this.terminalSnapshotMetaEl, { hidden: true });
         this._setTerminalHeaderAction(this.terminalTakeoverBtn, false);
+        this.terminalTokenStatusEl?.classList.add('hidden');
+        this._lastTerminalTokenStatusKey = 'hidden';
         this._renderTerminalSnapshotPanel({ visible: false });
     };
 
@@ -665,6 +725,8 @@ export function applyTerminalInputUxMixin(AppClass) {
             return;
         }
 
+        this._updateTerminalTokenStatus(sessionId);
+
         const overlayState = this._getTerminalOverlayState();
         const consoleArea = document.getElementById('console-area');
         const usingDesktopSnapshot = !usingMobileSnapshot && consoleArea?.classList.contains('using-snapshot');
@@ -928,6 +990,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         this.terminalSnapshotTitleEl = document.getElementById('terminal-snapshot-title');
         this.terminalSnapshotTimestampEl = document.getElementById('terminal-snapshot-timestamp');
         this.terminalSnapshotContentEl = document.getElementById('terminal-snapshot-content');
+        this.terminalTokenStatusEl = document.getElementById('terminal-token-status');
         this.terminalTakeoverBtn = document.getElementById('terminal-takeover-btn');
         this.terminalMoreBtn = document.getElementById('terminal-more-btn');
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
@@ -952,6 +1015,21 @@ export function applyTerminalInputUxMixin(AppClass) {
             }
         );
         this._terminalInputUxCleanup.push(unsub);
+
+        const tokenUnsub = appStore.subscribeToSelector(
+            state => {
+                const session = (state.sessions || []).find(item => item.id === state.currentSessionId);
+                const tokenUsage = session?.conversationSummary?.tokenUsage || null;
+                return [
+                    state.currentSessionId || '',
+                    tokenUsage?.remainingPercent ?? '',
+                    tokenUsage?.remainingTokens ?? '',
+                    tokenUsage?.contextWindow ?? ''
+                ].join('|');
+            },
+            () => this._scheduleTerminalInputStatusUpdate()
+        );
+        this._terminalInputUxCleanup.push(tokenUnsub);
 
         const onFocusChange = () => this._scheduleTerminalInputStatusUpdate();
         document.addEventListener('focusin', onFocusChange, true);

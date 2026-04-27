@@ -26,6 +26,33 @@ function sanitizeSnippet(value, maxLength = 120) {
         : normalized;
 }
 
+function asFiniteNumber(value) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function normalizeCodexTokenUsage(info, updatedAt = null) {
+    const contextWindow = asFiniteNumber(info?.model_context_window);
+    const lastTotalTokens = asFiniteNumber(info?.last_token_usage?.total_tokens);
+    if (!contextWindow || !lastTotalTokens) return null;
+
+    const remainingTokens = Math.max(0, contextWindow - lastTotalTokens);
+    const usedPercent = Math.min(100, Math.max(0, (lastTotalTokens / contextWindow) * 100));
+    const remainingPercent = Math.max(0, 100 - usedPercent);
+
+    return {
+        source: 'codex',
+        contextWindow,
+        usedTokens: lastTotalTokens,
+        remainingTokens,
+        usedPercent,
+        remainingPercent,
+        updatedAt,
+        lastTokenUsage: info.last_token_usage || null,
+        totalTokenUsage: info.total_token_usage || null
+    };
+}
+
 export class ConversationLinker {
     /**
      * @param {Object} options
@@ -293,6 +320,42 @@ export class ConversationLinker {
     }
 
     /**
+     * Codex CLI の token_count イベントから現在のコンテキスト残量を取得する
+     * @param {string} jsonlPath - jsonl ファイルパス
+     * @returns {Promise<Object|null>} token usage summary
+     */
+    async getCodexTokenUsage(jsonlPath) {
+        let stream;
+        let latestTokenUsage = null;
+        try {
+            stream = createReadStream(jsonlPath);
+            const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+            try {
+                for await (const line of rl) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type !== 'event_msg' || data.payload?.type !== 'token_count') continue;
+
+                        const tokenUsage = normalizeCodexTokenUsage(data.payload.info || {}, data.timestamp || null);
+                        if (tokenUsage) latestTokenUsage = tokenUsage;
+                    } catch {
+                        // Skip malformed lines
+                    }
+                }
+                return latestTokenUsage;
+            } finally {
+                rl.close();
+                stream.destroy();
+            }
+        } catch {
+            return null;
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
+        }
+    }
+
+    /**
      * 全セッションの会話ログ紐付けを実行
      * @returns {Promise<{updated: number, total: number, errors: string[]}>}
      */
@@ -456,12 +519,14 @@ export class ConversationLinker {
             const uuid = path.basename(codexFile, '.jsonl').replace(/^rollout-/, '');
             try {
                 const stat = await fs.stat(codexFile);
+                const tokenUsage = await this.getCodexTokenUsage(codexFile);
                 codexConversations.push({
                     engine: 'codex',
                     conversationId: uuid,
                     firstPrompt: null, // Codex firstPrompt は history.jsonl から取得する必要がある（重いのでスキップ）
                     lastActivity: stat.mtime.toISOString(),
-                    messageCount: 0
+                    messageCount: 0,
+                    tokenUsage
                 });
             } catch {
                 // File stat error, skip
@@ -479,6 +544,7 @@ export class ConversationLinker {
 
         const lastConversation = allConversations[0] || null;
         const engines = [...new Set(allConversations.map(c => c.engine))];
+        const tokenUsage = lastConversation?.tokenUsage || session.conversationSummary?.tokenUsage || null;
         let lastAssistantSnippet = session.lastAssistantSnippet || null;
         let lastAssistantSnippetAt = session.lastAssistantSnippetAt || null;
 
@@ -501,6 +567,7 @@ export class ConversationLinker {
         if (
             existing
             && existing.totalConversations === totalConversations
+            && JSON.stringify(existing.tokenUsage || null) === JSON.stringify(tokenUsage || null)
             && (session.lastAssistantSnippet || null) === (lastAssistantSnippet || null)
             && (session.lastAssistantSnippetAt || null) === (lastAssistantSnippetAt || null)
         ) {
@@ -511,6 +578,7 @@ export class ConversationLinker {
             totalConversations,
             engines,
             lastConversation,
+            tokenUsage,
             lastAssistantSnippet,
             lastAssistantSnippetAt,
             claudeLogDir: claudeLogDir || null,
