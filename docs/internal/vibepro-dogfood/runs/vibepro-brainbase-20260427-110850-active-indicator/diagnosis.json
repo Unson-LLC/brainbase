@@ -1,0 +1,29 @@
+{
+  "run_id": "vibepro-brainbase-20260427-110850-active-indicator",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-04-27T02:09:54.728Z",
+  "scope": [
+    "change_control"
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.repo.detached-head",
+      "evidence_fact_ids": [
+        "fact.repo.detached_head"
+      ],
+      "severity": "medium",
+      "reason": "Repository is currently on detached HEAD"
+    },
+    {
+      "gap_id": "gap.repo.unrelated-dirty-files",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    }
+  ]
+}

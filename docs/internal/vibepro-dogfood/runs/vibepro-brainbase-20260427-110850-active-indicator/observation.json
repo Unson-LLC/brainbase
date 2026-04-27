@@ -1,0 +1,85 @@
+{
+  "run_id": "vibepro-brainbase-20260427-110850-active-indicator",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-04-27T02:09:54.724Z",
+  "repo": {
+    "branch": "HEAD",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-110850-active-indicator/development-run.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-110850-active-indicator/development-run.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "server/controllers/session/terminal-io-handlers.js",
+        "status": "M",
+        "category": "other"
+      }
+    ],
+    "run_count_before_current": 10,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 10,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 7,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.detached_head",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "Repository is currently on detached HEAD",
+      "evidence": [
+        "git rev-parse --abbrev-ref HEAD returned HEAD"
+      ]
+    },
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        "server/controllers/session/terminal-io-handlers.js"
+      ]
+    }
+  ]
+}

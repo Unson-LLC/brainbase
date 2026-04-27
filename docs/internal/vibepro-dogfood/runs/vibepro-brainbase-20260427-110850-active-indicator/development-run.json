@@ -1,0 +1,101 @@
+{
+  "run_id": "vibepro-brainbase-20260427-110850-active-indicator",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed_with_residual_risk",
+  "created_at": "2026-04-27T11:08:50+09:00",
+  "request": {
+    "raw": "Brainbaseでためそう。今の実用級としてはアクティブインジケータの挙動が不安定なので、安定化させたい",
+    "interpreted_goal": "アクティブインジケータが done / working / waiting を誤表示しないように、活動状態遷移を安定化する"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/activity-indicator",
+    "story_key": "vibepro-dogfood/activity-indicator/20260427-active-indicator-stability",
+    "acceptance_criteria": [
+      "done 既読操作後でも、新しい working / waiting 状態は抑制されず UI に反映される",
+      "複数 active turn がある時、1つの turn_completed で全 active turn が premature clear されない",
+      "legacy working 報告で古い done が残留しない",
+      "sessionUi.byId[sessionId].hookStatus を正本として UI 更新イベントが発火する"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "brainbase-session-ui-state-notify-both",
+      "brainbase-活動状態管理ではturn-startedで前回done情報を消すと復元不能になる"
+    ],
+    "approach": [
+      "既存 skill と session indicator / activity service 実装を確認する",
+      "targeted tests で現在の不安定条件を再現する",
+      "server の turn lifecycle と client の done-read suppression を最小修正する",
+      "関連 unit / server tests と lint / typecheck で検証する",
+      "jj change と VibePro run 証跡に閉じる"
+    ]
+  },
+  "implementation": {
+    "jj_change_id": "uswxullonwzykkumnvmqlylxrpuwznpr",
+    "commit_id": "bf67aa69549d08d195485550ef2f06606801d817",
+    "description": "fix(activity): stabilize active indicator transitions",
+    "changed_files": [
+      "public/modules/session-indicators.js",
+      "server/services/session-core/activity-service-methods.js",
+      "tests/unit/session-indicators-ws.test.js"
+    ],
+    "behavior_changes": [
+      "markDoneAsRead 後の抑制中でも、新しい working / waiting hook status は反映する",
+      "非Claude形式の既知 turnId はその turn だけ閉じ、未知 turnId の時だけ安全側で残留 turn を全クリアする",
+      "turnId なし turn_completed は active turn が1つなら閉じ、複数なら premature done を避けるため保持する",
+      "legacy working 報告時は古い lastDoneAt をリセットする"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "node --check public/modules/session-indicators.js && node --check server/services/session-core/activity-service-methods.js && node --check tests/unit/session-indicators-ws.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "npm -s exec vitest run tests/server/session-manager.test.js tests/unit/session-indicators.test.js tests/unit/session-indicators-ws.test.js tests/unit/session-activity-ws-service.test.js",
+        "result": "passed",
+        "tests": "47 passed"
+      },
+      {
+        "command": "npx eslint public/modules/session-indicators.js server/services/session-core/activity-service-methods.js tests/unit/session-indicators-ws.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "npm run typecheck",
+        "result": "passed"
+      }
+    ],
+    "failed_or_blocked": [
+      {
+        "command": "npm -s exec vitest run tests/unit/session-ui-state.test.js tests/ui/views/session-view.test.js tests/ui/integration/app-switch-session-runtime.test.js",
+        "result": "failed",
+        "classification": "residual_existing_test_environment_risk",
+        "reason": "app-switch-session-runtime.test.js が settingsExtensions mock と相対 URL fetch の既存問題で失敗。今回変更した activity indicator の targeted scope とは別系統。"
+      }
+    ]
+  },
+  "outcome": {
+    "loop_result": "targeted_success",
+    "human_intervention_points": [
+      "ユーザーが対象要求を指定した",
+      "広域 integration suite の既存失敗は今回修正対象から除外した"
+    ],
+    "residual_risks": [
+      "実ブラウザ上の indicator 目視 / Playwright 確認は未実施",
+      "app-switch-session-runtime.test.js の既存失敗を別 story / fact として分離する必要がある"
+    ],
+    "next_actions": [
+      "実 UI で working -> waiting -> done -> read -> new working の表示遷移を確認する",
+      "integration suite の settingsExtensions mock / relative URL fetch 問題を別 run で閉じる",
+      "development-run.json を scorer の正式入力に昇格する"
+    ]
+  },
+  "vibepro_judgment": {
+    "autonomous_development_loop": "partial_go",
+    "reason": "要求から実装・検証・jj change closure までは自走できたが、story/spec の事前生成と実 UI 動的確認は未完了。",
+    "diagnosis_role": "診断は主目的ではなく、自立開発ループの進行・安全性・残リスクを測る補助計器として扱う"
+  }
+}

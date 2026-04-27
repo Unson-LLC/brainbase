@@ -1,0 +1,23 @@
+{
+  "run_id": "vibepro-brainbase-20260427-110850-active-indicator",
+  "status": "scored",
+  "metrics": {
+    "本番化ギャップ捕捉率": 1,
+    "本番化ギャップ的中率": 1,
+    "ゲート違反流出率": 0
+  },
+  "feedback": {
+    "detected_correctly": [
+      "gap.repo.detached-head",
+      "gap.repo.unrelated-dirty-files"
+    ],
+    "missed_gaps": [],
+    "over_detected_gaps": [],
+    "escaped_gate_violations": [],
+    "effective_interventions": [],
+    "weak_interventions": [],
+    "next_rule_updates": [
+      "現在の診断ルールを維持し、次runで再測定する"
+    ]
+  }
+}
