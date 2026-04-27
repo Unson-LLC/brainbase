@@ -110,60 +110,78 @@ export class TmuxCaptureCache {
             includeCopyMode: options.includeCopyMode !== false
         };
         const key = buildCacheKey(sessionId, normalized);
-        const cached = this.cache.get(key);
 
-        if (cached && (Date.now() - cached.cachedAt) < this.ttlMs) {
-            return cached.payload;
-        }
-
-        if (this.pending.has(key)) {
-            return await this.pending.get(key);
-        }
-
-        // capture 開始時の epoch を覚えておく
-        const startEpoch = this._getEpoch(sessionId);
-
-        const pendingPromise = (async () => {
-            const [text, colorText, copyMode] = await Promise.all([
-                this.snapshotService.getContent(sessionId, normalized.lines),
-                normalized.includeColors
-                    ? this.snapshotService.getContentWithColors(sessionId, normalized.lines).catch(() => null)
-                    : Promise.resolve(null),
-                normalized.includeCopyMode
-                    ? this.snapshotService.getPaneMode(sessionId).catch(() => false)
-                    : Promise.resolve(false)
-            ]);
-
-            /** @type {TmuxCapturePayload} */
-            const payload = {
-                text,
-                colorText,
-                copyMode,
-                capturedAt: new Date().toISOString()
-            };
-            // この capture が走り始めた後で invalidate が呼ばれた場合は cache.set しない。
-            // 古い payload が cache を再汚染しないため。caller には payload を返すが、
-            // 次回 getSnapshot は cache HIT せず新しい capture を走らせる。
-            const currentEpoch = this._getEpoch(sessionId);
-            if (currentEpoch === startEpoch) {
-                this.cache.set(key, {
-                    cachedAt: Date.now(),
-                    payload
-                });
+        // epoch が変わったときは最大3回まで retry して fresh payload を取り直す。
+        // これにより「invalidate と capture の race」で stale payload が返るのを防ぐ。
+        const MAX_ATTEMPTS = 3;
+        let lastPayload = null;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+            const cached = this.cache.get(key);
+            if (cached && (Date.now() - cached.cachedAt) < this.ttlMs) {
+                return cached.payload;
             }
-            return payload;
-        })();
 
-        this.pending.set(key, pendingPromise);
-        try {
-            return await pendingPromise;
-        } finally {
-            // pending はキャンセル時 (epoch ずれ時) には既に invalidate で消されているため
-            // ここでの delete は no-op になることがある。問題なし。
-            if (this.pending.get(key) === pendingPromise) {
-                this.pending.delete(key);
+            if (this.pending.has(key)) {
+                lastPayload = await this.pending.get(key);
+                // pending は別 caller が走らせたものなので epoch チェックを再実行する
+                const epochAfter = this._getEpoch(sessionId);
+                // この pending を取得した時点では startEpoch は不明なので、
+                // 単純に cache.has(key) で判定する: cache にちゃんと set されていれば fresh、
+                // skip されていれば epoch ずれが起きたので retry。
+                if (this.cache.has(key)) {
+                    return lastPayload;
+                }
+                continue; // retry
             }
+
+            const startEpoch = this._getEpoch(sessionId);
+            const pendingPromise = (async () => {
+                const [text, colorText, copyMode] = await Promise.all([
+                    this.snapshotService.getContent(sessionId, normalized.lines),
+                    normalized.includeColors
+                        ? this.snapshotService.getContentWithColors(sessionId, normalized.lines).catch(() => null)
+                        : Promise.resolve(null),
+                    normalized.includeCopyMode
+                        ? this.snapshotService.getPaneMode(sessionId).catch(() => false)
+                        : Promise.resolve(false)
+                ]);
+
+                /** @type {TmuxCapturePayload} */
+                const payload = {
+                    text,
+                    colorText,
+                    copyMode,
+                    capturedAt: new Date().toISOString()
+                };
+                // この capture が走り始めた後で invalidate が呼ばれた場合は cache.set しない。
+                const currentEpoch = this._getEpoch(sessionId);
+                if (currentEpoch === startEpoch) {
+                    this.cache.set(key, {
+                        cachedAt: Date.now(),
+                        payload
+                    });
+                }
+                return payload;
+            })();
+
+            this.pending.set(key, pendingPromise);
+            try {
+                lastPayload = await pendingPromise;
+            } finally {
+                if (this.pending.get(key) === pendingPromise) {
+                    this.pending.delete(key);
+                }
+            }
+
+            // capture 後に epoch が変わっていれば retry。最終 attempt なら諦めて lastPayload を返す。
+            const endEpoch = this._getEpoch(sessionId);
+            if (endEpoch === startEpoch) {
+                return lastPayload;
+            }
+            // epoch が変わったので cache に入っていない → ループして retry
         }
+
+        return lastPayload;
     }
 }
 
