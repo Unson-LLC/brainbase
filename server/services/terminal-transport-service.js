@@ -483,7 +483,11 @@ export class TerminalTransportService {
                 connection.terminalAccess = terminalAccess;
                 const inputTypeForLog = message.inputType === 'key' ? 'key' : 'text';
                 const valueLen = typeof message.value === 'string' ? message.value.length : 0;
-                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state}`);
+                // 入力内容を識別可能な形でログ出力 (Enter検出のため)
+                const valueDebug = typeof message.value === 'string'
+                    ? message.value.replace(/[\x00-\x1F\x7F]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`).slice(0, 60)
+                    : String(message.value).slice(0, 60);
+                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state} debug="${valueDebug}"`);
                 if (terminalAccess?.state !== 'owner') {
                     logger.warn(`[TTC-PROBE][ws-input] dropped NOT_OWNER session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=NOT_OWNER session=${sessionId} len=${valueLen} viewer=${viewerId}`);
