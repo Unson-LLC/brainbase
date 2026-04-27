@@ -8,6 +8,11 @@ const REQUIRED_METRIC_TERMS = [
   '本番化ギャップ捕捉率',
   '本番化ギャップ的中率',
   'ゲート違反流出率',
+  '開発DAG合致率',
+  '証跡欠落率',
+  'ゲート前進違反率',
+  '残リスク回収率',
+  'Story-to-Ship閉鎖率',
 ];
 const REQUIRED_DECISION_ID = 'dec_vibepro_ai_self_evaluation_metrics_japanese_ssot';
 

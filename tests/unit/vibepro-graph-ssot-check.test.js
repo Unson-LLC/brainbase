@@ -55,6 +55,11 @@ describe('vibepro-graph-ssot-check', () => {
           { id: 'term_1', payload: { term: '本番化ギャップ捕捉率' } },
           { id: 'term_2', payload: { term: '本番化ギャップ的中率' } },
           { id: 'term_3', payload: { term: 'ゲート違反流出率' } },
+          { id: 'term_4', payload: { term: '開発DAG合致率' } },
+          { id: 'term_5', payload: { term: '証跡欠落率' } },
+          { id: 'term_6', payload: { term: 'ゲート前進違反率' } },
+          { id: 'term_7', payload: { term: '残リスク回収率' } },
+          { id: 'term_8', payload: { term: 'Story-to-Ship閉鎖率' } },
         ],
         decision: [
           {

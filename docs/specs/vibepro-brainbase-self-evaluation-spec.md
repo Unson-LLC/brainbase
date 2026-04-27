@@ -72,11 +72,70 @@ docs/internal/vibepro-dogfood/runs/<run_id>/report.md
     "loop_result": "success|targeted_success|failed",
     "residual_risks": ["string"],
     "next_actions": ["string"]
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed|failed|skipped",
+        "evidence": ["request.raw"]
+      },
+      "story": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["requirement"],
+        "evidence": ["docs/stories/vibepro-brainbase-dogfood-story.md"]
+      },
+      "architecture": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["story"],
+        "evidence": ["docs/architecture/vibepro-brainbase-dogfood-architecture.md"]
+      },
+      "spec": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["architecture"],
+        "evidence": ["docs/specs/vibepro-brainbase-self-evaluation-spec.md"]
+      },
+      "test_design": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["spec"],
+        "evidence": ["tests/unit/..."]
+      },
+      "implementation": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["test_design"],
+        "evidence": ["changed file path"]
+      },
+      "verification": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["implementation"],
+        "evidence": ["test command"]
+      },
+      "run_evidence": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["verification"],
+        "evidence": ["docs/internal/vibepro-dogfood/runs/<run_id>/development-run.json"]
+      },
+      "score_gate": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["run_evidence"],
+        "evidence": ["npm run vibepro:development-dag"]
+      },
+      "ship": {
+        "status": "passed|failed|skipped",
+        "depends_on": ["score_gate"],
+        "evidence": ["docs/internal/vibepro-dogfood/ship.md"]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 0,
+      "recovered_count": 0
+    }
   }
 }
 ```
 
 `development-run.md` は同じ内容を人間レビュー用に要約する派生文書。
+
+`development_dag.nodes` は `requirement`, `story`, `architecture`, `spec`, `test_design`, `implementation`, `verification`, `run_evidence`, `score_gate` を必須とする。`ship` と `residual_risk_recovery` は任意だが、`status: completed` の run では `ship` が `passed` でなければならない。
 
 ## 4. observation.json
 
@@ -199,10 +258,48 @@ escaped gate violations / gate_violations
 
 ゲート違反が0件の場合は `0` とする。
 
+### 開発DAG合致率
+
+```text
+passed required development DAG nodes / required development DAG nodes
+```
+
+### 証跡欠落率
+
+```text
+required development DAG nodes without evidence / required development DAG nodes
+```
+
+### ゲート前進違反率
+
+```text
+passed nodes with failed or missing dependencies / passed development DAG nodes
+```
+
+passed node が0件の場合は `0` とする。
+
+### 残リスク回収率
+
+```text
+recovered previous residual risks / previous residual risks
+```
+
+前回残リスクがない、または計算に必要な証跡がない場合は `not_applicable` とする。
+
+### Story-to-Ship閉鎖率
+
+```text
+ship node passed ? 1 : 0
+```
+
+`status: completed` の run で `Story-to-Ship閉鎖率` が `1` でなければ gate failed とする。`completed_with_residual_risk` は `residual_risks` と `next_actions` が残っていれば許可する。
+
 ## 9. CLI
 
 ```bash
 node scripts/vibepro-doc-trace-check.mjs
+node scripts/vibepro-development-dag-check.mjs
+node scripts/vibepro-development-dag-check.mjs check-run <run-dir>
 node scripts/vibepro-score-run.mjs observe <run-dir>
 node scripts/vibepro-score-run.mjs generate-outcome <run-dir>
 node scripts/vibepro-score-run.mjs generate-labels <run-dir>
@@ -213,6 +310,7 @@ node scripts/vibepro-score-run.mjs gate <run-dir>
 ```
 
 `vibepro-doc-trace-check.mjs` は `docs/internal/vibepro-dogfood/runs/` の差分がある時に、同じ差分内で Story / Architecture / Spec の正本更新を要求する。
+`vibepro-development-dag-check.mjs` は 2026-04-27 以降の新しい dogfood run で `development-run.json` と `development_dag` を要求し、開発DAG指標の gate を判定する。
 `run` は `generate-outcome -> generate-labels -> score` を順に実行する。
 `auto-run` は `observe -> diagnosis/outcome/labels/score/feedback/report` をまとめて生成する。
 `gate` は日本語指標を判定し、流出してはいけない違反を検出する。
@@ -228,3 +326,5 @@ node scripts/vibepro-score-run.mjs gate <run-dir>
 | `labels.json` が機械生成 | 7 |
 | 日本語指標を決定論的計算 | 8 |
 | feedback/report生成 | 9 |
+| 新しい dogfood run が開発DAG証跡を持つ | 3, 8, 9 |
+| 開発DAGの欠落・順序違反・証跡欠落で止まる | 8, 9 |

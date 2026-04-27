@@ -11,7 +11,7 @@ created_at: 2026-04-25
 updated_at: 2026-04-27
 ---
 
-# STR-vibepro-brainbase-dogfood: BrainbaseでVibeProの評価分離dogfoodを回す
+# STR-vibepro-brainbase-dogfood: BrainbaseでVibeProの自立開発dogfoodを回す
 
 ## 背景
 
@@ -19,17 +19,19 @@ VibePro の思想は Brainbase Graph SSOT の `frm_vibepro` を正本とする�
 
 初回の最小実験では、診断、正解ラベル、採点、自己フィードバックの流れは成立した。ただし、正解ラベルを LLM が作っていたため、keiba / FX のような「判断」と「事後評価」の分離には届いていなかった。
 
+その後の dogfood で、診断そのものよりも「要求から AI が安全に自立開発を進める制御面」が VibePro の主目的だと整理した。評価分離は主目的ではなく、自立開発DAGを止める・進めるための計器として扱う。
+
 ## 誰が
 
 Brainbase / VibePro の運用者として。
 
 ## 何を
 
-VibePro の診断結果を、独立した観測事実と事後アウトカムで採点できるようにしたい。
+VibePro が要求から Story / Architecture / Spec / Test / Code / Run evidence / score まで自立的に進めたかを、独立した観測事実とDAG証跡で採点できるようにしたい。
 
 ## なぜ
 
-AI が自分で自分の診断を正解化すると、本番化ギャップ捕捉率や本番化ギャップ的中率が自己都合の数字になる。AI が安全に自走するには、診断と正解ラベルを分離し、採点だけは決定論的に行う必要がある。
+AI が自分で自分の診断を正解化すると、本番化ギャップ捕捉率や本番化ギャップ的中率が自己都合の数字になる。さらに、診断だけが良くても Story / Architecture / Spec / Test / Code の順序を飛ばしていれば、自立開発としては危険である。AI が安全に自走するには、診断と正解ラベルを分離し、開発DAGの通過状況も決定論的に採点する必要がある。
 
 ## 受け入れ基準
 
@@ -41,6 +43,10 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 - [x] `feedback.md` と `report.md` は採点結果から生成される
 - [x] VibePro dogfood の各実装 run は、run 証跡だけでなく Story -> Architecture -> Spec のいずれかに追跡可能な形で残る
 - [x] 前回 run の残リスクは、次 run の story_key / acceptance_criteria / verification に引き継がれる
+- [ ] 新しい VibePro dogfood run は、要求から score/gate までの開発DAG証跡を持つ
+- [ ] 開発DAG証跡は AI ではなく決定論的 checker で採点される
+- [ ] 開発DAGが欠落・順序違反・証跡欠落を起こした場合、次工程へ進めない
+- [ ] 日本語の開発DAG指標は Graph SSOT の用語として参照できる
 
 ## Ship 証跡
 
