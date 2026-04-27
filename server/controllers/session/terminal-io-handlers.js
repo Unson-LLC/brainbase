@@ -10,6 +10,10 @@ export function installTerminalIoHandlers(controller) {
 
         try {
             await controller.terminalIo.sendInput(id, input, type);
+            // tmux に書き込んだ直後は cache が古い。invalidate しないと
+            // 後続の snapshot 取得で stale なテキストが返り、xterm に書き戻されて
+            // 入力したパス/テキストが「すぐ消える」現象が起きる。
+            controller.captureCache?.invalidate?.(id);
             logger.info(`[sendInput] 200: input sent to ${id}`);
             res.json({ success: true });
         } catch (error) {
@@ -47,6 +51,7 @@ export function installTerminalIoHandlers(controller) {
 
         try {
             await controller.terminalIo.scrollSession(id, direction, steps);
+            controller.captureCache?.invalidate?.(id);
             res.json({ success: true });
         } catch (error) {
             logger.error(`Failed to scroll ${id}:`, error.message);
@@ -60,6 +65,7 @@ export function installTerminalIoHandlers(controller) {
 
         try {
             await controller.terminalIo.selectPane(id, direction);
+            controller.captureCache?.invalidate?.(id);
             res.json({ success: true });
         } catch (error) {
             logger.error(`Failed to select pane for ${id}:`, error.message);
@@ -72,6 +78,7 @@ export function installTerminalIoHandlers(controller) {
 
         try {
             await controller.terminalIo.exitCopyMode(id);
+            controller.captureCache?.invalidate?.(id);
             res.json({ success: true });
         } catch (error) {
             logger.error(`Failed to exit copy mode for ${id}:`, error.message);
