@@ -8,7 +8,7 @@ architecture_docs:
     status: accepted
 status: shipped
 created_at: 2026-04-25
-updated_at: 2026-04-26
+updated_at: 2026-04-27
 ---
 
 # STR-vibepro-brainbase-dogfood: BrainbaseでVibeProの評価分離dogfoodを回す
@@ -39,10 +39,14 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 - [x] `labels.json` は `outcome.json` と `diagnosis.json` の照合で機械生成される
 - [x] `score.json` は日本語指標を決定論的に計算する
 - [x] `feedback.md` と `report.md` は採点結果から生成される
+- [x] VibePro dogfood の各実装 run は、run 証跡だけでなく Story -> Architecture -> Spec のいずれかに追跡可能な形で残る
+- [x] 前回 run の残リスクは、次 run の story_key / acceptance_criteria / verification に引き継がれる
 
 ## Ship 証跡
 
 - `docs/internal/vibepro-dogfood/ship.md`
+- `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-110850-active-indicator/development-run.md`
+- `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-112222-runtime-harness/development-run.md`
 
 ## スコープ外
 

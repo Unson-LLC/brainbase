@@ -3,9 +3,9 @@ spec_id: SPEC-vibepro-brainbase-self-evaluation
 title: VibePro Brainbase dogfood評価分離仕様
 source_story: docs/stories/vibepro-brainbase-dogfood-story.md
 source_architecture: docs/architecture/vibepro-brainbase-dogfood-architecture.md
-status: draft
+status: accepted
 created_at: 2026-04-25
-updated_at: 2026-04-25
+updated_at: 2026-04-27
 ---
 
 # SPEC-vibepro-brainbase-self-evaluation
@@ -21,6 +21,8 @@ updated_at: 2026-04-25
 ## 2. run構成
 
 ```text
+docs/internal/vibepro-dogfood/runs/<run_id>/development-run.json
+docs/internal/vibepro-dogfood/runs/<run_id>/development-run.md
 docs/internal/vibepro-dogfood/runs/<run_id>/observation.json
 docs/internal/vibepro-dogfood/runs/<run_id>/diagnosis.json
 docs/internal/vibepro-dogfood/runs/<run_id>/outcome.json
@@ -30,7 +32,53 @@ docs/internal/vibepro-dogfood/runs/<run_id>/feedback.md
 docs/internal/vibepro-dogfood/runs/<run_id>/report.md
 ```
 
-## 3. observation.json
+## 3. development-run.json
+
+自立開発 loop の trace。Story -> Architecture -> Spec -> Test -> Code -> Run evidence を接続する。
+
+```json
+{
+  "run_id": "vibepro-brainbase-yyyymmdd-hhmmss-topic",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed|completed_with_residual_risk|failed",
+  "request": {
+    "raw": "string",
+    "interpreted_goal": "string"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/topic",
+    "story_key": "vibepro-dogfood/topic/yyyyMMdd-topic",
+    "acceptance_criteria": ["string"]
+  },
+  "implementation": {
+    "jj_change_id": "string",
+    "commit_id": "string",
+    "description": "string",
+    "changed_files": ["string"]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "string",
+        "result": "passed",
+        "tests": "string"
+      }
+    ],
+    "failed_or_blocked": []
+  },
+  "outcome": {
+    "loop_result": "success|targeted_success|failed",
+    "residual_risks": ["string"],
+    "next_actions": ["string"]
+  }
+}
+```
+
+`development-run.md` は同じ内容を人間レビュー用に要約する派生文書。
+
+## 4. observation.json
 
 機械観測 snapshot。診断結果を読まずに生成する。
 
@@ -65,7 +113,7 @@ docs/internal/vibepro-dogfood/runs/<run_id>/report.md
 }
 ```
 
-## 4. diagnosis.json
+## 5. diagnosis.json
 
 VibePro の診断判断。正解ラベルは含めない。
 
@@ -87,7 +135,7 @@ VibePro の診断判断。正解ラベルは含めない。
 }
 ```
 
-## 5. outcome.json
+## 6. outcome.json
 
 観測事実から機械生成される事後アウトカム。診断結果を読まない。
 
@@ -109,7 +157,7 @@ VibePro の診断判断。正解ラベルは含めない。
 }
 ```
 
-## 6. labels.json
+## 7. labels.json
 
 `outcome.json` と `diagnosis.json` の照合結果。LLMが直接書かない。
 
@@ -129,7 +177,7 @@ VibePro の診断判断。正解ラベルは含めない。
 }
 ```
 
-## 7. 指標
+## 8. 指標
 
 ### 本番化ギャップ捕捉率
 
@@ -151,7 +199,7 @@ escaped gate violations / gate_violations
 
 ゲート違反が0件の場合は `0` とする。
 
-## 8. CLI
+## 9. CLI
 
 ```bash
 node scripts/vibepro-score-run.mjs observe <run-dir>
@@ -159,17 +207,22 @@ node scripts/vibepro-score-run.mjs generate-outcome <run-dir>
 node scripts/vibepro-score-run.mjs generate-labels <run-dir>
 node scripts/vibepro-score-run.mjs score <run-dir>
 node scripts/vibepro-score-run.mjs run <run-dir>
+node scripts/vibepro-score-run.mjs auto-run <run-dir>
+node scripts/vibepro-score-run.mjs gate <run-dir>
 ```
 
 `run` は `generate-outcome -> generate-labels -> score` を順に実行する。
+`auto-run` は `observe -> diagnosis/outcome/labels/score/feedback/report` をまとめて生成する。
+`gate` は日本語指標を判定し、流出してはいけない違反を検出する。
 
-## 9. 受け入れ条件との接続
+## 10. 受け入れ条件との接続
 
 | Story AC | Spec |
 |---|---|
-| `observation.json` が機械観測 | 3 |
-| `diagnosis.json` が正解ラベルを含まない | 4 |
-| `outcome.json` が診断非依存 | 5 |
-| `labels.json` が機械生成 | 6 |
-| 日本語指標を決定論的計算 | 7 |
-| feedback/report生成 | 8 |
+| run が Story -> Architecture -> Spec に追跡可能 | 3 |
+| `observation.json` が機械観測 | 4 |
+| `diagnosis.json` が正解ラベルを含まない | 5 |
+| `outcome.json` が診断非依存 | 6 |
+| `labels.json` が機械生成 | 7 |
+| 日本語指標を決定論的計算 | 8 |
+| feedback/report生成 | 9 |
