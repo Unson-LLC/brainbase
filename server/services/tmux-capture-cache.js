@@ -50,6 +50,22 @@ export class TmuxCaptureCache {
         this.cache = new Map();
         /** @type {Map<string, Promise<TmuxCapturePayload>>} */
         this.pending = new Map();
+        // session -> epoch: invalidate で increment、in-flight capture が
+        // 完了時に自分の epoch と現 epoch を比較し、古ければ cache.set を skip する。
+        // これにより「invalidate 直後に in-flight な capture が古い payload で cache を上書きする」
+        // race condition を防ぐ。
+        /** @type {Map<string, number>} */
+        this.sessionEpoch = new Map();
+    }
+
+    _getEpoch(sessionId) {
+        return this.sessionEpoch.get(sessionId) || 0;
+    }
+
+    _bumpEpoch(sessionId) {
+        const next = this._getEpoch(sessionId) + 1;
+        this.sessionEpoch.set(sessionId, next);
+        return next;
     }
 
     /**
@@ -60,6 +76,10 @@ export class TmuxCaptureCache {
         if (!sessionId) {
             this.cache.clear();
             this.pending.clear();
+            // 全セッションの epoch を bump
+            for (const sid of this.sessionEpoch.keys()) {
+                this._bumpEpoch(sid);
+            }
             return;
         }
 
@@ -74,6 +94,8 @@ export class TmuxCaptureCache {
                 this.pending.delete(key);
             }
         }
+        // 該当 session の epoch を bump → in-flight な capture は cache.set を skip する
+        this._bumpEpoch(sessionId);
     }
 
     /**
@@ -98,6 +120,9 @@ export class TmuxCaptureCache {
             return await this.pending.get(key);
         }
 
+        // capture 開始時の epoch を覚えておく
+        const startEpoch = this._getEpoch(sessionId);
+
         const pendingPromise = (async () => {
             const [text, colorText, copyMode] = await Promise.all([
                 this.snapshotService.getContent(sessionId, normalized.lines),
@@ -116,10 +141,16 @@ export class TmuxCaptureCache {
                 copyMode,
                 capturedAt: new Date().toISOString()
             };
-            this.cache.set(key, {
-                cachedAt: Date.now(),
-                payload
-            });
+            // この capture が走り始めた後で invalidate が呼ばれた場合は cache.set しない。
+            // 古い payload が cache を再汚染しないため。caller には payload を返すが、
+            // 次回 getSnapshot は cache HIT せず新しい capture を走らせる。
+            const currentEpoch = this._getEpoch(sessionId);
+            if (currentEpoch === startEpoch) {
+                this.cache.set(key, {
+                    cachedAt: Date.now(),
+                    payload
+                });
+            }
             return payload;
         })();
 
@@ -127,7 +158,11 @@ export class TmuxCaptureCache {
         try {
             return await pendingPromise;
         } finally {
-            this.pending.delete(key);
+            // pending はキャンセル時 (epoch ずれ時) には既に invalidate で消されているため
+            // ここでの delete は no-op になることがある。問題なし。
+            if (this.pending.get(key) === pendingPromise) {
+                this.pending.delete(key);
+            }
         }
     }
 }
