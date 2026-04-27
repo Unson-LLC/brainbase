@@ -1,0 +1,101 @@
+{
+  "run_id": "vibepro-brainbase-20260427-112222-runtime-harness",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed",
+  "created_at": "2026-04-27T11:22:22+09:00",
+  "request": {
+    "raw": "Brainbase で VibePro を試す。どんどん Brainbase の機能追加をやってみるのがいい？",
+    "interpreted_goal": "前回の active indicator run で残った app-switch-session-runtime integration 失敗を閉じ、Brainbase 上で VibePro の自走開発ループを継続できる状態にする"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/runtime-harness",
+    "story_key": "vibepro-dogfood/runtime-harness/20260427-app-switch-session-runtime",
+    "acceptance_criteria": [
+      "app-switch-session-runtime integration test が settings extension mock 欠落で落ちない",
+      "JSDOM / Node test environment で app.start が参照する fetch endpoint が相対 URL エラーを起こさない",
+      "app.start 中の /api/state / /api/tasks / /api/schedule/today は実コードが期待する型で返る",
+      "desktop xterm 切替待機中の snapshot 表示 expectation が実装意図と一致する",
+      "active indicator 関連の unit / server tests と runtime integration suite が同時に通る"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "brainbase-ui状態の検証でapiを自作シミュレートすると実hooksの不具合を見逃す",
+      "brainbase-e2eはウォーム状態だけでなくハードリフレッシュ直後のコールド切替を必ず検証する"
+    ],
+    "approach": [
+      "前回 run の residual risk を直接対象にする",
+      "integration test の落ち方を production app.start 経路に沿って分類する",
+      "settings extension mock と fetch mock を実装が読む API surface に合わせる",
+      "runtime lookup 用 mock と startup data 用 mock を endpoint 別に分離する",
+      "targeted integration test と active indicator 関連スイートを再実行する",
+      "jj change と VibePro run 証跡に閉じる"
+    ]
+  },
+  "implementation": {
+    "jj_change_id": "ympstzwzsmplznwmknpnmrznxmkpktzv",
+    "commit_id": "f30bd9d72896a537210fecb62177dd2b82922af0",
+    "description": "test(runtime): stabilize app switch integration harness",
+    "changed_files": [
+      "tests/setup/test-setup.js",
+      "tests/ui/integration/app-switch-session-runtime.test.js"
+    ],
+    "behavior_changes": [
+      "SettingsExtensions mock に setupSettingsExtensions を追加し、実 App 初期化の呼び出し面に合わせた",
+      "global fetch mock に app.start が読む CSRF / inbox / Slack members / Google auth / active-port / sessions status / env status endpoint を追加した",
+      "/api/config mock を projects.root と projects.projects を持つ production shape に寄せた",
+      "httpClient.get mock を endpoint 別にし、/api/state は state object、/api/tasks は array、/api/schedule/today は schedule object を返すようにした",
+      "sessionDataCache を beforeEach で clear し、テスト間の startup data 汚染を防いだ",
+      "desktop snapshot 待機中は xterm host を fit 計算のため維持するという実装意図に assertion を合わせた"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "node --check tests/ui/integration/app-switch-session-runtime.test.js && node --check tests/setup/test-setup.js",
+        "result": "passed"
+      },
+      {
+        "command": "npm -s exec vitest run tests/ui/integration/app-switch-session-runtime.test.js",
+        "result": "passed",
+        "tests": "34 passed"
+      },
+      {
+        "command": "npm -s exec vitest run tests/server/session-manager.test.js tests/unit/session-indicators.test.js tests/unit/session-indicators-ws.test.js tests/unit/session-activity-ws-service.test.js tests/unit/session-ui-state.test.js tests/ui/views/session-view.test.js tests/ui/integration/app-switch-session-runtime.test.js",
+        "result": "passed",
+        "tests": "115 passed"
+      },
+      {
+        "command": "npx eslint tests/setup/test-setup.js tests/ui/integration/app-switch-session-runtime.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "npm run typecheck",
+        "result": "passed"
+      }
+    ],
+    "failed_or_blocked": []
+  },
+  "outcome": {
+    "loop_result": "success",
+    "human_intervention_points": [
+      "ユーザーが VibePro dogfood を Brainbase の実作業で継続する方針を指定した"
+    ],
+    "residual_risks": [
+      "実ブラウザでの active indicator 遷移確認はまだ別 run で実施する必要がある",
+      "Git/JJ は detached HEAD 運用のため scorer は change control fact を出す可能性がある"
+    ],
+    "next_actions": [
+      "実 UI / Playwright で active indicator の cold start と session switch を確認する",
+      "次の Brainbase 機能追加を story -> implementation -> verification -> run evidence の形で回す",
+      "VibePro scorer の fact を story-to-ship の closure 判定に接続する"
+    ]
+  },
+  "vibepro_judgment": {
+    "autonomous_development_loop": "go_for_next_dogfood",
+    "reason": "前回 run の residual risk を AI が実装タスクへ変換し、修正・検証・jj change・run 証跡まで閉じられた。診断は主目的ではなく、自立開発を安全に進める制御計器として機能している。",
+    "diagnosis_role": "diagnosis is an internal control loop for autonomous development, not the product's main value by itself"
+  }
+}

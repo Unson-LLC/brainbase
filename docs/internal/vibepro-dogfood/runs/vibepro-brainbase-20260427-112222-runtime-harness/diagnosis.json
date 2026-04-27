@@ -1,0 +1,21 @@
+{
+  "run_id": "vibepro-brainbase-20260427-112222-runtime-harness",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-04-27T02:23:33.838Z",
+  "scope": [
+    "change_control"
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.repo.detached-head",
+      "evidence_fact_ids": [
+        "fact.repo.detached_head"
+      ],
+      "severity": "medium",
+      "reason": "Repository is currently on detached HEAD"
+    }
+  ]
+}

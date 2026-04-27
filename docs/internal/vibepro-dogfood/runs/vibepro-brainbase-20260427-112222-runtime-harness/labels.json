@@ -1,0 +1,17 @@
+{
+  "run_id": "vibepro-brainbase-20260427-112222-runtime-harness",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.detached_head",
+      "matched_detected_gap_id": "gap.repo.detached-head",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}
