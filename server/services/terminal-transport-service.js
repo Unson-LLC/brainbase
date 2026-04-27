@@ -486,12 +486,14 @@ export class TerminalTransportService {
                 logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state}`);
                 if (terminalAccess?.state !== 'owner') {
                     logger.warn(`[TTC-PROBE][ws-input] dropped NOT_OWNER session=${sessionId} len=${valueLen}`);
+                    logger.warn(`[INPUT-TELEMETRY] dropped reason=NOT_OWNER session=${sessionId} len=${valueLen} viewer=${viewerId}`);
                     ws.send(JSON.stringify({ type: 'blocked', terminalAccess }));
                     return;
                 }
                 const inputType = inputTypeForLog;
                 if (!this._getInputReady(sessionId) && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(message.value))) {
                     logger.warn(`[TTC-PROBE][ws-input] dropped INPUT_NOT_READY session=${sessionId} len=${valueLen}`);
+                    logger.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_NOT_READY session=${sessionId} len=${valueLen} type=${inputType}`);
                     ws.send(JSON.stringify({
                         type: 'error',
                         code: 'INPUT_NOT_READY',
@@ -499,7 +501,13 @@ export class TerminalTransportService {
                     }));
                     return;
                 }
-                await this.terminalIo.sendInput(sessionId, message.value, inputType);
+                try {
+                    await this.terminalIo.sendInput(sessionId, message.value, inputType);
+                    logger.info(`[INPUT-TELEMETRY] sentOk session=${sessionId} len=${valueLen} type=${inputType}`);
+                } catch (err) {
+                    logger.warn(`[INPUT-TELEMETRY] dropped reason=MUTATION_TIMEOUT_OR_FAILED session=${sessionId} len=${valueLen} err=${err?.message || err}`);
+                    throw err;
+                }
                 this.captureCache.invalidate(sessionId);
                 this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 

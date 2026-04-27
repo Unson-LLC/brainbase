@@ -72,10 +72,12 @@ export const terminalIoMethods = {
 
     async sendInput(sessionId, input, type) {
         if (!input) {
+            console.warn(`[INPUT-TELEMETRY] dropped reason=INVALID_INPUT session=${sessionId} sub=missing_value`);
             throw new Error('Input required');
         }
 
         if (type !== 'key' && type !== 'text') {
+            console.warn(`[INPUT-TELEMETRY] dropped reason=INVALID_INPUT session=${sessionId} sub=invalid_type type=${type}`);
             throw new Error('Type must be key or text');
         }
 
@@ -83,6 +85,7 @@ export const terminalIoMethods = {
             ? this._stripTerminalFocusEvents(input)
             : input;
         if (!normalizedInput) {
+            console.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_FOCUS_STRIPPED_EMPTY session=${sessionId} originalLen=${input.length}`);
             return;
         }
 
@@ -130,10 +133,20 @@ export const terminalIoMethods = {
         }
 
         const previous = this.terminalMutationQueues.get(sessionId) || Promise.resolve();
+        // 直前の mutation 失敗を観測のためログに残す（mutex継続のため握り潰しは維持）。
         const next = previous
-            .catch(() => {})
+            .catch((prevErr) => {
+                if (prevErr) {
+                    console.warn(`[INPUT-TELEMETRY] mutation-queue prev-failed session=${sessionId} err=${prevErr?.message || prevErr}`);
+                }
+            })
             .then(async () => {
-                return await this._withTimeout(operation(), MUTATION_TIMEOUT_MS);
+                try {
+                    return await this._withTimeout(operation(), MUTATION_TIMEOUT_MS);
+                } catch (err) {
+                    console.warn(`[INPUT-TELEMETRY] dropped reason=MUTATION_TIMEOUT_OR_FAILED session=${sessionId} err=${err?.message || err}`);
+                    throw err;
+                }
             });
 
         this.terminalMutationQueues.set(sessionId, next);

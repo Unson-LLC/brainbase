@@ -2,6 +2,7 @@
 import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
 import { MessageQueue } from './message-queue.js';
+import { inputTelemetry } from './input-telemetry.js';
 
 const SNAPSHOT_LINES = 400;
 const CONNECT_TIMEOUT_MS = 15000;
@@ -188,12 +189,14 @@ export class TerminalTransportClient {
                             capturedToken: token,
                             currentToken: this._connectToken
                         });
+                        inputTelemetry.dropped('INPUT_QUEUE_TOKEN_MISMATCH', { len: data.length });
                         return;
                     }
                     return this.sendText(data);
                 })
                 .catch((err) => {
                     console.error('[TTC-PROBE][onData] chain error', err);
+                    inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { err: String(err?.message || err) });
                 });
         });
         this.terminal.onResize(({ cols, rows }) => {
@@ -231,10 +234,17 @@ export class TerminalTransportClient {
                 clearTimeout(this._imePostEnterTimer);
                 this._imePostEnterPending = true;
                 this._imePostEnterTimer = setTimeout(() => {
-                    if (!this._imePostEnterPending || this._connectToken !== capturedToken) return;
+                    if (!this._imePostEnterPending) return;
+                    if (this._connectToken !== capturedToken) {
+                        this._imePostEnterPending = false;
+                        inputTelemetry.dropped('IME_TIMER_TOKEN_MISMATCH', {});
+                        return;
+                    }
                     this._imePostEnterPending = false;
                     console.log('[TTC-PROBE][hostEl-keydown] IME post-Enter補完: sending \\r');
-                    this._inputQueue = this._inputQueue.then(() => this.sendText('\r')).catch(() => {});
+                    this._inputQueue = this._inputQueue.then(() => this.sendText('\r')).catch(() => {
+                        inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { source: 'ime-post-enter' });
+                    });
                 }, 50);
             }
         }, true);
@@ -413,6 +423,7 @@ export class TerminalTransportClient {
                     mode: this.status.mode,
                     inputReady: this.status.inputReady
                 });
+                inputTelemetry.dropped('CONNECT_DRAIN_DROPPED', { len: bufferedBeforeSwitch.length });
             }
         }
         this.sessionId = sessionId;
@@ -593,6 +604,15 @@ export class TerminalTransportClient {
         const bufferedOnDisconnect = this._drainBufferedText();
         if (bufferedOnDisconnect && this.ws?.readyState === WebSocket.OPEN && this.canSendInput(this.sessionId)) {
             this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedOnDisconnect }));
+        } else if (bufferedOnDisconnect) {
+            inputTelemetry.dropped('DISCONNECT_BUFFER_DRAINED', {
+                len: bufferedOnDisconnect.length,
+                wsState: this.ws?.readyState
+            });
+        }
+        const queuedBeforeClear = this._messageQueue.size?.() ?? 0;
+        if (queuedBeforeClear > 0) {
+            inputTelemetry.dropped('DISCONNECT_QUEUE_CLEARED', { count: queuedBeforeClear });
         }
         this._messageQueue.clear();
         this._closeWs();
@@ -628,6 +648,7 @@ export class TerminalTransportClient {
             inputReady: this.status.inputReady
         });
         if (!value) return;
+        inputTelemetry.inc('appended');
         // probe 前にローカルエコーを適用して視覚フィードバックを即時にする。
         // probe が 300ms 以上かかる場合でもユーザーは自分の入力が見える。
         // probe 失敗 (drop) 時はエコーが残るが稀なケースなので許容する。
@@ -644,6 +665,7 @@ export class TerminalTransportClient {
                     capturedToken, currentToken: this._connectToken,
                     capturedSession: capturedSessionId, currentSession: this.sessionId
                 });
+                inputTelemetry.dropped('SEND_TEXT_SESSION_CHANGED', { len: value.length });
                 void this._refreshSnapshot({ preserveMode: true });
                 return;
             }
@@ -656,6 +678,12 @@ export class TerminalTransportClient {
                     wsState: this.ws?.readyState,
                     sessionId: this.sessionId
                 });
+                inputTelemetry.dropped('SEND_TEXT_PROBE_FAILED', {
+                    len: value.length,
+                    mode: this.status.mode,
+                    inputReady: this.status.inputReady
+                });
+                inputTelemetry.inc('ghostEcho');
                 // ゴーストエコーを pty スナップショットで上書きしてクリアする。
                 // preserveMode:true で mode を 'live' から 'snapshot' に変えない。
                 void this._refreshSnapshot({ preserveMode: true });
@@ -691,15 +719,20 @@ export class TerminalTransportClient {
 
     async sendKey(value) {
         if (!value) return;
-        if (!this.canSendInput(this.sessionId) && !this._canSendControlKey(value) && !await this._ensureInputReadyForUserInput()) return;
+        if (!this.canSendInput(this.sessionId) && !this._canSendControlKey(value) && !await this._ensureInputReadyForUserInput()) {
+            inputTelemetry.dropped('SEND_KEY_NOT_READY', { value });
+            return;
+        }
         await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
         const message = { type: 'input', inputType: 'key', value };
         if (this.ws?.readyState !== WebSocket.OPEN) {
             this._messageQueue.enqueue(message);
+            inputTelemetry.inc('queued');
             return;
         }
         await this._ensureInteractiveMode();
         this.ws.send(JSON.stringify(message));
+        inputTelemetry.inc('sentOk');
     }
 
     /**
@@ -708,8 +741,14 @@ export class TerminalTransportClient {
      */
     async interrupt() {
         await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
-        if (!this.canSendInput(this.sessionId) && !this._canSendControlKey('C-c')) return;
-        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        if (!this.canSendInput(this.sessionId) && !this._canSendControlKey('C-c')) {
+            inputTelemetry.dropped('SEND_KEY_NOT_READY', { value: 'C-c (interrupt)' });
+            return;
+        }
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            inputTelemetry.dropped('INTERRUPT_WS_CLOSED', { wsState: this.ws?.readyState });
+            return;
+        }
         await this._ensureInteractiveMode();
         this.ws.send(JSON.stringify({
             type: 'input',
@@ -870,13 +909,26 @@ export class TerminalTransportClient {
      */
     _flushMessageQueue() {
         if (this._messageQueue.isEmpty()) return;
-        if (!this.canSendInput(this.sessionId)) return;
+        if (!this.canSendInput(this.sessionId)) {
+            // 永久 stuck の可能性: queue は空にならないが drain も走らない。観測のみ。
+            inputTelemetry.dropped('FLUSH_QUEUE_CAN_SEND_FALSE', {
+                queueSize: this._messageQueue.size?.() ?? 0,
+                mode: this.status.mode,
+                inputReady: this.status.inputReady
+            });
+            return;
+        }
         const messages = this._messageQueue.drain();
+        let sent = 0;
         for (const msg of messages) {
             if (this.ws?.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify(msg));
+                sent += 1;
+            } else {
+                inputTelemetry.dropped('FLUSH_QUEUE_WS_NOT_OPEN', { wsState: this.ws?.readyState });
             }
         }
+        if (sent > 0) inputTelemetry.inc('queueDrained', sent);
     }
 
     /**
@@ -921,6 +973,7 @@ export class TerminalTransportClient {
         if (this.ws?.readyState !== WebSocket.OPEN) {
             if (enqueueIfUnavailable && this.status.inputReady) {
                 this._messageQueue.enqueue(message);
+                inputTelemetry.inc('queued');
                 console.warn('[TTC-PROBE] dispatch queued (ws not open)', {
                     len: value.length,
                     wsState: this.ws?.readyState,
@@ -934,6 +987,11 @@ export class TerminalTransportClient {
                     inputReady: this.status.inputReady,
                     mode: this.status.mode
                 });
+                inputTelemetry.dropped('DISPATCH_WS_NOT_OPEN_NO_QUEUE', {
+                    len: value.length,
+                    inputReady: this.status.inputReady,
+                    enqueueIfUnavailable
+                });
             }
             return;
         }
@@ -945,12 +1003,18 @@ export class TerminalTransportClient {
                 owner: this.status.terminalAccess?.state,
                 sessionId: this.sessionId
             });
+            inputTelemetry.dropped('DISPATCH_CAN_SEND_INPUT_FALSE', {
+                len: value.length,
+                mode: this.status.mode,
+                inputReady: this.status.inputReady
+            });
             return;
         }
         if (ensureInteractive) {
             await this._ensureInteractiveMode();
         }
         this.ws.send(JSON.stringify(message));
+        inputTelemetry.inc('sentOk');
         console.log('[TTC-PROBE] dispatch sent', { len: value.length });
     }
 
@@ -1003,6 +1067,13 @@ export class TerminalTransportClient {
     }
 
     _closeWs() {
+        // close前にbufferが残っていたら → タイマー clear で消失するので警告
+        if (this._pendingTextBuffer && this._pendingTextBuffer.length > 0) {
+            inputTelemetry.dropped('WS_CLOSE_BUFFER_LOST', {
+                len: this._pendingTextBuffer.length,
+                wsState: this.ws?.readyState
+            });
+        }
         this._clearPendingTextFlushTimer();
         if (!this.ws) return;
         const ws = this.ws;
