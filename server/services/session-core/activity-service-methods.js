@@ -277,9 +277,9 @@ export const activityServiceMethods = {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
-                activeTurnIds.delete(turnId);
-                // 残留turnのクリア: Claudeフォーマット(claude-{ts}-{random})はタイムスタンプ比較、
-                // それ以外(Codex等)は全クリア（フォーマットが混在する場合にstale turnが残るのを防ぐ）
+                const hadTurnId = activeTurnIds.delete(turnId);
+                // 残留turnのクリア: Claudeフォーマット(claude-{ts}-{random})はタイムスタンプ比較する。
+                // それ以外は明示されたturnIdだけ閉じ、未知IDの場合だけ残留turnを安全側で全クリアする。
                 const completedTs = this._extractTurnTimestamp(turnId);
                 if (completedTs > 0) {
                     for (const tid of [...activeTurnIds]) {
@@ -289,15 +289,15 @@ export const activityServiceMethods = {
                             activeTurnIds.delete(tid);
                         }
                     }
-                } else if (activeTurnIds.size > 0) {
-                    // 非Claudeフォーマット(Codex等): 残留turnを全クリア
-                    logger.info(`[Hook] turn_completed (non-claude turnId) for ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
+                } else if (!hadTurnId && activeTurnIds.size > 0) {
+                    logger.info(`[Hook] turn_completed for unknown non-claude turnId ${turnId} on ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
                     activeTurnIds.clear();
                 }
-            } else if (activeTurnIds.size > 0) {
-                // turnIdなしのturn_completed: 残留turnを全クリアして確実にdoneへ遷移
-                logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
+            } else if (activeTurnIds.size === 1) {
+                logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing the only active turn`);
                 activeTurnIds.clear();
+            } else if (activeTurnIds.size > 1) {
+                logger.info(`[Hook] turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turns to avoid premature done`);
             }
 
             lastDoneAt = Math.max(lastDoneAt, timestamp);
@@ -316,6 +316,7 @@ export const activityServiceMethods = {
             }
         } else if (status === 'working') {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            lastDoneAt = 0;
         } else {
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         }

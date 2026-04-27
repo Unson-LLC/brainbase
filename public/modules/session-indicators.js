@@ -86,18 +86,35 @@ function pruneSuppressedUpdates(now = Date.now()) {
     }
 }
 
-function filterSuppressedStatusMap(statusMap = {}) {
+function shouldSuppressHookStatus(hookStatus) {
+    const normalized = normalizeHookStatusForClient(hookStatus);
+    if (!normalized) return true;
+    const liveActivity = normalized.liveActivity || null;
+    const isLiveWorking = liveActivity?.statusTone === 'working'
+        || liveActivity?.statusTone === 'waiting'
+        || liveActivity?.activityKind === 'waiting_input';
+    return !normalized.isWorking && !isLiveWorking;
+}
+
+function filterSuppressedStatusMap(statusMap = {}, previousStatusMap = {}) {
     pruneSuppressedUpdates();
     const filteredStatus = normalizeStatusMap(statusMap);
     for (const id of _suppressUpdates.keys()) {
-        delete filteredStatus[id];
+        if (!Object.prototype.hasOwnProperty.call(filteredStatus, id)) continue;
+        if (shouldSuppressHookStatus(filteredStatus[id])) {
+            if (previousStatusMap[id]) {
+                filteredStatus[id] = previousStatusMap[id];
+            } else {
+                delete filteredStatus[id];
+            }
+        }
     }
     return filteredStatus;
 }
 
-function isUpdateSuppressed(sessionId) {
+function isUpdateSuppressed(sessionId, hookStatus) {
     pruneSuppressedUpdates();
-    return _suppressUpdates.has(sessionId);
+    return _suppressUpdates.has(sessionId) && shouldSuppressHookStatus(hookStatus);
 }
 
 function getChangedSessionIds(previousStatuses, nextStatusMap = {}) {
@@ -222,8 +239,9 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         const status = await res.json();
-        const previousStatuses = new Map(Object.entries(getSessionHookStatusMap()));
-        const filteredStatus = filterSuppressedStatusMap(status);
+        const previousStatusMap = getSessionHookStatusMap();
+        const previousStatuses = new Map(Object.entries(previousStatusMap));
+        const filteredStatus = filterSuppressedStatusMap(status, previousStatusMap);
         const changedSessionIds = getChangedSessionIds(previousStatuses, filteredStatus);
         const hasStatusChange = changedSessionIds.size > 0;
 
@@ -324,8 +342,9 @@ export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, o
     let pollingCleanup = null;
 
     function applyFullStatus(statusMap) {
-        const previousStatuses = new Map(Object.entries(getSessionHookStatusMap()));
-        const filtered = filterSuppressedStatusMap(statusMap);
+        const previousStatusMap = getSessionHookStatusMap();
+        const previousStatuses = new Map(Object.entries(previousStatusMap));
+        const filtered = filterSuppressedStatusMap(statusMap, previousStatusMap);
         const changedSessionIds = Array.from(getChangedSessionIds(previousStatuses, filtered));
         replaceSessionHookStatuses(filtered);
         if (changedSessionIds.length > 0) {
@@ -339,7 +358,7 @@ export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, o
     }
 
     function applyUpdate(sessionId, hookStatus) {
-        if (isUpdateSuppressed(sessionId)) return;
+        if (isUpdateSuppressed(sessionId, hookStatus)) return;
         const current = getSessionHookStatusMap();
         const updated = { ...current };
         const nextStatus = normalizeHookStatusForClient(hookStatus);

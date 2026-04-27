@@ -144,6 +144,44 @@ describe('session-indicators WebSocket sync', () => {
         );
     });
 
+    it('markDoneAsRead後_抑制中でも新しいworkingは反映する', async () => {
+        appStore.setState({
+            sessionUi: {
+                byId: {
+                    'session-1': {
+                        hookStatus: {
+                            isWorking: false,
+                            isDone: true,
+                            lastWorkingAt: 0,
+                            lastDoneAt: 100,
+                            timestamp: 100
+                        }
+                    }
+                }
+            }
+        });
+
+        startActivityWs(() => null);
+        await markDoneAsRead('session-1', null);
+        vi.clearAllMocks();
+
+        wsMock.instances[0].options.onStatusUpdate('session-1', {
+            isWorking: true,
+            isDone: false,
+            lastWorkingAt: Date.now(),
+            lastDoneAt: 100,
+            activeTurnCount: 1,
+            timestamp: Date.now()
+        });
+
+        expect(getSessionStatus('session-1').isWorking).toBe(true);
+        expect(getSessionStatus('session-1').activeTurnCount).toBe(1);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            { sessionIds: ['session-1'] }
+        );
+    });
+
     it('status-update受信時_status文字列payloadをclient状態に正規化する', () => {
         startActivityWs(() => null);
 
