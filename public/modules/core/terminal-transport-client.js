@@ -226,10 +226,15 @@ export class TerminalTransportClient {
             if (e.key === 'Enter' && e.isComposing) {
                 this._imeJustCommittedWithEnter = true;
             }
-            if (e.key === 'Enter' && !e.isComposing && this._imeJustCommittedWithEnter) {
+            // bare Enter (isComposing=false) では常に rescue timer を仕掛ける。
+            // xterm.js が IME 後の状態のまま \r を握り潰すケースが、IME confirm 直後だけ
+            // でなく「過去にIMEを使った後に通常文字を打って最後にEnter」のシナリオでも
+            // 起きるため、Enter は modifier 無しのときのみ常に保証する。
+            // dedup (onData で natural \r が来ればタイマーキャンセル) で重複は防ぐ。
+            // Shift/Ctrl/Alt/Meta+Enter は別の意味 (M-Enter等) なので除外。
+            if (e.key === 'Enter' && !e.isComposing
+                && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
                 this._imeJustCommittedWithEnter = false;
-                // このbare EnterをxtermがonData('\r')として発火するか50ms待つ。
-                // 発火しない場合（xterm握り潰しバグ）は手動で\rを補完する。
                 const capturedToken = this._connectToken;
                 clearTimeout(this._imePostEnterTimer);
                 this._imePostEnterPending = true;
@@ -241,9 +246,9 @@ export class TerminalTransportClient {
                         return;
                     }
                     this._imePostEnterPending = false;
-                    console.log('[TTC-PROBE][hostEl-keydown] IME post-Enter補完: sending \\r');
+                    console.log('[TTC-PROBE][hostEl-keydown] Enter rescue: sending \\r');
                     this._inputQueue = this._inputQueue.then(() => this.sendText('\r')).catch(() => {
-                        inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { source: 'ime-post-enter' });
+                        inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { source: 'enter-rescue' });
                     });
                 }, 50);
             }
@@ -675,6 +680,27 @@ export class TerminalTransportClient {
                 return;
             }
             if (!ok) {
+                // 再接続中・blocked等で probe が失敗した場合、即dropせず messageQueue に積む。
+                // 再接続完了 (ready msg) で _flushMessageQueue が走り、順序維持で送信される。
+                // これにより 'reconnecting' 中の paste / typing が消失するバグを防ぐ。
+                const isRecoverable = this.status.mode === 'reconnecting'
+                    || this.ws?.readyState !== WebSocket.OPEN
+                    || this.status.terminalAccess?.state === 'owner';
+                if (isRecoverable && this.sessionId === capturedSessionId
+                    && this._connectToken === capturedToken) {
+                    const message = { type: 'input', inputType: 'text', value };
+                    this._messageQueue.enqueue(message);
+                    inputTelemetry.inc('queued');
+                    console.warn('[TTC-PROBE] sendText queued (probe failed, will flush on reconnect)', {
+                        len: value.length,
+                        mode: this.status.mode,
+                        inputReady: this.status.inputReady,
+                        owner: this.status.terminalAccess?.state,
+                        wsState: this.ws?.readyState,
+                        queueSize: this._messageQueue.size?.() ?? 0
+                    });
+                    return;
+                }
                 console.warn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
                     len: value.length,
                     mode: this.status.mode,
