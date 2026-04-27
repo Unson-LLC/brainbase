@@ -645,7 +645,8 @@ export class TerminalTransportClient {
             len: value?.length,
             canSend: this.canSendInput(this.sessionId),
             mode: this.status.mode,
-            inputReady: this.status.inputReady
+            inputReady: this.status.inputReady,
+            isNavKey: this._isNavigationEscape(value)
         });
         if (!value) return;
         inputTelemetry.inc('appended');
@@ -653,7 +654,11 @@ export class TerminalTransportClient {
         // probe が 300ms 以上かかる場合でもユーザーは自分の入力が見える。
         // probe 失敗 (drop) 時はエコーが残るが稀なケースなので許容する。
         this._applyLocalEcho(value);
-        if (!this.canSendInput(this.sessionId)) {
+        // 矢印・Tab・Escape・Function key 等のナビゲーション系 escape sequence は
+        // probe を待たずに送信する。Codex の選択画面 (CLI state が READY/WAITING にならない)
+        // などで矢印が効かなくなる問題を回避。
+        const skipProbe = this._isNavigationEscape(value);
+        if (!skipProbe && !this.canSendInput(this.sessionId)) {
             console.log('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
             const ok = await this._ensureInputReadyForUserInput();
@@ -1319,6 +1324,24 @@ export class TerminalTransportClient {
             && this.status.mode !== 'blocked'
             && this.status.terminalAccess?.state === 'owner'
             && this.ws?.readyState === WebSocket.OPEN;
+    }
+
+    /**
+     * 矢印・Tab・Escape・Function key 等のナビゲーション系 escape sequence かどうか。
+     * これらは Codex 選択画面など CLI state が READY/WAITING にならない状態でも
+     * 送信する必要があるため、probe をスキップする。
+     * 通常の文字入力が紛れていない (純粋な escape sequence のみ) かをチェック。
+     */
+    _isNavigationEscape(value) {
+        if (typeof value !== 'string' || !value) return false;
+        // ESC (\x1B) で始まらない場合は通常の入力 → probe する
+        if (value.charCodeAt(0) !== 0x1B) return false;
+        // 単独 ESC キー
+        if (value === '\x1B') return true;
+        // CSI sequences: \x1B[X (X = A,B,C,D for arrows, others for navigation)
+        // SS3 sequences: \x1BOX (function keys F1-F4 in some terminals)
+        // 矢印/PageUp/PageDown/Home/End/Insert/Delete/F-keys 等の代表的パターン
+        return /^\x1B(?:\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]|O[A-Z~])$/.test(value);
     }
 
     _emitStatus() {

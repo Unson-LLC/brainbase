@@ -491,7 +491,13 @@ export class TerminalTransportService {
                     return;
                 }
                 const inputType = inputTypeForLog;
-                if (!this._getInputReady(sessionId) && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(message.value))) {
+                // ナビゲーション系 escape sequence (矢印/Tab/Escape/Function key) は
+                // CLI state 検出に失敗する Codex 選択画面でも送信する必要があるため、
+                // probe チェックをバイパスする。
+                const isNavEscape = inputType === 'text' && this._isNavigationEscape(message.value);
+                if (!this._getInputReady(sessionId)
+                    && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(message.value))
+                    && !isNavEscape) {
                     logger.warn(`[TTC-PROBE][ws-input] dropped INPUT_NOT_READY session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_NOT_READY session=${sessionId} len=${valueLen} type=${inputType}`);
                     ws.send(JSON.stringify({
@@ -596,6 +602,18 @@ export class TerminalTransportService {
         const entry = this.runtimeRegistry?.getSession?.(sessionId);
         return entry?.observed?.inputProbe?.status === 'passed'
             && this._inputProbeFresh(entry.observed.inputProbe);
+    }
+
+    /**
+     * 矢印・Tab・Escape・Function key 等のナビゲーション系 escape sequence。
+     * Codex 選択画面のように CLI state 検出が CLI_NOT_IDLE になる状態でも、
+     * これらは送信して良い (Codex/Claude Code が選択肢を移動するため)。
+     */
+    _isNavigationEscape(value) {
+        if (typeof value !== 'string' || !value) return false;
+        if (value.charCodeAt(0) !== 0x1B) return false;
+        if (value === '\x1B') return true;
+        return /^\x1B(?:\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]|O[A-Z~])$/.test(value);
     }
 
     _buildRuntimeStatusPayload(connection) {
