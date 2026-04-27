@@ -4,12 +4,12 @@ import { logger } from '../../utils/logger.js';
 export function installTerminalIoHandlers(controller) {
     controller.sendInput = async (req, res) => {
         const { id } = req.params;
-        const { input, type } = req.body;
+        const { input, type, forcePaste } = req.body;
         const preview = typeof input === 'string' ? input.slice(0, 80) : String(input).slice(0, 80);
-        logger.info(`[sendInput] POST /api/sessions/${id}/input type=${type} bytes=${typeof input === 'string' ? input.length : 0} preview="${preview}"`);
+        logger.info(`[sendInput] POST /api/sessions/${id}/input type=${type} bytes=${typeof input === 'string' ? input.length : 0} forcePaste=${forcePaste === true} preview="${preview}"`);
 
         try {
-            await controller.terminalIo.sendInput(id, input, type);
+            await controller.terminalIo.sendInput(id, input, type, { forcePaste: forcePaste === true });
             // tmux に書き込んだ直後は cache が古い。invalidate しないと
             // 後続の snapshot 取得で stale なテキストが返り、xterm に書き戻されて
             // 入力したパス/テキストが「すぐ消える」現象が起きる。

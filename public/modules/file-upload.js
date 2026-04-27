@@ -109,9 +109,13 @@ async function handleFiles(files) {
         const { path } = uploadRes;
         console.log('[file-upload] Upload complete:', path);
 
+        // forcePaste:true で paste-buffer 経由送信。bracketed paste markers が付くので
+        // Codex のような paste認識が必要な TUI でもパスが消えない。
+        // 通常の send-keys -l では Codex が typing 扱いして入力欄から消すバグがあった。
         await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
             input: path,
-            type: 'text'
+            type: 'text',
+            forcePaste: true
         });
         showSuccess('画像パスをターミナルに挿入したよ');
     } catch (error) {
@@ -320,9 +324,11 @@ async function showPasteConfirmModal(text, sessionId) {
  */
 async function pasteTextToTerminal(sessionId, text) {
     try {
+        // クリップボードからのpasteも forcePaste:true で送る (Codex対応)
         await httpClient.post(`/api/sessions/${sessionId}/input`, {
             input: text,
-            type: 'text'
+            type: 'text',
+            forcePaste: true
         });
     } catch (error) {
         console.error('Failed to paste text:', error);

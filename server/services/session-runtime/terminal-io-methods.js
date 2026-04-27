@@ -70,7 +70,7 @@ export const terminalIoMethods = {
         });
     },
 
-    async sendInput(sessionId, input, type) {
+    async sendInput(sessionId, input, type, options = {}) {
         if (!input) {
             console.warn(`[INPUT-TELEMETRY] dropped reason=INVALID_INPUT session=${sessionId} sub=missing_value`);
             throw new Error('Input required');
@@ -99,6 +99,16 @@ export const terminalIoMethods = {
 
             if (type === 'key' && this.ALLOWED_KEYS.includes(normalizedInput)) {
                 await this._sendNamedKey(sessionId, normalizedInput);
+                return;
+            }
+
+            // forcePaste=true の場合は短いテキストでも paste-buffer 経由で送る。
+            // bracketed paste markers (\e[200~..\e[201~) が付くため、
+            // Codex 等の bracketed paste 認識が必要な TUI でも正しく扱われる。
+            // 通常の typing (send-keys -l) では markers なしで送られ、
+            // Codex が pasted 扱いせず、入力欄から消えるバグが起きていた。
+            if (options.forcePaste === true) {
+                await this._pasteInputFromTempFile(sessionId, normalizedInput);
                 return;
             }
 
