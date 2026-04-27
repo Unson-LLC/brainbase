@@ -11,7 +11,7 @@ import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
 import { TerminalTransportClient } from './modules/core/terminal-transport-client.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
-import { SettingsExtensions } from './modules/settings/settings-extensions.js';
+import { SettingsExtensions } from './modules/settings-extensions.js';
 import { pollSessionStatus, startPolling, startActivityWs } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';

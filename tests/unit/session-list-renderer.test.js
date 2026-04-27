@@ -144,6 +144,29 @@ describe('session-list-renderer', () => {
       expect(html).not.toContain('session-attention-badge');
     });
 
+    it('should render context remaining chip when token usage is available', () => {
+      const session = {
+        id: 'session-token',
+        name: 'Token Session',
+        conversationSummary: {
+          totalConversations: 1,
+          tokenUsage: {
+            source: 'codex',
+            contextWindow: 258400,
+            usedTokens: 169200,
+            remainingTokens: 89200,
+            remainingPercent: 34.52
+          }
+        }
+      };
+
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
+
+      expect(html).toContain('ctx 35%');
+      expect(html).toContain('chip-token-warn');
+      expect(html).toContain('Context remaining 89K / 258K');
+    });
+
     it('should render waiting indicator when session is waiting for input', () => {
       const session = {
         id: 'session-waiting',

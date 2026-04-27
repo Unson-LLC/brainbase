@@ -1408,6 +1408,21 @@ body::after {
     max-width: 200px;
 }
 
+.session-summary-chip.chip-token-ok {
+    background: rgba(16, 185, 129, 0.14);
+    color: #34d399;
+}
+
+.session-summary-chip.chip-token-warn {
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--warning-color);
+}
+
+.session-summary-chip.chip-token-danger {
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
+}
+
 .session-summary-chip.session-transport-badge.transport-ok {
     background: rgba(16, 185, 129, 0.14);
     color: var(--success-color);
@@ -1546,7 +1561,8 @@ body::after {
     flex-direction: column;
     position: relative;
     width: 100%;
-    height: 100%;
+    height: auto;
+    min-height: 0;
     padding-left: 12px;
     background: var(--terminal-bg);
     /* Match terminal background */
@@ -1585,6 +1601,46 @@ body::after {
     min-height: 0;
     width: 100%;
     overflow: hidden;
+}
+
+.terminal-token-status {
+    position: absolute;
+    left: 12px;
+    bottom: 10px;
+    z-index: 26;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: min(560px, calc(100% - 24px));
+    padding: 5px 8px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.82);
+    color: rgba(226, 232, 240, 0.92);
+    font-family: var(--terminal-font-family);
+    font-size: 12px;
+    line-height: 1.2;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.terminal-token-status.hidden {
+    display: none;
+}
+
+.terminal-token-status.is-ok {
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+.terminal-token-status.is-warn {
+    color: var(--warning-color);
+    border-color: rgba(245, 158, 11, 0.32);
+}
+
+.terminal-token-status.is-danger {
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.34);
 }
 
 .console-area iframe {

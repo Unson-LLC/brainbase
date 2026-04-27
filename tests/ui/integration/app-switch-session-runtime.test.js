@@ -20,7 +20,7 @@ vi.mock('../../../public/modules/session-indicators.js', async () => {
   };
 });
 
-vi.mock('../../../public/modules/settings/settings-extensions.js', () => ({
+vi.mock('../../../public/modules/settings-extensions.js', () => ({
   SettingsExtensions: class SettingsExtensions {
     constructor() {}
     setupSettingsExtensions() {}
