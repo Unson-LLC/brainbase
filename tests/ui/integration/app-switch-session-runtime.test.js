@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom';
 import { appStore } from '../../../public/modules/core/store.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { eventBus } from '../../../public/modules/core/event-bus.js';
+import { sessionDataCache } from '../../../public/modules/core/session-data-cache.js';
 import { TerminalTransportClient } from '../../../public/modules/core/terminal-transport-client.js';
 
 vi.mock('../../../public/modules/session-indicators.js', async () => {
@@ -20,7 +21,10 @@ vi.mock('../../../public/modules/session-indicators.js', async () => {
 });
 
 vi.mock('../../../public/modules/settings/settings-extensions.js', () => ({
-  SettingsExtensions: class SettingsExtensions { constructor() {} }
+  SettingsExtensions: class SettingsExtensions {
+    constructor() {}
+    setupSettingsExtensions() {}
+  }
 }));
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,10 +32,24 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../..');
 const htmlPath = path.join(repoRoot, 'public/index.html');
 
+const defaultHttpGetResponse = async (url) => {
+  if (url === '/api/state') {
+    return { sessions: [], currentSessionId: null, preferences: {} };
+  }
+  if (url === '/api/tasks') {
+    return [];
+  }
+  if (url === '/api/schedule/today') {
+    return { events: [], items: [] };
+  }
+  return { runtimeStatus: null, terminalAccess: null };
+};
+
 describe('app switchSession runtime handling', () => {
   let app;
 
   beforeEach(async () => {
+    sessionDataCache.clear();
     window.__BRAINBASE_TEST__ = true;
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
 
@@ -59,7 +77,7 @@ describe('app switchSession runtime handling', () => {
     app = createApp();
     app.focusTerminal = vi.fn();
 
-    vi.spyOn(httpClient, 'get').mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    vi.spyOn(httpClient, 'get').mockImplementation(defaultHttpGetResponse);
     vi.spyOn(httpClient, 'post').mockResolvedValue({ proxyPath: '/console/session-1' });
   });
 
@@ -341,10 +359,11 @@ describe('app switchSession runtime handling', () => {
     const switchPromise = app.switchSession('session-1');
     await Promise.resolve();
 
-    // スナップショット即表示: xterm hidden, snapshot visible, overlay hidden
-    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(true);
+    // スナップショット即表示: xterm hostはfit計算のため維持し、snapshotを重ねて見せる
+    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
 
     resolveRuntime({
       runtimeStatus: {

@@ -2,10 +2,31 @@ import { beforeEach, vi } from 'vitest';
 
 const originalFetch = globalThis.fetch;
 
+const TEST_PROJECTS = [
+    { id: 'unson', name: 'unson' },
+    { id: 'tech-knight', name: 'tech-knight' },
+    { id: 'brainbase', name: 'brainbase' },
+    { id: 'salestailor', name: 'salestailor' },
+    { id: 'zeims', name: 'zeims' },
+    { id: 'baao', name: 'baao' },
+    { id: 'ncom', name: 'ncom' },
+    { id: 'senrigan', name: 'senrigan' },
+    { id: 'aitle', name: 'aitle' },
+    { id: 'mana', name: 'mana' },
+    { id: 'back-office', name: 'back-office' }
+];
+
 const buildConfigResponse = () => ({
     ok: true,
     json: async () => ({
-        projects: {}
+        projects: {
+            root: '/tmp/brainbase-test-workspace',
+            projects: TEST_PROJECTS
+        },
+        plugins: {
+            enabled: [],
+            disabled: []
+        }
     })
 });
 
@@ -13,6 +34,48 @@ const fetchMock = vi.fn((input, init) => {
     const url = typeof input === 'string' ? input : input?.url;
     if (url === '/api/config') {
         return Promise.resolve(buildConfigResponse());
+    }
+    if (url === '/api/csrf-token') {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ csrfToken: 'test-csrf-token' })
+        });
+    }
+    if (url === '/api/inbox/pending') {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ items: [] })
+        });
+    }
+    if (url === '/api/config/slack/members') {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ members: [] })
+        });
+    }
+    if (url === '/api/schedule/google/auth-status') {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ authenticated: false })
+        });
+    }
+    if (url === '/api/active-port') {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ success: true })
+        });
+    }
+    if (url === '/api/sessions/status') {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({})
+        });
+    }
+    if (typeof url === 'string' && url.startsWith('/api/config/env?')) {
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ keys: {} })
+        });
     }
     if (typeof originalFetch === 'function') {
         return originalFetch(input, init);
