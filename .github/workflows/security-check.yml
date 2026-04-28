@@ -16,14 +16,42 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Make check script executable
         run: chmod +x scripts/check-secrets.sh
 
+      - name: Determine files to scan
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+            HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          else
+            BASE_SHA=${{ github.event.before }}
+            HEAD_SHA=${{ github.sha }}
+          fi
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=$(git rev-parse "$HEAD_SHA^" 2>/dev/null || true)
+          fi
+          if [ -n "$BASE_SHA" ] && ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA=$(git rev-parse "$HEAD_SHA^" 2>/dev/null || true)
+          fi
+
+          if [ -n "$BASE_SHA" ]; then
+            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" > /tmp/security_files.txt
+          else
+            git show --name-only --pretty="" "$HEAD_SHA" > /tmp/security_files.txt
+          fi
+
+          echo "Files selected for security scan:"
+          cat /tmp/security_files.txt
+
       - name: Run security check
         run: |
           echo "🔍 Running OSS security checks..."
-          bash scripts/check-secrets.sh
+          CHECK_SECRETS_FILE_LIST=/tmp/security_files.txt bash scripts/check-secrets.sh
 
       - name: Upload check results
         if: failure()
