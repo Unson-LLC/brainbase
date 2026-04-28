@@ -39,42 +39,6 @@ function renderChip(text, { className = '', title = '' } = {}) {
   return `<span class="${classes}"${titleAttr}>${escapeHtml(text)}</span>`;
 }
 
-function formatTokenCount(value) {
-  const numberValue = Number(value);
-  if (!Number.isFinite(numberValue)) return '';
-  if (numberValue >= 1_000_000) return `${(numberValue / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (numberValue >= 1_000) return `${Math.round(numberValue / 1_000)}K`;
-  return `${Math.round(numberValue)}`;
-}
-
-function renderTokenUsageChip(tokenUsage) {
-  const remainingPercent = Number(tokenUsage?.remainingPercent);
-  const contextWindow = Number(tokenUsage?.contextWindow);
-  const usedTokens = Number(tokenUsage?.usedTokens);
-  const remainingTokens = Number(tokenUsage?.remainingTokens);
-
-  if (
-    !Number.isFinite(remainingPercent)
-    || !Number.isFinite(contextWindow)
-    || !Number.isFinite(usedTokens)
-    || !Number.isFinite(remainingTokens)
-  ) {
-    return '';
-  }
-
-  const roundedRemaining = Math.max(0, Math.round(remainingPercent));
-  const className = roundedRemaining <= 15
-    ? 'chip-token-danger'
-    : roundedRemaining <= 35
-      ? 'chip-token-warn'
-      : 'chip-token-ok';
-
-  return renderChip(`ctx ${roundedRemaining}%`, {
-    className,
-    title: `Context remaining ${formatTokenCount(remainingTokens)} / ${formatTokenCount(contextWindow)} (used ${formatTokenCount(usedTokens)})`
-  });
-}
-
 /**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
@@ -160,10 +124,6 @@ export function renderSessionRowHTML(session, options = {}) {
         title: summary.workspacePath || summary.repo || ''
       }
     ));
-  }
-  const tokenUsageChip = renderTokenUsageChip(convSummary?.tokenUsage);
-  if (tokenUsageChip) {
-    summaryChips.push(tokenUsageChip);
   }
   if (summary.dirty) {
     summaryChips.push(renderChip('dirty', { className: 'chip-dirty', title: 'Working copy has changes' }));

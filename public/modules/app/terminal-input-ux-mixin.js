@@ -356,15 +356,22 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const tokenUsage = this._getCurrentSessionTokenUsage(sessionId);
         const remainingPercent = Number(tokenUsage?.remainingPercent);
+        const explicitUsedPercent = Number(tokenUsage?.usedPercent);
         const contextWindow = Number(tokenUsage?.contextWindow);
         const usedTokens = Number(tokenUsage?.usedTokens);
         const remainingTokens = Number(tokenUsage?.remainingTokens);
+        const usedPercent = Number.isFinite(explicitUsedPercent)
+            ? explicitUsedPercent
+            : Number.isFinite(remainingPercent)
+                ? 100 - remainingPercent
+                : (Number.isFinite(usedTokens) && Number.isFinite(contextWindow) && contextWindow > 0)
+                    ? (usedTokens / contextWindow) * 100
+                    : NaN;
         const weeklyUsage = this._getWeeklyTokenUsage();
         const weeklyTokens = Number(weeklyUsage?.totalTokens);
-        const hasContextUsage = Number.isFinite(remainingPercent)
+        const hasContextUsage = Number.isFinite(usedPercent)
             && Number.isFinite(contextWindow)
-            && Number.isFinite(usedTokens)
-            && Number.isFinite(remainingTokens);
+            && Number.isFinite(usedTokens);
         const hasWeeklyUsage = Number.isFinite(weeklyTokens);
 
         if (!hasContextUsage && !hasWeeklyUsage) {
@@ -380,17 +387,19 @@ export function applyTerminalInputUxMixin(AppClass) {
         const titleParts = [];
 
         if (hasContextUsage) {
-            const roundedRemaining = Math.max(0, Math.round(remainingPercent));
-            toneClass = roundedRemaining <= 15
+            const roundedUsed = Math.min(100, Math.max(0, Math.round(usedPercent)));
+            toneClass = roundedUsed >= 85
                 ? 'is-danger'
-                : roundedRemaining <= 35
+                : roundedUsed >= 65
                     ? 'is-warn'
                     : 'is-ok';
-            const remainingText = this._formatTerminalTokenCount(remainingTokens);
             const contextText = this._formatTerminalTokenCount(contextWindow);
             const usedText = this._formatTerminalTokenCount(usedTokens);
-            textParts.push(`ctx ${roundedRemaining}% · ${remainingText} / ${contextText}`);
-            titleParts.push(`Context remaining ${remainingText} / ${contextText} (used ${usedText})`);
+            textParts.push(`context used ${roundedUsed}% · ${usedText} / ${contextText}`);
+            const remainingText = Number.isFinite(remainingTokens)
+                ? `, remaining ${this._formatTerminalTokenCount(remainingTokens)}`
+                : '';
+            titleParts.push(`Context used ${usedText} / ${contextText}${remainingText}`);
         }
 
         if (hasWeeklyUsage) {
@@ -1077,6 +1086,8 @@ export function applyTerminalInputUxMixin(AppClass) {
                 const tokenUsage = session?.conversationSummary?.tokenUsage || null;
                 return [
                     state.currentSessionId || '',
+                    tokenUsage?.usedPercent ?? '',
+                    tokenUsage?.usedTokens ?? '',
                     tokenUsage?.remainingPercent ?? '',
                     tokenUsage?.remainingTokens ?? '',
                     tokenUsage?.contextWindow ?? ''
