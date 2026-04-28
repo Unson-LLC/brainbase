@@ -19,8 +19,7 @@ export class InboxService {
      * @returns {Promise<Array>} Inboxアイテム配列
      */
     async loadInbox() {
-        const [notifications, learningCandidates, learningHealth] = await Promise.all([
-            this.httpClient.get('/api/inbox/pending'),
+        const [learningCandidates, learningHealth] = await Promise.all([
             this.httpClient.get('/api/learning/promotions?status=evaluated&apply_mode=manual', { suppressAuthError: true }).catch(() => []),
             this.getLearningHealth().catch(() => null)
         ]);
@@ -42,8 +41,7 @@ export class InboxService {
                 evaluationSummary: candidate.evaluation_summary || {},
                 proposedContent: candidate.proposed_content || '',
                 updatedAt: candidate.updated_at || candidate.created_at || null
-            })) : []),
-            ...(Array.isArray(notifications) ? notifications.map((item) => ({ ...item, kind: 'notification' })) : [])
+            })) : [])
         ];
         this.store.setState({ inbox: items });
         await this.eventBus.emit(EVENTS.INBOX_LOADED, { items });
@@ -52,29 +50,6 @@ export class InboxService {
 
     async getLearningHealth() {
         return this.httpClient.get('/api/learning/health', { suppressAuthError: true });
-    }
-
-    /**
-     * Inboxアイテムを確認済みにする
-     * @param {string} itemId - 確認済みにするアイテムのID
-     * @returns {Promise<{success: boolean, itemId: string, eventResult: Object}>}
-     */
-    async markAsDone(itemId) {
-        await this.httpClient.post(`/api/inbox/${itemId}/done`);
-        await this.loadInbox(); // リロード
-        const eventResult = await this.eventBus.emit(EVENTS.INBOX_ITEM_COMPLETED, { itemId });
-        return { success: true, itemId, eventResult };
-    }
-
-    /**
-     * すべてのInboxアイテムを確認済みにする
-     * @returns {Promise<{success: boolean, count: number}>}
-     */
-    async markAllAsDone() {
-        const beforeCount = this.getInboxCount();
-        await this.httpClient.post('/api/inbox/mark-all-done');
-        await this.loadInbox(); // リロード
-        return { success: true, count: beforeCount };
     }
 
     async applyLearningCandidate(candidateId) {

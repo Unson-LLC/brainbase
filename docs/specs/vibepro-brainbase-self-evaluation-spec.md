@@ -153,6 +153,8 @@ For the 2026-05-07 Brainbase command-center pass, VibePro component checks must 
 
 `development_dag.nodes` は `requirement`, `story`, `architecture`, `spec`, `test_design`, `implementation`, `verification`, `run_evidence`, `score_gate` を必須とする。`ship` と `residual_risk_recovery` は任意だが、`status: completed` の run では `ship` が `passed` でなければならない。
 
+`vibepro-brainbase-20260510-inbox-pending-removal` のような obsolete runtime path removal は、`status: completed_with_residual_risk` とし、`ship` は merge 前なら `skipped` を許容する。代わりに `verification` には route absence check と residual reference grep を必ず含める。
+
 ## 4. observation.json
 
 機械観測 snapshot。診断結果を読まずに生成する。

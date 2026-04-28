@@ -1,0 +1,198 @@
+{
+  "run_id": "vibepro-brainbase-20260510-inbox-pending-removal",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed_with_residual_risk",
+  "created_at": "2026-05-10T03:28:52+09:00",
+  "request": {
+    "raw": "VibeProで_inbox/pending.mdを使わなくするための修正を進めて",
+    "interpreted_goal": "Brainbase runtime から file-backed _inbox/pending.md 通知経路を外し、現行 Inbox UI の Learning/health 通知だけを残す"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/inbox-cleanup",
+    "story_key": "vibepro-dogfood/inbox-cleanup/20260510-inbox-pending-removal",
+    "acceptance_criteria": [
+      "server runtime が BRAINBASE_ROOT/_inbox/pending.md を参照しない",
+      "/api/inbox の file-backed router が登録されない",
+      "UI は /api/inbox/pending を呼ばず Learning/health 通知だけを表示する",
+      "legacy command docs が _inbox/pending.md 追記を指示しない",
+      "対象 unit/API/UI tests と lint が通る"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "vibepro-workflow",
+      "verify-first-debugging"
+    ],
+    "approach": [
+      "runtime 参照、writer 手順、UI 消費経路を分けて確認する",
+      "Inbox UI 全体ではなく file-backed notification source だけを削除する",
+      "Learning candidate と learning health alert の表示経路は残す",
+      "残参照検索と対象テストで verify-first する",
+      "VibePro dogfood run として report / score / development DAG を残す"
+    ]
+  },
+  "implementation": {
+    "jj_change_id": "xswrkxzv",
+    "commit_id": "pending",
+    "description": "remove file-backed _inbox/pending.md runtime path",
+    "changed_files": [
+      "server.js",
+      "server/bootstrap/core-services.js",
+      "server/bootstrap/register-api-routes.js",
+      "server/routes/inbox.js",
+      "server/controllers/inbox-controller.js",
+      "lib/inbox-parser.js",
+      "public/modules/domain/inbox/inbox-service.js",
+      "public/modules/ui/views/inbox-view.js",
+      "public/modules/core/event-bus.js",
+      "tests/domain/inbox/inbox-service.test.js",
+      "tests/ui/views/inbox-view.test.js",
+      "tests/api/server-endpoints.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/inbox-parser.test.js",
+      ".claude/commands/ceo.md",
+      ".claude/commands/cso.md",
+      ".claude/commands/retro.md",
+      ".claude/commands/workflow.md",
+      "CLAUDE.md",
+      "docs/architecture/PHASE1_IMPLEMENTATION_GUIDE.md",
+      "docs/architecture/PROPOSED_ARCHITECTURE.md",
+      "docs/plans/REFACTORING_PLAN.md",
+      "docs/phase3-mvc-refactoring.md",
+      "docs/plans/phase3-mvc-refactoring.md"
+    ],
+    "behavior_changes": [
+      "server startup no longer creates BRAINBASE_ROOT/_inbox",
+      "server no longer constructs InboxParser",
+      "/api/inbox routes are no longer registered",
+      "InboxService no longer requests /api/inbox/pending",
+      "InboxView no longer renders file-backed notification items",
+      "Learning candidate and health alert Inbox sections remain active",
+      "legacy commands no longer instruct writing _inbox/pending.md"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "npx vitest run tests/domain/inbox/inbox-service.test.js tests/ui/views/inbox-view.test.js tests/api/server-endpoints.test.js",
+        "result": "passed",
+        "tests": "31 passed"
+      },
+      {
+        "command": "npx eslint server.js server/bootstrap/core-services.js server/bootstrap/register-api-routes.js public/modules/core/event-bus.js public/modules/domain/inbox/inbox-service.js public/modules/ui/views/inbox-view.js tests/domain/inbox/inbox-service.test.js tests/ui/views/inbox-view.test.js tests/api/server-endpoints.test.js tests/setup/test-setup.js",
+        "result": "passed"
+      },
+      {
+        "command": "git diff --check -- targeted inbox-removal files",
+        "result": "passed"
+      },
+      {
+        "command": "grep -RIn \"_inbox/pending.md|/api/inbox|InboxParser|createInboxRouter|inboxParser|INBOX_ITEM_COMPLETED\" server.js server lib public tests .claude/commands CLAUDE.md docs/architecture docs/plans",
+        "result": "passed",
+        "tests": "only historical migration doc and .gitignore retained references"
+      },
+      {
+        "command": "temporary server on PORT=31014; curl /api/inbox/pending",
+        "result": "passed",
+        "tests": "404 returned for removed route"
+      }
+    ],
+    "failed_or_blocked": [
+      {
+        "command": "temporary server startup",
+        "result": "warning",
+        "details": "better-sqlite3 native module architecture warning appeared during startup, but HTTP server started and route registration was verifiable"
+      }
+    ]
+  },
+  "outcome": {
+    "loop_result": "targeted_success",
+    "human_intervention_points": [
+      "ユーザーが VibePro report の明示を要求したため、run evidence を後追いで補強した"
+    ],
+    "residual_risks": [
+      "localhost:31013 は別 checkout から起動しているため、この worktree の変更は未反映",
+      "terminal/input 系の既存 dirty changes が同じ working copy に残っている"
+    ],
+    "next_actions": [
+      "この change を commit/merge する前に unrelated dirty files と分離する",
+      "反映後の本サーバーで /api/inbox/pending が 404 になることを確認する",
+      "Inbox UI の Learning/health 表示をブラウザで確認する"
+    ]
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed",
+        "evidence": ["request.raw"]
+      },
+      "story": {
+        "status": "passed",
+        "depends_on": ["requirement"],
+        "evidence": ["docs/stories/vibepro-brainbase-dogfood-story.md"]
+      },
+      "architecture": {
+        "status": "passed",
+        "depends_on": ["story"],
+        "evidence": ["docs/architecture/vibepro-brainbase-dogfood-architecture.md"]
+      },
+      "spec": {
+        "status": "passed",
+        "depends_on": ["architecture"],
+        "evidence": ["docs/specs/vibepro-brainbase-self-evaluation-spec.md"]
+      },
+      "test_design": {
+        "status": "passed",
+        "depends_on": ["spec"],
+        "evidence": [
+          "tests/domain/inbox/inbox-service.test.js",
+          "tests/ui/views/inbox-view.test.js",
+          "tests/api/server-endpoints.test.js"
+        ]
+      },
+      "implementation": {
+        "status": "passed",
+        "depends_on": ["test_design"],
+        "evidence": [
+          "server.js",
+          "public/modules/domain/inbox/inbox-service.js",
+          "public/modules/ui/views/inbox-view.js"
+        ]
+      },
+      "verification": {
+        "status": "passed",
+        "depends_on": ["implementation"],
+        "evidence": [
+          "npx vitest run tests/domain/inbox/inbox-service.test.js tests/ui/views/inbox-view.test.js tests/api/server-endpoints.test.js",
+          "npx eslint server.js server/bootstrap/core-services.js server/bootstrap/register-api-routes.js public/modules/core/event-bus.js public/modules/domain/inbox/inbox-service.js public/modules/ui/views/inbox-view.js tests/domain/inbox/inbox-service.test.js tests/ui/views/inbox-view.test.js tests/api/server-endpoints.test.js tests/setup/test-setup.js"
+        ]
+      },
+      "run_evidence": {
+        "status": "passed",
+        "depends_on": ["verification"],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260510-inbox-pending-removal/development-run.json",
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260510-inbox-pending-removal/report.html"
+        ]
+      },
+      "score_gate": {
+        "status": "passed",
+        "depends_on": ["run_evidence"],
+        "evidence": [
+          "node scripts/vibepro-score-run.mjs auto-run docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260510-inbox-pending-removal"
+        ]
+      },
+      "ship": {
+        "status": "skipped",
+        "depends_on": ["score_gate"],
+        "evidence": ["not merged yet"]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 0,
+      "recovered_count": 0
+    }
+  }
+}

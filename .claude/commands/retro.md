@@ -1,6 +1,6 @@
 # retro
 
-週次振り返り（Ship/Learn/Block）を実行し、結果を _inbox/pending.md に書き込むコマンド。
+週次振り返り（Ship/Learn/Block）を実行し、結果を Wiki SSOT に保存するコマンド。
 
 ## トリガー
 
@@ -64,17 +64,6 @@
    - ブロッカー数: X件
    ```
 
-4. **_inbox/pending.md に書き込み**
-   ```markdown
-   ---
-   id: INBOX-{timestamp}
-   channel: system
-   sender: agent/retro
-   status: pending
-   message: "週次振り返り完了: Ship X件, Learn X件, Block X件"
-   ---
-   ```
-
 5. **詳細レポートを Wiki SSOT に保存（永続）**
    ```bash
    # /tmp/retro は中間成果物（揮発OK）
@@ -98,7 +87,6 @@
 |------|------|------|
 | **詳細レポート（正本）** | Wiki `_common/retros/YYYY-MM-DD` (`localhost:31013/api/wiki/page`) | ✅ Wiki SSOT |
 | 中間成果物 | `/tmp/retro/weekly_report_{YYYY-MM-DD}.md` | ❌ 揮発（再起動で消える） |
-| Inboxエントリ | `_inbox/pending.md` に追記 | （現状未使用） |
 
 正本は Wiki SSOT。`/tmp` は中間成果物として一時的に置くだけ。
 

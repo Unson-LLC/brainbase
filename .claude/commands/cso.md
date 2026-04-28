@@ -1,6 +1,6 @@
 # cso
 
-月次戦略レビュー（Chief Strategy Officer視点）を実行し、結果を _inbox/pending.md に書き込むコマンド。
+月次戦略レビュー（Chief Strategy Officer視点）を実行し、詳細レポートを生成するコマンド。
 
 ## トリガー
 
@@ -44,16 +44,9 @@
    - [提言2]
    ```
 
-4. **_inbox/pending.md に書き込み**
-   ```markdown
-   ---
-   id: INBOX-{timestamp}
-   channel: system
-   sender: agent/cso
-   status: pending
-   message: "月次CSOレビュー完了: 全PJ平均進捗率 X%, Stop Pattern X件"
-   ---
-   ```
+4. **詳細レポートを保存**
+   - `/tmp/cso/monthly_review_{YYYY-MM}.md` に詳細レポートを出力
+   - file-backed Inbox には書き込まない
 
 ### Comprehensiveモード（四半期: `--comprehensive`）
 
@@ -67,7 +60,6 @@
 
 | 出力 | パス |
 |------|------|
-| Inboxエントリ | `_inbox/pending.md` に追記 |
 | 詳細レポート | `/tmp/cso/monthly_review_{YYYY-MM}.md` |
 
 ## 注意

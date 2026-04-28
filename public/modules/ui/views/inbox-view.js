@@ -20,7 +20,6 @@ export class InboxView {
         this.markAllDoneBtn = null;
         this.inboxItems = [];
         this.inboxOpen = false;
-        this._slackIdMap = new Map();
         this._unsubscribers = [];
         this._outsideClickHandler = null;
         this.learningCandidateModal = new LearningCandidateModal({
@@ -42,41 +41,7 @@ export class InboxView {
 
         this._setupEventListeners();
         this._setupStoreSubscription();
-        this._loadSlackMembers();
         this.inboxService.loadInbox();
-    }
-
-    /**
-     * Slackメンバー情報を読み込み、ID→名前マップを構築
-     */
-    async _loadSlackMembers() {
-        try {
-            const members = await this.httpClient.get('/api/config/slack/members', { suppressAuthError: true });
-            if (Array.isArray(members)) {
-                for (const m of members) {
-                    if (m.slack_id && m.brainbase_name) {
-                        this._slackIdMap.set(m.slack_id, m.brainbase_name);
-                    }
-                }
-            }
-            // メンバー読み込み完了後に再レンダリング
-            if (this._slackIdMap.size > 0) {
-                this.render();
-            }
-        } catch (e) {
-            console.warn('Failed to load slack members:', e);
-        }
-    }
-
-    /**
-     * メッセージ内のSlack ID（<@U07B19N048G>）を人名に変換
-     */
-    _convertSlackMentions(message) {
-        if (!message || this._slackIdMap.size === 0) return message;
-        return message.replace(/<@(U[A-Z0-9]+)>/g, (match, slackId) => {
-            const name = this._slackIdMap.get(slackId);
-            return name ? `@${name}` : match;
-        });
     }
 
     /**
@@ -106,7 +71,7 @@ export class InboxView {
         // Mark all done button
         if (this.markAllDoneBtn) {
             this.markAllDoneBtn.onclick = async () => {
-                await this.inboxService.markAllAsDone();
+                await this.inboxService.loadInbox();
             };
         }
 
@@ -166,38 +131,10 @@ export class InboxView {
         if (this.inboxListEl) {
             const healthAlertItems = this.inboxItems.filter((item) => item.kind === 'health_alert');
             const learningItems = this.inboxItems.filter((item) => item.kind === 'learning');
-            const notificationItems = this.inboxItems.filter((item) => item.kind === 'notification');
 
             if (this.markAllDoneBtn) {
-                this.markAllDoneBtn.style.display = notificationItems.length > 0 ? 'inline-flex' : 'none';
+                this.markAllDoneBtn.style.display = 'none';
             }
-
-            const renderNotification = (item) => {
-                const escapedId = escapeHtml(item.id || '');
-                const sender = escapeHtml(item.sender || '');
-                const channel = escapeHtml(item.channel || '');
-                const convertedMessage = this._convertSlackMentions(item.message || '');
-                const message = escapeHtml(convertedMessage);
-                const slackUrl = escapeHtml(item.slackUrl || '');
-                const date = escapeHtml(item.date || '');
-                const time = escapeHtml(item.time || '');
-                const datetime = date && time ? `${date} ${time}` : (date || time || '');
-
-                return `
-                    <div class="inbox-item" data-id="${escapedId}">
-                        <div class="inbox-item-header">
-                            <span class="inbox-item-sender">${sender}</span>
-                            <span class="inbox-item-channel">#${channel}</span>
-                            ${datetime ? `<span class="inbox-item-time">${datetime}</span>` : ''}
-                        </div>
-                        <div class="inbox-item-message">${message}</div>
-                        <div class="inbox-item-footer">
-                            ${item.slackUrl ? `<a href="${slackUrl}" target="_blank" class="inbox-slack-link">Slackで開く</a>` : ''}
-                            <button class="inbox-done-btn" data-id="${escapedId}">確認済み</button>
-                        </div>
-                    </div>
-                `;
-            };
 
             const renderLearning = (item) => {
                 const escapedId = escapeHtml(item.candidateId || item.id || '');
@@ -267,24 +204,7 @@ export class InboxView {
                     </div>
                 `);
             }
-            if (notificationItems.length > 0) {
-                sections.push(`
-                    <div class="inbox-section">
-                        <div class="inbox-section-title">通知</div>
-                        ${notificationItems.map(renderNotification).join('')}
-                    </div>
-                `);
-            }
-
             this.inboxListEl.innerHTML = sections.join('');
-
-            // Add event listeners to done buttons
-            this.inboxListEl.querySelectorAll('.inbox-done-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    e.stopPropagation();
-                    await this.inboxService.markAsDone(btn.dataset.id);
-                };
-            });
 
             this.inboxListEl.querySelectorAll('[data-learning-id]').forEach((button) => {
                 button.onclick = () => {

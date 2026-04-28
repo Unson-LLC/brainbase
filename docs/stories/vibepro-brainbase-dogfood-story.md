@@ -58,6 +58,7 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.md`
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.md`
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-135000-conversation-linker-load-shedding/development-run.md`
+- `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260510-inbox-pending-removal/development-run.md`
 
 ## スコープ外
 

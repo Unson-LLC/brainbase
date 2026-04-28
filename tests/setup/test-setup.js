@@ -41,12 +41,6 @@ const fetchMock = vi.fn((input, init) => {
             json: async () => ({ csrfToken: 'test-csrf-token' })
         });
     }
-    if (url === '/api/inbox/pending') {
-        return Promise.resolve({
-            ok: true,
-            json: async () => ({ items: [] })
-        });
-    }
     if (url === '/api/config/slack/members') {
         return Promise.resolve({
             ok: true,

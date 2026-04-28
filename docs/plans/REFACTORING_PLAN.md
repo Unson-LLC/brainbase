@@ -400,7 +400,6 @@ export const EVENTS = {
 
     // Inbox関連
     INBOX_LOADED: 'inbox:loaded',
-    INBOX_ITEM_COMPLETED: 'inbox:item-completed'
 };
 ```
 

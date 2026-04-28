@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { listenForEvent } from '../../helpers/event-test-utils.js';
 import { InboxService } from '../../../public/modules/domain/inbox/inbox-service.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
@@ -15,29 +14,8 @@ vi.mock('../../../public/modules/core/http-client.js', () => ({
 
 describe('InboxService', () => {
     let inboxService;
-    let mockInboxItems;
 
     beforeEach(() => {
-        // テストデータ準備
-        mockInboxItems = [
-            {
-                id: 'inbox-1',
-                kind: 'notification',
-                sender: 'テストユーザー',
-                channel: 'general',
-                message: 'テストメッセージ1',
-                slackUrl: 'https://slack.com/archives/C123/p123'
-            },
-            {
-                id: 'inbox-2',
-                kind: 'notification',
-                sender: '田中',
-                channel: 'dev',
-                message: 'テストメッセージ2',
-                slackUrl: 'https://slack.com/archives/C456/p456'
-            }
-        ];
-
         // ストア初期化
         appStore.setState({
             inbox: []
@@ -51,24 +29,22 @@ describe('InboxService', () => {
     });
 
     describe('loadInbox', () => {
-        it('loadInbox呼び出し時_API経由でInboxアイテムを取得してStoreを更新する', async () => {
+        it('loadInbox呼び出し時_学習候補とhealthだけを取得してStoreを更新する', async () => {
             httpClient.get
-                .mockResolvedValueOnce(mockInboxItems)
                 .mockResolvedValueOnce([])
                 .mockResolvedValueOnce({ status: 'healthy' });
 
             const result = await inboxService.loadInbox();
 
-            expect(httpClient.get).toHaveBeenCalledWith('/api/inbox/pending');
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
             expect(httpClient.get).toHaveBeenCalledWith('/api/learning/promotions?status=evaluated&apply_mode=manual', { suppressAuthError: true });
             expect(httpClient.get).toHaveBeenCalledWith('/api/learning/health', { suppressAuthError: true });
-            expect(appStore.getState().inbox).toEqual(mockInboxItems);
-            expect(result).toEqual(mockInboxItems);
+            expect(appStore.getState().inbox).toEqual([]);
+            expect(result).toEqual([]);
         });
 
         it('loadInbox呼び出し時_INBOX_LOADEDイベントが発火される', async () => {
             httpClient.get
-                .mockResolvedValueOnce(mockInboxItems)
                 .mockResolvedValueOnce([])
                 .mockResolvedValueOnce({ status: 'healthy' });
             const listener = vi.fn();
@@ -77,73 +53,13 @@ describe('InboxService', () => {
             await inboxService.loadInbox();
 
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.items).toEqual(mockInboxItems);
-        });
-    });
-
-    describe('markAsDone', () => {
-        it('markAsDone呼び出し時_API経由でアイテムを完了済みにしてInboxを再読み込みする', async () => {
-            httpClient.post.mockResolvedValue({});
-            httpClient.get
-                .mockResolvedValueOnce([mockInboxItems[1]])
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce({ status: 'healthy' });
-
-            await inboxService.markAsDone('inbox-1');
-
-            expect(httpClient.post).toHaveBeenCalledWith('/api/inbox/inbox-1/done');
-            expect(httpClient.get).toHaveBeenCalledWith('/api/inbox/pending');
-        });
-
-        it('markAsDone呼び出し時_INBOX_ITEM_COMPLETEDイベントが発火される', async () => {
-            httpClient.post.mockResolvedValue({});
-            httpClient.get
-                .mockResolvedValueOnce([mockInboxItems[1]])
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce({ status: 'healthy' });
-            const listener = vi.fn();
-            eventBus.on(EVENTS.INBOX_ITEM_COMPLETED, listener);
-
-            await inboxService.markAsDone('inbox-1');
-
-            expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.itemId).toBe('inbox-1');
-        });
-    });
-
-    describe('markAllAsDone', () => {
-        it('markAllAsDone呼び出し時_API経由で全アイテムを完了済みにしてInboxを再読み込みする', async () => {
-            httpClient.post.mockResolvedValue({});
-            httpClient.get
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce({ status: 'healthy' });
-
-            await inboxService.markAllAsDone();
-
-            expect(httpClient.post).toHaveBeenCalledWith('/api/inbox/mark-all-done');
-            expect(httpClient.get).toHaveBeenCalledWith('/api/inbox/pending');
-        });
-
-        it('markAllAsDone呼び出し時_Storeが空配列になる', async () => {
-            // 最初にアイテムがある状態
-            appStore.setState({ inbox: mockInboxItems });
-
-            httpClient.post.mockResolvedValue({});
-            httpClient.get
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce({ status: 'healthy' });
-
-            await inboxService.markAllAsDone();
-
-            expect(appStore.getState().inbox).toEqual([]);
+            expect(listener.mock.calls[0][0].detail.items).toEqual([]);
         });
     });
 
     describe('getInboxCount', () => {
         it('getInboxCount呼び出し時_現在のInboxアイテム数を返す', () => {
-            appStore.setState({ inbox: mockInboxItems });
+            appStore.setState({ inbox: [{ id: 'prm_1', kind: 'learning' }, { id: 'health-stale', kind: 'health_alert' }] });
 
             const count = inboxService.getInboxCount();
 
@@ -160,7 +76,6 @@ describe('InboxService', () => {
 
         it('loadInbox呼び出し時_learning candidate を先頭にマージする', async () => {
             httpClient.get
-                .mockResolvedValueOnce(mockInboxItems)
                 .mockResolvedValueOnce([
                     {
                         id: 'prm_1',
@@ -184,12 +99,11 @@ describe('InboxService', () => {
             expect(result[0].kind).toBe('learning');
             expect(result[0].mergedEpisodeCount).toBe(3);
             expect(result[0].canonicalSummary).toBe('readme 画像 解決 ルール');
-            expect(result[1].kind).toBe('notification');
+            expect(result).toHaveLength(1);
         });
 
         it('loadInbox呼び出し時_health alert を先頭にマージする', async () => {
             httpClient.get
-                .mockResolvedValueOnce(mockInboxItems)
                 .mockResolvedValueOnce([])
                 .mockResolvedValueOnce({
                     status: 'stale',
@@ -206,7 +120,7 @@ describe('InboxService', () => {
             const result = await inboxService.loadInbox();
 
             expect(result[0].kind).toBe('health_alert');
-            expect(result[1].kind).toBe('notification');
+            expect(result).toHaveLength(1);
         });
     });
 });

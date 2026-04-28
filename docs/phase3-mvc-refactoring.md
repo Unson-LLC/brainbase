@@ -128,7 +128,6 @@ import express from 'express';
 import taskRoutes from './server/routes/tasks.js';
 import sessionRoutes from './server/routes/sessions.js';
 import configRoutes from './server/routes/config.js';
-import inboxRoutes from './server/routes/inbox.js';
 import miscRoutes from './server/routes/misc.js';
 
 const app = express();
@@ -141,7 +140,6 @@ app.use(express.static('public'));
 app.use('/api/tasks', taskRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/config', configRoutes);
-app.use('/api/inbox', inboxRoutes);
 app.use('/api', miscRoutes);
 
 // サーバー起動
@@ -167,14 +165,12 @@ app.listen(PORT, () => {
 1. `server/controllers/task-controller.js`
 2. `server/controllers/session-controller.js`
 3. `server/controllers/config-controller.js`
-4. `server/controllers/inbox-controller.js`
 
 ### Step 4: Router層実装
 1. `server/routes/tasks.js`
 2. `server/routes/sessions.js`
 3. `server/routes/config.js`
-4. `server/routes/inbox.js`
-5. `server/routes/misc.js`
+4. `server/routes/misc.js`
 
 ### Step 5: server.js統合
 - 既存のserver.jsをserver.old.jsにリネーム

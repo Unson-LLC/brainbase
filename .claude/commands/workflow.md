@@ -70,8 +70,8 @@
 |---------|------|
 | `/commit` | jj describe + jj new |
 | `/merge` | PR作成 → マージ → クリーンアップ |
-| `/retro` | 週次振り返り → Inbox |
-| `/cso` | 月次戦略レビュー → Inbox |
+| `/retro` | 週次振り返り → Wiki SSOT |
+| `/cso` | 月次戦略レビュー → 詳細レポート |
 | `/learn` | 学習をepisodesに登録 |
 | `/create-pr` | PR作成のみ |
 | `/deploy-merged-pr` | マージ済みPRデプロイ |

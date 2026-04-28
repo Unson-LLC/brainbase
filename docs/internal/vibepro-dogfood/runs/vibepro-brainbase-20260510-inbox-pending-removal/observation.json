@@ -1,0 +1,287 @@
+{
+  "run_id": "vibepro-brainbase-20260510-inbox-pending-removal",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-09T18:28:52.500Z",
+  "repo": {
+    "branch": "session/session-1777272744313",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": ".claude/commands/cso.md",
+        "status": "M",
+        "category": "unrelated"
+      },
+      {
+        "path": ".claude/commands/retro.md",
+        "status": "M",
+        "category": "unrelated"
+      },
+      {
+        "path": ".claude/commands/workflow.md",
+        "status": "M",
+        "category": "unrelated"
+      },
+      {
+        "path": "CLAUDE.md",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/architecture/PHASE1_IMPLEMENTATION_GUIDE.md",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/architecture/PROPOSED_ARCHITECTURE.md",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/phase3-mvc-refactoring.md",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/plans/REFACTORING_PLAN.md",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/plans/phase3-mvc-refactoring.md",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "lib/inbox-parser.js",
+        "status": "D",
+        "category": "other"
+      },
+      {
+        "path": "mcp/brainbase/package-lock.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "mcp/jibble/package-lock.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/app/terminal-input-ux-mixin.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/core/event-bus.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/core/terminal-transport-client.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/domain/inbox/inbox-service.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/file-upload.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/ui/views/inbox-view.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/bootstrap/core-services.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/bootstrap/register-api-routes.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/controllers/inbox-controller.js",
+        "status": "D",
+        "category": "other"
+      },
+      {
+        "path": "server/routes/inbox.js",
+        "status": "D",
+        "category": "other"
+      },
+      {
+        "path": "server/services/cli-pattern-detector.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/services/session-runtime/terminal-io-methods.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/services/terminal-transport-service.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/api/server-endpoints.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/domain/inbox/inbox-service.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/services/cli-pattern-detector.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/services/terminal-input-probe-service.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/services/terminal-transport-service.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/session-manager.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/setup/test-setup.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/ui/views/inbox-view.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/inbox-parser.test.js",
+        "status": "D",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/server-session-manager.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/terminal-transport-client.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": ".claude/skills/brainbase-infisical-env-management/",
+        "status": "??",
+        "category": "skill"
+      }
+    ],
+    "run_count_before_current": 12,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 12,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 7,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        ".claude/commands/cso.md",
+        ".claude/commands/retro.md",
+        ".claude/commands/workflow.md",
+        "CLAUDE.md",
+        "docs/architecture/PHASE1_IMPLEMENTATION_GUIDE.md",
+        "docs/architecture/PROPOSED_ARCHITECTURE.md",
+        "docs/phase3-mvc-refactoring.md",
+        "docs/plans/REFACTORING_PLAN.md",
+        "docs/plans/phase3-mvc-refactoring.md",
+        "lib/inbox-parser.js",
+        "mcp/brainbase/package-lock.json",
+        "mcp/jibble/package-lock.json",
+        "public/modules/app/terminal-input-ux-mixin.js",
+        "public/modules/core/event-bus.js",
+        "public/modules/core/terminal-transport-client.js",
+        "public/modules/domain/inbox/inbox-service.js",
+        "public/modules/file-upload.js",
+        "public/modules/ui/views/inbox-view.js",
+        "server.js",
+        "server/bootstrap/core-services.js",
+        "server/bootstrap/register-api-routes.js",
+        "server/controllers/inbox-controller.js",
+        "server/routes/inbox.js",
+        "server/services/cli-pattern-detector.js",
+        "server/services/session-runtime/terminal-io-methods.js",
+        "server/services/terminal-transport-service.js",
+        "tests/api/server-endpoints.test.js",
+        "tests/domain/inbox/inbox-service.test.js",
+        "tests/server/services/cli-pattern-detector.test.js",
+        "tests/server/services/terminal-input-probe-service.test.js",
+        "tests/server/services/terminal-transport-service.test.js",
+        "tests/server/session-manager.test.js",
+        "tests/setup/test-setup.js",
+        "tests/ui/views/inbox-view.test.js",
+        "tests/unit/inbox-parser.test.js",
+        "tests/unit/server-session-manager.test.js",
+        "tests/unit/terminal-transport-client.test.js"
+      ]
+    }
+  ]
+}
