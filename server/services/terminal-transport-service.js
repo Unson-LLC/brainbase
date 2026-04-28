@@ -11,7 +11,8 @@ const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape']);
-const INPUT_PROBE_FRESH_MS = 60_000;
+const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/g;
+const FOCUS_EVENT_PATTERN = /\x1b\[(?:I|O)/g;
 
 function safeJsonParse(raw) {
     try {
@@ -482,12 +483,20 @@ export class TerminalTransportService {
                 const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
                 connection.terminalAccess = terminalAccess;
                 const inputTypeForLog = message.inputType === 'key' ? 'key' : 'text';
-                const valueLen = typeof message.value === 'string' ? message.value.length : 0;
+                const rawValue = typeof message.value === 'string' ? message.value : '';
+                const normalizedValue = inputTypeForLog === 'text'
+                    ? this._stripTerminalControlResponses(rawValue)
+                    : rawValue;
+                const valueLen = normalizedValue.length;
                 // 入力内容を識別可能な形でログ出力 (Enter検出のため)
-                const valueDebug = typeof message.value === 'string'
-                    ? message.value.replace(/[\x00-\x1F\x7F]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`).slice(0, 60)
-                    : String(message.value).slice(0, 60);
+                const valueDebug = normalizedValue
+                    ? normalizedValue.replace(/[\x00-\x1F\x7F]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`).slice(0, 60)
+                    : '';
                 logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state} debug="${valueDebug}"`);
+                if (inputTypeForLog === 'text' && !normalizedValue && rawValue) {
+                    logger.info(`[INPUT-TELEMETRY] ignored reason=TERMINAL_CONTROL_RESPONSE session=${sessionId} originalLen=${rawValue.length}`);
+                    return;
+                }
                 if (terminalAccess?.state !== 'owner') {
                     logger.warn(`[TTC-PROBE][ws-input] dropped NOT_OWNER session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=NOT_OWNER session=${sessionId} len=${valueLen} viewer=${viewerId}`);
@@ -498,9 +507,9 @@ export class TerminalTransportService {
                 // ナビゲーション系 escape sequence (矢印/Tab/Escape/Function key) は
                 // CLI state 検出に失敗する Codex 選択画面でも送信する必要があるため、
                 // probe チェックをバイパスする。
-                const isNavEscape = inputType === 'text' && this._isNavigationEscape(message.value);
+                const isNavEscape = inputType === 'text' && this._isNavigationEscape(normalizedValue);
                 if (!this._getInputReady(sessionId)
-                    && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(message.value))
+                    && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(normalizedValue))
                     && !isNavEscape) {
                     logger.warn(`[TTC-PROBE][ws-input] dropped INPUT_NOT_READY session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_NOT_READY session=${sessionId} len=${valueLen} type=${inputType}`);
@@ -512,7 +521,7 @@ export class TerminalTransportService {
                     return;
                 }
                 try {
-                    await this.terminalIo.sendInput(sessionId, message.value, inputType);
+                    await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
                     logger.info(`[INPUT-TELEMETRY] sentOk session=${sessionId} len=${valueLen} type=${inputType}`);
                 } catch (err) {
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=MUTATION_TIMEOUT_OR_FAILED session=${sessionId} len=${valueLen} err=${err?.message || err}`);
@@ -521,7 +530,7 @@ export class TerminalTransportService {
                 this.captureCache.invalidate(sessionId);
                 this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
-                if (inputType === 'text' && message.value && message.value.includes('\n')) {
+                if (inputType === 'text' && normalizedValue && normalizedValue.includes('\n')) {
                     void this._handlePastedTextOverlay(connection);
                 }
 
@@ -605,8 +614,14 @@ export class TerminalTransportService {
 
     _getInputReady(sessionId) {
         const entry = this.runtimeRegistry?.getSession?.(sessionId);
-        return entry?.observed?.inputProbe?.status === 'passed'
-            && this._inputProbeFresh(entry.observed.inputProbe);
+        return entry?.observed?.inputProbe?.status === 'passed';
+    }
+
+    _stripTerminalControlResponses(value) {
+        if (typeof value !== 'string' || !value) return value;
+        return value
+            .replace(OSC_SEQUENCE_PATTERN, '')
+            .replace(FOCUS_EVENT_PATTERN, '');
     }
 
     /**
@@ -624,7 +639,7 @@ export class TerminalTransportService {
     _buildRuntimeStatusPayload(connection) {
         const registryEntry = this.runtimeRegistry?.getSession?.(connection.sessionId);
         const inputProbe = registryEntry?.observed?.inputProbe || null;
-        const inputReady = inputProbe?.status === 'passed' && this._inputProbeFresh(inputProbe);
+        const inputReady = inputProbe?.status === 'passed';
         connection.inputReady = inputReady;
         connection.runtimeState = inputReady
             ? 'interactive_ready'
@@ -635,14 +650,6 @@ export class TerminalTransportService {
             inputProbe,
             terminalAccess: connection.terminalAccess || null
         };
-    }
-
-    _inputProbeFresh(inputProbe) {
-        const stamp = inputProbe?.lastPassedAt || inputProbe?.lastFailedAt;
-        if (!stamp) return true;
-        const time = Date.parse(stamp);
-        if (!Number.isFinite(time)) return true;
-        return Date.now() - time <= INPUT_PROBE_FRESH_MS;
     }
 }
 

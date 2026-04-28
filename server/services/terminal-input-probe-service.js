@@ -37,7 +37,9 @@ export class TerminalInputProbeService {
         // getTerminalAccessState の代わりに ensureTerminalOwnership を使う。
         // TTL 切れ（10分間操作なし）で ownership が expired になると state='available' になり
         // 正当な viewer が probe を呼んでも全拒否される。expired なら自動再取得する。
-        const ownershipResult = this.ownershipService?.ensureTerminalOwnership?.(sessionId, viewerId, viewerLabel);
+        const ownershipResult = this.ownershipService?.ensureTerminalOwnership
+            ? this.ownershipService.ensureTerminalOwnership(sessionId, viewerId, viewerLabel)
+            : this._getLegacyTerminalOwnership(sessionId, viewerId);
         const terminalAccess = ownershipResult?.terminalAccess;
         if (!ownershipResult?.allowed) {
             return this._fail(sessionId, 'SESSION_OWNED_BY_OTHER_VIEWER', 'Session is owned by another viewer', { terminalAccess });
@@ -128,6 +130,14 @@ export class TerminalInputProbeService {
             this.snapshotService.getPaneMode(sessionId).catch(() => false)
         ]);
         return { text, colorText, copyMode };
+    }
+
+    _getLegacyTerminalOwnership(sessionId, viewerId) {
+        const terminalAccess = this.ownershipService?.getTerminalAccessState?.(sessionId, viewerId);
+        return {
+            allowed: terminalAccess?.state === 'owner' || terminalAccess?.state === 'available',
+            terminalAccess
+        };
     }
 
     async _waitForProbeText(sessionId, nonce) {

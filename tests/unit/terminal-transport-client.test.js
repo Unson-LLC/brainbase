@@ -739,6 +739,104 @@ describe('terminal-transport-client', () => {
     expect(client._pendingEchoText).toBe('');
   });
 
+  it('同一session再接続では未確認local echoを保持する', async () => {
+    const sentMessages = [];
+    let socket = null;
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor() {
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+        socket = this;
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send(message) {
+        sentMessages.push(JSON.parse(message));
+      }
+
+      close() {}
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client._pendingEchoText = 'draft';
+    client.terminal = { cols: 98, rows: 32, write: vi.fn() };
+    client.fitAddon = { fit: vi.fn() };
+
+    const connectPromise = client.connect('session-1');
+    await flushMicrotasks();
+    socket._emit('message', {
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', inputReady: true, terminalAccess: { state: 'owner' } })
+    });
+    await connectPromise;
+
+    expect(client._pendingEchoText).toBe('draft');
+  });
+
+  it('未確認local echoを含まないsnapshotは表示へ適用せず保留する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = 'draft';
+
+    client._queueOrApplySnapshot('old prompt');
+
+    expect(terminal.write).not.toHaveBeenCalled();
+    expect(client._deferredSnapshotWhileEchoPending).toBe('old prompt');
+    expect(client._pendingEchoText).toBe('draft');
+  });
+
+  it('local echo確認後_保留した古いsnapshotは適用せず破棄する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = 'draft';
+
+    client._queueOrApplySnapshot('old prompt');
+    client._applyOutput('draft');
+
+    expect(terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingEchoText).toBe('');
+    expect(client._deferredSnapshotWhileEchoPending).toBeNull();
+  });
+
   it('output適用時_上にスクロール中ならviewport位置を維持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

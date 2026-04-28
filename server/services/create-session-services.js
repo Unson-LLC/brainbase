@@ -15,7 +15,7 @@ const DEFAULT_STATE_STORE = {
     update: async (next) => next
 };
 
-const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
+const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab', 'BSpace'];
 
 function bindMethods(target, methods) {
     for (const [name, value] of Object.entries(methods)) {

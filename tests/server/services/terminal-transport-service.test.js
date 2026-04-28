@@ -79,6 +79,85 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
+    it('inputProbe passedが古くてもinput messageをdropしない', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getSession.mockReturnValue({
+            runtimeState: 'interactive_ready',
+            observed: {
+                inputProbe: {
+                    status: 'passed',
+                    lastPassedAt: '2026-01-01T00:00:00.000Z'
+                }
+            }
+        });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '生成して'
+        }));
+
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', '生成して', 'text');
+        expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
+    });
+
+    it('inputProbe failedならinput messageをdropする', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getSession.mockReturnValue({
+            runtimeState: 'degraded',
+            observed: {
+                inputProbe: {
+                    status: 'failed',
+                    lastFailedAt: '2026-01-01T00:00:00.000Z',
+                    reason: 'CLI_NOT_IDLE'
+                }
+            }
+        });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '生成して'
+        }));
+
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(connection.ws.send).toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
+    });
+
+    it('OSC制御応答だけのinput messageはtmuxへ送らず無視する', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\x1b]10;rgb:e2e2/e8e8/f0f0\x1b\\'
+        }));
+
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
     it('ready送信時_eager snapshotも送る', async () => {
         const { service, captureCache } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
@@ -277,7 +356,7 @@ describe('TerminalTransportService', () => {
         ws._listeners.message(Buffer.from(JSON.stringify({
             type: 'input',
             inputType: 'text',
-            value: '\u001b]11;rgb:0000/0000/0000\u001b\\'
+            value: 'hello'
         })));
         await new Promise(resolve => setTimeout(resolve, 0));
 

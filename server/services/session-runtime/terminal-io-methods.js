@@ -6,6 +6,23 @@ import path from 'path';
 const INLINE_TEXT_MAX_BYTES = 1024;
 const TMUX_TIMEOUT_MS = 5_000;
 const MUTATION_TIMEOUT_MS = 10_000;
+const TEXT_CONTROL_KEY_MAP = new Map([
+    ['\r', 'Enter'],
+    ['\n', 'Enter'],
+    ['\r\n', 'Enter'],
+    ['\x7f', 'BSpace'],
+    ['\x08', 'BSpace'],
+    ['\x03', 'C-c'],
+    ['\x04', 'C-d'],
+    ['\x0c', 'C-l'],
+    ['\x15', 'C-u'],
+    ['\x1b', 'Escape'],
+    ['\t', 'Tab'],
+    ['\x1b[A', 'Up'],
+    ['\x1b[B', 'Down'],
+    ['\x1b[C', 'Right'],
+    ['\x1b[D', 'Left']
+]);
 
 export const terminalIoMethods = {
     async resizeSessionWindow(sessionId, cols, rows) {
@@ -81,15 +98,16 @@ export const terminalIoMethods = {
             throw new Error('Type must be key or text');
         }
 
-        const normalizedInput = type === 'text'
+        const focusStrippedInput = type === 'text'
             ? this._stripTerminalFocusEvents(input)
             : input;
+        const { input: normalizedInput, type: normalizedType } = this._normalizeTerminalTextControlInput(focusStrippedInput, type);
         if (!normalizedInput) {
             console.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_FOCUS_STRIPPED_EMPTY session=${sessionId} originalLen=${input.length}`);
             return;
         }
 
-        await this._capturePromptInput(sessionId, normalizedInput, type);
+        await this._capturePromptInput(sessionId, normalizedInput, normalizedType);
 
         await this._enqueueTerminalMutation(sessionId, async () => {
             // copy-mode中はまず解除してからinputを送る（scrollSession後に入力できなくなる問題を防止）
@@ -97,7 +115,8 @@ export const terminalIoMethods = {
             const target = sessionId.replace(/"/g, '\\"');
             await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
 
-            if (type === 'key' && this.ALLOWED_KEYS.includes(normalizedInput)) {
+            if (normalizedType === 'key' && this.ALLOWED_KEYS.includes(normalizedInput)) {
+                console.info(`[INPUT-TELEMETRY] tmuxRoute=namedKey session=${sessionId} key=${normalizedInput}`);
                 await this._sendNamedKey(sessionId, normalizedInput);
                 return;
             }
@@ -112,7 +131,7 @@ export const terminalIoMethods = {
                 return;
             }
 
-            if (this._shouldUseLiteralText(normalizedInput, type)) {
+            if (this._shouldUseLiteralText(normalizedInput, normalizedType)) {
                 await this._sendLiteralText(sessionId, normalizedInput);
                 return;
             }
@@ -124,6 +143,19 @@ export const terminalIoMethods = {
     _stripTerminalFocusEvents(input) {
         if (typeof input !== 'string') return input;
         return input.replace(/\x1b\[(?:I|O)/g, '');
+    },
+
+    _normalizeTerminalTextControlInput(input, type) {
+        if (type !== 'text' || typeof input !== 'string') {
+            return { input, type };
+        }
+
+        const key = TEXT_CONTROL_KEY_MAP.get(input);
+        if (!key) {
+            return { input, type };
+        }
+
+        return { input: key, type: 'key' };
     },
 
     _withTimeout(promise, ms, onTimeout) {
