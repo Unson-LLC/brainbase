@@ -121,6 +121,9 @@ export class TerminalTransportClient {
         this._imeJustCommittedWithEnter = false;
         this._imePostEnterPending = false;
         this._imePostEnterTimer = null;
+        // loadXterm() の dynamic import が完了する前に WS スナップショットが
+        // 到着した場合に保存しておくバッファ。init() で terminal が準備でき次第 flush。
+        this._preTerminalSnapshot = null;
     }
 
     async init(hostEl) {
@@ -151,6 +154,13 @@ export class TerminalTransportClient {
         }
         this.terminal.open(hostEl);
         this.fitAddon.fit();
+        // dynamic import 中に届いた snapshot があれば適用する。これがないと
+        // init() 完了前に着いた snapshot が drop され、画面が永遠に空白になる。
+        if (this._preTerminalSnapshot !== null) {
+            const saved = this._preTerminalSnapshot;
+            this._preTerminalSnapshot = null;
+            this._queueOrApplySnapshot(saved);
+        }
         if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
             this.terminal.attachCustomKeyEventHandler((event) => this._handleCustomKeyEvent(event));
         }
@@ -1148,7 +1158,11 @@ export class TerminalTransportClient {
     }
 
     _queueOrApplySnapshot(text) {
-        if (!this.terminal) return;
+        if (!this.terminal) {
+            // Terminal not yet initialized (loadXterm() still pending) — buffer for init()
+            this._preTerminalSnapshot = text;
+            return;
+        }
 
         if (this._forceApplyNextSnapshot) {
             this._forceApplyNextSnapshot = false;
@@ -1268,6 +1282,7 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = true;
         this._pendingSnapshotText = null;
         this._pendingEchoText = '';
+        this._preTerminalSnapshot = null;
         this._lastSnapshotText = null;
         this._isViewportPinnedToBottom = true;
         // xterm.jsの前セッション表示を即クリア。
