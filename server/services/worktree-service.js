@@ -665,6 +665,7 @@ export class WorktreeService {
             try {
                 await fs.access(workspacePath);
                 logger.warn(`[workspace] Zombie worktree still exists after remove: ${workspacePath}`);
+                return false;
             } catch {
                 // Expected: directory no longer exists
             }
@@ -940,6 +941,11 @@ EOF
             try {
                 await fs.access(workspacePath);
                 logger.warn(`[merge] Zombie worktree still exists after merge cleanup: ${workspacePath}`);
+                return {
+                    success: false,
+                    error: 'Worktree cleanup failed after merge',
+                    prUrl: prUrl.trim()
+                };
             } catch {
                 // Expected: directory no longer exists
             }
