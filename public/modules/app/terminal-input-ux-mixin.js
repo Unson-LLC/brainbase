@@ -306,6 +306,44 @@ export function applyTerminalInputUxMixin(AppClass) {
         return `${Math.round(numberValue)}`;
     };
 
+    AppClass.prototype._getWeeklyTokenUsage = function() {
+        const usage = this._weeklyTokenUsage || null;
+        return Number.isFinite(Number(usage?.totalTokens)) ? usage : null;
+    };
+
+    AppClass.prototype._formatWeeklyTokenTitle = function(weeklyUsage) {
+        if (!weeklyUsage) return '';
+        const totalText = this._formatTerminalTokenCount(weeklyUsage.totalTokens);
+        const codexText = this._formatTerminalTokenCount(weeklyUsage.engines?.codex?.totalTokens || 0);
+        const claudeText = this._formatTerminalTokenCount(weeklyUsage.engines?.claude?.totalTokens || 0);
+        const start = weeklyUsage.period?.start
+            ? new Date(weeklyUsage.period.start).toLocaleString()
+            : 'this week';
+        return `Weekly tokens since ${start}: ${totalText} (Codex ${codexText}, Claude ${claudeText})`;
+    };
+
+    AppClass.prototype._loadWeeklyTokenUsage = async function({ force = false } = {}) {
+        const now = Date.now();
+        if (!force && this._weeklyTokenUsageLoadedAt && now - this._weeklyTokenUsageLoadedAt < 60_000) {
+            return this._weeklyTokenUsage || null;
+        }
+
+        try {
+            const suffix = force ? '?force=1' : '';
+            const usage = await httpClient.get(`/api/usage/tokens/weekly${suffix}`, {
+                timeout: 20_000
+            });
+            this._weeklyTokenUsage = usage || null;
+            this._weeklyTokenUsageLoadedAt = now;
+            this._scheduleTerminalInputStatusUpdate();
+            return this._weeklyTokenUsage;
+        } catch (error) {
+            console.warn('Failed to load weekly token usage:', error?.message || error);
+            this._weeklyTokenUsageLoadedAt = now;
+            return this._weeklyTokenUsage || null;
+        }
+    };
+
     AppClass.prototype._getCurrentSessionTokenUsage = function(sessionId = appStore.getState().currentSessionId) {
         if (!sessionId) return null;
         const session = (appStore.getState().sessions || []).find(item => item.id === sessionId);
@@ -321,13 +359,15 @@ export function applyTerminalInputUxMixin(AppClass) {
         const contextWindow = Number(tokenUsage?.contextWindow);
         const usedTokens = Number(tokenUsage?.usedTokens);
         const remainingTokens = Number(tokenUsage?.remainingTokens);
+        const weeklyUsage = this._getWeeklyTokenUsage();
+        const weeklyTokens = Number(weeklyUsage?.totalTokens);
+        const hasContextUsage = Number.isFinite(remainingPercent)
+            && Number.isFinite(contextWindow)
+            && Number.isFinite(usedTokens)
+            && Number.isFinite(remainingTokens);
+        const hasWeeklyUsage = Number.isFinite(weeklyTokens);
 
-        if (
-            !Number.isFinite(remainingPercent)
-            || !Number.isFinite(contextWindow)
-            || !Number.isFinite(usedTokens)
-            || !Number.isFinite(remainingTokens)
-        ) {
+        if (!hasContextUsage && !hasWeeklyUsage) {
             el.classList.add('hidden');
             el.textContent = '';
             el.title = '';
@@ -335,17 +375,32 @@ export function applyTerminalInputUxMixin(AppClass) {
             return;
         }
 
-        const roundedRemaining = Math.max(0, Math.round(remainingPercent));
-        const toneClass = roundedRemaining <= 15
-            ? 'is-danger'
-            : roundedRemaining <= 35
-                ? 'is-warn'
-                : 'is-ok';
-        const remainingText = this._formatTerminalTokenCount(remainingTokens);
-        const contextText = this._formatTerminalTokenCount(contextWindow);
-        const usedText = this._formatTerminalTokenCount(usedTokens);
-        const text = `ctx ${roundedRemaining}% · ${remainingText} / ${contextText}`;
-        const title = `Context remaining ${remainingText} / ${contextText} (used ${usedText})`;
+        let toneClass = 'is-ok';
+        const textParts = [];
+        const titleParts = [];
+
+        if (hasContextUsage) {
+            const roundedRemaining = Math.max(0, Math.round(remainingPercent));
+            toneClass = roundedRemaining <= 15
+                ? 'is-danger'
+                : roundedRemaining <= 35
+                    ? 'is-warn'
+                    : 'is-ok';
+            const remainingText = this._formatTerminalTokenCount(remainingTokens);
+            const contextText = this._formatTerminalTokenCount(contextWindow);
+            const usedText = this._formatTerminalTokenCount(usedTokens);
+            textParts.push(`ctx ${roundedRemaining}% · ${remainingText} / ${contextText}`);
+            titleParts.push(`Context remaining ${remainingText} / ${contextText} (used ${usedText})`);
+        }
+
+        if (hasWeeklyUsage) {
+            const weeklyText = this._formatTerminalTokenCount(weeklyTokens);
+            textParts.push(`week ${weeklyText} tok`);
+            titleParts.push(this._formatWeeklyTokenTitle(weeklyUsage));
+        }
+
+        const text = textParts.join(' | ');
+        const title = titleParts.filter(Boolean).join(' | ');
         const key = `${toneClass}|${text}|${title}`;
         if (this._lastTerminalTokenStatusKey === key) return;
         this._lastTerminalTokenStatusKey = key;
@@ -1030,6 +1085,12 @@ export function applyTerminalInputUxMixin(AppClass) {
             () => this._scheduleTerminalInputStatusUpdate()
         );
         this._terminalInputUxCleanup.push(tokenUnsub);
+
+        void this._loadWeeklyTokenUsage();
+        const weeklyTokenIntervalId = setInterval(() => {
+            void this._loadWeeklyTokenUsage();
+        }, 60_000);
+        this._terminalInputUxCleanup.push(() => clearInterval(weeklyTokenIntervalId));
 
         const onFocusChange = () => this._scheduleTerminalInputStatusUpdate();
         document.addEventListener('focusin', onFocusChange, true);

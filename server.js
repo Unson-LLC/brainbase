@@ -322,6 +322,7 @@ const {
     terminalTransportService,
     sessionActivityWsService,
     conversationLinker,
+    tokenUsageService,
     uploadMiddleware
 } = createCoreServices({
     tasksFile: TASKS_FILE,
@@ -444,6 +445,7 @@ registerApiRoutes(app, {
     learningService,
     learningHealthService,
     wikiService,
+    tokenUsageService,
     uploadMiddleware,
     appVersion: APP_VERSION,
     workspaceRoot,

@@ -24,6 +24,7 @@ import { GoogleCalendarService } from '../services/google-calendar-service.js';
 import { LearningService } from '../services/learning-service.js';
 import { LearningHealthService } from '../services/learning-health-service.js';
 import { WikiService } from '../services/wiki-service.js';
+import { TokenUsageService } from '../services/token-usage-service.js';
 
 export function createCoreServices({
     tasksFile,
@@ -135,6 +136,7 @@ export function createCoreServices({
         stateStore,
         workspaceService: sessionServices.workspace
     });
+    const tokenUsageService = new TokenUsageService();
 
     const storage = multer.diskStorage({
         destination(req, file, cb) {
@@ -171,6 +173,7 @@ export function createCoreServices({
         terminalTransportService,
         sessionActivityWsService,
         conversationLinker,
+        tokenUsageService,
         uploadMiddleware: upload.single('file')
     };
 }
