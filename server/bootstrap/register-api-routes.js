@@ -15,6 +15,7 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
+import { createUsageRouter } from '../routes/usage.js';
 
 export function registerApiRoutes(app, {
     taskParser,
@@ -36,6 +37,7 @@ export function registerApiRoutes(app, {
     learningService,
     learningHealthService,
     wikiService,
+    tokenUsageService,
     uploadMiddleware,
     appVersion,
     workspaceRoot,
@@ -86,6 +88,7 @@ export function registerApiRoutes(app, {
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
     app.use('/api/wiki', createWikiRouter(wikiService));
+    app.use('/api/usage', createUsageRouter(tokenUsageService));
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
     app.use('/api', createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo, {
         brainbaseRoot,

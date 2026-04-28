@@ -144,7 +144,7 @@ describe('session-list-renderer', () => {
       expect(html).not.toContain('session-attention-badge');
     });
 
-    it('should render context remaining chip when token usage is available', () => {
+    it('should not render token usage chip in session list', () => {
       const session = {
         id: 'session-token',
         name: 'Token Session',
@@ -162,9 +162,9 @@ describe('session-list-renderer', () => {
 
       const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
-      expect(html).toContain('ctx 35%');
-      expect(html).toContain('chip-token-warn');
-      expect(html).toContain('Context remaining 89K / 258K');
+      expect(html).not.toContain('context used');
+      expect(html).not.toContain('ctx ');
+      expect(html).not.toContain('chip-token');
     });
 
     it('should render waiting indicator when session is waiting for input', () => {
