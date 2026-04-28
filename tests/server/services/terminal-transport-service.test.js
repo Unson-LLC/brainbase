@@ -79,7 +79,7 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('ready送信時_snapshotを送らずreadyのみ送る', async () => {
+    it('ready送信時_eager snapshotも送る', async () => {
         const { service, captureCache } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
@@ -99,8 +99,12 @@ describe('TerminalTransportService', () => {
         await service._sendReady(connection);
 
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
-        expect(sentTypes).toEqual(['ready']);
-        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
+        expect(sentTypes).toEqual(['ready', 'snapshot']);
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: 400,
+            includeColors: true,
+            includeCopyMode: true
+        });
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
@@ -232,8 +236,8 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('resize message で sessionManager.resizeSessionWindow を呼ぶ', async () => {
-        const { service, controlClient } = buildService();
+    it('streaming resize message で tmux pane をリサイズしてから control client をrefreshする', async () => {
+        const { service, sessionManager, controlClient } = buildService();
         const connection = {
             sessionId: 'session-1',
             viewerId: 'viewer-1',
@@ -251,7 +255,10 @@ describe('TerminalTransportService', () => {
             rows: 40
         }));
 
+        expect(sessionManager.resizeSessionWindow).toHaveBeenCalledWith('session-1', 120, 40);
         expect(controlClient.resize).toHaveBeenCalledWith(120, 40);
+        expect(sessionManager.resizeSessionWindow.mock.invocationCallOrder[0])
+            .toBeLessThan(controlClient.resize.mock.invocationCallOrder[0]);
     });
 
     it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {
@@ -284,6 +291,8 @@ describe('TerminalTransportService', () => {
     });
 
     it('streaming outputをそのままoutputメッセージで転送する', async () => {
+        vi.useFakeTimers();
+
         const { service, controlClient } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
@@ -301,11 +310,14 @@ describe('TerminalTransportService', () => {
 
         const outputHandler = controlClient.on.mock.calls.find(([event]) => event === 'output')[1];
         outputHandler('\u001b[32mhello\u001b[0m');
+        await vi.advanceTimersByTimeAsync(8);
 
         expect(ws.send).toHaveBeenCalledWith(JSON.stringify({
             type: 'output',
             data: '\u001b[32mhello\u001b[0m'
         }));
+
+        vi.useRealTimers();
     });
 
     it('初回streaming output受信時_initial snapshot fallbackをキャンセルする', async () => {
