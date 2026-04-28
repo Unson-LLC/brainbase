@@ -51,6 +51,37 @@ function addUsage(bucket, usage) {
     bucket.events += 1;
 }
 
+function normalizeRateLimitWindow(limit) {
+    const usedPercent = Number(limit?.used_percent);
+    const windowMinutes = Number(limit?.window_minutes);
+    const resetsAt = Number(limit?.resets_at);
+
+    if (!Number.isFinite(usedPercent) || !Number.isFinite(windowMinutes)) return null;
+
+    return {
+        usedPercent,
+        windowMinutes,
+        resetsAt: Number.isFinite(resetsAt) ? resetsAt : null,
+        resetsAtIso: Number.isFinite(resetsAt) ? new Date(resetsAt * 1000).toISOString() : null
+    };
+}
+
+function normalizeCodexRateLimits(rateLimits, updatedAt) {
+    if (!rateLimits || typeof rateLimits !== 'object') return null;
+    const primary = normalizeRateLimitWindow(rateLimits.primary);
+    const secondary = normalizeRateLimitWindow(rateLimits.secondary);
+    if (!primary && !secondary) return null;
+
+    return {
+        source: 'codex',
+        limitId: rateLimits.limit_id || null,
+        planType: rateLimits.plan_type || null,
+        primary,
+        secondary,
+        updatedAt
+    };
+}
+
 export function getLocalWeekStart(date = new Date()) {
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
@@ -82,6 +113,9 @@ export class TokenUsageService {
         const weekStartMs = weekStart.getTime();
         const codex = createBucket('codex');
         const claude = createBucket('claude');
+        const rateLimits = {
+            codex: null
+        };
 
         const [codexFiles, claudeFiles] = await Promise.all([
             this._collectJsonlFiles(this.codexSessionsDir, weekStartMs - ONE_DAY_MS),
@@ -89,7 +123,7 @@ export class TokenUsageService {
         ]);
 
         for (const filePath of codexFiles) {
-            await this._scanCodexFile(filePath, codex, weekStartMs, nowMs);
+            await this._scanCodexFile(filePath, codex, rateLimits, weekStartMs, nowMs);
         }
         for (const filePath of claudeFiles) {
             await this._scanClaudeFile(filePath, claude, weekStartMs, nowMs);
@@ -124,6 +158,7 @@ export class TokenUsageService {
             events: total.events,
             filesScanned: total.filesScanned,
             engines: { codex, claude },
+            rateLimits,
             updatedAt: new Date().toISOString()
         };
 
@@ -165,7 +200,7 @@ export class TokenUsageService {
         return files;
     }
 
-    async _scanCodexFile(filePath, bucket, weekStartMs, nowMs) {
+    async _scanCodexFile(filePath, bucket, rateLimits, weekStartMs, nowMs) {
         let stream;
         try {
             stream = createReadStream(filePath);
@@ -180,6 +215,10 @@ export class TokenUsageService {
                 if (data.type !== 'event_msg' || data.payload?.type !== 'token_count') continue;
                 const timestampMs = Date.parse(data.timestamp || '');
                 if (!Number.isFinite(timestampMs) || timestampMs < weekStartMs || timestampMs > nowMs) continue;
+                const codexRateLimits = normalizeCodexRateLimits(data.payload?.rate_limits, data.timestamp || null);
+                if (codexRateLimits && (!rateLimits.codex || timestampMs >= Date.parse(rateLimits.codex.updatedAt || ''))) {
+                    rateLimits.codex = codexRateLimits;
+                }
                 const usage = data.payload?.info?.last_token_usage;
                 if (!usage) continue;
                 addUsage(bucket, usage);

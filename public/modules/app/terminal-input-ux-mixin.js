@@ -322,6 +322,37 @@ export function applyTerminalInputUxMixin(AppClass) {
         return `Weekly tokens since ${start}: ${totalText} (Codex ${codexText}, Claude ${claudeText})`;
     };
 
+    AppClass.prototype._formatRateLimitPercent = function(limit) {
+        const usedPercent = Number(limit?.usedPercent);
+        if (!Number.isFinite(usedPercent)) return '';
+        return `${Math.round(usedPercent)}%`;
+    };
+
+    AppClass.prototype._formatCodexRateLimitStatus = function(weeklyUsage) {
+        const codexLimits = weeklyUsage?.rateLimits?.codex || null;
+        if (!codexLimits) return null;
+
+        const weeklyPercent = this._formatRateLimitPercent(codexLimits.secondary);
+        const fiveHourPercent = this._formatRateLimitPercent(codexLimits.primary);
+        const textParts = [];
+        const titleParts = [];
+
+        if (weeklyPercent) {
+            textParts.push(`7d:${weeklyPercent}`);
+            titleParts.push(`7 day limit ${weeklyPercent}`);
+        }
+        if (fiveHourPercent) {
+            textParts.push(`5h:${fiveHourPercent}`);
+            titleParts.push(`5 hour limit ${fiveHourPercent}`);
+        }
+        if (textParts.length === 0) return null;
+
+        return {
+            text: textParts.join(' '),
+            title: `Codex token limits: ${titleParts.join(', ')}`
+        };
+    };
+
     AppClass.prototype._loadWeeklyTokenUsage = async function({ force = false } = {}) {
         const now = Date.now();
         if (!force && this._weeklyTokenUsageLoadedAt && now - this._weeklyTokenUsageLoadedAt < 60_000) {
@@ -369,10 +400,11 @@ export function applyTerminalInputUxMixin(AppClass) {
                     : NaN;
         const weeklyUsage = this._getWeeklyTokenUsage();
         const weeklyTokens = Number(weeklyUsage?.totalTokens);
+        const codexRateLimitStatus = this._formatCodexRateLimitStatus(weeklyUsage);
         const hasContextUsage = Number.isFinite(usedPercent)
             && Number.isFinite(contextWindow)
             && Number.isFinite(usedTokens);
-        const hasWeeklyUsage = Number.isFinite(weeklyTokens);
+        const hasWeeklyUsage = Boolean(codexRateLimitStatus) || Number.isFinite(weeklyTokens);
 
         if (!hasContextUsage && !hasWeeklyUsage) {
             el.classList.add('hidden');
@@ -402,7 +434,10 @@ export function applyTerminalInputUxMixin(AppClass) {
             titleParts.push(`Context used ${usedText} / ${contextText}${remainingText}`);
         }
 
-        if (hasWeeklyUsage) {
+        if (codexRateLimitStatus) {
+            textParts.push(codexRateLimitStatus.text);
+            titleParts.push(`${codexRateLimitStatus.title}; ${this._formatWeeklyTokenTitle(weeklyUsage)}`);
+        } else if (hasWeeklyUsage) {
             const weeklyText = this._formatTerminalTokenCount(weeklyTokens);
             textParts.push(`week ${weeklyText} tok`);
             titleParts.push(this._formatWeeklyTokenTitle(weeklyUsage));

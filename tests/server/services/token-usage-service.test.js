@@ -49,6 +49,42 @@ describe('TokenUsageService', () => {
                             reasoning_output_tokens: 5,
                             total_tokens: 175
                         }
+                    },
+                    rate_limits: {
+                        limit_id: 'codex',
+                        plan_type: 'pro',
+                        primary: {
+                            used_percent: 75,
+                            window_minutes: 300,
+                            resets_at: 1777352400
+                        },
+                        secondary: {
+                            used_percent: 16,
+                            window_minutes: 10080,
+                            resets_at: 1777784400
+                        }
+                    }
+                }
+            }),
+            JSON.stringify({
+                timestamp: '2026-04-27T02:00:00.000Z',
+                type: 'event_msg',
+                payload: {
+                    type: 'token_count',
+                    info: null,
+                    rate_limits: {
+                        limit_id: 'codex',
+                        plan_type: 'pro',
+                        primary: {
+                            used_percent: 80,
+                            window_minutes: 300,
+                            resets_at: 1777356000
+                        },
+                        secondary: {
+                            used_percent: 17,
+                            window_minutes: 10080,
+                            resets_at: 1777788000
+                        }
                     }
                 }
             }),
@@ -113,5 +149,13 @@ describe('TokenUsageService', () => {
         expect(result.totalTokens).toBe(285);
         expect(result.engines.claude.events).toBe(1);
         expect(result.events).toBe(2);
+        expect(result.rateLimits.codex.primary).toMatchObject({
+            usedPercent: 80,
+            windowMinutes: 300
+        });
+        expect(result.rateLimits.codex.secondary).toMatchObject({
+            usedPercent: 17,
+            windowMinutes: 10080
+        });
     });
 });
