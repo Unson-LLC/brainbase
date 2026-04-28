@@ -392,9 +392,26 @@ export function applyTerminalInputUxMixin(AppClass) {
         return session?.conversationSummary?.tokenUsage || null;
     };
 
+    AppClass.prototype._getCurrentTokenStatusSession = function(sessionId = appStore.getState().currentSessionId) {
+        if (!sessionId) return null;
+        return (appStore.getState().sessions || []).find(item => item.id === sessionId) || null;
+    };
+
+    AppClass.prototype._isCodexTokenStatusSession = function(sessionId = appStore.getState().currentSessionId) {
+        return this._getCurrentTokenStatusSession(sessionId)?.engine === 'codex';
+    };
+
     AppClass.prototype._updateTerminalTokenStatus = function(sessionId = appStore.getState().currentSessionId) {
         const el = this.terminalTokenStatusEl;
         if (!el) return;
+
+        if (!this._isCodexTokenStatusSession(sessionId)) {
+            el.classList.add('hidden');
+            el.textContent = '';
+            el.title = '';
+            this._lastTerminalTokenStatusKey = 'hidden';
+            return;
+        }
 
         const tokenUsage = this._getCurrentSessionTokenUsage(sessionId);
         const remainingPercent = Number(tokenUsage?.remainingPercent);
@@ -1125,6 +1142,9 @@ export function applyTerminalInputUxMixin(AppClass) {
             () => {
                 // Mark navigation time to show "connecting..." briefly.
                 this._terminalLastNavigateAt = Date.now();
+                if (this._isCodexTokenStatusSession()) {
+                    void this._loadWeeklyTokenUsage();
+                }
                 this._scheduleTerminalInputStatusUpdate();
             }
         );
@@ -1136,6 +1156,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 const tokenUsage = session?.conversationSummary?.tokenUsage || null;
                 return [
                     state.currentSessionId || '',
+                    session?.engine || '',
                     tokenUsage?.usedPercent ?? '',
                     tokenUsage?.usedTokens ?? '',
                     tokenUsage?.remainingPercent ?? '',
@@ -1143,13 +1164,24 @@ export function applyTerminalInputUxMixin(AppClass) {
                     tokenUsage?.contextWindow ?? ''
                 ].join('|');
             },
-            () => this._scheduleTerminalInputStatusUpdate()
+            () => {
+                if (this._isCodexTokenStatusSession()) {
+                    void this._loadWeeklyTokenUsage();
+                }
+                this._scheduleTerminalInputStatusUpdate();
+            }
         );
         this._terminalInputUxCleanup.push(tokenUnsub);
 
-        void this._loadWeeklyTokenUsage();
+        const loadWeeklyTokenUsageForCodex = () => {
+            if (this._isCodexTokenStatusSession()) {
+                void this._loadWeeklyTokenUsage();
+            }
+        };
+
+        loadWeeklyTokenUsageForCodex();
         const weeklyTokenIntervalId = setInterval(() => {
-            void this._loadWeeklyTokenUsage();
+            loadWeeklyTokenUsageForCodex();
         }, 60_000);
         this._terminalInputUxCleanup.push(() => clearInterval(weeklyTokenIntervalId));
 
