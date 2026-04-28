@@ -500,10 +500,9 @@ export class TerminalTransportClient {
                         console.log('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
+                        void this.syncViewportSize();
                         if (typeof requestAnimationFrame === 'function') {
                             requestAnimationFrame(() => void this.syncViewportSize());
-                        } else {
-                            void this.syncViewportSize();
                         }
                         void this.verifyInputReady().then(() => {
                             this._flushMessageQueue();
@@ -1237,13 +1236,14 @@ export class TerminalTransportClient {
             return;
         }
 
-        if (!this._canOptimisticallyEcho(text)) return;
+        for (const segment of this._splitFocusEvents(text)) {
+            if (segment.isFocusEvent || !this._canOptimisticallyEcho(segment.value)) continue;
+            const normalized = this._normalizeEchoText(segment.value);
+            if (!normalized) continue;
 
-        const normalized = this._normalizeEchoText(text);
-        if (!normalized) return;
-
-        this._pendingEchoText += normalized;
-        this._writeToTerminal(normalized);
+            this._pendingEchoText += normalized;
+            this._writeToTerminal(normalized);
+        }
     }
 
     _canOptimisticallyEcho(text) {

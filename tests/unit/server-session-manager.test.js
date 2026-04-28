@@ -198,6 +198,38 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(pasteSpy).not.toHaveBeenCalled();
     });
 
+    it('xtermのtext改行はpasteせずEnterキーとして送信する', async () => {
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', '\r', 'text');
+
+      expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'Enter');
+      expect(literalSpy).not.toHaveBeenCalled();
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
+    it('xtermのtext BackspaceはpasteせずBSpaceキーとして送信する', async () => {
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', '\x7f', 'text');
+
+      expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'BSpace');
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
+    it('xtermのtext矢印シーケンスはpasteせずnamed keyとして送信する', async () => {
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', '\x1b[A', 'text');
+
+      expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'Up');
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
     it('allowlist外の key payload は text として扱う', async () => {
       const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
       const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();

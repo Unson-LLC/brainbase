@@ -79,6 +79,26 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
+    it('OSC制御応答だけのinput messageはtmuxへ送らず無視する', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\x1b]10;rgb:e2e2/e8e8/f0f0\x1b\\'
+        }));
+
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
     it('ready送信時_eager snapshotも送る', async () => {
         const { service, captureCache } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
@@ -277,7 +297,7 @@ describe('TerminalTransportService', () => {
         ws._listeners.message(Buffer.from(JSON.stringify({
             type: 'input',
             inputType: 'text',
-            value: '\u001b]11;rgb:0000/0000/0000\u001b\\'
+            value: 'hello'
         })));
         await new Promise(resolve => setTimeout(resolve, 0));
 
