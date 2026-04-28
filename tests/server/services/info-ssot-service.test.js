@@ -236,6 +236,77 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(relTypes).toContain('member_of');
     });
 
+    it('ensurePerson_既存personが見つかった場合_payloadを上書きしない', async () => {
+        const { service, client } = buildService();
+
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                return { rows: [{ id: 'per_existing' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id = await service.ensurePerson(client, { personName: '佐藤 圭吾' });
+
+        expect(id).toBe('per_existing');
+
+        // 既存 person を見つけたら、graph_entities への INSERT/UPSERT を一切実行しない
+        const writeCalls = client.query.mock.calls.filter(([sql]) =>
+            String(sql).includes('INSERT INTO graph_entities')
+            || String(sql).includes('INSERT INTO people')
+        );
+        expect(writeCalls).toHaveLength(0);
+    });
+
+    it('ensurePerson_aliasにマッチする名前を渡した場合_既存personIDを返す', async () => {
+        const { service, client } = buildService();
+
+        // graph_entities の aliases match だけ通す
+        const aliasQueries = [];
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                aliasQueries.push({ sql, params });
+                // 「渡辺」を「渡邊 博昭」のエイリアスとして発見
+                return { rows: [{ id: 'per_watanabe_hiroaki' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id = await service.ensurePerson(client, { personName: '渡辺' });
+
+        expect(id).toBe('per_watanabe_hiroaki');
+        // alias 検索クエリが少なくとも 1 回発行されている
+        expect(aliasQueries.length).toBeGreaterThan(0);
+        // クエリには aliases 配列の検索が含まれる
+        expect(aliasQueries[0].sql).toMatch(/aliases/);
+    });
+
+    it('ensurePerson_空白の有無で別人扱いされない', async () => {
+        const { service, client } = buildService();
+
+        const passedParams = [];
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                passedParams.push(params);
+                return { rows: [{ id: 'per_sato_keigo' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id1 = await service.ensurePerson(client, { personName: '佐藤 圭吾' });
+        const id2 = await service.ensurePerson(client, { personName: '佐藤圭吾' });
+
+        expect(id1).toBe('per_sato_keigo');
+        expect(id2).toBe('per_sato_keigo');
+
+        // 正規化（空白除去）された値もパラメータに含まれていることを検証
+        const allParams = passedParams.flat();
+        expect(allParams).toContain('佐藤圭吾');
+    });
+
     it('createGlossaryTerm writes graph entity and edges with full payload', async () => {
         const { service, client } = buildService();
 

@@ -566,38 +566,57 @@ export class InfoSSOTService {
         if (personId) {
             return personId;
         }
-        if (!personName) {
+        if (!personName || typeof personName !== 'string') {
             throw new Error('personId or personName is required');
         }
-        const { rows } = await client.query(
-            'SELECT id FROM people WHERE name = $1 LIMIT 1',
-            [personName]
+
+        const trimmed = personName.trim();
+        const normalized = trimmed.replace(/\s+/g, '');
+
+        const { rows: aliased } = await client.query(
+            `SELECT id FROM graph_entities
+             WHERE entity_type = 'person'
+             AND (
+                 payload->>'name' = $1
+                 OR REPLACE(payload->>'name', ' ', '') = $2
+                 OR EXISTS (
+                     SELECT 1 FROM jsonb_array_elements_text(COALESCE(payload->'aliases', '[]'::jsonb)) a
+                     WHERE a = $1 OR REPLACE(a, ' ', '') = $2
+                 )
+             )
+             LIMIT 1`,
+            [trimmed, normalized]
         );
-        if (rows.length > 0) {
-            const id = rows[0].id;
-            await this.upsertGraphEntity(client, {
-                id,
-                entityType: 'person',
-                projectId: null,
-                payload: { name: personName },
-                roleMin: 'member',
-                sensitivity: 'internal'
-            });
+        if (aliased.length > 0) {
+            return aliased[0].id;
+        }
+
+        const { rows: legacy } = await client.query(
+            "SELECT id FROM people WHERE name = $1 OR REPLACE(name, ' ', '') = $2 LIMIT 1",
+            [trimmed, normalized]
+        );
+        if (legacy.length > 0) {
+            const id = legacy[0].id;
+            await client.query(
+                `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+                 VALUES ($1, 'person', NULL, $2::jsonb, 'member', 'internal', NOW(), NOW())
+                 ON CONFLICT (id) DO NOTHING`,
+                [id, JSON.stringify({ name: trimmed })]
+            );
             return id;
         }
+
         const id = this.generateId('per');
         await client.query(
             'INSERT INTO people (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
-            [id, personName]
+            [id, trimmed]
         );
-        await this.upsertGraphEntity(client, {
-            id,
-            entityType: 'person',
-            projectId: null,
-            payload: { name: personName },
-            roleMin: 'member',
-            sensitivity: 'internal'
-        });
+        await client.query(
+            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+             VALUES ($1, 'person', NULL, $2::jsonb, 'member', 'internal', NOW(), NOW())
+             ON CONFLICT (id) DO NOTHING`,
+            [id, JSON.stringify({ name: trimmed })]
+        );
         return id;
     }
 
