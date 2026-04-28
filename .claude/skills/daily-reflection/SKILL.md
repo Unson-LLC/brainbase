@@ -29,6 +29,7 @@ Phase 3: 議事録から固有名詞・決定事項・アクション抽出
 Phase 4: Graph SSOT 既存エンティティ突合（新規 vs 既存）
 Phase 5: Graph SSOT 書き込み（Decision + Wiki）
 Phase 6: NocoDB タスク書き込み（プロジェクト別）
+Phase 6.5: Archive blocked 日次整理
 Phase 7: レポート（成功/失敗件数・残作業）
 ```
 
@@ -536,6 +537,21 @@ curl -s -H "xc-token: $NOCO_TOKEN" \
 
 ## Phase 7: レポート
 
+Phase 7 の前に、archive finalizer の blocked を必ず日次整理する。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+node scripts/archive-blocked-report.mjs --limit 20
+```
+
+blocked がある場合、各項目を以下のいずれかに分類してから最終サマリへ進む。
+
+- **fix + retry**: worktree を確認し、commit/merge/不要変更の明示処理後に retry する
+- **task 化**: 当日解けないものは NocoDB/Inbox に「Archive blocked 解消」タスクとして残す
+- **例外化**: 外部事情で待つものは理由と次回確認日を残す
+
+`/oyasumi` では blocked を単に件数報告で終えない。少なくとも「解消済み / task 化 / 例外化」のどれかに分類し、残作業に owner / next action / due を付ける。
+
 最終サマリを以下の形式で報告：
 
 ```markdown
@@ -553,6 +569,12 @@ curl -s -H "xc-token: $NOCO_TOKEN" \
 
 ## NocoDB タスク反映
 - SalesTailor: E件 / Zeims: F件 / ...（合計 G件）
+
+## Archive blocked 日次整理
+- blocked: X件
+- 解消済み: A件 / task 化: B件 / 例外化: C件
+- 残件:
+  - [session-id]: [reason] → [owner / next action / due]
 
 ## 残作業（次回持ち越し）
 - 議事録未同期会議の手動補完
