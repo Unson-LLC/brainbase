@@ -322,34 +322,45 @@ export function applyTerminalInputUxMixin(AppClass) {
         return `Weekly tokens since ${start}: ${totalText} (Codex ${codexText}, Claude ${claudeText})`;
     };
 
-    AppClass.prototype._formatRateLimitPercent = function(limit) {
+    AppClass.prototype._formatRateLimitWindowStatus = function(label, limit) {
         const usedPercent = Number(limit?.usedPercent);
-        if (!Number.isFinite(usedPercent)) return '';
-        return `${Math.round(usedPercent)}%`;
+        const timeElapsedPercent = Number(limit?.timeElapsedPercent);
+        if (!Number.isFinite(usedPercent) || !Number.isFinite(timeElapsedPercent)) return null;
+        const usedText = `${Math.round(usedPercent)}%`;
+        const elapsedText = `${Math.round(timeElapsedPercent)}%`;
+        return {
+            text: `${label}:${usedText} t:${elapsedText}`,
+            title: `${label} usage ${usedText}, elapsed time ${elapsedText}`,
+            overPace: usedPercent > timeElapsedPercent
+        };
     };
 
     AppClass.prototype._formatCodexRateLimitStatus = function(weeklyUsage) {
         const codexLimits = weeklyUsage?.rateLimits?.codex || null;
         if (!codexLimits) return null;
 
-        const weeklyPercent = this._formatRateLimitPercent(codexLimits.secondary);
-        const fiveHourPercent = this._formatRateLimitPercent(codexLimits.primary);
+        const weeklyStatus = this._formatRateLimitWindowStatus('7d', codexLimits.secondary);
+        const fiveHourStatus = this._formatRateLimitWindowStatus('5h', codexLimits.primary);
         const textParts = [];
         const titleParts = [];
+        let overPace = false;
 
-        if (weeklyPercent) {
-            textParts.push(`7d:${weeklyPercent}`);
-            titleParts.push(`7 day limit ${weeklyPercent}`);
+        if (weeklyStatus) {
+            textParts.push(`📅 ${weeklyStatus.text}`);
+            titleParts.push(weeklyStatus.title);
+            overPace = overPace || weeklyStatus.overPace;
         }
-        if (fiveHourPercent) {
-            textParts.push(`5h:${fiveHourPercent}`);
-            titleParts.push(`5 hour limit ${fiveHourPercent}`);
+        if (fiveHourStatus) {
+            textParts.push(`⏱ ${fiveHourStatus.text}`);
+            titleParts.push(fiveHourStatus.title);
+            overPace = overPace || fiveHourStatus.overPace;
         }
         if (textParts.length === 0) return null;
 
         return {
             text: textParts.join(' '),
-            title: `Codex token limits: ${titleParts.join(', ')}`
+            title: `Codex token limits: ${titleParts.join(', ')}`,
+            overPace
         };
     };
 
@@ -441,6 +452,10 @@ export function applyTerminalInputUxMixin(AppClass) {
             const weeklyText = this._formatTerminalTokenCount(weeklyTokens);
             textParts.push(`week ${weeklyText} tok`);
             titleParts.push(this._formatWeeklyTokenTitle(weeklyUsage));
+        }
+
+        if (codexRateLimitStatus?.overPace && toneClass === 'is-ok') {
+            toneClass = 'is-warn';
         }
 
         const text = textParts.join(' | ');

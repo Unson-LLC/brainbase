@@ -82,6 +82,39 @@ function normalizeCodexRateLimits(rateLimits, updatedAt) {
     };
 }
 
+function clampPercent(value) {
+    if (!Number.isFinite(value)) return null;
+    return Math.min(100, Math.max(0, value));
+}
+
+function addTimeElapsedToRateLimit(limit, nowMs) {
+    if (!limit) return null;
+    const windowMs = Number(limit.windowMinutes) * 60 * 1000;
+    const resetMs = Number(limit.resetsAt) * 1000;
+    if (!Number.isFinite(windowMs) || windowMs <= 0 || !Number.isFinite(resetMs)) {
+        return {
+            ...limit,
+            timeElapsedPercent: null
+        };
+    }
+
+    const startMs = resetMs - windowMs;
+    return {
+        ...limit,
+        startAtIso: new Date(startMs).toISOString(),
+        timeElapsedPercent: clampPercent(((nowMs - startMs) / windowMs) * 100)
+    };
+}
+
+function addTimeElapsedToCodexRateLimits(rateLimits, nowMs) {
+    if (!rateLimits) return null;
+    return {
+        ...rateLimits,
+        primary: addTimeElapsedToRateLimit(rateLimits.primary, nowMs),
+        secondary: addTimeElapsedToRateLimit(rateLimits.secondary, nowMs)
+    };
+}
+
 export function getLocalWeekStart(date = new Date()) {
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
@@ -128,6 +161,8 @@ export class TokenUsageService {
         for (const filePath of claudeFiles) {
             await this._scanClaudeFile(filePath, claude, weekStartMs, nowMs);
         }
+
+        rateLimits.codex = addTimeElapsedToCodexRateLimits(rateLimits.codex, nowMs);
 
         const total = createBucket('total');
         for (const bucket of [codex, claude]) {

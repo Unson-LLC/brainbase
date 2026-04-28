@@ -34,6 +34,8 @@ describe('TokenUsageService', () => {
         tempDirs.push(root);
         const codexDir = path.join(root, 'codex');
         const claudeDir = path.join(root, 'claude');
+        const now = new Date('2026-04-28T03:00:00.000Z');
+        const nowSeconds = Math.floor(now.getTime() / 1000);
 
         await createLogFile(codexDir, '2026/04/27/rollout.jsonl', [
             JSON.stringify({
@@ -78,12 +80,12 @@ describe('TokenUsageService', () => {
                         primary: {
                             used_percent: 80,
                             window_minutes: 300,
-                            resets_at: 1777356000
+                            resets_at: nowSeconds + (60 * 60)
                         },
                         secondary: {
                             used_percent: 17,
                             window_minutes: 10080,
-                            resets_at: 1777788000
+                            resets_at: nowSeconds + (0.75 * 10080 * 60)
                         }
                     }
                 }
@@ -141,7 +143,7 @@ describe('TokenUsageService', () => {
         });
 
         const result = await service.getWeeklyUsage({
-            now: new Date('2026-04-28T03:00:00.000Z')
+            now
         });
 
         expect(result.engines.codex.totalTokens).toBe(175);
@@ -151,11 +153,13 @@ describe('TokenUsageService', () => {
         expect(result.events).toBe(2);
         expect(result.rateLimits.codex.primary).toMatchObject({
             usedPercent: 80,
-            windowMinutes: 300
+            windowMinutes: 300,
+            timeElapsedPercent: 80
         });
         expect(result.rateLimits.codex.secondary).toMatchObject({
             usedPercent: 17,
-            windowMinutes: 10080
+            windowMinutes: 10080,
+            timeElapsedPercent: 25
         });
     });
 });
