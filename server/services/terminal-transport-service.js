@@ -11,7 +11,6 @@ const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape']);
-const INPUT_PROBE_FRESH_MS = 60_000;
 const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/g;
 const FOCUS_EVENT_PATTERN = /\x1b\[(?:I|O)/g;
 
@@ -615,8 +614,7 @@ export class TerminalTransportService {
 
     _getInputReady(sessionId) {
         const entry = this.runtimeRegistry?.getSession?.(sessionId);
-        return entry?.observed?.inputProbe?.status === 'passed'
-            && this._inputProbeFresh(entry.observed.inputProbe);
+        return entry?.observed?.inputProbe?.status === 'passed';
     }
 
     _stripTerminalControlResponses(value) {
@@ -641,7 +639,7 @@ export class TerminalTransportService {
     _buildRuntimeStatusPayload(connection) {
         const registryEntry = this.runtimeRegistry?.getSession?.(connection.sessionId);
         const inputProbe = registryEntry?.observed?.inputProbe || null;
-        const inputReady = inputProbe?.status === 'passed' && this._inputProbeFresh(inputProbe);
+        const inputReady = inputProbe?.status === 'passed';
         connection.inputReady = inputReady;
         connection.runtimeState = inputReady
             ? 'interactive_ready'
@@ -652,14 +650,6 @@ export class TerminalTransportService {
             inputProbe,
             terminalAccess: connection.terminalAccess || null
         };
-    }
-
-    _inputProbeFresh(inputProbe) {
-        const stamp = inputProbe?.lastPassedAt || inputProbe?.lastFailedAt;
-        if (!stamp) return true;
-        const time = Date.parse(stamp);
-        if (!Number.isFinite(time)) return true;
-        return Date.now() - time <= INPUT_PROBE_FRESH_MS;
     }
 }
 

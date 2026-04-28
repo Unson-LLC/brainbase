@@ -107,6 +107,7 @@ export class TerminalTransportClient {
         this._pendingSnapshotText = null;
         this._lastSnapshotText = null;
         this._pendingEchoText = '';
+        this._deferredSnapshotWhileEchoPending = null;
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
@@ -454,13 +455,15 @@ export class TerminalTransportClient {
         this._clearReconnectTimer();
         this._closeWs();
 
-        // 再接続時もsnapshot状態をリセット。
-        // switchingSessions でなくても（同一セッション再接続でも）、
-        // streaming中にxterm.jsに書き込まれたoutputとsnapshotキャッシュが
-        // 乖離するため、常にリセットが必要。
+        // 再接続時もsnapshot状態をリセット。ただし同一セッションのhidden復帰では
+        // 未確認のlocal echoを保持する。ここで消すと復帰直後のeager snapshotが
+        // まだtmux snapshotに反映されていない入力表示を上書きして消す。
         this._lastSnapshotText = null;
         this._pendingSnapshotText = null;
-        this._pendingEchoText = '';
+        this._deferredSnapshotWhileEchoPending = null;
+        if (switchingSessions) {
+            this._pendingEchoText = '';
+        }
 
         if (switchingSessions) {
             this._prepareForSessionSwitch();
@@ -645,6 +648,7 @@ export class TerminalTransportClient {
             this.status.transport = 'snapshot';
             this._pendingSnapshotText = null;
             this._pendingEchoText = '';
+            this._deferredSnapshotWhileEchoPending = null;
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
             this.terminal?.reset();
@@ -1163,11 +1167,21 @@ export class TerminalTransportClient {
             return;
         }
 
+        const normalizedText = text || '';
+        if (this._shouldDeferSnapshotForPendingEcho(normalizedText)) {
+            this._deferredSnapshotWhileEchoPending = normalizedText;
+            console.warn('[TTC-PROBE] snapshot deferred while local echo pending', {
+                echoLen: this._pendingEchoText.length,
+                snapshotLen: normalizedText.length
+            });
+            return;
+        }
+
         if (this._forceApplyNextSnapshot) {
             this._forceApplyNextSnapshot = false;
             this._isViewportPinnedToBottom = true;
             this._pendingSnapshotText = null;
-            this._applySnapshot(text, {
+            this._applySnapshot(normalizedText, {
                 forceViewportState: {
                     distanceFromBottom: 0,
                     wasPinnedToBottom: true
@@ -1178,13 +1192,19 @@ export class TerminalTransportClient {
 
         if (!this._computeIsViewportPinnedToBottom()) {
             this._isViewportPinnedToBottom = false;
-            this._pendingSnapshotText = text || '';
+            this._pendingSnapshotText = normalizedText;
             return;
         }
 
         this._isViewportPinnedToBottom = true;
         this._pendingSnapshotText = null;
-        this._applySnapshot(text);
+        this._applySnapshot(normalizedText);
+    }
+
+    _shouldDeferSnapshotForPendingEcho(snapshotText) {
+        if (!this._pendingEchoText) return false;
+        if (!snapshotText) return true;
+        return !snapshotText.includes(this._pendingEchoText);
     }
 
     _restoreViewportState(viewportState) {
@@ -1261,11 +1281,13 @@ export class TerminalTransportClient {
         if (!this._pendingEchoText) return text;
         if (!text.startsWith(this._pendingEchoText)) {
             this._pendingEchoText = '';
+            this._deferredSnapshotWhileEchoPending = null;
             return text;
         }
 
         const remaining = text.slice(this._pendingEchoText.length);
         this._pendingEchoText = '';
+        this._deferredSnapshotWhileEchoPending = null;
         return remaining;
     }
 
@@ -1282,6 +1304,7 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = true;
         this._pendingSnapshotText = null;
         this._pendingEchoText = '';
+        this._deferredSnapshotWhileEchoPending = null;
         this._preTerminalSnapshot = null;
         this._lastSnapshotText = null;
         this._isViewportPinnedToBottom = true;
