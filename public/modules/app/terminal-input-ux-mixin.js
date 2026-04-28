@@ -345,15 +345,15 @@ export function applyTerminalInputUxMixin(AppClass) {
         const titleParts = [];
         let overPace = false;
 
-        if (weeklyStatus) {
-            textParts.push(`📅 ${weeklyStatus.text}`);
-            titleParts.push(weeklyStatus.title);
-            overPace = overPace || weeklyStatus.overPace;
-        }
         if (fiveHourStatus) {
             textParts.push(`⏱ ${fiveHourStatus.text}`);
             titleParts.push(fiveHourStatus.title);
             overPace = overPace || fiveHourStatus.overPace;
+        }
+        if (weeklyStatus) {
+            textParts.push(`📅 ${weeklyStatus.text}`);
+            titleParts.push(weeklyStatus.title);
+            overPace = overPace || weeklyStatus.overPace;
         }
         if (textParts.length === 0) return null;
 
