@@ -19,9 +19,39 @@ NC='\033[0m' # No Color
 ERRORS=0
 WARNINGS=0
 
-# 除外パターン（.gitignoreに含まれるファイルはスキップ）
-EXCLUDE_DIRS="node_modules|.git|dist|build|coverage|test-results|.worktrees|var|data|tests"
-EXCLUDE_FILES="state.json|*.log|*.tmp|SCREENSHOT_REQUEST.md|SCREENSHOT_REQUEST_SLACK.md|MIGRATION_2025-12-31.md|dashboard-implementation-prompt.md"
+should_skip_target_file() {
+    case "$1" in
+        scripts/check-secrets.sh|\
+        .git/*|.jj/*|node_modules/*|dist/*|build/*|coverage/*|test-results/*|.worktrees/*|var/*|data/*|.claude/*|\
+        *.log|*.tmp|*.pdf|*.backup.*|state.json|.env|nohup.out)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+TARGET_FILES=()
+if [ -n "${CHECK_SECRETS_FILE_LIST:-}" ] && [ -f "$CHECK_SECRETS_FILE_LIST" ]; then
+    while IFS= read -r file_path; do
+        [ -z "$file_path" ] && continue
+        should_skip_target_file "$file_path" && continue
+        [ -f "$file_path" ] && TARGET_FILES+=("$file_path")
+    done < "$CHECK_SECRETS_FILE_LIST"
+elif [ "$#" -gt 0 ]; then
+    for file_path in "$@"; do
+        should_skip_target_file "$file_path" && continue
+        [ -f "$file_path" ] && TARGET_FILES+=("$file_path")
+    done
+else
+    TARGET_FILES=(".")
+fi
+
+if [ "${#TARGET_FILES[@]}" -eq 0 ]; then
+    echo -e "${GREEN}✓ No files to scan${NC}"
+    exit 0
+fi
 
 # チェック関数
 check_pattern() {
@@ -31,31 +61,36 @@ check_pattern() {
 
     echo "Checking: $description"
 
-    # grepで検索（除外パターンを考慮）
-    local results=$(grep -r -n -I \
-        --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
-        --exclude=".git" \
-        --exclude="state.json" \
-        --exclude=".env" \
-        --exclude="*.log" \
-        --exclude="*.tmp" \
-        --exclude="*.pdf" \
-        --exclude="*.backup.*" \
-        --exclude=".git" \
-        --exclude="check-secrets.sh" \
-        --exclude="auto-cleanup-cron.sh" \
-        --exclude="run-cleanup-phase2.js" \
-        --exclude="SECURITY.md" \
-        --exclude="LICENSE" \
-        --exclude="ttyd_index.html" \
-        --exclude="dev.sh" \
-        --exclude="SCREENSHOT_REQUEST.md" \
-        --exclude="SCREENSHOT_REQUEST_SLACK.md" \
-        --exclude="MIGRATION_2025-12-31.md" \
-        --exclude="dashboard-implementation-prompt.md" \
-        --exclude="OSS_DIRECTORY_STRUCTURE.md" \
-        --exclude="nohup.out" \
-        -E "$pattern" . 2>/dev/null || true)
+    local results
+    if [ "${#TARGET_FILES[@]}" -eq 1 ] && [ "${TARGET_FILES[0]}" = "." ]; then
+        # grepで検索（除外パターンを考慮）
+        results=$(grep -r -n -I \
+            --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
+            --exclude=".git" \
+            --exclude="state.json" \
+            --exclude=".env" \
+            --exclude="*.log" \
+            --exclude="*.tmp" \
+            --exclude="*.pdf" \
+            --exclude="*.backup.*" \
+            --exclude=".git" \
+            --exclude="check-secrets.sh" \
+            --exclude="auto-cleanup-cron.sh" \
+            --exclude="run-cleanup-phase2.js" \
+            --exclude="SECURITY.md" \
+            --exclude="LICENSE" \
+            --exclude="ttyd_index.html" \
+            --exclude="dev.sh" \
+            --exclude="SCREENSHOT_REQUEST.md" \
+            --exclude="SCREENSHOT_REQUEST_SLACK.md" \
+            --exclude="MIGRATION_2025-12-31.md" \
+            --exclude="dashboard-implementation-prompt.md" \
+            --exclude="OSS_DIRECTORY_STRUCTURE.md" \
+            --exclude="nohup.out" \
+            -E "$pattern" . 2>/dev/null || true)
+    else
+        results=$(grep -n -I -E "$pattern" -- "${TARGET_FILES[@]}" 2>/dev/null || true)
+    fi
 
     if [ -n "$results" ]; then
         if [ "$severity" == "error" ]; then
