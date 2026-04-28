@@ -32,6 +32,10 @@ Internet
   │                                └── System PostgreSQL 14 (:5432)
   │                                      └── DB: brainbase_ssot
   │
+  │    infisical.unson.jp ─── Infisical (:8080)
+  │                              ├── Docker PostgreSQL 14 (:5432, internal)
+  │                              └── Redis 7 (:6379, internal)
+  │
   └── :22 (SSH)
 ```
 
@@ -68,6 +72,16 @@ Internet
 
 **ネットワーク**: `honcho_default` (独立)
 
+### docker-compose.yml (Infisical: /opt/infisical/)
+
+| コンテナ | イメージ | ポート | 用途 |
+|---|---|---|---|
+| **infisical-backend** | infisical/infisical@sha256:c573... | (内部:8080) | Secret management UI/API |
+| **infisical-db** | postgres:14-alpine | (内部:5432) | Infisical用PostgreSQL |
+| **infisical-redis** | redis:7-alpine | (内部:6379) | Infisical cache/queue |
+
+**ネットワーク**: `infisical_infisical-internal` (独立) + `ubuntu_nocodb-network` (nginx-proxy共有)
+
 ## ホストプロセス（Docker外）
 
 | プロセス | ポート | 用途 |
@@ -89,6 +103,10 @@ Docker PostgreSQL 15 - NocoDB (nocodb-network内 :5432)
 Docker PostgreSQL 15 - Honcho (honcho_default内 :5432, host :5433)
   ├── honcho           ← Honcho API/Deriver が使用
   └── user: honcho     ← pgvector 拡張あり
+
+Docker PostgreSQL 14 - Infisical (infisical-internal内 :5432)
+  ├── infisical        ← Infisical が使用
+  └── user: infisical
 ```
 
 ## ドメイン・DNS・SSL 構成
@@ -103,6 +121,7 @@ Docker PostgreSQL 15 - Honcho (honcho_default内 :5432, host :5433)
 |---|---|---|---|
 | **bb.unson.jp** | 176.34.20.239 | A | Route53 (unson.jp) |
 | **noco.unson.jp** | 176.34.20.239 | A | Route53 (unson.jp) |
+| **infisical.unson.jp** | 176.34.20.239 | A | Route53 (unson.jp) |
 | **graph.brain-base.work** | 176.34.20.239 | A | Cloudflare (brain-base.work) |
 
 ### DNSゾーン一覧
@@ -120,6 +139,7 @@ Docker PostgreSQL 15 - Honcho (honcho_default内 :5432, host :5433)
 |---|---|---|
 | `bb.unson.jp` | **176.34.20.239** (Lightsail) | brainbase SSOT API |
 | `noco.unson.jp` | **176.34.20.239** (Lightsail) | NocoDB |
+| `infisical.unson.jp` | **176.34.20.239** (Lightsail) | Infisical |
 | `unson.jp` | 76.76.21.21 (Vercel) | コーポレートサイト |
 | `www.unson.jp` | Vercel | コーポレートサイト |
 | `os.unson.jp` | Vercel | Unson OS (brainbase UI) |
@@ -150,6 +170,7 @@ Let's Encrypt で自動取得・更新。nginx-proxy + acme-companion が管理�
 |---|---|---|
 | bb.unson.jp | ✅ あり | ✅ acme-companion |
 | noco.unson.jp | ✅ あり | ✅ acme-companion |
+| infisical.unson.jp | ✅ あり | ✅ acme-companion |
 | graph.brain-base.work | Cloudflare側で終端 | Cloudflare Proxy (orange cloud) でSSL。Lightsail側はHTTPで受ける |
 
 ### nginx-proxy ルーティング（自動生成）
@@ -165,6 +186,9 @@ HTTPS :443
   │
   ├── Host: noco.unson.jp
   │     └── upstream: nocodb:8080
+  │
+  ├── Host: infisical.unson.jp
+  │     └── upstream: infisical-backend:8080
   │
   └── Host: graph.brain-base.work
         └── upstream: brainbase-graph-api:3000
@@ -219,15 +243,20 @@ cd /home/ubuntu/brainbase && docker compose -f docker-compose.graph-api.yml ps
 cd /home/ubuntu/honcho && docker compose ps
 cd /home/ubuntu/honcho && docker compose logs -f api
 
+# Infisical管理
+cd /opt/infisical && docker compose -p infisical ps
+cd /opt/infisical && docker compose -p infisical logs -f backend
+
 # brainbase server (ホストプロセス)
 ps aux | grep "node.*server.js"
 # 再起動は systemd ではなく手動 (TODO: systemd化)
 
 # PostgreSQL (System)
-PGPASSWORD='gU8FDgSHg2zfIvGvFBUhX2Mx' psql -h localhost -U brainbase_app -d brainbase_ssot
+PGPASSWORD='<Infisicalまたは運用secret storeから取得>' psql -h localhost -U brainbase_app -d brainbase_ssot
 
 # ログ確認
 docker logs nginx-proxy --tail 20
 docker logs brainbase-graph-api --tail 20
-docker logs honcho-api-1 --tail 20
+docker logs honcho-api --tail 20
+docker logs infisical-backend --tail 20
 ```

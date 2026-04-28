@@ -68,10 +68,10 @@ else
     echo "[OK] config.yml 既存"
 fi
 
-# ────────────── 共通環境変数（全メンバー同じ値） ──────────────
-BRAINBASE_JWT_SECRET="91fCWNFaMqZ56B4qSN6fUn0s880niCw5PX2lraEtZD4="
+# ────────────── 共通環境変数（secretは環境変数から注入） ──────────────
+BRAINBASE_JWT_SECRET="${BRAINBASE_JWT_SECRET:-$(openssl rand -base64 32 | tr -d '\n')}"
 SLACK_CLIENT_ID="7700200993749.9126720830805"
-SLACK_CLIENT_SECRET="3229f6d294193088f208c10efbb014c4"
+SLACK_CLIENT_SECRET="${SLACK_CLIENT_SECRET:-}"
 SLACK_REDIRECT_URI="https://bb.brain-base.work/api/auth/slack/callback"
 SLACK_AUTH_MODE="oauth"
 SLACK_AUTH_USER_SCOPES="chat:write,files:write"
