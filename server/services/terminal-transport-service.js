@@ -542,6 +542,7 @@ export class TerminalTransportService {
                 }
 
                 if (connection.transport === 'streaming' && connection.controlClient) {
+                    await this.terminalIo.resizeSessionWindow(sessionId, cols, rows);
                     connection.controlClient.resize(cols, rows);
                 } else {
                     await this.terminalIo.resizeSessionWindow(sessionId, cols, rows);
