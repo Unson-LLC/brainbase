@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Make check script executable
         run: chmod +x scripts/check-secrets.sh
@@ -23,7 +25,25 @@ jobs:
       - name: Run security check
         run: |
           echo "🔍 Running OSS security checks..."
-          bash scripts/check-secrets.sh
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="$(git merge-base origin/main "$HEAD_SHA")"
+          fi
+
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" > /tmp/check_changed_files.txt
+          if [ ! -s /tmp/check_changed_files.txt ]; then
+            echo "⏭️ No changed files to scan"
+            exit 0
+          fi
+
+          CHECK_SECRETS_FILE_LIST=/tmp/check_changed_files.txt bash scripts/check-secrets.sh
 
       - name: Upload check results
         if: failure()

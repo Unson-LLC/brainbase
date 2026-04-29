@@ -19,9 +19,30 @@ NC='\033[0m' # No Color
 ERRORS=0
 WARNINGS=0
 
-# 除外パターン（.gitignoreに含まれるファイルはスキップ）
-EXCLUDE_DIRS="node_modules|.git|dist|build|coverage|test-results|.worktrees|var|data|tests"
-EXCLUDE_FILES="state.json|*.log|*.tmp|SCREENSHOT_REQUEST.md|SCREENSHOT_REQUEST_SLACK.md|MIGRATION_2025-12-31.md|dashboard-implementation-prompt.md"
+SCAN_FILES=()
+CHANGED_MODE=false
+if [ -n "${CHECK_SECRETS_FILE_LIST:-}" ] && [ -f "$CHECK_SECRETS_FILE_LIST" ]; then
+    CHANGED_MODE=true
+    while IFS= read -r file; do
+        case "$file" in
+            scripts/check-secrets.sh) continue ;;
+        esac
+        [ -n "$file" ] && [ -f "$file" ] && SCAN_FILES+=("$file")
+    done < "$CHECK_SECRETS_FILE_LIST"
+fi
+
+if [ "$CHANGED_MODE" = true ] && [ ${#SCAN_FILES[@]} -eq 0 ]; then
+    echo "Mode: changed files (0 scannable file)"
+    echo "✓ PASSED: No scannable changed files"
+    exit 0
+fi
+
+if [ ${#SCAN_FILES[@]} -gt 0 ]; then
+    echo "Mode: changed files (${#SCAN_FILES[@]} file(s))"
+else
+    echo "Mode: full repository"
+fi
+echo ""
 
 # チェック関数
 check_pattern() {
@@ -31,31 +52,36 @@ check_pattern() {
 
     echo "Checking: $description"
 
-    # grepで検索（除外パターンを考慮）
-    local results=$(grep -r -n -I \
-        --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
-        --exclude=".git" \
-        --exclude="state.json" \
-        --exclude=".env" \
-        --exclude="*.log" \
-        --exclude="*.tmp" \
-        --exclude="*.pdf" \
-        --exclude="*.backup.*" \
-        --exclude=".git" \
-        --exclude="check-secrets.sh" \
-        --exclude="auto-cleanup-cron.sh" \
-        --exclude="run-cleanup-phase2.js" \
-        --exclude="SECURITY.md" \
-        --exclude="LICENSE" \
-        --exclude="ttyd_index.html" \
-        --exclude="dev.sh" \
-        --exclude="SCREENSHOT_REQUEST.md" \
-        --exclude="SCREENSHOT_REQUEST_SLACK.md" \
-        --exclude="MIGRATION_2025-12-31.md" \
-        --exclude="dashboard-implementation-prompt.md" \
-        --exclude="OSS_DIRECTORY_STRUCTURE.md" \
-        --exclude="nohup.out" \
-        -E "$pattern" . 2>/dev/null || true)
+    local results
+    if [ ${#SCAN_FILES[@]} -gt 0 ]; then
+        results=$(grep -n -I -E "$pattern" "${SCAN_FILES[@]}" 2>/dev/null || true)
+    else
+        # grepで検索（除外パターンを考慮）
+        results=$(grep -r -n -I \
+            --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
+            --exclude=".git" \
+            --exclude="state.json" \
+            --exclude=".env" \
+            --exclude="*.log" \
+            --exclude="*.tmp" \
+            --exclude="*.pdf" \
+            --exclude="*.backup.*" \
+            --exclude=".git" \
+            --exclude="check-secrets.sh" \
+            --exclude="auto-cleanup-cron.sh" \
+            --exclude="run-cleanup-phase2.js" \
+            --exclude="SECURITY.md" \
+            --exclude="LICENSE" \
+            --exclude="ttyd_index.html" \
+            --exclude="dev.sh" \
+            --exclude="SCREENSHOT_REQUEST.md" \
+            --exclude="SCREENSHOT_REQUEST_SLACK.md" \
+            --exclude="MIGRATION_2025-12-31.md" \
+            --exclude="dashboard-implementation-prompt.md" \
+            --exclude="OSS_DIRECTORY_STRUCTURE.md" \
+            --exclude="nohup.out" \
+            -E "$pattern" . 2>/dev/null || true)
+    fi
 
     if [ -n "$results" ]; then
         if [ "$severity" == "error" ]; then
