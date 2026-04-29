@@ -55,4 +55,39 @@ describe('AuthService service tokens', () => {
         expect(decoded.projectCodes).toEqual(['unson', 'brainbase']);
         expect(decoded.clearance).toEqual(['internal', 'restricted']);
     });
+
+    it('createAuditLog呼び出し時_person_id FK不整合ならperson_idなしで監査ログを残す', async () => {
+        const authService = new AuthService();
+        const queries = [];
+        const client = {
+            query: async (sql, params) => {
+                queries.push({ sql, params });
+                if (queries.length === 1) {
+                    const error = new Error('missing person');
+                    error.code = '23503';
+                    error.constraint = 'auth_audit_logs_person_id_fkey';
+                    throw error;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        authService.pool = {
+            connect: async () => client
+        };
+
+        await authService.createAuditLog({
+            personId: 'per_missing',
+            eventType: 'SERVICE_TOKEN_ISSUE',
+            metadata: { name: 'hp_unson production' }
+        });
+
+        expect(queries).toHaveLength(2);
+        expect(queries[0].params[1]).toBe('per_missing');
+        expect(queries[1].params[1]).toBeNull();
+        expect(JSON.parse(queries[1].params[5])).toMatchObject({
+            name: 'hp_unson production',
+            original_person_id: 'per_missing'
+        });
+    });
 });

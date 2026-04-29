@@ -624,7 +624,7 @@ export class AuthService {
         const client = await this.pool.connect();
         try {
             const id = this.generateId('aud');
-            await client.query(
+            const insertAuditLog = (idValue, personIdValue, metadataValue) => client.query(
                 `INSERT INTO auth_audit_logs (
                     id,
                     person_id,
@@ -635,14 +635,30 @@ export class AuthService {
                     created_at
                 ) VALUES ($1,$2,$3,$4,$5,$6,NOW())`,
                 [
-                    id,
-                    personId || null,
+                    idValue,
+                    personIdValue || null,
                     slackUserId || null,
                     slackWorkspaceId || null,
                     eventType,
-                    JSON.stringify(metadata || {})
+                    JSON.stringify(metadataValue || {})
                 ]
             );
+            try {
+                await insertAuditLog(id, personId, metadata);
+            } catch (error) {
+                const isMissingPerson = error?.code === '23503' && String(error?.constraint || '').includes('person_id');
+                if (!personId || !isMissingPerson) {
+                    throw error;
+                }
+                logger.warn('[AUTH] Audit log person_id missing; retrying without person_id', {
+                    eventType,
+                    personId
+                });
+                await insertAuditLog(this.generateId('aud'), null, {
+                    ...(metadata || {}),
+                    original_person_id: personId
+                });
+            }
         } finally {
             client.release();
         }
