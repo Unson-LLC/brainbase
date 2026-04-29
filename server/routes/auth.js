@@ -12,6 +12,7 @@ export function createAuthRouter(authService) {
     router.post('/refresh', controller.refresh);
     router.post('/logout', requireAuth(authService), controller.logout);
     router.get('/verify', requireAuth(authService), controller.verify);
+    router.post('/service-tokens', requireAuth(authService), controller.createServiceToken);
 
     // Device Code Flow endpoints
     router.post('/device/code', controller.deviceCodeRequest);
