@@ -14,6 +14,7 @@ function getErrorMessage(error) {
 const STORAGE_TOKEN_KEY = 'brainbase.auth.token';
 const STORAGE_ACCESS_KEY = 'brainbase.auth.access';
 const STORAGE_REFRESH_KEY = 'brainbase.auth.refresh';
+const ROLE_RANK = { member: 1, gm: 2, ceo: 3 };
 
 const DEFAULT_ALLOWED_ORIGINS = new Set([
     'https://bb.unson.jp'
@@ -53,6 +54,23 @@ function getAllowedOrigins() {
         origins.add(origin);
     }
     return origins;
+}
+
+function normalizeStringList(value) {
+    if (!Array.isArray(value)) return [];
+    return [...new Set(value
+        .filter((item) => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean))];
+}
+
+function roleRank(role) {
+    return ROLE_RANK[String(role || '').toLowerCase()] || ROLE_RANK.member;
+}
+
+function isSubset(requested, allowed) {
+    const allowedSet = new Set(allowed);
+    return requested.every((item) => allowedSet.has(item));
 }
 
 /** @param {string | null | undefined} origin */
@@ -347,6 +365,69 @@ export class AuthController {
         } catch (error) {
             logger.error('Verify failed', { error });
             return res.status(500).json({ error: getErrorMessage(error) || 'Verify failed' });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    createServiceToken = async (req, res) => {
+        try {
+            const issuer = req.access || {};
+            const issuerRole = String(issuer.role || 'member').toLowerCase();
+            if (roleRank(issuerRole) < ROLE_RANK.gm) {
+                return res.status(403).json({ error: 'GM or CEO role is required' });
+            }
+
+            const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+            if (!name || name.length > 80) {
+                return res.status(400).json({ error: 'name is required and must be 80 characters or less' });
+            }
+
+            const requestedRole = this.authService.normalizeRole(req.body?.role || issuerRole);
+            if (roleRank(requestedRole) > roleRank(issuerRole)) {
+                return res.status(403).json({ error: 'Cannot issue a service token above issuer role' });
+            }
+
+            const issuerProjects = normalizeStringList(issuer.projectCodes);
+            const requestedProjects = normalizeStringList(req.body?.projectCodes);
+            const projectCodes = requestedProjects.length ? requestedProjects : issuerProjects;
+            if (issuerRole !== 'ceo' && !isSubset(projectCodes, issuerProjects)) {
+                return res.status(403).json({ error: 'Cannot issue a service token outside issuer projects' });
+            }
+
+            const issuerClearance = normalizeStringList(issuer.clearance);
+            const requestedClearance = normalizeStringList(req.body?.clearance);
+            const clearance = requestedClearance.length ? requestedClearance : issuerClearance;
+            if (issuerRole !== 'ceo' && !isSubset(clearance, issuerClearance)) {
+                return res.status(403).json({ error: 'Cannot issue a service token above issuer clearance' });
+            }
+
+            const result = this.authService.issueServiceToken({
+                name,
+                role: requestedRole,
+                projectCodes,
+                clearance,
+                ttlSeconds: req.body?.ttlSeconds,
+                createdBy: issuer.personId || null
+            });
+
+            await this.authService.createAuditLog({
+                personId: issuer.personId || null,
+                slackUserId: issuer.slackUserId || null,
+                slackWorkspaceId: issuer.slackWorkspaceId || null,
+                eventType: 'SERVICE_TOKEN_ISSUE',
+                metadata: {
+                    name,
+                    role: result.access.role,
+                    project_codes: result.access.projectCodes,
+                    clearance: result.access.clearance,
+                    expires_at: result.expires_at
+                }
+            });
+
+            return res.status(201).json(result);
+        } catch (error) {
+            logger.error('Service token issue failed', { error });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Service token issue failed' });
         }
     };
 

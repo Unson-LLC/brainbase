@@ -65,4 +65,33 @@ describe('auth middleware', () => {
         expect(res.body.access.personId).toBe('per_cookie');
         expect(res.body.access.projectCodes).toEqual(['brainbase']);
     });
+
+    it('bbsvc tokenがある時_service-token認証で通す', async () => {
+        const app = express();
+        const authService = {
+            verifyServiceToken: () => ({
+                typ: 'service',
+                sub: 'svc_hp_unson',
+                role: 'gm',
+                projectCodes: ['unson'],
+                clearance: ['internal', 'restricted'],
+                level: 2
+            }),
+            verifyToken: () => {
+                throw new Error('JWT verifier should not be used for service tokens');
+            }
+        };
+        app.use(requireAuth(authService));
+        app.get('/secure', (req, res) => res.json({ access: req.access, source: req.authSource }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer bbsvc_test-token')
+            .expect(200);
+
+        expect(res.body.source).toBe('service-token');
+        expect(res.body.access.personId).toBe('svc_hp_unson');
+        expect(res.body.access.projectCodes).toEqual(['unson']);
+        expect(res.body.access.employmentType).toBe('internal_service');
+    });
 });

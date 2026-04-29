@@ -5,7 +5,7 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
 /** @typedef {(error?: unknown) => unknown} NextLike */
-/** @typedef {{ verifyToken: (token: string) => Record<string, unknown> }} AuthServiceLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown> }} AuthServiceLike */
 
 /**
  * @param {RequestLike} req
@@ -80,6 +80,30 @@ export function resolveAuthContext(req, authService) {
 
         if (!token) {
             return { ok: false, status: 401, error: 'Authorization token required' };
+        }
+
+        if (token.startsWith('bbsvc_')) {
+            if (!authService.verifyServiceToken) {
+                return { ok: false, status: 401, error: 'Service token verifier is not configured' };
+            }
+            const decoded = authService.verifyServiceToken(token);
+            const access = {
+                role: decoded.role || 'member',
+                projectCodes: decoded.projectCodes || [],
+                clearance: decoded.clearance || [],
+                level: decoded.level || 1,
+                employmentType: decoded.employmentType || 'internal_service',
+                personId: decoded.sub || decoded.personId || null,
+                slackUserId: null,
+                slackWorkspaceId: null,
+                tenantId: decoded.tenantId || null
+            };
+            return {
+                ok: true,
+                auth: decoded,
+                access,
+                authSource: 'service-token'
+            };
         }
 
         const decoded = authService.verifyToken(token);

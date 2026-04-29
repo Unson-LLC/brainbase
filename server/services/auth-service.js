@@ -15,11 +15,35 @@ const ROLE_RANK = {
     ceo: 3
 };
 
+const SERVICE_TOKEN_PREFIX = 'bbsvc_';
+const DEFAULT_SERVICE_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 365;
+
+function normalizeList(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return [...new Set(value
+        .filter((item) => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean))];
+}
+
+function slugifyServiceName(name) {
+    const normalized = String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return normalized || 'service';
+}
+
 export class AuthService {
     constructor() {
         this.databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
         this.pool = this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null;
         this.jwtSecret = process.env.BRAINBASE_JWT_SECRET || '';
+        this.serviceTokenSecret = process.env.BRAINBASE_SERVICE_TOKEN_SECRET || this.jwtSecret || '';
+        this.serviceTokenTtlSeconds = Number(process.env.BRAINBASE_SERVICE_TOKEN_TTL_SECONDS || DEFAULT_SERVICE_TOKEN_TTL_SECONDS);
         this.refreshSecret = process.env.BRAINBASE_REFRESH_SECRET || this.jwtSecret || '';
         this.accessTtlSeconds = Number(process.env.BRAINBASE_ACCESS_TTL_SECONDS || 60 * 60);
         this.refreshTtlSeconds = Number(process.env.BRAINBASE_REFRESH_TTL_SECONDS || 60 * 60 * 24 * 30);
@@ -425,6 +449,10 @@ export class AuthService {
         return ROLE_RANK[normalized] ? normalized : 'member';
     }
 
+    getRoleRank(role) {
+        return ROLE_RANK[this.normalizeRole(role)] || ROLE_RANK.member;
+    }
+
     buildAccessFromGrant(grant) {
         const role = this.normalizeRole(grant.role);
         const projectCodes = Array.isArray(grant.project_codes) ? grant.project_codes : [];
@@ -451,6 +479,53 @@ export class AuthService {
         );
     }
 
+    issueServiceToken(input = {}) {
+        if (!this.serviceTokenSecret) {
+            throw new Error('BRAINBASE_SERVICE_TOKEN_SECRET is not set');
+        }
+        const name = typeof input.name === 'string' ? input.name.trim() : '';
+        if (!name) {
+            throw new Error('service token name is required');
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const ttlSeconds = Number.isFinite(Number(input.ttlSeconds)) && Number(input.ttlSeconds) > 0
+            ? Number(input.ttlSeconds)
+            : this.serviceTokenTtlSeconds;
+        const exp = now + ttlSeconds;
+        const serviceId = input.serviceId && typeof input.serviceId === 'string'
+            ? input.serviceId
+            : `svc_${slugifyServiceName(name)}`;
+        const payload = {
+            typ: 'service',
+            sub: serviceId,
+            personId: serviceId,
+            name,
+            role: this.normalizeRole(input.role),
+            projectCodes: normalizeList(input.projectCodes),
+            clearance: normalizeList(input.clearance),
+            level: this.getRoleRank(input.role),
+            employmentType: 'internal_service',
+            createdBy: typeof input.createdBy === 'string' ? input.createdBy : null,
+            jti: this.generateId('svc_tok'),
+            iat: now,
+            exp
+        };
+        const signed = jwt.sign(payload, this.serviceTokenSecret);
+        return {
+            token: `${SERVICE_TOKEN_PREFIX}${signed}`,
+            token_type: 'Bearer',
+            expires_at: new Date(exp * 1000).toISOString(),
+            access: {
+                role: payload.role,
+                projectCodes: payload.projectCodes,
+                clearance: payload.clearance,
+                personId: payload.personId,
+                employmentType: payload.employmentType
+            }
+        };
+    }
+
     issueRefreshToken(payload) {
         const now = Math.floor(Date.now() / 1000);
         const exp = now + this.refreshTtlSeconds;
@@ -462,6 +537,21 @@ export class AuthService {
 
     verifyToken(token) {
         return jwt.verify(token, this.jwtSecret);
+    }
+
+    verifyServiceToken(token) {
+        if (!this.serviceTokenSecret) {
+            throw new Error('BRAINBASE_SERVICE_TOKEN_SECRET is not set');
+        }
+        if (typeof token !== 'string' || !token.startsWith(SERVICE_TOKEN_PREFIX)) {
+            throw new Error('Invalid service token');
+        }
+        const signed = token.slice(SERVICE_TOKEN_PREFIX.length);
+        const decoded = jwt.verify(signed, this.serviceTokenSecret);
+        if (!decoded || decoded.typ !== 'service') {
+            throw new Error('Invalid service token');
+        }
+        return decoded;
     }
 
     verifyRefreshToken(token) {
