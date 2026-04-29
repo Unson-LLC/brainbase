@@ -17,8 +17,8 @@ describe('AuthService service tokens', () => {
             role: 'gm',
             projectCodes: ['unson'],
             clearance: ['internal', 'restricted'],
-            personId: 'per_keigo_sato',
-            createdBy: 'per_keigo_sato'
+            personId: 'per_test_admin',
+            createdBy: 'per_test_admin'
         });
 
         expect(result.token).toMatch(/^bbsvc_/);
