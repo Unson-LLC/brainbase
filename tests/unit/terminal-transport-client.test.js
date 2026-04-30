@@ -598,6 +598,41 @@ describe('terminal-transport-client', () => {
     );
   });
 
+  it('初回snapshot適用時_xterm内部バッファをresetしてから再描画する', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._resetTerminalOnNextSnapshot = true;
+    client._lastSnapshotText = 'same output';
+
+    client._queueOrApplySnapshot('same output');
+    await Promise.resolve();
+
+    expect(terminal.reset).toHaveBeenCalledTimes(1);
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hsame output',
+      expect.any(Function)
+    );
+    expect(client._resetTerminalOnNextSnapshot).toBe(false);
+  });
+
   it('scroll中に新しいsnapshotが来たら適用を保留する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

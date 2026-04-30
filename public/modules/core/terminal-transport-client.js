@@ -125,6 +125,7 @@ export class TerminalTransportClient {
         // loadXterm() の dynamic import が完了する前に WS スナップショットが
         // 到着した場合に保存しておくバッファ。init() で terminal が準備でき次第 flush。
         this._preTerminalSnapshot = null;
+        this._resetTerminalOnNextSnapshot = false;
     }
 
     async init(hostEl) {
@@ -451,6 +452,7 @@ export class TerminalTransportClient {
         this.status.runtimeState = 'transport_connected';
         this.status.transport = 'streaming';
         this._emitStatus();
+        this._resetTerminalOnNextSnapshot = true;
 
         this._clearReconnectTimer();
         this._closeWs();
@@ -1160,7 +1162,8 @@ export class TerminalTransportClient {
             forceViewportState: {
                 distanceFromBottom: 0,
                 wasPinnedToBottom: true
-            }
+            },
+            resetTerminal: this._resetTerminalOnNextSnapshot
         });
     }
 
@@ -1189,7 +1192,8 @@ export class TerminalTransportClient {
                 forceViewportState: {
                     distanceFromBottom: 0,
                     wasPinnedToBottom: true
-                }
+                },
+                resetTerminal: true
             });
             return;
         }
@@ -1202,7 +1206,9 @@ export class TerminalTransportClient {
 
         this._isViewportPinnedToBottom = true;
         this._pendingSnapshotText = null;
-        this._applySnapshot(normalizedText);
+        this._applySnapshot(normalizedText, {
+            resetTerminal: this._resetTerminalOnNextSnapshot
+        });
     }
 
     _shouldDeferSnapshotForPendingEcho(snapshotText) {
@@ -1273,14 +1279,16 @@ export class TerminalTransportClient {
         if (!this.terminal) return;
         // snapshotの中身が前回と同じならスキップ（ちらつき防止）
         const normalizedText = text || '';
-        if (this._lastSnapshotText === normalizedText) return;
+        const shouldResetTerminal = Boolean(options.resetTerminal);
+        if (!shouldResetTerminal && this._lastSnapshotText === normalizedText) return;
         this._lastSnapshotText = normalizedText;
+        this._resetTerminalOnNextSnapshot = false;
         this._pendingEchoText = '';
 
         const viewportState = options.forceViewportState || this._captureViewportState();
-        // terminal.reset()は内部状態を全破壊してDOMを全再構築するため使わない。
-        // 代わりにANSIエスケープで画面クリア+カーソルホーム+スクロールバッファクリア。
-        // xterm.jsは変わった行だけDOMを更新する。
+        if (shouldResetTerminal && typeof this.terminal.reset === 'function') {
+            this.terminal.reset();
+        }
         this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H' + normalizedText, viewportState);
     }
 
@@ -1353,11 +1361,16 @@ export class TerminalTransportClient {
         this._deferredSnapshotWhileEchoPending = null;
         this._preTerminalSnapshot = null;
         this._lastSnapshotText = null;
+        this._resetTerminalOnNextSnapshot = true;
         this._isViewportPinnedToBottom = true;
         // xterm.jsの前セッション表示を即クリア。
         // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
         if (this.terminal) {
-            this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
+            if (typeof this.terminal.reset === 'function') {
+                this.terminal.reset();
+            } else {
+                this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
+            }
         }
     }
 
