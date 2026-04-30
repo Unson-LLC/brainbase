@@ -1,0 +1,62 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/codex-hooks-activity.sh",
+            "statusMessage": "brainbase activity"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/codex-hooks-activity.sh",
+            "statusMessage": "brainbase activity"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/codex-hooks-activity.sh",
+            "statusMessage": "brainbase activity"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/codex-hooks-activity.sh",
+            "statusMessage": "brainbase activity"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/codex-hooks-activity.sh",
+            "statusMessage": "brainbase activity"
+          }
+        ]
+      }
+    ]
+  }
+}
