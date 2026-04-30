@@ -235,6 +235,7 @@ sync_claude_runtime
 
 # Resolve repo root (this script lives in scripts/ directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
 CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
@@ -243,8 +244,12 @@ REAL_JJ_BIN="$(command -v jj 2>/dev/null || true)"
 # Default to Codex CLI; opt-in to app-server REPL via env var.
 USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
 CODEX_NOTIFY_ARG=""
+CODEX_HOOKS_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
+fi
+if [ -f "$REPO_ROOT/.codex/hooks.json" ]; then
+    CODEX_HOOKS_ARG="-c features.codex_hooks=true"
 fi
 
 sync_codex_prompts_link() {
@@ -328,15 +333,16 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
                     "$LOCALE_EXPORT" \
                     "$SESSION_NAME" \
                     "$CODEX_WRAPPER" \
-                    "$CODEX_NOTIFY_ARG" \
+                    "$CODEX_HOOKS_ARG $CODEX_NOTIFY_ARG" \
                     "$INITIAL_CMD_FILE" \
                     "$INITIAL_CMD_FILE"
                 tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
             else
-                printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s" \
+                printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s %s" \
                     "$LOCALE_EXPORT" \
                     "$SESSION_NAME" \
                     "$CODEX_WRAPPER" \
+                    "$CODEX_HOOKS_ARG" \
                     "$CODEX_NOTIFY_ARG"
                 tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
             fi
