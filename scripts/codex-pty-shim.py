@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 codex-pty-shim.py - PTY interceptor for crossterm terminal initialization.
 
 Problem:
@@ -25,10 +25,12 @@ Usage (via codex-wrapper.sh):
 """
 
 import fcntl
+import json
 import os
 import select
 import signal
 import struct
+import subprocess
 import sys
 import termios
 import time
@@ -54,6 +56,9 @@ SCAN_WINDOW = 8192
 
 # Debug log (set to None to disable)
 DEBUG_LOG = '/tmp/codex-pty-shim-debug.log'
+
+SPINNER_CHARS = set('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿')
+REPORT_THROTTLE_SECONDS = 2.0
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -84,6 +89,106 @@ def set_winsize(fd, rows, cols):
         fcntl.ioctl(fd, termios.TIOCSWINSZ, buf)
     except OSError:
         pass
+
+
+def detect_codex_activity(data):
+    """Return 'working', 'ready', or None from a chunk of Codex terminal output."""
+    if not data:
+        return None
+    try:
+        text = data.decode('utf-8', errors='ignore')
+    except AttributeError:
+        text = str(data)
+
+    if any(char in text for char in SPINNER_CHARS):
+        return 'working'
+    if 'Thinking' in text or 'thinking' in text:
+        return 'working'
+    if '›' in text:
+        return 'ready'
+    return None
+
+
+class ActivityReporter:
+    """Best-effort activity bridge for Codex versions that do not call notify while working."""
+
+    def __init__(self, env=None, clock=None):
+        self.env = env or os.environ
+        self.clock = clock or time.time
+        self.session_id = self.env.get('BRAINBASE_SESSION_ID') or ''
+        self.port = self.env.get('BRAINBASE_PORT') or '31013'
+        self.turn_id = f'codex-pty-{self.session_id}-{os.getpid()}'
+        self.active = False
+        self.last_report_at = 0.0
+
+    def enabled(self):
+        return bool(self.session_id and self.port)
+
+    def observe(self, activity):
+        if not self.enabled() or not activity:
+            return
+        if activity == 'working':
+            self._report_working()
+        elif activity == 'ready':
+            self._report_done()
+
+    def _report_working(self):
+        now = self.clock()
+        if self.active and now - self.last_report_at < REPORT_THROTTLE_SECONDS:
+            return
+        lifecycle = 'heartbeat' if self.active else 'turn_started'
+        event_type = 'codex/pty-shim-heartbeat' if self.active else 'codex/pty-shim-start'
+        self._post({
+            'sessionId': self.session_id,
+            'status': 'working',
+            'reportedAt': int(now * 1000),
+            'lifecycle': lifecycle,
+            'eventType': event_type,
+            'turnId': self.turn_id,
+            'activityKind': 'reasoning',
+            'currentStep': '処理中',
+        })
+        self.active = True
+        self.last_report_at = now
+
+    def _report_done(self):
+        if not self.active:
+            return
+        now = self.clock()
+        self._post({
+            'sessionId': self.session_id,
+            'status': 'done',
+            'reportedAt': int(now * 1000),
+            'lifecycle': 'turn_completed',
+            'eventType': 'codex/pty-shim-ready',
+            'turnId': self.turn_id,
+            'activityKind': 'task_completed',
+            'currentStep': '入力待ち',
+        })
+        self.active = False
+        self.last_report_at = now
+
+    def _post(self, payload):
+        try:
+            subprocess.Popen(
+                [
+                    'curl',
+                    '-sS',
+                    '--max-time',
+                    '1',
+                    '-X',
+                    'POST',
+                    f'http://localhost:{self.port}/api/sessions/report_activity',
+                    '-H',
+                    'Content-Type: application/json',
+                    '-d',
+                    json.dumps(payload, ensure_ascii=False),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as e:
+            dbg('activity report failed', e)
 
 
 # ── Intercept state machine ────────────────────────────────────────────────
@@ -220,6 +325,7 @@ def main():
     signal.signal(signal.SIGINT, on_terminate)
 
     interceptor = QueryInterceptor(inner_master)
+    activity_reporter = ActivityReporter()
     dbg('shim started', {
         'inner_master': inner_master,
         'outer_stdin': outer_stdin,
@@ -244,6 +350,7 @@ def main():
                         return
                     dbg(f'inner→outer {len(data)}b', data[:80])
                     interceptor.feed(data)
+                    activity_reporter.observe(detect_codex_activity(data))
                     try:
                         os.write(outer_stdout, data)
                     except OSError as e:
