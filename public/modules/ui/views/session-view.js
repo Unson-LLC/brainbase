@@ -301,9 +301,11 @@ export class SessionView {
      * 時系列表示用のセッション一覧を取得
      *
      * ソート優先度:
-     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
+     * 1. 青インジケータセッション（active turnあり）を最上部に配置
+     *    - 条件: activity === 'thinking'
+     * 2. 緑インジケータセッション（未読更新あり）を次に配置
      *    - 条件: activity === 'done-unread'
-     * 2. 残りのセッションは時系列順（最新が上）
+     * 3. 残りのセッションは時系列順（最新が上）
      *
      * @param {Array} sessions - セッション一覧
      * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
@@ -315,14 +317,20 @@ export class SessionView {
         const sorted = [...filtered].sort((a, b) => {
             const uiStateA = deriveSessionUiState(a.id);
             const uiStateB = deriveSessionUiState(b.id);
+            const isBlueA = uiStateA.activity === 'thinking';
+            const isBlueB = uiStateB.activity === 'thinking';
             const isGreenA = uiStateA.activity === 'done-unread';
             const isGreenB = uiStateB.activity === 'done-unread';
 
-            // 優先度1: 緑セッションを最上部に配置
+            // 優先度1: active turn中の青セッションを最上部に配置
+            if (isBlueA && !isBlueB) return -1;
+            if (!isBlueA && isBlueB) return 1;
+
+            // 優先度2: 緑セッションを次に配置
             if (isGreenA && !isGreenB) return -1;
             if (!isGreenA && isGreenB) return 1;
 
-            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
+            // 優先度3: 同一優先度内は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
 

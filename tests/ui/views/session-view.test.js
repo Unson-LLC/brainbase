@@ -517,6 +517,50 @@ describe('SessionView', () => {
             expect(after).toEqual(['session-2', 'session-1']);
         });
 
+        it('should sort active thinking sessions to the top in timeline view', async () => {
+            appStore.setState({
+                sessions: [
+                    {
+                        id: 'session-1',
+                        name: 'Session 1',
+                        project: 'test',
+                        intendedState: 'active',
+                        createdAt: '2026-03-17T00:00:00.000Z',
+                        updatedAt: '2026-03-17T00:10:00.000Z'
+                    },
+                    {
+                        id: 'session-2',
+                        name: 'Session 2',
+                        project: 'test',
+                        intendedState: 'active',
+                        createdAt: '2026-03-17T00:00:01.000Z',
+                        updatedAt: '2026-03-17T00:00:01.000Z'
+                    }
+                ],
+                ui: {
+                    sessionListView: 'timeline'
+                },
+                sessionUi: {
+                    byId: {
+                        'session-1': {
+                            hookStatus: {
+                                isWorking: true,
+                                isDone: false,
+                                activeTurnCount: 1,
+                                lastWorkingAt: Date.parse('2026-03-17T00:00:02.000Z')
+                            }
+                        },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+
+            sessionView.render();
+
+            const after = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(after).toEqual(['session-1', 'session-2']);
+        });
+
         it('should promote sessions with new assistant output in timeline view', async () => {
             appStore.setState({
                 sessions: [
