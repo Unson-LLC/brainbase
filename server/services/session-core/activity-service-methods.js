@@ -1,7 +1,10 @@
+import { execFileSync } from 'child_process';
+
 import { logger } from '../../utils/logger.js';
 import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 
 const PROMPT_BUFFER_MAX_LENGTH = 4000;
+const PANE_TITLE_SPINNER_CHARS = new Set(Array.from('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿'));
 
 function trimPromptBuffer(value) {
     if (typeof value !== 'string') return '';
@@ -248,7 +251,85 @@ export const activityServiceMethods = {
             const entry = this._buildStatusForSession(hookData);
             if (entry) status[sessionId] = entry;
         }
+        for (const [sessionId, entry] of Object.entries(this._getPaneTitleActivityStatuses())) {
+            if (!status[sessionId]?.isWorking) {
+                status[sessionId] = entry;
+            }
+        }
         return status;
+    },
+
+    _getPaneTitleActivityStatuses() {
+        const rows = this._listTmuxPaneTitles();
+        const now = Date.now();
+        const status = {};
+
+        for (const row of rows) {
+            const [sessionId, paneTitle = ''] = row.split('\t');
+            if (!sessionId?.startsWith('session-')) continue;
+            const firstTitleChar = Array.from(paneTitle.trim())[0] || '';
+            if (!PANE_TITLE_SPINNER_CHARS.has(firstTitleChar)) continue;
+
+            status[sessionId] = {
+                isWorking: true,
+                isDone: false,
+                lastWorkingAt: now,
+                lastDoneAt: 0,
+                lastActivityAt: now,
+                lastEventType: 'tmux-pane-title-spinner',
+                liveActivity: {
+                    activityKind: 'reasoning',
+                    taskBrief: null,
+                    assistantSnippet: null,
+                    currentStep: '処理中',
+                    latestEvidence: null,
+                    statusTone: 'working',
+                    updatedAt: now,
+                    assistantSnippetUpdatedAt: 0
+                },
+                activeTurnCount: 1,
+                timestamp: now
+            };
+        }
+
+        return status;
+    },
+
+    _listTmuxPaneTitles() {
+        const candidates = [
+            process.env.BRAINBASE_TMUX_BIN,
+            process.env.TMUX_BIN,
+            '/usr/local/bin/tmux',
+            '/opt/homebrew/bin/tmux',
+            'tmux'
+        ].filter(Boolean);
+
+        const seen = new Set();
+        const tmuxBins = candidates.filter((candidate) => {
+            if (seen.has(candidate)) return false;
+            seen.add(candidate);
+            return true;
+        });
+
+        for (const tmuxBin of tmuxBins) {
+            try {
+                const output = execFileSync(tmuxBin, ['list-panes', '-a', '-F', '#{session_name}\t#{pane_title}'], {
+                    encoding: 'utf8',
+                    env: {
+                        ...process.env,
+                        LANG: process.env.LANG || 'en_US.UTF-8',
+                        LC_ALL: process.env.LC_ALL || 'en_US.UTF-8',
+                        LC_CTYPE: process.env.LC_CTYPE || 'en_US.UTF-8'
+                    },
+                    timeout: 2000
+                });
+                return output.split('\n').filter(Boolean);
+            } catch {
+                // Try the next tmux binary candidate.
+            }
+        }
+
+        return [];
     },
 
     reportActivity(sessionId, status, reportedAt, metadata = {}) {
@@ -618,7 +699,7 @@ export const activityServiceMethods = {
 
     _extractTurnTimestamp(turnId) {
         if (typeof turnId !== 'string') return 0;
-        // turnId format: "claude-{timestamp}-{random}"
+        // turnId formats: "claude-{timestamp}-{random}", "codex-pty-session-{timestamp}-{pid}"
         const match = turnId.match(/^claude-(\d+)-/)
             || turnId.match(/^codex-pty-session-(\d{13})-/);
         return match ? Number(match[1]) : 0;
