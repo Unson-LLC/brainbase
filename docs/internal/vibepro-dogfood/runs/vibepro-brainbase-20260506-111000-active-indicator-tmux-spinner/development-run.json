@@ -1,0 +1,208 @@
+{
+  "run_id": "vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed_with_residual_risk",
+  "created_at": "2026-05-06T11:10:00+09:00",
+  "request": {
+    "raw": "ソート順もちゃんと反映されてる？あなたのセッションが並び順が変わらないままだよ。",
+    "interpreted_goal": "アクティブインジケータの青状態が status API に反映され、青状態セッションがソートで上位に来ることを実 API と実ブラウザで確認できる状態にする"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/activity-indicator",
+    "story_key": "vibepro-dogfood/activity-indicator/20260506-tmux-spinner-blue-sort",
+    "acceptance_criteria": [
+      "既存の古い Codex PTY shim セッションでも、tmux pane title の spinner から working 状態を補完できる",
+      "tmux title 取得時に UTF-8 locale を明示し、spinner glyph が underscores に化けない",
+      "/api/sessions/status が対象セッションを isWorking=true として返す",
+      "セッション一覧で working セッションが idle / done より上位に表示される",
+      "targeted unit / server / UI tests と eslint が通る"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "brainbase-ui状態の検証でapiを自作シミュレートすると実hooksの不具合を見逃す",
+      "brainbase-vibeproは実装修正ツールではなく-story駆動開発と証跡管理の制御基盤として使う"
+    ],
+    "approach": [
+      "status API が青状態を返しているか先に確認する",
+      "現行 Codex セッションの tmux pane title に spinner が出ていることを確認する",
+      "hook 経路だけに依存せず、既存セッション向けに tmux pane title fallback を追加する",
+      "サーバープロセスの locale 差で spinner が化ける問題を切り分け、tmux 呼び出し時に UTF-8 locale を固定する",
+      "実 API と Playwright の実ブラウザで、青状態とソート順を検証する"
+    ]
+  },
+  "implementation": {
+    "jj_change_id": "xzqoolmspnqrnxluxontrwrvmntmmyou",
+    "commit_id": "e94cd44c5a7f",
+    "merge_commit_id": "82155e5b487ebb289b96c8be122781e3aefaffbc",
+    "pull_request": "https://github.com/Unson-LLC/brainbase-unson/pull/572",
+    "description": "fix: surface tmux spinner sessions as active",
+    "changed_files": [
+      "server/services/session-core/activity-service-methods.js",
+      "tests/server/session-manager.test.js"
+    ],
+    "behavior_changes": [
+      "getSessionStatus が hookStatus に加えて tmux pane title spinner を working status として補完する",
+      "tmux binary は環境変数と主要インストールパスから候補解決する",
+      "tmux list-panes 呼び出し時に LANG / LC_ALL / LC_CTYPE を UTF-8 に固定する",
+      "fallback status は lastEventType=tmux-pane-title-spinner, activeTurnCount=1 として client sort の working 優先に乗る"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "npm -s exec vitest run tests/server/session-manager.test.js tests/ui/views/session-view.test.js tests/unit/session-indicators.test.js tests/unit/session-ui-state.test.js tests/unit/session-activity-state.test.js",
+        "result": "passed",
+        "tests": "85 passed"
+      },
+      {
+        "command": "npx eslint server/services/session-core/activity-service-methods.js tests/server/session-manager.test.js public/modules/ui/views/session-view.js tests/ui/views/session-view.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "curl -fsS http://localhost:31013/api/sessions/status | jq '.\"session-1777507759917\" | {isWorking,isDone,lastEventType,activeTurnCount}'",
+        "result": "passed",
+        "evidence": "isWorking=true, isDone=false, lastEventType=tmux-pane-title-spinner, activeTurnCount=1"
+      },
+      {
+        "command": "Playwright headless browser against http://localhost:31013",
+        "result": "passed",
+        "evidence": "アクティブインジケーター row was index 0 with session-activity-indicator working"
+      },
+      {
+        "command": "gh pr checks 572 --watch",
+        "result": "passed",
+        "evidence": "Verify VibePro Graph SSOT passed"
+      }
+    ],
+    "failed_or_blocked": []
+  },
+  "outcome": {
+    "loop_result": "targeted_success",
+    "human_intervention_points": [
+      "ユーザーが青状態とソート順の実 UI 不整合を指摘した"
+    ],
+    "residual_risks": [
+      "VibePro CLI の pr prepare はローカル PATH 上に見つからず、PR 本文生成は gh pr create で代替した",
+      "NocoDB Story への PR URL / 原因 / 修正内容 / 検証結果の返却はこの run では未確認"
+    ],
+    "next_actions": [
+      "VibePro CLI を brainbase worktree の標準 PATH または npm script に接続する",
+      "PR 作成後の NocoDB Story 更新を run evidence に含める",
+      "active indicator 関連の再発時はこの run を起点に status API -> tmux title -> UI sort の順で検証する"
+    ]
+  },
+  "vibepro_judgment": {
+    "autonomous_development_loop": "partial_go",
+    "reason": "実装、targeted verification、実 API、実ブラウザ、PR merge までは閉じた。VibePro control plane の証跡としては、CLI pr prepare と NocoDB返却が未接続のため partial_go とする。",
+    "diagnosis_role": "VibePro は実装修正ツールではなく、Story / Architecture / Spec / Verification / Run evidence を接続する制御基盤として扱う"
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed",
+        "evidence": [
+          "request.raw"
+        ]
+      },
+      "story": {
+        "status": "passed",
+        "depends_on": [
+          "requirement"
+        ],
+        "evidence": [
+          "docs/stories/vibepro-brainbase-dogfood-story.md"
+        ]
+      },
+      "architecture": {
+        "status": "passed",
+        "depends_on": [
+          "story"
+        ],
+        "evidence": [
+          "docs/architecture/vibepro-brainbase-dogfood-architecture.md"
+        ]
+      },
+      "spec": {
+        "status": "passed",
+        "depends_on": [
+          "architecture"
+        ],
+        "evidence": [
+          "docs/specs/vibepro-brainbase-self-evaluation-spec.md"
+        ]
+      },
+      "test_design": {
+        "status": "passed",
+        "depends_on": [
+          "spec"
+        ],
+        "evidence": [
+          "tests/server/session-manager.test.js",
+          "tests/ui/views/session-view.test.js",
+          "tests/unit/session-indicators.test.js",
+          "tests/unit/session-ui-state.test.js",
+          "tests/unit/session-activity-state.test.js"
+        ]
+      },
+      "implementation": {
+        "status": "passed",
+        "depends_on": [
+          "test_design"
+        ],
+        "evidence": [
+          "server/services/session-core/activity-service-methods.js",
+          "tests/server/session-manager.test.js",
+          "https://github.com/Unson-LLC/brainbase-unson/pull/572"
+        ]
+      },
+      "verification": {
+        "status": "passed",
+        "depends_on": [
+          "implementation"
+        ],
+        "evidence": [
+          "npm -s exec vitest run tests/server/session-manager.test.js tests/ui/views/session-view.test.js tests/unit/session-indicators.test.js tests/unit/session-ui-state.test.js tests/unit/session-activity-state.test.js",
+          "npx eslint server/services/session-core/activity-service-methods.js tests/server/session-manager.test.js public/modules/ui/views/session-view.js tests/ui/views/session-view.test.js",
+          "curl -fsS http://localhost:31013/api/sessions/status",
+          "Playwright headless browser against http://localhost:31013"
+        ]
+      },
+      "run_evidence": {
+        "status": "passed",
+        "depends_on": [
+          "verification"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/development-run.json",
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/development-run.md"
+        ]
+      },
+      "score_gate": {
+        "status": "passed",
+        "depends_on": [
+          "run_evidence"
+        ],
+        "evidence": [
+          "npm run vibepro:development-dag -- check-run docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner"
+        ]
+      },
+      "ship": {
+        "status": "passed",
+        "depends_on": [
+          "score_gate"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/ship.md",
+          "https://github.com/Unson-LLC/brainbase-unson/pull/572"
+        ]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 2,
+      "recovered_count": 1
+    }
+  }
+}
