@@ -63,7 +63,7 @@ describe('codex-notify.sh', () => {
             turnId: 'turn-1',
             params: { command: 'npm test' }
         };
-        const result = spawnSync('zsh', ['scripts/codex-notify.sh', JSON.stringify(payload)], {
+        const result = spawnSync('bash', ['scripts/codex-notify.sh', JSON.stringify(payload)], {
             cwd: repoRoot,
             env: {
                 ...process.env,
