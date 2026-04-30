@@ -1,0 +1,221 @@
+{
+  "run_id": "vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed_with_residual_risk",
+  "created_at": "2026-05-06T20:29:00+09:00",
+  "request": {
+    "raw": "ではVibeProを使ってこれらを解消していって",
+    "interpreted_goal": "Graphify/VibeProレビューで見つかったアクティブインジケータの固定青リスクを、実装・テスト・実API/UI検証・run証跡で回収する"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/activity-indicator",
+    "story_key": "vibepro-dogfood/activity-indicator/20260506-stale-spinner-heartbeat-guard",
+    "acceptance_criteria": [
+      "tmux pane title spinner fallback は明示 done hook status を working で上書きしない",
+      "tmux pane title spinner は title が変化しない場合に stale として working から落ちる",
+      "done 後に active turn のない heartbeat が届いても working へ戻さない",
+      "/api/sessions/status の tmux title 取得は短時間 cache を使い、request ごとの同期 tmux 実行を抑える",
+      "青状態のセッションは既存 UI sort で idle / done より上位に出ることをテストまたは実ブラウザで確認する"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "brainbase-ui状態の検証でapiを自作シミュレートすると実hooksの不具合を見逃す",
+      "brainbase-vibeproは実装修正ツールではなく-story駆動開発と証跡管理の制御基盤として使う"
+    ],
+    "approach": [
+      "Graphifyで active-indicator 周辺の server/UI/test graph を再抽出する",
+      "固定青を生む stale spinner / done overwrite / heartbeat without active turn の経路を unit test で先に固定する",
+      "tmux pane title fallback に stale timeout と short cache を追加する",
+      "実APIで補助金ブリッジ融資 session が status から消えること、current session が spinner working になることを確認する",
+      "Playwrightでセッション一覧の先頭 working row と補助金ブリッジ融資 row の idle 表示を確認する"
+    ]
+  },
+  "implementation": {
+    "jj_change_id": "mwmuorrtkkqvrvvqpknooykzxuyrsvly",
+    "commit_id": "8808701a0577803d00e043758ab9f5a3ceb5594b",
+    "merge_commit_id": "pending",
+    "pull_request": "pending",
+    "description": "fix: guard tmux spinner activity fallback",
+    "changed_files": [
+      "server/services/create-session-services.js",
+      "server/services/session-core/activity-service-methods.js",
+      "tests/server/session-manager.test.js"
+    ],
+    "behavior_changes": [
+      "tmux spinner fallback は hook status が存在しない session にだけ補完され、done hook status を上書きしない",
+      "spinner title の lastChangedAt を保持し、30秒以上 title が変わらない場合は stale として working を出さない",
+      "tmux list-panes 結果を1秒 cache し、/api/sessions/status の連続 polling による同期 tmux 実行を抑える",
+      "done 後の heartbeat は activeTurnIds が空なら working status として render されない",
+      "Codex PTY fallback turn は turnId なし completion や restore 時の stale pruning で残留しにくくする"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "npm -s exec vitest run tests/server/session-manager.test.js tests/ui/views/session-view.test.js tests/unit/session-indicators.test.js tests/unit/session-ui-state.test.js tests/unit/session-activity-state.test.js",
+        "result": "passed",
+        "tests": "90 passed"
+      },
+      {
+        "command": "npx eslint server/services/create-session-services.js server/services/session-core/activity-service-methods.js tests/server/session-manager.test.js public/modules/ui/views/session-view.js tests/ui/views/session-view.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "graphify update/query/path on active-indicator focused corpus",
+        "result": "passed_with_limitation",
+        "evidence": "54 nodes / 78 edges. Graphify still reports no extracted path from activity-service-methods.js to _reorderTimelineRows because the API/status boundary is implicit."
+      },
+      {
+        "command": "curl -fsS http://localhost:31013/api/sessions/status | jq '.\"session-1778025113158\" // null'",
+        "result": "passed",
+        "evidence": "補助金ブリッジ融資 session session-1778025113158 returned null in status API"
+      },
+      {
+        "command": "Playwright headless browser against http://localhost:31013",
+        "result": "passed",
+        "evidence": "アクティブインジケーター row was index 0 with session-activity-indicator working; 補助金ブリッジ融資 row was visible as idle"
+      }
+    ],
+    "failed_or_blocked": [
+      {
+        "command": "Start worktree server on port 31014 for unmerged live verification",
+        "result": "blocked",
+        "reason": "worktree node_modules/better-sqlite3 native module is x86_64 while the running Node is arm64"
+      },
+      {
+        "command": "Reload canonical 31013 with unmerged local patch",
+        "result": "blocked",
+        "reason": "canonical launchd sync restores server files from develop until the PR is merged"
+      }
+    ]
+  },
+  "outcome": {
+    "loop_result": "targeted_success_with_live_reload_constraint",
+    "human_intervention_points": [
+      "ユーザーが補助金ブリッジ融資 session の固定青と、青状態の sort 優先が見えないことを指摘した",
+      "ユーザーが Graphify は VibePro 内蔵の code graph tool だと訂正した"
+    ],
+    "residual_risks": [
+      "server/UI の Graphify path は API boundary のため抽出されず、契約は unit/UI/live verification で補っている",
+      "unmerged patch を canonical 31013 に常駐反映することは launchd sync によりできず、最終 live reload は merge 後に行う"
+    ],
+    "next_actions": [
+      "PR merge 後に canonical 31013 を再起動し、develop 由来の同一差分で /api/sessions/status と Playwright を再確認する",
+      "server status contract を明示化する場合は /api/sessions/status の schema または integration test を追加する"
+    ]
+  },
+  "vibepro_judgment": {
+    "autonomous_development_loop": "go_with_residual_risk",
+    "reason": "Graphify findings were converted into tests and implementation changes. Live canonical verification before merge is constrained by launchd sync, so merge後 verification is required.",
+    "diagnosis_role": "VibePro/Graphify is used as control-plane evidence and code-graph review, not as the implementation engine."
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed",
+        "evidence": [
+          "request.raw"
+        ]
+      },
+      "story": {
+        "status": "passed",
+        "depends_on": [
+          "requirement"
+        ],
+        "evidence": [
+          "docs/stories/vibepro-brainbase-dogfood-story.md"
+        ]
+      },
+      "architecture": {
+        "status": "passed",
+        "depends_on": [
+          "story"
+        ],
+        "evidence": [
+          "docs/architecture/vibepro-brainbase-dogfood-architecture.md"
+        ]
+      },
+      "spec": {
+        "status": "passed",
+        "depends_on": [
+          "architecture"
+        ],
+        "evidence": [
+          "docs/specs/vibepro-brainbase-self-evaluation-spec.md"
+        ]
+      },
+      "test_design": {
+        "status": "passed",
+        "depends_on": [
+          "spec"
+        ],
+        "evidence": [
+          "tests/server/session-manager.test.js",
+          "tests/ui/views/session-view.test.js",
+          "tests/unit/session-indicators.test.js",
+          "tests/unit/session-ui-state.test.js",
+          "tests/unit/session-activity-state.test.js"
+        ]
+      },
+      "implementation": {
+        "status": "passed",
+        "depends_on": [
+          "test_design"
+        ],
+        "evidence": [
+          "server/services/create-session-services.js",
+          "server/services/session-core/activity-service-methods.js",
+          "tests/server/session-manager.test.js"
+        ]
+      },
+      "verification": {
+        "status": "passed",
+        "depends_on": [
+          "implementation"
+        ],
+        "evidence": [
+          "npm -s exec vitest run tests/server/session-manager.test.js tests/ui/views/session-view.test.js tests/unit/session-indicators.test.js tests/unit/session-ui-state.test.js tests/unit/session-activity-state.test.js",
+          "npx eslint server/services/create-session-services.js server/services/session-core/activity-service-methods.js tests/server/session-manager.test.js public/modules/ui/views/session-view.js tests/ui/views/session-view.test.js",
+          "graphify update/query/path on active-indicator focused corpus",
+          "curl -fsS http://localhost:31013/api/sessions/status",
+          "Playwright headless browser against http://localhost:31013"
+        ]
+      },
+      "run_evidence": {
+        "status": "passed",
+        "depends_on": [
+          "verification"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard/development-run.json",
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard/development-run.md"
+        ]
+      },
+      "score_gate": {
+        "status": "passed",
+        "depends_on": [
+          "run_evidence"
+        ],
+        "evidence": [
+          "npm run vibepro:development-dag -- check-run docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard"
+        ]
+      },
+      "ship": {
+        "status": "passed",
+        "depends_on": [
+          "score_gate"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/ship.md"
+        ]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 4,
+      "recovered_count": 3
+    }
+  }
+}

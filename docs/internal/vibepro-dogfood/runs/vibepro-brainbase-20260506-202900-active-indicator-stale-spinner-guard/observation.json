@@ -1,0 +1,250 @@
+{
+  "run_id": "vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-06T11:31:30.540Z",
+  "repo": {
+    "branch": "session/session-1777507759917",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": ".claude/settings.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": ".claude/skills/brainbase-infisical-env-management/SKILL.md",
+        "status": "M",
+        "category": "skill"
+      },
+      {
+        "path": "docs/architecture/vibepro-brainbase-dogfood-architecture.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/ship.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/stories/vibepro-brainbase-dogfood-story.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "package-lock.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "package.json",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "public/app.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/app/terminal-input-ux-mixin.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/app/terminal-mobile-mixin.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/ui/views/session-view.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "scripts/codex-notify.sh",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "scripts/codex-pty-shim.py",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "scripts/ensure_session_runtime.sh",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "scripts/login_script.sh",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/services/create-session-services.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "server/services/session-core/activity-service-methods.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/session-manager.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/ui/integration/app-switch-session-runtime.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "tests/ui/views/session-view.test.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": ".claude/scripts/run-hook.sh",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": ".claude/skills/playwright-skill/.temp-execution-1777390917132.js",
+        "status": "??",
+        "category": "skill"
+      },
+      {
+        "path": ".codex/",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard/",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/session-archives/2026/04/session-1770692525172.md",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "docs/session-archives/2026/04/session-1771690510648.md",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "scripts/codex-hooks-activity.sh",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "tests/server/routes/auth-service-token.test.js",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/auth-service-service-token.test.js",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/codex-hooks-activity.test.js",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/codex-notify.test.js",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "tests/unit/codex-pty-shim.test.js",
+        "status": "??",
+        "category": "other"
+      }
+    ],
+    "run_count_before_current": 13,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 13,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 7,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        ".claude/settings.json",
+        "package-lock.json",
+        "public/app.js",
+        "public/modules/app/terminal-input-ux-mixin.js",
+        "public/modules/app/terminal-mobile-mixin.js",
+        "public/modules/ui/views/session-view.js",
+        "scripts/codex-notify.sh",
+        "scripts/codex-pty-shim.py",
+        "scripts/ensure_session_runtime.sh",
+        "scripts/login_script.sh",
+        "server/services/create-session-services.js",
+        "server/services/session-core/activity-service-methods.js",
+        "tests/server/session-manager.test.js",
+        "tests/ui/integration/app-switch-session-runtime.test.js",
+        "tests/ui/views/session-view.test.js",
+        ".claude/scripts/run-hook.sh",
+        ".codex/",
+        "docs/session-archives/2026/04/session-1770692525172.md",
+        "docs/session-archives/2026/04/session-1771690510648.md",
+        "scripts/codex-hooks-activity.sh",
+        "tests/server/routes/auth-service-token.test.js",
+        "tests/unit/auth-service-service-token.test.js",
+        "tests/unit/codex-hooks-activity.test.js",
+        "tests/unit/codex-notify.test.js",
+        "tests/unit/codex-pty-shim.test.js"
+      ]
+    }
+  ]
+}

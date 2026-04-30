@@ -80,6 +80,7 @@ DAGでは上流ノードが失敗・欠落しているのに下流ノードを�
 | `vibepro-brainbase-20260427-110850-active-indicator` | `vibepro-dogfood/activity-indicator/20260427-active-indicator-stability` | 活動状態の安定化を自立開発 loop の対象として扱う | `development-run.json` と scorer 出力 |
 | `vibepro-brainbase-20260427-112222-runtime-harness` | `vibepro-dogfood/runtime-harness/20260427-app-switch-session-runtime` | 前回 run の residual risk を次 run に引き継ぐ | `development-run.json` と scorer 出力 |
 | `vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner` | `vibepro-dogfood/activity-indicator/20260506-tmux-spinner-blue-sort` | 既存 Codex PTY shim の spinner fallback と青状態 sort を実 API / 実ブラウザで閉じる | `development-run.json` と PR #572 |
+| `vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard` | `vibepro-dogfood/activity-indicator/20260506-stale-spinner-heartbeat-guard` | Graphifyで見つけた stale spinner / done overwrite / activeTurnなしheartbeat の固定青リスクをテストと実装で回収する | `development-run.json` と Graphify focused corpus |
 
 ## 原則
 
