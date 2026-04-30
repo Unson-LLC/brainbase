@@ -8,8 +8,7 @@ export function applyTerminalMobileMixin(AppClass) {
     };
 
     AppClass.prototype._getMobileSnapshotPollInterval = function(sessionId) {
-        const session = this._getSessionById(sessionId);
-        const hookStatus = getSessionStatus(sessionId) || session?.hookStatus || null;
+        const hookStatus = getSessionStatus(sessionId);
         return hookStatus?.isWorking ? 1000 : 3000;
     };
 

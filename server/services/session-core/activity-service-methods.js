@@ -165,7 +165,26 @@ export const activityServiceMethods = {
                 if (!session.hookStatus) continue;
 
                 const normalized = this._normalizeHookData(session.hookStatus);
-                const hasActiveTurns = (normalized?.activeTurnIds?.length || 0) > 0;
+                if (!normalized) {
+                    this.hookStatus.delete(session.id);
+                    await this._persistHookStatus(session.id, null);
+                    continue;
+                }
+
+                const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
+                const now = Date.now();
+                const originalActiveTurnIds = normalized.activeTurnIds || [];
+                const cleanedActiveTurnIds = originalActiveTurnIds.filter((tid) => {
+                    const tidTs = this._extractTurnTimestamp(tid);
+                    if (tidTs > 0 && (now - tidTs) > STALE_TURN_TIMEOUT) {
+                        logger.info(`[Hook] restoreHookStatus: clearing stale turn ${tid} for ${session.id}`);
+                        return false;
+                    }
+                    return true;
+                });
+                normalized.activeTurnIds = cleanedActiveTurnIds;
+
+                const hasActiveTurns = normalized.activeTurnIds.length > 0;
                 const hasExplicitDone = (normalized?.lastDoneAt || 0) > 0;
                 const lastActiveAt = Math.max(normalized?.lastActivityAt || 0, normalized?.lastWorkingAt || 0);
                 const isStaleWorking = !hasActiveTurns
@@ -173,22 +192,11 @@ export const activityServiceMethods = {
                     && lastActiveAt > 0
                     && (Date.now() - lastActiveAt > 60 * 60 * 1000);
 
-                if (normalized && !isStaleWorking) {
-                    // 起動時に30分以上古い残留turnをクリア
-                    const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
-                    const now = Date.now();
-                    if (normalized.activeTurnIds && normalized.activeTurnIds.length > 0) {
-                        const cleaned = normalized.activeTurnIds.filter((tid) => {
-                            const tidTs = this._extractTurnTimestamp(tid);
-                            if (tidTs > 0 && (now - tidTs) > STALE_TURN_TIMEOUT) {
-                                logger.info(`[Hook] restoreHookStatus: clearing stale turn ${tid} for ${session.id}`);
-                                return false;
-                            }
-                            return true;
-                        });
-                        normalized.activeTurnIds = cleaned;
-                    }
+                if (!isStaleWorking) {
                     this.hookStatus.set(session.id, normalized);
+                    if (cleanedActiveTurnIds.length !== originalActiveTurnIds.length) {
+                        await this._persistHookStatus(session.id, normalized);
+                    }
                     continue;
                 }
 
@@ -293,10 +301,18 @@ export const activityServiceMethods = {
                     logger.info(`[Hook] turn_completed for unknown non-claude turnId ${turnId} on ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
                     activeTurnIds.clear();
                 }
-            } else if (activeTurnIds.size === 1) {
+            } else {
+                const ptyTurnIds = [...activeTurnIds].filter((tid) => tid.startsWith('codex-pty-'));
+                for (const tid of ptyTurnIds) {
+                    logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing Codex PTY fallback turn ${tid}`);
+                    activeTurnIds.delete(tid);
+                }
+            }
+
+            if (!turnId && activeTurnIds.size === 1) {
                 logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing the only active turn`);
                 activeTurnIds.clear();
-            } else if (activeTurnIds.size > 1) {
+            } else if (!turnId && activeTurnIds.size > 1) {
                 logger.info(`[Hook] turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turns to avoid premature done`);
             }
 
@@ -363,12 +379,11 @@ export const activityServiceMethods = {
     },
 
     clearDoneStatus(sessionId) {
-        if (this.hookStatus.has(sessionId)) {
-            this.hookStatus.delete(sessionId);
-            this._persistHookStatus(sessionId, null);
-            if (typeof this._activityWsBroadcast === 'function') {
-                this._activityWsBroadcast(sessionId, null);
-            }
+        const hadHookStatus = this.hookStatus.has(sessionId);
+        this.hookStatus.delete(sessionId);
+        this._persistHookStatus(sessionId, null);
+        if (hadHookStatus && typeof this._activityWsBroadcast === 'function') {
+            this._activityWsBroadcast(sessionId, null);
         }
     },
 
@@ -555,8 +570,15 @@ export const activityServiceMethods = {
         const MAX_RETRIES = 3;
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                const currentState = this.stateStore.get();
                 const updatedAt = new Date(timestamp).toISOString();
+                if (typeof this.stateStore.patchSession === 'function') {
+                    await this.stateStore.patchSession(sessionId, hookStatusData
+                        ? { hookStatus: hookStatusData, updatedAt }
+                        : { hookStatus: null, updatedAt });
+                    return;
+                }
+
+                const currentState = this.stateStore.get();
                 const updatedSessions = currentState.sessions.map(session => {
                     if (session.id !== sessionId) {
                         return session;
@@ -570,12 +592,11 @@ export const activityServiceMethods = {
                         };
                     }
 
-                    const nextSession = {
+                    return {
                         ...session,
+                        hookStatus: null,
                         updatedAt
                     };
-                    delete nextSession.hookStatus;
-                    return nextSession;
                 });
 
                 await this.stateStore.update({ ...currentState, sessions: updatedSessions });
@@ -598,7 +619,8 @@ export const activityServiceMethods = {
     _extractTurnTimestamp(turnId) {
         if (typeof turnId !== 'string') return 0;
         // turnId format: "claude-{timestamp}-{random}"
-        const match = turnId.match(/^claude-(\d+)-/);
+        const match = turnId.match(/^claude-(\d+)-/)
+            || turnId.match(/^codex-pty-session-(\d{13})-/);
         return match ? Number(match[1]) : 0;
     }
 };
