@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\""
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\""
           }
         ]
       },
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 5000
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/pre-tool-use/edit-comprehensive-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/pre-tool-use/edit-comprehensive-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 30000
           }
         ]
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 5000
           }
         ]
@@ -52,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/edit-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/edit-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 20000
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/git-notification-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/git-notification-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 5000
           }
         ]
@@ -72,7 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 30000
           }
         ]
@@ -82,17 +82,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/activity-bridge.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/activity-bridge.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/post-tool-use/interrupt-detector.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/interrupt-detector.ts",
             "timeout": 3000
           }
         ]
@@ -104,27 +104,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/context-loader-wrapper.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/context-loader-wrapper.ts",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/autonomy-reminder.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/autonomy-reminder.ts",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/skill-reminder.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/skill-reminder.ts",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/activity-bridge.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/activity-bridge.ts",
             "timeout": 3000
           }
         ]
@@ -134,7 +134,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts",
             "timeout": 120000
           }
         ]
@@ -144,7 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/enforce-nocodb-lookup.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/enforce-nocodb-lookup.ts",
             "timeout": 5000
           }
         ]
@@ -155,22 +155,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/stop/push-guard.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/push-guard.ts",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/stop/jj-commit-guard.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/jj-commit-guard.ts",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/stop/activity-bridge.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/activity-bridge.ts",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "npx tsx .claude/scripts/hooks/stop/completion-notifier-wrapper.ts"
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/completion-notifier-wrapper.ts"
           }
         ]
       }

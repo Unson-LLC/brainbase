@@ -411,14 +411,16 @@ PY
   case "$event_type" in
     assistant-message|assistant-response|assistant-message-complete|assistant-response-complete|item/agentMessage/delta|item/assistantMessage/delta|agent_message_delta|item/commandExecution/outputDelta|exec_command_output_delta|item/fileChange/outputDelta|item/completed)
     lifecycle="heartbeat"
-    if [ -z "$turn_id" ] || [ -f "$TURN_STATE_FILE" ]; then
-      post_activity_report "$PORT" "working" "$REPORTED_AT" "$lifecycle" "$event_type" "$turn_id" "$activity_kind" "" "$current_step" "$latest_evidence" "$assistant_snippet"
+    if [ -n "$turn_id" ] && [ -n "$TURN_STATE_FILE" ] && [ ! -f "$TURN_STATE_FILE" ]; then
+      echo "$REPORTED_AT" > "$TURN_STATE_FILE" 2>/dev/null || true
+      post_activity_report "$PORT" "working" "$(( REPORTED_AT - 1 ))" "turn_started" "${event_type}-synthetic" "$turn_id" "task_started" "" "依頼を受けて作業開始" "$latest_evidence" "$assistant_snippet"
     fi
+    post_activity_report "$PORT" "working" "$REPORTED_AT" "$lifecycle" "$event_type" "$turn_id" "$activity_kind" "" "$current_step" "$latest_evidence" "$assistant_snippet"
     ;;
   esac
 
   case "$event_type" in
-    agent-turn-complete|user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|task_complete|codex/event/task_complete|turn/failed|turn/interrupted)
+    agent-turn-complete|user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|task_complete|codex/event/task_complete|turn/completed|turn/failed|turn/interrupted)
     lifecycle="turn_completed"
     is_done_event=true
     ;;
