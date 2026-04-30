@@ -5,6 +5,8 @@ import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 
 const PROMPT_BUFFER_MAX_LENGTH = 4000;
 const PANE_TITLE_SPINNER_CHARS = new Set(Array.from('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿'));
+const PANE_TITLE_SPINNER_STALE_TIMEOUT = 30 * 1000;
+const TMUX_PANE_TITLE_ROWS_CACHE_TTL = 1000;
 
 function trimPromptBuffer(value) {
     if (typeof value !== 'string') return '';
@@ -225,7 +227,7 @@ export const activityServiceMethods = {
         if (isWorkingStale && activeTurnCount === 0 && !hasDone) return null;
         const isWorking = !isWorkingStale && (
             activeTurnCount > 0
-            || (activeTurnCount === 0 && normalized.lastWorkingAt > normalized.lastDoneAt)
+            || (activeTurnCount === 0 && !hasDone && normalized.lastWorkingAt > normalized.lastDoneAt)
         );
         // done状態はタイムアウトしない（明示的にclearDoneStatusで消す）
         const isDone = !isWorking && hasDone;
@@ -252,7 +254,7 @@ export const activityServiceMethods = {
             if (entry) status[sessionId] = entry;
         }
         for (const [sessionId, entry] of Object.entries(this._getPaneTitleActivityStatuses())) {
-            if (!status[sessionId]?.isWorking) {
+            if (!status[sessionId]) {
                 status[sessionId] = entry;
             }
         }
@@ -261,14 +263,32 @@ export const activityServiceMethods = {
 
     _getPaneTitleActivityStatuses() {
         const rows = this._listTmuxPaneTitles();
-        const now = Date.now();
+        const now = this._now();
+        const cache = this._getPaneTitleActivityCache();
+        const seenSessionIds = new Set();
         const status = {};
 
         for (const row of rows) {
             const [sessionId, paneTitle = ''] = row.split('\t');
             if (!sessionId?.startsWith('session-')) continue;
+            seenSessionIds.add(sessionId);
             const firstTitleChar = Array.from(paneTitle.trim())[0] || '';
-            if (!PANE_TITLE_SPINNER_CHARS.has(firstTitleChar)) continue;
+            if (!PANE_TITLE_SPINNER_CHARS.has(firstTitleChar)) {
+                cache.delete(sessionId);
+                continue;
+            }
+
+            const previous = cache.get(sessionId);
+            const titleChanged = !previous || previous.paneTitle !== paneTitle;
+            const entry = {
+                paneTitle,
+                firstSeenAt: previous?.firstSeenAt || now,
+                lastChangedAt: titleChanged ? now : previous.lastChangedAt,
+                observedAt: now
+            };
+            cache.set(sessionId, entry);
+
+            if (now - entry.lastChangedAt > PANE_TITLE_SPINNER_STALE_TIMEOUT) continue;
 
             status[sessionId] = {
                 isWorking: true,
@@ -292,10 +312,30 @@ export const activityServiceMethods = {
             };
         }
 
+        for (const [sessionId, entry] of cache) {
+            if (!seenSessionIds.has(sessionId) || now - entry.observedAt > PANE_TITLE_SPINNER_STALE_TIMEOUT) {
+                cache.delete(sessionId);
+            }
+        }
+
         return status;
     },
 
     _listTmuxPaneTitles() {
+        const now = this._now();
+        if (this.tmuxPaneTitleRowsCache?.expiresAt > now) {
+            return this.tmuxPaneTitleRowsCache.rows;
+        }
+
+        const rows = this._readTmuxPaneTitles();
+        this.tmuxPaneTitleRowsCache = {
+            rows,
+            expiresAt: now + TMUX_PANE_TITLE_ROWS_CACHE_TTL
+        };
+        return rows;
+    },
+
+    _readTmuxPaneTitles() {
         const candidates = [
             process.env.BRAINBASE_TMUX_BIN,
             process.env.TMUX_BIN,
@@ -330,6 +370,17 @@ export const activityServiceMethods = {
         }
 
         return [];
+    },
+
+    _getPaneTitleActivityCache() {
+        if (!this.paneTitleActivityCache) {
+            this.paneTitleActivityCache = new Map();
+        }
+        return this.paneTitleActivityCache;
+    },
+
+    _now() {
+        return Date.now();
     },
 
     reportActivity(sessionId, status, reportedAt, metadata = {}) {

@@ -41,6 +41,8 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         terminalMutationQueues: new Map(),
         terminalOwners: new Map(),
         promptBuffers: new Map(),
+        paneTitleActivityCache: new Map(),
+        tmuxPaneTitleRowsCache: null,
         nextPort: 40000,
 
         _isReady: false,
