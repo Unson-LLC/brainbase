@@ -530,6 +530,74 @@ describe('terminal-transport-client', () => {
     expect(terminal.scrollToLine).not.toHaveBeenCalled();
   });
 
+  it('snapshot適用時_cursor座標があればtmuxのカーソル位置へ戻す', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot('latest output', { x: 2, y: 34 });
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hlatest output\x1b[35;3H',
+      expect.any(Function)
+    );
+  });
+
+  it('履歴付きsnapshot適用時_色付き履歴をscrollbackに積んで現在画面だけvisible paneで上書きする', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot(
+      '\x1b[31mold status\x1b[0m\n\x1b[2mcommand output\x1b[0m\n\x1b[32mcurrent prompt\x1b[0m',
+      { x: 4, y: 10 },
+      {
+        plainText: 'old status\ncommand output\ncurrent prompt',
+        visibleText: '\x1b[32mcurrent prompt\x1b[0m',
+        visiblePlainText: 'current prompt'
+      }
+    );
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[H\x1b[31mold status\x1b[0m\n\x1b[2mcommand output\x1b[0m\n\x1b[2J\x1b[H\x1b[32mcurrent prompt\x1b[0m\x1b[11;5H',
+      expect.any(Function)
+    );
+  });
+
   it('scroll中に新しいsnapshotが来たら適用を保留する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

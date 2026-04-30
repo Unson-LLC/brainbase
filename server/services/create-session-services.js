@@ -172,7 +172,10 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
             snapshot: {
                 getPaneMode: shared.getPaneMode,
                 getContent: shared.getContent,
+                getVisibleContent: shared.getVisibleContent,
                 getContentWithColors: shared.getContentWithColors,
+                getVisibleContentWithColors: shared.getVisibleContentWithColors,
+                getCursorPosition: shared.getCursorPosition,
                 getOutput: shared.getOutput
             }
         }

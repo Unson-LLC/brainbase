@@ -160,7 +160,7 @@ export class TerminalTransportClient {
         if (this._preTerminalSnapshot !== null) {
             const saved = this._preTerminalSnapshot;
             this._preTerminalSnapshot = null;
-            this._queueOrApplySnapshot(saved);
+            this._queueOrApplySnapshot(saved.text, saved.cursor, saved.options || {});
         }
         if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
             this.terminal.attachCustomKeyEventHandler((event) => this._handleCustomKeyEvent(event));
@@ -515,7 +515,11 @@ export class TerminalTransportClient {
                     case 'snapshot': {
                         const snapshotLen = (message.colorText || message.text || '').length;
                         console.log(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
-                        this._queueOrApplySnapshot(message.colorText || message.text || '');
+                        this._queueOrApplySnapshot(message.colorText || message.text || '', message.cursor || null, {
+                            plainText: message.text || '',
+                            visibleText: message.visibleColorText || message.visibleText || null,
+                            visiblePlainText: message.visibleText || null
+                        });
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
                             this.status.mode = 'snapshot';
@@ -872,9 +876,9 @@ export class TerminalTransportClient {
     async _refreshSnapshot({ preserveMode = false } = {}) {
         if (!this.sessionId) return;
         try {
-            const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}`);
+            const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}&visibleOnly=1`);
             if (typeof res?.text === 'string') {
-                this._queueOrApplySnapshot(res.colorText || res.text);
+                this._queueOrApplySnapshot(res.colorText || res.text, res.cursor || null);
                 this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();
                 this.status.copyMode = Boolean(res.copyMode);
                 if (!preserveMode) {
@@ -1160,14 +1164,14 @@ export class TerminalTransportClient {
         });
     }
 
-    _queueOrApplySnapshot(text) {
+    _queueOrApplySnapshot(text, cursor = null, options = {}) {
         if (!this.terminal) {
             // Terminal not yet initialized (loadXterm() still pending) — buffer for init()
-            this._preTerminalSnapshot = text;
+            this._preTerminalSnapshot = { text, cursor, options };
             return;
         }
 
-        const normalizedText = text || '';
+        const normalizedText = this._buildSnapshotForTerminal(text || '', cursor, options);
         if (this._shouldDeferSnapshotForPendingEcho(normalizedText)) {
             this._deferredSnapshotWhileEchoPending = normalizedText;
             console.warn('[TTC-PROBE] snapshot deferred while local echo pending', {
@@ -1205,6 +1209,48 @@ export class TerminalTransportClient {
         if (!this._pendingEchoText) return false;
         if (!snapshotText) return true;
         return !snapshotText.includes(this._pendingEchoText);
+    }
+
+    _formatSnapshotForTerminal(text, cursor = null) {
+        const normalizedText = text || '';
+        if (!cursor || !Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) {
+            return normalizedText;
+        }
+
+        const row = Math.max(1, Math.floor(cursor.y) + 1);
+        const col = Math.max(1, Math.floor(cursor.x) + 1);
+        return `${normalizedText}\x1b[${row};${col}H`;
+    }
+
+    _buildSnapshotForTerminal(text, cursor = null, options = {}) {
+        const plainText = typeof options.plainText === 'string' ? options.plainText : text;
+        const visibleText = typeof options.visibleText === 'string' ? options.visibleText : null;
+        const visiblePlainText = typeof options.visiblePlainText === 'string' ? options.visiblePlainText : visibleText;
+        if (!visibleText || !visiblePlainText || !plainText.endsWith(visiblePlainText)) {
+            return this._formatSnapshotForTerminal(text, cursor);
+        }
+
+        let historyText = null;
+        if (text.endsWith(visibleText)) {
+            historyText = text.slice(0, text.length - visibleText.length);
+        } else if (text === plainText && text.endsWith(visiblePlainText)) {
+            historyText = text.slice(0, text.length - visiblePlainText.length);
+        } else {
+            const visibleLineCount = visiblePlainText.split('\n').length;
+            const displayLines = text.split('\n');
+            if (displayLines.length > visibleLineCount) {
+                historyText = displayLines.slice(0, -visibleLineCount).join('\n');
+            }
+        }
+        if (historyText === null) {
+            return this._formatSnapshotForTerminal(text, cursor);
+        }
+
+        historyText = historyText.replace(/\n+$/, '');
+        const formattedVisible = this._formatSnapshotForTerminal(visibleText, cursor);
+        if (!historyText) return formattedVisible;
+
+        return `${historyText}\n\x1b[2J\x1b[H${formattedVisible}`;
     }
 
     _restoreViewportState(viewportState) {

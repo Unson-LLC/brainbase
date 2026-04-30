@@ -6,6 +6,7 @@ const DEFAULT_CAPTURE_TTL_MS = 3000;
  * @property {number|string} [lines]
  * @property {boolean} [includeColors]
  * @property {boolean} [includeCopyMode]
+ * @property {boolean} [visibleOnly]
  */
 
 /**
@@ -13,6 +14,7 @@ const DEFAULT_CAPTURE_TTL_MS = 3000;
  * @property {string} text
  * @property {string|null} colorText
  * @property {boolean} copyMode
+ * @property {{x: number, y: number}|null} [cursor]
  * @property {string} capturedAt
  */
 
@@ -25,8 +27,11 @@ const DEFAULT_CAPTURE_TTL_MS = 3000;
 /**
  * @typedef {object} TmuxSnapshotService
  * @property {(sessionId: string, lines: number) => Promise<string>} getContent
+ * @property {(sessionId: string) => Promise<string>} [getVisibleContent]
  * @property {(sessionId: string, lines: number) => Promise<string>} getContentWithColors
+ * @property {(sessionId: string) => Promise<string>} [getVisibleContentWithColors]
  * @property {(sessionId: string) => Promise<boolean>} getPaneMode
+ * @property {(sessionId: string) => Promise<{x: number, y: number}|null>} [getCursorPosition]
  */
 
 /**
@@ -35,8 +40,8 @@ const DEFAULT_CAPTURE_TTL_MS = 3000;
  * @returns {string}
  */
 function buildCacheKey(sessionId, options) {
-    const { lines, includeColors, includeCopyMode } = options;
-    return `${sessionId}|${lines}|${includeColors ? 1 : 0}|${includeCopyMode ? 1 : 0}`;
+    const { lines, includeColors, includeCopyMode, visibleOnly } = options;
+    return `${sessionId}|${lines}|${includeColors ? 1 : 0}|${includeCopyMode ? 1 : 0}|${visibleOnly ? 1 : 0}`;
 }
 
 export class TmuxCaptureCache {
@@ -107,7 +112,8 @@ export class TmuxCaptureCache {
         const normalized = {
             lines: Math.max(50, Math.min(400, Number.parseInt(options.lines, 10) || 200)),
             includeColors: options.includeColors !== false,
-            includeCopyMode: options.includeCopyMode !== false
+            includeCopyMode: options.includeCopyMode !== false,
+            visibleOnly: options.visibleOnly === true
         };
         const key = buildCacheKey(sessionId, normalized);
 
@@ -136,14 +142,21 @@ export class TmuxCaptureCache {
 
             const startEpoch = this._getEpoch(sessionId);
             const pendingPromise = (async () => {
-                const [text, colorText, copyMode] = await Promise.all([
-                    this.snapshotService.getContent(sessionId, normalized.lines),
-                    normalized.includeColors
-                        ? this.snapshotService.getContentWithColors(sessionId, normalized.lines).catch(() => null)
-                        : Promise.resolve(null),
+                const getText = normalized.visibleOnly && typeof this.snapshotService.getVisibleContent === 'function'
+                    ? () => this.snapshotService.getVisibleContent(sessionId)
+                    : () => this.snapshotService.getContent(sessionId, normalized.lines);
+                const getColorText = normalized.visibleOnly && typeof this.snapshotService.getVisibleContentWithColors === 'function'
+                    ? () => this.snapshotService.getVisibleContentWithColors(sessionId)
+                    : () => this.snapshotService.getContentWithColors(sessionId, normalized.lines);
+                const [text, colorText, copyMode, cursor] = await Promise.all([
+                    getText(),
+                    normalized.includeColors ? getColorText().catch(() => null) : Promise.resolve(null),
                     normalized.includeCopyMode
                         ? this.snapshotService.getPaneMode(sessionId).catch(() => false)
-                        : Promise.resolve(false)
+                        : Promise.resolve(false),
+                    typeof this.snapshotService.getCursorPosition === 'function'
+                        ? this.snapshotService.getCursorPosition(sessionId).catch(() => null)
+                        : Promise.resolve(null)
                 ]);
 
                 /** @type {TmuxCapturePayload} */
@@ -151,6 +164,7 @@ export class TmuxCaptureCache {
                     text,
                     colorText,
                     copyMode,
+                    cursor,
                     capturedAt: new Date().toISOString()
                 };
                 // この capture が走り始めた後で invalidate が呼ばれた場合は cache.set しない。

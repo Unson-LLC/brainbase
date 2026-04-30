@@ -173,6 +173,7 @@ export function installRuntimeHandlers(controller) {
         const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
         const viewerLabel = controller._resolveViewerLabel(req, req.query?.viewerLabel);
         const lines = Math.max(50, Math.min(400, Number.parseInt(req.query?.lines, 10) || 200));
+        const visibleOnly = req.query?.visibleOnly === '1' || req.query?.visibleOnly === 'true';
 
         if (!id) {
             return res.status(400).json({ error: 'Session ID is required' });
@@ -193,18 +194,27 @@ export function installRuntimeHandlers(controller) {
                 ? await controller.captureCache.getSnapshot(id, {
                     lines,
                     includeColors: true,
-                    includeCopyMode: true
+                    includeCopyMode: true,
+                    visibleOnly
                 })
                 : await (async () => {
-                    const [text, colorText, copyMode] = await Promise.all([
-                        controller.snapshot.getContent(id, lines),
-                        controller.snapshot.getContentWithColors(id, lines).catch(() => null),
+                    const [text, colorText, copyMode, cursor] = await Promise.all([
+                        visibleOnly && typeof controller.snapshot.getVisibleContent === 'function'
+                            ? controller.snapshot.getVisibleContent(id)
+                            : controller.snapshot.getContent(id, lines),
+                        visibleOnly && typeof controller.snapshot.getVisibleContentWithColors === 'function'
+                            ? controller.snapshot.getVisibleContentWithColors(id).catch(() => null)
+                            : controller.snapshot.getContentWithColors(id, lines).catch(() => null),
                         controller.snapshot.getPaneMode(id).catch(() => false),
+                        typeof controller.snapshot.getCursorPosition === 'function'
+                            ? controller.snapshot.getCursorPosition(id).catch(() => null)
+                            : Promise.resolve(null),
                     ]);
                     return {
                         text,
                         colorText,
                         copyMode,
+                        cursor,
                         capturedAt: new Date().toISOString()
                     };
                 })();
@@ -212,6 +222,7 @@ export function installRuntimeHandlers(controller) {
                 sessionId: id,
                 text: payload.text,
                 copyMode: payload.copyMode,
+                cursor: payload.cursor || null,
                 capturedAt: payload.capturedAt,
                 terminalAccess
             };

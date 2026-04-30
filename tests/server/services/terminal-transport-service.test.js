@@ -7,6 +7,7 @@ function buildService() {
             text: 'snapshot',
             colorText: null,
             copyMode: false,
+            cursor: null,
             capturedAt: '2026-03-23T00:00:00.000Z'
         })),
         invalidate: vi.fn()
@@ -160,6 +161,21 @@ describe('TerminalTransportService', () => {
 
     it('ready送信時_eager snapshotも送る', async () => {
         const { service, captureCache } = buildService();
+        captureCache.getSnapshot
+            .mockResolvedValueOnce({
+                text: 'history\nsnapshot',
+                colorText: '\x1b[2mhistory\x1b[0m\n\x1b[32msnapshot\x1b[0m',
+                copyMode: false,
+                cursor: null,
+                capturedAt: '2026-03-23T00:00:00.000Z'
+            })
+            .mockResolvedValueOnce({
+                text: 'snapshot',
+                colorText: '\x1b[32msnapshot\x1b[0m',
+                copyMode: false,
+                cursor: { x: 2, y: 34 },
+                capturedAt: '2026-03-23T00:00:01.000Z'
+            });
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -177,12 +193,28 @@ describe('TerminalTransportService', () => {
 
         await service._sendReady(connection);
 
-        const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
+        const sent = ws.send.mock.calls.map(call => JSON.parse(call[0]));
+        const sentTypes = sent.map(message => message.type);
         expect(sentTypes).toEqual(['ready', 'snapshot']);
+        expect(sent[1]).toMatchObject({
+            type: 'snapshot',
+            text: 'history\nsnapshot',
+            colorText: '\x1b[2mhistory\x1b[0m\n\x1b[32msnapshot\x1b[0m',
+            visibleText: 'snapshot',
+            visibleColorText: '\x1b[32msnapshot\x1b[0m',
+            cursor: { x: 2, y: 34 }
+        });
         expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
             lines: 400,
             includeColors: true,
-            includeCopyMode: true
+            includeCopyMode: true,
+            visibleOnly: false
+        });
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: 400,
+            includeColors: true,
+            includeCopyMode: true,
+            visibleOnly: true
         });
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });

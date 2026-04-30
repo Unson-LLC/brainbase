@@ -58,7 +58,10 @@ describe('SessionController (Server)', () => {
     },
     snapshot: {
       getContent: mockSessionManager.getContent,
+      getVisibleContent: mockSessionManager.getVisibleContent,
       getContentWithColors: mockSessionManager.getContentWithColors,
+      getVisibleContentWithColors: mockSessionManager.getVisibleContentWithColors,
+      getCursorPosition: mockSessionManager.getCursorPosition,
       getPaneMode: mockSessionManager.getPaneMode,
       getOutput: mockSessionManager.getOutput
     },
@@ -88,7 +91,10 @@ describe('SessionController (Server)', () => {
       probeTerminalInput: vi.fn(),
       releaseTerminalOwnership: vi.fn(),
       getContent: vi.fn(),
+      getVisibleContent: vi.fn(),
       getContentWithColors: vi.fn(async () => null),
+      getVisibleContentWithColors: vi.fn(async () => null),
+      getCursorPosition: vi.fn(async () => null),
       getPaneMode: vi.fn(),
       isTmuxSessionRunning: vi.fn(),
       _isXtermOnlyMode: vi.fn(() => false),
@@ -551,6 +557,7 @@ describe('SessionController (Server)', () => {
       });
       mockSessionManager.getContent.mockResolvedValue('hello\nworld');
       mockSessionManager.getPaneMode.mockResolvedValue(true);
+      mockSessionManager.getCursorPosition.mockResolvedValue({ x: 2, y: 5 });
 
       await sessionController.getTerminalSnapshot({
         params: { id: sessionId },
@@ -563,12 +570,44 @@ describe('SessionController (Server)', () => {
         sessionId,
         text: 'hello\nworld',
         copyMode: true,
+        cursor: { x: 2, y: 5 },
         terminalAccess: {
           state: 'owner',
           ownerViewerLabel: 'Local / Mac',
           ownerLastSeenAt: null,
           canTakeover: false
         }
+      }));
+    });
+
+    it('visibleOnly指定時_visible pane snapshotを返す', async () => {
+      const sessionId = 'session-snapshot-visible';
+      mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+      mockSessionManager.getVisibleContent.mockResolvedValue('visible');
+      mockSessionManager.getVisibleContentWithColors.mockResolvedValue('\x1b[32mvisible\x1b[0m');
+      mockSessionManager.getPaneMode.mockResolvedValue(false);
+      mockSessionManager.getCursorPosition.mockResolvedValue({ x: 4, y: 10 });
+
+      await sessionController.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', viewerLabel: 'Local / Mac', visibleOnly: '1' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.getVisibleContent).toHaveBeenCalledWith(sessionId);
+      expect(mockSessionManager.getVisibleContentWithColors).toHaveBeenCalledWith(sessionId);
+      expect(mockSessionManager.getContent).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        text: 'visible',
+        colorText: '\x1b[32mvisible\x1b[0m',
+        cursor: { x: 4, y: 10 }
       }));
     });
 
