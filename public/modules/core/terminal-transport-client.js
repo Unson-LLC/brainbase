@@ -1232,14 +1232,14 @@ export class TerminalTransportClient {
         const plainText = typeof options.plainText === 'string' ? options.plainText : text;
         const visibleText = typeof options.visibleText === 'string' ? options.visibleText : null;
         const visiblePlainText = typeof options.visiblePlainText === 'string' ? options.visiblePlainText : visibleText;
-        if (!visibleText || !visiblePlainText || !plainText.endsWith(visiblePlainText)) {
+        if (!visibleText || !visiblePlainText) {
             return this._formatSnapshotForTerminal(text, cursor);
         }
 
         let historyText = null;
-        if (text.endsWith(visibleText)) {
+        if (plainText.endsWith(visiblePlainText) && text.endsWith(visibleText)) {
             historyText = text.slice(0, text.length - visibleText.length);
-        } else if (text === plainText && text.endsWith(visiblePlainText)) {
+        } else if (plainText.endsWith(visiblePlainText) && text === plainText) {
             historyText = text.slice(0, text.length - visiblePlainText.length);
         } else {
             const visibleLineCount = visiblePlainText.split('\n').length;

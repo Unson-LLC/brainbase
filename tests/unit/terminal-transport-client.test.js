@@ -598,6 +598,44 @@ describe('terminal-transport-client', () => {
     );
   });
 
+  it('snapshot末尾のspinnerが変わっても行数でvisible paneを現在画面へ上書きする', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot(
+      'old output\n· running task\nprompt',
+      { x: 0, y: 1 },
+      {
+        plainText: 'old output\n· running task\nprompt',
+        visibleText: '✢ running task\nprompt',
+        visiblePlainText: '✢ running task\nprompt'
+      }
+    );
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hold output\n\x1b[2J\x1b[H✢ running task\nprompt\x1b[2;1H',
+      expect.any(Function)
+    );
+  });
+
   it('初回snapshot適用時_xterm内部バッファをresetしてから再描画する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
