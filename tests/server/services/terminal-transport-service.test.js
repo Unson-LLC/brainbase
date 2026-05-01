@@ -252,6 +252,70 @@ describe('TerminalTransportService', () => {
         expect(msg).toHaveProperty('colorText');
     });
 
+    it('snapshot-polling transportではvisible paneをscreenOnly snapshotとして送る', async () => {
+        const { service, captureCache } = buildService();
+        captureCache.getSnapshot.mockResolvedValue({
+            text: 'visible-next',
+            colorText: '\x1b[36mvisible-next\x1b[0m',
+            copyMode: false,
+            cursor: { x: 3, y: 12 },
+            capturedAt: '2026-03-23T00:00:00.000Z'
+        });
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            lastSnapshot: 'snapshot-prev',
+            lastCopyMode: null,
+            lastCliState: null,
+            transport: 'snapshot-polling'
+        };
+
+        await service._pollConnection(connection);
+
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: 400,
+            includeColors: true,
+            includeCopyMode: true,
+            visibleOnly: true
+        });
+        const snapshotCall = ws.send.mock.calls.find(call => {
+            const msg = JSON.parse(call[0]);
+            return msg.type === 'snapshot';
+        });
+        expect(snapshotCall).toBeTruthy();
+        expect(JSON.parse(snapshotCall[0])).toMatchObject({
+            type: 'snapshot',
+            text: 'visible-next',
+            colorText: '\x1b[36mvisible-next\x1b[0m',
+            screenOnly: true
+        });
+    });
+
+    it('connection開始時_control-mode streamingではなくsnapshot pollingを使う', async () => {
+        vi.useFakeTimers();
+
+        const { service, controlRegistry } = buildService();
+        const ws = buildMockWs();
+
+        await service._handleConnection(ws, {}, {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Mac'
+        });
+
+        const sent = ws.send.mock.calls.map(call => JSON.parse(call[0]));
+        expect(sent.some(message => message.type === 'status' && message.transport === 'snapshot-polling')).toBe(true);
+        expect(controlRegistry.acquire).not.toHaveBeenCalled();
+
+        ws._listeners.close();
+        vi.useRealTimers();
+    });
+
     describe('explicit takeover: 既存接続の保護', () => {
         it('同一セッションに別viewerIdで接続時_新しい接続をblocked送信+closeする', async () => {
             const { service, sessionManager } = buildService();

@@ -105,6 +105,7 @@ export class TerminalTransportClient {
         this._messageQueue = new MessageQueue();
         this._isViewportPinnedToBottom = true;
         this._pendingSnapshotText = null;
+        this._pendingSnapshotOptions = null;
         this._lastSnapshotText = null;
         this._pendingEchoText = '';
         this._deferredSnapshotWhileEchoPending = null;
@@ -462,6 +463,7 @@ export class TerminalTransportClient {
         // まだtmux snapshotに反映されていない入力表示を上書きして消す。
         this._lastSnapshotText = null;
         this._pendingSnapshotText = null;
+        this._pendingSnapshotOptions = null;
         this._deferredSnapshotWhileEchoPending = null;
         if (switchingSessions) {
             this._pendingEchoText = '';
@@ -520,7 +522,8 @@ export class TerminalTransportClient {
                         this._queueOrApplySnapshot(message.colorText || message.text || '', message.cursor || null, {
                             plainText: message.text || '',
                             visibleText: message.visibleColorText || message.visibleText || null,
-                            visiblePlainText: message.visibleText || null
+                            visiblePlainText: message.visibleText || null,
+                            screenOnly: message.screenOnly === true
                         });
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
@@ -653,6 +656,7 @@ export class TerminalTransportClient {
             this.status.runtimeState = 'stopped';
             this.status.transport = 'snapshot';
             this._pendingSnapshotText = null;
+            this._pendingSnapshotOptions = null;
             this._pendingEchoText = '';
             this._deferredSnapshotWhileEchoPending = null;
             this._isViewportPinnedToBottom = true;
@@ -1157,13 +1161,16 @@ export class TerminalTransportClient {
         if (!this._isViewportPinnedToBottom || !this._pendingSnapshotText) return;
 
         const nextSnapshot = this._pendingSnapshotText;
+        const pendingOptions = this._pendingSnapshotOptions || {};
         this._pendingSnapshotText = null;
+        this._pendingSnapshotOptions = null;
         this._applySnapshot(nextSnapshot, {
             forceViewportState: {
                 distanceFromBottom: 0,
                 wasPinnedToBottom: true
             },
-            resetTerminal: this._resetTerminalOnNextSnapshot
+            resetTerminal: this._resetTerminalOnNextSnapshot,
+            screenOnly: pendingOptions.screenOnly === true
         });
     }
 
@@ -1193,7 +1200,8 @@ export class TerminalTransportClient {
                     distanceFromBottom: 0,
                     wasPinnedToBottom: true
                 },
-                resetTerminal: true
+                resetTerminal: true,
+                screenOnly: options.screenOnly === true
             });
             return;
         }
@@ -1201,13 +1209,16 @@ export class TerminalTransportClient {
         if (!this._computeIsViewportPinnedToBottom()) {
             this._isViewportPinnedToBottom = false;
             this._pendingSnapshotText = normalizedText;
+            this._pendingSnapshotOptions = { screenOnly: options.screenOnly === true };
             return;
         }
 
         this._isViewportPinnedToBottom = true;
         this._pendingSnapshotText = null;
+        this._pendingSnapshotOptions = null;
         this._applySnapshot(normalizedText, {
-            resetTerminal: this._resetTerminalOnNextSnapshot
+            resetTerminal: this._resetTerminalOnNextSnapshot,
+            screenOnly: options.screenOnly === true
         });
     }
 
@@ -1289,7 +1300,8 @@ export class TerminalTransportClient {
         if (shouldResetTerminal && typeof this.terminal.reset === 'function') {
             this.terminal.reset();
         }
-        this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H' + normalizedText, viewportState);
+        const clearSequence = options.screenOnly === true ? '\x1b[2J\x1b[H' : '\x1b[2J\x1b[3J\x1b[H';
+        this._writeToTerminal(clearSequence + normalizedText, viewportState);
     }
 
     _applyOutput(text) {
@@ -1357,6 +1369,7 @@ export class TerminalTransportClient {
     _prepareForSessionSwitch() {
         this._forceApplyNextSnapshot = true;
         this._pendingSnapshotText = null;
+        this._pendingSnapshotOptions = null;
         this._pendingEchoText = '';
         this._deferredSnapshotWhileEchoPending = null;
         this._preTerminalSnapshot = null;

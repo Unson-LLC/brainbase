@@ -202,10 +202,10 @@ export class TerminalTransportService {
                 await this.terminalIo.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
             // ready は先に返すが、初回描画が来ないと session switch が完了したように見えない。
-            // streaming の最初の output が遅い/来ないケースに備えて、短時間だけ snapshot を保険で送る。
+            // 以降も tmux の可視 pane を正として polling し、control-mode の差分適用で
+            // cursor/status 行が drift する経路を使わない。
             await this._sendReady(connection);
-            await this._startStreaming(connection);
-            this._scheduleInitialSnapshotFallback(connection);
+            this._startSnapshotPolling(connection);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, message);
@@ -257,6 +257,26 @@ export class TerminalTransportService {
             ws.send(JSON.stringify(snapshotMsg));
         } catch {
             // スナップショット失敗時はストリーミングかフォールバックに任せる
+        }
+    }
+
+    _startSnapshotPolling(connection) {
+        if (connection.closed) return;
+        connection.transport = 'snapshot-polling';
+        if (connection.ws.readyState === 1) {
+            connection.ws.send(JSON.stringify({
+                type: 'status',
+                mode: 'live',
+                copyMode: connection.lastCopyMode || false,
+                transport: connection.transport,
+                ...this._buildRuntimeStatusPayload(connection)
+            }));
+        }
+        void this._pollConnection(connection);
+        if (!connection.pollTimer) {
+            connection.pollTimer = setInterval(() => {
+                void this._pollConnection(connection);
+            }, this.pollIntervalMs);
         }
     }
 
@@ -438,13 +458,20 @@ export class TerminalTransportService {
             return;
         }
 
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
-        if (snapshot.text !== connection.lastSnapshot) {
-            connection.lastSnapshot = snapshot.text;
+        const screenOnlySnapshot = connection.transport === 'streaming' || connection.transport === 'snapshot-polling';
+        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: screenOnlySnapshot });
+        const snapshotKey = JSON.stringify({
+            text: snapshot.text,
+            colorText: snapshot.colorText || null,
+            cursor: snapshot.cursor || null
+        });
+        if (snapshotKey !== connection.lastSnapshot) {
+            connection.lastSnapshot = snapshotKey;
             const pollSnapshotMsg = {
                 type: 'snapshot',
                 text: snapshot.text,
-                capturedAt: snapshot.capturedAt
+                capturedAt: snapshot.capturedAt,
+                screenOnly: screenOnlySnapshot
             };
             if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
             ws.send(JSON.stringify(pollSnapshotMsg));
@@ -460,9 +487,9 @@ export class TerminalTransportService {
             connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
-                mode: 'snapshot',
+                mode: screenOnlySnapshot ? 'live' : 'snapshot',
                 copyMode: snapshot.copyMode,
-                transport: 'snapshot',
+                transport: connection.transport,
                 cliState,
                 ...this._buildRuntimeStatusPayload(connection)
             }));
@@ -479,7 +506,7 @@ export class TerminalTransportService {
                 if (ws.readyState === 1) {
                     ws.send(JSON.stringify({
                         type: 'status',
-                        mode: connection.transport === 'streaming' ? 'live' : 'snapshot',
+                        mode: connection.transport === 'streaming' || connection.transport === 'snapshot-polling' ? 'live' : 'snapshot',
                         copyMode: connection.lastCopyMode || false,
                         transport: connection.transport,
                         ...this._buildRuntimeStatusPayload(connection)
@@ -576,7 +603,7 @@ export class TerminalTransportService {
                 if (ws.readyState === 1) {
                     ws.send(JSON.stringify({
                         type: 'status',
-                        mode: connection.transport === 'streaming' ? 'live' : 'snapshot',
+                        mode: connection.transport === 'streaming' || connection.transport === 'snapshot-polling' ? 'live' : 'snapshot',
                         copyMode: freshSnapshot.copyMode,
                         transport: connection.transport
                     }));

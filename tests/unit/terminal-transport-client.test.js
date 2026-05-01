@@ -636,6 +636,36 @@ describe('terminal-transport-client', () => {
     );
   });
 
+  it('screenOnly snapshot適用時_現在画面だけ消してscrollbackは消さない', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot('live frame', null, { screenOnly: true });
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[Hlive frame',
+      expect.any(Function)
+    );
+  });
+
   it('初回snapshot適用時_xterm内部バッファをresetしてから再描画する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
