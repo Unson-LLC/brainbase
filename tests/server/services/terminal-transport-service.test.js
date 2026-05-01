@@ -252,15 +252,23 @@ describe('TerminalTransportService', () => {
         expect(msg).toHaveProperty('colorText');
     });
 
-    it('snapshot-polling transportではvisible paneをscreenOnly snapshotとして送る', async () => {
+    it('snapshot-polling transportではfull historyにvisible pane overlayを付けて送る', async () => {
         const { service, captureCache } = buildService();
-        captureCache.getSnapshot.mockResolvedValue({
-            text: 'visible-next',
-            colorText: '\x1b[36mvisible-next\x1b[0m',
-            copyMode: false,
-            cursor: { x: 3, y: 12 },
-            capturedAt: '2026-03-23T00:00:00.000Z'
-        });
+        captureCache.getSnapshot
+            .mockResolvedValueOnce({
+                text: 'history\nvisible-next',
+                colorText: '\x1b[2mhistory\x1b[0m\n\x1b[36mvisible-next\x1b[0m',
+                copyMode: false,
+                cursor: null,
+                capturedAt: '2026-03-23T00:00:00.000Z'
+            })
+            .mockResolvedValueOnce({
+                text: 'visible-next',
+                colorText: '\x1b[36mvisible-next\x1b[0m',
+                copyMode: false,
+                cursor: { x: 3, y: 12 },
+                capturedAt: '2026-03-23T00:00:00.000Z'
+            });
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -281,6 +289,12 @@ describe('TerminalTransportService', () => {
             lines: 400,
             includeColors: true,
             includeCopyMode: true,
+            visibleOnly: false
+        });
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: 400,
+            includeColors: true,
+            includeCopyMode: true,
             visibleOnly: true
         });
         const snapshotCall = ws.send.mock.calls.find(call => {
@@ -290,9 +304,12 @@ describe('TerminalTransportService', () => {
         expect(snapshotCall).toBeTruthy();
         expect(JSON.parse(snapshotCall[0])).toMatchObject({
             type: 'snapshot',
-            text: 'visible-next',
-            colorText: '\x1b[36mvisible-next\x1b[0m',
-            screenOnly: true
+            text: 'history\nvisible-next',
+            colorText: '\x1b[2mhistory\x1b[0m\n\x1b[36mvisible-next\x1b[0m',
+            visibleText: 'visible-next',
+            visibleColorText: '\x1b[36mvisible-next\x1b[0m',
+            cursor: { x: 3, y: 12 },
+            screenOnly: false
         });
     });
 

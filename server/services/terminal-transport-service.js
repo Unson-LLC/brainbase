@@ -458,12 +458,19 @@ export class TerminalTransportService {
             return;
         }
 
-        const screenOnlySnapshot = connection.transport === 'streaming' || connection.transport === 'snapshot-polling';
+        const screenOnlySnapshot = connection.transport === 'streaming';
+        const liveSnapshotPolling = connection.transport === 'snapshot-polling';
         const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: screenOnlySnapshot });
+        const visibleSnapshot = liveSnapshotPolling
+            ? await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: true })
+            : null;
         const snapshotKey = JSON.stringify({
             text: snapshot.text,
             colorText: snapshot.colorText || null,
-            cursor: snapshot.cursor || null
+            cursor: snapshot.cursor || null,
+            visibleText: visibleSnapshot?.text || null,
+            visibleColorText: visibleSnapshot?.colorText || null,
+            visibleCursor: visibleSnapshot?.cursor || null
         });
         if (snapshotKey !== connection.lastSnapshot) {
             connection.lastSnapshot = snapshotKey;
@@ -474,21 +481,29 @@ export class TerminalTransportService {
                 screenOnly: screenOnlySnapshot
             };
             if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
+            if (visibleSnapshot) {
+                pollSnapshotMsg.visibleText = visibleSnapshot.text;
+                if (visibleSnapshot.colorText) pollSnapshotMsg.visibleColorText = visibleSnapshot.colorText;
+                if (visibleSnapshot.cursor) pollSnapshotMsg.cursor = visibleSnapshot.cursor;
+            } else if (snapshot.cursor) {
+                pollSnapshotMsg.cursor = snapshot.cursor;
+            }
             ws.send(JSON.stringify(pollSnapshotMsg));
         }
 
         // CLI状態検出（色ベース優先、テキストフォールバック）
-        const cliResult = detectCliStateWithColors(snapshot.text, snapshot.colorText);
+        const statusSnapshot = visibleSnapshot || snapshot;
+        const cliResult = detectCliStateWithColors(statusSnapshot.text, statusSnapshot.colorText);
         const cliState = cliResult.state;
         this.runtimeRegistry?.setCliState?.(sessionId, cliResult);
 
-        if (snapshot.copyMode !== connection.lastCopyMode || cliState !== connection.lastCliState) {
-            connection.lastCopyMode = snapshot.copyMode;
+        if (statusSnapshot.copyMode !== connection.lastCopyMode || cliState !== connection.lastCliState) {
+            connection.lastCopyMode = statusSnapshot.copyMode;
             connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
-                mode: screenOnlySnapshot ? 'live' : 'snapshot',
-                copyMode: snapshot.copyMode,
+                mode: screenOnlySnapshot || liveSnapshotPolling ? 'live' : 'snapshot',
+                copyMode: statusSnapshot.copyMode,
                 transport: connection.transport,
                 cliState,
                 ...this._buildRuntimeStatusPayload(connection)
