@@ -225,4 +225,82 @@ describe('HttpClient', () => {
         const result = await client.get('/api/quick', { timeout: 5000 });
         expect(result).toEqual({ data: 'quick' });
     });
+
+    describe('refresh-on-401 retry (Course #6)', () => {
+        it('401時_unauthorizedHandlerがtrueを返す_新tokenで同requestがretryされる', async () => {
+            const handler = vi.fn().mockResolvedValue(true);
+            client.setUnauthorizedHandler(handler);
+            client.setAuthToken('new-token-after-refresh');
+
+            fetchMock
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 401,
+                    statusText: 'Unauthorized',
+                    headers: new Headers(),
+                    redirected: false,
+                    url: 'https://api.example.com/users'
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({ data: 'success-after-refresh' })
+                });
+
+            const result = await client.get('/users');
+
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+            // 2回目のfetchで Authorization が new-token に更新されている
+            const retryCall = fetchMock.mock.calls[1];
+            expect(retryCall[1].headers.Authorization).toBe('Bearer new-token-after-refresh');
+            expect(result).toEqual({ data: 'success-after-refresh' });
+        });
+
+        it('401時_unauthorizedHandlerがfalseを返す_retryせずthrow', async () => {
+            const handler = vi.fn().mockResolvedValue(false);
+            client.setUnauthorizedHandler(handler);
+
+            fetchMock.mockResolvedValueOnce({
+                ok: false,
+                status: 401,
+                statusText: 'Unauthorized',
+                headers: new Headers(),
+                redirected: false,
+                url: 'https://api.example.com/users',
+                json: async () => ({ error: 'unauthorized' })
+            });
+
+            await expect(client.get('/users')).rejects.toThrow();
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('401時_handler成功でもretryも401_最終的にthrow', async () => {
+            const handler = vi.fn().mockResolvedValue(true);
+            client.setUnauthorizedHandler(handler);
+
+            fetchMock
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 401,
+                    statusText: 'Unauthorized',
+                    headers: new Headers(),
+                    redirected: false,
+                    url: 'https://api.example.com/users'
+                })
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 401,
+                    statusText: 'Unauthorized',
+                    headers: new Headers(),
+                    redirected: false,
+                    url: 'https://api.example.com/users',
+                    json: async () => ({ error: 'still unauthorized' })
+                });
+
+            await expect(client.get('/users')).rejects.toThrow();
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        });
+    });
 });
