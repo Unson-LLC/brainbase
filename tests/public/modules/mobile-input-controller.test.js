@@ -377,6 +377,47 @@ describe('MobileInputUIController 二重送信防止', () => {
         expect(mockTerminalInput.sendKey).not.toHaveBeenCalled();
     });
 
+    it('入力空のearly returnでもボタンが一瞬disabledになりロックは解放される', async () => {
+        const input = document.getElementById('mobile-dock-input');
+        const btn = document.getElementById('dock-send');
+        input.value = '';  // 空入力 → showInfo + early return
+
+        const updateSpy = vi.spyOn(controller, '_updateSendButton');
+        await controller.handleSend('dock');
+
+        // 早期 disabled が呼ばれる（true → false）
+        expect(updateSpy).toHaveBeenCalledWith('dock', true);
+        expect(updateSpy).toHaveBeenCalledWith('dock', false);
+        // ボタンは finally で false に戻る
+        expect(btn.disabled).toBe(false);
+        // _sending lock も解放
+        expect(controller._sending).toBe(false);
+        // sendInput は呼ばれない（early return）
+        expect(mockTerminalInput.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('オフライン時のearly returnでもロックは解放される', async () => {
+        controller.isOnline = false;
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'something';
+
+        await controller.handleSend('dock');
+
+        expect(controller._sending).toBe(false);
+        expect(mockTerminalInput.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('sessionId未設定のearly returnでもロックは解放される', async () => {
+        mockAppState.currentSessionId = null;
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'msg';
+
+        await controller.handleSend('dock');
+
+        expect(controller._sending).toBe(false);
+        expect(mockTerminalInput.sendInput).not.toHaveBeenCalled();
+    });
+
     it('セッション一覧未ロード時はDOMのdata-engineでcodex判定する', async () => {
         mockAppState.sessions = [];
         document.body.insertAdjacentHTML('beforeend', '<div data-id="test-session" data-engine="codex"></div>');

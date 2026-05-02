@@ -430,36 +430,40 @@ export class MobileInputUIController {
     async handleSend(mode) {
         if (this._sending) return;
 
-        const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
-        if (!inputEl) return;
-
-        // iOS Safariのユーザージェスチャーコンテキスト内で確実にfocusする
-        // async処理後のsetTimeout()ではコンテキストが切れてfocus()が効かないため
-        inputEl.focus();
-
-        const rawValue = inputEl.value;
-        if (!rawValue || rawValue.trim().length === 0) {
-            showInfo('入力が空だよ');
-            return;
-        }
-
-        if (!this.isOnline) {
-            showInfo('オフライン中は送信できないよ');
-            return;
-        }
-
-        const sessionId = appStore.getState().currentSessionId;
-        if (!sessionId) {
-            showInfo('セッションを選択してね');
-            return;
-        }
-
-        const payload = rawValue.replace(/\n+/g, ' ').trim();
-
+        // 早期disabled: validation 前に UI フィードバックを即座に提供する
+        // NocoDB課題#8 「タップ反応悪く二重送信」: validation 結果に関わらず
+        // タップ直後にdisabledへ遷移させる。 connectionが空/オフラインなどの
+        // 早期 return ケースでも UI が「押されたこと」 を即座に反映する。
         this._sending = true;
         this._updateSendButton(mode, true);
 
         try {
+            const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
+            if (!inputEl) return;
+
+            // iOS Safariのユーザージェスチャーコンテキスト内で確実にfocusする
+            // async処理後のsetTimeout()ではコンテキストが切れてfocus()が効かないため
+            inputEl.focus();
+
+            const rawValue = inputEl.value;
+            if (!rawValue || rawValue.trim().length === 0) {
+                showInfo('入力が空だよ');
+                return;
+            }
+
+            if (!this.isOnline) {
+                showInfo('オフライン中は送信できないよ');
+                return;
+            }
+
+            const sessionId = appStore.getState().currentSessionId;
+            if (!sessionId) {
+                showInfo('セッションを選択してね');
+                return;
+            }
+
+            const payload = rawValue.replace(/\n+/g, ' ').trim();
+
             await this.terminalInput.sendInput(sessionId, payload);
             if (this.shouldSubmitWithEnter(sessionId)) {
                 await this.waitForSubmitKeyReady();
