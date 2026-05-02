@@ -86,7 +86,7 @@ Unson-LLC/<project>-project/meetings/
 | back-office | Unson-LLC/back_office |
 | ncom-catalyst | Unson-LLC/ncom-catalyst |
 | mywa | Unson-LLC/MyWa |
-| vibepro | Unson-LLC/vibepro |
+| vibepro-project | Unson-LLC/vibepro-project |
 | unson-os | Unson-LLC/unson_os |
 | **unson-board** | **Unson-LLC/Drive/meetings/unson-board/minutes** ⚠️特殊パス |
 | back-office | Unson-LLC/Drive/meetings/back-office/minutes |
@@ -116,7 +116,7 @@ REPOS=(
   "Unson-LLC/back_office"
   "Unson-LLC/ncom-catalyst"
   "Unson-LLC/MyWa"
-  "Unson-LLC/vibepro"
+  "Unson-LLC/vibepro-project"
   "Unson-LLC/unson_os"
   "Tech-Knight-inc/tech-knight-project"
   "Tech-Knight-inc/senpainurse"
@@ -226,7 +226,7 @@ done
 curl -s -X POST "http://localhost:31013/api/info/decisions" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "x-brainbase-role: member" \
-  -H "x-brainbase-projects: brainbase,salestailor,zeims,techknight,baao,unson,mana,mywa,senrigan,postio,unson-os,aitle,ncom,back_office,vibepro" \
+  -H "x-brainbase-projects: brainbase,salestailor,zeims,techknight,baao,unson,mana,mywa,senrigan,postio,unson-os,aitle,ncom,back_office,vibepro-project" \
   -H "x-brainbase-clearance: internal" \
   -d '{
     "projectCode": "<projectCode>",
@@ -267,7 +267,7 @@ RACI が未整備のプロジェクト・ドメインでは true だと 403。�
 ```
 brainbase, salestailor, zeims, techknight, baao, unson,
 mana, mywa, senrigan, postio, unson-os, aitle, ncom,
-back_office, vibepro
+back_office, vibepro-project
 ```
 
 ### 5b. 人物・顧客・パートナー Wiki ページ
