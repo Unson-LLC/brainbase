@@ -209,10 +209,28 @@ export class HttpClient {
 
             if (!response.ok) {
                 if (response.status === 401 && !suppressAuthError && typeof this._onUnauthorized === 'function') {
+                    // refresh-on-401 retry: ハンドラがboolean true を返したら同一requestをretry
+                    let refreshed = false;
                     try {
-                        this._onUnauthorized();
+                        const handlerResult = await this._onUnauthorized();
+                        refreshed = handlerResult === true;
                     } catch (error) {
                         // ignore handler errors
+                    }
+                    if (refreshed) {
+                        const retryHeaders = { ...headers };
+                        if (this._authToken) {
+                            retryHeaders['Authorization'] = `Bearer ${this._authToken}`;
+                        }
+                        try {
+                            const retryResponse = await fetch(fullURL, { ...fetchOptions, headers: retryHeaders });
+                            if (retryResponse.ok) {
+                                return retryResponse.json();
+                            }
+                            response = retryResponse;
+                        } catch (retryError) {
+                            // retry失敗時は既存エラー処理へ
+                        }
                     }
                 }
 

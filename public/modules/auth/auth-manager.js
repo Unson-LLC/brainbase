@@ -48,6 +48,23 @@ export class AuthManager {
         this._messageListenerBound = false;
         this._loginPopup = null;
         this._verifying = false;
+        this._refreshInflight = null;
+
+        // http-client の 401 retry フックに refreshSession を紐付け
+        if (this.httpClient?.setUnauthorizedHandler) {
+            this.httpClient.setUnauthorizedHandler(async () => {
+                if (!this.refreshToken) return false;
+                if (this._refreshInflight) return await this._refreshInflight;
+                this._refreshInflight = (async () => {
+                    try {
+                        return await this.refreshSession();
+                    } finally {
+                        this._refreshInflight = null;
+                    }
+                })();
+                return await this._refreshInflight;
+            });
+        }
     }
 
     async initFromStorage() {
