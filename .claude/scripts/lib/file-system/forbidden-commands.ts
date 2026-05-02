@@ -62,6 +62,15 @@ const forbiddenCommands: CommandPattern[] = [
     pattern: "docker system prune -a",
     reason: "全てのDockerリソースが削除される",
   },
+
+  // VibePro DAG bypass防止: gh pr create 直叩きを禁止
+  // VibePro CLI 内部からの spawn 経由は hookに引っかからないため、
+  // ここで block するのは Claude Code から直接 Bash で叩くケースのみ。
+  // 代替コマンド: vibepro pr create --strict （task/handoff/gate_dag を全部チェック）
+  {
+    pattern: "gh pr create",
+    reason: "gh pr create 直叩きは VibePro DAG ガード（task/handoff/gate_dag）を bypass します。代わりに `vibepro pr create --strict` を使ってください",
+  },
 ];
 
 const warningCommands: CommandPattern[] = [
