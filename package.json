@@ -51,7 +51,8 @@
     "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
-    "setup": "bash scripts/setup.sh"
+    "setup": "bash scripts/setup.sh",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1022.0",
@@ -83,6 +84,7 @@
     "@vitest/coverage-v8": "^4.0.16",
     "eslint": "^9.39.4",
     "eslint-plugin-import": "^2.32.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.3.0",
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",

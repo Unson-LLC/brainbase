@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# VibePro DAG enforcement: push前にgate_dagがready_for_reviewか確認する。
+# escape: BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1 git push ...
+
+set -e
+
+if [ "${BRAINBASE_ALLOW_PUSH_WITHOUT_GATE:-0}" = "1" ]; then
+  echo "[husky/pre-push] Skipped (BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1)"
+  exit 0
+fi
+
+BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+case "$BRANCH" in
+  session/*) ;;
+  *)
+    echo "[husky/pre-push] Skip gate check (branch=$BRANCH)"
+    exit 0
+    ;;
+esac
+
+VIBEPRO_BIN="${VIBEPRO_BIN:-/Users/ksato/workspace/code/vibepro/bin/vibepro.js}"
+if [ ! -e "$VIBEPRO_BIN" ]; then
+  echo "[husky/pre-push] vibepro CLI not found at $VIBEPRO_BIN, skipping gate check"
+  echo "[husky/pre-push] Set VIBEPRO_BIN env to enforce gate"
+  exit 0
+fi
+
+OUTPUT=$(node "$VIBEPRO_BIN" pr prepare . --base origin/develop --json 2>&1 || true)
+
+STATUS=$(node -e "
+let buf = '';
+process.stdin.on('data', (d) => { buf += d; });
+process.stdin.on('end', () => {
+  try {
+    const start = buf.indexOf('{');
+    if (start < 0) { console.log('parse_error'); return; }
+    const json = JSON.parse(buf.slice(start));
+    console.log(json.pr_context?.gate_dag?.overall_status || 'unknown');
+  } catch { console.log('parse_error'); }
+});
+" <<< "$OUTPUT")
+
+if [ "$STATUS" = "ready_for_review" ]; then
+  echo "[husky/pre-push] gate_dag = ready_for_review ✓"
+  exit 0
+fi
+
+echo ""
+echo "❌ [husky/pre-push] gate_dag.overall_status = $STATUS"
+echo ""
+echo "VibePro DAG ガードに引っかかりました。"
+echo ""
+echo "対処:"
+echo "  1. Unit / Integration / E2E test を追加して各 gate に証跡を残す"
+echo "  2. \`vibepro pr prepare . --base origin/develop\` で gate_dag を確認"
+echo "  3. ready_for_review に到達してから再 push"
+echo ""
+echo "緊急時の escape:"
+echo "  BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1 git push ..."
+echo "  (PR本文に bypass 理由を残すこと)"
+echo ""
+exit 1
