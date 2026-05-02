@@ -1142,4 +1142,54 @@ describe('terminal-transport-client', () => {
 
     secondSocket._emit('close', { code: 1000 });
   });
+
+  describe('Mobile scroll preservation (Bug#2)', () => {
+    it('_writeToTerminal: pinned=false のとき次フレームでも_restoreViewportStateが再呼び出しされる', () => {
+      const client = new TerminalTransportClient({
+        viewerId: 'viewer-mobile-1',
+        viewerLabel: 'Mobile'
+      });
+      const writeCallbacks = [];
+      client.terminal = {
+        write: vi.fn((text, cb) => { writeCallbacks.push(cb); }),
+        scrollToBottom: vi.fn(),
+        scrollToLine: vi.fn(),
+        buffer: { active: { baseY: 100, viewportY: 80 } }
+      };
+      const restoreSpy = vi.spyOn(client, '_restoreViewportState');
+      const rafCallbacks = [];
+      vi.stubGlobal('requestAnimationFrame', (cb) => { rafCallbacks.push(cb); return rafCallbacks.length; });
+
+      client._writeToTerminal('hello');
+      writeCallbacks[0]?.();
+      expect(restoreSpy).toHaveBeenCalledTimes(1);
+      expect(restoreSpy.mock.calls[0][0].wasPinnedToBottom).toBe(false);
+
+      expect(rafCallbacks).toHaveLength(1);
+      rafCallbacks[0]?.();
+      expect(restoreSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('_writeToTerminal: pinned=true のときは rAF再復元しない', () => {
+      const client = new TerminalTransportClient({
+        viewerId: 'viewer-mobile-2',
+        viewerLabel: 'Mobile'
+      });
+      const writeCallbacks = [];
+      client.terminal = {
+        write: vi.fn((text, cb) => { writeCallbacks.push(cb); }),
+        scrollToBottom: vi.fn(),
+        scrollToLine: vi.fn(),
+        buffer: { active: { baseY: 100, viewportY: 100 } }
+      };
+      const restoreSpy = vi.spyOn(client, '_restoreViewportState');
+      const rafCallbacks = [];
+      vi.stubGlobal('requestAnimationFrame', (cb) => { rafCallbacks.push(cb); return rafCallbacks.length; });
+
+      client._writeToTerminal('hello');
+      writeCallbacks[0]?.();
+      expect(restoreSpy).toHaveBeenCalledTimes(1);
+      expect(rafCallbacks).toHaveLength(0);
+    });
+  });
 });

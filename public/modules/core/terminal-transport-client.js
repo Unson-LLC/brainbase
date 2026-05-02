@@ -1362,6 +1362,16 @@ export class TerminalTransportClient {
         const nextViewportState = viewportState || this._captureViewportState();
         this.terminal.write(text, () => {
             this._restoreViewportState(nextViewportState);
+            // NocoDB バグ#2: モバイルでターミナル更新時にスクロール位置が最下部に
+            // 戻る問題への対策。 ユーザーが上スクロール中（wasPinnedToBottom=false）
+            // の場合、 iOS Safari の momentum scroll / fitAddon resize で
+            // write callback 直後に再度スクロールが戻されるケースがある。
+            // 次フレームで再度 restore して位置を確実にキープする。
+            if (!nextViewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => {
+                    this._restoreViewportState(nextViewportState);
+                });
+            }
             this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
         });
     }
