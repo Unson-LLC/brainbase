@@ -311,12 +311,11 @@ export const activityServiceMethods = {
                     activeTurnIds.delete(tid);
                 }
             }
-            if (activeTurnIds.size > 0 || lastWorkingAt >= lastDoneAt) {
+            if (activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             }
         } else if (status === 'working') {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
-            lastDoneAt = 0;
         } else {
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         }
