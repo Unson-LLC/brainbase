@@ -19,39 +19,30 @@ NC='\033[0m' # No Color
 ERRORS=0
 WARNINGS=0
 
-should_skip_target_file() {
-    case "$1" in
-        scripts/check-secrets.sh|\
-        .git/*|.jj/*|node_modules/*|dist/*|build/*|coverage/*|test-results/*|.worktrees/*|var/*|data/*|.claude/*|\
-        *.log|*.tmp|*.pdf|*.backup.*|state.json|.env|nohup.out)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-TARGET_FILES=()
+SCAN_FILES=()
+CHANGED_MODE=false
 if [ -n "${CHECK_SECRETS_FILE_LIST:-}" ] && [ -f "$CHECK_SECRETS_FILE_LIST" ]; then
-    while IFS= read -r file_path; do
-        [ -z "$file_path" ] && continue
-        should_skip_target_file "$file_path" && continue
-        [ -f "$file_path" ] && TARGET_FILES+=("$file_path")
+    CHANGED_MODE=true
+    while IFS= read -r file; do
+        case "$file" in
+            scripts/check-secrets.sh) continue ;;
+        esac
+        [ -n "$file" ] && [ -f "$file" ] && SCAN_FILES+=("$file")
     done < "$CHECK_SECRETS_FILE_LIST"
-elif [ "$#" -gt 0 ]; then
-    for file_path in "$@"; do
-        should_skip_target_file "$file_path" && continue
-        [ -f "$file_path" ] && TARGET_FILES+=("$file_path")
-    done
-else
-    TARGET_FILES=(".")
 fi
 
-if [ "${#TARGET_FILES[@]}" -eq 0 ]; then
-    echo -e "${GREEN}✓ No files to scan${NC}"
+if [ "$CHANGED_MODE" = true ] && [ ${#SCAN_FILES[@]} -eq 0 ]; then
+    echo "Mode: changed files (0 scannable file)"
+    echo "✓ PASSED: No scannable changed files"
     exit 0
 fi
+
+if [ ${#SCAN_FILES[@]} -gt 0 ]; then
+    echo "Mode: changed files (${#SCAN_FILES[@]} file(s))"
+else
+    echo "Mode: full repository"
+fi
+echo ""
 
 # チェック関数
 check_pattern() {
@@ -62,7 +53,9 @@ check_pattern() {
     echo "Checking: $description"
 
     local results
-    if [ "${#TARGET_FILES[@]}" -eq 1 ] && [ "${TARGET_FILES[0]}" = "." ]; then
+    if [ ${#SCAN_FILES[@]} -gt 0 ]; then
+        results=$(grep -n -I -E "$pattern" "${SCAN_FILES[@]}" 2>/dev/null || true)
+    else
         # grepで検索（除外パターンを考慮）
         results=$(grep -r -n -I \
             --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
@@ -88,8 +81,6 @@ check_pattern() {
             --exclude="OSS_DIRECTORY_STRUCTURE.md" \
             --exclude="nohup.out" \
             -E "$pattern" . 2>/dev/null || true)
-    else
-        results=$(grep -n -I -E "$pattern" -- "${TARGET_FILES[@]}" 2>/dev/null || true)
     fi
 
     if [ -n "$results" ]; then
