@@ -114,6 +114,14 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 トークンがない場合は UI で Slack ログインをやり直す。 期限切れなら自動リフレッシュされるが、 401 が出たら再ログイン。
 
+---
+
+## mana との関係
+
+brainbase（自分のローカル）と mana（クラウド側の Slack 秘書）は **NocoDB と Slack を共有する** 形で連携している。 朝の brief・期限リマインドは mana が Slack に投げ、 タスク詳細編集や課題即キャプチャは brainbase 側で行う、 という役割分担。
+
+詳細は [brainbase ↔ mana 連携ガイド](brainbase-mana-integration.md) を参照。
+
 ### 3. Google Calendar連携（任意）
 
 タイムラインで Google Calendar を出したいメンバーは、各自の Mac で `gog` を認証する。
