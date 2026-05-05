@@ -40,6 +40,19 @@ export class WorktreeService {
         this.canonicalRoot = canonicalRoot;
         this.execPromise = execPromise;
         this._jjRepoCache = new Map();  // repoPath単位のキャッシュ
+        this._repoMutex = new Map();    // repoPath -> Promise (last in chain)
+    }
+
+    /**
+     * 同一 repoPath への jj/git 書き込みを直列化する。
+     * 異なる repoPath 間は並列実行を許可。chain内の例外は次の呼び出しに伝播しない。
+     */
+    async _withRepoLock(repoPath, fn) {
+        const prev = this._repoMutex.get(repoPath) || Promise.resolve();
+        const next = prev.then(fn, fn);
+        // 後続 caller が chain に乗れるよう、結果に関わらず resolve する Promise を保持
+        this._repoMutex.set(repoPath, next.then(() => {}, () => {}));
+        return next;
     }
 
     /**
@@ -233,21 +246,23 @@ export class WorktreeService {
         const { retryStale = true } = options;
         const fullCommand = `jj -R "${repoPath}" ${command}`;
 
-        try {
-            return await this.execPromise(fullCommand);
-        } catch (error) {
-            if (retryStale && this._isStaleWorkingCopyError(error)) {
-                logger.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
-                await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
+        return this._withRepoLock(repoPath, async () => {
+            try {
                 return await this.execPromise(fullCommand);
-            }
+            } catch (error) {
+                if (retryStale && this._isStaleWorkingCopyError(error)) {
+                    logger.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
+                    await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
+                    return await this.execPromise(fullCommand);
+                }
 
-            if (this._isIndexLockError(error) && await this._recoverStaleLockfile(repoPath)) {
-                return await this.execPromise(fullCommand);
-            }
+                if (this._isIndexLockError(error) && await this._recoverStaleLockfile(repoPath)) {
+                    return await this.execPromise(fullCommand);
+                }
 
-            throw error;
-        }
+                throw error;
+            }
+        });
     }
 
     async _getBookmarkInfos(repoPath, sessionId, options = {}) {
@@ -942,7 +957,11 @@ export class WorktreeService {
             // Push bookmark to remote
             logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
             try {
-                await this.execPromise(`jj -R "${repoPath}" git push --bookmark "${bookmarkName}"`);
+                await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `git push --bookmark "${bookmarkName}"`,
+                    { retryStale: false }
+                );
             } catch (pushErr) {
                 return {
                     success: false,
@@ -951,8 +970,10 @@ export class WorktreeService {
             }
 
             // Get commits for PR description
-            const { stdout: commits } = await this.execPromise(
-                `jj -R "${repoPath}" log -r "${mainBranchName}..${bookmarkName}" -T '"- " ++ description.first_line() ++ "\\n"' --no-pager`
+            const { stdout: commits } = await this._execJujutsuWithStaleRetry(
+                repoPath,
+                `log -r "${mainBranchName}..${bookmarkName}" -T '"- " ++ description.first_line() ++ "\\n"' --no-pager`,
+                { retryStale: false }
             );
 
             // Build PR title
@@ -985,13 +1006,21 @@ EOF
             const workspacePath = path.join(this.worktreesDir, workspaceName);
 
             try {
-                await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
+                await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `workspace forget "${workspaceName}"`,
+                    { retryStale: false }
+                );
             } catch (forgetErr) {
                 logger.info(`[merge] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
             }
 
             try {
-                await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
+                await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `bookmark delete "${bookmarkName}"`,
+                    { retryStale: false }
+                );
             } catch (bookmarkErr) {
                 logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
             }
