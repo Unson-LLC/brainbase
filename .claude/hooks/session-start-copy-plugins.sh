@@ -3,123 +3,49 @@
 # cwd refresh: prevent EPERM uv_cwd on unmounted drives
 cd . 2>/dev/null || cd /tmp
 
-# SessionStart Hook: L2（brainbase-unson）とL3（brainbase-config）の.claude/とroot artifactsを自動コピー
-# - plugins/: プラグイン（goal-seek等）
-# - hooks/: このスクリプト自体も含む
-# - settings.json: SessionStart Hook定義（次回実行のため必須）
-# - CLAUDE.md: project共通正本
-# - AGENTS.md: Codex互換の派生artifact（CLAUDE.mdと同内容）
+# SessionStart Hook (slim版): 真に必要なものだけ配布
+#
+# 過去の経緯と現状:
+# - 当初設計 (2026-03-02, 8c5e0c12): plugins/ だけを cp する想定だった
+# - 4/1 (538d844c): scripts/ の ERR_MODULE_NOT_FOUND 対策として cp追加（当時のskip-worktree問題に伴う）
+# - その後 hooks/commands/skills/settings/CLAUDE.md/AGENTS.md/.mcp.json まで cp が肥大化
+# - 結果: develop最新 vs session worktreeのcommit版の差分が dirty 1000件として表示される問題が発生
+#
+# 修復方針 (2026-05-06):
+# - skills/scripts/commands/hooks/settings/CLAUDE.md/AGENTS.md/.mcp.json は brainbase repo に
+#   git tracked で commit されているため、worktree 作成時点で既に存在する → cp 不要
+# - 必要なのは plugins/ (gitignore対象、hookでしか配布できない) と node_modules / mcp 依存だけ
+# - 過去の skip-worktree 問題は 9b30a766 で解消済み（fixSymlinks recovery feature が削除済み）
+#
+# session worktree が古くなった場合は、ユーザー自身が `git merge develop` で
+# 明示的に最新化する運用とする（dirty を勝手に発生させないこと優先）。
 
 set -e
 
 # brainbaseプロジェクトかどうかをチェック
 L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
 L3_CLAUDE="/Users/ksato/workspace/brainbase-config/.claude"
-L2_CLAUDE_MD="/Users/ksato/workspace/code/brainbase/CLAUDE.md"
-L3_CLAUDE_MD="/Users/ksato/workspace/brainbase-config/CLAUDE.md"
 
 # L2もL3も存在しない場合は何もしない（brainbase以外のプロジェクト）
-if [ ! -d "$L2_CLAUDE" ] && [ ! -d "$L3_CLAUDE" ] && [ ! -f "$L2_CLAUDE_MD" ] && [ ! -f "$L3_CLAUDE_MD" ]; then
+if [ ! -d "$L2_CLAUDE" ] && [ ! -d "$L3_CLAUDE" ]; then
   exit 0
 fi
 
-echo "🚀 SessionStart Hook: .claude/ と root artifacts をコピー中..."
+echo "🚀 SessionStart Hook (slim): plugins/ + node_modules + mcp依存 のみ配布"
 
-# .claude/ ディレクトリを作成
+# .claude/plugins/ ディレクトリを作成
 mkdir -p .claude/plugins
-mkdir -p .claude/hooks
-mkdir -p .claude/commands
-mkdir -p .claude/skills
-mkdir -p .claude/scripts
 
-# L2（brainbase-unson）からコピー
-L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
-if [ -d "$L2_CLAUDE" ]; then
-  echo "  📦 L2（brainbase-unson）からコピー中..."
-
-  # plugins/
-  if [ -d "$L2_CLAUDE/plugins" ]; then
-    cp -r "$L2_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
-  fi
-
-  # hooks/
-  if [ -d "$L2_CLAUDE/hooks" ]; then
-    cp -r "$L2_CLAUDE/hooks"/* .claude/hooks/ 2>/dev/null || true
-  fi
-
-  # commands/
-  if [ -d "$L2_CLAUDE/commands" ]; then
-    cp -r "$L2_CLAUDE/commands"/* .claude/commands/ 2>/dev/null || true
-  fi
-
-  # skills/
-  if [ -d "$L2_CLAUDE/skills" ]; then
-    cp -r "$L2_CLAUDE/skills"/* .claude/skills/ 2>/dev/null || true
-  fi
-
-  # scripts/
-  if [ -d "$L2_CLAUDE/scripts" ]; then
-    cp -r "$L2_CLAUDE/scripts"/* .claude/scripts/ 2>/dev/null || true
-  fi
-
-  # settings.json
-  if [ -f "$L2_CLAUDE/settings.json" ]; then
-    cp "$L2_CLAUDE/settings.json" .claude/settings.json 2>/dev/null || true
-  fi
-
-  echo "  ✅ L2コピー完了"
+# L2（brainbase-unson）の plugins/ をコピー
+if [ -d "$L2_CLAUDE/plugins" ]; then
+  cp -r "$L2_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
+  echo "  ✅ L2 plugins コピー完了"
 fi
 
-# L3（brainbase-config）で上書き（優先度が高い）
-L3_CLAUDE="/Users/ksato/workspace/brainbase-config/.claude"
-if [ -d "$L3_CLAUDE" ]; then
-  echo "  📦 L3（brainbase-config）で上書き中..."
-
-  # plugins/
-  if [ -d "$L3_CLAUDE/plugins" ]; then
-    cp -r "$L3_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
-  fi
-
-  # hooks/
-  if [ -d "$L3_CLAUDE/hooks" ]; then
-    cp -r "$L3_CLAUDE/hooks"/* .claude/hooks/ 2>/dev/null || true
-  fi
-
-  # commands/
-  if [ -d "$L3_CLAUDE/commands" ]; then
-    cp -r "$L3_CLAUDE/commands"/* .claude/commands/ 2>/dev/null || true
-  fi
-
-  # skills/
-  if [ -d "$L3_CLAUDE/skills" ]; then
-    cp -r "$L3_CLAUDE/skills"/* .claude/skills/ 2>/dev/null || true
-  fi
-
-  # scripts/
-  if [ -d "$L3_CLAUDE/scripts" ]; then
-    cp -r "$L3_CLAUDE/scripts"/* .claude/scripts/ 2>/dev/null || true
-  fi
-
-  # settings.json
-  if [ -f "$L3_CLAUDE/settings.json" ]; then
-    cp "$L3_CLAUDE/settings.json" .claude/settings.json 2>/dev/null || true
-  fi
-
-  echo "  ✅ L3上書き完了"
-fi
-
-# root-level artifacts（L2 -> L3 overlay）
-ROOT_CLAUDE_MD=""
-if [ -f "$L2_CLAUDE_MD" ]; then
-  ROOT_CLAUDE_MD="$L2_CLAUDE_MD"
-fi
-if [ -f "$L3_CLAUDE_MD" ]; then
-  ROOT_CLAUDE_MD="$L3_CLAUDE_MD"
-fi
-
-if [ -n "$ROOT_CLAUDE_MD" ]; then
-  cp "$ROOT_CLAUDE_MD" ./CLAUDE.md 2>/dev/null || true
-  cp "$ROOT_CLAUDE_MD" ./AGENTS.md 2>/dev/null || true
+# L3（brainbase-config）の plugins/ で上書き（優先度が高い）
+if [ -d "$L3_CLAUDE/plugins" ]; then
+  cp -r "$L3_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
+  echo "  ✅ L3 plugins 上書き完了"
 fi
 
 # node_modules を L2 から symlink（hook 実行基盤: npx tsx が解決できるように）
@@ -131,4 +57,18 @@ if [ -d "$L2_NODE_MODULES" ]; then
   fi
 fi
 
-echo "✅ SessionStart Hook 完了！（.claude/, CLAUDE.md, AGENTS.md, node_modules）"
+# mcp/<server>/package.json がある独立MCP serverの依存を確保
+# (L2 node_modules は brainbase本体専用なので mcp/* 配下の axios 等は別途解決が必要)
+if [ -d "./mcp" ]; then
+  for mcp_pkg in ./mcp/*/package.json; do
+    [ -f "$mcp_pkg" ] || continue
+    mcp_dir=$(dirname "$mcp_pkg")
+    if [ ! -d "$mcp_dir/node_modules" ]; then
+      echo "  📦 $(basename $mcp_dir) MCP の依存をインストール中..."
+      (cd "$mcp_dir" && npm install --silent --no-fund --no-audit --ignore-scripts 2>&1 \
+        | tail -3 | sed 's/^/    /') || echo "    ⚠ $(basename $mcp_dir) install失敗"
+    fi
+  done
+fi
+
+echo "✅ SessionStart Hook 完了"
