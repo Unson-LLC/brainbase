@@ -19,13 +19,6 @@ function shellQuote(value) {
     return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
-function sanitizeBranchPart(value) {
-    return String(value || '')
-        .replace(/[^a-zA-Z0-9._/-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 90) || 'session';
-}
-
 function markdownValue(value) {
     if (value === null || value === undefined || value === '') return '-';
     return String(value).replace(/\r?\n/g, ' ');
@@ -35,9 +28,14 @@ function getErrorMessage(error) {
     return error instanceof Error ? error.message : String(error || '');
 }
 
-function isBaseModifiedPrError(error) {
+const ARCHIVE_BRANCH = 'archive-records';
+const PUSH_RETRY_LIMIT = 2;
+
+function isMissingRemoteBranchError(error) {
     const message = getErrorMessage(error);
-    return message.includes('Base branch was modified') || message.includes('Review and try the merge again');
+    return /Remote branch .* not found/i.test(message)
+        || /Could not find remote branch/i.test(message)
+        || /couldn't find remote ref/i.test(message);
 }
 
 export class ArchiveFinalizerService {
@@ -318,71 +316,65 @@ export class ArchiveFinalizerService {
         const year = String(now.getFullYear());
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const recordPath = `docs/session-archives/${year}/${month}/${session.id}.md`;
-        const branchName = `archive-record/${sanitizeBranchPart(session.id)}-${now.getTime()}`;
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-archive-record-'));
+        const recordContent = this._buildRecordMarkdown(session, now);
+        const commitMessage = `docs(session): archive ${session.id}`;
 
         try {
             const remoteUrl = (await this.execPromise(`git -C ${shellQuote(this.repoRoot)} remote get-url origin`)).stdout.trim();
-            const mainBranch = await this._getMainBranchName(this.repoRoot);
-            await this.execPromise(`git clone --depth 1 --branch ${shellQuote(mainBranch)} ${shellQuote(remoteUrl)} ${shellQuote(tempDir)}`);
-            await fs.mkdir(path.join(tempDir, path.dirname(recordPath)), { recursive: true });
-            await fs.writeFile(path.join(tempDir, recordPath), this._buildRecordMarkdown(session, now), 'utf8');
-            await this.execPromise(`git -C ${shellQuote(tempDir)} checkout -b ${shellQuote(branchName)}`);
-            await this.execPromise(`git -C ${shellQuote(tempDir)} add ${shellQuote(recordPath)}`);
-            await this.execPromise(`git -C ${shellQuote(tempDir)} commit -m ${shellQuote(`docs(session): archive ${session.id}`)}`);
-            await this.execPromise(`git -C ${shellQuote(tempDir)} push -u origin ${shellQuote(branchName)}`);
+            await this._cloneArchiveBranch(tempDir, remoteUrl);
+            await this._writeRecordFile(tempDir, recordPath, recordContent);
+            await this._stageAndCommit(tempDir, recordPath, commitMessage);
 
-            const title = `docs(session): archive ${session.name || session.id}`;
-            const body = `Archive record for ${session.id}.`;
-            const { stdout: prUrl } = await this.execPromise(
-                `cd ${shellQuote(tempDir)} && gh pr create --base ${shellQuote(mainBranch)} --head ${shellQuote(branchName)} --title ${shellQuote(title)} --body ${shellQuote(body)}`
-            );
-            const trimmedPrUrl = prUrl.trim();
-            const mergeWarning = await this._mergeArchiveRecordPr(tempDir, trimmedPrUrl, mainBranch);
+            for (let attempt = 1; ; attempt += 1) {
+                try {
+                    await this.execPromise(`git -C ${shellQuote(tempDir)} push origin ${shellQuote(ARCHIVE_BRANCH)}`);
+                    break;
+                } catch (error) {
+                    if (attempt > PUSH_RETRY_LIMIT) {
+                        logger.warn(`[ArchiveFinalizer] Archive record push failed after retry: ${getErrorMessage(error)}`);
+                        throw error;
+                    }
+                    logger.warn(`[ArchiveFinalizer] Archive record push race detected (attempt ${attempt}); refetching and retrying`);
+                    await this.execPromise(`git -C ${shellQuote(tempDir)} fetch origin ${shellQuote(ARCHIVE_BRANCH)}`);
+                    await this.execPromise(`git -C ${shellQuote(tempDir)} reset --hard ${shellQuote(`origin/${ARCHIVE_BRANCH}`)}`);
+                    await this._writeRecordFile(tempDir, recordPath, recordContent);
+                    await this._stageAndCommit(tempDir, recordPath, commitMessage);
+                }
+            }
 
             return {
                 recordPath,
-                recordPrUrl: trimmedPrUrl,
-                branchName,
-                mergeWarning
+                recordPrUrl: null,
+                branchName: ARCHIVE_BRANCH,
+                mergeWarning: null
             };
         } finally {
             await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
     }
 
-    async _mergeArchiveRecordPr(tempDir, prUrl, mainBranch) {
+    async _cloneArchiveBranch(tempDir, remoteUrl) {
         try {
-            await this.execPromise(`cd ${shellQuote(tempDir)} && gh pr merge ${shellQuote(prUrl)} --merge --delete-branch`);
-            return null;
+            await this.execPromise(`git clone --depth 1 --branch ${shellQuote(ARCHIVE_BRANCH)} ${shellQuote(remoteUrl)} ${shellQuote(tempDir)}`);
+            return;
         } catch (error) {
-            if (!isBaseModifiedPrError(error)) {
-                logger.warn(`[ArchiveFinalizer] Archive record PR merge left open: ${getErrorMessage(error)}`);
-                return getErrorMessage(error);
-            }
+            if (!isMissingRemoteBranchError(error)) throw error;
         }
-
-        try {
-            await this.execPromise(`cd ${shellQuote(tempDir)} && git fetch origin ${shellQuote(mainBranch)}`);
-            await this.execPromise(`cd ${shellQuote(tempDir)} && git rebase ${shellQuote(`origin/${mainBranch}`)}`);
-            await this.execPromise(`cd ${shellQuote(tempDir)} && git push --force-with-lease`);
-            await this.execPromise(`cd ${shellQuote(tempDir)} && gh pr merge ${shellQuote(prUrl)} --merge --delete-branch`);
-            return null;
-        } catch (retryError) {
-            logger.warn(`[ArchiveFinalizer] Archive record PR merge left open after retry: ${getErrorMessage(retryError)}`);
-            return getErrorMessage(retryError);
-        }
+        // Branch does not exist on remote yet — initialize an orphan history
+        await this.execPromise(`git clone --depth 1 ${shellQuote(remoteUrl)} ${shellQuote(tempDir)}`);
+        await this.execPromise(`git -C ${shellQuote(tempDir)} checkout --orphan ${shellQuote(ARCHIVE_BRANCH)}`);
+        await this.execPromise(`git -C ${shellQuote(tempDir)} rm -rf .`).catch(() => {});
     }
 
-    async _getMainBranchName(repoPath) {
-        try {
-            const { stdout } = await this.execPromise(
-                `git -C ${shellQuote(repoPath)} symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'`
-            );
-            return stdout.trim() || 'main';
-        } catch {
-            return 'main';
-        }
+    async _writeRecordFile(tempDir, recordPath, content) {
+        await fs.mkdir(path.join(tempDir, path.dirname(recordPath)), { recursive: true });
+        await fs.writeFile(path.join(tempDir, recordPath), content, 'utf8');
+    }
+
+    async _stageAndCommit(tempDir, recordPath, commitMessage) {
+        await this.execPromise(`git -C ${shellQuote(tempDir)} add ${shellQuote(recordPath)}`);
+        await this.execPromise(`git -C ${shellQuote(tempDir)} commit -m ${shellQuote(commitMessage)}`);
     }
 
     _buildRecordMarkdown(session, archivedAt) {
