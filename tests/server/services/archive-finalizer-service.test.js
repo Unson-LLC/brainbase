@@ -163,29 +163,108 @@ describe('ArchiveFinalizerService', () => {
         expect(finalizeSpy).not.toHaveBeenCalledWith('session-blocked');
     });
 
-    it('archive record PR mergeがbase更新で失敗した場合_rebaseして再試行する', async () => {
-        buildService([]);
-        const execPromise = vi.fn()
-            .mockRejectedValueOnce(new Error('GraphQL: Base branch was modified. Review and try the merge again.'))
-            .mockResolvedValueOnce({ stdout: '' })
-            .mockResolvedValueOnce({ stdout: '' })
-            .mockResolvedValueOnce({ stdout: '' })
-            .mockResolvedValueOnce({ stdout: '' });
-        service.execPromise = execPromise;
+    describe('_publishMarkdownRecord (archive-records direct push)', () => {
+        let session;
+        let execCalls;
+        let execPromise;
 
-        const warning = await service._mergeArchiveRecordPr('/tmp/archive', 'https://github.com/o/r/pull/1', 'main');
+        beforeEach(() => {
+            session = {
+                id: 'session-XYZ',
+                name: 'Test Session',
+                project: 'brainbase',
+                engine: 'claude',
+                createdAt: '2026-04-01T00:00:00.000Z',
+                worktree: { repo: '/repo', path: '/wt', startCommit: 'abc' }
+            };
+            execCalls = [];
+        });
 
-        expect(warning).toBeNull();
-        expect(execPromise).toHaveBeenNthCalledWith(
-            1,
-            "cd '/tmp/archive' && gh pr merge 'https://github.com/o/r/pull/1' --merge --delete-branch"
-        );
-        expect(execPromise).toHaveBeenNthCalledWith(2, "cd '/tmp/archive' && git fetch origin 'main'");
-        expect(execPromise).toHaveBeenNthCalledWith(3, "cd '/tmp/archive' && git rebase 'origin/main'");
-        expect(execPromise).toHaveBeenNthCalledWith(4, "cd '/tmp/archive' && git push --force-with-lease");
-        expect(execPromise).toHaveBeenNthCalledWith(
-            5,
-            "cd '/tmp/archive' && gh pr merge 'https://github.com/o/r/pull/1' --merge --delete-branch"
-        );
+        function makeService(execImpl) {
+            execPromise = vi.fn(async (cmd) => {
+                execCalls.push(cmd);
+                return execImpl(cmd, execCalls.length);
+            });
+            const svc = new ArchiveFinalizerService({
+                stateStore: createStateStore([]),
+                worktreeService: { getStatus: vi.fn(), merge: vi.fn(), remove: vi.fn() },
+                execPromise,
+                repoRoot: '/repo',
+                now: () => new Date('2026-05-06T00:00:00.000Z')
+            });
+            return svc;
+        }
+
+        it('archive-records branchが既に存在する場合_fetch経由でcheckoutしてpushする', async () => {
+            const svc = makeService((cmd) => {
+                if (cmd.includes('remote get-url origin')) return { stdout: 'git@github.com:o/r.git\n' };
+                if (cmd.includes('--branch \'archive-records\'')) return { stdout: '' };
+                return { stdout: '' };
+            });
+
+            const result = await svc._publishMarkdownRecord(session);
+
+            expect(result.recordPath).toMatch(/^docs\/session-archives\/2026\/05\/session-XYZ\.md$/);
+            expect(result.recordPrUrl).toBeNull();
+            expect(result.branchName).toBe('archive-records');
+
+            const joined = execCalls.join('\n');
+            expect(joined).not.toMatch(/gh pr create/);
+            expect(joined).not.toMatch(/gh pr merge/);
+            expect(joined).toMatch(/git clone --depth 1 --branch 'archive-records'/);
+            expect(joined).toMatch(/git -C .+ add .+session-XYZ\.md/);
+            expect(joined).toMatch(/git -C .+ commit -m 'docs\(session\): archive session-XYZ'/);
+            expect(joined).toMatch(/git -C .+ push origin 'archive-records'/);
+        });
+
+        it('archive-records branchが存在しない場合_orphanで初期化してpushする', async () => {
+            const svc = makeService((cmd) => {
+                if (cmd.includes('remote get-url origin')) return { stdout: 'git@github.com:o/r.git\n' };
+                if (cmd.includes('--branch \'archive-records\'')) {
+                    throw new Error("Remote branch 'archive-records' not found in upstream origin");
+                }
+                return { stdout: '' };
+            });
+
+            const result = await svc._publishMarkdownRecord(session);
+
+            expect(result.recordPrUrl).toBeNull();
+            expect(result.branchName).toBe('archive-records');
+
+            const joined = execCalls.join('\n');
+            expect(joined).toMatch(/git clone --depth 1 --branch 'archive-records'/);
+            expect(joined).toMatch(/checkout --orphan 'archive-records'/);
+            expect(joined).toMatch(/git -C .+ rm -rf \./);
+            expect(joined).toMatch(/git -C .+ push origin 'archive-records'/);
+            expect(joined).not.toMatch(/gh pr create/);
+        });
+
+        it('push競合時_fetch+reset+recommitで再試行する', async () => {
+            let pushAttempts = 0;
+            const svc = makeService((cmd) => {
+                if (cmd.includes('remote get-url origin')) return { stdout: 'git@github.com:o/r.git\n' };
+                if (cmd.includes('push origin')) {
+                    pushAttempts += 1;
+                    if (pushAttempts === 1) {
+                        throw new Error('error: failed to push some refs (non-fast-forward)');
+                    }
+                }
+                return { stdout: '' };
+            });
+
+            const result = await svc._publishMarkdownRecord(session);
+
+            expect(result.recordPrUrl).toBeNull();
+            expect(pushAttempts).toBe(2);
+            const joined = execCalls.join('\n');
+            expect(joined).toMatch(/git -C .+ fetch origin 'archive-records'/);
+            expect(joined).toMatch(/git -C .+ reset --hard 'origin\/archive-records'/);
+            expect(joined).not.toMatch(/gh pr create/);
+        });
+
+        it('_mergeArchiveRecordPrとisBaseModifiedPrErrorは削除されている', async () => {
+            const svc = makeService(() => ({ stdout: '' }));
+            expect(svc._mergeArchiveRecordPr).toBeUndefined();
+        });
     });
 });
