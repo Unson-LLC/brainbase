@@ -144,6 +144,69 @@ export class WorktreeService {
             || message.includes('workspace update-stale');
     }
 
+    _isIndexLockError(error) {
+        if (!error) return false;
+        const message = [
+            error?.message,
+            error?.stderr,
+            error?.stdout
+        ]
+            .filter(Boolean)
+            .join('\n');
+
+        return message.includes('Could not acquire lock for index file')
+            || message.includes('index.lock');
+    }
+
+    /**
+     * `<lockPath>` が活物プロセスに保持されておらず、mtimeも30秒以上前なら stale と判定。
+     * lsof が使えない環境では mtime 条件のみで判定する。
+     */
+    async _isStaleLockfile(lockPath) {
+        let stat;
+        try {
+            stat = await fs.stat(lockPath);
+        } catch {
+            return false;
+        }
+
+        const ageMs = Date.now() - stat.mtimeMs;
+        if (ageMs < 30_000) {
+            return false;
+        }
+
+        try {
+            const { stdout } = await this.execPromise(`lsof "${lockPath}" 2>/dev/null || true`);
+            if (stdout && stdout.trim().length > 0) {
+                return false;
+            }
+        } catch {
+            // lsof unavailable — fall through to mtime-only judgment
+        }
+
+        return true;
+    }
+
+    /**
+     * `<repoPath>/.git/index.lock` が stale なら削除する。
+     * 削除に成功した場合のみ true を返し、警告ログを残す。
+     */
+    async _recoverStaleLockfile(repoPath) {
+        const lockPath = path.join(repoPath, '.git', 'index.lock');
+        if (!(await this._isStaleLockfile(lockPath))) {
+            return false;
+        }
+
+        try {
+            await fs.unlink(lockPath);
+            logger.warn(`[workspace] Removed stale index.lock at ${lockPath}`);
+            return true;
+        } catch (err) {
+            logger.info(`[workspace] Stale index.lock removal failed: ${err instanceof Error ? err.message : String(err)}`);
+            return false;
+        }
+    }
+
     /**
      * ソースが存在すればシンボリックリンクを作成（既存ならスキップ）
      */
@@ -173,13 +236,17 @@ export class WorktreeService {
         try {
             return await this.execPromise(fullCommand);
         } catch (error) {
-            if (!retryStale || !this._isStaleWorkingCopyError(error)) {
-                throw error;
+            if (retryStale && this._isStaleWorkingCopyError(error)) {
+                logger.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
+                await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
+                return await this.execPromise(fullCommand);
             }
 
-            logger.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
-            await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
-            return await this.execPromise(fullCommand);
+            if (this._isIndexLockError(error) && await this._recoverStaleLockfile(repoPath)) {
+                return await this.execPromise(fullCommand);
+            }
+
+            throw error;
         }
     }
 
