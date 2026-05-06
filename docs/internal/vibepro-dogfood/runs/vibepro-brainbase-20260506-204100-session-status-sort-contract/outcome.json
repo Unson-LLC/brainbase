@@ -1,0 +1,27 @@
+{
+  "run_id": "vibepro-brainbase-20260506-204100-session-status-sort-contract",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.vibepro.scorer_manual_only",
+      "fact_ids": [
+        "fact.vibepro.scorer_manual_only"
+      ],
+      "severity": "medium",
+      "category": "automation",
+      "reason": "The VibePro scorer exists but is not connected to an automatic workflow"
+    },
+    {
+      "actual_gap_id": "actual.gap.workflows.vibepro_score_not_automated",
+      "fact_ids": [
+        "fact.workflows.vibepro_score_not_automated"
+      ],
+      "severity": "medium",
+      "category": "automation",
+      "reason": "VibePro score workflow is not present"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

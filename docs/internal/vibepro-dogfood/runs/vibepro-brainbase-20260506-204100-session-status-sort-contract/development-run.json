@@ -1,0 +1,180 @@
+{
+  "run_id": "vibepro-brainbase-20260506-204100-session-status-sort-contract",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed",
+  "created_at": "2026-05-06T20:41:00+09:00",
+  "request": {
+    "raw": "では次のVibeProから出た課題に進んで",
+    "interpreted_goal": "前回VibePro runの残リスクである /api/sessions/status から UI timeline sort までの暗黙契約を、明示的な integration-style UI test で固定する"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/activity-indicator",
+    "story_key": "vibepro-dogfood/activity-indicator/20260506-session-status-sort-contract",
+    "acceptance_criteria": [
+      "/api/sessions/status の polling 結果が sessionUi hookStatus に反映される",
+      "working + activeTurnCount>0 の status は timeline sort で done / idle より上位になる",
+      "done status は working の次、idle より上に表示される",
+      "Graphify focused corpus で pollSessionStatus から _reorderTimelineRows への path を確認できる",
+      "関連 unit / UI tests と eslint が通る"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "brainbase-ui状態の検証でapiを自作シミュレートすると実hooksの不具合を見逃す",
+      "brainbase-vibeproは実装修正ツールではなく-story駆動開発と証跡管理の制御基盤として使う"
+    ],
+    "approach": [
+      "前回 run の residual_risks / next_actions を origin/develop の run evidence から読む",
+      "SessionView test に status polling から timeline reorder までを通す integration-style test を追加する",
+      "Graphify focused corpus で client-side graph path を再確認する",
+      "VibePro development DAG / doc trace / score / Graph SSOT checker を通す"
+    ]
+  },
+  "implementation": {
+    "commit_id": "9af1aab1c5602136c6d64f8c6ed31b8af3e3df86",
+    "pull_request": "https://github.com/Unson-LLC/brainbase-unson/pull/581",
+    "description": "test: cover session status timeline sort contract",
+    "changed_files": [
+      "tests/ui/views/session-view.test.js"
+    ],
+    "behavior_changes": [
+      "実装挙動は変更せず、status polling -> sessionUi -> SESSION_UI_STATE_CHANGED -> SessionView._reorderTimelineRows の既存契約をテストで固定した"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "npm -s exec vitest run tests/ui/views/session-view.test.js tests/unit/session-indicators.test.js tests/unit/session-ui-state.test.js tests/unit/session-activity-state.test.js",
+        "result": "passed",
+        "tests": "52 passed"
+      },
+      {
+        "command": "npx eslint tests/ui/views/session-view.test.js public/modules/session-indicators.js public/modules/session-ui-state.js public/modules/ui/views/session-view.js",
+        "result": "passed"
+      },
+      {
+        "command": "graphify update/path on session status sort focused corpus",
+        "result": "passed_with_inferred_edges",
+        "evidence": "64 nodes / 117 edges. Shortest path: pollSessionStatus() -> replaceSessionHookStatuses() -> session-ui-state.js -> deriveSessionUiState() -> _computeRowFingerprint() -> SessionView -> _reorderTimelineRows()."
+      }
+    ],
+    "failed_or_blocked": []
+  },
+  "outcome": {
+    "loop_result": "targeted_success",
+    "human_intervention_points": [
+      "ユーザーが次のVibePro課題へ進むよう依頼した"
+    ],
+    "residual_risks": [],
+    "next_actions": [
+      "server side の /api/sessions/status schema を追加する場合は、今回の UI contract test と重複しない形で API response validator を設計する"
+    ]
+  },
+  "vibepro_judgment": {
+    "autonomous_development_loop": "go",
+    "reason": "前回 run の暗黙 contract residual risk を、Graphify path と integration-style UI test で明示化した。",
+    "diagnosis_role": "VibePro/Graphify is used as control-plane evidence and code-graph review, not as the implementation engine."
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed",
+        "evidence": [
+          "request.raw"
+        ]
+      },
+      "story": {
+        "status": "passed",
+        "depends_on": [
+          "requirement"
+        ],
+        "evidence": [
+          "docs/stories/vibepro-brainbase-dogfood-story.md"
+        ]
+      },
+      "architecture": {
+        "status": "passed",
+        "depends_on": [
+          "story"
+        ],
+        "evidence": [
+          "docs/architecture/vibepro-brainbase-dogfood-architecture.md"
+        ]
+      },
+      "spec": {
+        "status": "passed",
+        "depends_on": [
+          "architecture"
+        ],
+        "evidence": [
+          "docs/specs/vibepro-brainbase-self-evaluation-spec.md"
+        ]
+      },
+      "test_design": {
+        "status": "passed",
+        "depends_on": [
+          "spec"
+        ],
+        "evidence": [
+          "tests/ui/views/session-view.test.js"
+        ]
+      },
+      "implementation": {
+        "status": "passed",
+        "depends_on": [
+          "test_design"
+        ],
+        "evidence": [
+          "tests/ui/views/session-view.test.js",
+          "https://github.com/Unson-LLC/brainbase-unson/pull/581"
+        ]
+      },
+      "verification": {
+        "status": "passed",
+        "depends_on": [
+          "implementation"
+        ],
+        "evidence": [
+          "npm -s exec vitest run tests/ui/views/session-view.test.js tests/unit/session-indicators.test.js tests/unit/session-ui-state.test.js tests/unit/session-activity-state.test.js",
+          "npx eslint tests/ui/views/session-view.test.js public/modules/session-indicators.js public/modules/session-ui-state.js public/modules/ui/views/session-view.js",
+          "graphify update/path on session status sort focused corpus"
+        ]
+      },
+      "run_evidence": {
+        "status": "passed",
+        "depends_on": [
+          "verification"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.json",
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.md"
+        ]
+      },
+      "score_gate": {
+        "status": "passed",
+        "depends_on": [
+          "run_evidence"
+        ],
+        "evidence": [
+          "npm run vibepro:development-dag -- check-run docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract"
+        ]
+      },
+      "ship": {
+        "status": "passed",
+        "depends_on": [
+          "score_gate"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/ship.md",
+          "https://github.com/Unson-LLC/brainbase-unson/pull/581"
+        ]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 2,
+      "recovered_count": 2
+    }
+  }
+}
