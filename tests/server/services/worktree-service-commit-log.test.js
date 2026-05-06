@@ -450,7 +450,7 @@ describe('WorktreeService.merge', () => {
 
         mockExec
             .mockResolvedValueOnce({ stdout: 'main\n' })
-            .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
+            .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/\n' })
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: 'session-1: abc\n' })
             .mockResolvedValueOnce({ stdout: '' })
