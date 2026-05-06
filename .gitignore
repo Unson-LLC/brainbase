@@ -283,3 +283,8 @@ migration/
 .kamui/
 .kiro/
 .antigravityignore
+
+# VibePro local/runtime artifacts
+.vibepro/
+graphify-out/
+apps/vibepro-panel/.next/
