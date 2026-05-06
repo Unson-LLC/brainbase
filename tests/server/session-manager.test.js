@@ -206,6 +206,24 @@ describe('SessionManager', () => {
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
   });
 
+  it('getSessionStatus_tmux_pane_title_spinner_is_reported_as_active_turn', () => {
+    const manager = createManager();
+    manager._listTmuxPaneTitles = () => [
+      'session-1\t⠹ session-1...',
+      'session-2\t› session-2'
+    ];
+
+    const status = manager.getSessionStatus();
+
+    expect(status['session-1']).toMatchObject({
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 1,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
+    expect(status['session-2']).toBeUndefined();
+  });
+
   it('restoreHookStatus_prunes_stale_working_without_active_turns', async () => {
     const staleTime = Date.now() - 60 * 60 * 1000 - 1000;
     let state = {
