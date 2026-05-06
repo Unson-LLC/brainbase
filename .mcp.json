@@ -35,12 +35,20 @@
         "PORT": "19100"
       }
     },
-    "slack": {
-      "command": "npx",
-      "args": ["-y", "slack-mcp-server"],
-      "env": {
-        "SLACK_MCP_XOXP_TOKEN": "xoxp-7700200993749-7702975178099-10172900783957-022fe75c13fb2bcfdb12b796349a8650"
-      }
+    "slack-unson": {
+      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh",
+      "args": ["unson"],
+      "env": {}
+    },
+    "slack-salestailor": {
+      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh",
+      "args": ["salestailor"],
+      "env": {}
+    },
+    "slack-techknight": {
+      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh",
+      "args": ["techknight"],
+      "env": {}
     }
   }
 }
