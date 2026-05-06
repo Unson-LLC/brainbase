@@ -268,6 +268,7 @@ describe('WorktreeService Git compatibility helpers', () => {
                 stdout: [
                     'Working copy changes:',
                     'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
+                    'A ../../worktrees/session-1-repo/node_modules',
                     'M ../../worktrees/session-1-repo/AGENTS.md',
                     'A ../../worktrees/session-1-repo/.brainbase-port'
                 ].join('\n')
