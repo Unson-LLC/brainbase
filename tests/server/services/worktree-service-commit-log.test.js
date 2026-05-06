@@ -254,6 +254,53 @@ describe('WorktreeService Git compatibility helpers', () => {
 
         expect(mockExec).not.toHaveBeenCalledWith('jj -R "/tmp/repo" git fetch');
     });
+
+    it('workspace artifactだけのworking copy changesはdirty扱いしない', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({
+                stdout: [
+                    'Working copy changes:',
+                    'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
+                    'M ../../worktrees/session-1-repo/AGENTS.md',
+                    'A ../../worktrees/session-1-repo/.brainbase-port'
+                ].join('\n')
+            });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasWorkingCopyChanges).toBe(false);
+        expect(result.needsIntegration).toBe(false);
+    });
+
+    it('workspace artifact以外のworking copy changesはdirty扱いする', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({
+                stdout: [
+                    'Working copy changes:',
+                    'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
+                    'M ../../worktrees/session-1-repo/src/app.js'
+                ].join('\n')
+            });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasWorkingCopyChanges).toBe(true);
+        expect(result.needsIntegration).toBe(true);
+    });
 });
 
 describe('WorktreeService.autoHealArchiveState', () => {
