@@ -46,6 +46,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "vibepro:ci": "node scripts/vibepro-score-run.mjs auto-run \"${VIBEPRO_RUN_DIR:-var/vibepro-ci-run}\"",
+    "vibepro:score-verify": "node scripts/vibepro-score-run.mjs verify-changed",
     "vibepro:development-dag": "node scripts/vibepro-development-dag-check.mjs",
     "vibepro:doc-trace": "node scripts/vibepro-doc-trace-check.mjs",
     "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",

@@ -108,10 +108,10 @@ export function collectChangedFilesForDevelopmentDag(options = {}) {
 }
 
 export function extractDogfoodRunIds(changedFiles) {
-  return normalizeChangedFiles(changedFiles)
+  return [...new Set(normalizeChangedFiles(changedFiles)
     .filter((file) => file.startsWith(VIBEPRO_RUN_PREFIX))
     .map((file) => file.slice(VIBEPRO_RUN_PREFIX.length).split('/')[0])
-    .filter(Boolean)
+    .filter(Boolean))]
     .sort();
 }
 

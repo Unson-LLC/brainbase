@@ -43,8 +43,8 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 - [x] `feedback.md` と `report.md` は採点結果から生成される
 - [x] VibePro dogfood の各実装 run は、run 証跡だけでなく Story -> Architecture -> Spec のいずれかに追跡可能な形で残る
 - [x] 前回 run の残リスクは、次 run の story_key / acceptance_criteria / verification に引き継がれる
-- [ ] 新しい VibePro dogfood run は、要求から score/gate までの開発DAG証跡を持つ
-- [ ] 開発DAG証跡は AI ではなく決定論的 checker で採点される
+- [x] 新しい VibePro dogfood run は、要求から score/gate までの開発DAG証跡を持つ
+- [x] 開発DAG証跡は AI ではなく決定論的 checker で採点される
 - [ ] 開発DAGが欠落・順序違反・証跡欠落を起こした場合、次工程へ進めない
 - [ ] 日本語の開発DAG指標は Graph SSOT の用語として参照できる
 
@@ -56,6 +56,7 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/development-run.md`
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard/development-run.md`
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.md`
+- `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.md`
 
 ## スコープ外
 

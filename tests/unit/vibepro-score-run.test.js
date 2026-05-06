@@ -14,6 +14,7 @@ import {
   collectStoryToShipHealth,
   collectWorkflowHealth,
   deriveLabelsFromOutcome,
+  extractDogfoodRunIds,
   extractCoverageIncludesFromVitestConfig,
   generateDiagnosisFromObservation,
   generateOutcomeFromObservation,
@@ -21,6 +22,7 @@ import {
   runAutomationPipeline,
   runEvaluationPipeline,
   scoreRunDirectory,
+  verifyRunDirectory,
   validateObservationCompleteness,
   validateScoreGate,
 } from '../../scripts/vibepro-score-run.mjs';
@@ -131,6 +133,14 @@ describe('vibepro-score-run', () => {
         status: 'M',
       }),
     );
+  });
+
+  it('changed filesから同じrun idを重複なく抽出する', () => {
+    expect(extractDogfoodRunIds([
+      'docs/internal/vibepro-dogfood/runs/run-1/observation.json',
+      'docs/internal/vibepro-dogfood/runs/run-1/score.json',
+      'docs/internal/vibepro-dogfood/runs/run-2/development-run.json',
+    ])).toEqual(['run-1', 'run-2']);
   });
 
   it('VibePro関連ファイルはdogfood scopeとしてdirty factから除外し_security configは別factにする', () => {
@@ -361,5 +371,62 @@ describe('vibepro-score-run', () => {
       intervention_outcomes: [],
     }));
     expect((await scoreRunDirectory(runDir)).metrics['本番化ギャップ捕捉率']).toBe(1);
+  });
+
+  it('verifyはscore成果物を書き換えずに不整合を検出する', async () => {
+    const runDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vibepro-score-verify-'));
+    await fs.writeFile(path.join(runDir, 'observation.json'), JSON.stringify({
+      run_id: 'run-1',
+      repo: {
+        branch: 'develop',
+        changed_files: [],
+        scorer_exists: true,
+        scorer_workflow_exists: true,
+      },
+      dogfood: {},
+      workflows: { workflow_count: 2 },
+      story_to_ship: { dogfood_story_unshipped: false },
+      coverage: { scorer_in_coverage_scope: true },
+      observed_facts: [
+        {
+          fact_id: 'fact.repo.behind_origin',
+          kind: 'operational_freshness',
+          severity: 'medium',
+          summary: 'behind origin',
+        },
+      ],
+    }));
+    await fs.writeFile(path.join(runDir, 'diagnosis.json'), JSON.stringify({
+      run_id: 'run-1',
+      detected_gaps: [
+        {
+          gap_id: 'gap.repo.behind-origin',
+          evidence_fact_ids: ['fact.repo.behind_origin'],
+        },
+      ],
+    }));
+    await runEvaluationPipeline(runDir);
+    const originalScore = await fs.readFile(path.join(runDir, 'score.json'), 'utf8');
+
+    expect(await verifyRunDirectory(runDir)).toEqual(
+      expect.objectContaining({
+        status: 'passed',
+        failures: [],
+      }),
+    );
+
+    await fs.writeFile(path.join(runDir, 'score.json'), '{"status":"stale"}\n');
+    const failed = await verifyRunDirectory(runDir);
+
+    expect(failed).toEqual(
+      expect.objectContaining({
+        status: 'failed',
+        failures: ['score.json_out_of_date'],
+      }),
+    );
+    expect(await fs.readFile(path.join(runDir, 'score.json'), 'utf8')).toBe('{"status":"stale"}\n');
+
+    await fs.writeFile(path.join(runDir, 'score.json'), originalScore);
+    expect((await verifyRunDirectory(runDir)).status).toBe('passed');
   });
 });

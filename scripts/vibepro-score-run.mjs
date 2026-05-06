@@ -23,6 +23,14 @@ const REQUIRED_RUN_OUTPUTS = [
   'report.md',
 ];
 
+const GENERATED_RUN_OUTPUTS = [
+  'outcome.json',
+  'labels.json',
+  'score.json',
+  'feedback.md',
+  'report.md',
+];
+
 const VIBEPRO_SCOPE_FILES = new Set([
   '.claude/scripts/hooks/enforce-nocodb-lookup.ts',
   '.github/workflows/vibepro-graph-ssot.yml',
@@ -65,6 +73,83 @@ function parseAheadBehind(value) {
     ahead: Number.parseInt(aheadRaw || '0', 10) || 0,
     behind: Number.parseInt(behindRaw || '0', 10) || 0,
   };
+}
+
+function normalizeChangedFiles(files) {
+  return unique((files ?? [])
+    .map((file) => String(file || '').trim())
+    .filter(Boolean)
+    .map((file) => file.replace(/^"|"$/g, '')));
+}
+
+function parsePorcelainPath(line) {
+  if (!line) return '';
+  const rawPath = line.slice(3).trim();
+  const normalizedPath = rawPath.includes(' -> ')
+    ? rawPath.split(' -> ').at(-1)
+    : rawPath;
+  return normalizedPath?.replace(/^"|"$/g, '') ?? '';
+}
+
+function readWorkingTreeChangedFiles(cwd) {
+  return normalizeChangedFiles(
+    readGit(['status', '--porcelain=v1'], cwd)
+      .split('\n')
+      .map(parsePorcelainPath),
+  );
+}
+
+function isAllZeroSha(value) {
+  return Boolean(value) && /^0+$/.test(value);
+}
+
+export function collectChangedFilesForScoreVerify(options = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  if (options.changedFiles) {
+    return normalizeChangedFiles(options.changedFiles);
+  }
+
+  const env = options.env ?? process.env;
+  if (env.VIBEPRO_SCORE_CHANGED_FILES) {
+    return normalizeChangedFiles(env.VIBEPRO_SCORE_CHANGED_FILES.split(/\r?\n/));
+  }
+  if (env.VIBEPRO_TRACE_CHANGED_FILES) {
+    return normalizeChangedFiles(env.VIBEPRO_TRACE_CHANGED_FILES.split(/\r?\n/));
+  }
+  if (env.GITHUB_EVENT_NAME === 'schedule' || env.GITHUB_EVENT_NAME === 'workflow_dispatch') {
+    return [];
+  }
+
+  const baseRef = options.baseRef ?? env.VIBEPRO_TRACE_BASE_REF
+    ?? (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : null);
+  const beforeSha = options.beforeSha ?? env.GITHUB_EVENT_BEFORE ?? null;
+
+  if (baseRef) {
+    return normalizeChangedFiles([
+      ...readGit(['diff', '--name-only', `${baseRef}...HEAD`], cwd).split('\n'),
+      ...readWorkingTreeChangedFiles(cwd),
+    ]);
+  }
+
+  if (beforeSha && !isAllZeroSha(beforeSha)) {
+    return normalizeChangedFiles([
+      ...readGit(['diff', '--name-only', `${beforeSha}...HEAD`], cwd).split('\n'),
+      ...readWorkingTreeChangedFiles(cwd),
+    ]);
+  }
+
+  return normalizeChangedFiles([
+    ...readGit(['diff', '--name-only', 'HEAD~1...HEAD'], cwd).split('\n'),
+    ...readWorkingTreeChangedFiles(cwd),
+  ]);
+}
+
+export function extractDogfoodRunIds(changedFiles) {
+  return unique(normalizeChangedFiles(changedFiles)
+    .filter((file) => file.startsWith(`${DOGFOOD_PREFIX}runs/`))
+    .map((file) => file.slice(`${DOGFOOD_PREFIX}runs/`.length).split('/')[0])
+    .filter(Boolean))
+    .sort();
 }
 
 export function parseGitStatusLine(line) {
@@ -746,6 +831,18 @@ async function writeJson(filePath, data) {
   await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`);
 }
 
+function jsonText(data) {
+  return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+async function readTextOrNull(filePath) {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 export async function observeRunDirectory(runDir, options = {}) {
   await fs.mkdir(runDir, { recursive: true });
   const observation = await collectObservation(runDir, options);
@@ -791,6 +888,103 @@ export async function scoreRunDirectory(runDir) {
   return score;
 }
 
+export async function buildExpectedGeneratedRunOutputs(runDir) {
+  const [observation, diagnosis] = await Promise.all([
+    readJson(path.join(runDir, 'observation.json')),
+    readJson(path.join(runDir, 'diagnosis.json')),
+  ]);
+  const outcome = generateOutcomeFromObservation(observation);
+  const labels = deriveLabelsFromOutcome(diagnosis, outcome);
+  const score = calculateScore(diagnosis, labels);
+
+  return {
+    'outcome.json': jsonText(outcome),
+    'labels.json': jsonText(labels),
+    'score.json': jsonText(score),
+    'feedback.md': buildFeedbackMarkdown(score),
+    'report.md': buildReportMarkdown(score),
+  };
+}
+
+export async function verifyRunDirectory(runDir) {
+  const failures = [];
+  const missingInputs = [];
+  for (const fileName of ['observation.json', 'diagnosis.json']) {
+    if (!(await pathExists(path.join(runDir, fileName)))) {
+      missingInputs.push(fileName);
+    }
+  }
+  if (missingInputs.length > 0) {
+    return {
+      run_id: path.basename(runDir),
+      status: 'failed',
+      failures: missingInputs.map((fileName) => `${fileName}_missing`),
+      checked_outputs: [],
+    };
+  }
+
+  let expectedOutputs;
+  try {
+    expectedOutputs = await buildExpectedGeneratedRunOutputs(runDir);
+  } catch (error) {
+    return {
+      run_id: path.basename(runDir),
+      status: 'failed',
+      failures: [`expected_outputs_unavailable:${error instanceof Error ? error.message : String(error)}`],
+      checked_outputs: [],
+    };
+  }
+
+  for (const fileName of GENERATED_RUN_OUTPUTS) {
+    const actualText = await readTextOrNull(path.join(runDir, fileName));
+    if (actualText === null) {
+      failures.push(`${fileName}_missing`);
+    } else if (actualText !== expectedOutputs[fileName]) {
+      failures.push(`${fileName}_out_of_date`);
+    }
+  }
+
+  if (failures.length === 0) {
+    const gateResult = validateScoreGate({
+      observation: await readJson(path.join(runDir, 'observation.json')),
+      score: JSON.parse(expectedOutputs['score.json']),
+    });
+    if (gateResult.status !== 'passed') {
+      failures.push(...gateResult.failures.map((failure) => `score_gate:${failure}`));
+    }
+  }
+
+  return {
+    run_id: path.basename(runDir),
+    status: failures.length === 0 ? 'passed' : 'failed',
+    failures,
+    checked_outputs: GENERATED_RUN_OUTPUTS,
+  };
+}
+
+export async function verifyChangedDogfoodScoreRuns(options = {}) {
+  const repoRoot = options.repoRoot ?? process.cwd();
+  const changedFiles = collectChangedFilesForScoreVerify(options);
+  const runIds = extractDogfoodRunIds(changedFiles);
+  const runs = [];
+
+  for (const runId of runIds) {
+    runs.push(await verifyRunDirectory(path.join(repoRoot, DOGFOOD_PREFIX, 'runs', runId)));
+  }
+
+  const failures = runs
+    .filter((result) => result.status !== 'passed')
+    .flatMap((result) => result.failures.map((failure) => `${result.run_id}:${failure}`));
+
+  return {
+    status: failures.length === 0 ? 'passed' : 'failed',
+    checked_files: changedFiles,
+    checked_run_ids: runIds,
+    failures,
+    runs,
+  };
+}
+
 export async function runEvaluationPipeline(runDir) {
   await generateOutcomeDirectory(runDir);
   await generateLabelsDirectory(runDir);
@@ -813,8 +1007,8 @@ export async function gateRunDirectory(runDir) {
 
 async function main() {
   const [command, runDir] = process.argv.slice(2);
-  if (!command || !runDir) {
-    console.error('Usage: node scripts/vibepro-score-run.mjs <observe|generate-diagnosis|generate-outcome|generate-labels|score|run|auto-run|gate> <run-dir>');
+  if (!command || (command !== 'verify-changed' && !runDir)) {
+    console.error('Usage: node scripts/vibepro-score-run.mjs <observe|generate-diagnosis|generate-outcome|generate-labels|score|run|auto-run|gate|verify|verify-changed> <run-dir>');
     process.exitCode = 1;
     return;
   }
@@ -836,6 +1030,10 @@ async function main() {
     result = await runAutomationPipeline(runDir);
   } else if (command === 'gate') {
     result = await gateRunDirectory(runDir);
+  } else if (command === 'verify') {
+    result = await verifyRunDirectory(runDir);
+  } else if (command === 'verify-changed') {
+    result = await verifyChangedDogfoodScoreRuns();
   } else {
     throw new Error(`Unknown command: ${command}`);
   }
@@ -845,8 +1043,9 @@ async function main() {
     status: result.status ?? 'generated',
     metrics: result.metrics,
     failures: result.failures,
+    checked_run_ids: result.checked_run_ids,
   }, null, 2));
-  if (command === 'gate' && result.status !== 'passed') {
+  if ((command === 'gate' || command === 'verify' || command === 'verify-changed') && result.status !== 'passed') {
     process.exitCode = 1;
   }
 }

@@ -132,6 +132,7 @@ describe('vibepro-development-dag-check', () => {
   it('changed filesからdogfood run idを抽出し_20260427以降だけ強制対象にする', () => {
     expect(extractDogfoodRunIds([
       'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-120000-run/score.json',
+      'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-120000-run/feedback.md',
       'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260426-120000-run/score.json',
       'docs/specs/vibepro-brainbase-self-evaluation-spec.md',
     ])).toEqual([

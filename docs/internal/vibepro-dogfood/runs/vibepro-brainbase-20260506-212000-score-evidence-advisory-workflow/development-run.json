@@ -1,0 +1,218 @@
+{
+  "run_id": "vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed",
+  "created_at": "2026-05-06T21:20:00+09:00",
+  "request": {
+    "raw": "俺もそれがいいと思うぞ。その形に直せ",
+    "interpreted_goal": "VibePro scorer を、PR全体を過剰に止める生成CIではなく、VibePro関連変更時だけコミット済みscore evidenceを非生成で検証するadvisory workflowとして接続する"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/control-plane",
+    "story_key": "vibepro-dogfood/control-plane/20260506-score-evidence-advisory-workflow",
+    "acceptance_criteria": [
+      "scorer workflow は VibePro 関連ファイル変更時だけ起動する",
+      "workflow は score成果物を生成せず、コミット済み observation / diagnosis / outcome / labels / score / feedback / report の整合性だけを検証する",
+      "schedule は追加せず、通常のBrainbase機能PRを不要に止めない",
+      "scorer / DAG / doc trace の関連 unit tests と checker が通る",
+      "運用表は生成型score CIではなく非生成 evidence check として更新される"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "github-actions-management",
+      "tdd-workflow",
+      "git-workflow"
+    ],
+    "approach": [
+      "score evidence の非生成 verify 仕様を unit test で固定する",
+      "scripts/vibepro-score-run.mjs に verify / verify-changed を追加し、既存成果物が最新入力から再計算した内容と一致するかだけを見る",
+      ".github/workflows/vibepro-score-run.yml は paths 限定、scheduleなし、fetch-depth 0 の advisory check とする",
+      "_codex/common/ops/scheduled-jobs.md と VibePro story / architecture / ship evidence を更新する"
+    ]
+  },
+  "implementation": {
+    "commit_id": "pending_until_pr_merge",
+    "pull_request": "pending",
+    "description": "ci: verify committed VibePro score evidence",
+    "changed_files": [
+      ".github/workflows/vibepro-score-run.yml",
+      "_codex/common/ops/scheduled-jobs.md",
+      "package.json",
+      "scripts/vibepro-development-dag-check.mjs",
+      "scripts/vibepro-score-run.mjs",
+      "tests/unit/vibepro-development-dag-check.test.js",
+      "tests/unit/vibepro-score-run.test.js",
+      "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.json",
+      "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.md",
+      "docs/stories/vibepro-brainbase-dogfood-story.md",
+      "docs/architecture/vibepro-brainbase-dogfood-architecture.md",
+      "docs/internal/vibepro-dogfood/ship.md"
+    ],
+    "behavior_changes": [
+      "VibePro score evidence に非生成 verify command を追加した",
+      "VibePro関連変更時のみ GitHub Actions で scorer unit tests / score verify / development DAG / doc trace を実行する",
+      "score workflow から schedule と auto-run 生成を除外した"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "npm -s exec vitest run tests/unit/vibepro-score-run.test.js --runInBand",
+        "result": "passed",
+        "tests": "15 passed"
+      },
+      {
+        "command": "npm -s exec vitest run tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js --runInBand",
+        "result": "passed",
+        "tests": "30 passed"
+      },
+      {
+        "command": "npx eslint scripts/vibepro-score-run.mjs scripts/vibepro-development-dag-check.mjs tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "VIBEPRO_TRACE_BASE_REF=origin/develop npm run vibepro:score-verify",
+        "result": "passed"
+      },
+      {
+        "command": "VIBEPRO_TRACE_BASE_REF=origin/develop npm run vibepro:development-dag",
+        "result": "passed"
+      },
+      {
+        "command": "VIBEPRO_TRACE_BASE_REF=origin/develop npm run vibepro:doc-trace",
+        "result": "passed"
+      },
+      {
+        "command": "npm run vibepro:graph-ssot",
+        "result": "passed"
+      }
+    ],
+    "failed_or_blocked": [
+      {
+        "command": "npm -s exec vitest run tests/unit/vibepro-score-run.test.js --runInBand",
+        "result": "failed_then_fixed",
+        "reason": "verifyRunDirectory 未実装と observation completeness不足を RED として確認した"
+      }
+    ]
+  },
+  "outcome": {
+    "loop_result": "targeted_success",
+    "human_intervention_points": [
+      "ユーザーが scorer workflow の価値と運用負荷のバランスを問い、対象限定・非生成・段階導入の形を指定した"
+    ],
+    "residual_risks": [
+      "このworkflowがrequired checkになるかはGitHub branch protection側の設定に依存するため、このPR自体ではrequired化しない"
+    ],
+    "next_actions": [
+      "false positive / 実行時間 / メンテ負荷を数PR観測してから required check 化の是非を判断する"
+    ]
+  },
+  "vibepro_judgment": {
+    "autonomous_development_loop": "go",
+    "reason": "scorer-manual-only を解消しつつ、生成CIや全PR必須ゲートにしないことで運用負荷を抑えた。",
+    "diagnosis_role": "VibePro is used as control-plane evidence and gate design input, not as the implementation engine."
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed",
+        "evidence": [
+          "request.raw"
+        ]
+      },
+      "story": {
+        "status": "passed",
+        "depends_on": [
+          "requirement"
+        ],
+        "evidence": [
+          "docs/stories/vibepro-brainbase-dogfood-story.md"
+        ]
+      },
+      "architecture": {
+        "status": "passed",
+        "depends_on": [
+          "story"
+        ],
+        "evidence": [
+          "docs/architecture/vibepro-brainbase-dogfood-architecture.md"
+        ]
+      },
+      "spec": {
+        "status": "passed",
+        "depends_on": [
+          "architecture"
+        ],
+        "evidence": [
+          "docs/specs/vibepro-brainbase-self-evaluation-spec.md"
+        ]
+      },
+      "test_design": {
+        "status": "passed",
+        "depends_on": [
+          "spec"
+        ],
+        "evidence": [
+          "tests/unit/vibepro-score-run.test.js"
+        ]
+      },
+      "implementation": {
+        "status": "passed",
+        "depends_on": [
+          "test_design"
+        ],
+        "evidence": [
+          "scripts/vibepro-score-run.mjs",
+          ".github/workflows/vibepro-score-run.yml",
+          "_codex/common/ops/scheduled-jobs.md"
+        ]
+      },
+      "verification": {
+        "status": "passed",
+        "depends_on": [
+          "implementation"
+        ],
+        "evidence": [
+          "npm -s exec vitest run tests/unit/vibepro-score-run.test.js --runInBand"
+        ]
+      },
+      "run_evidence": {
+        "status": "passed",
+        "depends_on": [
+          "verification"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.json",
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.md"
+        ]
+      },
+      "score_gate": {
+        "status": "passed",
+        "depends_on": [
+          "run_evidence"
+        ],
+        "evidence": [
+          "npm run vibepro:score-verify",
+          "npm run vibepro:development-dag",
+          "npm run vibepro:doc-trace"
+        ]
+      },
+      "ship": {
+        "status": "passed",
+        "depends_on": [
+          "score_gate"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/ship.md"
+        ]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 2,
+      "recovered_count": 2
+    }
+  }
+}

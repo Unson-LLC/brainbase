@@ -1,0 +1,141 @@
+{
+  "run_id": "vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-06T12:23:34.402Z",
+  "repo": {
+    "branch": "ci/vibepro-score-advisory",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": ".github/workflows/vibepro-score-run.yml",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/architecture/vibepro-brainbase-dogfood-architecture.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/development-run.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/diagnosis.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/feedback.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/labels.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/observation.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/outcome.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/report.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow/score.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/ship.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/stories/vibepro-brainbase-dogfood-story.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "package.json",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "scripts/vibepro-development-dag-check.mjs",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "scripts/vibepro-score-run.mjs",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "tests/unit/vibepro-development-dag-check.test.js",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "tests/unit/vibepro-score-run.test.js",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      }
+    ],
+    "run_count_before_current": 15,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 15,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 4,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": []
+}

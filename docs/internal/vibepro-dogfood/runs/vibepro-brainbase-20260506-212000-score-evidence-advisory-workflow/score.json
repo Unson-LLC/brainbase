@@ -1,0 +1,20 @@
+{
+  "run_id": "vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow",
+  "status": "scored",
+  "metrics": {
+    "本番化ギャップ捕捉率": "not_applicable",
+    "本番化ギャップ的中率": "not_applicable",
+    "ゲート違反流出率": 0
+  },
+  "feedback": {
+    "detected_correctly": [],
+    "missed_gaps": [],
+    "over_detected_gaps": [],
+    "escaped_gate_violations": [],
+    "effective_interventions": [],
+    "weak_interventions": [],
+    "next_rule_updates": [
+      "現在の診断ルールを維持し、次runで再測定する"
+    ]
+  }
+}

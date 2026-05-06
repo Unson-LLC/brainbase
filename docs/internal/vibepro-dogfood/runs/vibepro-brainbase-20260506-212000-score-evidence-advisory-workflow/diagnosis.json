@@ -1,0 +1,10 @@
+{
+  "run_id": "vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-05-06T12:23:34.411Z",
+  "scope": [],
+  "detected_gaps": []
+}

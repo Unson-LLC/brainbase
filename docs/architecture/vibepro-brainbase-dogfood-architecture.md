@@ -82,6 +82,7 @@ DAGでは上流ノードが失敗・欠落しているのに下流ノードを�
 | `vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner` | `vibepro-dogfood/activity-indicator/20260506-tmux-spinner-blue-sort` | 既存 Codex PTY shim の spinner fallback と青状態 sort を実 API / 実ブラウザで閉じる | `development-run.json` と PR #572 |
 | `vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard` | `vibepro-dogfood/activity-indicator/20260506-stale-spinner-heartbeat-guard` | Graphifyで見つけた stale spinner / done overwrite / activeTurnなしheartbeat の固定青リスクをテストと実装で回収する | `development-run.json` と Graphify focused corpus |
 | `vibepro-brainbase-20260506-204100-session-status-sort-contract` | `vibepro-dogfood/activity-indicator/20260506-session-status-sort-contract` | `/api/sessions/status` polling から sessionUi と timeline sort へ伝播する暗黙契約を integration-style UI test で固定する | `development-run.json` と Graphify focused corpus |
+| `vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow` | `vibepro-dogfood/control-plane/20260506-score-evidence-advisory-workflow` | scorer workflow を生成型CIではなく、VibePro関連変更時だけコミット済み score evidence を検証する advisory check として接続する | `development-run.json` と `.github/workflows/vibepro-score-run.yml` |
 
 ## 原則
 

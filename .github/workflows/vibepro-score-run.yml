@@ -1,0 +1,64 @@
+name: VibePro Score Evidence Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '.github/workflows/vibepro-score-run.yml'
+      - '_codex/common/ops/scheduled-jobs.md'
+      - 'docs/internal/vibepro-dogfood/runs/**'
+      - 'docs/stories/vibepro-brainbase-dogfood-story.md'
+      - 'docs/architecture/vibepro-brainbase-dogfood-architecture.md'
+      - 'docs/specs/vibepro-brainbase-self-evaluation-spec.md'
+      - 'scripts/vibepro-*.mjs'
+      - 'tests/unit/vibepro-*.test.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.js'
+  push:
+    branches: [main, develop, 'session/**']
+    paths:
+      - '.github/workflows/vibepro-score-run.yml'
+      - '_codex/common/ops/scheduled-jobs.md'
+      - 'docs/internal/vibepro-dogfood/runs/**'
+      - 'docs/stories/vibepro-brainbase-dogfood-story.md'
+      - 'docs/architecture/vibepro-brainbase-dogfood-architecture.md'
+      - 'docs/specs/vibepro-brainbase-self-evaluation-spec.md'
+      - 'scripts/vibepro-*.mjs'
+      - 'tests/unit/vibepro-*.test.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.js'
+  workflow_dispatch:
+
+jobs:
+  score-evidence:
+    name: Verify committed VibePro score evidence
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run VibePro scorer unit tests
+        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js
+
+      - name: Verify committed score artifacts
+        run: npm run vibepro:score-verify
+
+      - name: Verify development DAG evidence
+        run: npm run vibepro:development-dag
+
+      - name: Verify story/architecture/spec trace
+        run: npm run vibepro:doc-trace
