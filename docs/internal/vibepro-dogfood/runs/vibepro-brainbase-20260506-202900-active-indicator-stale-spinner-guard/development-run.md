@@ -18,6 +18,9 @@ Graphify/VibeProレビューで見つかったアクティブインジケータ�
 
 ## Implementation
 
+- commit: `89a94d12deacf29cda9daecfe06bfcff88edcf6c`
+- merge commit: `197187360c535575811bd17e40d7f957ad695270`
+- PR: `https://github.com/Unson-LLC/brainbase-unson/pull/579`
 - description: `fix: guard tmux spinner activity fallback`
 
 Changed files:
