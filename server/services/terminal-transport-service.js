@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { detectCliStateWithColors } from './cli-pattern-detector.js';
+import { CliState, detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
 import { TmuxCaptureCache } from './tmux-capture-cache.js';
 import { TmuxControlRegistry } from './tmux-control-registry.js';
@@ -11,8 +11,9 @@ const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape']);
-const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/g;
-const FOCUS_EVENT_PATTERN = /\x1b\[(?:I|O)/g;
+const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
+const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
+const FOCUS_EVENT_PATTERN = /\x1B\[(?:I|O)/g;
 
 function safeJsonParse(raw) {
     try {
@@ -559,10 +560,13 @@ export class TerminalTransportService {
                 // probe チェックをバイパスする。
                 const isNavEscape = inputType === 'text' && this._isNavigationEscape(normalizedValue);
                 const isControlTextInput = inputType === 'text' && this._isControlTextInput(normalizedValue);
-                if (!this._getInputReady(sessionId)
-                    && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(normalizedValue))
-                    && !isNavEscape
-                    && !isControlTextInput) {
+                const canBypassProbe = (inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(normalizedValue))
+                    || isNavEscape
+                    || isControlTextInput;
+                if (!canBypassProbe
+                    && !this._getInputReady(sessionId)
+                    && !(await this._recoverInputReadyFromSnapshot(sessionId, viewerId, viewerLabel))
+                ) {
                     logger.warn(`[TTC-PROBE][ws-input] dropped INPUT_NOT_READY session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_NOT_READY session=${sessionId} len=${valueLen} type=${inputType}`);
                     ws.send(JSON.stringify({
@@ -675,6 +679,42 @@ export class TerminalTransportService {
         return value
             .replace(OSC_SEQUENCE_PATTERN, '')
             .replace(FOCUS_EVENT_PATTERN, '');
+    }
+
+    async _recoverInputReadyFromSnapshot(sessionId, viewerId, viewerLabel) {
+        try {
+            const snapshot = await this._getSnapshotPayload(sessionId, {
+                includeColors: true,
+                includeCopyMode: true
+            });
+            if (snapshot.copyMode) {
+                logger.info(`[TTC-PROBE][ws-input] snapshot readiness blocked copyMode session=${sessionId}`);
+                return false;
+            }
+
+            const cliResult = detectCliStateWithColors(snapshot.text, snapshot.colorText);
+            this.runtimeRegistry?.setCliState?.(sessionId, cliResult);
+            if (!INPUT_READY_STATES.has(cliResult.state)) {
+                logger.info(`[TTC-PROBE][ws-input] snapshot readiness failed session=${sessionId} cliState=${cliResult.state} reason=${cliResult.reason || 'none'}`);
+                return false;
+            }
+
+            const probe = {
+                status: 'passed',
+                lastPassedAt: new Date().toISOString(),
+                lastFailedAt: null,
+                reason: null,
+                mode: 'snapshot_recovery',
+                cliReason: cliResult.reason || null
+            };
+            this.runtimeRegistry?.setInputProbe?.(sessionId, probe);
+            this.ownershipService?.touchTerminalOwnership?.(sessionId, viewerId, viewerLabel);
+            logger.info(`[TTC-PROBE][ws-input] snapshot readiness recovered session=${sessionId} cliState=${cliResult.state} reason=${cliResult.reason || 'none'}`);
+            return true;
+        } catch (err) {
+            logger.warn(`[TTC-PROBE][ws-input] snapshot readiness error session=${sessionId} err=${err?.message || err}`);
+            return false;
+        }
     }
 
     /**

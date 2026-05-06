@@ -138,6 +138,25 @@ describe('cli-pattern-detector', () => {
             });
         });
 
+        it('Codex Plan Mode質問UI検出_WAITINGを返す', () => {
+            const output = [
+                '  Question 1/2 (2 unanswered)',
+                '  現行Brainbaseはplain ES modules + Expressなので、Next.js実装の入り方をどこに置くか決めたいです。',
+                '',
+                '  › 1. 別Next画面 (Recommended)  既存UIを壊さず、VibePro専用Next.js画面を追加して段階移行できます。',
+                '    2. 既存UI内に統合            右ドロワーだけをNext.jsで埋め込むため、配線は複雑になります。',
+                '    3. 全面移行                  Brainbase UI全体をNext.jsへ移す大きなリプレイスになります。',
+                '    4. None of the above         Optionally, add details in notes (tab).',
+                '',
+                '  tab to add notes | enter to submit answer | ←/→ to navigate questions | esc to interrupt'
+            ].join('\n');
+            expect(detectCliState(output)).toBe(CliState.WAITING);
+            expect(detectCliStateDetail(output)).toEqual({
+                state: CliState.WAITING,
+                reason: 'codex_plan_question'
+            });
+        });
+
 
         it('bash/zshプロンプト（$）検出_IDLEを返す', () => {
             const output = `Last command output\n$ `;

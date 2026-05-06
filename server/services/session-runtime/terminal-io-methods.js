@@ -23,6 +23,13 @@ const TEXT_CONTROL_KEY_MAP = new Map([
     ['\x1b[C', 'Right'],
     ['\x1b[D', 'Left']
 ]);
+const TYPING_SIMULATION_MIN_CHARS = 40;
+const TYPING_SIMULATION_MAX_CHARS = 500;
+const TYPING_SIMULATION_DELAY_MS = 12;
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 export const terminalIoMethods = {
     async resizeSessionWindow(sessionId, cols, rows) {
@@ -131,6 +138,13 @@ export const terminalIoMethods = {
                 return;
             }
 
+            if (this._shouldUseTypingSimulation(normalizedInput, normalizedType, options)) {
+                await this._sendSimulatedTyping(sessionId, normalizedInput, {
+                    delayMs: options.typingDelayMs
+                });
+                return;
+            }
+
             if (this._shouldUseLiteralText(normalizedInput, normalizedType)) {
                 await this._sendLiteralText(sessionId, normalizedInput);
                 return;
@@ -209,6 +223,16 @@ export const terminalIoMethods = {
         return Buffer.byteLength(input, 'utf8') <= INLINE_TEXT_MAX_BYTES;
     },
 
+    _shouldUseTypingSimulation(input, type, options = {}) {
+        if (options.simulateTyping === false) return false;
+        if (options.simulateTyping === true) return type === 'text' && typeof input === 'string' && input.length > 0;
+        if (type !== 'text' || typeof input !== 'string' || !input) return false;
+        if (input.includes('\n') || input.includes('\r')) return false;
+        if (/[\x00-\x1f\x7f]/.test(input)) return false;
+        const chars = Array.from(input).length;
+        return chars >= TYPING_SIMULATION_MIN_CHARS && chars <= TYPING_SIMULATION_MAX_CHARS;
+    },
+
     async _runTmux(args) {
         let child;
         const result = new Promise((resolve, reject) => {
@@ -251,6 +275,21 @@ export const terminalIoMethods = {
 
     async _sendLiteralText(sessionId, input) {
         await this._runTmux(['send-keys', '-t', sessionId, '-l', '--', input]);
+    },
+
+    async _sendSimulatedTyping(sessionId, input, options = {}) {
+        const chars = Array.from(input);
+        const delayMs = Number.isFinite(Number(options.delayMs))
+            ? Math.max(0, Math.min(100, Number(options.delayMs)))
+            : TYPING_SIMULATION_DELAY_MS;
+        console.info(`[INPUT-TELEMETRY] typing-simulation session=${sessionId} chars=${chars.length} delayMs=${delayMs}`);
+
+        for (let i = 0; i < chars.length; i++) {
+            await this._sendLiteralText(sessionId, chars[i]);
+            if (delayMs > 0 && i < chars.length - 1) {
+                await sleep(delayMs);
+            }
+        }
     },
 
     async _pasteInputFromTempFile(sessionId, input) {

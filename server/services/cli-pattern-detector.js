@@ -54,6 +54,8 @@ const WAITING_PATTERNS = [
     { pattern: /Esc to cancel\s*·\s*Tab to amend/i, reason: 'edit_approval_prompt' },
     { pattern: /Resume a previous session/i, reason: 'codex_resume_picker' },
     { pattern: /enter to resume/i, reason: 'codex_resume_picker' },
+    { pattern: /enter to submit answer/i, reason: 'codex_plan_question' },
+    { pattern: /Question\s+\d+\/\d+.*\bunanswered\b/i, reason: 'codex_plan_question' },
 ];
 
 const SHELL_PROMPT_PATTERNS = [

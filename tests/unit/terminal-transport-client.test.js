@@ -101,6 +101,28 @@ describe('terminal-transport-client', () => {
     expect(client.isBlockedForSession('session-2')).toBe(false);
   });
 
+  it('hasDomFocusはxterm host内の実DOM focusだけをtrueにする', () => {
+    document.body.innerHTML = `
+      <div id="terminal-xterm-host">
+        <textarea class="xterm-helper-textarea"></textarea>
+      </div>
+      <button id="outside">outside</button>
+    `;
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = document.getElementById('terminal-xterm-host');
+
+    expect(client.hasDomFocus()).toBe(false);
+
+    document.querySelector('.xterm-helper-textarea').focus();
+    expect(client.hasDomFocus()).toBe(true);
+
+    document.getElementById('outside').focus();
+    expect(client.hasDomFocus()).toBe(false);
+  });
+
   it('connect時に初期viewportサイズをws queryへ含めてready後もresizeを送る', async () => {
     const sentMessages = [];
     let openedUrl = null;

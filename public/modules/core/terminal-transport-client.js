@@ -311,13 +311,17 @@ export class TerminalTransportClient {
         window.addEventListener('focus', this._windowFocusHandler);
         // xterm canvas / container クリック時も確実に textarea にフォーカスを渡す。
         // xterm.js は内部で処理するはずだが、overlay 等で届かない場合の保険。
-        this._hostClickHandler = () => {
-            if (!this.status.isFocused) {
-                console.log('[TTC-PROBE][click] hostEl clicked while unfocused, refocusing');
-                this.terminal?.focus();
-            }
+        this._hostPointerFocusHandler = () => {
+            const hadDomFocus = this.hasDomFocus();
+            console.log('[TTC-PROBE][focus-recovery] host interaction, focusing terminal', {
+                statusFocused: this.status.isFocused,
+                hadDomFocus,
+                activeEl: document.activeElement?.tagName
+            });
+            this.terminal?.focus();
         };
-        this.hostEl.addEventListener('click', this._hostClickHandler);
+        this.hostEl.addEventListener('pointerdown', this._hostPointerFocusHandler, true);
+        this.hostEl.addEventListener('click', this._hostPointerFocusHandler);
 
         this._resizeHandler = () => {
             // Skip fit when host element has no usable height (e.g. panel is hidden during file viewer)
@@ -367,9 +371,10 @@ export class TerminalTransportClient {
             window.removeEventListener('focus', this._windowFocusHandler);
             this._windowFocusHandler = null;
         }
-        if (this._hostClickHandler) {
-            this.hostEl?.removeEventListener('click', this._hostClickHandler);
-            this._hostClickHandler = null;
+        if (this._hostPointerFocusHandler) {
+            this.hostEl?.removeEventListener('pointerdown', this._hostPointerFocusHandler, true);
+            this.hostEl?.removeEventListener('click', this._hostPointerFocusHandler);
+            this._hostPointerFocusHandler = null;
         }
         this._removeCursorDebugPanel();
         this.terminal?.dispose();
@@ -410,6 +415,13 @@ export class TerminalTransportClient {
         this.terminal?.focus();
         this.status.isFocused = true;
         this._emitStatus();
+    }
+
+    hasDomFocus() {
+        if (typeof document === 'undefined' || !this.hostEl) return false;
+        const activeEl = document.activeElement;
+        if (!activeEl) return false;
+        return this.hostEl.contains(activeEl);
     }
 
     _handleCustomKeyEvent(event) {
@@ -694,10 +706,15 @@ export class TerminalTransportClient {
         });
         if (!value) return;
         inputTelemetry.inc('appended');
+        const segments = this._splitFocusEvents(value);
         // probe 前にローカルエコーを適用して視覚フィードバックを即時にする。
         // probe が 300ms 以上かかる場合でもユーザーは自分の入力が見える。
         // probe 失敗 (drop) 時はエコーが残るが稀なケースなので許容する。
-        this._applyLocalEcho(value);
+        for (const seg of segments) {
+            if (!seg.isFocusEvent) {
+                this._applyLocalEcho(seg.value);
+            }
+        }
         // 矢印・Tab・Escape・Function key 等のナビゲーション系 escape sequence は
         // probe を待たずに送信する。Codex の選択画面 (CLI state が READY/WAITING にならない)
         // などで矢印が効かなくなる問題を回避。
@@ -767,7 +784,6 @@ export class TerminalTransportClient {
             wsState: this.ws?.readyState
         });
 
-        const segments = this._splitFocusEvents(value);
         for (const seg of segments) {
             if (seg.isFocusEvent) {
                 await this._flushBufferedText({ enqueueIfUnavailable: true });

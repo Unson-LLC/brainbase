@@ -111,9 +111,7 @@ async function handleFiles(files) {
 
         // 注: forcePaste:true (paste-buffer + bracketed paste markers) は
         //   Codex が \e[200~ の ESC を ESCキーと誤認 → "Conversation interrupted"
-        //   になるため使わない。send-keys -l (literal typing) で送信する。
-        //   Codex の入力欄から path が消える別問題は Codex 側の挙動なので
-        //   ターミナルレイヤから完全には解決できない。
+        //   になるため使わない。中長文/path は server 側で typing simulation にする。
         await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
             input: path,
             type: 'text'
@@ -325,7 +323,8 @@ async function showPasteConfirmModal(text, sessionId) {
  */
 async function pasteTextToTerminal(sessionId, text) {
     try {
-        // 注: forcePaste:true は Codex で会話中断を起こすため使わない
+        // 注: forcePaste:true は Codex で会話中断を起こすため使わない。
+        // 中長文は server 側の typing simulation に任せる。
         await httpClient.post(`/api/sessions/${sessionId}/input`, {
             input: text,
             type: 'text'

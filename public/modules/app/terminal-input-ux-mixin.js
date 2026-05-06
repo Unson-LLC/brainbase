@@ -1595,17 +1595,46 @@ export function applyTerminalInputUxMixin(AppClass) {
             // xterm transport: recover focus when the textarea lost it (e.g. OS-level focus steal).
             // The keydown event won't reach the textarea after-the-fact, so send the key explicitly.
             if (this._isXtermTransportActive(sessionId)) {
-                if (this.terminalTransportClient?.status?.isFocused) return;
+                const hasDomFocus = this.terminalTransportClient?.hasDomFocus?.() === true;
+                if (this.terminalTransportClient?.status?.isFocused && hasDomFocus) return;
                 const overlayState = this._getTerminalOverlayState();
                 if (overlayState.any) return;
                 const key = e.key;
-                console.log('[TTC-PROBE][type-to-focus] xterm recovery key:', key);
+                console.log('[TTC-PROBE][type-to-focus] xterm recovery key:', key, {
+                    statusFocused: this.terminalTransportClient?.status?.isFocused,
+                    hasDomFocus,
+                    activeEl: document.activeElement?.tagName
+                });
                 this.focusTerminal('type-to-focus');
                 if (key === 'Enter' && e.shiftKey) {
                     this.terminalTransportClient.sendKey('M-Enter').catch(() => {});
                     e.preventDefault();
                 } else if (key === 'Enter') {
                     this.terminalTransportClient.sendKey('Enter').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'Tab' && e.shiftKey) {
+                    this.terminalTransportClient.sendKey('BTab').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'Tab') {
+                    this.terminalTransportClient.sendKey('Tab').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'ArrowLeft') {
+                    this.terminalTransportClient.sendText('\x1b[D').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'ArrowRight') {
+                    this.terminalTransportClient.sendText('\x1b[C').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'ArrowUp') {
+                    this.terminalTransportClient.sendText('\x1b[A').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'ArrowDown') {
+                    this.terminalTransportClient.sendText('\x1b[B').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'Escape') {
+                    this.terminalTransportClient.sendKey('Escape').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'Backspace') {
+                    this.terminalTransportClient.sendText('\x7f').catch(() => {});
                     e.preventDefault();
                 } else if (typeof key === 'string' && key.length === 1 && key !== ' ') {
                     this.terminalTransportClient.sendText(key).catch(() => {});

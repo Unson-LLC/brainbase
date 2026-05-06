@@ -23,6 +23,7 @@ function buildService(overrides = {}) {
   };
   const service = new TerminalInputProbeService({
     ownershipService: {
+      ensureTerminalOwnership: vi.fn(() => ({ allowed: true, terminalAccess: { state: 'owner' } })),
       getTerminalAccessState: vi.fn(() => ({ state: 'owner' })),
       touchTerminalOwnership: vi.fn()
     },
@@ -54,7 +55,10 @@ describe('TerminalInputProbeService', () => {
   it('ownerでないviewerはprobeできない', async () => {
     const { service, terminalIo } = buildService({
       ownershipService: {
-        getTerminalAccessState: vi.fn(() => ({ state: 'blocked', canTakeover: true }))
+        ensureTerminalOwnership: vi.fn(() => ({
+          allowed: false,
+          terminalAccess: { state: 'blocked', canTakeover: true }
+        }))
       }
     });
 
@@ -89,6 +93,37 @@ describe('TerminalInputProbeService', () => {
     expect(runtimeRegistry.setInputProbe).toHaveBeenCalledWith('session-1', expect.objectContaining({
       status: 'passed',
       mode: 'waiting_prompt'
+    }));
+  });
+
+  it('Codex Plan Mode質問UI時_文字列probeなしでinputReadyを返す', async () => {
+    const { service, runtimeRegistry, terminalIo, captureCache } = buildService();
+    captureCache.getSnapshot.mockResolvedValue({
+      text: [
+        '  Question 1/2 (2 unanswered)',
+        '  現行Brainbaseはplain ES modules + Expressなので、Next.js実装の入り方をどこに置くか決めたいです。',
+        '',
+        '  › 1. 別Next画面 (Recommended)  既存UIを壊さず、VibePro専用Next.js画面を追加して段階移行できます。',
+        '    2. 既存UI内に統合            右ドロワーだけをNext.jsで埋め込むため、配線は複雑になります。',
+        '    3. 全面移行                  Brainbase UI全体をNext.jsへ移す大きなリプレイスになります。',
+        '    4. None of the above         Optionally, add details in notes (tab).',
+        '',
+        '  tab to add notes | enter to submit answer | ←/→ to navigate questions | esc to interrupt'
+      ].join('\n'),
+      colorText: null,
+      copyMode: false
+    });
+
+    const result = await service.probe({ sessionId: 'session-1', viewerId: 'viewer-1' });
+
+    expect(result.success).toBe(true);
+    expect(result.inputReady).toBe(true);
+    expect(result.cliState).toBe('waiting');
+    expect(terminalIo.sendInput).not.toHaveBeenCalled();
+    expect(runtimeRegistry.setInputProbe).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      status: 'passed',
+      mode: 'waiting_prompt',
+      cliReason: 'codex_plan_question'
     }));
   });
 });

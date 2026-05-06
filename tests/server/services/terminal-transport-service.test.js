@@ -33,6 +33,8 @@ function buildService() {
             runtimeState: 'interactive_ready',
             observed: { inputProbe: { status: 'passed' } }
         })),
+        setCliState: vi.fn(),
+        setInputProbe: vi.fn(),
         isTmuxSessionRunning: vi.fn(async () => true),
         getContent: vi.fn(async () => 'snapshot'),
         getContentWithColors: vi.fn(async () => null),
@@ -187,6 +189,50 @@ describe('TerminalTransportService', () => {
 
         expect(sessionManager.sendInput).not.toHaveBeenCalled();
         expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('inputReady が false でも snapshot が ready なら probe を回復して送信する', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        sessionManager.getSession.mockReturnValue({
+            runtimeState: 'transport_connected',
+            observed: {
+                inputProbe: {
+                    status: 'failed',
+                    lastFailedAt: '2026-01-01T00:00:00.000Z',
+                    reason: 'CLI_NOT_IDLE'
+                }
+            }
+        });
+        captureCache.getSnapshot.mockResolvedValue({
+            text: '› ',
+            colorText: null,
+            copyMode: false,
+            capturedAt: '2026-03-23T00:00:00.000Z'
+        });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello'
+        }));
+
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', expect.objectContaining({
+            includeColors: true,
+            includeCopyMode: true
+        }));
+        expect(sessionManager.setInputProbe).toHaveBeenCalledWith('session-1', expect.objectContaining({
+            status: 'passed',
+            mode: 'snapshot_recovery',
+            cliReason: 'codex_prompt'
+        }));
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
     });
 
     it('ready送信時_eager snapshotも送る', async () => {
