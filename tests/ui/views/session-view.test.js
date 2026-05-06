@@ -3,6 +3,7 @@ import { SessionView } from '../../../public/modules/ui/views/session-view.js';
 import { SessionService } from '../../../public/modules/domain/session/session-service.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
+import { __resetSessionIndicatorStateForTests, pollSessionStatus } from '../../../public/modules/session-indicators.js';
 
 vi.mock('../../../public/modules/confirm-modal.js', () => ({
     showConfirm: vi.fn(async () => true),
@@ -64,9 +65,11 @@ describe('SessionView', () => {
         });
 
         // ストア初期化
+        __resetSessionIndicatorStateForTests();
         appStore.setState({
             sessions: [],
             currentSessionId: null,
+            sessionUi: { byId: {} },
             filters: { sessionFilter: '', showArchivedSessions: false },
             ui: { sessionListView: 'timeline' }
         });
@@ -125,6 +128,81 @@ describe('SessionView', () => {
             sessionView.render();
 
             expect(container.querySelector('.session-timeline-list')).toBeTruthy();
+        });
+
+        it('/api/sessions/statusのworking状態をsessionUi経由でtimeline sortへ反映する', async () => {
+            const mockSessions = [
+                {
+                    id: 'session-working',
+                    name: 'Old Working',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    lastAccessedAt: '2026-05-01T00:00:00.000Z'
+                },
+                {
+                    id: 'session-done',
+                    name: 'Done Signal',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    lastAccessedAt: '2026-05-02T00:00:00.000Z'
+                },
+                {
+                    id: 'session-idle',
+                    name: 'Newest Idle',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    lastAccessedAt: '2026-05-03T00:00:00.000Z'
+                }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            global.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    'session-working': {
+                        isWorking: true,
+                        isDone: false,
+                        lastWorkingAt: 100,
+                        lastDoneAt: 0,
+                        lastActivityAt: 100,
+                        lastEventType: 'tmux-pane-title-spinner',
+                        activeTurnCount: 1,
+                        timestamp: 100
+                    },
+                    'session-done': {
+                        isWorking: false,
+                        isDone: true,
+                        lastWorkingAt: 0,
+                        lastDoneAt: 200,
+                        lastActivityAt: 200,
+                        lastEventType: 'agent-turn-complete',
+                        activeTurnCount: 0,
+                        timestamp: 200
+                    }
+                })
+            });
+
+            sessionView.render();
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-idle',
+                'session-done',
+                'session-working'
+            ]);
+
+            await pollSessionStatus('session-idle');
+
+            await vi.waitFor(() => {
+                expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                    'session-working',
+                    'session-done',
+                    'session-idle'
+                ]);
+            });
+            expect(container.querySelector('[data-id="session-working"] .session-activity-indicator')?.className)
+                .toContain('working');
+            expect(container.querySelector('[data-id="session-done"] .session-activity-indicator')?.className)
+                .toContain('done');
+            expect(container.querySelector('[data-id="session-idle"] .session-activity-indicator')?.className)
+                .toContain('idle');
         });
 
         it('should display empty state when no sessions', () => {
