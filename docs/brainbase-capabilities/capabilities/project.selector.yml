@@ -1,0 +1,44 @@
+id: project.selector
+name: Session creation project selector
+purpose: Decide which projects appear in the Create Session project dropdown.
+surfaces:
+  ui:
+    - "#session-project-select"
+    - "#create-session-modal"
+  api:
+    - GET /api/config
+  code:
+    - public/modules/app/ui-setup-mixin.js
+    - public/modules/app/session-creation-mixin.js
+    - public/modules/project-mapping.js
+  data:
+    - config.projects.projects
+    - auth.access.projectCodes
+    - auth_grants.project_codes
+depends_on:
+  - project.catalog
+  - auth.grants
+visibility_rules:
+  - Add general as the first option.
+  - Exclude archived projects.
+  - Exclude projects with session_select:false.
+  - If auth.access.projectCodes is empty, treat access as unrestricted.
+  - If projectCodes is non-empty, match project id, hyphenless project id, GitHub repo slug, app parent id, and configured prefix aliases.
+verification:
+  commands:
+    - node --input-type=module scripts/manual-check-session-selector.mjs
+  expected:
+    - getSessionSelectableProjects(['salestailor']) includes salestailor-app
+    - getSessionSelectableProjects(['techknight']) includes tech-knight
+    - getSessionSelectableProjects(['ncom']) includes ncom-catalyst
+common_failures:
+  - techknight in auth_grants does not exactly match tech-knight in config.
+  - ncom in auth_grants does not exactly match ncom-catalyst in config.
+  - grant updates are correct but the browser still has stale JWT/localStorage access.
+  - Browser module cache still holds an older project-mapping.js.
+runbooks:
+  - ../runbooks/missing-project-in-session-selector.md
+  - ../runbooks/update-auth-grant-project-codes.md
+troubleshooting:
+  - ../troubleshooting/project-exists-but-selector-hides-it.md
+  - ../troubleshooting/jwt-localstorage-access-stale.md

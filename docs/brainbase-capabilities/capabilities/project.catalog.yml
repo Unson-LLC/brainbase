@@ -1,0 +1,40 @@
+id: project.catalog
+name: Configured project catalog
+purpose: Provide the complete configured project list used by Brainbase UI and project mapping.
+surfaces:
+  ui:
+    - Settings > Projects
+  api:
+    - GET /api/config
+    - GET /api/config/projects
+    - GET /api/brainbase/projects
+  code:
+    - server/routes/config.js
+    - public/modules/project-mapping.js
+    - server/routes/brainbase/overview-routes.js
+  data:
+    - /Users/ksato/workspace/config.yml
+depends_on:
+  - config.projects.projects
+visibility_rules:
+  - /api/config and /api/config/projects expose the configured project catalog.
+  - archived projects remain in config but should not appear in active selectors.
+  - session_select:false hides a project from session creation even if it is active.
+  - /api/brainbase/projects returns active projects with healthStatus mapped, unmapped, or unavailable.
+verification:
+  commands:
+    - curl -s http://127.0.0.1:31013/api/config
+    - curl -s http://127.0.0.1:31013/api/brainbase/projects
+  expected:
+    - salestailor-app exists in /api/config
+    - tech-knight exists in /api/config and /api/brainbase/projects
+    - projects without NocoDB mappings are returned as healthStatus: unmapped
+common_failures:
+  - A project exists in /api/config but is hidden from session selector by auth access filtering.
+  - A project exists in config but has no NocoDB mapping, so health data is N/A.
+  - A dashboard count is mistaken for the complete configured project count.
+runbooks:
+  - ../runbooks/missing-project-in-session-selector.md
+troubleshooting:
+  - ../troubleshooting/nocodb-project-unmapped.md
+  - ../troubleshooting/project-exists-but-selector-hides-it.md
