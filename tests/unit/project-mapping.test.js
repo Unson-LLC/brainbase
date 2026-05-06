@@ -3,7 +3,8 @@ import {
   PROJECT_PATH_MAP,
   getProjectPath,
   getProjectFromPath,
-  WORKSPACE_ROOT
+  WORKSPACE_ROOT,
+  isProjectSelectableForAccess
 } from '../../public/modules/project-mapping.js';
 
 describe('project-mapping', () => {
@@ -11,7 +12,7 @@ describe('project-mapping', () => {
     it('should be exported and accessible', () => {
       expect(WORKSPACE_ROOT).toBeDefined();
       expect(typeof WORKSPACE_ROOT).toBe('string');
-      expect(WORKSPACE_ROOT).toBe('/path/to/workspace');
+      expect(WORKSPACE_ROOT).toBe('/tmp/brainbase-test-workspace');
     });
   });
 
@@ -26,8 +27,8 @@ describe('project-mapping', () => {
 
   describe('getProjectPath', () => {
     it('should return mapped path for known project', () => {
-      expect(getProjectPath('unson')).toBe('/path/to/workspace/projects/unson');
-      expect(getProjectPath('tech-knight')).toBe('/path/to/workspace/projects/tech-knight');
+      expect(getProjectPath('unson')).toBe(`${WORKSPACE_ROOT}/projects/unson`);
+      expect(getProjectPath('tech-knight')).toBe(`${WORKSPACE_ROOT}/projects/tech-knight`);
     });
 
     it('should return workspace root for general project', () => {
@@ -41,7 +42,7 @@ describe('project-mapping', () => {
     });
 
     it('should return constructed path for unknown project', () => {
-      expect(getProjectPath('new-project')).toBe('/path/to/workspace/new-project');
+      expect(getProjectPath('new-project')).toBe(`${WORKSPACE_ROOT}/new-project`);
     });
 
     it('should return workspace root for null/undefined', () => {
@@ -70,6 +71,30 @@ describe('project-mapping', () => {
       expect(getProjectFromPath('/path/to/workspace/.worktrees/session-123-brainbase-ui')).toBe('brainbase');
       expect(getProjectFromPath('/path/to/workspace/.worktrees/session-123-back_office')).toBe('back-office');
       expect(getProjectFromPath('/Volumes/UNSON-DRIVE/brainbase-worktrees/session-123-brainbase-ui')).toBe('brainbase');
+    });
+  });
+
+  describe('isProjectSelectableForAccess', () => {
+    it('allows exact project code access', () => {
+      expect(isProjectSelectableForAccess('salestailor', ['salestailor'])).toBe(true);
+      expect(isProjectSelectableForAccess('salestailor', ['brainbase'])).toBe(false);
+    });
+
+    it('allows app project when parent project code is granted', () => {
+      expect(isProjectSelectableForAccess('salestailor-app', ['salestailor'])).toBe(true);
+    });
+
+    it('allows project when github repository code is granted', () => {
+      expect(isProjectSelectableForAccess(
+        'salestailor-app',
+        ['salestailor'],
+        { github: { repo: 'salestailor' } }
+      )).toBe(true);
+    });
+
+    it('treats empty project code list as unrestricted access', () => {
+      expect(isProjectSelectableForAccess('salestailor-app', [])).toBe(true);
+      expect(isProjectSelectableForAccess('salestailor-app', null)).toBe(true);
     });
   });
 });

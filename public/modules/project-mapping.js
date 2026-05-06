@@ -27,6 +27,31 @@ function resolveProjectId(projectId, coreProjects = []) {
   return projectId;
 }
 
+function getProjectAccessKeys(projectId, projectConfig = null) {
+  const keys = new Set();
+  const normalizedId = normalizeProjectKey(projectId);
+  if (normalizedId) keys.add(normalizedId);
+
+  const githubRepo = normalizeProjectKey(projectConfig?.github?.repo);
+  if (githubRepo) keys.add(githubRepo);
+
+  if (normalizedId.endsWith('-app')) {
+    keys.add(normalizedId.slice(0, -4));
+  }
+
+  return keys;
+}
+
+export function isProjectSelectableForAccess(projectId, projectCodes = [], projectConfig = null) {
+  if (!projectCodes || projectCodes.length === 0) return true;
+
+  const allowedCodes = new Set(projectCodes.map(normalizeProjectKey).filter(Boolean));
+  if (allowedCodes.size === 0) return true;
+
+  const projectKeys = getProjectAccessKeys(projectId, projectConfig);
+  return Array.from(projectKeys).some((key) => allowedCodes.has(key));
+}
+
 // 初期化処理（モジュールロード時に実行）
 export const projectMappingReady = (async function initWorkspaceRoot() {
     try {
@@ -136,7 +161,11 @@ export function getSessionSelectableProjects(projectCodes = null) {
         filtered = filtered.filter((id) => PROJECT_CONFIG_CACHE[id]?.session_select !== false);
     }
     if (projectCodes && projectCodes.length > 0) {
-        filtered = filtered.filter((id) => projectCodes.includes(id));
+        filtered = filtered.filter((id) => isProjectSelectableForAccess(
+            id,
+            projectCodes,
+            PROJECT_CONFIG_CACHE?.[id] || null
+        ));
     }
     return filtered;
 }
