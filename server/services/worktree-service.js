@@ -314,6 +314,43 @@ export class WorktreeService {
             || this._getSessionBranchName(sessionId);
     }
 
+    _isNonTrackingRemoteBookmarkError(error, bookmarkName) {
+        const message = [
+            error?.message,
+            error?.stderr,
+            error?.stdout,
+            String(error || '')
+        ].filter(Boolean).join('\n');
+
+        return message.includes(`Non-tracking remote bookmark ${bookmarkName}@origin exists`);
+    }
+
+    async _pushBookmarkForMerge(repoPath, bookmarkName) {
+        try {
+            await this._execJujutsuWithStaleRetry(
+                repoPath,
+                `git push --bookmark "${bookmarkName}"`,
+                { retryStale: false }
+            );
+        } catch (pushErr) {
+            if (!this._isNonTrackingRemoteBookmarkError(pushErr, bookmarkName)) {
+                throw pushErr;
+            }
+
+            logger.info(`[merge] Tracking existing remote bookmark before retry: ${bookmarkName}@origin`);
+            await this._execJujutsuWithStaleRetry(
+                repoPath,
+                `bookmark track "${bookmarkName}" --remote=origin`,
+                { retryStale: false }
+            );
+            await this._execJujutsuWithStaleRetry(
+                repoPath,
+                `git push --bookmark "${bookmarkName}"`,
+                { retryStale: false }
+            );
+        }
+    }
+
     async _resolveGitRefForBookmark(workspacePath, bookmarkName) {
         const refCandidates = [
             `refs/remotes/origin/${bookmarkName}`,
@@ -970,11 +1007,7 @@ export class WorktreeService {
             // Push bookmark to remote
             logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
             try {
-                await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    `git push --bookmark "${bookmarkName}"`,
-                    { retryStale: false }
-                );
+                await this._pushBookmarkForMerge(repoPath, bookmarkName);
             } catch (pushErr) {
                 return {
                     success: false,
