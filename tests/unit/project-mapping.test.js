@@ -84,6 +84,15 @@ describe('project-mapping', () => {
       expect(isProjectSelectableForAccess('salestailor-app', ['salestailor'])).toBe(true);
     });
 
+    it('allows project when access code omits hyphens', () => {
+      expect(isProjectSelectableForAccess('tech-knight', ['techknight'])).toBe(true);
+      expect(isProjectSelectableForAccess('ncom-catalyst', ['ncomcatalyst'])).toBe(true);
+    });
+
+    it('allows project when access code is a configured prefix', () => {
+      expect(isProjectSelectableForAccess('ncom-catalyst', ['ncom'])).toBe(true);
+    });
+
     it('allows project when github repository code is granted', () => {
       expect(isProjectSelectableForAccess(
         'salestailor-app',

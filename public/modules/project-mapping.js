@@ -31,12 +31,16 @@ function getProjectAccessKeys(projectId, projectConfig = null) {
   const keys = new Set();
   const normalizedId = normalizeProjectKey(projectId);
   if (normalizedId) keys.add(normalizedId);
+  if (normalizedId) keys.add(normalizedId.replace(/-/g, ''));
 
   const githubRepo = normalizeProjectKey(projectConfig?.github?.repo);
   if (githubRepo) keys.add(githubRepo);
+  if (githubRepo) keys.add(githubRepo.replace(/-/g, ''));
 
   if (normalizedId.endsWith('-app')) {
-    keys.add(normalizedId.slice(0, -4));
+    const parentId = normalizedId.slice(0, -4);
+    keys.add(parentId);
+    keys.add(parentId.replace(/-/g, ''));
   }
 
   return keys;
@@ -45,11 +49,20 @@ function getProjectAccessKeys(projectId, projectConfig = null) {
 export function isProjectSelectableForAccess(projectId, projectCodes = [], projectConfig = null) {
   if (!projectCodes || projectCodes.length === 0) return true;
 
-  const allowedCodes = new Set(projectCodes.map(normalizeProjectKey).filter(Boolean));
+  const allowedCodes = new Set(projectCodes.flatMap((code) => {
+    const normalized = normalizeProjectKey(code);
+    return normalized ? [normalized, normalized.replace(/-/g, '')] : [];
+  }));
   if (allowedCodes.size === 0) return true;
 
   const projectKeys = getProjectAccessKeys(projectId, projectConfig);
-  return Array.from(projectKeys).some((key) => allowedCodes.has(key));
+  return Array.from(projectKeys).some((key) => {
+    if (allowedCodes.has(key)) return true;
+    return Array.from(allowedCodes).some((code) => (
+      key.startsWith(`${code}-`) ||
+      key.startsWith(code)
+    ));
+  });
 }
 
 // 初期化処理（モジュールロード時に実行）
