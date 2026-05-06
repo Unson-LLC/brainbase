@@ -685,7 +685,8 @@ export class TerminalTransportClient {
         // 矢印・Tab・Escape・Function key 等のナビゲーション系 escape sequence は
         // probe を待たずに送信する。Codex の選択画面 (CLI state が READY/WAITING にならない)
         // などで矢印が効かなくなる問題を回避。
-        const skipProbe = this._isNavigationEscape(value);
+        const submitFastPath = this._isSubmitText(value);
+        const skipProbe = this._isNavigationEscape(value) || submitFastPath;
         if (!skipProbe && !this.canSendInput(this.sessionId)) {
             console.log('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
@@ -761,8 +762,18 @@ export class TerminalTransportClient {
             // local echo は sendText 先頭で適用済みのためスキップ
 
             if (this._shouldSendTextImmediately(seg.value)) {
-                await this._flushBufferedText({ enqueueIfUnavailable: true });
-                await this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                const isSubmitText = this._isSubmitText(seg.value);
+                await this._flushBufferedText({
+                    enqueueIfUnavailable: true,
+                    allowInputNotReady: isSubmitText
+                });
+                if (isSubmitText) {
+                    this._applySubmitFeedback(seg.value);
+                }
+                await this._dispatchTextMessage(seg.value, {
+                    enqueueIfUnavailable: true,
+                    allowInputNotReady: isSubmitText
+                });
                 continue;
             }
 
@@ -1016,16 +1027,28 @@ export class TerminalTransportClient {
         return buffered;
     }
 
-    async _flushBufferedText({ enqueueIfUnavailable = false, ensureInteractive = false } = {}) {
+    async _flushBufferedText({
+        enqueueIfUnavailable = false,
+        ensureInteractive = false,
+        allowInputNotReady = false
+    } = {}) {
         const buffered = this._drainBufferedText();
         if (!buffered) return;
-        await this._dispatchTextMessage(buffered, { enqueueIfUnavailable, ensureInteractive });
+        await this._dispatchTextMessage(buffered, {
+            enqueueIfUnavailable,
+            ensureInteractive,
+            allowInputNotReady
+        });
     }
 
-    async _dispatchTextMessage(value, { enqueueIfUnavailable = false, ensureInteractive = false } = {}) {
+    async _dispatchTextMessage(value, {
+        enqueueIfUnavailable = false,
+        ensureInteractive = false,
+        allowInputNotReady = false
+    } = {}) {
         const message = { type: 'input', inputType: 'text', value };
         if (this.ws?.readyState !== WebSocket.OPEN) {
-            if (enqueueIfUnavailable && this.status.inputReady) {
+            if (enqueueIfUnavailable) {
                 this._messageQueue.enqueue(message);
                 inputTelemetry.inc('queued');
                 console.warn('[TTC-PROBE] dispatch queued (ws not open)', {
@@ -1049,7 +1072,22 @@ export class TerminalTransportClient {
             }
             return;
         }
-        if (!this.canSendInput(this.sessionId)) {
+        const canSend = this.canSendInput(this.sessionId)
+            || (allowInputNotReady && this._canSendInputWithoutReady(this.sessionId));
+        if (!canSend) {
+            if (enqueueIfUnavailable) {
+                this._messageQueue.enqueue(message);
+                inputTelemetry.inc('queued');
+                console.warn('[TTC-PROBE] dispatch queued (canSendInput=false)', {
+                    len: value.length,
+                    mode: this.status.mode,
+                    inputReady: this.status.inputReady,
+                    owner: this.status.terminalAccess?.state,
+                    sessionId: this.sessionId,
+                    queueSize: this._messageQueue.size?.() ?? 0
+                });
+                return;
+            }
             console.warn('[TTC-PROBE] dispatch DROPPED (canSendInput=false, ws OPEN)', {
                 len: value.length,
                 mode: this.status.mode,
@@ -1070,6 +1108,14 @@ export class TerminalTransportClient {
         this.ws.send(JSON.stringify(message));
         inputTelemetry.inc('sentOk');
         console.log('[TTC-PROBE] dispatch sent', { len: value.length });
+    }
+
+    _canSendInputWithoutReady(sessionId) {
+        return this.ws?.readyState === WebSocket.OPEN
+            && Boolean(sessionId)
+            && this.sessionId === sessionId
+            && this.status.mode !== 'blocked'
+            && this.status.terminalAccess?.state === 'owner';
     }
 
     _splitFocusEvents(value) {
@@ -1096,6 +1142,10 @@ export class TerminalTransportClient {
         if (value.includes('\n') || value.includes('\r')) return true;
         const nextValue = this._pendingTextBuffer + value;
         return this._getUtf8ByteLength(nextValue) > TEXT_BATCH_MAX_BYTES;
+    }
+
+    _isSubmitText(value) {
+        return value === '\r' || value === '\n' || value === '\r\n';
     }
 
     _getUtf8ByteLength(value) {
@@ -1372,6 +1422,13 @@ export class TerminalTransportClient {
             this._pendingEchoText += normalized;
             this._writeToTerminal(normalized);
         }
+    }
+
+    _applySubmitFeedback(text) {
+        if (!this.terminal || !this._isSubmitText(text) || this.status.mode !== 'live') return;
+        this._pendingEchoText = '';
+        this._deferredSnapshotWhileEchoPending = null;
+        this._writeToTerminal('\r\n');
     }
 
     _canOptimisticallyEcho(text) {

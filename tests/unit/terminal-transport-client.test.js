@@ -360,6 +360,123 @@ describe('terminal-transport-client', () => {
     });
   });
 
+  it('inputReady=falseでもEnter文字はprobeせず送信する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = false;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\r');
+
+    expect(httpClient.post).not.toHaveBeenCalledWith(
+      '/api/sessions/session-1/terminal/probe-input',
+      expect.anything(),
+      expect.anything()
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '\r'
+    });
+    expect(client.terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
+  });
+
+  it('inputReady=falseの送信Enter時_直前のbuffer本文もqueueせず送信し描画待ちechoを解除する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    const terminal = {
+      write: vi.fn((text, callback) => callback?.()),
+      buffer: { active: { baseY: 0, viewportY: 0 } },
+      scrollToBottom: vi.fn()
+    };
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = false;
+    client.terminal = terminal;
+
+    client._pendingTextBuffer = '生成して';
+    client._pendingEchoText = '生成して';
+
+    await client.sendText('\r');
+
+    expect(httpClient.post).not.toHaveBeenCalledWith(
+      '/api/sessions/session-1/terminal/probe-input',
+      expect.anything(),
+      expect.anything()
+    );
+    expect(client._messageQueue.size()).toBe(0);
+    expect(client._pendingTextBuffer).toBe('');
+    expect(client._pendingEchoText).toBe('');
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '生成して'
+    });
+    expect(JSON.parse(send.mock.calls[1][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '\r'
+    });
+    expect(terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
+  });
+
+  it('ws切断中の即時textはinputReady=falseでもdropせずqueueする', async () => {
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.ws = { readyState: 3, send: vi.fn() };
+    client.status.mode = 'reconnecting';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = false;
+
+    await client._dispatchTextMessage('生成して\n', { enqueueIfUnavailable: true });
+
+    expect(client._messageQueue.size()).toBe(1);
+    expect(client.ws.send).not.toHaveBeenCalled();
+  });
+
+  it('canSendInput=falseの即時textはenqueue指定ならdropせずqueueする', async () => {
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send: vi.fn() };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = false;
+
+    await client._dispatchTextMessage('生成して\n', { enqueueIfUnavailable: true });
+
+    expect(client._messageQueue.size()).toBe(1);
+    expect(client.ws.send).not.toHaveBeenCalled();
+  });
+
   it('フォーカスイベント混入時_テキスト部分のみバッチしフォーカスは即時送信する', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
