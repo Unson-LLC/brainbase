@@ -1669,6 +1669,115 @@ body::after {
     height: 100%;
 }
 
+.terminal-xterm-host .composition-view {
+    transform: translateY(-100%) !important;
+}
+
+.terminal-xterm-host.bb-ime-composing .xterm-helper-textarea {
+    transform: translateY(calc(-1 * var(--bb-terminal-row-height, 19px))) !important;
+    caret-color: transparent !important;
+}
+
+.terminal-xterm-host.bb-ime-cursor-settling .xterm-helper-textarea {
+    transform: translateY(calc(-1 * var(--bb-terminal-row-height, 19px))) !important;
+}
+
+.terminal-xterm-host.bb-ime-cursor-settling .xterm-cursor {
+    transform: none !important;
+}
+
+.terminal-xterm-host.bb-ime-cursor-settling .xterm-helper-textarea {
+    caret-color: transparent !important;
+}
+
+.terminal-xterm-host.bb-ime-cursor-settling .xterm-cursor {
+    position: relative !important;
+    top: calc(-1 * var(--bb-terminal-row-height, 19px)) !important;
+    opacity: 1 !important;
+}
+
+.terminal-xterm-host.bb-ime-composing .xterm-cursor,
+.terminal-xterm-host.bb-ime-composing .xterm-cursor-layer {
+    opacity: 0;
+}
+
+.terminal-xterm-host.bb-ime-composing .composition-view.active::after {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 1px;
+    background: currentColor;
+    vertical-align: -0.12em;
+}
+
+@keyframes terminal-cursor-blink {
+    0%,
+    49% {
+        opacity: 1;
+    }
+    50%,
+    100% {
+        opacity: 0;
+    }
+}
+
+.terminal-xterm-host.bb-cursor-debug::before {
+    display: none;
+}
+
+.bb-cursor-debug-panel {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 2147483647;
+    max-width: min(760px, calc(100vw - 24px));
+    padding: 6px 8px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+    font: 12px/1.35 Menlo, Monaco, monospace;
+    pointer-events: none;
+    white-space: normal;
+}
+
+.terminal-xterm-host.bb-cursor-debug .xterm-cursor {
+    opacity: 1 !important;
+    background: rgba(255, 0, 0, 0.9) !important;
+    outline: 2px solid #ff0000 !important;
+}
+
+.terminal-xterm-host.bb-cursor-debug .xterm-cursor-layer {
+    opacity: 0.75 !important;
+    outline: 2px solid #ff9500 !important;
+    outline-offset: -2px;
+}
+
+.terminal-xterm-host.bb-cursor-debug .xterm-helper-textarea {
+    width: 0.65em !important;
+    height: 1.2em !important;
+    opacity: 0.75 !important;
+    background: rgba(0, 128, 255, 0.85) !important;
+    outline: 2px solid #0080ff !important;
+    caret-color: #0080ff !important;
+    z-index: 10001 !important;
+}
+
+.terminal-xterm-host.bb-cursor-debug .composition-view {
+    display: block !important;
+    color: #7cff7c !important;
+    background: rgba(0, 255, 0, 0.18) !important;
+    outline: 2px solid #00ff00 !important;
+}
+
+.terminal-xterm-host.bb-cursor-debug .composition-view::after {
+    background: #ff00ff !important;
+    outline: 2px solid #ff00ff !important;
+    opacity: 1 !important;
+    animation: none !important;
+}
+
 /* Disable iframe pointer events during drag */
 .console-area.dragging iframe {
     pointer-events: none;

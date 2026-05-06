@@ -170,7 +170,7 @@ export class HttpClient {
 
         try {
             const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
-            const response = await fetch(fullURL, {
+            let response = await fetch(fullURL, {
                 ...fetchOptions,
                 headers,
                 ...(controller ? { signal: controller.signal } : {})

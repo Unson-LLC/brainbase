@@ -139,6 +139,36 @@ describe('TerminalTransportService', () => {
         expect(connection.ws.send).toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
     });
 
+    it('inputProbe failedでもEnter textはClaude/Codex共通でdropせず送る', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getSession.mockReturnValue({
+            runtimeState: 'degraded',
+            observed: {
+                inputProbe: {
+                    status: 'failed',
+                    lastFailedAt: '2026-01-01T00:00:00.000Z',
+                    reason: 'CLI_NOT_IDLE'
+                }
+            }
+        });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\r'
+        }));
+
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', '\r', 'text');
+        expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
+    });
+
     it('OSC制御応答だけのinput messageはtmuxへ送らず無視する', async () => {
         const { service, sessionManager, captureCache } = buildService();
         const connection = {

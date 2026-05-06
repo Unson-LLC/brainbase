@@ -358,6 +358,7 @@ describe('terminal-transport-client', () => {
       inputType: 'text',
       value: 'hello\n'
     });
+    expect(client.terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
   });
 
   it('inputReady=falseでもEnter文字はprobeせず送信する', async () => {
@@ -561,7 +562,34 @@ describe('terminal-transport-client', () => {
     expect(echoTexts).toEqual(['hello', 'world']);
   });
 
-  it('Backspaceはローカルエコーで即座に反映される', async () => {
+  it('Backspaceはローカルエコーせず即時送信してPTYの描画に任せる', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\x7f');
+
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '\x7f'
+    });
+  });
+
+  it('日本語IME確定文字はローカルエコーせずPTYの描画に任せる', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -576,11 +604,154 @@ describe('terminal-transport-client', () => {
     client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
-    await client.sendText('\x7f');
+    await client.sendText('生成して');
 
-    // ローカルエコーとして \b \b が書き込まれる
-    expect(client.terminal.write).toHaveBeenCalledTimes(1);
-    expect(client.terminal.write.mock.calls[0][0]).toBe('\b \b');
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingEchoText).toBe('');
+  });
+
+  it('IME変換中はhostにbb-ime-composingを付け外しできる', () => {
+    vi.useFakeTimers();
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = document.createElement('div');
+
+    client._setImeComposing(true);
+
+    expect(client.hostEl.classList.contains('bb-ime-composing')).toBe(true);
+
+    client._setImeComposing(false);
+
+    expect(client.hostEl.classList.contains('bb-ime-composing')).toBe(false);
+  });
+
+  it('IME確定文字はcompositionendが欠けても確定入力として判定できる', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+
+    expect(client._isImeCommitText('生成して')).toBe(true);
+    expect(client._isImeCommitText('hello')).toBe(false);
+    expect(client._isImeCommitText('\r')).toBe(false);
+    expect(client._isImeCommitText('\x1b[I')).toBe(false);
+  });
+
+  it('cursorDebug queryでカーソルレイヤーdebug classを有効化できる', () => {
+    document.body.innerHTML = '';
+    const hostEl = document.createElement('div');
+    vi.stubGlobal('window', {
+      location: { search: '?cursorDebug=1' },
+    });
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = hostEl;
+
+    client._syncCursorDebugClass();
+
+    expect(hostEl.classList.contains('bb-cursor-debug')).toBe(true);
+    expect(document.querySelector('.bb-cursor-debug-panel')?.textContent).toContain('state=none');
+  });
+
+  it('cursorDebug queryがない通常URLではdebug classを出さない', () => {
+    document.body.innerHTML = '';
+    const hostEl = document.createElement('div');
+    vi.stubGlobal('window', {
+      location: { search: '' },
+    });
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = hostEl;
+
+    client._syncCursorDebugClass();
+
+    expect(hostEl.classList.contains('bb-cursor-debug')).toBe(false);
+    expect(document.querySelector('.bb-cursor-debug-panel')).toBeNull();
+  });
+
+  it('cursorDebug panelはIMEカーソル状態に追従する', () => {
+    document.body.innerHTML = '';
+    const hostEl = document.createElement('div');
+    vi.stubGlobal('window', {
+      location: { search: '?cursorDebug=1' },
+    });
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = hostEl;
+
+    client._syncCursorDebugClass();
+    client._setImeComposing(true);
+
+    expect(document.querySelector('.bb-cursor-debug-panel')?.textContent).toContain('state=composing');
+
+    client._setImeComposing(false, { settleCursor: true });
+
+    expect(document.querySelector('.bb-cursor-debug-panel')?.textContent).toContain('state=settling');
+
+    client._clearImeCursorState();
+
+    expect(document.querySelector('.bb-cursor-debug-panel')?.textContent).toContain('state=none');
+  });
+
+  it('xterm DOM cursor補正用にterminal行高をCSS変数へ反映する', () => {
+    const hostEl = document.createElement('div');
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = hostEl;
+
+    client._syncTerminalMetricVars({ fontSize: 14, lineHeight: 1.35 });
+
+    expect(hostEl.style.getPropertyValue('--bb-terminal-row-height')).toBe('18.9px');
+  });
+
+  it('IME確定直後は入力行が終わるまでカーソル補正を維持し送信時に解除する', async () => {
+    vi.useFakeTimers();
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = document.createElement('div');
+
+    client._setImeComposing(false, { settleCursor: true });
+
+    expect(client.hostEl.classList.contains('bb-ime-cursor-settling')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(client.hostEl.classList.contains('bb-ime-cursor-settling')).toBe(true);
+
+    client._clearImeCursorState();
+
+    expect(client.hostEl.classList.contains('bb-ime-cursor-settling')).toBe(false);
+  });
+
+  it('IME確定後の通常出力ではカーソル補正を消さずsubmit feedbackで解除する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = document.createElement('div');
+    client.terminal = { write: vi.fn((text, callback) => callback?.()) };
+    client.status.mode = 'live';
+
+    client._setImeComposing(false, { settleCursor: true });
+    client._applyOutput('\r\nprompt repaint');
+
+    expect(client.hostEl.classList.contains('bb-ime-cursor-settling')).toBe(true);
+
+    client._applySubmitFeedback('\r');
+
+    expect(client.hostEl.classList.contains('bb-ime-cursor-settling')).toBe(false);
   });
 
   it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {

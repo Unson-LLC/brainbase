@@ -123,6 +123,8 @@ export class TerminalTransportClient {
         this._imeJustCommittedWithEnter = false;
         this._imePostEnterPending = false;
         this._imePostEnterTimer = null;
+        this._imeCursorSettleActive = false;
+        this._cursorDebugPanel = null;
         // loadXterm() の dynamic import が完了する前に WS スナップショットが
         // 到着した場合に保存しておくバッファ。init() で terminal が準備でき次第 flush。
         this._preTerminalSnapshot = null;
@@ -131,9 +133,11 @@ export class TerminalTransportClient {
 
     async init(hostEl) {
         this.hostEl = hostEl;
+        this._syncCursorDebugClass();
         const { Terminal, FitAddon, WebLinksAddon, Unicode11Addon } = await loadXterm();
         if (this.terminal) return;
         const appearance = readTerminalAppearance(hostEl);
+        this._syncTerminalMetricVars(appearance);
 
         this.terminal = new Terminal({
             fontFamily: appearance.fontFamily,
@@ -167,6 +171,12 @@ export class TerminalTransportClient {
         if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
             this.terminal.attachCustomKeyEventHandler((event) => this._handleCustomKeyEvent(event));
         }
+        this.hostEl.addEventListener('compositionstart', () => {
+            this._setImeComposing(true);
+        }, true);
+        this.hostEl.addEventListener('compositionend', () => {
+            this._setImeComposing(false, { settleCursor: true });
+        }, true);
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
             const token = this._connectToken;
@@ -175,6 +185,9 @@ export class TerminalTransportClient {
                 this._imePostEnterPending = false;
                 clearTimeout(this._imePostEnterTimer);
                 console.log('[TTC-PROBE][onData] IME post-Enter: natural \\r arrived, timer cancelled');
+            }
+            if (this._isImeCommitText(data)) {
+                this._setImeComposing(false, { settleCursor: true });
             }
             console.log('[TTC-PROBE][onData] fired', {
                 len: data.length,
@@ -268,6 +281,7 @@ export class TerminalTransportClient {
         }, true);
         this.hostEl.addEventListener('focusout', (e) => {
             this.status.isFocused = false;
+            this._setImeComposing(false);
             console.log('[TTC-PROBE][focus] focusout', {
                 target: e.target?.tagName,
                 relatedTarget: e.relatedTarget?.tagName,
@@ -357,6 +371,7 @@ export class TerminalTransportClient {
             this.hostEl?.removeEventListener('click', this._hostClickHandler);
             this._hostClickHandler = null;
         }
+        this._removeCursorDebugPanel();
         this.terminal?.dispose();
         this.terminal = null;
         this.fitAddon = null;
@@ -674,7 +689,8 @@ export class TerminalTransportClient {
             canSend: this.canSendInput(this.sessionId),
             mode: this.status.mode,
             inputReady: this.status.inputReady,
-            isNavKey: this._isNavigationEscape(value)
+            isNavKey: this._isNavigationEscape(value),
+            bypassProbe: this._canBypassInputReadyProbe(value)
         });
         if (!value) return;
         inputTelemetry.inc('appended');
@@ -685,8 +701,7 @@ export class TerminalTransportClient {
         // 矢印・Tab・Escape・Function key 等のナビゲーション系 escape sequence は
         // probe を待たずに送信する。Codex の選択画面 (CLI state が READY/WAITING にならない)
         // などで矢印が効かなくなる問題を回避。
-        const submitFastPath = this._isSubmitText(value);
-        const skipProbe = this._isNavigationEscape(value) || submitFastPath;
+        const skipProbe = this._canBypassInputReadyProbe(value);
         if (!skipProbe && !this.canSendInput(this.sessionId)) {
             console.log('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
@@ -762,17 +777,17 @@ export class TerminalTransportClient {
             // local echo は sendText 先頭で適用済みのためスキップ
 
             if (this._shouldSendTextImmediately(seg.value)) {
-                const isSubmitText = this._isSubmitText(seg.value);
+                const allowInputNotReady = this._isControlTextInput(seg.value);
                 await this._flushBufferedText({
                     enqueueIfUnavailable: true,
-                    allowInputNotReady: isSubmitText
+                    allowInputNotReady
                 });
-                if (isSubmitText) {
+                if (this._hasSubmitText(seg.value)) {
                     this._applySubmitFeedback(seg.value);
                 }
                 await this._dispatchTextMessage(seg.value, {
                     enqueueIfUnavailable: true,
-                    allowInputNotReady: isSubmitText
+                    allowInputNotReady
                 });
                 continue;
             }
@@ -1139,13 +1154,111 @@ export class TerminalTransportClient {
 
     _shouldSendTextImmediately(value) {
         if (typeof value !== 'string' || !value) return true;
+        if (this._isControlTextInput(value)) return true;
         if (value.includes('\n') || value.includes('\r')) return true;
         const nextValue = this._pendingTextBuffer + value;
         return this._getUtf8ByteLength(nextValue) > TEXT_BATCH_MAX_BYTES;
     }
 
+    _canBypassInputReadyProbe(value) {
+        return this._isNavigationEscape(value) || this._isControlTextInput(value);
+    }
+
+    _isControlTextInput(value) {
+        return value === '\r'
+            || value === '\n'
+            || value === '\r\n'
+            || value === '\t'
+            || value === '\x7f';
+    }
+
     _isSubmitText(value) {
         return value === '\r' || value === '\n' || value === '\r\n';
+    }
+
+    _hasSubmitText(value) {
+        return typeof value === 'string' && (value.includes('\r') || value.includes('\n'));
+    }
+
+    _syncCursorDebugClass() {
+        if (!this.hostEl?.classList || typeof window === 'undefined') return;
+        let enabled = false;
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            enabled = params.get('cursorDebug') === '1';
+        } catch {
+            enabled = false;
+        }
+        this.hostEl.classList.toggle('bb-cursor-debug', enabled);
+        if (enabled) {
+            this._ensureCursorDebugPanel();
+            this._updateCursorDebugPanel();
+        } else {
+            this._removeCursorDebugPanel();
+        }
+    }
+
+    _syncTerminalMetricVars(appearance = null) {
+        if (!this.hostEl?.style) return;
+        const nextAppearance = appearance || readTerminalAppearance(this.hostEl);
+        const rowHeight = Math.round(Math.max(1, nextAppearance.fontSize * nextAppearance.lineHeight) * 100) / 100;
+        this.hostEl.style.setProperty('--bb-terminal-row-height', `${rowHeight}px`);
+    }
+
+    _ensureCursorDebugPanel() {
+        if (this._cursorDebugPanel || typeof document === 'undefined') return;
+        const panel = document.createElement('div');
+        panel.className = 'bb-cursor-debug-panel';
+        document.body.appendChild(panel);
+        this._cursorDebugPanel = panel;
+    }
+
+    _removeCursorDebugPanel() {
+        this._cursorDebugPanel?.remove?.();
+        this._cursorDebugPanel = null;
+    }
+
+    _updateCursorDebugPanel() {
+        if (!this._cursorDebugPanel || !this.hostEl?.classList) return;
+        const state = this.hostEl.classList.contains('bb-ime-composing')
+            ? 'composing'
+            : this.hostEl.classList.contains('bb-ime-cursor-settling')
+                ? 'settling'
+                : 'none';
+        this._cursorDebugPanel.textContent = `cursor debug: state=${state} | red=xterm DOM | orange=canvas layer | blue=textarea | green=composition`;
+    }
+
+    _isImeCommitText(value) {
+        return typeof value === 'string'
+            && /[^\x00-\x7f]/.test(value)
+            && !/[\u0000-\u001f\u007f\u001b]/.test(value);
+    }
+
+    _setImeComposing(isComposing, { settleCursor = false } = {}) {
+        if (!this.hostEl?.classList) return;
+        if (isComposing === true) {
+            this._imeCursorSettleActive = false;
+            this.hostEl.classList.remove('bb-ime-cursor-settling');
+            this.hostEl.classList.add('bb-ime-composing');
+            this._updateCursorDebugPanel();
+            return;
+        }
+        this.hostEl.classList.remove('bb-ime-composing');
+        if (settleCursor) {
+            this._imeCursorSettleActive = true;
+            this.hostEl.classList.add('bb-ime-cursor-settling');
+        } else {
+            this._imeCursorSettleActive = false;
+            this.hostEl.classList.remove('bb-ime-cursor-settling');
+        }
+        this._updateCursorDebugPanel();
+    }
+
+    _clearImeCursorState() {
+        this._imeCursorSettleActive = false;
+        this.hostEl?.classList?.remove('bb-ime-composing');
+        this.hostEl?.classList?.remove('bb-ime-cursor-settling');
+        this._updateCursorDebugPanel();
     }
 
     _getUtf8ByteLength(value) {
@@ -1211,7 +1324,7 @@ export class TerminalTransportClient {
         if (!this._isViewportPinnedToBottom || !this._pendingSnapshotText) return;
 
         const nextSnapshot = this._pendingSnapshotText;
-        const pendingOptions = this._pendingSnapshotOptions || {};
+        const pendingOptions = this._pendingSnapshotOptions || { screenOnly: false };
         this._pendingSnapshotText = null;
         this._pendingSnapshotOptions = null;
         this._applySnapshot(nextSnapshot, {
@@ -1289,7 +1402,8 @@ export class TerminalTransportClient {
         return `${normalizedText}\x1b[${row};${col}H`;
     }
 
-    _buildSnapshotForTerminal(text, cursor = null) {
+    _buildSnapshotForTerminal(text, cursor = null, options = {}) {
+        void options;
         return this._formatSnapshotForTerminal(text, cursor);
     }
 
@@ -1406,11 +1520,9 @@ export class TerminalTransportClient {
     _applyLocalEcho(text) {
         if (!this.terminal || !text || this.status.mode !== 'live') return;
 
-        // Backspace(\x7f)はローカルエコーで即座に反映
+        // Backspace and non-ASCII IME text are echoed by the PTY.
+        // Optimistic erase is unsafe for wide CJK cells and can leave stale glyphs.
         if (text === '\x7f') {
-            const bsEcho = '\b \b';
-            this._pendingEchoText += bsEcho;
-            this._writeToTerminal(bsEcho);
             return;
         }
 
@@ -1425,7 +1537,8 @@ export class TerminalTransportClient {
     }
 
     _applySubmitFeedback(text) {
-        if (!this.terminal || !this._isSubmitText(text) || this.status.mode !== 'live') return;
+        if (!this.terminal || !this._hasSubmitText(text) || this.status.mode !== 'live') return;
+        this._clearImeCursorState();
         this._pendingEchoText = '';
         this._deferredSnapshotWhileEchoPending = null;
         this._writeToTerminal('\r\n');
@@ -1433,7 +1546,7 @@ export class TerminalTransportClient {
 
     _canOptimisticallyEcho(text) {
         if (typeof text !== 'string' || !text) return false;
-        return !/[\u0000-\u0008\u000b-\u001f\u007f\u001b]/.test(text);
+        return /^[\t\x20-\x7e]+$/.test(text);
     }
 
     _normalizeEchoText(text) {
@@ -1466,7 +1579,7 @@ export class TerminalTransportClient {
             // の場合、 iOS Safari の momentum scroll / fitAddon resize で
             // write callback 直後に再度スクロールが戻されるケースがある。
             // 次フレームで再度 restore して位置を確実にキープする。
-            if (!nextViewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
+            if (nextViewportState && !nextViewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
                 requestAnimationFrame(() => {
                     this._restoreViewportState(nextViewportState);
                 });
@@ -1476,6 +1589,7 @@ export class TerminalTransportClient {
     }
 
     _prepareForSessionSwitch() {
+        this._clearImeCursorState();
         this._forceApplyNextSnapshot = true;
         this._pendingSnapshotText = null;
         this._pendingSnapshotOptions = null;

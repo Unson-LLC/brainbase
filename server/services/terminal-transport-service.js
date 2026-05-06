@@ -558,9 +558,11 @@ export class TerminalTransportService {
                 // CLI state 検出に失敗する Codex 選択画面でも送信する必要があるため、
                 // probe チェックをバイパスする。
                 const isNavEscape = inputType === 'text' && this._isNavigationEscape(normalizedValue);
+                const isControlTextInput = inputType === 'text' && this._isControlTextInput(normalizedValue);
                 if (!this._getInputReady(sessionId)
                     && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(normalizedValue))
-                    && !isNavEscape) {
+                    && !isNavEscape
+                    && !isControlTextInput) {
                     logger.warn(`[TTC-PROBE][ws-input] dropped INPUT_NOT_READY session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=INPUT_NOT_READY session=${sessionId} len=${valueLen} type=${inputType}`);
                     ws.send(JSON.stringify({
@@ -685,6 +687,14 @@ export class TerminalTransportService {
         if (value.charCodeAt(0) !== 0x1B) return false;
         if (value === '\x1B') return true;
         return /^\x1B(?:\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]|O[A-Z~])$/.test(value);
+    }
+
+    _isControlTextInput(value) {
+        return value === '\r'
+            || value === '\n'
+            || value === '\r\n'
+            || value === '\t'
+            || value === '\x7f';
     }
 
     _buildRuntimeStatusPayload(connection) {
