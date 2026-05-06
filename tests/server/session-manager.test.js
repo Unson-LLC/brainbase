@@ -181,6 +181,15 @@ describe('SessionManager', () => {
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
   });
 
+  it('clearDoneStatus_persists_null_even_when_only_state_payload_is_stale', () => {
+    const manager = createManager();
+    manager._persistHookStatus = vi.fn();
+
+    manager.clearDoneStatus('session-1');
+
+    expect(manager._persistHookStatus).toHaveBeenCalledWith('session-1', null);
+  });
+
   it('stale working without active turns does not surface as done', () => {
     const manager = createManager();
     const staleTime = Date.now() - 60 * 60 * 1000 - 1000;
@@ -245,7 +254,7 @@ describe('SessionManager', () => {
     await manager.restoreHookStatus();
 
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
-    expect(state.sessions[0]).not.toHaveProperty('hookStatus');
+    expect(state.sessions[0].hookStatus).toBeNull();
   });
 
   it('restoreHookStatus_keeps_recent_explicit_done', async () => {
@@ -292,6 +301,56 @@ describe('SessionManager', () => {
       isWorking: false,
       isDone: true
     });
+  });
+
+  it('restoreHookStatus_prunes_stale_codex_pty_turn_and_persists_clean_done', async () => {
+    const now = Date.now();
+    const staleSessionId = `session-${now - 31 * 60 * 1000}`;
+    let state = {
+      sessions: [{
+        id: staleSessionId,
+        hookStatus: {
+          status: 'working',
+          timestamp: now - 30 * 60 * 1000,
+          lastWorkingAt: now - 31 * 60 * 1000,
+          lastDoneAt: now - 30 * 60 * 1000,
+          lastActivityAt: now - 30 * 60 * 1000,
+          lastEventType: 'agent-turn-complete',
+          activeTurnIds: [`codex-pty-${staleSessionId}-12345`]
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      patchSession: async (sessionId, patch) => {
+        state = {
+          ...state,
+          sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, ...patch } : session)
+        };
+        return state;
+      },
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = createSessionServices({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: '' }),
+      stateStore,
+      worktreeService: {}
+    }).sessionApi;
+
+    await manager.restoreHookStatus();
+
+    expect(manager.getSessionStatus()[staleSessionId]).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      activeTurnCount: 0
+    });
+    expect(state.sessions[0].hookStatus.activeTurnIds).toEqual([]);
   });
 
   it('heartbeat_timeout_sets_isWorking_false_after_60m', () => {
@@ -455,6 +514,27 @@ describe('SessionManager', () => {
     expect(status.isWorking).toBe(true);
     expect(status.isDone).toBe(false);
     expect(status.activeTurnCount).toBe(2);
+  });
+
+  it('turnIdなしturn_completed受信時_codex_pty_fallback_turnはクリアする', () => {
+    const manager = createManager();
+    const now = Date.now();
+    const turnId = `codex-pty-session-${now}-12345`;
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'codex/pty-shim-start',
+      turnId
+    });
+    manager.reportActivity('session-1', 'done', now + 1000, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(false);
+    expect(status.isDone).toBe(true);
+    expect(status.activeTurnCount).toBe(0);
   });
 
   it('reportActivity呼び出し時_live feed向けの作業要約を保持する', () => {

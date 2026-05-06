@@ -8,7 +8,7 @@ import { isBrowserPreviewablePath, resolvePreviewRelativePath } from '../file-pr
 import { showInfo, showError } from '../toast.js';
 import { buildTerminalBlockedText, formatTerminalTimestamp, isLoopbackHost } from '../terminal/terminal-reconnect-manager.js';
 import { ansiToHtml } from '../utils/ansi-to-html.js';
-import { getSessionUiEntry, mergeSessionUiEntry } from '../session-ui-state.js';
+import { getSessionStatus, getSessionUiEntry, mergeSessionUiEntry } from '../session-ui-state.js';
 
 export function applyTerminalInputUxMixin(AppClass) {
     AppClass.prototype._setCurrentSessionUiState = function(updates = {}, options = {}) {
@@ -919,7 +919,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                     ? `${terminalAccess.ownerViewerLabel} がこのセッションを表示中。クリックで引き継ぎ`
                     : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
                 ownerLabel = terminalAccess?.ownerViewerLabel || '';
-            } else if (session?.hookStatus?.isWorking) {
+            } else if (getSessionStatus(sessionId)?.isWorking) {
                 stateClass = 'ready';
                 text = '入力: 表示更新中';
                 title = `session=${sessionId} snapshot display`;

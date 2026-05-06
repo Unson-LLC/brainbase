@@ -735,6 +735,24 @@ describe('app switchSession runtime handling', () => {
     expect(app._getMobileSnapshotPollInterval('session-1')).toBe(1000);
   });
 
+  it('mobile snapshot poll interval ignores stale session hook status from state payload', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessionUi: { byId: {} },
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        hookStatus: { isWorking: true }
+      }]
+    });
+
+    expect(app._getMobileSnapshotPollInterval('session-1')).toBe(3000);
+  });
+
   it('mobile ensureがproxyPathを返さないとmodalを閉じる', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);

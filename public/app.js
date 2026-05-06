@@ -30,7 +30,7 @@ import { applyMobileNavigationMixin } from './modules/app/mobile-navigation-mixi
 import { applyUiSetupMixin } from './modules/app/ui-setup-mixin.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { TerminalReconnectManager } from './modules/terminal/terminal-reconnect-manager.js';
-import { hydrateSessionRecentFiles } from './modules/session-ui-state.js';
+import { getSessionStatus, hydrateSessionRecentFiles } from './modules/session-ui-state.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -228,8 +228,7 @@ export class App {
     }
 
     _getMobileSnapshotPollInterval(sessionId) {
-        const session = this._getSessionById(sessionId);
-        return session?.hookStatus?.isWorking ? 1000 : 3000;
+        return getSessionStatus(sessionId)?.isWorking ? 1000 : 3000;
     }
 
     /**
