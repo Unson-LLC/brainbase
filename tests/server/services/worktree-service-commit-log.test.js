@@ -270,7 +270,32 @@ describe('WorktreeService Git compatibility helpers', () => {
                     'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
                     'A ../../worktrees/session-1-repo/node_modules',
                     'M ../../worktrees/session-1-repo/AGENTS.md',
+                    'C ../../worktrees/session-1-repo/{AGENTS.md => CLAUDE.md}',
                     'A ../../worktrees/session-1-repo/.brainbase-port'
+                ].join('\n')
+            });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasWorkingCopyChanges).toBe(false);
+        expect(result.needsIntegration).toBe(false);
+    });
+
+    it('workspace artifactのrename/copyだけならdirty扱いしない', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({
+                stdout: [
+                    'Working copy changes:',
+                    'C ../../worktrees/session-1-repo/{AGENTS.md => CLAUDE.md}',
+                    'C ../../worktrees/session-1-repo/{CLAUDE.md => AGENTS.md}',
+                    'A ../../worktrees/session-1-repo/node_modules'
                 ].join('\n')
             });
 

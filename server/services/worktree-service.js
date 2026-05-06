@@ -461,6 +461,15 @@ export class WorktreeService {
 
     _isWorkspaceArtifactStatusPath(statusPath) {
         const normalized = String(statusPath || '').replace(/\\/g, '/');
+        const copyOrRenameMatch = normalized.match(/^(.*)\{(.+) => (.+)\}(.*)$/);
+        if (copyOrRenameMatch) {
+            const [, prefix, fromPath, toPath, suffix] = copyOrRenameMatch;
+            return [
+                `${prefix}${fromPath}${suffix}`,
+                `${prefix}${toPath}${suffix}`
+            ].every((candidate) => this._isWorkspaceArtifactStatusPath(candidate));
+        }
+
         const basename = normalized.split('/').pop();
         const artifactBasenames = new Set([
             '.DS_Store',
@@ -473,7 +482,9 @@ export class WorktreeService {
         ]);
 
         return normalized.includes('/.claude/')
+            || normalized.startsWith('.claude/')
             || normalized.includes('/node_modules/')
+            || normalized.startsWith('node_modules/')
             || normalized.includes('/--help/')
             || normalized.startsWith('--help/')
             || basename === 'node_modules'
