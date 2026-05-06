@@ -224,6 +224,73 @@ describe('SessionManager', () => {
     expect(status['session-2']).toBeUndefined();
   });
 
+  it('getSessionStatus_tmux_pane_title_spinner_does_not_override_done_hook_status', () => {
+    const manager = createManager();
+    const now = Date.now();
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete'
+    });
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    const status = manager.getSessionStatus()['session-1'];
+
+    expect(status).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      lastEventType: 'agent-turn-complete'
+    });
+  });
+
+  it('getSessionStatus_tmux_pane_title_spinner_expires_when_title_stops_changing', () => {
+    const manager = createManager();
+    let now = 1000;
+    manager._now = () => now;
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+      isWorking: true,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
+
+    now += 30 * 1000 + 1;
+
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+  });
+
+  it('getSessionStatus_tmux_pane_title_spinner_stays_active_when_title_changes', () => {
+    const manager = createManager();
+    let now = 1000;
+    let title = 'session-1\t⠹ session-1...';
+    manager._now = () => now;
+    manager._listTmuxPaneTitles = () => [title];
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({ isWorking: true });
+
+    now += 30 * 1000 + 1;
+    title = 'session-1\t⠸ session-1...';
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+      isWorking: true,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
+  });
+
+  it('listTmuxPaneTitles_uses_short_cache_to_avoid_repeated_tmux_exec', () => {
+    const manager = createManager();
+    let now = 1000;
+    manager._now = () => now;
+    manager._readTmuxPaneTitles = vi.fn(() => ['session-1\t⠹ session-1...']);
+
+    expect(manager._listTmuxPaneTitles()).toEqual(['session-1\t⠹ session-1...']);
+    expect(manager._listTmuxPaneTitles()).toEqual(['session-1\t⠹ session-1...']);
+    expect(manager._readTmuxPaneTitles).toHaveBeenCalledTimes(1);
+
+    now += 1001;
+    expect(manager._listTmuxPaneTitles()).toEqual(['session-1\t⠹ session-1...']);
+    expect(manager._readTmuxPaneTitles).toHaveBeenCalledTimes(2);
+  });
+
   it('restoreHookStatus_prunes_stale_working_without_active_turns', async () => {
     const staleTime = Date.now() - 60 * 60 * 1000 - 1000;
     let state = {
@@ -440,6 +507,26 @@ describe('SessionManager', () => {
     expect(status.isWorking).toBe(true);
     expect(status.isDone).toBe(false);
     expect(status.activeTurnCount).toBe(1);
+  });
+
+  it('done後_active_turnなしheartbeat受信時_workingへ戻さない', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'codex/hook/PostToolUse',
+      turnId: 'codex-pty-session-1-12345'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(false);
+    expect(status.isDone).toBe(true);
+    expect(status.activeTurnCount).toBe(0);
   });
 
   it('turn_started後_turn_completedまではassistant_response_completeでもdoneに倒れない', () => {
