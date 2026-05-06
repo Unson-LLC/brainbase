@@ -206,6 +206,23 @@ describe('SessionManager', () => {
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
   });
 
+  it('stale active turn with done timestamp does not surface as green done', () => {
+    const manager = createManager();
+    const staleTime = Date.now() - 6 * 60 * 1000;
+
+    manager.hookStatus.set('session-1', {
+      status: 'working',
+      timestamp: staleTime,
+      lastWorkingAt: staleTime,
+      lastDoneAt: staleTime + 1000,
+      lastActivityAt: staleTime,
+      lastEventType: 'agent-turn-complete',
+      activeTurnIds: ['turn-still-open']
+    });
+
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+  });
+
   it('getSessionStatus_tmux_pane_title_spinner_is_reported_as_active_turn', () => {
     const manager = createManager();
     manager._listTmuxPaneTitles = () => [
@@ -450,7 +467,7 @@ describe('SessionManager', () => {
   });
 
   // Phase 2: working報告優先化のテスト
-  it('working報告受信時_lastDoneAtがリセットされる', () => {
+  it('working報告受信時_lastDoneAtを保持したままworkingへ戻る', () => {
     const manager = createManager();
     const now = Date.now();
 
@@ -461,7 +478,7 @@ describe('SessionManager', () => {
     const status = manager.getSessionStatus()['session-1'];
     expect(status.isWorking).toBe(true);
     expect(status.isDone).toBe(false);
-    expect(status.lastDoneAt).toBe(0); // lastDoneAtがリセットされていることを確認
+    expect(status.lastDoneAt).toBe(now - 2000);
   });
 
   it('clearWorking関数_working状態をクリアする', () => {

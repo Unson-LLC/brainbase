@@ -225,12 +225,14 @@ export const activityServiceMethods = {
         const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
         const isWorkingStale = lastActiveAt > 0 && (now - lastActiveAt > WORKING_TIMEOUT);
         if (isWorkingStale && activeTurnCount === 0 && !hasDone) return null;
-        const isWorking = !isWorkingStale && (
+        const hasOpenWorking = normalized.lastWorkingAt > normalized.lastDoneAt;
+        if (isWorkingStale && (activeTurnCount > 0 || hasOpenWorking)) return null;
+        const isWorking = (
             activeTurnCount > 0
-            || (activeTurnCount === 0 && !hasDone && normalized.lastWorkingAt > normalized.lastDoneAt)
+            || hasOpenWorking
         );
         // done状態はタイムアウトしない（明示的にclearDoneStatusで消す）
-        const isDone = !isWorking && hasDone;
+        const isDone = !isWorking && activeTurnCount === 0 && hasDone;
 
         if (!isWorking && !isDone) return null;
 
