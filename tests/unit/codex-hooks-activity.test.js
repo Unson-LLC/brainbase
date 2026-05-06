@@ -132,13 +132,49 @@ describe('codex-hooks-activity.sh', () => {
             .flat()
             .flatMap((group) => group.hooks)
             .map((hook) => hook.command);
+        const expectedScripts = [
+            'scripts/codex-hooks-activity.sh',
+            'scripts/codex-capability-map-reminder.sh'
+        ];
 
         expect(config.hooks.SessionStart[0].matcher).toBe('startup|resume|clear');
+        expect(config.hooks.SessionStart[0].hooks.map((hook) => hook.command)).toEqual([
+            'bash scripts/codex-hooks-activity.sh'
+        ]);
+        expect(config.hooks.UserPromptSubmit[0].hooks.map((hook) => hook.command)).toEqual([
+            'bash scripts/codex-hooks-activity.sh',
+            'bash scripts/codex-capability-map-reminder.sh'
+        ]);
         expect(commands.length).toBeGreaterThan(0);
+        expect(commands).toContain('bash scripts/codex-hooks-activity.sh');
+        expect(commands).toContain('bash scripts/codex-capability-map-reminder.sh');
         for (const command of commands) {
-            expect(command).toContain('scripts/codex-hooks-activity.sh');
-            expect(existsSync(path.join(repoRoot, 'scripts/codex-hooks-activity.sh'))).toBe(true);
+            expect(command).toMatch(/^bash scripts\/codex-[a-z-]+\.sh$/);
         }
+        for (const script of expectedScripts) {
+            expect(existsSync(path.join(repoRoot, script))).toBe(true);
+        }
+    });
+
+    it('capability map reminderはUserPromptSubmitで追加文脈を返す', () => {
+        const result = spawnSync('bash', ['scripts/codex-capability-map-reminder.sh'], {
+            cwd: repoRoot,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                prompt: 'セッション作成を直して'
+            }),
+            encoding: 'utf8'
+        });
+
+        expect(result.status).toBe(0);
+        const output = JSON.parse(result.stdout);
+        expect(output.continue).toBe(true);
+        expect(output.suppressOutput).toBe(true);
+        expect(output.hookSpecificOutput).toEqual(expect.objectContaining({
+            hookEventName: 'UserPromptSubmit',
+            additionalContext: expect.stringContaining('docs/brainbase-capabilities/README.md')
+        }));
+        expect(output.hookSpecificOutput.additionalContext).toContain('brainbase-capability-map');
     });
 
     it('Codex起動時_hooks機能をconfigで有効化する', () => {
