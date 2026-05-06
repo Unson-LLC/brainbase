@@ -35,9 +35,9 @@
   },
   "implementation": {
     "jj_change_id": "mwmuorrtkkqvrvvqpknooykzxuyrsvly",
-    "commit_id": "8808701a0577803d00e043758ab9f5a3ceb5594b",
-    "merge_commit_id": "pending",
-    "pull_request": "pending",
+    "commit_id": "89a94d12deacf29cda9daecfe06bfcff88edcf6c",
+    "merge_commit_id": "197187360c535575811bd17e40d7f957ad695270",
+    "pull_request": "https://github.com/Unson-LLC/brainbase-unson/pull/579",
     "description": "fix: guard tmux spinner activity fallback",
     "changed_files": [
       "server/services/create-session-services.js",
