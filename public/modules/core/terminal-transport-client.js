@@ -1229,7 +1229,7 @@ export class TerminalTransportClient {
     }
 
     _formatSnapshotForTerminal(text, cursor = null) {
-        const normalizedText = text || '';
+        const normalizedText = this._normalizeSnapshotAutowrap(text || '');
         if (!cursor || !Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) {
             return normalizedText;
         }
@@ -1239,35 +1239,77 @@ export class TerminalTransportClient {
         return `${normalizedText}\x1b[${row};${col}H`;
     }
 
-    _buildSnapshotForTerminal(text, cursor = null, options = {}) {
-        const plainText = typeof options.plainText === 'string' ? options.plainText : text;
-        const visibleText = typeof options.visibleText === 'string' ? options.visibleText : null;
-        const visiblePlainText = typeof options.visiblePlainText === 'string' ? options.visiblePlainText : visibleText;
-        if (!visibleText || !visiblePlainText) {
-            return this._formatSnapshotForTerminal(text, cursor);
-        }
+    _buildSnapshotForTerminal(text, cursor = null) {
+        return this._formatSnapshotForTerminal(text, cursor);
+    }
 
-        let historyText = null;
-        if (plainText.endsWith(visiblePlainText) && text.endsWith(visibleText)) {
-            historyText = text.slice(0, text.length - visibleText.length);
-        } else if (plainText.endsWith(visiblePlainText) && text === plainText) {
-            historyText = text.slice(0, text.length - visiblePlainText.length);
-        } else {
-            const visibleLineCount = visiblePlainText.split('\n').length;
-            const displayLines = text.split('\n');
-            if (displayLines.length > visibleLineCount) {
-                historyText = displayLines.slice(0, -visibleLineCount).join('\n');
+    _normalizeSnapshotAutowrap(text) {
+        const cols = Number.isFinite(this.terminal?.cols) ? Math.floor(this.terminal.cols) : 0;
+        if (!text || cols <= 0) return text || '';
+
+        let result = '';
+        let displayWidth = 0;
+        for (let i = 0; i < text.length;) {
+            if (text[i] === '\x1b') {
+                const ansiMatch = text.slice(i).match(/^\x1b\[[0-?]*[ -/]*[@-~]/);
+                if (ansiMatch) {
+                    result += ansiMatch[0];
+                    i += ansiMatch[0].length;
+                    continue;
+                }
             }
-        }
-        if (historyText === null) {
-            return this._formatSnapshotForTerminal(text, cursor);
-        }
 
-        historyText = historyText.replace(/\n+$/, '');
-        const formattedVisible = this._formatSnapshotForTerminal(visibleText, cursor);
-        if (!historyText) return formattedVisible;
+            const codePoint = text.codePointAt(i);
+            const char = String.fromCodePoint(codePoint);
+            i += char.length;
 
-        return `${historyText}\n\x1b[2J\x1b[H${formattedVisible}`;
+            if (char === '\n') {
+                if (displayWidth === cols) {
+                    displayWidth = 0;
+                    continue;
+                }
+                result += char;
+                displayWidth = 0;
+                continue;
+            }
+
+            result += char;
+            displayWidth += this._getDisplayCellWidth(codePoint);
+        }
+        return result;
+    }
+
+    _getDisplayCellWidth(codePoint) {
+        if (!Number.isFinite(codePoint)) return 0;
+        if (codePoint === 0) return 0;
+        if (codePoint < 32 || (codePoint >= 0x7f && codePoint < 0xa0)) return 0;
+        if (
+            (codePoint >= 0x0300 && codePoint <= 0x036f) ||
+            (codePoint >= 0x1ab0 && codePoint <= 0x1aff) ||
+            (codePoint >= 0x1dc0 && codePoint <= 0x1dff) ||
+            (codePoint >= 0x20d0 && codePoint <= 0x20ff) ||
+            (codePoint >= 0xfe20 && codePoint <= 0xfe2f)
+        ) {
+            return 0;
+        }
+        if (
+            codePoint >= 0x1100 && (
+                codePoint <= 0x115f ||
+                codePoint === 0x2329 ||
+                codePoint === 0x232a ||
+                (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f) ||
+                (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+                (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+                (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+                (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+                (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+                (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+                (codePoint >= 0x1f300 && codePoint <= 0x1faff)
+            )
+        ) {
+            return 2;
+        }
+        return 1;
     }
 
     _restoreViewportState(viewportState) {

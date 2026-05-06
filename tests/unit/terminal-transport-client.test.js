@@ -560,7 +560,7 @@ describe('terminal-transport-client', () => {
     );
   });
 
-  it('履歴付きsnapshot適用時_色付き履歴をscrollbackに積んで現在画面だけvisible paneで上書きする', async () => {
+  it('履歴付きsnapshot適用時_full snapshotをvisible paneで部分上書きせず保持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -581,24 +581,20 @@ describe('terminal-transport-client', () => {
 
     client.terminal = terminal;
 
-    client._queueOrApplySnapshot(
-      '\x1b[31mold status\x1b[0m\n\x1b[2mcommand output\x1b[0m\n\x1b[32mcurrent prompt\x1b[0m',
-      { x: 4, y: 10 },
-      {
-        plainText: 'old status\ncommand output\ncurrent prompt',
-        visibleText: '\x1b[32mcurrent prompt\x1b[0m',
-        visiblePlainText: 'current prompt'
-      }
-    );
+    client._queueOrApplySnapshot('\x1b[31mold status\x1b[0m\n\x1b[36mcurrent prompt\x1b[0m', { x: 2, y: 5 }, {
+      plainText: 'old status\ncurrent prompt',
+      visibleText: '\x1b[36mcurrent prompt\x1b[0m',
+      visiblePlainText: 'current prompt'
+    });
     await Promise.resolve();
 
     expect(terminal.write).toHaveBeenCalledWith(
-      '\x1b[2J\x1b[3J\x1b[H\x1b[31mold status\x1b[0m\n\x1b[2mcommand output\x1b[0m\n\x1b[2J\x1b[H\x1b[32mcurrent prompt\x1b[0m\x1b[11;5H',
+      '\x1b[2J\x1b[3J\x1b[H\x1b[31mold status\x1b[0m\n\x1b[36mcurrent prompt\x1b[0m\x1b[6;3H',
       expect.any(Function)
     );
   });
 
-  it('snapshot末尾のspinnerが変わっても行数でvisible paneを現在画面へ上書きする', async () => {
+  it('snapshot末尾のspinnerが変わってもfull snapshotの行を消さない', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -619,19 +615,131 @@ describe('terminal-transport-client', () => {
 
     client.terminal = terminal;
 
-    client._queueOrApplySnapshot(
-      'old output\n· running task\nprompt',
-      { x: 0, y: 1 },
-      {
-        plainText: 'old output\n· running task\nprompt',
-        visibleText: '✢ running task\nprompt',
-        visiblePlainText: '✢ running task\nprompt'
-      }
-    );
+    client._queueOrApplySnapshot('old output\n· running task\nprompt', { x: 0, y: 1 }, {
+      plainText: 'old output\n· running task\nprompt',
+      visibleText: '✢ running task\nprompt',
+      visiblePlainText: '✢ running task\nprompt'
+    });
     await Promise.resolve();
 
     expect(terminal.write).toHaveBeenCalledWith(
-      '\x1b[2J\x1b[3J\x1b[Hold output\n\x1b[2J\x1b[H✢ running task\nprompt\x1b[2;1H',
+      '\x1b[2J\x1b[3J\x1b[Hold output\n· running task\nprompt\x1b[2;1H',
+      expect.any(Function)
+    );
+  });
+
+  it('visible snapshotが表の途中から始まってもfull snapshot内の表行を消さない', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    const fullSnapshot = [
+      '  ┌─────┬──────────────────────────┬────────────────────┐',
+      '  │ 1   │ 14本のPeriod埋め         │ done               │',
+      '  ├─────┼──────────────────────────┼────────────────────┤',
+      '  │ 2   │ 5月の3 Story Spec雛形    │ done               │',
+      '  ├─────┼──────────────────────────┼────────────────────┤',
+      '  │ 3   │ (Slack canvas)           │ done               │',
+      '  ├─────┼──────────────────────────┼────────────────────┤',
+      '  │ 4   │ 完了判定基準ドラフト     │ done               │',
+      '  ├─────┼──────────────────────────┼────────────────────┤',
+      '  │ 5   │ フィードバック収集 Story │ done               │',
+      '  └─────┴──────────────────────────┴────────────────────┘'
+    ].join('\n');
+    const visibleSnapshot = [
+      '  ├─────┼──────────────────────────┼────────────────────┤',
+      '  │ 5   │ フィードバック収集 Story │ done               │',
+      '  └─────┴──────────────────────────┴────────────────────┘'
+    ].join('\n');
+
+    client._queueOrApplySnapshot(fullSnapshot, null, {
+      plainText: fullSnapshot,
+      visibleText: visibleSnapshot,
+      visiblePlainText: visibleSnapshot
+    });
+    await Promise.resolve();
+
+    const written = terminal.write.mock.calls[0][0];
+    expect(written).toContain('│ 1   │ 14本のPeriod埋め');
+    expect(written).toContain('│ 4   │ 完了判定基準ドラフト');
+    expect(written).toContain('│ 5   │ フィードバック収集 Story');
+    expect(written).not.toContain('\x1b[2J\x1b[H  ├─────');
+  });
+
+  it('snapshot行がterminal最終列で終わる場合_改行をautowrapと二重適用しない', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      cols: 10,
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot('1234567890\nnext');
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[H1234567890next',
+      expect.any(Function)
+    );
+  });
+
+  it('ANSI付きsnapshot行も表示セル幅で改行二重適用を避ける', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      cols: 10,
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot('\x1b[36m1234567890\x1b[0m\nnext');
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[H\x1b[36m1234567890\x1b[0mnext',
       expect.any(Function)
     );
   });
