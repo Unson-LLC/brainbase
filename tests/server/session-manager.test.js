@@ -260,18 +260,39 @@ describe('SessionManager', () => {
     });
   });
 
-  it('getSessionStatus_tmux_pane_title_spinner_expires_when_title_stops_changing', () => {
+  it('getSessionStatus_tmux_pane_title_spinner_stays_active_while_still_observed', () => {
     const manager = createManager();
     let now = 1000;
     manager._now = () => now;
     manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
 
-    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+    const firstStatus = manager.getSessionStatus()['session-1'];
+    expect(firstStatus).toMatchObject({
       isWorking: true,
-      lastEventType: 'tmux-pane-title-spinner'
+      lastEventType: 'tmux-pane-title-spinner',
+      lastActivityAt: 1000
     });
 
     now += 30 * 1000 + 1;
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+      isWorking: true,
+      lastEventType: 'tmux-pane-title-spinner',
+      lastActivityAt: 1000
+    });
+  });
+
+  it('getSessionStatus_tmux_pane_title_spinner_expires_when_pane_disappears', () => {
+    const manager = createManager();
+    let now = 1000;
+    let rows = ['session-1\t⠹ session-1...'];
+    manager._now = () => now;
+    manager._listTmuxPaneTitles = () => rows;
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({ isWorking: true });
+
+    now += 30 * 1000 + 1;
+    rows = [];
 
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
   });

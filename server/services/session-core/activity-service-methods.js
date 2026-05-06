@@ -290,14 +290,13 @@ export const activityServiceMethods = {
             };
             cache.set(sessionId, entry);
 
-            if (now - entry.lastChangedAt > PANE_TITLE_SPINNER_STALE_TIMEOUT) continue;
-
+            const activityAt = entry.lastChangedAt;
             status[sessionId] = {
                 isWorking: true,
                 isDone: false,
-                lastWorkingAt: now,
+                lastWorkingAt: activityAt,
                 lastDoneAt: 0,
-                lastActivityAt: now,
+                lastActivityAt: activityAt,
                 lastEventType: 'tmux-pane-title-spinner',
                 liveActivity: {
                     activityKind: 'reasoning',
@@ -306,11 +305,11 @@ export const activityServiceMethods = {
                     currentStep: '処理中',
                     latestEvidence: null,
                     statusTone: 'working',
-                    updatedAt: now,
+                    updatedAt: activityAt,
                     assistantSnippetUpdatedAt: 0
                 },
                 activeTurnCount: 1,
-                timestamp: now
+                timestamp: activityAt
             };
         }
 
