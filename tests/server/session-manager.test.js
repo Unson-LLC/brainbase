@@ -241,7 +241,7 @@ describe('SessionManager', () => {
     expect(status['session-2']).toBeUndefined();
   });
 
-  it('getSessionStatus_tmux_pane_title_spinner_does_not_override_done_hook_status', () => {
+  it('getSessionStatus_tmux_pane_title_spinner_overrides_done_hook_status', () => {
     const manager = createManager();
     const now = Date.now();
     manager.reportActivity('session-1', 'done', now, {
@@ -253,9 +253,10 @@ describe('SessionManager', () => {
     const status = manager.getSessionStatus()['session-1'];
 
     expect(status).toMatchObject({
-      isWorking: false,
-      isDone: true,
-      lastEventType: 'agent-turn-complete'
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 1,
+      lastEventType: 'tmux-pane-title-spinner'
     });
   });
 

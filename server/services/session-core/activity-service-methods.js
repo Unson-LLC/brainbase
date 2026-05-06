@@ -256,7 +256,7 @@ export const activityServiceMethods = {
             if (entry) status[sessionId] = entry;
         }
         for (const [sessionId, entry] of Object.entries(this._getPaneTitleActivityStatuses())) {
-            if (!status[sessionId]) {
+            if (!status[sessionId]?.isWorking) {
                 status[sessionId] = entry;
             }
         }
