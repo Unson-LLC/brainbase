@@ -217,27 +217,36 @@
     let touchAccum = 0;
     let touchFlushTimer = null;
 
-    function isAlternateBuffer(term) {
+    function getSessionIdFromPath() {
         try {
-            return !!(term && term.buffer && term.buffer.alternate && term.buffer.active === term.buffer.alternate);
+            const match = window.location.pathname.match(/\/console\/([^/?#]+)/);
+            if (!match) return null;
+            const decoded = decodeURIComponent(match[1]);
+            return decoded && decoded.startsWith('session-') ? decoded : null;
         } catch (error) {
-            return false;
+            return null;
         }
     }
 
-    function postScroll(direction, steps) {
+    function notifyParentScroll(direction, steps, handledByIframe) {
         try {
             if (!window.parent || window.parent === window) return false;
             window.parent.postMessage({
                 type: 'TMUX_SCROLL',
                 direction: direction,
-                steps: steps
+                steps: steps,
+                sessionId: getSessionIdFromPath(),
+                handledByIframe: handledByIframe
             }, '*');
             return true;
         } catch (error) {
             console.error('[WheelScroll] Failed to post message:', error);
         }
         return false;
+    }
+
+    function postScroll(direction, steps) {
+        return notifyParentScroll(direction, steps, false);
     }
 
     function isTerminalTarget(target) {
@@ -285,8 +294,6 @@
         const term = window.term;
         if (!term) return;
 
-        // Only intercept in alternate buffer (tmux full-screen), otherwise allow xterm scrollback
-        if (!isAlternateBuffer(term)) return;
         if (!isTerminalTarget(e.target)) return;
 
         // Prevent page scroll / default behavior and block xterm wheel handling

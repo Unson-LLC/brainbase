@@ -338,7 +338,7 @@ async function pasteTextToTerminal(sessionId, text) {
 
 function setupKeyHandling() {
     window.addEventListener('message', async (event) => {
-        if (event.origin !== window.location.origin) return;
+        if (!isTrustedTerminalMessage(event)) return;
         if (event.data && event.data.type === 'SHIFT_ENTER') {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
@@ -370,7 +370,8 @@ function setupKeyHandling() {
         }
 
         if (event.data && event.data.type === 'TMUX_SCROLL') {
-            const currentSessionId = getSessionId?.();
+            if (event.data.handledByIframe === true) return;
+            const currentSessionId = getTrustedMessageSessionId(event.data.sessionId) || getSessionId?.();
             if (currentSessionId) {
                 const direction = event.data.direction === 'down' ? 'down' : 'up';
                 const steps = Math.min(8, Math.max(1, Number(event.data.steps) || 1));
@@ -440,6 +441,32 @@ function setupKeyHandling() {
             }
         }
     });
+}
+
+function isLoopbackOrigin(origin) {
+    try {
+        const { hostname } = new URL(origin);
+        return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+    } catch {
+        return false;
+    }
+}
+
+function isTrustedTerminalMessage(event) {
+    if (event.origin === window.location.origin) return true;
+    if (!isLoopbackOrigin(event.origin)) return false;
+
+    const frames = [
+        document.getElementById('terminal-frame'),
+        document.getElementById('mobile-live-terminal-frame')
+    ].filter(Boolean);
+
+    return frames.some(frame => frame.contentWindow && event.source === frame.contentWindow);
+}
+
+function getTrustedMessageSessionId(sessionId) {
+    if (typeof sessionId !== 'string') return null;
+    return sessionId.startsWith('session-') ? sessionId : null;
 }
 
 // --- Public API ---
