@@ -8,7 +8,7 @@ architecture_docs:
     status: accepted
 status: shipped
 created_at: 2026-04-25
-updated_at: 2026-04-27
+updated_at: 2026-05-06
 ---
 
 # STR-vibepro-brainbase-dogfood: BrainbaseでVibeProの自立開発dogfoodを回す
@@ -53,6 +53,7 @@ AI が自分で自分の診断を正解化すると、本番化ギャップ捕�
 - `docs/internal/vibepro-dogfood/ship.md`
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-110850-active-indicator/development-run.md`
 - `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260427-112222-runtime-harness/development-run.md`
+- `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/development-run.md`
 
 ## スコープ外
 

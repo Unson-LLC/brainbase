@@ -34,6 +34,7 @@ observe -> generate-diagnosis -> generate-outcome -> generate-labels -> score
 - Graph SSOT check script: `scripts/vibepro-graph-ssot-check.mjs`
 - VibePro score runner: `scripts/vibepro-score-run.mjs`
 - Scheduled jobs register: `_codex/common/ops/scheduled-jobs.md`
+- Active indicator tmux spinner fallback run: `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/development-run.md`
 
 ## Latest Score
 
