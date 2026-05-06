@@ -302,6 +302,18 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(result.hasWorkingCopyChanges).toBe(true);
         expect(result.needsIntegration).toBe(true);
     });
+
+    it('status収集に失敗した場合もfallback bookmark名を返す', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+
+        mockExec.mockRejectedValue(new Error('not a jj repo'));
+
+        const result = await service.getStatus('session-1', '/tmp/repo', null);
+
+        expect(result.exists).toBe(false);
+        expect(result.bookmarkName).toBe('session/session-1');
+    });
 });
 
 describe('WorktreeService.autoHealArchiveState', () => {
