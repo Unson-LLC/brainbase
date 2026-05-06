@@ -175,6 +175,8 @@ describe('codex-hooks-activity.sh', () => {
             additionalContext: expect.stringContaining('docs/brainbase-capabilities/README.md')
         }));
         expect(output.hookSpecificOutput.additionalContext).toContain('brainbase-capability-map');
+        expect(output.hookSpecificOutput.additionalContext).toContain('Brainbaseケイパビリティ確認リマインダー');
+        expect(output.hookSpecificOutput.additionalContext).toContain('最小の関連ファイル');
     });
 
     it('Codex起動時_hooks機能をconfigで有効化する', () => {

@@ -10,13 +10,11 @@ python3 - <<'PY'
 import json
 
 context = (
-    "Brainbase capability reminder: If the request touches Brainbase capabilities, "
-    "UI/API/code/data ownership, project/session creation, auth grants, port 31013 "
-    "runtime, xterm/terminal transport, visibility issues, verification, or recovery, "
-    "first use the brainbase-capability-map entrypoint. Read "
-    "docs/brainbase-capabilities/README.md, then the smallest relevant file under "
-    "docs/brainbase-capabilities/capabilities/, and cite the file/API/process/log used "
-    "when claiming the capability is working."
+    "Brainbaseケイパビリティ確認リマインダー: Brainbaseの機能、UI/API/コード/データの責務、"
+    "プロジェクト/セッション作成、auth grant、31013 runtime、xterm/terminal transport、"
+    "表示されない/動かない問題、検証、復旧に触れる依頼では、まずbrainbase-capability-mapを入口にする。"
+    "docs/brainbase-capabilities/README.mdを読み、次にdocs/brainbase-capabilities/capabilities/配下の"
+    "最小の関連ファイルを確認する。機能が動いていると主張するときは、確認に使ったファイル/API/プロセス/ログを明示する。"
 )
 
 print(json.dumps({
