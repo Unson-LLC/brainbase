@@ -7,11 +7,7 @@ function extractIssueIds(prompt: string): string[] {
 }
 
 function buildSystemMessage(issueIds: string[]): string {
-  return [
-    `NocoDB lookup required for referenced issue IDs: ${issueIds.join(", ")}.`,
-    "Before changing requirements, bugs, or implementation scope tied to these IDs, verify the canonical record in NocoDB or Graph SSOT and treat local memory as secondary.",
-    "If the lookup tool is unavailable, state that explicitly and continue only with evidence from repo documents.",
-  ].join(" ");
+  return `Issue IDs ${issueIds.join(", ")}: scope/requirements/bugsを変える前に brainbase-capability-map の requirements.nocodb を入口にする。`;
 }
 
 async function main() {

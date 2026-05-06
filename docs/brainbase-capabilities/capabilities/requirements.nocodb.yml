@@ -1,0 +1,38 @@
+id: requirements.nocodb
+name: Requirement and issue source lookup
+purpose: Resolve `FRD-*`, `REQ-*`, and `BUG-*` references before changing requirements, bugs, scope, or implementation tied to those IDs.
+surfaces:
+  ui:
+    - Agent responses that reference requirement or bug IDs
+    - Task planning and implementation scope decisions
+  api:
+    - NocoDB REST API
+    - Brainbase Graph search when NocoDB is unavailable or mirrored
+  code:
+    - .claude/scripts/hooks/enforce-nocodb-lookup.ts
+    - .claude/settings.json
+  data:
+    - NocoDB requirement records
+    - NocoDB bug records
+    - Graph requirement or decision entities when linked
+depends_on:
+  - graph.ssot
+visibility_rules:
+  - The hook only triggers for prompts containing `FRD-<number>`, `REQ-<number>`, or `BUG-<number>`.
+  - Local memory is secondary when a canonical NocoDB or Graph record exists.
+  - If lookup tools are unavailable, the answer must say so and fall back only to repo evidence.
+verification:
+  commands:
+    - CLAUDE_USER_PROMPT="BUG-123を確認して" .claude/scripts/run-hook.sh .claude/scripts/hooks/enforce-nocodb-lookup.ts
+    - node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.claude/settings.json','utf8')); console.log('settings json ok')"
+  expected:
+    - Prompts with issue IDs receive a short systemMessage pointing to this capability.
+    - Prompts without issue IDs do not inject extra guidance.
+common_failures:
+  - Implementing from a stale chat summary without checking the issue record.
+  - Assuming NocoDB search filters are exact without validating returned IDs.
+  - Blocking work entirely when NocoDB is unavailable instead of using repo evidence with an explicit caveat.
+runbooks:
+  - ../runbooks/lookup-nocodb-issue.md
+troubleshooting:
+  - ../troubleshooting/requirement-id-without-canonical-record.md

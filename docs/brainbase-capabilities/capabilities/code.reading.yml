@@ -1,0 +1,38 @@
+id: code.reading
+name: Code reading and context acquisition
+purpose: Inspect code with focused symbol or pattern reads before making implementation decisions, avoiding broad file loads when a narrower tool is available.
+surfaces:
+  ui:
+    - Agent code review and implementation responses
+  api:
+    - Serena MCP get_symbols_overview
+    - Serena MCP find_symbol
+    - Serena MCP search_for_pattern
+  code:
+    - .claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts
+    - .claude/scripts/core/enforcement/read-tool-warning.ts
+    - .claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts
+  data:
+    - Source files under the repository
+    - CLAUDE.md and AGENTS.md operating rules
+depends_on:
+  - graph.ssot
+visibility_rules:
+  - Focused symbol and pattern reads are preferred for `.ts`, `.tsx`, `.js`, and `.jsx` files.
+  - Full-file reads are still acceptable for small files, generated diffs, or when the available tool context requires exact full-file inspection.
+  - The hook warns after broad code reads; it does not block execution.
+verification:
+  commands:
+    - node -e "const { checkReadToolUsage } = require('./dist-placeholder')"
+    - inspect .claude/settings.json PostToolUse Read hook registration
+  expected:
+    - Read warnings point to `code.reading` rather than embedding a long manual.
+    - The registered Read hook target exists.
+common_failures:
+  - Reading large code files then deciding from incomplete context.
+  - Treating the warning as a hard block.
+  - Forgetting that docs, YAML, Markdown, and config files are not covered by the code-file warning.
+runbooks:
+  - ../runbooks/code-reading-context.md
+troubleshooting:
+  - ../troubleshooting/read-warning-is-routing-not-blocking.md
