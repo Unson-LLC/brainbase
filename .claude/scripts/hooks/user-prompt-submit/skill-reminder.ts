@@ -3,7 +3,7 @@
 import { logHookExecution } from "../../lib/logging/hook-logger.js";
 
 function buildSkillReminder() {
-  return "Skills: 関連skillがあれば先にSKILL.md読んで使う。なければ通常フロー。";
+  return "Skills: Brainbaseの能力/プロジェクト表示/auth/31013/terminal系はbrainbase-capability-mapを入口にし、それ以外も関連skillがあれば先にSKILL.mdを読む。";
 }
 
 async function main() {
