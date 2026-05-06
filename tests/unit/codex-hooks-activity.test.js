@@ -146,8 +146,9 @@ describe('codex-hooks-activity.sh', () => {
         const ensureRuntime = readFileSync(path.join(repoRoot, 'scripts/ensure_session_runtime.sh'), 'utf8');
         const codexConfig = readFileSync(path.join(repoRoot, '.codex/config.toml'), 'utf8');
 
-        expect(loginScript).toContain('features.codex_hooks=true');
-        expect(ensureRuntime).toContain('features.codex_hooks=true');
-        expect(codexConfig).toContain('codex_hooks = true');
+        expect(codexConfig).toContain('hooks = true');
+        expect(loginScript).not.toContain('features.codex_hooks=true');
+        expect(ensureRuntime).not.toContain('features.codex_hooks=true');
+        expect(codexConfig).not.toContain('codex_hooks = true');
     });
 });
