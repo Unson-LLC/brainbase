@@ -143,6 +143,11 @@ export class WorktreeService {
         return `session/${sessionId}`;
     }
 
+    _getSessionBookmarkCandidates(sessionId) {
+        return [this._getSessionBranchName(sessionId), sessionId]
+            .filter((value, index, list) => value && list.indexOf(value) === index);
+    }
+
     _isStaleWorkingCopyError(error) {
         const message = [
             error?.message,
@@ -276,7 +281,7 @@ export class WorktreeService {
             }
         }
 
-        const bookmarkCandidates = [this._getSessionBranchName(sessionId), sessionId];
+        const bookmarkCandidates = this._getSessionBookmarkCandidates(sessionId);
         const infos = [];
 
         for (const candidate of bookmarkCandidates) {
@@ -291,7 +296,7 @@ export class WorktreeService {
 
                 infos.push({
                     name: candidate,
-                    pushed: output.includes('@origin:') || output.includes('origin:'),
+                    pushed: /@origin(?::|\b)/.test(output) || /origin:/.test(output),
                     output
                 });
             } catch {
@@ -300,6 +305,13 @@ export class WorktreeService {
         }
 
         return infos;
+    }
+
+    async _resolveMergeBookmarkName(sessionId, repoPath) {
+        const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { fetchRemote: false });
+        return bookmarkInfos.find(info => info.pushed)?.name
+            || bookmarkInfos[0]?.name
+            || this._getSessionBranchName(sessionId);
     }
 
     async _resolveGitRefForBookmark(workspacePath, bookmarkName) {
@@ -443,7 +455,7 @@ export class WorktreeService {
         const { fetchRemote = true } = options;
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
-        const bookmarkName = sessionId;
+        const fallbackBookmarkName = this._getSessionBranchName(sessionId);
 
         try {
             await fs.access(workspacePath);
@@ -475,6 +487,7 @@ export class WorktreeService {
             const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
             const bookmarkPushed = Boolean(officialBookmark);
             const mergeTargetRef = officialBookmark?.name || bookmarkInfos[0]?.name || null;
+            const bookmarkName = mergeTargetRef || fallbackBookmarkName;
             const commitsAheadOfBase = await this._countCommitsAheadOfBase(
                 repoPath,
                 mainBranchName,
@@ -602,7 +615,7 @@ export class WorktreeService {
 
         const workspaceName = this._getWorkspaceName(sessionId, repoPath);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = sessionId;  // Jujutsu bookmark = sessionId
+        const bookmarkName = this._getSessionBranchName(sessionId);
 
         try {
             // Check if directory exists first
@@ -674,7 +687,7 @@ export class WorktreeService {
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
             const [gitResult, bookmarkResult, , , , startCommitResult] = await Promise.allSettled([
                 this._ensureGitCompatibility(sessionId, repoPath, workspacePath),
-                this._execJujutsuWithStaleRetry(repoPath, `bookmark create -r ${workspaceBaseRevision} ${bookmarkName}`),
+                this._execJujutsuWithStaleRetry(repoPath, `bookmark create -r ${workspaceBaseRevision} "${bookmarkName}"`),
                 this._symlinkIfMissing(path.join(repoPath, '.env'), path.join(workspacePath, '.env'), '.env'),
                 this._symlinkIfMissing(path.join(workspaceRoot, '.claude'), path.join(workspacePath, '.claude'), '.claude'),
                 this._symlinkIfMissing(path.join(workspaceRoot, '.mcp.json'), path.join(workspacePath, '.mcp.json'), '.mcp.json'),
@@ -716,7 +729,6 @@ export class WorktreeService {
     async remove(sessionId, repoPath) {
         const workspaceName = this._getWorkspaceName(sessionId, repoPath);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = sessionId;
 
         try {
             // Forget workspace (metadata only)
@@ -727,12 +739,14 @@ export class WorktreeService {
                 logger.info(`[workspace] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
             }
 
-            // Delete bookmark
-            try {
-                await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
-                logger.info(`[workspace] Deleted bookmark: ${bookmarkName}`);
-            } catch (bookmarkErr) {
-                logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+            // Delete canonical and legacy session bookmarks.
+            for (const candidate of this._getSessionBookmarkCandidates(sessionId)) {
+                try {
+                    await this.execPromise(`jj -R "${repoPath}" bookmark delete "${candidate}"`);
+                    logger.info(`[workspace] Deleted bookmark: ${candidate}`);
+                } catch (bookmarkErr) {
+                    logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+                }
             }
 
             // Remove physical directory — must succeed to prevent zombie worktrees
@@ -947,12 +961,11 @@ export class WorktreeService {
      * @returns {Promise<{success: boolean, message?: string, error?: string, needsCommit?: boolean, hasConflicts?: boolean, prUrl?: string}>}
      */
     async merge(sessionId, repoPath, sessionName = null) {
-        const bookmarkName = sessionId;
-
         try {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
             const ghRepoSpec = await this._getGitHubRepoSpec(repoPath);
+            const bookmarkName = await this._resolveMergeBookmarkName(sessionId, repoPath);
 
             // Push bookmark to remote
             logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
@@ -1015,14 +1028,16 @@ EOF
                 logger.info(`[merge] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
             }
 
-            try {
-                await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    `bookmark delete "${bookmarkName}"`,
-                    { retryStale: false }
-                );
-            } catch (bookmarkErr) {
-                logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+            for (const candidate of this._getSessionBookmarkCandidates(sessionId)) {
+                try {
+                    await this._execJujutsuWithStaleRetry(
+                        repoPath,
+                        `bookmark delete "${candidate}"`,
+                        { retryStale: false }
+                    );
+                } catch (bookmarkErr) {
+                    logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+                }
             }
 
             // Remove physical directory — must succeed to prevent zombie worktrees

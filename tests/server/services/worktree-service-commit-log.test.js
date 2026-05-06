@@ -213,7 +213,7 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(mockExec).toHaveBeenCalledWith(
             'jj -R "/tmp/repo" workspace add --name "session-1-repo" -r "develop" --sparse-patterns full "/tmp/worktrees/session-1-repo"'
         );
-        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark create -r develop session-1');
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark create -r develop "session/session-1"');
     });
 
     it('未マージcommitがある場合_cleanでもneedsMergeを返す', async () => {
@@ -391,6 +391,31 @@ describe('WorktreeService.merge', () => {
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
     });
 
+    it('session/session-id bookmarkがpush済みならmergeでもそのbookmarkを使う', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: abc@origin\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '- feat: archive\n' })
+            .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/pull/123\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service.merge('session-1', '/tmp/repo', 'Archive flow');
+
+        expect(result.success).toBe(true);
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" git push --bookmark "session/session-1"');
+        expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('log -r "main..session/session-1"'));
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark delete "session/session-1"');
+    });
+
     it('PR作成時_ローカルパスではなくGitHub repo specを渡す', async () => {
         const { promises: fs } = await import('fs');
         vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
@@ -400,8 +425,11 @@ describe('WorktreeService.merge', () => {
             .mockResolvedValueOnce({ stdout: 'main\n' })
             .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
             .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: 'session-1: abc\n' })
+            .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '- feat: archive\n' })
             .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/pull/123\n' })
+            .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' });
