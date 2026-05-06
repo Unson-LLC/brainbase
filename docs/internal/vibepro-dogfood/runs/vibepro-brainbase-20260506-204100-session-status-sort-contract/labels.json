@@ -1,0 +1,22 @@
+{
+  "run_id": "vibepro-brainbase-20260506-204100-session-status-sort-contract",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.vibepro.scorer_manual_only",
+      "matched_detected_gap_id": "gap.vibepro.scorer-manual-only",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.workflows.vibepro_score_not_automated",
+      "matched_detected_gap_id": "gap.workflows.vibepro-score-not-automated",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

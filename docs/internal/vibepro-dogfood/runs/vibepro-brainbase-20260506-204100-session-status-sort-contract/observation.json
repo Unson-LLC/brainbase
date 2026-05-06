@@ -1,0 +1,98 @@
+{
+  "run_id": "vibepro-brainbase-20260506-204100-session-status-sort-contract",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-06T11:43:24.164Z",
+  "repo": {
+    "branch": "test/session-status-sort-contract",
+    "upstream": "origin/test/session-status-sort-contract",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": "docs/architecture/vibepro-brainbase-dogfood-architecture.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.json",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.md",
+        "status": "A",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/ship.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/stories/vibepro-brainbase-dogfood-story.md",
+        "status": "M",
+        "category": "vibepro_dogfood"
+      }
+    ],
+    "run_count_before_current": 14,
+    "scorer_exists": true,
+    "scorer_workflow_exists": false
+  },
+  "dogfood": {
+    "previous_run_count": 14,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 3,
+    "missing_workflows": [
+      "vibepro-score-run.yml"
+    ]
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.vibepro.scorer_manual_only",
+      "kind": "automation",
+      "severity": "medium",
+      "summary": "The VibePro scorer exists but is not connected to an automatic workflow",
+      "evidence": [
+        "scripts/vibepro-score-run.mjs exists",
+        "no scorer workflow detected"
+      ]
+    },
+    {
+      "fact_id": "fact.workflows.vibepro_score_not_automated",
+      "kind": "automation",
+      "severity": "medium",
+      "summary": "VibePro score workflow is not present",
+      "evidence": [
+        ".github/workflows/vibepro-score-run.yml missing"
+      ]
+    }
+  ]
+}
