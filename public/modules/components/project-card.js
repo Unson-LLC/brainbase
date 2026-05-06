@@ -12,6 +12,14 @@ export class ProjectCard {
   getAlertStatus() {
     const { healthScore, blocked } = this.project;
 
+    if (this.project.healthStatus === 'unmapped' || !Number.isFinite(healthScore)) {
+      return {
+        level: 'unmapped',
+        color: '#6b7280',
+        label: 'Unmapped'
+      };
+    }
+
     // Critical: healthScore < 50 OR blocked > 0（ブロッカーがある）
     if (healthScore < 50 || (blocked && blocked > 0)) {
       return {
@@ -43,6 +51,9 @@ export class ProjectCard {
     card.className = 'project-card';
 
     const alertStatus = this.getAlertStatus();
+    const hasHealthScore = Number.isFinite(this.project.healthScore);
+    const scoreText = hasHealthScore ? `${this.project.healthScore}%` : 'N/A';
+    const scoreLabel = hasHealthScore ? 'Health Score' : 'No NocoDB mapping';
 
     // グラスモーフィズムカードスタイル
     card.style.cssText = `
@@ -99,9 +110,9 @@ export class ProjectCard {
         font-weight: 700;
         margin-bottom: 4px;
       ">
-        ${this.project.healthScore}%
+        ${scoreText}
       </div>
-      <div style="color: var(--text-secondary); font-size: 13px;">Health Score</div>
+      <div style="color: var(--text-secondary); font-size: 13px;">${scoreLabel}</div>
       ${issuesHTML}
     `;
 

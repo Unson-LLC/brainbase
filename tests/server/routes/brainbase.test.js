@@ -67,6 +67,7 @@ beforeEach(async () => {
         projects: [
           { id: 'project1', nocodb: { project_id: 'proj1' }, archived: false },
           { id: 'project2', nocodb: { project_id: 'proj2' }, archived: false },
+          { id: 'project-without-nocodb', archived: false },
         ]
       }
     })
@@ -225,10 +226,48 @@ describe('GET /api/brainbase/projects', () => {
 
     // 検証
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
+    expect(res.body).toHaveLength(3);
     expect(res.body[0]).toHaveProperty('id');
     expect(res.body[0].id).toBe('project1');
     expect(res.body[1].id).toBe('project2');
+    expect(res.body[2]).toMatchObject({
+      id: 'project-without-nocodb',
+      hasNocodb: false,
+      healthStatus: 'unmapped',
+      healthScore: null,
+      completionRate: null,
+    });
+    expect(mockGetProjectStats).toHaveBeenCalledTimes(2);
+  });
+
+  it('200: 一部のNocoDB統計取得失敗時もプロジェクト自体は返す', async () => {
+    mockGetProjectStats
+      .mockRejectedValueOnce(new Error('NocoDB forbidden'))
+      .mockResolvedValueOnce({
+        total: 10,
+        completed: 5,
+        inProgress: 3,
+        pending: 2,
+        blocked: 0,
+        overdue: 1,
+        completionRate: 50,
+        averageProgress: 63,
+      });
+
+    const res = await request(app).get('/api/brainbase/projects');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(3);
+    expect(res.body.find((p) => p.id === 'project1')).toMatchObject({
+      hasNocodb: true,
+      healthStatus: 'unavailable',
+      healthScore: null,
+      completionRate: null,
+    });
+    expect(res.body.find((p) => p.id === 'project-without-nocodb')).toMatchObject({
+      hasNocodb: false,
+      healthStatus: 'unmapped',
+    });
   });
 
   it('200: ConfigParser取得失敗時は空配列を返す（内部でリカバリー）', async () => {

@@ -47,10 +47,14 @@ export class ProjectDetailsModal {
     }
 
     render(project) {
+        const hasHealthScore = Number.isFinite(project.healthScore);
+        const healthLabel = hasHealthScore ? `Health: ${project.healthScore}%` : 'NocoDB未連携';
+        const completionLabel = Number.isFinite(project.completionRate) ? `${project.completionRate}%` : 'N/A';
+
         // Headers
         document.getElementById('project-modal-title').textContent = project.name;
         const badge = /** @type {HTMLInputElement|null} */ (document.getElementById('project-modal-badge'));
-        badge.textContent = `Health: ${project.healthScore}%`;
+        badge.textContent = healthLabel;
 
         // Dynamic Badge Color
         badge.style.backgroundColor = this.getHealthColor(project.healthScore);
@@ -58,10 +62,14 @@ export class ProjectDetailsModal {
         // Score Breakdown
         document.getElementById('modal-overdue').textContent = project.overdue;
         document.getElementById('modal-blocked').textContent = project.blocked;
-        document.getElementById('modal-completion').textContent = `${project.completionRate}%`;
+        document.getElementById('modal-completion').textContent = completionLabel;
         // Mock Mana Score based on health if not present
-        const manaScore = project.manaScore || Math.min(100, project.healthScore + 10);
-        document.getElementById('modal-mana').textContent = `${manaScore}%`;
+        const manaScore = Number.isFinite(project.manaScore)
+            ? project.manaScore
+            : hasHealthScore
+                ? Math.min(100, project.healthScore + 10)
+                : null;
+        document.getElementById('modal-mana').textContent = Number.isFinite(manaScore) ? `${manaScore}%` : 'N/A';
 
         // Render Trend Graph
         this.renderTrendGraph(project);
@@ -85,6 +93,10 @@ export class ProjectDetailsModal {
         const container = /** @type {HTMLInputElement|null} */ (document.getElementById('modal-trend-graph'));
         if (!container) return;
         container.innerHTML = '';
+        if (!Number.isFinite(project.healthScore)) {
+            container.textContent = 'NocoDB未連携';
+            return;
+        }
 
         // Generate consistent mock history based on current score
         const history = [
@@ -146,6 +158,7 @@ export class ProjectDetailsModal {
     }
 
     getHealthColor(score) {
+        if (!Number.isFinite(score)) return 'var(--text-secondary)';
         if (score >= 70) return 'var(--success-color)';
         if (score >= 50) return 'var(--warning-color)';
         return 'var(--danger-color)';

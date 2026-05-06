@@ -269,14 +269,41 @@ export function createBrainbaseOverviewRouter(options = {}) {
         try {
             const config = await configParser.getAll();
             const projects = (config.projects?.projects || [])
-                .filter((p) => !p.archived && p.nocodb?.project_id)
-                .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
+                .filter((p) => !p.archived)
+                .map((p) => ({
+                    id: p.id,
+                    name: p.name || p.id,
+                    project_id: p.nocodb?.project_id || null
+                }));
 
-            const stats = await Promise.all(
-                projects.map((p) => nocodbService.getProjectStats(p.project_id))
+            const mappedProjects = projects.filter((p) => p.project_id);
+
+            const statsResults = await Promise.allSettled(
+                mappedProjects.map((p) => nocodbService.getProjectStats(p.project_id))
             );
 
-            const healthScores = stats.map((stat, i) => {
+            const healthById = new Map(statsResults.map((result, i) => {
+                const project = mappedProjects[i];
+                if (result.status === 'rejected') {
+                    logger.warn('Failed to get project stats', {
+                        project: project.id,
+                        project_id: project.project_id,
+                        error: result.reason?.message || String(result.reason)
+                    });
+                    return [project.id, {
+                        id: project.id,
+                        name: project.name,
+                        hasNocodb: true,
+                        healthStatus: 'unavailable',
+                        healthScore: null,
+                        overdue: 0,
+                        blocked: 0,
+                        completionRate: null,
+                        manaScore: null
+                    }];
+                }
+
+                const stat = result.value;
                 const taskCompletion = stat.completionRate || 0;
                 const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
                 const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
@@ -289,18 +316,39 @@ export function createBrainbaseOverviewRouter(options = {}) {
                     (milestoneProgress * 0.3)
                 );
 
-                return {
-                    id: projects[i].id,
-                    name: projects[i].id,
+                return [project.id, {
+                    id: project.id,
+                    name: project.name,
+                    hasNocodb: true,
+                    healthStatus: 'mapped',
                     healthScore,
                     overdue: stat.overdue,
                     blocked: stat.blocked,
                     completionRate: taskCompletion,
                     manaScore: 92
-                };
-            });
+                }];
+            }));
 
-            return healthScores.sort((a, b) => b.healthScore - a.healthScore);
+            return projects
+                .map((project) => healthById.get(project.id) || {
+                    id: project.id,
+                    name: project.name,
+                    hasNocodb: false,
+                    healthStatus: 'unmapped',
+                    healthScore: null,
+                    overdue: 0,
+                    blocked: 0,
+                    completionRate: null,
+                    manaScore: null
+                })
+                .sort((a, b) => {
+                    if (a.hasNocodb !== b.hasNocodb) return a.hasNocodb ? -1 : 1;
+                    const aHasScore = Number.isFinite(a.healthScore);
+                    const bHasScore = Number.isFinite(b.healthScore);
+                    if (aHasScore !== bHasScore) return aHasScore ? -1 : 1;
+                    if (aHasScore) return b.healthScore - a.healthScore;
+                    return a.name.localeCompare(b.name);
+                });
         } catch (error) {
             logger.error('Error getting projects health', { error });
             return [];
