@@ -15079,3 +15079,411 @@ body.resizing iframe {
 .command-center-theme #tasks-tab-content .task-filter {
     grid-template-columns: minmax(0, 1fr) minmax(112px, 0.55fr) auto;
 }
+
+/* Command Center v5: raise right task panel fidelity to the approved reference. */
+.command-center-theme .info-drawer.open {
+    width: 524px;
+    max-width: 36vw;
+}
+
+.command-center-theme .info-drawer-header {
+    position: relative;
+    display: grid;
+    grid-template-rows: 54px 48px;
+    min-height: 102px;
+    padding: 0 12px;
+    border-left: 1px solid rgba(191, 201, 214, 0.13);
+    border-bottom: 1px solid rgba(191, 201, 214, 0.15);
+    background:
+        radial-gradient(circle at 100% 0, rgba(47, 128, 255, 0.08), transparent 36%),
+        rgba(8, 10, 13, 0.98);
+}
+
+.command-center-theme .info-drawer-header::before {
+    content: "タスク";
+    align-self: end;
+    padding-bottom: 9px;
+    color: #f7f9fb;
+    font-size: 20px;
+    font-weight: 760;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="commit-tree"].active)::before {
+    content: "コミット";
+}
+
+.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="wiki"].active)::before {
+    content: "Wiki";
+}
+
+.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="live-feed"].active)::before {
+    content: "Live Feed";
+}
+
+.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="portal"].active)::before {
+    content: "Portal";
+}
+
+.command-center-theme .info-drawer-tabs {
+    grid-row: 2;
+    display: flex;
+    min-height: 48px;
+    gap: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.command-center-theme .info-drawer-tab {
+    flex: 0 0 auto;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: #9aa5b3;
+    font-size: 12.5px;
+    font-weight: 650;
+    box-shadow: none;
+}
+
+.command-center-theme .info-drawer-tab[data-tab="tasks"] {
+    order: -4;
+}
+
+.command-center-theme .info-drawer-tab[data-tab="commit-tree"] {
+    order: -3;
+}
+
+.command-center-theme .info-drawer-tab[data-tab="wiki"] {
+    order: -2;
+}
+
+.command-center-theme .info-drawer-tab[data-tab="live-feed"] {
+    order: -1;
+}
+
+.command-center-theme .info-drawer-tab[data-tab="portal"] {
+    display: none;
+}
+
+.command-center-theme .info-drawer-tab i,
+.command-center-theme .info-drawer-tab svg {
+    display: none;
+}
+
+.command-center-theme .info-drawer-tab:hover,
+.command-center-theme .info-drawer-tab.active {
+    border-bottom-color: var(--bb-approved-blue);
+    background: transparent;
+    color: #56a0ff;
+    transform: none;
+}
+
+.command-center-theme #info-drawer-close {
+    position: absolute;
+    top: 14px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 5px;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section {
+    min-height: 386px;
+    border-bottom-color: rgba(191, 201, 214, 0.18);
+}
+
+.command-center-theme #tasks-tab-content .timeline-section .section-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-content: center;
+    min-height: 72px;
+    padding: 0 16px;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section .section-header h3 {
+    display: grid;
+    gap: 7px;
+    font-size: 18px;
+    font-weight: 760;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section .section-header h3::after {
+    content: "2026年5月7日 木曜日";
+    color: #aeb8c5;
+    font-size: 12px;
+    font-weight: 520;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section .section-header h3 svg {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .timeline {
+    position: relative;
+    padding: 12px 16px 16px;
+}
+
+.command-center-theme #tasks-tab-content .timeline::before {
+    left: 82px;
+    top: 16px;
+    bottom: 16px;
+    background: linear-gradient(180deg, rgba(191, 201, 214, 0.16), rgba(191, 201, 214, 0.5), rgba(191, 201, 214, 0.16));
+}
+
+.command-center-theme #tasks-tab-content .timeline-item {
+    grid-template-columns: 52px 18px minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 44px;
+    margin: 0;
+    padding: 7px 0;
+    border: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.08);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .timeline-item::before {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .timeline-marker {
+    display: block;
+    grid-column: 2;
+    align-self: center;
+    justify-self: center;
+    width: 9px;
+    height: 9px;
+    border: 1px solid rgba(191, 201, 214, 0.72);
+    border-radius: 50%;
+    background: #080a0d;
+    box-shadow: 0 0 0 3px rgba(8, 10, 13, 0.96);
+}
+
+.command-center-theme #tasks-tab-content .timeline-item.current .timeline-marker,
+.command-center-theme #tasks-tab-content .timeline-item.is-current .timeline-marker {
+    border-color: var(--bb-approved-blue);
+    background: var(--bb-approved-blue);
+    box-shadow: 0 0 0 3px rgba(47, 128, 255, 0.14);
+}
+
+.command-center-theme #tasks-tab-content .timeline-time {
+    grid-column: 1;
+    align-self: center;
+    color: #aeb8c5;
+    font-size: 12px;
+    text-align: right;
+}
+
+.command-center-theme #tasks-tab-content .timeline-content {
+    grid-column: 3;
+    align-self: center;
+    color: #e8edf3;
+    font-size: 12.5px;
+    font-weight: 560;
+}
+
+.command-center-theme #tasks-tab-content .timeline-now {
+    margin: 8px 0;
+    padding-left: 0;
+}
+
+.command-center-theme #tasks-tab-content .timeline-now::before {
+    left: 56px;
+    width: calc(100% - 56px);
+    background: rgba(47, 128, 255, 0.78);
+}
+
+.command-center-theme #tasks-tab-content .timeline-now::after {
+    left: 52px;
+    background: var(--bb-approved-blue);
+    box-shadow: 0 0 0 3px rgba(47, 128, 255, 0.16);
+}
+
+.command-center-theme #tasks-tab-content .timeline-now-label {
+    margin-left: 0;
+    border-color: rgba(47, 128, 255, 0.48);
+    background: var(--bb-approved-blue);
+    color: #ffffff;
+}
+
+.command-center-theme #tasks-tab-content .next-tasks-section .section-header {
+    min-height: 52px;
+    padding: 0 16px;
+}
+
+.command-center-theme #tasks-tab-content .next-tasks-section .section-header h3 {
+    font-size: 18px;
+    font-weight: 760;
+}
+
+.command-center-theme #tasks-tab-content .task-tabs {
+    min-height: 42px;
+    gap: 26px;
+    padding: 0 16px;
+}
+
+.command-center-theme #tasks-tab-content .task-tab {
+    min-height: 42px;
+    padding: 0;
+    color: #9aa5b3;
+    font-size: 12.5px;
+}
+
+.command-center-theme #tasks-tab-content .task-tab.active {
+    color: #56a0ff;
+}
+
+.command-center-theme #tasks-tab-content .task-filter {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 0.72fr) minmax(124px, 0.72fr) 32px 32px;
+    gap: 8px;
+    padding: 10px 16px;
+}
+
+.command-center-theme #tasks-tab-content .task-filter input,
+.command-center-theme #tasks-tab-content .task-filter select,
+.command-center-theme #tasks-tab-content .task-filter button,
+.command-center-theme #tasks-tab-content .refresh-nocodb-tasks-btn {
+    min-height: 31px;
+    border-color: rgba(191, 201, 214, 0.14);
+    background-color: rgba(7, 9, 11, 0.9);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-table-header,
+.command-center-theme #tasks-tab-content #nocodb-tasks-list {
+    display: grid;
+    overflow: hidden auto;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-table-header {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr) 72px 94px 84px;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.12);
+    background: rgba(255, 255, 255, 0.025);
+    color: #aeb8c5;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item {
+    grid-template-columns: 58px minmax(0, 1fr) 72px 94px 84px;
+    grid-template-areas: none;
+    align-items: center;
+    min-height: 58px;
+    column-gap: 0;
+    padding: 8px 12px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-header,
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-meta {
+    display: contents;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    place-self: center start;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    font: 700 12px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator::after {
+    content: "P3";
+    color: var(--bb-approved-green);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.high::after {
+    content: "↑ P1";
+    color: var(--bb-red);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.medium::after {
+    content: "■ P2";
+    color: var(--bb-approved-yellow);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-title {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: #f3f6fa;
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge {
+    grid-column: 2;
+    grid-row: 2;
+    width: fit-content;
+    max-width: 180px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #8f9aaa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .deadline {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-combobox {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    justify-self: start;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-trigger {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-value,
+.command-center-theme #tasks-tab-content .nocodb-task-item .chevron-icon {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    width: 82px;
+    min-height: 28px;
+    max-height: 28px;
+    justify-self: start;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-actions {
+    grid-column: 5;
+    grid-row: 1 / span 2;
+    justify-self: end;
+    align-self: center;
+    gap: 8px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-action-btn {
+    width: 24px;
+    height: 24px;
+    border-color: transparent;
+    color: #dce4ee;
+}

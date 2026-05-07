@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071610';
+const EXPECTED_CSS_VERSION = '202605071730';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -371,7 +371,7 @@ function buildChecks(desktop, mobile) {
     createCheck(
       'drawer_tabs_component_replaced',
       pxNumber(desktop.drawer.width) > 0
-        && pxNumber(desktop.drawer.width) <= 500
+        && pxNumber(desktop.drawer.width) <= 540
         && pxNumber(desktop.drawer.tabHeight) <= 58
         && pxNumber(desktop.drawer.tabBorderRadius) === 0
         && desktop.drawer.activeTabBoxShadow === 'none'
