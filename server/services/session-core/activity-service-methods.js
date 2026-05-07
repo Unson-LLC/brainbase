@@ -197,9 +197,30 @@ export const activityServiceMethods = {
                     return true;
                 });
                 normalized.activeTurnIds = cleanedActiveTurnIds;
+                let needsPersistHookStatus = cleanedActiveTurnIds.length !== originalActiveTurnIds.length;
 
-                const hasActiveTurns = normalized.activeTurnIds.length > 0;
+                let hasActiveTurns = normalized.activeTurnIds.length > 0;
                 const hasExplicitDone = (normalized?.lastDoneAt || 0) > 0;
+                if (
+                    hasActiveTurns
+                    && this._isTerminalDoneEvent(normalized.lastEventType)
+                    && hasExplicitDone
+                    && normalized.lastDoneAt >= normalized.lastWorkingAt
+                ) {
+                    logger.info(`[Hook] restoreHookStatus: clearing ${normalized.activeTurnIds.length} completed turn(s) for ${session.id}`);
+                    normalized.activeTurnIds = [];
+                    normalized.status = 'done';
+                    normalized.liveActivity = this._deriveLiveActivity({
+                        status: 'done',
+                        timestamp: normalized.lastDoneAt,
+                        metadata: { activityKind: 'done', currentStep: '完了' },
+                        currentHookData: normalized,
+                        eventType: normalized.lastEventType,
+                        activeTurnIds: new Set()
+                    });
+                    hasActiveTurns = false;
+                    needsPersistHookStatus = true;
+                }
                 const lastActiveAt = Math.max(normalized?.lastActivityAt || 0, normalized?.lastWorkingAt || 0);
                 const isStaleWorking = !hasActiveTurns
                     && !hasExplicitDone
@@ -208,7 +229,7 @@ export const activityServiceMethods = {
 
                 if (!isStaleWorking) {
                     this.hookStatus.set(session.id, normalized);
-                    if (cleanedActiveTurnIds.length !== originalActiveTurnIds.length) {
+                    if (needsPersistHookStatus) {
                         await this._persistHookStatus(session.id, normalized);
                     }
                     continue;
@@ -265,6 +286,9 @@ export const activityServiceMethods = {
             if (entry) status[sessionId] = entry;
         }
         for (const [sessionId, entry] of Object.entries(this._getPaneTitleActivityStatuses())) {
+            if (this._shouldSuppressPaneTitleActivity(sessionId)) {
+                continue;
+            }
             if (!status[sessionId]) {
                 status[sessionId] = entry;
             }
@@ -427,6 +451,9 @@ export const activityServiceMethods = {
         const staleCodexPtyTurn = this._isStaleCodexPtyTurn(turnId, timestamp);
         const strongWorkingSignal = this._isStrongWorkingSignal({ status, lifecycle, eventType, metadata });
         let ignoredStaleDoneHeartbeat = false;
+        if (strongWorkingSignal || (lifecycle === 'turn_started' && !staleCodexPtyTurn)) {
+            this.paneTitleSuppressedSessionIds?.delete(sessionId);
+        }
 
         if (lifecycle === 'turn_started') {
             const isOutOfOrderStartAfterDone = lastDoneAt > 0
@@ -571,8 +598,21 @@ export const activityServiceMethods = {
 
     clearDoneStatus(sessionId) {
         const hadHookStatus = this.hookStatus.has(sessionId);
-        this.hookStatus.delete(sessionId);
-        this._persistHookStatus(sessionId, null);
+        const timestamp = Date.now();
+        const suppressedStatus = {
+            status: 'idle',
+            timestamp,
+            lastWorkingAt: 0,
+            lastDoneAt: 0,
+            lastActivityAt: 0,
+            lastEventType: 'done-read',
+            activeTurnIds: [],
+            paneTitleSuppressed: true,
+            liveActivity: null
+        };
+        this.paneTitleSuppressedSessionIds?.add(sessionId);
+        this.hookStatus.set(sessionId, suppressedStatus);
+        this._persistHookStatus(sessionId, suppressedStatus, timestamp);
         if (hadHookStatus && typeof this._activityWsBroadcast === 'function') {
             const statusForClient = this.getSessionStatus()[sessionId] || null;
             this._activityWsBroadcast(sessionId, statusForClient);
@@ -627,6 +667,7 @@ export const activityServiceMethods = {
             lastActivityAt,
             lastEventType,
             activeTurnIds,
+            paneTitleSuppressed: hookData.paneTitleSuppressed === true,
             liveActivity
         };
     },
@@ -801,6 +842,32 @@ export const activityServiceMethods = {
                 logger.warn(`[Hook] _persistHookStatus failed after ${MAX_RETRIES} retries for ${sessionId}: ${err.message}`);
             }
         }
+    },
+
+    _shouldSuppressPaneTitleActivity(sessionId) {
+        if (!sessionId) return false;
+        if (this.paneTitleSuppressedSessionIds?.has(sessionId)) return true;
+
+        const hookData = this._normalizeHookData(this.hookStatus.get(sessionId));
+        if (hookData?.paneTitleSuppressed) return true;
+
+        const state = this.stateStore?.get?.() || {};
+        const session = (state.sessions || []).find((entry) => entry.id === sessionId);
+        const storedHookData = this._normalizeHookData(session?.hookStatus);
+        return storedHookData?.paneTitleSuppressed === true;
+    },
+
+    _isTerminalDoneEvent(eventType) {
+        return [
+            'agent-turn-complete',
+            'assistant-message-complete',
+            'assistant-response-complete',
+            'task_complete',
+            'codex/event/task_complete',
+            'codex/hook/Stop',
+            'codex/pty-shim-ready',
+            'turn/completed'
+        ].includes(eventType);
     },
 
     _coerceTimestamp(reportedAt) {

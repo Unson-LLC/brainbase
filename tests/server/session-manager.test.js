@@ -205,13 +205,21 @@ describe('SessionManager', () => {
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
   });
 
-  it('clearDoneStatus_persists_null_even_when_only_state_payload_is_stale', () => {
+  it('clearDoneStatus_persists_pane_title_suppression_when_only_state_payload_is_stale', () => {
     const manager = createManager();
     manager._persistHookStatus = vi.fn();
 
     manager.clearDoneStatus('session-1');
 
-    expect(manager._persistHookStatus).toHaveBeenCalledWith('session-1', null);
+    expect(manager._persistHookStatus).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({
+        status: 'idle',
+        lastEventType: 'done-read',
+        paneTitleSuppressed: true
+      }),
+      expect.any(Number)
+    );
   });
 
   it('stale working without active turns does not surface as done', () => {
@@ -304,7 +312,7 @@ describe('SessionManager', () => {
     }));
   });
 
-  it('clearDoneStatus_can_fall_back_to_pane_title_when_done_status_is_cleared', () => {
+  it('clearDoneStatus_does_not_fall_back_to_pane_title_when_done_status_is_cleared', () => {
     const manager = createManager();
     const now = Date.now();
     manager._now = () => now;
@@ -318,12 +326,34 @@ describe('SessionManager', () => {
 
     manager.clearDoneStatus('session-1');
 
-    expect(manager._activityWsBroadcast).toHaveBeenLastCalledWith('session-1', expect.objectContaining({
+    expect(manager._activityWsBroadcast).toHaveBeenLastCalledWith('session-1', null);
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+  });
+
+  it('real_working_signal_after_clearDoneStatus_allows_indicator_again', () => {
+    const manager = createManager();
+    const now = Date.now();
+    manager._now = () => now;
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete'
+    });
+    manager.clearDoneStatus('session-1');
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'turn_started',
+      eventType: 'brainbase/input-submit',
+      activityKind: 'task_started'
+    });
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
       isWorking: true,
       isDone: false,
-      activeTurnCount: 1,
-      lastEventType: 'tmux-pane-title-spinner'
-    }));
+      lastEventType: 'brainbase/input-submit'
+    });
   });
 
   it('getSessionStatus_tmux_pane_title_spinner_expires_when_title_stops_changing', () => {
