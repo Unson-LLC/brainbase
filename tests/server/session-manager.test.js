@@ -596,7 +596,7 @@ describe('SessionManager', () => {
     });
     manager.reportActivity('session-1', 'working', now + 1000, {
       lifecycle: 'heartbeat',
-      eventType: 'codex/hook/PostToolUse',
+      eventType: 'codex/pty-shim-heartbeat',
       turnId: 'codex-pty-session-1-12345'
     });
 
@@ -604,6 +604,121 @@ describe('SessionManager', () => {
     expect(status.isWorking).toBe(false);
     expect(status.isDone).toBe(true);
     expect(status.activeTurnCount).toBe(0);
+  });
+
+  it('codex_hook_heartbeat_after_done_revives_working_without_turn_id', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'codex/hook/Stop',
+      activityKind: 'task_completed'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'codex/hook/PreToolUse',
+      activityKind: 'running_command',
+      currentStep: 'コマンドを実行中',
+      latestEvidence: 'npm run test'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toMatchObject({
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 0,
+      lastEventType: 'codex/hook/PreToolUse',
+      liveActivity: expect.objectContaining({
+        activityKind: 'running_command',
+        statusTone: 'working',
+        currentStep: 'コマンドを実行中',
+        latestEvidence: 'npm run test'
+      })
+    });
+  });
+
+  it('stale_legacy_codex_pty_heartbeat_does_not_demote_recent_codex_hook_working', () => {
+    const manager = createManager();
+    const now = Date.now();
+    const staleSessionTimestamp = now - 60 * 60 * 1000;
+    const staleTurnId = `codex-pty-session-${staleSessionTimestamp}-12345`;
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'codex/hook/Stop',
+      activityKind: 'task_completed'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'codex/hook/PostToolUse',
+      activityKind: 'running_command',
+      latestEvidence: 'npm run test'
+    });
+    manager.reportActivity('session-1', 'working', now + 2000, {
+      lifecycle: 'heartbeat',
+      eventType: 'codex/pty-shim-heartbeat',
+      turnId: staleTurnId,
+      activityKind: 'reasoning',
+      currentStep: '処理中'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toMatchObject({
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 0,
+      lastEventType: 'codex/pty-shim-heartbeat',
+      liveActivity: expect.objectContaining({
+        statusTone: 'working',
+        latestEvidence: 'npm run test'
+      })
+    });
+  });
+
+  it('stale_legacy_codex_pty_heartbeat_revives_done_with_running_evidence', () => {
+    const manager = createManager();
+    const now = Date.now();
+    const staleSessionTimestamp = now - 60 * 60 * 1000;
+    const staleTurnId = `codex-pty-session-${staleSessionTimestamp}-12345`;
+
+    manager.hookStatus.set('session-1', {
+      status: 'done',
+      timestamp: now,
+      lastWorkingAt: 0,
+      lastDoneAt: now,
+      lastActivityAt: now,
+      lastEventType: 'codex/pty-shim-heartbeat',
+      activeTurnIds: [],
+      liveActivity: {
+        activityKind: 'reasoning',
+        currentStep: '処理中',
+        latestEvidence: 'npm run test',
+        statusTone: 'done',
+        updatedAt: now,
+        assistantSnippetUpdatedAt: 0
+      }
+    });
+
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'codex/pty-shim-heartbeat',
+      turnId: staleTurnId,
+      activityKind: 'reasoning',
+      currentStep: '処理中'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toMatchObject({
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 0,
+      lastEventType: 'codex/pty-shim-heartbeat',
+      liveActivity: expect.objectContaining({
+        statusTone: 'working',
+        latestEvidence: 'npm run test'
+      })
+    });
   });
 
   it('stale_legacy_codex_pty_turn_started_after_done_does_not_revive_working', () => {

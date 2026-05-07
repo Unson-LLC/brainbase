@@ -413,9 +413,11 @@ export const activityServiceMethods = {
         let lastWorkingAt = currentHookData.lastWorkingAt;
         let lastDoneAt = currentHookData.lastDoneAt;
         let lastActivityAt = Math.max(currentHookData.lastActivityAt, timestamp);
+        const previousEventType = currentHookData.lastEventType || null;
         let lastEventType = eventType || currentHookData.lastEventType || null;
         const activeTurnIds = new Set(currentHookData.activeTurnIds);
         const staleCodexPtyTurn = this._isStaleCodexPtyTurn(turnId, timestamp);
+        const strongWorkingSignal = this._isStrongWorkingSignal({ status, lifecycle, eventType, metadata });
 
         if (lifecycle === 'turn_started') {
             if (turnId && !staleCodexPtyTurn) {
@@ -425,7 +427,7 @@ export const activityServiceMethods = {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             } else {
                 logger.info(`[Hook] Ignoring stale Codex PTY turn_started ${turnId} for ${sessionId}`);
-                if (lastDoneAt > 0 && activeTurnIds.size === 0) {
+                if (lastDoneAt > 0 && activeTurnIds.size === 0 && this._canStaleCodexPtyDemote(currentHookData)) {
                     lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
                 }
             }
@@ -475,9 +477,19 @@ export const activityServiceMethods = {
                     clearedStaleTurn = true;
                 }
             }
-            if (activeTurnIds.size > 0 || (!clearedStaleTurn && !staleCodexPtyTurn && lastWorkingAt > lastDoneAt)) {
+            const canStaleCodexPtyDemote = this._canStaleCodexPtyDemote({ ...currentHookData, lastEventType: previousEventType });
+            if (strongWorkingSignal) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
-            } else if ((clearedStaleTurn || staleCodexPtyTurn) && lastDoneAt > 0 && activeTurnIds.size === 0) {
+            } else if ((clearedStaleTurn || staleCodexPtyTurn) && !canStaleCodexPtyDemote) {
+                lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            } else if (activeTurnIds.size > 0 || (!clearedStaleTurn && !staleCodexPtyTurn && lastWorkingAt > lastDoneAt)) {
+                lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            } else if (
+                (clearedStaleTurn || staleCodexPtyTurn)
+                && lastDoneAt > 0
+                && activeTurnIds.size === 0
+                && canStaleCodexPtyDemote
+            ) {
                 lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
             }
         } else if (status === 'working') {
@@ -780,5 +792,33 @@ export const activityServiceMethods = {
         const turnTimestamp = this._extractTurnTimestamp(turnId);
         if (turnTimestamp <= 0) return false;
         return timestamp - turnTimestamp > 30 * 60 * 1000;
+    },
+
+    _isStrongWorkingSignal({ status, lifecycle, eventType, metadata = {} } = {}) {
+        if (status !== 'working') return false;
+        const normalizedEventType = typeof eventType === 'string' ? eventType : '';
+        const activityKind = typeof metadata.activityKind === 'string' ? metadata.activityKind : '';
+        if (normalizedEventType.startsWith('codex/hook/')) {
+            return lifecycle === 'turn_started' || lifecycle === 'heartbeat';
+        }
+        return [
+            'task_started',
+            'running_command',
+            'editing_file'
+        ].includes(activityKind);
+    },
+
+    _canStaleCodexPtyDemote(hookData = {}) {
+        const previousEventType = typeof hookData.lastEventType === 'string' ? hookData.lastEventType : '';
+        if (previousEventType.startsWith('codex/hook/')) return false;
+        const activityKind = hookData.liveActivity?.activityKind || '';
+        const latestEvidence = hookData.liveActivity?.latestEvidence || '';
+        const currentStep = hookData.liveActivity?.currentStep || '';
+        if (latestEvidence && (activityKind === 'reasoning' || currentStep === '処理中')) return false;
+        return ![
+            'task_started',
+            'running_command',
+            'editing_file'
+        ].includes(activityKind);
     }
 };
