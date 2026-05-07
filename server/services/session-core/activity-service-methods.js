@@ -407,7 +407,7 @@ export const activityServiceMethods = {
         const lifecycle = typeof metadata.lifecycle === 'string' ? metadata.lifecycle : '';
         const eventType = typeof metadata.eventType === 'string' ? metadata.eventType : '';
         const turnId = typeof metadata.turnId === 'string' ? metadata.turnId.trim() : '';
-        logger.info(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
+        logger.debug(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
 
         const currentHookData = this._normalizeHookData(this.hookStatus.get(sessionId)) || {
             lastWorkingAt: 0,

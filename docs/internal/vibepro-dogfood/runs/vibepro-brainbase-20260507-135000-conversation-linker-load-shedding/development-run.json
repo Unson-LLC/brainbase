@@ -1,0 +1,189 @@
+{
+  "run_id": "vibepro-brainbase-20260507-135000-conversation-linker-load-shedding",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed_with_residual_risk",
+  "created_at": "2026-05-07T13:50:00+09:00",
+  "request": {
+    "raw": "CSRF連打以外に重たい原因をVibeProのストーリーを作って解消できる？",
+    "interpreted_goal": "Loki分析で見つかったCSRF以外の重い処理を、VibeProのStory-to-Ship証跡付きで軽量化する"
+  },
+  "story": {
+    "namespace": "vibepro-dogfood/conversation-linker",
+    "story_key": "vibepro-dogfood/conversation-linker/20260507-load-shedding",
+    "acceptance_criteria": [
+      "変更されていない Codex jsonl は次回以降の index 再構築で cwd 読み取りを再実行しない",
+      "Codex jsonl が更新された場合は更新後の cwd を index に反映する",
+      "会話紐付けの既存動作は維持される",
+      "heartbeat / Activity WebSocket の通常ログ量を削減し、必要時は debug で追える"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "vibepro-internal-workflow",
+      "story-arch-spec-code",
+      "story-driven-development",
+      "tdd-workflow"
+    ],
+    "approach": [
+      "LokiでCSRF以外の高頻度・高負荷候補を再確認する",
+      "ConversationLinkerの全Codex jsonl再読込をファイルmetadata cacheで差分化する",
+      "高頻度heartbeat/broadcastログをdebugへ落とす",
+      "Red-GreenでConversationLinkerのcache挙動を固定する",
+      "実 ~/.codex/sessions に対する2回目index構築で本文再読込が0になることを確認する"
+    ]
+  },
+  "implementation": {
+    "jj_change_id": "not_used_git_worktree",
+    "commit_id": "current_commit_contains_this_run",
+    "description": "fix: shed conversation linker and activity log load",
+    "changed_files": [
+      "docs/stories/STR-005-conversation-linker-load-shedding.md",
+      "docs/architecture/ADR-005-conversation-linker-load-shedding.md",
+      "docs/specs/conversation-linker-load-shedding-spec.md",
+      "server/services/conversation-linker.js",
+      "server/services/session-activity-ws-service.js",
+      "server/services/session-core/activity-service-methods.js",
+      "tests/server/services/conversation-linker.test.js",
+      "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-135000-conversation-linker-load-shedding/development-run.json"
+    ],
+    "behavior_changes": [
+      "ConversationLinker keeps a process-local Codex file metadata cache keyed by file path, size, and mtimeMs",
+      "Unchanged Codex jsonl files reuse cached cwd during index rebuild",
+      "Changed Codex jsonl files are reread and reindexed",
+      "Activity heartbeat and websocket broadcast logs move from info to debug"
+    ]
+  },
+  "verification": {
+    "passed": [
+      {
+        "command": "npm -s exec vitest run tests/server/services/conversation-linker.test.js tests/unit/session-activity-ws-service.test.js tests/unit/activity-service-methods.test.js",
+        "result": "passed",
+        "tests": "20 passed"
+      },
+      {
+        "command": "npx eslint server/services/conversation-linker.js server/services/session-activity-ws-service.js server/services/session-core/activity-service-methods.js tests/server/services/conversation-linker.test.js tests/unit/session-activity-ws-service.test.js tests/unit/activity-service-methods.test.js",
+        "result": "passed"
+      },
+      {
+        "command": "node --input-type=module <ConversationLinker real ~/.codex/sessions benchmark>",
+        "result": "passed",
+        "evidence": "firstReads=2925, secondReads=0, firstMs=21961, secondMs=322, unique cwd count remained 158"
+      }
+    ],
+    "failed_or_blocked": []
+  },
+  "outcome": {
+    "loop_result": "targeted_success",
+    "human_intervention_points": [
+      "ユーザーがCSRF連打対策は取り込み済みではないかと指摘し、分析対象をCSRF以外へ補正した"
+    ],
+    "residual_risks": [
+      "runtime serverへの反映後にLokiでConversationLinker周期処理とActivityWs/Hookログの減少を再測定する必要がある",
+      "first build after process restart still reads existing Codex jsonl once by design"
+    ],
+    "next_actions": [
+      "この変更をruntime serverへ反映後、Lokiで1時間窓のHook/ActivityWs/ConversationLinkerログ量を比較する",
+      "Codex履歴がさらに増える場合は日付ディレクトリ単位のmetadata cacheも検討する"
+    ]
+  },
+  "development_dag": {
+    "nodes": {
+      "requirement": {
+        "status": "passed",
+        "evidence": [
+          "request.raw"
+        ]
+      },
+      "story": {
+        "status": "passed",
+        "depends_on": [
+          "requirement"
+        ],
+        "evidence": [
+          "docs/stories/STR-005-conversation-linker-load-shedding.md"
+        ]
+      },
+      "architecture": {
+        "status": "passed",
+        "depends_on": [
+          "story"
+        ],
+        "evidence": [
+          "docs/architecture/ADR-005-conversation-linker-load-shedding.md"
+        ]
+      },
+      "spec": {
+        "status": "passed",
+        "depends_on": [
+          "architecture"
+        ],
+        "evidence": [
+          "docs/specs/conversation-linker-load-shedding-spec.md"
+        ]
+      },
+      "test_design": {
+        "status": "passed",
+        "depends_on": [
+          "spec"
+        ],
+        "evidence": [
+          "tests/server/services/conversation-linker.test.js"
+        ]
+      },
+      "implementation": {
+        "status": "passed",
+        "depends_on": [
+          "test_design"
+        ],
+        "evidence": [
+          "server/services/conversation-linker.js",
+          "server/services/session-activity-ws-service.js",
+          "server/services/session-core/activity-service-methods.js"
+        ]
+      },
+      "verification": {
+        "status": "passed",
+        "depends_on": [
+          "implementation"
+        ],
+        "evidence": [
+          "npm -s exec vitest run tests/server/services/conversation-linker.test.js tests/unit/session-activity-ws-service.test.js tests/unit/activity-service-methods.test.js",
+          "npx eslint server/services/conversation-linker.js server/services/session-activity-ws-service.js server/services/session-core/activity-service-methods.js tests/server/services/conversation-linker.test.js tests/unit/session-activity-ws-service.test.js tests/unit/activity-service-methods.test.js"
+        ]
+      },
+      "run_evidence": {
+        "status": "passed",
+        "depends_on": [
+          "verification"
+        ],
+        "evidence": [
+          "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-135000-conversation-linker-load-shedding/development-run.json"
+        ]
+      },
+      "score_gate": {
+        "status": "passed",
+        "depends_on": [
+          "run_evidence"
+        ],
+        "evidence": [
+          "npm run vibepro:development-dag"
+        ]
+      },
+      "ship": {
+        "status": "skipped",
+        "depends_on": [
+          "score_gate"
+        ],
+        "evidence": [
+          "runtime Loki post-deploy measurement remains as next action"
+        ]
+      }
+    },
+    "residual_risk_recovery": {
+      "previous_residual_risk_count": 2,
+      "recovered_count": 1
+    }
+  }
+}

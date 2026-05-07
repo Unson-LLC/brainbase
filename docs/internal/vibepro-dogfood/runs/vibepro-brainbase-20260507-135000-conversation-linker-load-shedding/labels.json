@@ -1,0 +1,22 @@
+{
+  "run_id": "vibepro-brainbase-20260507-135000-conversation-linker-load-shedding",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.conversation_linker.codex_full_read_repeated",
+      "matched_detected_gap_id": "gap.conversation_linker.repeated_codex_jsonl_reads",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.activity_logs.high_frequency_info",
+      "matched_detected_gap_id": "gap.activity_logs.high_frequency_info",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

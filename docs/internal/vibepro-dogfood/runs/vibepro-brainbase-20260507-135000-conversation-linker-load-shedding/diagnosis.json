@@ -1,0 +1,30 @@
+{
+  "run_id": "vibepro-brainbase-20260507-135000-conversation-linker-load-shedding",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "diagnosed",
+  "detected_gaps": [
+    {
+      "gap_id": "gap.conversation_linker.repeated_codex_jsonl_reads",
+      "title": "ConversationLinker repeatedly reads unchanged Codex jsonl files",
+      "severity": "high",
+      "category": "runtime_load",
+      "evidence_fact_ids": [
+        "fact.conversation_linker.codex_full_read_repeated"
+      ],
+      "recommended_route": "cache Codex cwd by file metadata",
+      "gate_required": true
+    },
+    {
+      "gap_id": "gap.activity_logs.high_frequency_info",
+      "title": "Activity heartbeat logs are emitted as info",
+      "severity": "medium",
+      "category": "log_volume",
+      "evidence_fact_ids": [
+        "fact.activity_logs.high_frequency_info"
+      ],
+      "recommended_route": "move high-frequency heartbeat logs to debug",
+      "gate_required": false
+    }
+  ]
+}
