@@ -776,6 +776,51 @@ describe('SessionManager', () => {
     });
   });
 
+  it('stale_legacy_codex_pty_heartbeat_clamps_previous_false_working_back_to_done', () => {
+    const manager = createManager();
+    const now = Date.now();
+    const staleSessionTimestamp = now - 60 * 60 * 1000;
+    const staleTurnId = `codex-pty-session-${staleSessionTimestamp}-12345`;
+
+    manager.hookStatus.set('session-1', {
+      status: 'working',
+      timestamp: now,
+      lastWorkingAt: now,
+      lastDoneAt: now - 1000,
+      lastActivityAt: now,
+      lastEventType: 'codex/pty-shim-heartbeat',
+      activeTurnIds: [],
+      liveActivity: {
+        activityKind: 'done',
+        currentStep: '完了',
+        latestEvidence: 'old command',
+        statusTone: 'done',
+        updatedAt: now,
+        assistantSnippetUpdatedAt: 0
+      }
+    });
+
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'codex/pty-shim-heartbeat',
+      turnId: staleTurnId,
+      activityKind: 'reasoning',
+      currentStep: '処理中'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      activeTurnCount: 0,
+      liveActivity: expect.objectContaining({
+        activityKind: 'done',
+        statusTone: 'done',
+        currentStep: '完了'
+      })
+    });
+  });
+
   it('turn_completed_with_timestamp_clears_unmatched_non_comparable_active_turn', () => {
     const manager = createManager();
     const now = Date.now();
