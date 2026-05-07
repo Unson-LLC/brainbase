@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071430';
+const EXPECTED_CSS_VERSION = '202605071545';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -107,6 +107,7 @@ async function collectDesktopEvidence(page) {
       bodyClientWidth: document.body.clientWidth,
       activeSession: {
         backgroundImage: activeSession ? getComputedStyle(activeSession).backgroundImage : null,
+        backgroundColor: activeSession ? getComputedStyle(activeSession).backgroundColor : null,
         borderLeftWidth: activeSession ? getComputedStyle(activeSession).borderLeftWidth : null,
         borderLeftColor: activeSession ? getComputedStyle(activeSession).borderLeftColor : null,
         borderRadius: activeSession ? getComputedStyle(activeSession).borderRadius : null,
@@ -115,6 +116,9 @@ async function collectDesktopEvidence(page) {
       sessionRow: {
         height: firstSession ? firstSession.getBoundingClientRect().height : null,
         paddingTop: style('.session-child-row', 'padding-top'),
+        backgroundColor: style('.session-child-row', 'background-color'),
+        borderRadius: style('.session-child-row', 'border-radius'),
+        borderBottomWidth: style('.session-child-row', 'border-bottom-width'),
         backgroundImage: style('.session-child-row', 'background-image'),
         boxShadow: style('.session-child-row', 'box-shadow'),
         projectEmojiDisplay: style('.session-child-row .session-project-emoji', 'display'),
@@ -127,6 +131,7 @@ async function collectDesktopEvidence(page) {
       },
       addSessionButton: {
         backgroundImage: style('.add-session-btn', 'background-image'),
+        backgroundColor: style('.add-session-btn', 'background-color'),
         borderRadius: style('.add-session-btn', 'border-radius'),
         height: document.querySelector('.add-session-btn')?.getBoundingClientRect().height ?? null,
       },
@@ -137,21 +142,41 @@ async function collectDesktopEvidence(page) {
       drawer: {
         width: style('.info-drawer.open', 'width'),
         tabBackground: style('.info-drawer-tabs', 'background-color'),
+        tabBorderRadius: style('.info-drawer-tabs', 'border-radius'),
         activeTabBackground: style('.info-drawer-tab.active', 'background-image') || style('.info-drawer-tab.active', 'background-color'),
+        activeTabBoxShadow: style('.info-drawer-tab.active', 'box-shadow'),
+        activeTabBorderBottomWidth: style('.info-drawer-tab.active', 'border-bottom-width'),
         tabHeight: document.querySelector('.info-drawer-tab')?.getBoundingClientRect().height ?? null,
       },
       tasks: {
         timelineBackground: style('#tasks-tab-content .timeline-section', 'background-image'),
+        timelineBackgroundColor: style('#tasks-tab-content .timeline-section', 'background-color'),
+        timelineBorderRadius: style('#tasks-tab-content .timeline-section', 'border-radius'),
+        timelineBoxShadow: style('#tasks-tab-content .timeline-section', 'box-shadow'),
         timelineItemDisplay: style('#tasks-tab-content .timeline-item', 'display'),
         taskSectionBackground: style('#tasks-tab-content .next-tasks-section', 'background-image'),
+        taskSectionBackgroundColor: style('#tasks-tab-content .next-tasks-section', 'background-color'),
+        taskSectionBorderRadius: style('#tasks-tab-content .next-tasks-section', 'border-radius'),
+        taskSectionBoxShadow: style('#tasks-tab-content .next-tasks-section', 'box-shadow'),
+        sectionHeaderBackground: style('#tasks-tab-content .next-tasks-section .section-header', 'background-color'),
+        sectionHeaderBorderRadius: style('#tasks-tab-content .next-tasks-section .section-header', 'border-radius'),
+        taskTabsBackground: style('#tasks-tab-content .task-tabs', 'background-color'),
+        taskTabsBorderRadius: style('#tasks-tab-content .task-tabs', 'border-radius'),
         taskTabActiveBackground: style('#tasks-tab-content .task-tab.active', 'background-image') || style('#tasks-tab-content .task-tab.active', 'background-color'),
+        taskTabActiveBorderBottomWidth: style('#tasks-tab-content .task-tab.active', 'border-bottom-width'),
+        taskFilterBackground: style('#tasks-tab-content .task-filter', 'background-color'),
+        taskFilterBorderRadius: style('#tasks-tab-content .task-filter', 'border-radius'),
+        taskListBorderRadius: style('#tasks-tab-content #nocodb-tasks-list', 'border-radius'),
+        taskListBackground: style('#tasks-tab-content #nocodb-tasks-list', 'background-color'),
         filterBackground: style('#tasks-tab-content .task-filter input', 'background-color'),
         filterBorderRadius: style('#tasks-tab-content .task-filter input', 'border-radius'),
       },
       sampleTask: {
         backgroundImage: style('#tasks-tab-content .nocodb-task-item.overdue', 'background-image'),
+        backgroundColor: style('#tasks-tab-content .nocodb-task-item.overdue', 'background-color'),
         borderLeftWidth: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-left-width'),
         borderLeftColor: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-left-color'),
+        borderBottomWidth: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-bottom-width'),
         borderRadius: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-radius'),
         boxShadow: style('#tasks-tab-content .nocodb-task-item.overdue', 'box-shadow'),
         marginBottom: style('#tasks-tab-content .nocodb-task-item.overdue', 'margin-bottom'),
@@ -219,17 +244,20 @@ function buildChecks(desktop, mobile) {
     ),
     createCheck(
       'active_session_component_replaced',
-      includesAll(desktop.activeSession.backgroundImage, ['47, 128, 255', '18, 21, 25'])
+      includesAll(desktop.activeSession.backgroundColor, ['47', '128', '255'])
         && desktop.activeSession.borderLeftWidth === '2px'
-        && pxNumber(desktop.activeSession.borderRadius) <= 6
+        && pxNumber(desktop.activeSession.borderRadius) === 0
         && pxNumber(desktop.activeSession.height) <= 46,
       desktop.activeSession,
-      'dense row with blue rail, graphite surface, and small radius',
+      'dense flat row with blue rail and no card radius',
     ),
     createCheck(
       'session_rows_are_list_rows_not_cards',
       pxNumber(desktop.sessionRow.height) <= 46
         && pxNumber(desktop.sessionRow.paddingTop) <= 6
+        && pxNumber(desktop.sessionRow.borderRadius) === 0
+        && desktop.sessionRow.borderBottomWidth === '1px'
+        && includesAll(desktop.sessionRow.backgroundColor, ['0, 0, 0, 0'])
         && desktop.sessionRow.projectEmojiDisplay === 'none'
         && desktop.sessionRow.boxShadow === 'none'
         && pxNumber(desktop.sessionRow.summaryChipHeight) <= 17,
@@ -245,11 +273,12 @@ function buildChecks(desktop, mobile) {
     ),
     createCheck(
       'primary_button_component_replaced',
-      includesAll(desktop.addSessionButton.backgroundImage, ['57, 138, 255'])
-        && pxNumber(desktop.addSessionButton.borderRadius) <= 6
-        && pxNumber(desktop.addSessionButton.height) <= 38,
+      !includesAll(desktop.addSessionButton.backgroundImage, ['57, 138, 255'])
+        && includesAll(desktop.addSessionButton.backgroundColor, ['47', '128', '255'])
+        && pxNumber(desktop.addSessionButton.borderRadius) <= 4
+        && pxNumber(desktop.addSessionButton.height) <= 34,
       desktop.addSessionButton,
-      'compact cobalt primary command button',
+      'flat toolbar command, not a large filled card button',
     ),
     createCheck(
       'terminal_action_buttons_component_replaced',
@@ -261,22 +290,44 @@ function buildChecks(desktop, mobile) {
     createCheck(
       'drawer_tabs_component_replaced',
       pxNumber(desktop.drawer.width) > 0
-        && includesAll(desktop.drawer.activeTabBackground, ['47, 128, 255'])
-        && pxNumber(desktop.drawer.tabHeight) <= 52,
+        && pxNumber(desktop.drawer.tabHeight) <= 50
+        && pxNumber(desktop.drawer.tabBorderRadius) === 0
+        && desktop.drawer.activeTabBoxShadow === 'none'
+        && desktop.drawer.activeTabBorderBottomWidth === '2px',
       desktop.drawer,
-      'compact drawer tab strip with cobalt active tab',
+      'flat drawer tab strip with line active state, not a rounded tab card',
     ),
     createCheck(
       'timeline_component_replaced',
-      includesAll(desktop.tasks.timelineBackground, ['18, 21, 25'])
+      desktop.tasks.timelineBackground === 'none'
+        && includesAll(desktop.tasks.timelineBackgroundColor, ['0, 0, 0, 0'])
+        && pxNumber(desktop.tasks.timelineBorderRadius) === 0
+        && desktop.tasks.timelineBoxShadow === 'none'
         && desktop.tasks.timelineItemDisplay === 'grid',
       desktop.tasks,
-      'graphite timeline section with grid rows',
+      'flat timeline rows with no section card surface',
+    ),
+    createCheck(
+      'task_queue_is_table_not_nested_cards',
+      desktop.tasks.taskSectionBackground === 'none'
+        && includesAll(desktop.tasks.taskSectionBackgroundColor, ['0, 0, 0, 0'])
+        && pxNumber(desktop.tasks.taskSectionBorderRadius) === 0
+        && desktop.tasks.taskSectionBoxShadow === 'none'
+        && pxNumber(desktop.tasks.sectionHeaderBorderRadius) === 0
+        && pxNumber(desktop.tasks.taskTabsBorderRadius) === 0
+        && includesAll(desktop.tasks.taskTabsBackground, ['0, 0, 0, 0'])
+        && pxNumber(desktop.tasks.taskFilterBorderRadius) === 0
+        && includesAll(desktop.tasks.taskFilterBackground, ['0, 0, 0, 0'])
+        && pxNumber(desktop.tasks.taskListBorderRadius) === 0
+        && includesAll(desktop.tasks.taskListBackground, ['0, 0, 0, 0'])
+        && desktop.tasks.taskTabActiveBorderBottomWidth === '2px',
+      desktop.tasks,
+      'task queue must be a line/table composition with no nested card wrappers',
     ),
     createCheck(
       'task_filters_component_replaced',
       includesAll(desktop.tasks.filterBackground, ['7', '9', '11'])
-        && pxNumber(desktop.tasks.filterBorderRadius) >= 6,
+        && pxNumber(desktop.tasks.filterBorderRadius) <= 4,
       {
         filterBackground: desktop.tasks.filterBackground,
         filterBorderRadius: desktop.tasks.filterBorderRadius,
@@ -285,14 +336,16 @@ function buildChecks(desktop, mobile) {
     ),
     createCheck(
       'overdue_task_card_component_replaced',
-      includesAll(desktop.sampleTask.backgroundImage, ['18, 21, 25'])
+      desktop.sampleTask.backgroundImage === 'none'
+        && includesAll(desktop.sampleTask.backgroundColor, ['0, 0, 0, 0'])
         && desktop.sampleTask.borderLeftWidth === '2px'
+        && desktop.sampleTask.borderBottomWidth === '1px'
         && includesAll(desktop.sampleTask.borderLeftColor, ['243', '93', '93'])
-        && pxNumber(desktop.sampleTask.borderRadius) <= 6
+        && pxNumber(desktop.sampleTask.borderRadius) === 0
         && desktop.sampleTask.boxShadow === 'none'
         && pxNumber(desktop.sampleTask.marginBottom) <= 1,
       desktop.sampleTask,
-      'table-like graphite row with thin red status rail, not a rounded card stack',
+      'transparent table row with thin red status rail, not a filled card',
     ),
     createCheck(
       'mobile_no_horizontal_overflow',
