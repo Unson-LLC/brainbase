@@ -429,6 +429,13 @@ export const activityServiceMethods = {
         let ignoredStaleDoneHeartbeat = false;
 
         if (lifecycle === 'turn_started') {
+            const isOutOfOrderStartAfterDone = lastDoneAt > 0
+                && timestamp < lastDoneAt
+                && lastDoneAt >= lastWorkingAt;
+            if (isOutOfOrderStartAfterDone) {
+                logger.info(`[Hook] Ignoring out-of-order turn_started ${turnId || '(no turnId)'} for ${sessionId}; done=${lastDoneAt}, started=${timestamp}`);
+                return;
+            }
             if (turnId && !staleCodexPtyTurn) {
                 activeTurnIds.add(turnId);
             }

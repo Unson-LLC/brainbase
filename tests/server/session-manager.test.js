@@ -142,6 +142,30 @@ describe('SessionManager', () => {
     expect(status.isDone).toBe(false);
   });
 
+  it('done_then_older_turn_started_is_ignored_as_out_of_order', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now - 1000, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      activeTurnCount: 0,
+      lastEventType: 'agent-turn-complete'
+    });
+  });
+
   it('working_then_done_sets_isDone_true', () => {
     const manager = createManager();
     const now = Date.now();
