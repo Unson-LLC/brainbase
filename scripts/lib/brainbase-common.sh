@@ -10,7 +10,7 @@ cd "${WORKTREE_PATH:-${PWD:-/tmp}}" 2>/dev/null || cd /tmp
 # 1. BRAINBASE_PORT env var
 # 2. ~/.brainbase/active-port file
 # 3. ~/.brainbase-port fallback file
-# 4. Auto-detect on common ports (31014, 31013)
+# 4. Auto-detect on common ports (31013, 31014)
 # 5. BRAINBASE_FALLBACK_PORT or 31013
 resolve_brainbase_port() {
   if [ -n "$BRAINBASE_PORT" ]; then
@@ -40,7 +40,7 @@ resolve_brainbase_port() {
     fi
   fi
 
-  for port in 31014 31013; do
+  for port in 31013 31014; do
     if curl -s --max-time 0.3 "http://localhost:$port/api/version" >/dev/null 2>&1; then
       echo "$port"
       return

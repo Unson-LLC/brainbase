@@ -22,6 +22,9 @@ const tokens = new Map();
 
 // Token expiration time (1 hour)
 const TOKEN_EXPIRY = 60 * 60 * 1000;
+const DEV_WARNING_INTERVAL = 60 * 1000;
+/** @type {Map<string, number>} */
+const devWarningLastLoggedAt = new Map();
 
 /**
  * Generate a new CSRF token
@@ -66,6 +69,22 @@ export function cleanupExpiredTokens() {
             tokens.delete(sessionId);
         }
     }
+
+    for (const [key, lastLoggedAt] of devWarningLastLoggedAt.entries()) {
+        if (now - lastLoggedAt > DEV_WARNING_INTERVAL * 2) {
+            devWarningLastLoggedAt.delete(key);
+        }
+    }
+}
+
+function warnOncePerInterval(message, key) {
+    const now = Date.now();
+    const lastLoggedAt = devWarningLastLoggedAt.get(key) || 0;
+    if (now - lastLoggedAt < DEV_WARNING_INTERVAL) {
+        return;
+    }
+    devWarningLastLoggedAt.set(key, now);
+    logger.warn(message);
 }
 
 // Run cleanup every 15 minutes
@@ -100,7 +119,10 @@ export function csrfMiddleware() {
         // In development, log warning but allow request
         if (process.env.NODE_ENV !== 'production') {
             if (!token) {
-                logger.warn(`[CSRF] Missing token for ${req.method} ${req.path}`);
+                warnOncePerInterval(
+                    `[CSRF] Missing token for ${req.method} ${req.path}`,
+                    `${req.method || 'UNKNOWN'}:${req.path || 'unknown'}`
+                );
             }
             return next();
         }
