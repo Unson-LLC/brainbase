@@ -75,7 +75,8 @@ export function resolveAuthContext(req, authService) {
     try {
         const header = req.headers?.authorization || '';
         const bearerToken = header.startsWith('Bearer ') ? header.slice(7) : null;
-        const { accessToken: cookieToken } = getAuthTokensFromRequest(req);
+        const authTokens = getAuthTokensFromRequest(req);
+        const cookieToken = authTokens.accessToken;
         const token = bearerToken || cookieToken;
 
         if (!token) {
