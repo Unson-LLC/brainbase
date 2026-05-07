@@ -85,7 +85,11 @@ async function collectDesktopEvidence(page) {
         <div class="task-title">VibePro component replacement sample</div>
         <div class="task-meta">
           <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
-          <select class="task-status-select status-pending"><option>未着手</option></select>
+          <select class="task-status-select status-pending">
+            <option value="pending" selected>未着手</option>
+            <option value="in_progress">進行中</option>
+            <option value="completed">完了</option>
+          </select>
           <div class="assignee-combobox">
             <button class="assignee-trigger">
               <span class="assignee-avatar" aria-hidden="true">OP</span>
@@ -144,7 +148,11 @@ async function collectDesktopEvidence(page) {
           <div class="task-title">VibePro component replacement sample</div>
           <div class="task-meta">
             <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
-            <select class="task-status-select status-pending"><option>未着手</option></select>
+            <select class="task-status-select status-pending">
+              <option value="pending" selected>未着手</option>
+              <option value="in_progress">進行中</option>
+              <option value="completed">完了</option>
+            </select>
             <div class="assignee-combobox">
               <button class="assignee-trigger">
                 <span class="assignee-avatar" aria-hidden="true">OP</span>
@@ -412,6 +420,8 @@ async function collectDesktopEvidence(page) {
         statusBackground: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'background-color'),
         statusBorderRadius: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'border-radius'),
         statusAppearance: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'appearance'),
+        statusOptionCount: document.querySelectorAll('#tasks-tab-content .nocodb-task-item.overdue .task-status-select option').length,
+        statusCompletedOption: Boolean(document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-status-select option[value="completed"]')),
         assigneeAvatarWidth: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.getBoundingClientRect().width ?? null,
         assigneeAvatarText: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.textContent?.trim() ?? '',
       },
@@ -834,15 +844,19 @@ function buildChecks(desktop, mobile) {
       pxNumber(desktop.sampleTask.statusBorderRadius) <= 4
         && pxNumber(desktop.sampleTask.assigneeAvatarWidth) >= 26
         && desktop.sampleTask.assigneeAvatarText.length > 0
+        && desktop.sampleTask.statusOptionCount >= 3
+        && desktop.sampleTask.statusCompletedOption === true
         && includesAll(desktop.sampleTask.statusBackground, ['191', '201', '214']),
       {
         statusBackground: desktop.sampleTask.statusBackground,
         statusBorderRadius: desktop.sampleTask.statusBorderRadius,
         statusAppearance: desktop.sampleTask.statusAppearance,
+        statusOptionCount: desktop.sampleTask.statusOptionCount,
+        statusCompletedOption: desktop.sampleTask.statusCompletedOption,
         assigneeAvatarWidth: desktop.sampleTask.assigneeAvatarWidth,
         assigneeAvatarText: desktop.sampleTask.assigneeAvatarText,
       },
-      'task queue status must read as a badge and assignee must be an avatar, not a generic icon control',
+      'task queue status must read as a badge, include all status choices, and assignee must be an avatar',
     ),
     createCheck(
       'wiki_tab_matches_generated_component',

@@ -449,7 +449,16 @@ export class NocoDBTasksView extends BaseView {
     _attachStatusHandlers() {
         // ステータス変更
         this.container.querySelectorAll('.task-status-select').forEach(select => {
+            const keepInteractionLocal = (e) => {
+                e.stopPropagation();
+            };
+
+            select.addEventListener('pointerdown', keepInteractionLocal);
+            select.addEventListener('mousedown', keepInteractionLocal);
+            select.addEventListener('click', keepInteractionLocal);
+            select.addEventListener('keydown', keepInteractionLocal);
             select.addEventListener('change', async (e) => {
+                e.stopPropagation();
                 const taskId = e.target.dataset.taskId;
                 const newStatus = e.target.value;
 
