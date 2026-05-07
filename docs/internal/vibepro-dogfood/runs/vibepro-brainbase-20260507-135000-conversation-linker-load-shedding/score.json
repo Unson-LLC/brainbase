@@ -1,0 +1,25 @@
+{
+  "run_id": "vibepro-brainbase-20260507-135000-conversation-linker-load-shedding",
+  "status": "scored",
+  "metrics": {
+    "本番化ギャップ捕捉率": 1,
+    "本番化ギャップ的中率": 1,
+    "ゲート違反流出率": 0
+  },
+  "feedback": {
+    "detected_correctly": [
+      "gap.conversation_linker.repeated_codex_jsonl_reads",
+      "gap.activity_logs.high_frequency_info"
+    ],
+    "missed_gaps": [],
+    "over_detected_gaps": [],
+    "escaped_gate_violations": [],
+    "effective_interventions": [
+      "intervention.codex_file_metadata_cache"
+    ],
+    "weak_interventions": [],
+    "next_rule_updates": [
+      "runtime反映後のLoki再測定を次runの観測factに含める"
+    ]
+  }
+}

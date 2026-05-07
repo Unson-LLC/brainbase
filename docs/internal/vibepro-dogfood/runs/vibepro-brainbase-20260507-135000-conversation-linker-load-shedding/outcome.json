@@ -1,0 +1,33 @@
+{
+  "run_id": "vibepro-brainbase-20260507-135000-conversation-linker-load-shedding",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.conversation_linker.repeated_codex_jsonl_reads",
+      "fact_ids": [
+        "fact.conversation_linker.codex_full_read_repeated"
+      ],
+      "severity": "high",
+      "category": "runtime_load",
+      "reason": "A failing test reproduced the repeated cwd read; implementation changed second rebuild to zero cwd reads"
+    },
+    {
+      "actual_gap_id": "actual.gap.activity_logs.high_frequency_info",
+      "fact_ids": [
+        "fact.activity_logs.high_frequency_info"
+      ],
+      "severity": "medium",
+      "category": "log_volume",
+      "reason": "High-frequency status and websocket broadcast logs were moved to debug"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": [
+    {
+      "intervention_id": "intervention.codex_file_metadata_cache",
+      "result": "effective",
+      "evidence": "Real benchmark secondReads=0"
+    }
+  ]
+}

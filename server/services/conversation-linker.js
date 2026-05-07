@@ -71,6 +71,7 @@ export class ConversationLinker {
         this._isLinking = false;
         this._codexIndexCache = null;
         this._codexIndexCacheTime = 0;
+        this._codexFileMetaCache = new Map();
         this._linkCursor = 0;
     }
 
@@ -612,8 +613,11 @@ export class ConversationLinker {
         const index = new Map();
 
         if (!existsSync(this.codexSessionsDir)) {
+            this._codexFileMetaCache.clear();
             return index;
         }
+
+        const seenFiles = new Set();
 
         try {
             // ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl を再帰走査
@@ -630,7 +634,8 @@ export class ConversationLinker {
                         for (const file of files) {
                             if (!file.endsWith('.jsonl')) continue;
                             const filePath = path.join(dayDir, file);
-                            const cwd = await this.getCodexSessionCwd(filePath);
+                            seenFiles.add(filePath);
+                            const cwd = await this._getCodexSessionCwdForIndex(filePath);
                             if (cwd) {
                                 const normalized = cwd.replace(/\/+$/, '');
                                 const existing = index.get(normalized) || [];
@@ -645,10 +650,39 @@ export class ConversationLinker {
             logger.warn('[ConversationLinker] Error building Codex index:', err.message);
         }
 
+        for (const filePath of this._codexFileMetaCache.keys()) {
+            if (!seenFiles.has(filePath)) {
+                this._codexFileMetaCache.delete(filePath);
+            }
+        }
+
         logger.info(`[ConversationLinker] Codex index: ${index.size} unique cwd(s)`);
         this._codexIndexCache = index;
         this._codexIndexCacheTime = Date.now();
         return index;
+    }
+
+    async _getCodexSessionCwdForIndex(filePath) {
+        let stat;
+        try {
+            stat = await fs.stat(filePath);
+        } catch {
+            this._codexFileMetaCache.delete(filePath);
+            return null;
+        }
+
+        const cached = this._codexFileMetaCache.get(filePath);
+        if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+            return cached.cwd;
+        }
+
+        const cwd = await this.getCodexSessionCwd(filePath);
+        this._codexFileMetaCache.set(filePath, {
+            size: stat.size,
+            mtimeMs: stat.mtimeMs,
+            cwd
+        });
+        return cwd;
     }
 
     /**

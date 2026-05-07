@@ -1,0 +1,51 @@
+{
+  "run_id": "vibepro-brainbase-20260507-135000-conversation-linker-load-shedding",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-07T04:50:00.000Z",
+  "repo": {
+    "branch": "feat/conversation-linker-load-shedding",
+    "changed_files": [
+      {
+        "path": "server/services/conversation-linker.js",
+        "status": "M",
+        "category": "implementation"
+      },
+      {
+        "path": "server/services/session-activity-ws-service.js",
+        "status": "M",
+        "category": "implementation"
+      },
+      {
+        "path": "server/services/session-core/activity-service-methods.js",
+        "status": "M",
+        "category": "implementation"
+      },
+      {
+        "path": "tests/server/services/conversation-linker.test.js",
+        "status": "M",
+        "category": "test"
+      }
+    ]
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.conversation_linker.codex_full_read_repeated",
+      "kind": "runtime_load",
+      "severity": "high",
+      "summary": "Codex index rebuild rereads unchanged jsonl files after index cache expiry",
+      "evidence": [
+        "Red test expected getCodexSessionCwd to be called once but observed two calls"
+      ]
+    },
+    {
+      "fact_id": "fact.activity_logs.high_frequency_info",
+      "kind": "log_volume",
+      "severity": "medium",
+      "summary": "Hook status and ActivityWs broadcast logs are emitted at heartbeat frequency",
+      "evidence": [
+        "Loki showed roughly 2000 Hook and ActivityWs records per hour before this change"
+      ]
+    }
+  ]
+}

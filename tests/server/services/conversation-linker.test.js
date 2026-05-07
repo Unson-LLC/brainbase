@@ -15,6 +15,14 @@ async function createJsonlFile(lines) {
   return filePath;
 }
 
+async function createCodexSessionFile(rootDir, { year = '2026', month = '05', day = '07', file = 'rollout-test.jsonl', cwd }) {
+  const dayDir = path.join(rootDir, year, month, day);
+  await fs.mkdir(dayDir, { recursive: true });
+  const filePath = path.join(dayDir, file);
+  await fs.writeFile(filePath, `${JSON.stringify({ type: 'session_meta', cwd })}\n`, 'utf8');
+  return filePath;
+}
+
 describe('ConversationLinker', () => {
   afterEach(async () => {
     while (tempDirs.length > 0) {
@@ -151,5 +159,45 @@ describe('ConversationLinker', () => {
       'session-3',
       'session-1'
     ]);
+  });
+
+  it('Codex index再構築時_未変更jsonlのcwd読み取りを再実行しない', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-index-'));
+    tempDirs.push(codexRoot);
+    await createCodexSessionFile(codexRoot, { cwd: '/tmp/project-a' });
+
+    const linker = new ConversationLinker({
+      stateStore: { get: () => ({ sessions: [] }), update: async () => ({ sessions: [] }) }
+    });
+    linker.codexSessionsDir = codexRoot;
+    const readCwd = vi.spyOn(linker, 'getCodexSessionCwd');
+
+    await linker._buildCodexIndex();
+    linker._codexIndexCacheTime = 0;
+    const secondIndex = await linker._buildCodexIndex();
+
+    expect(readCwd).toHaveBeenCalledTimes(1);
+    expect(secondIndex.get('/tmp/project-a')).toHaveLength(1);
+  });
+
+  it('Codex index再構築時_更新されたjsonlだけcwdを読み直す', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-index-'));
+    tempDirs.push(codexRoot);
+    const filePath = await createCodexSessionFile(codexRoot, { cwd: '/tmp/project-a' });
+
+    const linker = new ConversationLinker({
+      stateStore: { get: () => ({ sessions: [] }), update: async () => ({ sessions: [] }) }
+    });
+    linker.codexSessionsDir = codexRoot;
+    const readCwd = vi.spyOn(linker, 'getCodexSessionCwd');
+
+    await linker._buildCodexIndex();
+    await fs.writeFile(filePath, `${JSON.stringify({ type: 'session_meta', cwd: '/tmp/project-b-updated' })}\n`, 'utf8');
+    linker._codexIndexCacheTime = 0;
+    const secondIndex = await linker._buildCodexIndex();
+
+    expect(readCwd).toHaveBeenCalledTimes(2);
+    expect(secondIndex.has('/tmp/project-a')).toBe(false);
+    expect(secondIndex.get('/tmp/project-b-updated')).toEqual([filePath]);
   });
 });
