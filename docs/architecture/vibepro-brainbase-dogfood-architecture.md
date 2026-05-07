@@ -6,7 +6,7 @@ source_story:
   path: docs/stories/vibepro-brainbase-dogfood-story.md
 status: accepted
 created_at: 2026-04-25
-updated_at: 2026-04-27
+updated_at: 2026-05-07
 ---
 
 # ADR-vibepro-brainbase-dogfood: 自立開発DAGと評価分離アーキテクチャ
@@ -83,6 +83,7 @@ DAGでは上流ノードが失敗・欠落しているのに下流ノードを�
 | `vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard` | `vibepro-dogfood/activity-indicator/20260506-stale-spinner-heartbeat-guard` | Graphifyで見つけた stale spinner / done overwrite / activeTurnなしheartbeat の固定青リスクをテストと実装で回収する | `development-run.json` と Graphify focused corpus |
 | `vibepro-brainbase-20260506-204100-session-status-sort-contract` | `vibepro-dogfood/activity-indicator/20260506-session-status-sort-contract` | `/api/sessions/status` polling から sessionUi と timeline sort へ伝播する暗黙契約を integration-style UI test で固定する | `development-run.json` と Graphify focused corpus |
 | `vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow` | `vibepro-dogfood/control-plane/20260506-score-evidence-advisory-workflow` | scorer workflow を生成型CIではなく、VibePro関連変更時だけコミット済み score evidence を検証する advisory check として接続する | `development-run.json` と `.github/workflows/vibepro-score-run.yml` |
+| `vibepro-brainbase-20260507-135000-conversation-linker-load-shedding` | `vibepro-dogfood/runtime-load/20260507-conversation-linker-load-shedding` | Lokiで見えた ConversationLinker の周期I/Oと heartbeat log volume を、Story / Spec / Test / Code / run evidence で閉じる | `development-run.json` と PR #616 |
 
 ## 原則
 
