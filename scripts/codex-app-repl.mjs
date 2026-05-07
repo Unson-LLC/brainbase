@@ -37,6 +37,8 @@ let activeTurnId = null;
 let inTurn = false;
 let sawDelta = false;
 let resolvedPort = null;
+let csrfToken = null;
+let csrfTokenFetchedAt = 0;
 
 const serverReader = readline.createInterface({
   input: server.stdout,
@@ -121,9 +123,15 @@ async function reportActivity(status) {
   if (!sessionId) return;
   const port = resolveBrainbasePort();
   try {
+    const token = await getCsrfToken(port);
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Session-Id': sessionId
+    };
+    if (token) headers['X-CSRF-Token'] = token;
     await fetch(`http://localhost:${port}/api/sessions/report_activity`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         sessionId,
         status,
@@ -132,6 +140,27 @@ async function reportActivity(status) {
     });
   } catch {
     // ignore
+  }
+}
+
+async function getCsrfToken(port) {
+  if (csrfToken && Date.now() - csrfTokenFetchedAt < 50 * 60 * 1000) {
+    return csrfToken;
+  }
+  try {
+    const response = await fetch(`http://localhost:${port}/api/csrf-token`, {
+      method: 'GET',
+      headers: { 'X-Session-Id': sessionId }
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const token = typeof data?.token === 'string' ? data.token : data?.csrfToken;
+    if (typeof token !== 'string' || !token) return null;
+    csrfToken = token;
+    csrfTokenFetchedAt = Date.now();
+    return csrfToken;
+  } catch {
+    return null;
   }
 }
 

@@ -141,10 +141,7 @@ post_activity_report() {
   local payload_json=""
 
   payload_json="$(build_report_payload "$report_status" "$report_at" "$report_lifecycle" "$report_event_type" "$report_turn_id" "$report_activity_kind" "$report_task_brief" "$report_current_step" "$report_latest_evidence" "$report_assistant_snippet")"
-  curl -X POST "http://localhost:${port}/api/sessions/report_activity" \
-    -H "Content-Type: application/json" \
-    -d "$payload_json" \
-    --max-time 1 >/dev/null 2>&1 || true &
+  post_brainbase_activity_json "$port" "$payload_json" >/dev/null 2>&1 || true &
 }
 
 derive_activity_fields() {

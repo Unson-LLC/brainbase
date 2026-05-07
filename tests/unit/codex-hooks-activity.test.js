@@ -10,14 +10,20 @@ const repoRoot = process.cwd();
 function createCurlStub(dir) {
     const stubPath = path.join(dir, 'curl');
     writeFileSync(stubPath, `#!/bin/sh
+headers=""
+prev=""
 for arg in "$@"; do
   case "$arg" in
     *"/api/version"*) exit 0 ;;
+    *"/api/csrf-token"*) printf '{"token":"test-csrf-token"}'; exit 0 ;;
   esac
 done
 payload=""
 prev=""
 for arg in "$@"; do
+  if [ "$prev" = "-H" ]; then
+    headers="$headers$arg\\n"
+  fi
   if [ "$prev" = "-d" ]; then
     payload="$arg"
     break
@@ -26,6 +32,9 @@ for arg in "$@"; do
 done
 if [ -n "$payload" ]; then
   printf '%s\\n' "$payload" >> "$CURL_LOG"
+  if [ -n "$CURL_HEADER_LOG" ]; then
+    printf '%s' "$headers" >> "$CURL_HEADER_LOG"
+  fi
 fi
 exit 0
 `);
@@ -41,7 +50,9 @@ function readReports(logPath) {
 function runHook(payload) {
     const tempDir = mkdtempSync(path.join(tmpdir(), 'codex-hooks-activity-'));
     const logPath = path.join(tempDir, 'curl.log');
+    const headerLogPath = path.join(tempDir, 'curl-headers.log');
     writeFileSync(logPath, '');
+    writeFileSync(headerLogPath, '');
     createCurlStub(tempDir);
 
     const result = spawnSync('bash', ['scripts/codex-hooks-activity.sh'], {
@@ -51,6 +62,7 @@ function runHook(payload) {
             ...process.env,
             PATH: `${tempDir}:${process.env.PATH}`,
             CURL_LOG: logPath,
+            CURL_HEADER_LOG: headerLogPath,
             TMPDIR: tempDir,
             BRAINBASE_SESSION_ID: 'session-codex-hooks-test',
             BRAINBASE_PORT: '31013'
@@ -58,7 +70,7 @@ function runHook(payload) {
         encoding: 'utf8'
     });
 
-    return { result, reports: readReports(logPath) };
+    return { result, reports: readReports(logPath), headers: readFileSync(headerLogPath, 'utf8') };
 }
 
 describe('codex-hooks-activity.sh', () => {
@@ -83,7 +95,7 @@ describe('codex-hooks-activity.sh', () => {
     });
 
     it('UserPromptSubmit受信時_turn_startedとしてworkingを報告する', () => {
-        const { result, reports } = runHook({
+        const { result, reports, headers } = runHook({
             hook_event_name: 'UserPromptSubmit',
             turn_id: 'turn-hook-1',
             prompt: '青インジケーターを直して'
@@ -102,6 +114,8 @@ describe('codex-hooks-activity.sh', () => {
                 currentStep: '依頼を受けて作業開始'
             })
         ]);
+        expect(headers).toContain('X-Session-Id: session-codex-hooks-test');
+        expect(headers).toContain('X-CSRF-Token: test-csrf-token');
     });
 
     it('Stop受信時_turn_completedとしてdoneを報告する', () => {

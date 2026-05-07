@@ -65,3 +65,64 @@ ensure_tmpdir() {
   mkdir -p "$dir" >/dev/null 2>&1 || true
   echo "$dir"
 }
+
+# Fetch a CSRF token for localhost hook/notify clients.
+# The server stores tokens by X-Session-Id, so report_activity posts must use
+# the same session id header that was used to fetch the token.
+fetch_brainbase_csrf_token() {
+  local port="$1"
+  local session_id="${2:-${BRAINBASE_SESSION_ID:-default}}"
+  local response=""
+
+  if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    return 1
+  fi
+
+  response="$(curl -sS --max-time 1 \
+    -H "X-Session-Id: ${session_id}" \
+    "http://localhost:${port}/api/csrf-token" 2>/dev/null || true)"
+  if [ -z "$response" ]; then
+    return 1
+  fi
+
+  CSRF_RESPONSE="$response" python3 - <<'PY'
+import json
+import os
+import sys
+
+try:
+    data = json.loads(os.environ.get("CSRF_RESPONSE", ""))
+except Exception:
+    sys.exit(1)
+
+token = data.get("token") or data.get("csrfToken")
+if not isinstance(token, str) or not token:
+    sys.exit(1)
+print(token)
+PY
+}
+
+post_brainbase_activity_json() {
+  local port="$1"
+  local payload_json="$2"
+  local session_id="${BRAINBASE_SESSION_ID:-default}"
+  local csrf_token=""
+
+  csrf_token="$(fetch_brainbase_csrf_token "$port" "$session_id" 2>/dev/null || true)"
+
+  if [ -n "$csrf_token" ]; then
+    curl -X POST "http://localhost:${port}/api/sessions/report_activity" \
+      -H "Content-Type: application/json" \
+      -H "X-Session-Id: ${session_id}" \
+      -H "X-CSRF-Token: ${csrf_token}" \
+      -d "$payload_json" \
+      --max-time 1 >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  curl -X POST "http://localhost:${port}/api/sessions/report_activity" \
+    -H "Content-Type: application/json" \
+    -H "X-Session-Id: ${session_id}" \
+    -d "$payload_json" \
+    --max-time 1 >/dev/null 2>&1 || true
+}

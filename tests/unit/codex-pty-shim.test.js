@@ -99,4 +99,24 @@ print(reporter.posts[1]["turnId"])
         expect(lines[0]).toMatch(/^codex-pty-turn-1778118000000-\d+$/);
         expect(lines[1]).toBe(lines[0]);
     });
+
+    it('activity report POSTにCSRFヘッダーを付与する', () => {
+        const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
+        const result = runPython(`
+import importlib.util
+spec = importlib.util.spec_from_file_location("shim", ${JSON.stringify(scriptPath)})
+shim = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(shim)
+
+reporter = shim.ActivityReporter({"BRAINBASE_SESSION_ID": "session-test", "BRAINBASE_PORT": "31013"}, clock=lambda: 1000.0)
+reporter._get_csrf_token = lambda: "test-csrf-token"
+args = reporter._build_post_args({"sessionId": "session-test", "status": "working", "reportedAt": 1000})
+print("\\n".join(args))
+`);
+
+        expect(result.stderr).toBe('');
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('X-Session-Id: session-test');
+        expect(result.stdout).toContain('X-CSRF-Token: test-csrf-token');
+    });
 });
