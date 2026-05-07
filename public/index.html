@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202605072025">
+    <link rel="stylesheet" href="style.css?v=202605072040">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -81,8 +81,8 @@
                         </div>
                     </div>
                 </div>
-                <button id="auth-btn" class="activity-bar-item auth-link" title="ログイン" aria-label="ログイン">
-                    <i data-lucide="log-in"></i>
+                <button id="auth-btn" class="activity-bar-item auth-link" title="ログイン" aria-label="ログイン" data-auth-status="anonymous">
+                    <i data-lucide="circle-user-round"></i>
                     <span id="auth-btn-text" class="activity-bar-label">ログイン</span>
                     <span id="auth-status-badge" class="auth-status-badge neutral">未ログイン</span>
                 </button>

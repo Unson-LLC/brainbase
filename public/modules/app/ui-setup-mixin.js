@@ -554,7 +554,7 @@ export function applyUiSetupMixin(AppClass) {
         const authBtn = document.getElementById('auth-btn');
         if (!authBtn) return;
 
-        const icon = authBtn.querySelector('i');
+        const icon = authBtn.querySelector('[data-lucide]');
         const text = document.getElementById('auth-btn-text');
         const badge = document.getElementById('auth-status-badge');
 
@@ -562,13 +562,13 @@ export function applyUiSetupMixin(AppClass) {
         const status = summary.status || 'anonymous';
 
         let label = 'ログイン';
-        let iconName = 'log-in';
+        let iconName = 'circle-user-round';
         let badgeText = '未ログイン';
         let badgeClass = 'neutral';
 
         if (status === 'authenticated') {
             label = 'ログアウト';
-            iconName = 'log-out';
+            iconName = 'circle-user-round';
             badgeText = 'ログイン済み';
             badgeClass = 'success';
         } else if (status === 'checking') {
@@ -589,6 +589,7 @@ export function applyUiSetupMixin(AppClass) {
         }
 
         authBtn.disabled = status === 'checking';
+        authBtn.dataset.authStatus = status;
         authBtn.title = label;
         authBtn.setAttribute('aria-label', label);
         if (text) text.textContent = label;

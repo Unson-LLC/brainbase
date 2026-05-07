@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605072025';
+const EXPECTED_CSS_VERSION = '202605072040';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -105,6 +105,12 @@ async function collectDesktopEvidence(page) {
       const element = document.querySelector(selector);
       if (!element) return null;
       return getComputedStyle(element).getPropertyValue(property);
+    }
+
+    function pseudoStyle(selector, pseudo, property) {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      return getComputedStyle(element, pseudo).getPropertyValue(property);
     }
 
     function elementStyle(element, property) {
@@ -208,6 +214,16 @@ async function collectDesktopEvidence(page) {
         authBadgeClipPath: style('.activity-bar-bottom #auth-status-badge', 'clip-path'),
         inboxLabelClipPath: style('.activity-bar-bottom #inbox-trigger-btn .activity-bar-label', 'clip-path'),
         dropdownLeft: style('.activity-bar-bottom .inbox-dropdown', 'left'),
+        inboxColor: style('.activity-bar-bottom #inbox-trigger-btn', 'color'),
+        inboxBadgeBackground: style('.activity-bar-bottom #inbox-badge', 'background-color'),
+        inboxBadgeBoxShadow: style('.activity-bar-bottom #inbox-badge', 'box-shadow'),
+        authStatus: document.querySelector('.activity-bar-bottom #auth-btn')?.dataset.authStatus ?? null,
+        authIconName: document.querySelector('.activity-bar-bottom #auth-btn [data-lucide]')?.getAttribute('data-lucide') ?? null,
+        authIconClass: document.querySelector('.activity-bar-bottom #auth-btn svg, .activity-bar-bottom #auth-btn i')?.getAttribute('class') ?? null,
+        authColor: style('.activity-bar-bottom #auth-btn', 'color'),
+        authBackground: style('.activity-bar-bottom #auth-btn', 'background-color'),
+        authBorderLeftColor: style('.activity-bar-bottom #auth-btn', 'border-left-color'),
+        authStatusDotBackground: pseudoStyle('.activity-bar-bottom #auth-btn', '::after', 'background-color'),
       },
       addSessionButton: {
         backgroundImage: style('.add-session-btn', 'background-image'),
@@ -473,6 +489,24 @@ function buildChecks(desktop, mobile) {
         && desktop.activityBarGlobalActions.inboxLabelClipPath.includes('inset'),
       desktop.activityBarGlobalActions,
       'notification and auth controls must be icon actions in the global activity bar, not rows in the session list',
+    ),
+    createCheck(
+      'global_action_status_components_are_legible',
+      includesAll(desktop.activityBarGlobalActions.inboxColor, ['103', '179', '255'])
+        && includesAll(desktop.activityBarGlobalActions.inboxBadgeBackground, ['243', '93', '93'])
+        && includesAll(desktop.activityBarGlobalActions.inboxBadgeBoxShadow, ['243', '93', '93'])
+        && ['anonymous', 'authenticated', 'checking', 'expired', 'unavailable'].includes(desktop.activityBarGlobalActions.authStatus)
+        && (desktop.activityBarGlobalActions.authIconName === 'circle-user-round'
+          || String(desktop.activityBarGlobalActions.authIconClass || '').includes('circle-user-round'))
+        && (
+          includesAll(desktop.activityBarGlobalActions.authStatusDotBackground, ['240', '180', '67'])
+          || includesAll(desktop.activityBarGlobalActions.authStatusDotBackground, ['37', '194', '110'])
+          || includesAll(desktop.activityBarGlobalActions.authStatusDotBackground, ['86', '160', '255'])
+          || includesAll(desktop.activityBarGlobalActions.authStatusDotBackground, ['243', '93', '93'])
+        )
+        && !includesAll(desktop.activityBarGlobalActions.authColor, ['174', '184', '197']),
+      desktop.activityBarGlobalActions,
+      'notification must use a visible blue/red status treatment and auth must use a my-page icon with a colored login-state dot',
     ),
     createCheck(
       'primary_button_component_replaced',

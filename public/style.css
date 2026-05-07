@@ -16061,3 +16061,100 @@ body.resizing iframe {
 .command-center-theme .sidebar-footer {
     display: none;
 }
+
+/* Command Center v9: make global action states legible on the left rail. */
+.command-center-theme .activity-bar-bottom #inbox-trigger-btn {
+    color: #67b3ff;
+}
+
+.command-center-theme .activity-bar-bottom #inbox-trigger-btn:hover {
+    border-left-color: rgba(86, 160, 255, 0.74);
+    background: rgba(47, 128, 255, 0.14);
+    color: #d8eaff;
+}
+
+.command-center-theme .activity-bar-bottom #inbox-trigger-btn svg,
+.command-center-theme .activity-bar-bottom #inbox-trigger-btn i {
+    filter: drop-shadow(0 0 6px rgba(47, 128, 255, 0.22));
+}
+
+.command-center-theme .activity-bar-bottom .inbox-badge {
+    border-color: rgba(8, 10, 13, 0.98);
+    background: #f35d5d;
+    color: #fff7f7;
+    box-shadow: 0 0 0 2px rgba(243, 93, 93, 0.18);
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn {
+    color: #aeb8c5;
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid rgba(8, 10, 13, 0.98);
+    border-radius: 50%;
+    background: #7f8996;
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="authenticated"] {
+    border-left-color: rgba(37, 194, 110, 0.72);
+    background: rgba(37, 194, 110, 0.1);
+    color: #74dea4;
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="authenticated"]::after {
+    background: #25c26e;
+    box-shadow: 0 0 0 3px rgba(37, 194, 110, 0.16);
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="anonymous"],
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="unavailable"] {
+    border-left-color: rgba(240, 180, 67, 0.5);
+    background: rgba(240, 180, 67, 0.07);
+    color: #e9bf6a;
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="anonymous"]::after,
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="unavailable"]::after {
+    background: #f0b443;
+    box-shadow: 0 0 0 3px rgba(240, 180, 67, 0.13);
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="expired"] {
+    border-left-color: rgba(243, 93, 93, 0.68);
+    background: rgba(243, 93, 93, 0.09);
+    color: #ff9b9b;
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="expired"]::after {
+    background: #f35d5d;
+    box-shadow: 0 0 0 3px rgba(243, 93, 93, 0.14);
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="checking"] {
+    border-left-color: rgba(86, 160, 255, 0.58);
+    background: rgba(47, 128, 255, 0.1);
+    color: #89bfff;
+}
+
+.command-center-theme .activity-bar-bottom #auth-btn[data-auth-status="checking"]::after {
+    background: #56a0ff;
+    animation: bb-auth-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes bb-auth-status-pulse {
+    0%, 100% {
+        transform: scale(0.92);
+        opacity: 0.72;
+    }
+
+    50% {
+        transform: scale(1.12);
+        opacity: 1;
+    }
+}
