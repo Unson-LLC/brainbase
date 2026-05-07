@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "generated_at": "2026-05-07T06:00:08.993Z",
+  "generated_at": "2026-05-07T06:06:17.584Z",
   "url": "http://localhost:31016",
   "screenshots": {
     "desktop": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-desktop.png",
@@ -51,7 +51,7 @@
         "backgroundImage": "none",
         "boxShadow": "none",
         "projectEmojiDisplay": "none",
-        "summaryChipHeight": 15
+        "summaryChipHeight": null
       },
       "expected": "session rows must be compact list rows with no emoji tile or card shadow"
     },
