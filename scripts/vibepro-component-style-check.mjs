@@ -54,6 +54,12 @@ async function collectDesktopEvidence(page) {
     });
     document.querySelector('#local-tasks-panel')?.classList.remove('active');
     document.querySelector('#nocodb-tasks-panel')?.classList.add('active');
+
+    const assigneeFilter = document.querySelector('#nocodb-assignee-filter');
+    if (assigneeFilter) {
+      assigneeFilter.value = '';
+      assigneeFilter.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   });
   await page.waitForTimeout(2500);
 
