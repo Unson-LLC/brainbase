@@ -1,0 +1,21 @@
+{
+  "run_id": "vibepro-brainbase-20260507-101513-command-center-redesign",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-05-07T01:16:44.789Z",
+  "scope": [
+    "change_control"
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.repo.unrelated-dirty-files",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    }
+  ]
+}

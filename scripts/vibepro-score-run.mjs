@@ -40,6 +40,7 @@ const VIBEPRO_SCOPE_FILES = new Set([
   'docs/specs/vibepro-brainbase-self-evaluation-spec.md',
   'docs/stories/vibepro-brainbase-dogfood-story.md',
   'package.json',
+  'scripts/vibepro-component-style-check.mjs',
   'scripts/vibepro-development-dag-check.mjs',
   'scripts/vibepro-doc-trace-check.mjs',
   'scripts/vibepro-graph-ssot-check.mjs',

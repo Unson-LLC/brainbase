@@ -1,0 +1,142 @@
+{
+  "status": "passed",
+  "generated_at": "2026-05-07T04:42:12.461Z",
+  "url": "http://localhost:31014",
+  "screenshots": {
+    "desktop": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-desktop.png",
+    "mobile": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-mobile.png"
+  },
+  "component_coverage": {
+    "checked_count": 13,
+    "passed_count": 13,
+    "failed_count": 0
+  },
+  "checks": [
+    {
+      "id": "css_cache_buster_updated",
+      "status": "passed",
+      "actual": "http://localhost:31014/style.css?v=202605071330",
+      "expected": "style.css?v=202605071330"
+    },
+    {
+      "id": "layout_not_replaced_by_component_sheet",
+      "status": "passed",
+      "actual": {
+        "commandCenterWorkspaceExists": false
+      },
+      "expected": "component sheet workspace must not exist in app DOM"
+    },
+    {
+      "id": "active_session_component_replaced",
+      "status": "passed",
+      "actual": {
+        "backgroundImage": "linear-gradient(90deg, rgba(47, 128, 255, 0.2), rgba(0, 0, 0, 0) 42%), linear-gradient(rgba(18, 21, 25, 0.94), rgba(12, 15, 18, 0.94))",
+        "borderLeftWidth": "2px",
+        "borderLeftColor": "rgb(47, 128, 255)"
+      },
+      "expected": "blue left rail with graphite card background"
+    },
+    {
+      "id": "activity_bar_active_component_replaced",
+      "status": "passed",
+      "actual": {
+        "backgroundImage": "linear-gradient(rgba(47, 128, 255, 0.24), rgba(47, 128, 255, 0.12))",
+        "borderColor": "rgba(47, 128, 255, 0.5)",
+        "borderRadius": "7px"
+      },
+      "expected": "cobalt active state with compact radius"
+    },
+    {
+      "id": "primary_button_component_replaced",
+      "status": "passed",
+      "actual": {
+        "backgroundImage": "linear-gradient(rgb(57, 138, 255), rgb(31, 111, 235))",
+        "borderRadius": "7px"
+      },
+      "expected": "cobalt gradient primary button"
+    },
+    {
+      "id": "terminal_action_buttons_component_replaced",
+      "status": "passed",
+      "actual": {
+        "borderRadius": "7px",
+        "borderColor": "rgba(191, 201, 214, 0.13)"
+      },
+      "expected": "hairline bordered icon buttons"
+    },
+    {
+      "id": "drawer_tabs_component_replaced",
+      "status": "passed",
+      "actual": {
+        "width": "560px",
+        "tabBackground": "rgba(255, 255, 255, 0.024)",
+        "activeTabBackground": "linear-gradient(rgba(47, 128, 255, 0.24), rgba(47, 128, 255, 0.12))"
+      },
+      "expected": "drawer open with cobalt active tab"
+    },
+    {
+      "id": "timeline_component_replaced",
+      "status": "passed",
+      "actual": {
+        "timelineBackground": "linear-gradient(rgba(18, 21, 25, 0.96), rgba(12, 15, 18, 0.96))",
+        "timelineItemDisplay": "grid",
+        "taskSectionBackground": "linear-gradient(rgba(18, 21, 25, 0.96), rgba(12, 15, 18, 0.96))",
+        "taskTabActiveBackground": "none",
+        "filterBackground": "rgba(7, 9, 11, 0.92)",
+        "filterBorderRadius": "6px"
+      },
+      "expected": "graphite timeline section with grid rows"
+    },
+    {
+      "id": "task_filters_component_replaced",
+      "status": "passed",
+      "actual": {
+        "filterBackground": "rgba(7, 9, 11, 0.92)",
+        "filterBorderRadius": "6px"
+      },
+      "expected": "dark structured filter inputs"
+    },
+    {
+      "id": "overdue_task_card_component_replaced",
+      "status": "passed",
+      "actual": {
+        "backgroundImage": "linear-gradient(90deg, rgba(243, 93, 93, 0.075), rgba(0, 0, 0, 0) 36%), linear-gradient(rgba(18, 21, 25, 0.94), rgba(13, 16, 19, 0.94))",
+        "borderLeftWidth": "2px",
+        "borderLeftColor": "rgb(243, 93, 93)",
+        "projectBadgeBackground": "rgba(47, 128, 255, 0.12)",
+        "priorityWidth": "7px",
+        "actionButtonBackground": "rgba(47, 128, 255, 0.12)"
+      },
+      "expected": "graphite card with thin red status rail, not red-brown filled card"
+    },
+    {
+      "id": "mobile_no_horizontal_overflow",
+      "status": "passed",
+      "actual": {
+        "bodyScrollWidth": 390,
+        "bodyClientWidth": 390
+      },
+      "expected": "mobile body width must not overflow"
+    },
+    {
+      "id": "mobile_uses_updated_css",
+      "status": "passed",
+      "actual": {
+        "styleHref": "http://localhost:31014/style.css?v=202605071330",
+        "mobileTabBorderRadius": "6px"
+      },
+      "expected": "mobile loads current component stylesheet"
+    },
+    {
+      "id": "mobile_tab_bar_not_overlapped",
+      "status": "passed",
+      "actual": {
+        "sessionContextDisplay": "none",
+        "mobileTabBarHeight": 48,
+        "mobileTabMaxBottom": 47,
+        "terminalHeaderTop": 48
+      },
+      "expected": "mobile session context must stay hidden and tab bar must remain compact"
+    }
+  ]
+}

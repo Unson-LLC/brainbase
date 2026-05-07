@@ -1,0 +1,17 @@
+{
+  "run_id": "vibepro-brainbase-20260507-101513-command-center-redesign",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.unrelated_dirty_files",
+      "matched_detected_gap_id": "gap.repo.unrelated-dirty-files",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}
