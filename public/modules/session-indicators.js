@@ -351,9 +351,9 @@ export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, o
             eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
                 sessionIds: changedSessionIds
             });
-        }
-        if (typeof onStatusChange === 'function') {
-            onStatusChange(filtered);
+            if (typeof onStatusChange === 'function') {
+                onStatusChange(filtered);
+            }
         }
     }
 

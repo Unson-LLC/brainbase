@@ -107,6 +107,43 @@ describe('session-indicators WebSocket sync', () => {
         expect([...uiEventCall[1].sessionIds].sort()).toEqual(['session-cleared', 'session-kept']);
     });
 
+    it('status-full受信時_差分がなければsession再ロードを呼ばない', () => {
+        appStore.setState({
+            sessionUi: {
+                byId: {
+                    'session-1': {
+                        hookStatus: {
+                            isWorking: false,
+                            isDone: true,
+                            lastWorkingAt: 0,
+                            lastDoneAt: 100,
+                            timestamp: 100
+                        }
+                    }
+                }
+            }
+        });
+        const onStatusChange = vi.fn();
+
+        startActivityWs(() => null, 3000, onStatusChange);
+
+        wsMock.instances[0].options.onStatusFull({
+            'session-1': {
+                isWorking: false,
+                isDone: true,
+                lastWorkingAt: 0,
+                lastDoneAt: 100,
+                timestamp: 100
+            }
+        });
+
+        expect(onStatusChange).not.toHaveBeenCalled();
+        expect(eventBus.emit).not.toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            expect.any(Object)
+        );
+    });
+
     it('markDoneAsRead後_抑制期限を過ぎたstatus-updateは反映する', async () => {
         appStore.setState({
             sessionUi: {

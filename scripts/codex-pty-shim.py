@@ -100,12 +100,12 @@ def detect_codex_activity(data):
     except AttributeError:
         text = str(data)
 
+    if '›' in text:
+        return 'ready'
     if any(char in text for char in SPINNER_CHARS):
         return 'working'
     if 'Thinking' in text or 'thinking' in text:
         return 'working'
-    if '›' in text:
-        return 'ready'
     return None
 
 
@@ -117,7 +117,7 @@ class ActivityReporter:
         self.clock = clock or time.time
         self.session_id = self.env.get('BRAINBASE_SESSION_ID') or ''
         self.port = self.env.get('BRAINBASE_PORT') or '31013'
-        self.turn_id = f'codex-pty-{self.session_id}-{os.getpid()}'
+        self.turn_id = None
         self.active = False
         self.last_report_at = 0.0
 
@@ -138,6 +138,8 @@ class ActivityReporter:
             return
         lifecycle = 'heartbeat' if self.active else 'turn_started'
         event_type = 'codex/pty-shim-heartbeat' if self.active else 'codex/pty-shim-start'
+        if not self.active or not self.turn_id:
+            self.turn_id = f'codex-pty-turn-{int(now * 1000)}-{os.getpid()}'
         self._post({
             'sessionId': self.session_id,
             'status': 'working',
@@ -166,6 +168,7 @@ class ActivityReporter:
             'currentStep': '入力待ち',
         })
         self.active = False
+        self.turn_id = None
         self.last_report_at = now
 
     def _post(self, payload):

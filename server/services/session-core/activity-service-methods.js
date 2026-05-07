@@ -6,6 +6,7 @@ import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 const PROMPT_BUFFER_MAX_LENGTH = 4000;
 const PANE_TITLE_SPINNER_CHARS = new Set(Array.from('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿'));
 const PANE_TITLE_SPINNER_STALE_TIMEOUT = 30 * 1000;
+const PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT = 30 * 1000;
 const TMUX_PANE_TITLE_ROWS_CACHE_TTL = 1000;
 
 function trimPromptBuffer(value) {
@@ -256,7 +257,7 @@ export const activityServiceMethods = {
             if (entry) status[sessionId] = entry;
         }
         for (const [sessionId, entry] of Object.entries(this._getPaneTitleActivityStatuses())) {
-            if (!status[sessionId]?.isWorking) {
+            if (!status[sessionId]) {
                 status[sessionId] = entry;
             }
         }
@@ -289,6 +290,10 @@ export const activityServiceMethods = {
                 observedAt: now
             };
             cache.set(sessionId, entry);
+
+            if (!titleChanged && now - entry.lastChangedAt > PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT) {
+                continue;
+            }
 
             const activityAt = entry.lastChangedAt;
             status[sessionId] = {
@@ -410,12 +415,20 @@ export const activityServiceMethods = {
         let lastActivityAt = Math.max(currentHookData.lastActivityAt, timestamp);
         let lastEventType = eventType || currentHookData.lastEventType || null;
         const activeTurnIds = new Set(currentHookData.activeTurnIds);
+        const staleCodexPtyTurn = this._isStaleCodexPtyTurn(turnId, timestamp);
 
         if (lifecycle === 'turn_started') {
-            if (turnId) {
+            if (turnId && !staleCodexPtyTurn) {
                 activeTurnIds.add(turnId);
             }
-            lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            if (!staleCodexPtyTurn) {
+                lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            } else {
+                logger.info(`[Hook] Ignoring stale Codex PTY turn_started ${turnId} for ${sessionId}`);
+                if (lastDoneAt > 0 && activeTurnIds.size === 0) {
+                    lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
+                }
+            }
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
                 const hadTurnId = activeTurnIds.delete(turnId);
@@ -453,15 +466,19 @@ export const activityServiceMethods = {
         } else if (lifecycle === 'heartbeat') {
             // heartbeat時に30分以上古い残留turnをクリア
             const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
+            let clearedStaleTurn = false;
             for (const tid of [...activeTurnIds]) {
                 const tidTs = this._extractTurnTimestamp(tid);
                 if (tidTs > 0 && (timestamp - tidTs) > STALE_TURN_TIMEOUT) {
                     logger.info(`[Hook] Clearing stale turn ${tid} (${Math.round((timestamp - tidTs) / 60000)}min old) for ${sessionId}`);
                     activeTurnIds.delete(tid);
+                    clearedStaleTurn = true;
                 }
             }
-            if (activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt) {
+            if (activeTurnIds.size > 0 || (!clearedStaleTurn && !staleCodexPtyTurn && lastWorkingAt > lastDoneAt)) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            } else if ((clearedStaleTurn || staleCodexPtyTurn) && lastDoneAt > 0 && activeTurnIds.size === 0) {
+                lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
             }
         } else if (status === 'working') {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
@@ -753,7 +770,15 @@ export const activityServiceMethods = {
         if (typeof turnId !== 'string') return 0;
         // turnId formats: "claude-{timestamp}-{random}", "codex-pty-session-{timestamp}-{pid}"
         const match = turnId.match(/^claude-(\d+)-/)
+            || turnId.match(/^codex-pty-turn-(\d{13})-/)
             || turnId.match(/^codex-pty-session-(\d{13})-/);
         return match ? Number(match[1]) : 0;
+    },
+
+    _isStaleCodexPtyTurn(turnId, timestamp = Date.now()) {
+        if (typeof turnId !== 'string' || !turnId.startsWith('codex-pty-session-')) return false;
+        const turnTimestamp = this._extractTurnTimestamp(turnId);
+        if (turnTimestamp <= 0) return false;
+        return timestamp - turnTimestamp > 30 * 60 * 1000;
     }
 };

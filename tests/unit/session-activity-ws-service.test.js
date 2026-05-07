@@ -75,4 +75,49 @@ describe('SessionActivityWsService', () => {
         const msg = JSON.parse(ws.send.mock.calls[0][0]);
         expect(msg.data).toBeNull();
     });
+
+    it('broadcastFullStatus呼び出し時_現在の全statusを送信する', () => {
+        const service = new SessionActivityWsService({
+            activityService: {
+                getSessionStatus: () => ({
+                    'session-kept': { isWorking: true },
+                    'session-done': { isDone: true }
+                })
+            }
+        });
+        const ws = createMockWs(1);
+        service.clients.add(ws);
+
+        service.broadcastFullStatus();
+
+        const msg = JSON.parse(ws.send.mock.calls[0][0]);
+        expect(msg).toEqual({
+            type: 'status-full',
+            data: {
+                'session-kept': { isWorking: true },
+                'session-done': { isDone: true }
+            }
+        });
+    });
+
+    it('fullStatusIntervalMs指定時_定期的に全statusを送信する', () => {
+        vi.useFakeTimers();
+        try {
+            const service = new SessionActivityWsService({
+                activityService: { getSessionStatus: () => ({ 'session-1': { isDone: true } }) },
+                fullStatusIntervalMs: 3000
+            });
+            const ws = createMockWs(1);
+            service.clients.add(ws);
+
+            vi.advanceTimersByTime(3000);
+
+            expect(ws.send).toHaveBeenCalledTimes(1);
+            const msg = JSON.parse(ws.send.mock.calls[0][0]);
+            expect(msg.type).toBe('status-full');
+            service.close();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
