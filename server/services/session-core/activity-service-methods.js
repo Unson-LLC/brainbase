@@ -494,7 +494,7 @@ export const activityServiceMethods = {
         this._persistHookStatus(sessionId, hookStatusData, timestamp);
 
         if (typeof this._activityWsBroadcast === 'function') {
-            const statusForClient = this._buildStatusForSession(hookStatusData);
+            const statusForClient = this.getSessionStatus()[sessionId] || null;
             this._activityWsBroadcast(sessionId, statusForClient);
         }
 
