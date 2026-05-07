@@ -14,7 +14,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 1024;
-const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape']);
+const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
