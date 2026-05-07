@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605072330';
+const EXPECTED_CSS_VERSION = '202605072345';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -198,28 +198,56 @@ async function collectDesktopEvidence(page) {
 
     function ensureSampleLiveFeed() {
       const panel = document.querySelector('#live-feed-panel');
-      if (!panel || panel.querySelector('.feed-item')) return;
+      if (!panel) return;
       panel.innerHTML = `
         <div class="live-feed-container">
           <div class="live-feed-header">
             <div class="live-feed-status-wrap"><span class="live-feed-status active"><span class="live-feed-status-dot"></span>LIVE</span></div>
-            <div class="live-feed-filter-group"><button class="feed-filter-btn active">すべて</button><button class="feed-filter-btn">タスク</button><button class="feed-filter-btn">Wiki</button><button class="feed-filter-btn">セッション</button><button class="feed-filter-btn">システム</button></div>
+            <div class="live-feed-filter-group"><button class="feed-filter-btn active" data-filter="all" aria-pressed="true"><span>すべて</span><span class="feed-filter-count">3</span></button><button class="feed-filter-btn" data-filter="task" aria-pressed="false"><span>タスク</span><span class="feed-filter-count">1</span></button><button class="feed-filter-btn" data-filter="wiki" aria-pressed="false"><span>Wiki</span><span class="feed-filter-count">1</span></button><button class="feed-filter-btn" data-filter="session" aria-pressed="false"><span>セッション</span><span class="feed-filter-count">3</span></button><button class="feed-filter-btn" data-filter="system" aria-pressed="false"><span>システム</span><span class="feed-filter-count">1</span></button></div>
             <div class="live-feed-controls"><button class="feed-control-btn"><i data-lucide="pause"></i></button><button class="feed-control-btn"><i data-lucide="refresh-cw"></i></button><button class="feed-control-btn"><i data-lucide="sliders-horizontal"></i></button></div>
           </div>
           <div class="live-feed-list">
             <section class="feed-section">
               <div class="feed-section-label">NOW</div>
-              <div class="feed-item" data-tone="working">
+              <div class="feed-item" data-tone="working" data-category="task session">
                 <div class="feed-item-time">11:34:52</div><div class="feed-item-rail"><span class="feed-item-dot working"></span></div>
                 <div class="feed-item-icon feed-item-tone-working"><i data-lucide="terminal"></i></div>
                 <div class="feed-item-content"><div class="feed-item-mainline"><span class="feed-item-label">ターミナル出力</span><span class="feed-item-status">stdout</span></div><div class="feed-item-meta-line"><span class="feed-item-task">#P1 VibePro component replacement</span><span class="feed-item-session">session-1</span></div><div class="feed-item-step">Wiki と Live Feed の見た目を合わせています</div></div>
                 <div class="feed-item-actions"><button class="feed-item-action"><i data-lucide="external-link"></i></button><button class="feed-item-action"><i data-lucide="copy"></i></button></div>
               </div>
+              <div class="feed-item" data-tone="done" data-category="wiki session">
+                <div class="feed-item-time">11:33:47</div><div class="feed-item-rail"><span class="feed-item-dot done"></span></div>
+                <div class="feed-item-icon feed-item-tone-done"><i data-lucide="file-text"></i></div>
+                <div class="feed-item-content"><div class="feed-item-mainline"><span class="feed-item-label">Wiki 更新</span><span class="feed-item-status">完了</span></div><div class="feed-item-meta-line"><span class="feed-item-task">/docs/dev/setup</span><span class="feed-item-session">session-2</span></div></div>
+                <div class="feed-item-actions"><button class="feed-item-action"><i data-lucide="external-link"></i></button><button class="feed-item-action"><i data-lucide="copy"></i></button></div>
+              </div>
+              <div class="feed-item" data-tone="blocked" data-category="system session">
+                <div class="feed-item-time">11:12:33</div><div class="feed-item-rail"><span class="feed-item-dot blocked"></span></div>
+                <div class="feed-item-icon feed-item-tone-blocked"><i data-lucide="square"></i></div>
+                <div class="feed-item-content"><div class="feed-item-mainline"><span class="feed-item-label">システムイベント</span><span class="feed-item-status">停止中</span></div><div class="feed-item-meta-line"><span class="feed-item-session">session-3</span></div></div>
+                <div class="feed-item-actions"><button class="feed-item-action"><i data-lucide="external-link"></i></button><button class="feed-item-action"><i data-lucide="copy"></i></button></div>
+              </div>
             </section>
           </div>
-          <div class="live-feed-footer"><span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span><span>最終更新: 11:34:52</span><span>自動スクロール: ON</span></div>
+          <div class="live-feed-footer"><span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span><span>最終更新: 11:34:52</span><span>表示: すべて</span></div>
         </div>
       `;
+      panel.querySelectorAll('.feed-filter-btn[data-filter]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const filter = button.dataset.filter || 'all';
+          panel.querySelectorAll('.feed-filter-btn[data-filter]').forEach((btn) => {
+            const active = btn.dataset.filter === filter;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+          });
+          panel.querySelectorAll('.feed-item').forEach((item) => {
+            item.style.display = filter === 'all' || String(item.dataset.category || '').includes(filter) ? 'grid' : 'none';
+          });
+          const footerFilter = Array.from(panel.querySelectorAll('.live-feed-footer > span')).at(-1);
+          const label = button.querySelector('span')?.textContent || 'すべて';
+          if (footerFilter) footerFilter.textContent = `表示: ${label}`;
+        });
+      });
       window.lucide?.createIcons?.();
     }
 
@@ -489,6 +517,8 @@ async function collectDesktopEvidence(page) {
           headerGridColumns: style('#live-feed-panel .live-feed-header', 'grid-template-columns'),
           statusText: document.querySelector('#live-feed-panel .live-feed-status')?.textContent?.trim() ?? '',
           filterButtonCount: document.querySelectorAll('#live-feed-panel .feed-filter-btn').length,
+          filterCountBadges: document.querySelectorAll('#live-feed-panel .feed-filter-count').length,
+          taskFilterCountText: document.querySelector('#live-feed-panel .feed-filter-btn[data-filter="task"] .feed-filter-count')?.textContent?.trim() ?? '',
           activeFilterBackground: style('#live-feed-panel .feed-filter-btn.active', 'background-color'),
           controlButtonWidth: document.querySelector('#live-feed-panel .feed-control-btn')?.getBoundingClientRect().width ?? null,
           sectionLabelText: document.querySelector('#live-feed-panel .feed-section-label')?.textContent?.trim() ?? '',
@@ -499,6 +529,19 @@ async function collectDesktopEvidence(page) {
           actionCount: document.querySelectorAll('#live-feed-panel .feed-item-action').length,
           footerDisplay: style('#live-feed-panel .live-feed-footer', 'display'),
           footerText: document.querySelector('#live-feed-panel .live-feed-footer')?.textContent?.trim() ?? '',
+          filterClick: (() => {
+            const systemButton = document.querySelector('#live-feed-panel .feed-filter-btn[data-filter="system"]');
+            systemButton?.click();
+            const visibleItems = Array.from(document.querySelectorAll('#live-feed-panel .feed-item'))
+              .filter((item) => getComputedStyle(item).display !== 'none');
+            return {
+              systemPressed: systemButton?.getAttribute('aria-pressed') ?? null,
+              activeFilterText: document.querySelector('#live-feed-panel .feed-filter-btn.active')?.textContent?.trim() ?? '',
+              visibleCount: visibleItems.length,
+              firstVisibleLabel: visibleItems[0]?.querySelector('.feed-item-label')?.textContent?.trim() ?? '',
+              footerText: document.querySelector('#live-feed-panel .live-feed-footer')?.textContent?.trim() ?? '',
+            };
+          })(),
         };
       })(),
     };
@@ -828,6 +871,8 @@ function buildChecks(desktop, mobile) {
         && desktop.liveFeed.headerDisplay === 'grid'
         && desktop.liveFeed.statusText.includes('LIVE')
         && desktop.liveFeed.filterButtonCount >= 5
+        && desktop.liveFeed.filterCountBadges >= 5
+        && desktop.liveFeed.taskFilterCountText.length > 0
         && includesAll(desktop.liveFeed.activeFilterBackground, ['47', '128', '255'])
         && pxNumber(desktop.liveFeed.controlButtonWidth) === 32
         && desktop.liveFeed.sectionLabelText === 'NOW'
@@ -837,7 +882,11 @@ function buildChecks(desktop, mobile) {
         && desktop.liveFeed.dotCount > 0
         && desktop.liveFeed.actionCount >= 2
         && desktop.liveFeed.footerDisplay === 'flex'
-        && desktop.liveFeed.footerText.includes('自動スクロール'),
+        && desktop.liveFeed.footerText.includes('表示:')
+        && desktop.liveFeed.filterClick.systemPressed === 'true'
+        && desktop.liveFeed.filterClick.visibleCount >= 1
+        && desktop.liveFeed.filterClick.firstVisibleLabel.includes('システム')
+        && desktop.liveFeed.filterClick.footerText.includes('表示: システム'),
       desktop.liveFeed,
       'Live Feed tab must use the generated timeline stream with live controls, segmented filters, rail dots, row actions, and footer status',
     ),

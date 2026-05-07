@@ -16515,11 +16515,27 @@ body.resizing iframe {
 
 .command-center-theme .feed-filter-btn {
     min-width: 0;
-    padding: 0 8px;
+    gap: 6px;
+    padding: 0 7px;
     border-radius: 0;
     border-right: 0;
     color: #aeb8c5;
     font-size: 11.5px;
+}
+
+.command-center-theme .feed-filter-count {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: rgba(191, 201, 214, 0.08);
+    color: #8f9cad;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
 }
 
 .command-center-theme .feed-filter-btn:first-child {
@@ -16535,6 +16551,11 @@ body.resizing iframe {
     border-color: rgba(47, 128, 255, 0.58);
     background: rgba(47, 128, 255, 0.14);
     color: #67b3ff;
+}
+
+.command-center-theme .feed-filter-btn.active .feed-filter-count {
+    background: rgba(47, 128, 255, 0.2);
+    color: #d8eaff;
 }
 
 .command-center-theme .feed-control-btn {
