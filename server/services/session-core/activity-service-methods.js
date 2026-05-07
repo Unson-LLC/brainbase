@@ -266,7 +266,16 @@ export const activityServiceMethods = {
 
         if (!isWorking && !isDone) return null;
 
+        const snapshot = this._deriveSnapshotFields({
+            hookData: normalized,
+            isWorking,
+            isDone,
+            activeTurnCount
+        });
+
         return {
+            state: snapshot.state,
+            confidence: snapshot.confidence,
             isWorking,
             isDone,
             lastWorkingAt: normalized.lastWorkingAt,
@@ -329,6 +338,8 @@ export const activityServiceMethods = {
 
             const activityAt = entry.lastChangedAt;
             status[sessionId] = {
+                state: 'running',
+                confidence: 'fallback',
                 isWorking: true,
                 isDone: false,
                 lastWorkingAt: activityAt,
@@ -454,6 +465,7 @@ export const activityServiceMethods = {
         if (strongWorkingSignal || (lifecycle === 'turn_started' && !staleCodexPtyTurn)) {
             this.paneTitleSuppressedSessionIds?.delete(sessionId);
         }
+        const isExplicitTerminalDone = lifecycle === 'terminal_done' || lifecycle === 'session_completed';
 
         if (lifecycle === 'turn_started') {
             const isOutOfOrderStartAfterDone = lastDoneAt > 0
@@ -477,6 +489,12 @@ export const activityServiceMethods = {
                     lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
                 }
             }
+        } else if (isExplicitTerminalDone) {
+            if (activeTurnIds.size > 0) {
+                logger.info(`[Hook] terminal done for ${sessionId}; clearing ${activeTurnIds.size} active turn(s)`);
+                activeTurnIds.clear();
+            }
+            lastDoneAt = Math.max(lastDoneAt, timestamp);
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
                 const hadTurnId = activeTurnIds.delete(turnId);
@@ -673,6 +691,30 @@ export const activityServiceMethods = {
             paneTitleSuppressed: hookData.paneTitleSuppressed === true,
             liveActivity
         };
+    },
+
+    _deriveSnapshotFields({ hookData, isWorking, isDone, activeTurnCount }) {
+        if (isDone) {
+            return { state: 'done-unread', confidence: 'explicit' };
+        }
+
+        if (!isWorking) {
+            return { state: 'idle', confidence: 'explicit' };
+        }
+
+        const liveActivity = hookData?.liveActivity || {};
+        const activityKind = liveActivity.activityKind || '';
+        const statusTone = liveActivity.statusTone || '';
+
+        if (activityKind === 'waiting_input' || statusTone === 'waiting') {
+            return { state: 'waiting', confidence: 'explicit' };
+        }
+
+        if (activityKind === 'task_started' && activeTurnCount > 0) {
+            return { state: 'starting', confidence: 'explicit' };
+        }
+
+        return { state: 'running', confidence: 'explicit' };
     },
 
     _normalizeLiveActivity(liveActivity) {

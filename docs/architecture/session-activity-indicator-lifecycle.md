@@ -1,5 +1,5 @@
 # Session Activity Indicator Lifecycle
 
-正本は [../session-activity-indicator-lifecycle.md](../session-activity-indicator-lifecycle.md)。
+The source of truth is [../session-activity-indicator-lifecycle.md](../session-activity-indicator-lifecycle.md).
 
-この文書は旧パス互換のために残す。アクティブインジケータの状態、色、イベント、sort、VibePro/Graphify運用は正本文書を更新する。
+Do not maintain a second lifecycle definition in this architecture directory. Active indicator state must be designed and reviewed against the root SSOT document.
