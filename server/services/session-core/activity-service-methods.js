@@ -471,6 +471,9 @@ export const activityServiceMethods = {
             } else {
                 logger.info(`[Hook] Ignoring stale Codex PTY turn_started ${turnId} for ${sessionId}`);
                 if (lastDoneAt > 0 && activeTurnIds.size === 0 && this._canStaleCodexPtyDemote(currentHookData)) {
+                    ignoredStaleDoneHeartbeat = true;
+                    lastEventType = currentHookData.lastEventType || lastEventType;
+                    lastActivityAt = currentHookData.lastActivityAt || lastActivityAt;
                     lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
                 }
             }
@@ -521,7 +524,7 @@ export const activityServiceMethods = {
                 }
             }
             const canStaleCodexPtyDemote = this._canStaleCodexPtyDemote({ ...currentHookData, lastEventType: previousEventType });
-            if (staleCodexPtyTurn && activeTurnIds.size === 0 && lastDoneAt > 0 && lastDoneAt >= lastWorkingAt) {
+            if (staleCodexPtyTurn && activeTurnIds.size === 0 && lastDoneAt > 0 && canStaleCodexPtyDemote) {
                 ignoredStaleDoneHeartbeat = true;
                 lastEventType = currentHookData.lastEventType || lastEventType;
                 lastActivityAt = currentHookData.lastActivityAt || lastActivityAt;
@@ -908,6 +911,7 @@ export const activityServiceMethods = {
     _canStaleCodexPtyDemote(hookData = {}) {
         const previousEventType = typeof hookData.lastEventType === 'string' ? hookData.lastEventType : '';
         if (previousEventType.startsWith('codex/hook/')) return false;
+        if (hookData.status === 'done' || (hookData.lastDoneAt || 0) >= (hookData.lastWorkingAt || 0)) return true;
         const activityKind = hookData.liveActivity?.activityKind || '';
         const latestEvidence = hookData.liveActivity?.latestEvidence || '';
         const currentStep = hookData.liveActivity?.currentStep || '';
