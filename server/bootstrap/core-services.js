@@ -126,7 +126,8 @@ export function createCoreServices({
         controlRegistry: tmuxControlRegistry
     });
     const sessionActivityWsService = new SessionActivityWsService({
-        activityService: sessionServices.activity
+        activityService: sessionServices.activity,
+        fullStatusIntervalMs: 3000
     });
     sessionServices.shared._activityWsBroadcast = (sessionId, hookStatus) => {
         sessionActivityWsService.broadcast(sessionId, hookStatus);
