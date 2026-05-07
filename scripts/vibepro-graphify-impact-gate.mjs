@@ -76,6 +76,8 @@ export function checkGraphifyImpactGate({ changedFiles = [], prBody = '', bypass
     reason: [
       'Graph-sensitive files changed without a VibePro Graphify impact review.',
       'Add a PR body section titled "Graphify Impact Review" with the exact `vibepro graph --run-graphify` / `graphify query|path|explain` evidence used for the impact check.',
+      'Runbook: docs/brainbase-capabilities/runbooks/vibepro-impact-review.md.',
+      'Capability: docs/brainbase-capabilities/capabilities/vibepro.impact-review.yml.',
     ].join(' '),
   };
 }

@@ -44,6 +44,8 @@ describe('vibepro-graphify-impact-gate', () => {
       status: 'failed',
       requiredFiles: ['server/services/session-core/activity-service-methods.js'],
     });
+    expect(result.reason).toContain('docs/brainbase-capabilities/runbooks/vibepro-impact-review.md');
+    expect(result.reason).toContain('docs/brainbase-capabilities/capabilities/vibepro.impact-review.yml');
   });
 
   it('passes graph-sensitive changes when evidence exists', () => {
