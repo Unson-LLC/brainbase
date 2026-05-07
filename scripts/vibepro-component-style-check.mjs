@@ -32,10 +32,15 @@ async function collectDesktopEvidence(page) {
     timeout: 20000,
   }).catch(() => {});
   await page.waitForTimeout(3500);
+  await page.waitForSelector('.session-child-row', { timeout: 15000 }).catch(() => {});
   await page.locator('#ab-tasks-btn').click().catch(() => {});
   await page.waitForTimeout(1500);
+  await page.waitForSelector('#tasks-tab-content .timeline-item', { timeout: 15000 }).catch(() => {});
 
   await page.evaluate(() => {
+    const firstSession = document.querySelector('.session-child-row');
+    firstSession?.classList.add('active');
+
     const drawer = document.querySelector('#info-drawer');
     drawer?.classList.add('open');
 
@@ -93,7 +98,7 @@ async function collectDesktopEvidence(page) {
     `;
     window.lucide?.createIcons?.();
   });
-  await page.waitForTimeout(500);
+  await page.waitForSelector('#tasks-tab-content .nocodb-task-item.overdue', { timeout: 5000 }).catch(() => {});
 
   return page.evaluate(() => {
     function style(selector, property) {
@@ -102,11 +107,51 @@ async function collectDesktopEvidence(page) {
       return getComputedStyle(element).getPropertyValue(property);
     }
 
+    function elementStyle(element, property) {
+      if (!element) return null;
+      return getComputedStyle(element).getPropertyValue(property);
+    }
+
+    function ensureSampleTask() {
+      const list = document.querySelector('#nocodb-tasks-list');
+      if (!list || document.querySelector('#tasks-tab-content .nocodb-task-item.overdue')) return;
+      list.innerHTML = `
+        <div class="nocodb-task-item overdue" data-task-id="vibepro-style-sample">
+          <div class="task-header">
+            <span class="project-badge">Brainbase</span>
+            <span class="priority-indicator high" aria-label="priority high"></span>
+            <div class="nocodb-task-actions">
+              <button class="nocodb-task-action-btn nocodb-task-start-btn"><i data-lucide="play"></i></button>
+              <button class="nocodb-task-action-btn"><i data-lucide="edit-2"></i></button>
+              <button class="nocodb-task-action-btn"><i data-lucide="trash-2"></i></button>
+            </div>
+          </div>
+          <div class="task-title">VibePro component replacement sample</div>
+          <div class="task-meta">
+            <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
+            <select class="task-status-select"><option>未着手</option></select>
+            <div class="assignee-combobox">
+              <button class="assignee-trigger">
+                <i data-lucide="user" class="assignee-icon"></i>
+                <span class="assignee-value">Operator</span>
+                <i data-lucide="chevron-down" class="chevron-icon"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      window.lucide?.createIcons?.();
+    }
+
+    ensureSampleTask();
+
     const activeSession = document.querySelector('.session-child-row.active');
-    const firstSession = document.querySelector('.session-child-row:not(.active)') || document.querySelector('.session-child-row');
+    const firstSession = document.querySelector('.session-child-row:not(.active)') || activeSession || document.querySelector('.session-child-row');
+    const firstSessionWasActive = firstSession?.classList.contains('active') ?? false;
+    firstSession?.classList.remove('active');
     const styleHref = document.querySelector('link[rel="stylesheet"]')?.href || '';
 
-    return {
+    const evidence = {
       styleHref,
       commandCenterWorkspaceExists: Boolean(document.querySelector('.command-center-workspace')),
       bodyScrollWidth: document.body.scrollWidth,
@@ -121,12 +166,12 @@ async function collectDesktopEvidence(page) {
       },
       sessionRow: {
         height: firstSession ? firstSession.getBoundingClientRect().height : null,
-        paddingTop: style('.session-child-row', 'padding-top'),
-        backgroundColor: style('.session-child-row', 'background-color'),
-        borderRadius: style('.session-child-row', 'border-radius'),
-        borderBottomWidth: style('.session-child-row', 'border-bottom-width'),
-        backgroundImage: style('.session-child-row', 'background-image'),
-        boxShadow: style('.session-child-row', 'box-shadow'),
+        paddingTop: elementStyle(firstSession, 'padding-top'),
+        backgroundColor: elementStyle(firstSession, 'background-color'),
+        borderRadius: elementStyle(firstSession, 'border-radius'),
+        borderBottomWidth: elementStyle(firstSession, 'border-bottom-width'),
+        backgroundImage: elementStyle(firstSession, 'background-image'),
+        boxShadow: elementStyle(firstSession, 'box-shadow'),
         projectEmojiDisplay: style('.session-child-row .session-project-emoji', 'display'),
         summaryChipHeight: document.querySelector('.session-summary-chip')?.getBoundingClientRect().height ?? null,
       },
@@ -210,6 +255,9 @@ async function collectDesktopEvidence(page) {
         actionButtonBackground: style('#tasks-tab-content .nocodb-task-action-btn', 'background-color'),
       },
     };
+
+    if (firstSessionWasActive) firstSession?.classList.add('active');
+    return evidence;
   });
 }
 
