@@ -13619,6 +13619,14 @@ body.resizing iframe {
         display: flex !important;
     }
 
+    .command-center-theme.file-viewer-active .console-area {
+        display: none !important;
+    }
+
+    .command-center-theme.file-viewer-active #file-viewer-panel {
+        display: flex !important;
+    }
+
     .command-center-theme .session-context-bar {
         display: block !important;
     }

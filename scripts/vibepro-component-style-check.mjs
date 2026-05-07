@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071850';
+const EXPECTED_CSS_VERSION = '202605071910';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -259,6 +259,45 @@ async function collectDesktopEvidence(page) {
         priorityWidth: style('#tasks-tab-content .priority-indicator.high', 'width'),
         actionButtonBackground: style('#tasks-tab-content .nocodb-task-action-btn', 'background-color'),
       },
+      fileViewerReplacement: (() => {
+        const main = document.querySelector('.main-content');
+        const consoleArea = document.querySelector('#console-area');
+        const panel = document.querySelector('#file-viewer-panel');
+        if (!main || !consoleArea || !panel) return null;
+
+        const previousBodyActive = document.body.classList.contains('file-viewer-active');
+        const previousConsoleDisplay = consoleArea.style.display;
+        const previousPanelDisplay = panel.style.display;
+        const previousPanelHtml = panel.innerHTML;
+
+        panel.innerHTML = `
+          <div class="file-viewer">
+            <div class="file-viewer-header">VibePro preview.md</div>
+            <div class="file-viewer-content">File viewer replacement check</div>
+          </div>
+        `;
+        document.body.classList.add('file-viewer-active');
+        consoleArea.style.display = 'none';
+        panel.style.display = 'flex';
+
+        const mainRect = main.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const availableHeight = mainRect.bottom - panelRect.top;
+        const result = {
+          bodyActive: document.body.classList.contains('file-viewer-active'),
+          consoleDisplay: getComputedStyle(consoleArea).display,
+          panelDisplay: getComputedStyle(panel).display,
+          panelHeight: panelRect.height,
+          availableHeight,
+        };
+
+        if (!previousBodyActive) document.body.classList.remove('file-viewer-active');
+        consoleArea.style.display = previousConsoleDisplay;
+        panel.style.display = previousPanelDisplay;
+        panel.innerHTML = previousPanelHtml;
+
+        return result;
+      })(),
     };
 
     if (firstSessionWasActive) firstSession?.classList.add('active');
@@ -372,6 +411,15 @@ function buildChecks(desktop, mobile) {
         && includesAll(desktop.terminalButton.borderColor, ['191', '201', '214']),
       desktop.terminalButton,
       'hairline bordered icon buttons',
+    ),
+    createCheck(
+      'file_viewer_replaces_full_terminal_area',
+      desktop.fileViewerReplacement?.bodyActive === true
+        && desktop.fileViewerReplacement?.consoleDisplay === 'none'
+        && desktop.fileViewerReplacement?.panelDisplay === 'flex'
+        && desktop.fileViewerReplacement?.panelHeight >= desktop.fileViewerReplacement?.availableHeight * 0.98,
+      desktop.fileViewerReplacement,
+      'file viewer must hide the terminal and fill the available terminal area',
     ),
     createCheck(
       'drawer_tabs_component_replaced',

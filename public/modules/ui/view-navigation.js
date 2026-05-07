@@ -12,12 +12,14 @@ export function setupViewNavigation({
 
     const consoleArea = getById('console-area');
     const fileViewerPanel = getById('file-viewer-panel');
+    const documentBody = root.body ?? document.body;
 
     if (consoleArea) consoleArea.style.display = 'flex';
 
     const hideTransientPanels = () => {
         const dashOverlay = getById('dashboard-overlay');
         if (dashOverlay) dashOverlay.classList.remove('open');
+        documentBody?.classList.remove('file-viewer-active');
         if (fileViewerPanel) fileViewerPanel.style.display = 'none';
         if (consoleArea) consoleArea.style.display = 'flex';
     };
@@ -46,8 +48,9 @@ export function setupViewNavigation({
     };
 
     const showFileViewer = () => {
+        documentBody?.classList.add('file-viewer-active');
         if (consoleArea) consoleArea.style.display = 'none';
-        if (fileViewerPanel) fileViewerPanel.style.display = 'block';
+        if (fileViewerPanel) fileViewerPanel.style.display = 'flex';
     };
 
     const showWiki = () => {

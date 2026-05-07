@@ -3,6 +3,7 @@ import { setupViewNavigation } from '../../public/modules/ui/view-navigation.js'
 
 describe('setupViewNavigation', () => {
     beforeEach(() => {
+        document.body.className = 'dark-theme command-center-theme';
         document.body.innerHTML = `
             <aside class="activity-bar" id="activity-bar">
                 <div class="activity-bar-top">
@@ -58,12 +59,27 @@ describe('setupViewNavigation', () => {
         const frame = document.getElementById('terminal-frame');
         const focusSpy = frame.contentWindow.focus;
 
-        const { showConsole } = setupViewNavigation();
+        const { showFileViewer, showConsole } = setupViewNavigation();
+        showFileViewer();
+        expect(document.body.classList.contains('file-viewer-active')).toBe(true);
+
         showConsole();
 
         expect(document.getElementById('console-area').style.display).toBe('flex');
+        expect(document.getElementById('file-viewer-panel').style.display).toBe('none');
+        expect(document.body.classList.contains('file-viewer-active')).toBe(false);
         expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(false);
         expect(focusSpy).toHaveBeenCalled();
+    });
+
+    it('showFileViewer呼び出し時_Command Centerでもターミナルを隠してビューアを全面表示状態にする', () => {
+        const { showFileViewer } = setupViewNavigation();
+
+        showFileViewer();
+
+        expect(document.body.classList.contains('file-viewer-active')).toBe(true);
+        expect(document.getElementById('console-area').style.display).toBe('none');
+        expect(document.getElementById('file-viewer-panel').style.display).toBe('flex');
     });
 
     it('showWiki呼び出し時_wikiドロワーがトグルされる', () => {
