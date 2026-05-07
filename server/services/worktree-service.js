@@ -473,8 +473,10 @@ export class WorktreeService {
         ]);
 
         return normalized.includes('/.claude/')
+            || normalized.includes('/node_modules/')
             || normalized.includes('/--help/')
             || normalized.startsWith('--help/')
+            || basename === 'node_modules'
             || artifactBasenames.has(basename);
     }
 
