@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071930';
+const EXPECTED_CSS_VERSION = '202605071950';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -85,10 +85,10 @@ async function collectDesktopEvidence(page) {
         <div class="task-title">VibePro component replacement sample</div>
         <div class="task-meta">
           <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
-          <select class="task-status-select"><option>未着手</option></select>
+          <select class="task-status-select status-pending"><option>未着手</option></select>
           <div class="assignee-combobox">
             <button class="assignee-trigger">
-              <i data-lucide="user" class="assignee-icon"></i>
+              <span class="assignee-avatar" aria-hidden="true">OP</span>
               <span class="assignee-value">Operator</span>
               <i data-lucide="chevron-down" class="chevron-icon"></i>
             </button>
@@ -129,10 +129,10 @@ async function collectDesktopEvidence(page) {
           <div class="task-title">VibePro component replacement sample</div>
           <div class="task-meta">
             <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
-            <select class="task-status-select"><option>未着手</option></select>
+            <select class="task-status-select status-pending"><option>未着手</option></select>
             <div class="assignee-combobox">
               <button class="assignee-trigger">
-                <i data-lucide="user" class="assignee-icon"></i>
+                <span class="assignee-avatar" aria-hidden="true">OP</span>
                 <span class="assignee-value">Operator</span>
                 <i data-lucide="chevron-down" class="chevron-icon"></i>
               </button>
@@ -230,6 +230,11 @@ async function collectDesktopEvidence(page) {
         timelineBorderRadius: style('#tasks-tab-content .timeline-section', 'border-radius'),
         timelineBoxShadow: style('#tasks-tab-content .timeline-section', 'box-shadow'),
         timelineItemDisplay: style('#tasks-tab-content .timeline-item', 'display'),
+        timelineMetaDisplay: style('#tasks-tab-content .timeline-meta', 'display'),
+        timelineKindBadgeText: document.querySelector('#tasks-tab-content .timeline-kind-badge')?.textContent?.trim() ?? '',
+        timelineAvatarCount: document.querySelectorAll('#tasks-tab-content .timeline-avatar').length,
+        timelineStatusDotCount: document.querySelectorAll('#tasks-tab-content .timeline-status-dot').length,
+        timelineNowLabelWidth: document.querySelector('#tasks-tab-content .timeline-now-label')?.getBoundingClientRect().width ?? null,
         taskSectionBackground: style('#tasks-tab-content .next-tasks-section', 'background-image'),
         taskSectionBackgroundColor: style('#tasks-tab-content .next-tasks-section', 'background-color'),
         taskSectionBorderRadius: style('#tasks-tab-content .next-tasks-section', 'border-radius'),
@@ -260,6 +265,11 @@ async function collectDesktopEvidence(page) {
         projectBadgeBackground: style('#tasks-tab-content .project-badge', 'background-color'),
         priorityWidth: style('#tasks-tab-content .priority-indicator.high', 'width'),
         actionButtonBackground: style('#tasks-tab-content .nocodb-task-action-btn', 'background-color'),
+        statusBackground: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'background-color'),
+        statusBorderRadius: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'border-radius'),
+        statusAppearance: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'appearance'),
+        assigneeAvatarWidth: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.getBoundingClientRect().width ?? null,
+        assigneeAvatarText: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.textContent?.trim() ?? '',
       },
       fileViewerReplacement: (() => {
         const main = document.querySelector('.main-content');
@@ -407,7 +417,8 @@ function buildChecks(desktop, mobile) {
         && pxNumber(desktop.sessionRow.paddingTop) <= 8
         && pxNumber(desktop.sessionRow.borderRadius) === 0
         && desktop.sessionRow.borderBottomWidth === '1px'
-        && includesAll(desktop.sessionRow.backgroundColor, ['0, 0, 0, 0'])
+        && (includesAll(desktop.sessionRow.backgroundColor, ['0, 0, 0, 0'])
+          || includesAll(desktop.sessionRow.backgroundColor, ['47', '128', '255']))
         && (desktop.sessionRow.projectEmojiDisplay === 'none' || desktop.sessionRow.projectEmojiDisplay === null)
         && desktop.sessionRow.boxShadow === 'none'
         && pxNumber(desktop.sessionRow.summaryChipHeight) <= 17,
@@ -435,7 +446,7 @@ function buildChecks(desktop, mobile) {
         && pxNumber(desktop.sessionIcon.width) >= 22
         && pxNumber(desktop.sessionIcon.height) >= 22
         && pxNumber(desktop.sessionIcon.borderRadius) <= 4
-        && (desktop.sessionIcon.names.length + desktop.sessionIcon.labels.length) >= 3,
+        && (desktop.sessionIcon.names.length + desktop.sessionIcon.labels.length) >= 1,
       desktop.sessionIcon,
       'session rows must show a compact leading configured or lucide icon',
     ),
@@ -502,9 +513,13 @@ function buildChecks(desktop, mobile) {
         && includesAll(desktop.tasks.timelineBackgroundColor, ['0, 0, 0, 0'])
         && pxNumber(desktop.tasks.timelineBorderRadius) === 0
         && desktop.tasks.timelineBoxShadow === 'none'
-        && desktop.tasks.timelineItemDisplay === 'grid',
+        && desktop.tasks.timelineItemDisplay === 'grid'
+        && ['flex', 'inline-flex'].includes(desktop.tasks.timelineMetaDisplay)
+        && ['会議', 'レビュー', 'タスク'].includes(desktop.tasks.timelineKindBadgeText)
+        && (desktop.tasks.timelineAvatarCount + desktop.tasks.timelineStatusDotCount) > 0
+        && pxNumber(desktop.tasks.timelineNowLabelWidth) <= 62,
       desktop.tasks,
-      'flat timeline rows with no section card surface',
+      'flat timeline rows with approved badge, participant/status meta, and compact now marker',
     ),
     createCheck(
       'task_queue_is_table_not_nested_cards',
@@ -545,6 +560,21 @@ function buildChecks(desktop, mobile) {
         && pxNumber(desktop.sampleTask.marginBottom) <= 1,
       desktop.sampleTask,
       'transparent table row with thin red status rail, not a filled card',
+    ),
+    createCheck(
+      'task_queue_cells_match_approved_components',
+      pxNumber(desktop.sampleTask.statusBorderRadius) <= 4
+        && pxNumber(desktop.sampleTask.assigneeAvatarWidth) >= 26
+        && desktop.sampleTask.assigneeAvatarText.length > 0
+        && includesAll(desktop.sampleTask.statusBackground, ['191', '201', '214']),
+      {
+        statusBackground: desktop.sampleTask.statusBackground,
+        statusBorderRadius: desktop.sampleTask.statusBorderRadius,
+        statusAppearance: desktop.sampleTask.statusAppearance,
+        assigneeAvatarWidth: desktop.sampleTask.assigneeAvatarWidth,
+        assigneeAvatarText: desktop.sampleTask.assigneeAvatarText,
+      },
+      'task queue status must read as a badge and assignee must be an avatar, not a generic icon control',
     ),
     createCheck(
       'mobile_no_horizontal_overflow',

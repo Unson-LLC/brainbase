@@ -15524,3 +15524,254 @@ body.resizing iframe {
     border-color: transparent;
     color: #dce4ee;
 }
+
+/* Command Center v6: approved right-panel component fidelity. */
+.command-center-theme #tasks-tab-content .timeline-item {
+    position: relative;
+    grid-template-columns: 52px 18px minmax(0, 1fr) minmax(78px, auto);
+}
+
+.command-center-theme #tasks-tab-content .timeline-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.command-center-theme #tasks-tab-content .timeline-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme #tasks-tab-content .timeline-source-badge,
+.command-center-theme #tasks-tab-content .timeline-kind-badge {
+    flex: 0 0 auto;
+    min-width: 38px;
+    margin-left: 0;
+    padding: 3px 7px;
+    border: 1px solid rgba(86, 160, 255, 0.24);
+    border-radius: 4px;
+    background: rgba(86, 160, 255, 0.1);
+    color: #89bfff;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.command-center-theme #tasks-tab-content .timeline-kind-badge.review {
+    border-color: rgba(181, 139, 255, 0.24);
+    background: rgba(181, 139, 255, 0.1);
+    color: #c5adff;
+}
+
+.command-center-theme #tasks-tab-content .timeline-kind-badge.task {
+    border-color: rgba(49, 199, 126, 0.24);
+    background: rgba(49, 199, 126, 0.1);
+    color: #74dea4;
+}
+
+.command-center-theme #tasks-tab-content .timeline-meta {
+    grid-column: 4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+    min-width: 0;
+}
+
+.command-center-theme #tasks-tab-content .timeline-duration {
+    color: #8f9aaa;
+    font: 650 10.5px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar-stack {
+    display: inline-flex;
+    align-items: center;
+    min-width: 48px;
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin-left: -7px;
+    border: 1px solid rgba(8, 10, 13, 0.95);
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 62% 28%, rgba(255, 255, 255, 0.38), transparent 18%),
+        linear-gradient(135deg, #2f80ff, #31c77e);
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 10px;
+    font-weight: 750;
+    box-shadow: 0 0 0 1px rgba(191, 201, 214, 0.11);
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar:first-child {
+    margin-left: 0;
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar.avatar-tone-1 {
+    background:
+        radial-gradient(circle at 62% 28%, rgba(255, 255, 255, 0.34), transparent 18%),
+        linear-gradient(135deg, #7c5cff, #2f80ff);
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar.avatar-tone-2 {
+    background:
+        radial-gradient(circle at 62% 28%, rgba(255, 255, 255, 0.34), transparent 18%),
+        linear-gradient(135deg, #f59f47, #f35d5d);
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar.avatar-tone-3 {
+    background:
+        radial-gradient(circle at 62% 28%, rgba(255, 255, 255, 0.34), transparent 18%),
+        linear-gradient(135deg, #31c77e, #1d9bf0);
+}
+
+.command-center-theme #tasks-tab-content .timeline-avatar.avatar-tone-4 {
+    background:
+        radial-gradient(circle at 62% 28%, rgba(255, 255, 255, 0.34), transparent 18%),
+        linear-gradient(135deg, #e66db2, #7c5cff);
+}
+
+.command-center-theme #tasks-tab-content .timeline-extra {
+    margin-left: 4px;
+    color: #8f9aaa;
+    font: 700 10.5px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme #tasks-tab-content .timeline-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bb-approved-green);
+    box-shadow: 0 0 0 4px rgba(49, 199, 126, 0.12);
+}
+
+.command-center-theme #tasks-tab-content .timeline-edit-btn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    opacity: 0;
+    transform: translateY(-50%);
+}
+
+.command-center-theme #tasks-tab-content .timeline-item:hover .timeline-edit-btn {
+    opacity: 1;
+}
+
+.command-center-theme #tasks-tab-content .timeline-now {
+    min-height: 20px;
+    margin: 7px 0;
+}
+
+.command-center-theme #tasks-tab-content .timeline-now::before {
+    left: 82px;
+    width: calc(100% - 82px);
+    height: 1px;
+    background: rgba(47, 128, 255, 0.76);
+}
+
+.command-center-theme #tasks-tab-content .timeline-now::after {
+    left: 78px;
+    width: 9px;
+    height: 9px;
+}
+
+.command-center-theme #tasks-tab-content .timeline-now-label {
+    margin-left: 33px;
+    min-width: 43px;
+    justify-content: center;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    letter-spacing: 0;
+}
+
+.command-center-theme #tasks-tab-content .timeline-now-prefix {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-trigger {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-trigger:hover {
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(191, 201, 214, 0.16);
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 62% 30%, rgba(255, 255, 255, 0.4), transparent 18%),
+        linear-gradient(135deg, #2f80ff, #31c77e);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 10.5px;
+    font-weight: 800;
+    box-shadow: 0 0 0 2px rgba(8, 10, 13, 0.92);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-icon {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    border-radius: 4px;
+    padding: 0 8px;
+    border: 1px solid rgba(191, 201, 214, 0.16);
+    background-image: none;
+    color: #cfd8e5;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    text-align-last: center;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select.status-pending {
+    border-color: rgba(191, 201, 214, 0.18);
+    background-color: rgba(191, 201, 214, 0.07);
+    color: #b9c4d2;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select.status-progress {
+    border-color: rgba(47, 128, 255, 0.28);
+    background-color: rgba(47, 128, 255, 0.12);
+    color: #89bfff;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select.status-completed {
+    border-color: rgba(49, 199, 126, 0.28);
+    background-color: rgba(49, 199, 126, 0.12);
+    color: #74dea4;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select.status-review {
+    border-color: rgba(181, 139, 255, 0.28);
+    background-color: rgba(181, 139, 255, 0.12);
+    color: #c5adff;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select.status-generating {
+    border-color: rgba(245, 159, 71, 0.28);
+    background-color: rgba(245, 159, 71, 0.12);
+    color: #ffc36d;
+}

@@ -305,8 +305,12 @@ export class NocoDBTasksView extends BaseView {
         const priorityClass = ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'normal';
 
         const statusClass = task.status === 'completed' ? 'completed' : '';
+        const statusTone = this._getStatusTone(task.status);
+        const statusLabel = this._getStatusLabel(task.status);
         const isOverdue = this._isOverdue(task.due);
         const dueDateHtml = task.due ? this._formatDueDate(task.due) : '';
+        const assignee = task.assignee || '未割当';
+        const assigneeInitials = this._getAssigneeInitials(assignee);
 
         return `
             <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
@@ -328,15 +332,15 @@ export class NocoDBTasksView extends BaseView {
                 <div class="task-title">${escapeHtml(task.title)}</div>
                 <div class="task-meta">
                     ${dueDateHtml}
-                    <select class="task-status-select" data-task-id="${task.id}">
+                    <select class="task-status-select status-${statusTone}" data-task-id="${task.id}" aria-label="ステータス: ${escapeHtml(statusLabel)}">
                         <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>未着手</option>
                         <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>進行中</option>
                         <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>完了</option>
                     </select>
                     <div class="assignee-combobox" data-task-id="${task.id}">
-                        <button class="assignee-trigger" type="button">
-                            <i data-lucide="user" class="assignee-icon"></i>
-                            <span class="assignee-value">${escapeHtml(task.assignee || '未割当')}</span>
+                        <button class="assignee-trigger" type="button" title="${escapeHtml(assignee)}">
+                            <span class="assignee-avatar" aria-hidden="true">${escapeHtml(assigneeInitials)}</span>
+                            <span class="assignee-value">${escapeHtml(assignee)}</span>
                             <i data-lucide="chevron-down" class="chevron-icon"></i>
                         </button>
                         <div class="assignee-popover" style="display: none;">
@@ -349,6 +353,32 @@ export class NocoDBTasksView extends BaseView {
                 </div>
             </div>
         `;
+    }
+
+    _getStatusTone(status) {
+        if (status === 'completed') return 'completed';
+        if (status === 'in_progress') return 'progress';
+        if (status === 'review' || status === 'review_waiting') return 'review';
+        if (status === 'generating' || status === 'generated') return 'generating';
+        return 'pending';
+    }
+
+    _getStatusLabel(status) {
+        if (status === 'completed') return '完了';
+        if (status === 'in_progress') return '進行中';
+        if (status === 'review' || status === 'review_waiting') return 'レビュー待ち';
+        if (status === 'generating' || status === 'generated') return '生成中';
+        return '未着手';
+    }
+
+    _getAssigneeInitials(assignee) {
+        const text = String(assignee || '').trim();
+        if (!text || text === '未割当') return '未';
+        const parts = text.split(/[\s._-]+/).filter(Boolean);
+        if (parts.length >= 2) {
+            return parts.map((part) => Array.from(part)[0]).join('').slice(0, 2).toUpperCase();
+        }
+        return Array.from(text).slice(0, 2).join('').toUpperCase();
     }
 
     /**

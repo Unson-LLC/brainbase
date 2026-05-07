@@ -35,7 +35,8 @@ describe('NocoDBTasksView', () => {
             id: 'nocodb:proj:1',
             title: 'Test task',
             project: 'proj',
-            status: 'pending'
+            status: 'pending',
+            assignee: 'ksato'
         }];
         const service = buildService({ getFilteredTasks: vi.fn(() => tasks) });
         const view = new NocoDBTasksView({ nocodbTaskService: service });
@@ -49,5 +50,7 @@ describe('NocoDBTasksView', () => {
         const filterArg = service.getFilteredTasks.mock.calls[0][0];
         expect(filterArg.assignee).toBe('ksato');
         expect(container.textContent).toContain('Test task');
+        expect(container.querySelector('.task-status-select.status-pending')).toBeTruthy();
+        expect(container.querySelector('.assignee-avatar')?.textContent).toBe('KS');
     });
 });

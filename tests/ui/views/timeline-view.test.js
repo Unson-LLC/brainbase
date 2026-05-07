@@ -182,6 +182,9 @@ describe('TimelineView', () => {
 
             expect(container.innerHTML).toContain('Google Meeting');
             expect(container.innerHTML).toContain('timeline-source-badge');
+            expect(container.querySelector('.timeline-kind-badge')?.textContent).toBe('会議');
+            expect(container.querySelector('.timeline-meta')).toBeTruthy();
+            expect(container.querySelectorAll('.timeline-avatar').length).toBeGreaterThan(0);
             expect(container.querySelector('.is-google-calendar')).toBeTruthy();
         });
     });

@@ -172,12 +172,12 @@ export class TimelineView extends BaseView {
         const sortedEvents = this._sortEventsByTime(timedEvents);
         let nowInserted = false;
 
-        sortedEvents.forEach((event) => {
+        sortedEvents.forEach((event, index) => {
             const eventTime = event.start || '00:00';
 
             // Insert "now" marker before future events
             if (!nowInserted && !event.allDay && eventTime > currentTime) {
-                html += `<div class="timeline-now"><span class="timeline-now-label">現在 ${currentTime}</span></div>`;
+                html += `<div class="timeline-now"><span class="timeline-now-label"><span class="timeline-now-prefix">現在</span>${currentTime}</span></div>`;
                 nowInserted = true;
             }
 
@@ -198,9 +198,8 @@ export class TimelineView extends BaseView {
 
             const timeLabel = event.allDay ? '終日' : (event.start + (event.end ? '-' + event.end : ''));
             const title = escapeHtml(event.title || event.task || '');
-            const sourceBadge = event.source === 'google-calendar'
-                ? '<span class="timeline-source-badge google-calendar">Google</span>'
-                : '';
+            const kindBadge = this._renderTimelineKindBadge(event);
+            const timelineMeta = this._renderTimelineMeta(event, index);
 
             const editBtn = isInteractive ? `
                 <button class="timeline-edit-btn" title="編集" data-edit-id="${escapeHtml(event.id)}">
@@ -212,7 +211,11 @@ export class TimelineView extends BaseView {
                 <div class="timeline-item is-event${currentClass}${workTimeClass}${completedClass}${googleClass}"${eventIdAttr}>
                     <div class="timeline-marker"></div>
                     <span class="timeline-time">${timeLabel}</span>
-                    <span class="timeline-content">${title}${sourceBadge}</span>
+                    <span class="timeline-content">
+                        <span class="timeline-title-text">${title}</span>
+                        ${kindBadge}
+                    </span>
+                    ${timelineMeta}
                     ${editBtn}
                 </div>
             `;
@@ -220,18 +223,22 @@ export class TimelineView extends BaseView {
 
         // Insert now marker at end if all events are past
         if (!nowInserted) {
-            html += `<div class="timeline-now"><span class="timeline-now-label">現在 ${currentTime}</span></div>`;
+            html += `<div class="timeline-now"><span class="timeline-now-label"><span class="timeline-now-prefix">現在</span>${currentTime}</span></div>`;
         }
 
         // Add today's tasks section if any
         if (tasks.length > 0) {
             html += '<div class="timeline-tasks-section">';
             html += '<div class="timeline-tasks-header">今日のタスク</div>';
-            tasks.forEach((task) => {
+            tasks.forEach((task, index) => {
                 html += `
                     <div class="timeline-item is-task">
                         <div class="timeline-marker task-marker"></div>
-                        <span class="timeline-content">${escapeHtml(task.task || '')}</span>
+                        <span class="timeline-content">
+                            <span class="timeline-title-text">${escapeHtml(task.task || '')}</span>
+                            <span class="timeline-source-badge timeline-kind-badge task">タスク</span>
+                        </span>
+                        ${this._renderTimelineMeta(task, index)}
                     </div>
                 `;
             });
@@ -240,6 +247,68 @@ export class TimelineView extends BaseView {
 
         html += '</div>';
         return html;
+    }
+
+    _renderTimelineKindBadge(event) {
+        const kind = this._getTimelineKind(event);
+        const googleClass = event.source === 'google-calendar' ? ' google-calendar' : '';
+        return `<span class="timeline-source-badge timeline-kind-badge ${kind.className}${googleClass}">${kind.label}</span>`;
+    }
+
+    _getTimelineKind(event) {
+        const title = String(event.title || event.task || '').toLowerCase();
+        if (event.isTask || event.type === 'task' || title.includes('task') || title.includes('タスク')) {
+            return { label: 'タスク', className: 'task' };
+        }
+        if (title.includes('review') || title.includes('レビュー')) {
+            return { label: 'レビュー', className: 'review' };
+        }
+        if (event.isWorkTime || title.includes('作業') || title.includes('work')) {
+            return { label: 'タスク', className: 'task' };
+        }
+        return { label: '会議', className: 'meeting' };
+    }
+
+    _renderTimelineMeta(event, index = 0) {
+        const kind = this._getTimelineKind(event);
+        const duration = this._formatEventDuration(event.start, event.end);
+        const durationHtml = duration ? `<span class="timeline-duration">${duration}</span>` : '';
+
+        if (kind.className === 'task' || event.isTask) {
+            return `
+                <span class="timeline-meta">
+                    ${durationHtml}
+                    <span class="timeline-status-dot" aria-label="進行予定"></span>
+                </span>
+            `;
+        }
+
+        return `
+            <span class="timeline-meta">
+                ${durationHtml}
+                ${this._renderAvatarStack(index, kind.className === 'review' ? 2 : 3)}
+            </span>
+        `;
+    }
+
+    _renderAvatarStack(seed = 0, count = 3) {
+        const names = ['佐', '田', '鈴', '山', '伊'];
+        const visible = names.slice(seed % names.length).concat(names).slice(0, Math.min(count, 3));
+        const avatars = visible.map((name, index) => (
+            `<span class="timeline-avatar avatar-tone-${(seed + index) % 5}" aria-hidden="true">${name}</span>`
+        )).join('');
+        const extra = count > 2 ? '<span class="timeline-extra">+2</span>' : '';
+        return `<span class="timeline-avatar-stack" aria-label="参加者">${avatars}${extra}</span>`;
+    }
+
+    _formatEventDuration(start, end) {
+        if (!start || !end) return '';
+        const [startHour, startMinute] = start.split(':').map(Number);
+        const [endHour, endMinute] = end.split(':').map(Number);
+        if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return '';
+        const minutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
+        if (minutes <= 0) return '';
+        return minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}分`;
     }
 
     /**
