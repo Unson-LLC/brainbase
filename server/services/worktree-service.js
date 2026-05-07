@@ -459,6 +459,39 @@ export class WorktreeService {
         }
     }
 
+    _isWorkspaceArtifactStatusPath(statusPath) {
+        const normalized = String(statusPath || '').replace(/\\/g, '/');
+        const basename = normalized.split('/').pop();
+        const artifactBasenames = new Set([
+            '.DS_Store',
+            '.brainbase-port',
+            '.mcp.json',
+            '.vibeproignore',
+            '.antigravityignore',
+            'AGENTS.md',
+            'CLAUDE.md'
+        ]);
+
+        return normalized.includes('/.claude/')
+            || normalized.includes('/--help/')
+            || normalized.startsWith('--help/')
+            || artifactBasenames.has(basename);
+    }
+
+    _statusHasRelevantWorkingCopyChanges(statusOutput) {
+        if (!String(statusOutput || '').includes('Working copy changes:')) {
+            return false;
+        }
+
+        return String(statusOutput || '')
+            .split('\n')
+            .some((line) => {
+                const match = line.match(/^\s*[A-Z?][A-Z? ]*\s+(.+)$/);
+                if (!match) return false;
+                return !this._isWorkspaceArtifactStatusPath(match[1]);
+            });
+    }
+
     async _resolveArchiveTargetBookmark(sessionId, repoPath, workspacePath, bookmarkInfos) {
         const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
         if (officialBookmark) {
@@ -515,7 +548,7 @@ export class WorktreeService {
                 const { stdout: statusOutput } = await this.execPromise(
                     `jj -R "${workspacePath}" status --no-pager`
                 );
-                hasWorkingCopyChanges = statusOutput.includes('Working copy changes:');
+                hasWorkingCopyChanges = this._statusHasRelevantWorkingCopyChanges(statusOutput);
             } catch {
                 hasWorkingCopyChanges = false;
             }
