@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605072010';
+const EXPECTED_CSS_VERSION = '202605072025';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -196,6 +196,18 @@ async function collectDesktopEvidence(page) {
         backgroundColor: style('.activity-bar-item.active', 'background-color'),
         borderColor: style('.activity-bar-item.active', 'border-color'),
         borderRadius: style('.activity-bar-item.active', 'border-radius'),
+      },
+      activityBarGlobalActions: {
+        sidebarFooterExists: Boolean(document.querySelector('.sidebar .sidebar-footer')),
+        inboxInActivityBar: Boolean(document.querySelector('.activity-bar-bottom #inbox-trigger-btn')),
+        authInActivityBar: Boolean(document.querySelector('.activity-bar-bottom #auth-btn')),
+        inboxInSidebar: Boolean(document.querySelector('.sidebar #inbox-trigger-btn')),
+        authInSidebar: Boolean(document.querySelector('.sidebar #auth-btn')),
+        inboxWidth: document.querySelector('.activity-bar-bottom #inbox-trigger-btn')?.getBoundingClientRect().width ?? null,
+        authWidth: document.querySelector('.activity-bar-bottom #auth-btn')?.getBoundingClientRect().width ?? null,
+        authBadgeClipPath: style('.activity-bar-bottom #auth-status-badge', 'clip-path'),
+        inboxLabelClipPath: style('.activity-bar-bottom #inbox-trigger-btn .activity-bar-label', 'clip-path'),
+        dropdownLeft: style('.activity-bar-bottom .inbox-dropdown', 'left'),
       },
       addSessionButton: {
         backgroundImage: style('.add-session-btn', 'background-image'),
@@ -447,6 +459,20 @@ function buildChecks(desktop, mobile) {
         && pxNumber(desktop.activityBarActive.borderRadius) === 0,
       desktop.activityBarActive,
       'quiet rail active state with blue tint and no rounded card',
+    ),
+    createCheck(
+      'global_actions_moved_to_activity_bar',
+      desktop.activityBarGlobalActions.sidebarFooterExists === false
+        && desktop.activityBarGlobalActions.inboxInActivityBar === true
+        && desktop.activityBarGlobalActions.authInActivityBar === true
+        && desktop.activityBarGlobalActions.inboxInSidebar === false
+        && desktop.activityBarGlobalActions.authInSidebar === false
+        && pxNumber(desktop.activityBarGlobalActions.inboxWidth) === 42
+        && pxNumber(desktop.activityBarGlobalActions.authWidth) === 42
+        && desktop.activityBarGlobalActions.authBadgeClipPath.includes('inset')
+        && desktop.activityBarGlobalActions.inboxLabelClipPath.includes('inset'),
+      desktop.activityBarGlobalActions,
+      'notification and auth controls must be icon actions in the global activity bar, not rows in the session list',
     ),
     createCheck(
       'primary_button_component_replaced',

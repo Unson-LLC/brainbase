@@ -589,6 +589,8 @@ export function applyUiSetupMixin(AppClass) {
         }
 
         authBtn.disabled = status === 'checking';
+        authBtn.title = label;
+        authBtn.setAttribute('aria-label', label);
         if (text) text.textContent = label;
         if (icon) icon.setAttribute('data-lucide', iconName);
         if (badge) {

@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202605072010">
+    <link rel="stylesheet" href="style.css?v=202605072025">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -62,6 +62,30 @@
                 </button>
             </div>
             <div class="activity-bar-bottom">
+                <div class="inbox-trigger-container activity-bar-global-action" data-slot="nav:inbox">
+                    <button id="inbox-trigger-btn" class="activity-bar-item inbox-trigger" title="通知" aria-label="通知" style="display: none;">
+                        <i data-lucide="bell"></i>
+                        <span class="activity-bar-label">通知</span>
+                        <span class="inbox-badge" id="inbox-badge">0</span>
+                    </button>
+                    <div id="inbox-dropdown" class="inbox-dropdown">
+                        <div class="inbox-dropdown-header">
+                            <span>受信箱</span>
+                            <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み"
+                                aria-label="すべての通知を確認済みにする">
+                                <i data-lucide="check-check"></i>
+                            </button>
+                        </div>
+                        <div id="inbox-list" class="inbox-dropdown-list">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+                <button id="auth-btn" class="activity-bar-item auth-link" title="ログイン" aria-label="ログイン">
+                    <i data-lucide="log-in"></i>
+                    <span id="auth-btn-text" class="activity-bar-label">ログイン</span>
+                    <span id="auth-status-badge" class="auth-status-badge neutral">未ログイン</span>
+                </button>
                 <button class="activity-bar-item" id="ab-settings-btn" title="Settings">
                     <i data-lucide="settings"></i>
                 </button>
@@ -129,37 +153,6 @@
                 </button>
             </div>
 
-            <!-- Settings Link -->
-            <div class="sidebar-footer">
-                <div class="sidebar-divider"></div>
-                <!-- Inbox Notification -->
-                <div class="inbox-trigger-container" data-slot="nav:inbox">
-                    <button id="inbox-trigger-btn" class="inbox-trigger" style="display: none;">
-                        <i data-lucide="bell"></i>
-                        <span>通知</span>
-                        <span class="inbox-badge" id="inbox-badge">0</span>
-                    </button>
-                    <!-- Inbox Dropdown -->
-                    <div id="inbox-dropdown" class="inbox-dropdown">
-                        <div class="inbox-dropdown-header">
-                            <span>受信箱</span>
-                            <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み"
-                                aria-label="すべての通知を確認済みにする">
-                                <i data-lucide="check-check"></i>
-                            </button>
-                        </div>
-                        <div id="inbox-list" class="inbox-dropdown-list">
-                            <div class="loading">読み込み中...</div>
-                        </div>
-                    </div>
-                </div>
-                <button id="auth-btn" class="settings-link auth-link">
-                    <i data-lucide="log-in"></i>
-                    <span id="auth-btn-text">ログイン</span>
-                    <span id="auth-status-badge" class="auth-status-badge neutral">未ログイン</span>
-                </button>
-                <!-- Settings moved to Activity Bar -->
-            </div>
         </nav>
 
 	        <!-- Left Panel Resize Handle -->

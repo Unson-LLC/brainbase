@@ -15978,3 +15978,86 @@ body.resizing iframe {
     width: 14px;
     height: 14px;
 }
+
+/* Command Center v8: keep global actions out of the session list. */
+.command-center-theme .activity-bar-bottom {
+    gap: 4px;
+    padding-bottom: 10px;
+}
+
+.command-center-theme .activity-bar-global-action {
+    position: relative;
+    width: 100%;
+    display: grid;
+    place-items: center;
+}
+
+.command-center-theme .activity-bar-label,
+.command-center-theme .activity-bar-bottom .auth-status-badge {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.command-center-theme .activity-bar-bottom .activity-bar-item,
+.command-center-theme .activity-bar-bottom .inbox-trigger,
+.command-center-theme .activity-bar-bottom .auth-link {
+    position: relative;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0;
+    justify-content: center;
+    border: 0;
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #aeb8c5;
+    box-shadow: none;
+}
+
+.command-center-theme .activity-bar-bottom .activity-bar-item:hover,
+.command-center-theme .activity-bar-bottom .inbox-trigger:hover,
+.command-center-theme .activity-bar-bottom .auth-link:hover {
+    border-left-color: rgba(47, 128, 255, 0.45);
+    background: rgba(47, 128, 255, 0.08);
+    color: #f4f7fb;
+    transform: none;
+}
+
+.command-center-theme .activity-bar-bottom .activity-bar-item svg,
+.command-center-theme .activity-bar-bottom .activity-bar-item i {
+    width: 18px;
+    height: 18px;
+}
+
+.command-center-theme .activity-bar-bottom .inbox-badge {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
+    border: 1px solid rgba(7, 10, 13, 0.96);
+    border-radius: 999px;
+    font-size: 9px;
+    line-height: 1;
+}
+
+.command-center-theme .activity-bar-bottom .inbox-dropdown {
+    left: calc(100% + 8px);
+    bottom: 0;
+    width: 320px;
+    margin-bottom: 0;
+    border-color: rgba(191, 201, 214, 0.16);
+    background: rgba(10, 13, 16, 0.98);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.36);
+}
+
+.command-center-theme .sidebar-footer {
+    display: none;
+}
