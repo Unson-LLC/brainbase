@@ -15114,8 +15114,8 @@ body.resizing iframe {
 .command-center-theme .info-drawer-header {
     position: relative;
     display: grid;
-    grid-template-rows: 54px 48px;
-    min-height: 102px;
+    grid-template-rows: 48px;
+    min-height: 48px;
     padding: 0 12px;
     border-left: 1px solid rgba(191, 201, 214, 0.13);
     border-bottom: 1px solid rgba(191, 201, 214, 0.15);
@@ -15125,34 +15125,11 @@ body.resizing iframe {
 }
 
 .command-center-theme .info-drawer-header::before {
-    content: "タスク";
-    align-self: end;
-    padding-bottom: 9px;
-    color: #f7f9fb;
-    font-size: 20px;
-    font-weight: 760;
-    line-height: 1;
-    letter-spacing: 0;
-}
-
-.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="commit-tree"].active)::before {
-    content: "コミット";
-}
-
-.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="wiki"].active)::before {
-    content: "Wiki";
-}
-
-.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="live-feed"].active)::before {
-    content: "Live Feed";
-}
-
-.command-center-theme .info-drawer-header:has(.info-drawer-tab[data-tab="portal"].active)::before {
-    content: "Portal";
+    content: none;
 }
 
 .command-center-theme .info-drawer-tabs {
-    grid-row: 2;
+    grid-row: 1;
     display: flex;
     min-height: 48px;
     gap: 22px;
@@ -15210,7 +15187,7 @@ body.resizing iframe {
 
 .command-center-theme #info-drawer-close {
     position: absolute;
-    top: 14px;
+    top: 8px;
     right: 12px;
     width: 32px;
     height: 32px;
@@ -15343,6 +15320,41 @@ body.resizing iframe {
 .command-center-theme #tasks-tab-content .next-tasks-section .section-header h3 {
     font-size: 18px;
     font-weight: 760;
+}
+
+.command-center-theme #tasks-tab-content .next-task-empty {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    min-height: 188px;
+    padding: 42px 24px 24px;
+    border-top: 1px solid rgba(191, 201, 214, 0.08);
+    color: #7f8996;
+    text-align: center;
+}
+
+.command-center-theme #tasks-tab-content .next-task-empty svg,
+.command-center-theme #tasks-tab-content .next-task-empty i {
+    width: 18px;
+    height: 18px;
+    margin-bottom: 12px;
+    color: #56a0ff;
+    opacity: 0.72;
+}
+
+.command-center-theme #tasks-tab-content .next-task-empty-title {
+    color: #d9e2ee;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.5;
+}
+
+.command-center-theme #tasks-tab-content .next-task-empty-copy {
+    max-width: 280px;
+    margin-top: 5px;
+    color: #7f8996;
+    font-size: 12px;
+    line-height: 1.55;
 }
 
 .command-center-theme #tasks-tab-content .task-tabs {

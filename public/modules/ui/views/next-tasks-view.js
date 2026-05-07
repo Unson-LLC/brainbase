@@ -26,7 +26,14 @@ export class NextTasksView extends BaseView {
         const { tasks, remainingCount } = result;
 
         if (tasks.length === 0) {
-            this.container.innerHTML = '<div class="timeline-empty">他のタスクなし</div>';
+            this.container.innerHTML = `
+                <div class="next-task-empty">
+                    <i data-lucide="list-checks"></i>
+                    <div class="next-task-empty-title">次に動かすローカルタスクはありません</div>
+                    <div class="next-task-empty-copy">新しいタスクや保留中の作業が入るとここに並びます。</div>
+                </div>
+            `;
+            refreshIcons();
             this._hideRemainingToggle();
             return;
         }

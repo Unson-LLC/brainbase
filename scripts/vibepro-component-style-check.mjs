@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071910';
+const EXPECTED_CSS_VERSION = '202605071930';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -209,6 +209,8 @@ async function collectDesktopEvidence(page) {
       },
       drawer: {
         width: style('.info-drawer.open', 'width'),
+        headerHeight: document.querySelector('.info-drawer-header')?.getBoundingClientRect().height ?? null,
+        headerBeforeContent: getComputedStyle(document.querySelector('.info-drawer-header'), '::before').getPropertyValue('content'),
         tabBackground: style('.info-drawer-tabs', 'background-color'),
         tabBorderRadius: style('.info-drawer-tabs', 'border-radius'),
         activeTabBackground: style('.info-drawer-tab.active', 'background-image') || style('.info-drawer-tab.active', 'background-color'),
@@ -295,6 +297,38 @@ async function collectDesktopEvidence(page) {
         consoleArea.style.display = previousConsoleDisplay;
         panel.style.display = previousPanelDisplay;
         panel.innerHTML = previousPanelHtml;
+
+        return result;
+      })(),
+      localTaskEmpty: (() => {
+        const list = document.querySelector('#next-tasks-list');
+        if (!list) return null;
+
+        const previousHtml = list.innerHTML;
+        list.innerHTML = `
+          <div class="next-task-empty">
+            <i data-lucide="list-checks"></i>
+            <div class="next-task-empty-title">次に動かすローカルタスクはありません</div>
+            <div class="next-task-empty-copy">新しいタスクや保留中の作業が入るとここに並びます。</div>
+          </div>
+        `;
+        window.lucide?.createIcons?.();
+
+        const empty = list.querySelector('.next-task-empty');
+        const title = list.querySelector('.next-task-empty-title');
+        const copy = list.querySelector('.next-task-empty-copy');
+        const icon = list.querySelector('.next-task-empty svg, .next-task-empty i');
+        const result = {
+          exists: Boolean(empty),
+          titleText: title?.textContent?.trim() || '',
+          copyText: copy?.textContent?.trim() || '',
+          minHeight: elementStyle(empty, 'min-height'),
+          borderTopWidth: elementStyle(empty, 'border-top-width'),
+          iconWidth: icon?.getBoundingClientRect().width ?? null,
+        };
+
+        list.innerHTML = previousHtml;
+        window.lucide?.createIcons?.();
 
         return result;
       })(),
@@ -425,12 +459,25 @@ function buildChecks(desktop, mobile) {
       'drawer_tabs_component_replaced',
       pxNumber(desktop.drawer.width) > 0
         && pxNumber(desktop.drawer.width) <= 540
+        && pxNumber(desktop.drawer.headerHeight) <= 56
+        && desktop.drawer.headerBeforeContent === 'none'
         && pxNumber(desktop.drawer.tabHeight) <= 58
         && pxNumber(desktop.drawer.tabBorderRadius) === 0
         && desktop.drawer.activeTabBoxShadow === 'none'
         && desktop.drawer.activeTabBorderBottomWidth === '2px',
       desktop.drawer,
-      'flat drawer tab strip with line active state, not a rounded tab card',
+      'flat drawer tab strip with no duplicate title row',
+    ),
+    createCheck(
+      'local_task_empty_state_is_refined',
+      desktop.localTaskEmpty?.exists === true
+        && desktop.localTaskEmpty?.titleText.includes('ローカルタスク')
+        && desktop.localTaskEmpty?.copyText.length > 0
+        && pxNumber(desktop.localTaskEmpty?.minHeight) >= 160
+        && desktop.localTaskEmpty?.borderTopWidth === '1px'
+        && pxNumber(desktop.localTaskEmpty?.iconWidth) <= 20,
+      desktop.localTaskEmpty,
+      'local task empty state must be a designed quiet state, not a raw one-line label',
     ),
     createCheck(
       'task_panel_shows_timeline_and_next_tasks_together',

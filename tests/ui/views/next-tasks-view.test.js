@@ -71,7 +71,8 @@ describe('NextTasksView', () => {
 
             nextTasksView.render();
 
-            expect(container.innerHTML).toContain('他のタスクなし');
+            expect(container.querySelector('.next-task-empty')).toBeTruthy();
+            expect(container.textContent).toContain('次に動かすローカルタスクはありません');
         });
 
         it('should render next task items', () => {
