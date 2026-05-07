@@ -676,7 +676,7 @@ describe('SessionManager', () => {
     });
   });
 
-  it('stale_legacy_codex_pty_heartbeat_revives_done_with_running_evidence', () => {
+  it('stale_legacy_codex_pty_heartbeat_after_done_does_not_revive_with_old_evidence', () => {
     const manager = createManager();
     const now = Date.now();
     const staleSessionTimestamp = now - 60 * 60 * 1000;
@@ -710,14 +710,39 @@ describe('SessionManager', () => {
 
     const status = manager.getSessionStatus()['session-1'];
     expect(status).toMatchObject({
-      isWorking: true,
-      isDone: false,
+      isWorking: false,
+      isDone: true,
       activeTurnCount: 0,
       lastEventType: 'codex/pty-shim-heartbeat',
       liveActivity: expect.objectContaining({
-        statusTone: 'working',
-        latestEvidence: 'npm run test'
+        activityKind: 'done',
+        statusTone: 'done',
+        currentStep: '完了'
       })
+    });
+  });
+
+  it('turn_completed_with_timestamp_clears_unmatched_non_comparable_active_turn', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: '019e00b4-a724-7d73-a377-a1673c153bdc'
+    });
+    manager.reportActivity('session-1', 'done', now + 1000, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: `codex-pty-turn-${now + 1000}-12345`
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      activeTurnCount: 0,
+      lastEventType: 'agent-turn-complete'
     });
   });
 
