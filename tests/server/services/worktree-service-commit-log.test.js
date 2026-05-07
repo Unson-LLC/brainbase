@@ -465,6 +465,7 @@ describe('WorktreeService.merge', () => {
 
         expect(result.success).toBe(true);
         expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('--repo "Unson-LLC/brainbase"'));
+        expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('--head "session-1"'));
         expect(mockExec).toHaveBeenCalledWith(
             'gh pr merge "https://github.com/Unson-LLC/brainbase/pull/123" --repo "Unson-LLC/brainbase" --merge --delete-branch'
         );

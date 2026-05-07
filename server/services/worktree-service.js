@@ -1029,7 +1029,7 @@ export class WorktreeService {
             // Create PR
             logger.info(`[merge] Creating PR for ${bookmarkName}`);
             const { stdout: prUrl } = await this.execPromise(
-                `gh pr create --base "${mainBranchName}" --title "${prTitle}" --body "$(cat <<'EOF'
+                `gh pr create --base "${mainBranchName}" --head "${bookmarkName}" --title "${prTitle}" --body "$(cat <<'EOF'
 ## Summary
 
 ${commits || 'No commit messages'}
