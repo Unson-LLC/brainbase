@@ -42,7 +42,7 @@ interface OutputResponse {
   hasChoices?: boolean;
 }
 
-const PORT_CANDIDATES = [31014, 31013];
+const PORT_CANDIDATES = [31013, 31014];
 const STATE_FILE = path.join(
   process.cwd(),
   ".claude",
