@@ -280,6 +280,28 @@ describe('SessionManager', () => {
     }));
   });
 
+  it('clearDoneStatus_broadcasts_combined_status_when_pane_title_spinner_still_working', () => {
+    const manager = createManager();
+    const now = Date.now();
+    manager._now = () => now;
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete'
+    });
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+    manager._activityWsBroadcast = vi.fn();
+
+    manager.clearDoneStatus('session-1');
+
+    expect(manager._activityWsBroadcast).toHaveBeenLastCalledWith('session-1', expect.objectContaining({
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 1,
+      lastEventType: 'tmux-pane-title-spinner'
+    }));
+  });
+
   it('getSessionStatus_tmux_pane_title_spinner_stays_active_while_still_observed', () => {
     const manager = createManager();
     let now = 1000;

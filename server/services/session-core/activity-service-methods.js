@@ -515,7 +515,8 @@ export const activityServiceMethods = {
         this.hookStatus.delete(sessionId);
         this._persistHookStatus(sessionId, null);
         if (hadHookStatus && typeof this._activityWsBroadcast === 'function') {
-            this._activityWsBroadcast(sessionId, null);
+            const statusForClient = this.getSessionStatus()[sessionId] || null;
+            this._activityWsBroadcast(sessionId, statusForClient);
         }
     },
 
