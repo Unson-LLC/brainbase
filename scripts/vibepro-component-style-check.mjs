@@ -55,7 +55,7 @@ async function collectDesktopEvidence(page) {
     document.querySelector('#local-tasks-panel')?.classList.remove('active');
     document.querySelector('#nocodb-tasks-panel')?.classList.add('active');
   });
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(2500);
 
   await page.evaluate(() => {
     const list = document.querySelector('#nocodb-tasks-list');
