@@ -14187,3 +14187,290 @@ body.resizing iframe {
     font-family: "Geist Mono", var(--font-mono);
     font-variant-numeric: tabular-nums;
 }
+
+/* Command Center v2: strict component replacement toward row/line based operations UI. */
+.command-center-theme {
+    --bb-row-h: 42px;
+    --bb-radius-row: 5px;
+    --bb-radius-control: 6px;
+    --bb-row-bg: rgba(255, 255, 255, 0.018);
+    --bb-row-bg-hover: rgba(255, 255, 255, 0.038);
+    --bb-row-bg-active: rgba(47, 128, 255, 0.105);
+}
+
+.command-center-theme .add-session-btn {
+    min-height: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--bb-radius-control);
+    font-size: 12.5px;
+    font-weight: 650;
+    justify-content: flex-start;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.command-center-theme .add-session-btn i,
+.command-center-theme .add-session-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.command-center-theme .session-project-children {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.command-center-theme .session-project-children .session-child-row {
+    padding-left: 8px;
+}
+
+.command-center-theme .session-child-row {
+    min-height: var(--bb-row-h);
+    height: auto;
+    padding: 5px 8px;
+    border: 1px solid rgba(191, 201, 214, 0.095);
+    border-left: 2px solid transparent;
+    border-radius: var(--bb-radius-row);
+    background: var(--bb-row-bg);
+    box-shadow: none;
+    transform: none;
+}
+
+.command-center-theme .session-child-row:hover {
+    border-color: rgba(47, 128, 255, 0.28);
+    background: var(--bb-row-bg-hover);
+    box-shadow: none;
+    transform: none;
+}
+
+.command-center-theme .session-child-row.active {
+    min-height: var(--bb-row-h);
+    border-color: rgba(47, 128, 255, 0.38);
+    border-left: 2px solid var(--bb-blue);
+    border-radius: var(--bb-radius-row);
+    background:
+        linear-gradient(90deg, rgba(47, 128, 255, 0.16), transparent 44%),
+        linear-gradient(180deg, rgba(18, 21, 25, 0.9), rgba(12, 15, 18, 0.9));
+    box-shadow: none;
+}
+
+.command-center-theme .session-row-main {
+    gap: 1px;
+}
+
+.command-center-theme .session-name-container {
+    gap: 5px;
+}
+
+.command-center-theme .session-child-row .session-project-emoji {
+    display: none;
+}
+
+.command-center-theme .session-name {
+    font-size: 12.5px;
+    line-height: 1.2;
+    font-weight: 650;
+}
+
+.command-center-theme .session-summary-row {
+    min-height: 15px;
+    gap: 3px;
+}
+
+.command-center-theme .session-summary-chip,
+.command-center-theme .transport-status-badge,
+.command-center-theme .attention-badge {
+    min-height: 15px;
+    max-height: 16px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    line-height: 1.1;
+    box-shadow: none;
+}
+
+.command-center-theme .session-actions-container,
+.command-center-theme .child-actions {
+    margin-left: 5px;
+}
+
+.command-center-theme .session-menu-toggle,
+.command-center-theme .child-actions button {
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+}
+
+.command-center-theme .info-drawer-header {
+    min-height: 54px;
+    padding: 8px 10px;
+}
+
+.command-center-theme .info-drawer-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 48px;
+    border-radius: 7px;
+}
+
+.command-center-theme .info-drawer-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 42px;
+    height: 42px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    line-height: 1;
+    gap: 5px;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.command-center-theme .info-drawer-tab i,
+.command-center-theme .info-drawer-tab svg {
+    width: 16px;
+    height: 16px;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section,
+.command-center-theme #tasks-tab-content .next-tasks-section {
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(18, 21, 25, 0.94), rgba(9, 12, 15, 0.94));
+    box-shadow: none;
+}
+
+.command-center-theme #tasks-tab-content .task-tabs {
+    min-height: 34px;
+    border-radius: 6px;
+}
+
+.command-center-theme #tasks-tab-content .task-tab {
+    min-height: 32px;
+    padding: 6px 11px;
+    border-radius: 5px;
+    font-size: 12px;
+}
+
+.command-center-theme #tasks-tab-content .task-filter {
+    gap: 8px;
+}
+
+.command-center-theme #tasks-tab-content .task-filter input,
+.command-center-theme #tasks-tab-content .task-filter select,
+.command-center-theme #tasks-tab-content .task-filter button,
+.command-center-theme #tasks-tab-content .refresh-nocodb-tasks-btn {
+    min-height: 32px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.command-center-theme #tasks-tab-content #nocodb-tasks-list {
+    padding: 0;
+    border: 1px solid rgba(191, 201, 214, 0.11);
+    border-radius: 6px;
+    background: rgba(7, 9, 11, 0.42);
+    overflow: hidden auto;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "head actions"
+        "title actions"
+        "meta actions";
+    column-gap: 10px;
+    row-gap: 4px;
+    min-height: 58px;
+    margin: 0;
+    padding: 9px 10px;
+    border: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.09);
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    background: linear-gradient(180deg, rgba(18, 21, 25, 0.72), rgba(11, 14, 17, 0.72));
+    box-shadow: none;
+    transform: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item:last-child {
+    border-bottom: 0;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item:hover {
+    border-color: rgba(191, 201, 214, 0.09);
+    border-left-color: rgba(47, 128, 255, 0.55);
+    background:
+        linear-gradient(90deg, rgba(47, 128, 255, 0.08), transparent 34%),
+        linear-gradient(180deg, rgba(18, 21, 25, 0.86), rgba(11, 14, 17, 0.86));
+    box-shadow: none;
+    transform: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item.overdue {
+    border-left: 2px solid var(--bb-red);
+    background:
+        linear-gradient(90deg, rgba(243, 93, 93, 0.075), transparent 30%),
+        linear-gradient(180deg, rgba(18, 21, 25, 0.78), rgba(11, 14, 17, 0.78));
+    box-shadow: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-header {
+    grid-area: head;
+    min-width: 0;
+    margin: 0;
+    gap: 6px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-actions {
+    grid-area: actions;
+    align-self: start;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-title {
+    grid-area: title;
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.35;
+    font-weight: 650;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-meta {
+    grid-area: meta;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    line-height: 1.25;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator {
+    width: 6px;
+    height: 6px;
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.11);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-action-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.025);
+    box-shadow: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select,
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-trigger {
+    min-height: 25px;
+    max-height: 27px;
+    border-radius: 4px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    font-size: 11px;
+}

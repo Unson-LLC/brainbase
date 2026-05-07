@@ -1,22 +1,22 @@
 {
   "status": "passed",
-  "generated_at": "2026-05-07T04:42:12.461Z",
-  "url": "http://localhost:31014",
+  "generated_at": "2026-05-07T05:36:26.971Z",
+  "url": "http://localhost:31015",
   "screenshots": {
     "desktop": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-desktop.png",
     "mobile": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-mobile.png"
   },
   "component_coverage": {
-    "checked_count": 13,
-    "passed_count": 13,
+    "checked_count": 14,
+    "passed_count": 14,
     "failed_count": 0
   },
   "checks": [
     {
       "id": "css_cache_buster_updated",
       "status": "passed",
-      "actual": "http://localhost:31014/style.css?v=202605071330",
-      "expected": "style.css?v=202605071330"
+      "actual": "http://localhost:31015/style.css?v=202605071430",
+      "expected": "style.css?v=202605071430"
     },
     {
       "id": "layout_not_replaced_by_component_sheet",
@@ -30,11 +30,26 @@
       "id": "active_session_component_replaced",
       "status": "passed",
       "actual": {
-        "backgroundImage": "linear-gradient(90deg, rgba(47, 128, 255, 0.2), rgba(0, 0, 0, 0) 42%), linear-gradient(rgba(18, 21, 25, 0.94), rgba(12, 15, 18, 0.94))",
+        "backgroundImage": "linear-gradient(90deg, rgba(47, 128, 255, 0.16), rgba(0, 0, 0, 0) 44%), linear-gradient(rgba(18, 21, 25, 0.9), rgba(12, 15, 18, 0.9))",
         "borderLeftWidth": "2px",
-        "borderLeftColor": "rgb(47, 128, 255)"
+        "borderLeftColor": "rgb(47, 128, 255)",
+        "borderRadius": "5px",
+        "height": 43
       },
-      "expected": "blue left rail with graphite card background"
+      "expected": "dense row with blue rail, graphite surface, and small radius"
+    },
+    {
+      "id": "session_rows_are_list_rows_not_cards",
+      "status": "passed",
+      "actual": {
+        "height": 43,
+        "paddingTop": "5px",
+        "backgroundImage": "none",
+        "boxShadow": "none",
+        "projectEmojiDisplay": "none",
+        "summaryChipHeight": null
+      },
+      "expected": "session rows must be compact list rows with no emoji tile or card shadow"
     },
     {
       "id": "activity_bar_active_component_replaced",
@@ -51,9 +66,10 @@
       "status": "passed",
       "actual": {
         "backgroundImage": "linear-gradient(rgb(57, 138, 255), rgb(31, 111, 235))",
-        "borderRadius": "7px"
+        "borderRadius": "6px",
+        "height": 36
       },
-      "expected": "cobalt gradient primary button"
+      "expected": "compact cobalt primary command button"
     },
     {
       "id": "terminal_action_buttons_component_replaced",
@@ -70,17 +86,18 @@
       "actual": {
         "width": "560px",
         "tabBackground": "rgba(255, 255, 255, 0.024)",
-        "activeTabBackground": "linear-gradient(rgba(47, 128, 255, 0.24), rgba(47, 128, 255, 0.12))"
+        "activeTabBackground": "linear-gradient(rgba(47, 128, 255, 0.24), rgba(47, 128, 255, 0.12))",
+        "tabHeight": 42
       },
-      "expected": "drawer open with cobalt active tab"
+      "expected": "compact drawer tab strip with cobalt active tab"
     },
     {
       "id": "timeline_component_replaced",
       "status": "passed",
       "actual": {
-        "timelineBackground": "linear-gradient(rgba(18, 21, 25, 0.96), rgba(12, 15, 18, 0.96))",
+        "timelineBackground": "linear-gradient(rgba(18, 21, 25, 0.94), rgba(9, 12, 15, 0.94))",
         "timelineItemDisplay": "grid",
-        "taskSectionBackground": "linear-gradient(rgba(18, 21, 25, 0.96), rgba(12, 15, 18, 0.96))",
+        "taskSectionBackground": "linear-gradient(rgba(18, 21, 25, 0.94), rgba(9, 12, 15, 0.94))",
         "taskTabActiveBackground": "none",
         "filterBackground": "rgba(7, 9, 11, 0.92)",
         "filterBorderRadius": "6px"
@@ -100,14 +117,18 @@
       "id": "overdue_task_card_component_replaced",
       "status": "passed",
       "actual": {
-        "backgroundImage": "linear-gradient(90deg, rgba(243, 93, 93, 0.075), rgba(0, 0, 0, 0) 36%), linear-gradient(rgba(18, 21, 25, 0.94), rgba(13, 16, 19, 0.94))",
+        "backgroundImage": "linear-gradient(90deg, rgba(243, 93, 93, 0.075), rgba(0, 0, 0, 0) 30%), linear-gradient(rgba(18, 21, 25, 0.78), rgba(11, 14, 17, 0.78))",
         "borderLeftWidth": "2px",
         "borderLeftColor": "rgb(243, 93, 93)",
+        "borderRadius": "0px",
+        "boxShadow": "none",
+        "marginBottom": "0px",
+        "height": 101.875,
         "projectBadgeBackground": "rgba(47, 128, 255, 0.12)",
-        "priorityWidth": "7px",
-        "actionButtonBackground": "rgba(47, 128, 255, 0.12)"
+        "priorityWidth": "6px",
+        "actionButtonBackground": "rgba(255, 255, 255, 0.024)"
       },
-      "expected": "graphite card with thin red status rail, not red-brown filled card"
+      "expected": "table-like graphite row with thin red status rail, not a rounded card stack"
     },
     {
       "id": "mobile_no_horizontal_overflow",
@@ -122,7 +143,7 @@
       "id": "mobile_uses_updated_css",
       "status": "passed",
       "actual": {
-        "styleHref": "http://localhost:31014/style.css?v=202605071330",
+        "styleHref": "http://localhost:31015/style.css?v=202605071430",
         "mobileTabBorderRadius": "6px"
       },
       "expected": "mobile loads current component stylesheet"

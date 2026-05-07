@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071330';
+const EXPECTED_CSS_VERSION = '202605071430';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -36,8 +36,24 @@ async function collectDesktopEvidence(page) {
   await page.waitForTimeout(1500);
 
   await page.evaluate(() => {
+    const drawer = document.querySelector('#info-drawer');
+    drawer?.classList.add('open');
+
+    document.querySelectorAll('.info-drawer-tab').forEach((tab) => {
+      tab.classList.toggle('active', tab.dataset.tab === 'tasks');
+    });
+    document.querySelectorAll('.info-tab-content').forEach((content) => {
+      content.classList.toggle('active', content.dataset.tab === 'tasks');
+    });
+    document.querySelector('#ab-tasks-btn')?.classList.add('active');
+
     const tab = document.querySelector('button.task-tab[data-tab="nocodb"]');
     tab?.click();
+    document.querySelectorAll('.task-tab').forEach((taskTab) => {
+      taskTab.classList.toggle('active', taskTab.dataset.tab === 'nocodb');
+    });
+    document.querySelector('#local-tasks-panel')?.classList.remove('active');
+    document.querySelector('#nocodb-tasks-panel')?.classList.add('active');
   });
   await page.waitForTimeout(500);
 
@@ -81,6 +97,7 @@ async function collectDesktopEvidence(page) {
     }
 
     const activeSession = document.querySelector('.session-child-row.active');
+    const firstSession = document.querySelector('.session-child-row');
     const styleHref = document.querySelector('link[rel="stylesheet"]')?.href || '';
 
     return {
@@ -92,6 +109,16 @@ async function collectDesktopEvidence(page) {
         backgroundImage: activeSession ? getComputedStyle(activeSession).backgroundImage : null,
         borderLeftWidth: activeSession ? getComputedStyle(activeSession).borderLeftWidth : null,
         borderLeftColor: activeSession ? getComputedStyle(activeSession).borderLeftColor : null,
+        borderRadius: activeSession ? getComputedStyle(activeSession).borderRadius : null,
+        height: activeSession ? activeSession.getBoundingClientRect().height : null,
+      },
+      sessionRow: {
+        height: firstSession ? firstSession.getBoundingClientRect().height : null,
+        paddingTop: style('.session-child-row', 'padding-top'),
+        backgroundImage: style('.session-child-row', 'background-image'),
+        boxShadow: style('.session-child-row', 'box-shadow'),
+        projectEmojiDisplay: style('.session-child-row .session-project-emoji', 'display'),
+        summaryChipHeight: document.querySelector('.session-summary-chip')?.getBoundingClientRect().height ?? null,
       },
       activityBarActive: {
         backgroundImage: style('.activity-bar-item.active', 'background-image'),
@@ -101,6 +128,7 @@ async function collectDesktopEvidence(page) {
       addSessionButton: {
         backgroundImage: style('.add-session-btn', 'background-image'),
         borderRadius: style('.add-session-btn', 'border-radius'),
+        height: document.querySelector('.add-session-btn')?.getBoundingClientRect().height ?? null,
       },
       terminalButton: {
         borderRadius: style('.console-btn, .icon-btn', 'border-radius'),
@@ -110,6 +138,7 @@ async function collectDesktopEvidence(page) {
         width: style('.info-drawer.open', 'width'),
         tabBackground: style('.info-drawer-tabs', 'background-color'),
         activeTabBackground: style('.info-drawer-tab.active', 'background-image') || style('.info-drawer-tab.active', 'background-color'),
+        tabHeight: document.querySelector('.info-drawer-tab')?.getBoundingClientRect().height ?? null,
       },
       tasks: {
         timelineBackground: style('#tasks-tab-content .timeline-section', 'background-image'),
@@ -123,6 +152,10 @@ async function collectDesktopEvidence(page) {
         backgroundImage: style('#tasks-tab-content .nocodb-task-item.overdue', 'background-image'),
         borderLeftWidth: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-left-width'),
         borderLeftColor: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-left-color'),
+        borderRadius: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-radius'),
+        boxShadow: style('#tasks-tab-content .nocodb-task-item.overdue', 'box-shadow'),
+        marginBottom: style('#tasks-tab-content .nocodb-task-item.overdue', 'margin-bottom'),
+        height: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue')?.getBoundingClientRect().height ?? null,
         projectBadgeBackground: style('#tasks-tab-content .project-badge', 'background-color'),
         priorityWidth: style('#tasks-tab-content .priority-indicator.high', 'width'),
         actionButtonBackground: style('#tasks-tab-content .nocodb-task-action-btn', 'background-color'),
@@ -187,9 +220,21 @@ function buildChecks(desktop, mobile) {
     createCheck(
       'active_session_component_replaced',
       includesAll(desktop.activeSession.backgroundImage, ['47, 128, 255', '18, 21, 25'])
-        && desktop.activeSession.borderLeftWidth === '2px',
+        && desktop.activeSession.borderLeftWidth === '2px'
+        && pxNumber(desktop.activeSession.borderRadius) <= 6
+        && pxNumber(desktop.activeSession.height) <= 46,
       desktop.activeSession,
-      'blue left rail with graphite card background',
+      'dense row with blue rail, graphite surface, and small radius',
+    ),
+    createCheck(
+      'session_rows_are_list_rows_not_cards',
+      pxNumber(desktop.sessionRow.height) <= 46
+        && pxNumber(desktop.sessionRow.paddingTop) <= 6
+        && desktop.sessionRow.projectEmojiDisplay === 'none'
+        && desktop.sessionRow.boxShadow === 'none'
+        && pxNumber(desktop.sessionRow.summaryChipHeight) <= 17,
+      desktop.sessionRow,
+      'session rows must be compact list rows with no emoji tile or card shadow',
     ),
     createCheck(
       'activity_bar_active_component_replaced',
@@ -201,9 +246,10 @@ function buildChecks(desktop, mobile) {
     createCheck(
       'primary_button_component_replaced',
       includesAll(desktop.addSessionButton.backgroundImage, ['57, 138, 255'])
-        && pxNumber(desktop.addSessionButton.borderRadius) >= 7,
+        && pxNumber(desktop.addSessionButton.borderRadius) <= 6
+        && pxNumber(desktop.addSessionButton.height) <= 38,
       desktop.addSessionButton,
-      'cobalt gradient primary button',
+      'compact cobalt primary command button',
     ),
     createCheck(
       'terminal_action_buttons_component_replaced',
@@ -215,9 +261,10 @@ function buildChecks(desktop, mobile) {
     createCheck(
       'drawer_tabs_component_replaced',
       pxNumber(desktop.drawer.width) > 0
-        && includesAll(desktop.drawer.activeTabBackground, ['47, 128, 255']),
+        && includesAll(desktop.drawer.activeTabBackground, ['47, 128, 255'])
+        && pxNumber(desktop.drawer.tabHeight) <= 52,
       desktop.drawer,
-      'drawer open with cobalt active tab',
+      'compact drawer tab strip with cobalt active tab',
     ),
     createCheck(
       'timeline_component_replaced',
@@ -240,9 +287,12 @@ function buildChecks(desktop, mobile) {
       'overdue_task_card_component_replaced',
       includesAll(desktop.sampleTask.backgroundImage, ['18, 21, 25'])
         && desktop.sampleTask.borderLeftWidth === '2px'
-        && includesAll(desktop.sampleTask.borderLeftColor, ['243', '93', '93']),
+        && includesAll(desktop.sampleTask.borderLeftColor, ['243', '93', '93'])
+        && pxNumber(desktop.sampleTask.borderRadius) <= 6
+        && desktop.sampleTask.boxShadow === 'none'
+        && pxNumber(desktop.sampleTask.marginBottom) <= 1,
       desktop.sampleTask,
-      'graphite card with thin red status rail, not red-brown filled card',
+      'table-like graphite row with thin red status rail, not a rounded card stack',
     ),
     createCheck(
       'mobile_no_horizontal_overflow',
