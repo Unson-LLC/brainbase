@@ -16,9 +16,9 @@ import { logger } from '../utils/logger.js';
 function parseGitHubRepoSpec(remoteUrl) {
     const value = String(remoteUrl || '').trim();
     const patterns = [
-        /^https:\/\/github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/,
-        /^git@github\.com:([^/]+\/[^/.]+?)(?:\.git)?$/,
-        /^ssh:\/\/git@github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/
+        /^https:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/,
+        /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?\/?$/,
+        /^ssh:\/\/git@github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/
     ];
 
     for (const pattern of patterns) {
@@ -459,6 +459,41 @@ export class WorktreeService {
         }
     }
 
+    _isWorkspaceArtifactStatusPath(statusPath) {
+        const normalized = String(statusPath || '').replace(/\\/g, '/');
+        const basename = normalized.split('/').pop();
+        const artifactBasenames = new Set([
+            '.DS_Store',
+            '.brainbase-port',
+            '.mcp.json',
+            '.vibeproignore',
+            '.antigravityignore',
+            'AGENTS.md',
+            'CLAUDE.md'
+        ]);
+
+        return normalized.includes('/.claude/')
+            || normalized.includes('/node_modules/')
+            || normalized.includes('/--help/')
+            || normalized.startsWith('--help/')
+            || basename === 'node_modules'
+            || artifactBasenames.has(basename);
+    }
+
+    _statusHasRelevantWorkingCopyChanges(statusOutput) {
+        if (!String(statusOutput || '').includes('Working copy changes:')) {
+            return false;
+        }
+
+        return String(statusOutput || '')
+            .split('\n')
+            .some((line) => {
+                const match = line.match(/^\s*[A-Z?][A-Z? ]*\s+(.+)$/);
+                if (!match) return false;
+                return !this._isWorkspaceArtifactStatusPath(match[1]);
+            });
+    }
+
     async _resolveArchiveTargetBookmark(sessionId, repoPath, workspacePath, bookmarkInfos) {
         const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
         if (officialBookmark) {
@@ -515,7 +550,7 @@ export class WorktreeService {
                 const { stdout: statusOutput } = await this.execPromise(
                     `jj -R "${workspacePath}" status --no-pager`
                 );
-                hasWorkingCopyChanges = statusOutput.includes('Working copy changes:');
+                hasWorkingCopyChanges = this._statusHasRelevantWorkingCopyChanges(statusOutput);
             } catch {
                 hasWorkingCopyChanges = false;
             }
@@ -558,7 +593,7 @@ export class WorktreeService {
                 repoName,
                 worktreePath: workspacePath,
                 workspaceName,
-                bookmarkName,
+                bookmarkName: fallbackBookmarkName,
                 officialBookmarkName: null,
                 needsIntegration: false,
                 needsMerge: false

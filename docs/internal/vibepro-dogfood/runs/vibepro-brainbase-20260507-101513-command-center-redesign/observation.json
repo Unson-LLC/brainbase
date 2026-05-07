@@ -1,0 +1,101 @@
+{
+  "run_id": "vibepro-brainbase-20260507-101513-command-center-redesign",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-07T01:16:44.782Z",
+  "repo": {
+    "branch": "session/session-1778113092477",
+    "upstream": "",
+    "ahead": 0,
+    "behind": 0,
+    "changed_files": [
+      {
+        "path": "mcp/brainbase/package-lock.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "mcp/jibble/package-lock.json",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/index.html",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/modules/ui/views/nocodb-tasks-view.js",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "public/style.css",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/design/",
+        "status": "??",
+        "category": "other"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      }
+    ],
+    "run_count_before_current": 16,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 16,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 4,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        "mcp/brainbase/package-lock.json",
+        "mcp/jibble/package-lock.json",
+        "public/index.html",
+        "public/modules/ui/views/nocodb-tasks-view.js",
+        "public/style.css",
+        "docs/design/"
+      ]
+    }
+  ]
+}

@@ -254,6 +254,66 @@ describe('WorktreeService Git compatibility helpers', () => {
 
         expect(mockExec).not.toHaveBeenCalledWith('jj -R "/tmp/repo" git fetch');
     });
+
+    it('workspace artifactだけのworking copy changesはdirty扱いしない', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({
+                stdout: [
+                    'Working copy changes:',
+                    'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
+                    'A ../../worktrees/session-1-repo/node_modules',
+                    'M ../../worktrees/session-1-repo/AGENTS.md',
+                    'A ../../worktrees/session-1-repo/.brainbase-port'
+                ].join('\n')
+            });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasWorkingCopyChanges).toBe(false);
+        expect(result.needsIntegration).toBe(false);
+    });
+
+    it('workspace artifact以外のworking copy changesはdirty扱いする', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({
+                stdout: [
+                    'Working copy changes:',
+                    'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
+                    'M ../../worktrees/session-1-repo/src/app.js'
+                ].join('\n')
+            });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasWorkingCopyChanges).toBe(true);
+        expect(result.needsIntegration).toBe(true);
+    });
+
+    it('status収集に失敗した場合もfallback bookmark名を返す', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+
+        mockExec.mockRejectedValue(new Error('not a jj repo'));
+
+        const result = await service.getStatus('session-1', '/tmp/repo', null);
+
+        expect(result.exists).toBe(false);
+        expect(result.bookmarkName).toBe('session/session-1');
+    });
 });
 
 describe('WorktreeService.autoHealArchiveState', () => {
@@ -450,7 +510,7 @@ describe('WorktreeService.merge', () => {
 
         mockExec
             .mockResolvedValueOnce({ stdout: 'main\n' })
-            .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
+            .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/\n' })
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: 'session-1: abc\n' })
             .mockResolvedValueOnce({ stdout: '' })

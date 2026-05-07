@@ -426,8 +426,16 @@ export const activityServiceMethods = {
         const activeTurnIds = new Set(currentHookData.activeTurnIds);
         const staleCodexPtyTurn = this._isStaleCodexPtyTurn(turnId, timestamp);
         const strongWorkingSignal = this._isStrongWorkingSignal({ status, lifecycle, eventType, metadata });
+        let ignoredStaleDoneHeartbeat = false;
 
         if (lifecycle === 'turn_started') {
+            const isOutOfOrderStartAfterDone = lastDoneAt > 0
+                && timestamp < lastDoneAt
+                && lastDoneAt >= lastWorkingAt;
+            if (isOutOfOrderStartAfterDone) {
+                logger.info(`[Hook] Ignoring out-of-order turn_started ${turnId || '(no turnId)'} for ${sessionId}; done=${lastDoneAt}, started=${timestamp}`);
+                return;
+            }
             if (turnId && !staleCodexPtyTurn) {
                 activeTurnIds.add(turnId);
             }
@@ -448,7 +456,7 @@ export const activityServiceMethods = {
                 if (completedTs > 0) {
                     for (const tid of [...activeTurnIds]) {
                         const tidTs = this._extractTurnTimestamp(tid);
-                        if (tidTs > 0 && tidTs <= completedTs) {
+                        if ((tidTs > 0 && tidTs <= completedTs) || tidTs <= 0) {
                             logger.info(`[Hook] Clearing stale turn ${tid} (older than completed ${turnId}) for ${sessionId}`);
                             activeTurnIds.delete(tid);
                         }
@@ -486,7 +494,12 @@ export const activityServiceMethods = {
                 }
             }
             const canStaleCodexPtyDemote = this._canStaleCodexPtyDemote({ ...currentHookData, lastEventType: previousEventType });
-            if (strongWorkingSignal) {
+            if (staleCodexPtyTurn && activeTurnIds.size === 0 && lastDoneAt > 0 && lastDoneAt >= lastWorkingAt) {
+                ignoredStaleDoneHeartbeat = true;
+                lastEventType = currentHookData.lastEventType || lastEventType;
+                lastActivityAt = currentHookData.lastActivityAt || lastActivityAt;
+                lastWorkingAt = Math.min(lastWorkingAt, lastDoneAt);
+            } else if (strongWorkingSignal) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             } else if ((clearedStaleTurn || staleCodexPtyTurn) && !canStaleCodexPtyDemote) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
@@ -507,14 +520,23 @@ export const activityServiceMethods = {
         }
 
         const effectiveStatus = activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt ? 'working' : 'done';
-        const liveActivity = this._deriveLiveActivity({
-            status: effectiveStatus,
-            timestamp,
-            metadata,
-            currentHookData,
-            eventType: lastEventType,
-            activeTurnIds
-        });
+        const liveActivity = ignoredStaleDoneHeartbeat
+            ? this._deriveLiveActivity({
+                status: effectiveStatus,
+                timestamp,
+                metadata: { activityKind: 'done', currentStep: '完了' },
+                currentHookData,
+                eventType: lastEventType,
+                activeTurnIds
+            })
+            : this._deriveLiveActivity({
+                status: effectiveStatus,
+                timestamp,
+                metadata,
+                currentHookData,
+                eventType: lastEventType,
+                activeTurnIds
+            });
 
         const hookStatusData = {
             status: effectiveStatus,
