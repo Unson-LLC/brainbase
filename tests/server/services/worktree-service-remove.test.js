@@ -44,8 +44,11 @@ describe('WorktreeService.merge cleanup', () => {
             .mockResolvedValueOnce({ stdout: 'main\n' })
             .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
             .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: 'session-1: abc\n' })
+            .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '- feat: archive\n' })
             .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/pull/123\n' })
+            .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' });
