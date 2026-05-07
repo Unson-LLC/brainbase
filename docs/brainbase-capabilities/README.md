@@ -49,6 +49,7 @@ troubleshooting: []
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |
+| `vibepro.impact-review` | Defines when and how VibePro Graphify impact review is required for graph-sensitive changes. |
 
 ## Operating Rules
 
