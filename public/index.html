@@ -8,13 +8,13 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0b101b">
     <meta name="color-scheme" content="dark">
     <title>brainbase UI</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202604210215">
+    <link rel="stylesheet" href="style.css?v=202605071330">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -22,11 +22,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
         rel="stylesheet">
 </head>
 
-<body class="dark-theme">
+<body class="dark-theme command-center-theme">
     <!-- Initial Loading Splash — visible until JS hides it -->
     <div id="app-loading-splash" class="app-loading-splash">
         <div class="app-loading-spinner"></div>
@@ -71,7 +71,16 @@
         <!-- Left Navigation (Session List) -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3 id="app-version" class="app-version">v--</h3>
+                <div class="brand-lockup" aria-label="Brainbase">
+                    <span class="brand-mark" aria-hidden="true">
+                        <i data-lucide="orbit"></i>
+                    </span>
+                    <div class="brand-copy">
+                        <strong>Brainbase</strong>
+                        <span>AI Operations Command Center</span>
+                    </div>
+                </div>
+                <span id="app-version" class="app-version">v--</span>
             </div>
 
             <!-- Connection Status Indicator -->
@@ -84,18 +93,18 @@
             <div class="add-session-container">
                 <button class="add-session-btn" id="add-session-btn" title="新規セッション">
                     <i data-lucide="plus"></i>
-                    <span>New Session</span>
+                    <span>新規セッション</span>
                 </button>
             </div>
 
             <div class="sidebar-primary-toggle" id="sidebar-primary-toggle" aria-label="Sidebar primary view">
                 <button class="sidebar-primary-btn" data-view="sessions" title="セッション表示">
                     <i data-lucide="layers"></i>
-                    <span>Sessions</span>
+                    <span>セッション</span>
                 </button>
                 <button class="sidebar-primary-btn" data-view="folders" title="フォルダ表示">
                     <i data-lucide="folder-tree"></i>
-                    <span>Folders</span>
+                    <span>フォルダ</span>
                 </button>
             </div>
 
@@ -327,10 +336,10 @@
             <div class="info-drawer-header">
                 <div class="info-drawer-tabs">
                     <button class="info-drawer-tab" data-tab="commit-tree">
-                        <i data-lucide="git-branch"></i> Commits
+                        <i data-lucide="git-branch"></i> コミット
                     </button>
                     <button class="info-drawer-tab" data-tab="tasks">
-                        <i data-lucide="list-todo"></i> Tasks
+                        <i data-lucide="list-todo"></i> タスク
                     </button>
                     <button class="info-drawer-tab active" data-tab="wiki">
                         <i data-lucide="book-open"></i> Wiki
@@ -427,9 +436,9 @@
                                     <label for="priority-filter" class="sr-only">優先度フィルター</label>
                                     <select id="priority-filter" class="priority-filter" aria-label="優先度でフィルタ">
                                         <option value="">すべて</option>
-                                        <option value="high">🔴 高</option>
-                                        <option value="medium">🟡 中</option>
-                                        <option value="low">🔵 低</option>
+                                        <option value="high">高</option>
+                                        <option value="medium">中</option>
+                                        <option value="low">低</option>
                                     </select>
                                 </div>
                                 <div class="filter-group">
@@ -1130,7 +1139,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=202604210215"></script>
+    <script type="module" src="app.js?v=202605071330"></script>
     <script>
         // defer scripts (lucide等) のロード後に実行
         if (typeof lucide !== 'undefined') {

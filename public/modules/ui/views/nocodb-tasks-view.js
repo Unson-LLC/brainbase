@@ -302,11 +302,7 @@ export class NocoDBTasksView extends BaseView {
      * タスクアイテムのHTML生成
      */
     _renderTaskItem(task) {
-        const priorityEmoji = {
-            high: '🔴',
-            medium: '🟡',
-            low: '🔵'
-        }[task.priority] || '';
+        const priorityClass = ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'normal';
 
         const statusClass = task.status === 'completed' ? 'completed' : '';
         const isOverdue = this._isOverdue(task.due);
@@ -316,7 +312,7 @@ export class NocoDBTasksView extends BaseView {
             <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
                 <div class="task-header">
                     <span class="project-badge">${escapeHtml(task.projectName || task.project)}</span>
-                    <span class="priority-indicator">${priorityEmoji}</span>
+                    <span class="priority-indicator ${priorityClass}" aria-label="優先度: ${escapeHtml(task.priority || 'normal')}"></span>
                     <div class="nocodb-task-actions">
                         <button class="nocodb-task-action-btn nocodb-task-start-btn" data-task-id="${task.id}" title="セッションを開始">
                             <i data-lucide="play"></i>
@@ -378,7 +374,7 @@ export class NocoDBTasksView extends BaseView {
                 <span class="option-text">未割当</span>
             </div>
             <div class="assignee-option selected" data-value="${escapeHtml(currentAssignee)}">
-                <span class="option-text">${escapeHtml(currentAssignee)} ⚠️</span>
+                <span class="option-text">${escapeHtml(currentAssignee)} (未登録)</span>
                 <i data-lucide="check" class="check-icon"></i>
             </div>`;
             for (const name of this.members) {
