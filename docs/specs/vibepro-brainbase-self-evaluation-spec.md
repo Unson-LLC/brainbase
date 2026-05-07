@@ -5,7 +5,7 @@ source_story: docs/stories/vibepro-brainbase-dogfood-story.md
 source_architecture: docs/architecture/vibepro-brainbase-dogfood-architecture.md
 status: accepted
 created_at: 2026-04-25
-updated_at: 2026-04-27
+updated_at: 2026-05-07
 ---
 
 # SPEC-vibepro-brainbase-self-evaluation
@@ -31,6 +31,22 @@ docs/internal/vibepro-dogfood/runs/<run_id>/score.json
 docs/internal/vibepro-dogfood/runs/<run_id>/feedback.md
 docs/internal/vibepro-dogfood/runs/<run_id>/report.md
 ```
+
+Command Center UI dogfood runs additionally persist:
+
+```text
+docs/internal/vibepro-dogfood/runs/<run_id>/component-style-check.json
+docs/internal/vibepro-dogfood/runs/<run_id>/component-style-desktop.png
+docs/internal/vibepro-dogfood/runs/<run_id>/component-style-mobile.png
+```
+
+For the 2026-05-07 Brainbase command-center pass, VibePro component checks must verify that:
+
+- the approved app reference is project-local at `docs/design/brainbase-terminal-task-panel-approved-2026-05-07.png`
+- session rows show leading icons and remain line/list based
+- the right task drawer shows `タイムライン` above `次にやること` simultaneously
+- the central workspace remains terminal-first and does not receive timeline content
+- the top context bar avoids duplicate navigation and purpose-unclear tools
 
 ## 3. development-run.json
 

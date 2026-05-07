@@ -39,6 +39,19 @@ function renderChip(text, { className = '', title = '' } = {}) {
   return `<span class="${classes}"${titleAttr}>${escapeHtml(text)}</span>`;
 }
 
+function getSessionIconName(session, project) {
+  const text = `${session?.name || ''} ${project || ''}`.toLowerCase();
+  if (text.includes('mobile') || text.includes('モバイル')) return 'smartphone';
+  if (text.includes('data') || text.includes('database') || text.includes('データ')) return 'database';
+  if (text.includes('design') || text.includes('ui') || text.includes('ux') || text.includes('デザイン')) return 'palette';
+  if (text.includes('marketing') || text.includes('campaign') || text.includes('マーケ')) return 'folder';
+  if (text.includes('research') || text.includes('調査')) return 'search';
+  if (text.includes('robot') || text.includes('ロボット') || text.includes('agent')) return 'bot';
+  if (text.includes('report') || text.includes('報告') || text.includes('仕様') || text.includes('課題')) return 'file-text';
+  if (text.includes('定例') || text.includes('運用') || text.includes('日次')) return 'terminal-square';
+  return 'terminal-square';
+}
+
 /**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
@@ -78,7 +91,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const isPaused = session.intendedState === 'paused';
   const pausedClass = isPaused ? ' paused' : '';
 
-  const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
+  const sessionIcon = getSessionIconName(session, project);
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'

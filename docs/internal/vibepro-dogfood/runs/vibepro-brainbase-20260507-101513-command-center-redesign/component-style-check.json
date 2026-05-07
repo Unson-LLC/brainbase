@@ -1,22 +1,22 @@
 {
   "status": "passed",
-  "generated_at": "2026-05-07T06:06:17.584Z",
-  "url": "http://localhost:31016",
+  "generated_at": "2026-05-07T07:29:00.985Z",
+  "url": "http://localhost:31017",
   "screenshots": {
     "desktop": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-desktop.png",
     "mobile": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-mobile.png"
   },
   "component_coverage": {
-    "checked_count": 15,
-    "passed_count": 15,
+    "checked_count": 17,
+    "passed_count": 17,
     "failed_count": 0
   },
   "checks": [
     {
       "id": "css_cache_buster_updated",
       "status": "passed",
-      "actual": "http://localhost:31016/style.css?v=202605071545",
-      "expected": "style.css?v=202605071545"
+      "actual": "http://localhost:31017/style.css?v=202605071610",
+      "expected": "style.css?v=202605071610"
     },
     {
       "id": "layout_not_replaced_by_component_sheet",
@@ -31,27 +31,27 @@
       "status": "passed",
       "actual": {
         "backgroundImage": "none",
-        "backgroundColor": "rgba(47, 128, 255, 0.08)",
+        "backgroundColor": "rgba(47, 128, 255, 0.11)",
         "borderLeftWidth": "2px",
         "borderLeftColor": "rgb(47, 128, 255)",
-        "borderRadius": "0px",
-        "height": 42
+        "borderRadius": "4px",
+        "height": 55
       },
-      "expected": "dense flat row with blue rail and no card radius"
+      "expected": "dense flat row with blue rail and minimal selected radius"
     },
     {
       "id": "session_rows_are_list_rows_not_cards",
       "status": "passed",
       "actual": {
-        "height": 42,
-        "paddingTop": "5px",
+        "height": 55,
+        "paddingTop": "7px",
         "backgroundColor": "rgba(0, 0, 0, 0)",
         "borderRadius": "0px",
         "borderBottomWidth": "1px",
         "backgroundImage": "none",
         "boxShadow": "none",
         "projectEmojiDisplay": "none",
-        "summaryChipHeight": null
+        "summaryChipHeight": 15
       },
       "expected": "session rows must be compact list rows with no emoji tile or card shadow"
     },
@@ -59,22 +59,41 @@
       "id": "activity_bar_active_component_replaced",
       "status": "passed",
       "actual": {
-        "backgroundImage": "linear-gradient(rgba(47, 128, 255, 0.24), rgba(47, 128, 255, 0.12))",
-        "borderColor": "rgba(47, 128, 255, 0.5)",
-        "borderRadius": "7px"
+        "backgroundImage": "none",
+        "backgroundColor": "rgba(47, 128, 255, 0.13)",
+        "borderColor": "rgb(47, 128, 255)",
+        "borderRadius": "0px"
       },
-      "expected": "cobalt active state with compact radius"
+      "expected": "quiet rail active state with blue tint and no rounded card"
     },
     {
       "id": "primary_button_component_replaced",
       "status": "passed",
       "actual": {
-        "backgroundImage": "none",
-        "backgroundColor": "rgba(47, 128, 255, 0.08)",
-        "borderRadius": "4px",
-        "height": 34
+        "backgroundImage": "linear-gradient(rgb(47, 128, 255), rgb(31, 104, 223))",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderRadius": "5px",
+        "height": 38
       },
-      "expected": "flat toolbar command, not a large filled card button"
+      "expected": "compact primary blue session command matching approved sidebar"
+    },
+    {
+      "id": "session_rows_include_meaningful_icons",
+      "status": "passed",
+      "actual": {
+        "display": "flex",
+        "width": 24,
+        "height": 24,
+        "borderRadius": "4px",
+        "names": [
+          "terminal-square",
+          "palette",
+          "file-text",
+          "bot",
+          "search"
+        ]
+      },
+      "expected": "session rows must show a compact leading lucide icon"
     },
     {
       "id": "terminal_action_buttons_component_replaced",
@@ -89,20 +108,39 @@
       "id": "drawer_tabs_component_replaced",
       "status": "passed",
       "actual": {
-        "width": "560px",
+        "width": "489.594px",
         "tabBackground": "rgba(0, 0, 0, 0)",
         "tabBorderRadius": "0px",
         "activeTabBackground": "none",
         "activeTabBoxShadow": "none",
         "activeTabBorderBottomWidth": "2px",
-        "tabHeight": 49
+        "tabHeight": 57,
+        "activeTab": "tasks"
       },
       "expected": "flat drawer tab strip with line active state, not a rounded tab card"
+    },
+    {
+      "id": "task_panel_shows_timeline_and_next_tasks_together",
+      "status": "passed",
+      "actual": {
+        "activeTab": "tasks",
+        "tasksActive": true,
+        "timelineVisible": true,
+        "nextTasksVisible": true,
+        "timelineTop": 59,
+        "nextTasksTop": 382.34375
+      },
+      "expected": "right task panel must show timeline above next tasks simultaneously"
     },
     {
       "id": "timeline_component_replaced",
       "status": "passed",
       "actual": {
+        "active": true,
+        "timelineVisible": true,
+        "nextTasksVisible": true,
+        "timelineTop": 59,
+        "nextTasksTop": 382.34375,
         "timelineBackground": "none",
         "timelineBackgroundColor": "rgba(0, 0, 0, 0)",
         "timelineBorderRadius": "0px",
@@ -131,6 +169,11 @@
       "id": "task_queue_is_table_not_nested_cards",
       "status": "passed",
       "actual": {
+        "active": true,
+        "timelineVisible": true,
+        "nextTasksVisible": true,
+        "timelineTop": 59,
+        "nextTasksTop": 382.34375,
         "timelineBackground": "none",
         "timelineBackgroundColor": "rgba(0, 0, 0, 0)",
         "timelineBorderRadius": "0px",
@@ -196,7 +239,7 @@
       "id": "mobile_uses_updated_css",
       "status": "passed",
       "actual": {
-        "styleHref": "http://localhost:31016/style.css?v=202605071545",
+        "styleHref": "http://localhost:31017/style.css?v=202605071610",
         "mobileTabBorderRadius": "6px"
       },
       "expected": "mobile loads current component stylesheet"
