@@ -1040,6 +1040,8 @@ body::after {
 .session-icon.session-config-icon {
     font-size: 0.9rem;
     line-height: 1;
+    border-color: transparent;
+    background: transparent;
 }
 
 .session-icon.session-config-lucide {
@@ -14979,6 +14981,8 @@ body.resizing iframe {
 
 .command-center-theme .session-icon.session-config-icon {
     font-size: 15px;
+    border-color: transparent;
+    background: transparent;
 }
 
 .command-center-theme .session-child-row.has-worktree .session-icon,
