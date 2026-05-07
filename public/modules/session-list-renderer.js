@@ -52,6 +52,22 @@ function getSessionIconName(session, project) {
   return 'terminal-square';
 }
 
+function isLucideIconName(value) {
+  return typeof value === 'string' && /^[a-z][a-z0-9-]*$/i.test(value.trim());
+}
+
+function renderSessionIcon({ configuredIcon, fallbackIcon, title }) {
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+  if (configuredIcon) {
+    const icon = String(configuredIcon).trim();
+    if (isLucideIconName(icon)) {
+      return `<span class="session-icon session-config-icon session-config-lucide"${titleAttr}><i data-lucide="${escapeHtml(icon)}"></i></span>`;
+    }
+    return `<span class="session-icon session-config-icon"${titleAttr}>${escapeHtml(icon)}</span>`;
+  }
+  return `<span class="session-icon"${titleAttr}><i data-lucide="${escapeHtml(fallbackIcon)}"></i></span>`;
+}
+
 /**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
@@ -91,18 +107,22 @@ export function renderSessionRowHTML(session, options = {}) {
   const isPaused = session.intendedState === 'paused';
   const pausedClass = isPaused ? ' paused' : '';
 
-  const sessionIcon = getSessionIconName(session, project);
-
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
     ? { title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
     : { title: 'Claude Code', className: 'engine-icon engine-claude' };
   const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><img src="/icons/${engine}.svg" class="engine-svg-icon" alt="${engineMeta.title}"></span>`;
 
-  const projectConfig = showProjectEmoji ? getProjectConfig(project) : null;
+  const projectConfig = getProjectConfig(project);
   const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';
   const projectLabel = escapeHtml(project);
-  const projectEmojiBadge = showProjectEmoji && projectEmoji
+  const configuredProjectIcon = projectConfig?.icon || projectConfig?.emoji || '';
+  const sessionIcon = renderSessionIcon({
+    configuredIcon: configuredProjectIcon,
+    fallbackIcon: getSessionIconName(session, project),
+    title: configuredProjectIcon ? `${projectLabel} icon from config.yml` : (hasWorktree ? 'Worktree session' : 'Regular session')
+  });
+  const projectEmojiBadge = showProjectEmoji && projectEmoji && !configuredProjectIcon
     ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
     : '';
 
@@ -221,7 +241,7 @@ export function renderSessionRowHTML(session, options = {}) {
       <div class="session-row-main">
         <div class="session-name-container">
           <span class="session-meta">
-            <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
+            ${sessionIcon}
           </span>
           ${projectEmojiBadge}
           <span class="session-name">${displayName}</span>

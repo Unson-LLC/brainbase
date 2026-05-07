@@ -1037,6 +1037,15 @@ body::after {
     height: 14px;
 }
 
+.session-icon.session-config-icon {
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.session-icon.session-config-lucide {
+    font-size: inherit;
+}
+
 .session-child-row.active .session-icon {
     opacity: 1;
     color: var(--accent-color);
@@ -14966,6 +14975,10 @@ body.resizing iframe {
 .command-center-theme .session-icon svg {
     width: 15px;
     height: 15px;
+}
+
+.command-center-theme .session-icon.session-config-icon {
+    font-size: 15px;
 }
 
 .command-center-theme .session-child-row.has-worktree .session-icon,

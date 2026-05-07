@@ -5,9 +5,9 @@ const originalFetch = globalThis.fetch;
 const TEST_PROJECTS = [
     { id: 'unson', name: 'unson' },
     { id: 'tech-knight', name: 'tech-knight' },
-    { id: 'brainbase', name: 'brainbase' },
-    { id: 'salestailor', name: 'salestailor' },
-    { id: 'zeims', name: 'zeims' },
+    { id: 'brainbase', name: 'brainbase', emoji: 'BB' },
+    { id: 'salestailor', name: 'salestailor', emoji: 'ST' },
+    { id: 'zeims', name: 'zeims', emoji: 'ZE' },
     { id: 'baao', name: 'baao' },
     { id: 'ncom', name: 'ncom' },
     { id: 'senrigan', name: 'senrigan' },

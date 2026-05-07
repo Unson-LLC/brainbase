@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { projectMappingReady } from '../../public/modules/project-mapping.js';
 import {
   renderSessionRowHTML,
   renderSessionGroupHeaderHTML
@@ -186,6 +187,25 @@ describe('session-list-renderer', () => {
       expect(html).toContain('session-activity-indicator waiting');
       expect(html).toContain('Waiting for input');
       expect(html).toContain('session-attention-badge');
+    });
+
+    it('should prefer the project icon configured in config.yml for session rows', async () => {
+      await projectMappingReady;
+      const session = {
+        id: 'session-brainbase',
+        name: 'Brainbase Design'
+      };
+
+      const html = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'brainbase',
+        showProjectEmoji: true
+      });
+
+      expect(html).toContain('session-config-icon');
+      expect(html).toContain('BB');
+      expect(html).not.toContain('data-lucide="palette"');
+      expect(html).not.toContain('session-project-emoji"');
     });
 
   });

@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071730';
+const EXPECTED_CSS_VERSION = '202605071840';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -185,6 +185,11 @@ async function collectDesktopEvidence(page) {
             .map((icon) => icon.getAttribute('data-lucide'))
             .filter(Boolean),
         )).slice(0, 8),
+        labels: Array.from(new Set(
+          Array.from(document.querySelectorAll('.session-child-row .session-icon'))
+            .map((icon) => icon.textContent?.trim())
+            .filter(Boolean),
+        )).slice(0, 8),
       },
       activityBarActive: {
         backgroundImage: style('.activity-bar-item.active', 'background-image'),
@@ -330,7 +335,7 @@ function buildChecks(desktop, mobile) {
         && pxNumber(desktop.sessionRow.borderRadius) === 0
         && desktop.sessionRow.borderBottomWidth === '1px'
         && includesAll(desktop.sessionRow.backgroundColor, ['0, 0, 0, 0'])
-        && desktop.sessionRow.projectEmojiDisplay === 'none'
+        && (desktop.sessionRow.projectEmojiDisplay === 'none' || desktop.sessionRow.projectEmojiDisplay === null)
         && desktop.sessionRow.boxShadow === 'none'
         && pxNumber(desktop.sessionRow.summaryChipHeight) <= 17,
       desktop.sessionRow,
@@ -357,9 +362,9 @@ function buildChecks(desktop, mobile) {
         && pxNumber(desktop.sessionIcon.width) >= 22
         && pxNumber(desktop.sessionIcon.height) >= 22
         && pxNumber(desktop.sessionIcon.borderRadius) <= 4
-        && desktop.sessionIcon.names.length >= 3,
+        && (desktop.sessionIcon.names.length + desktop.sessionIcon.labels.length) >= 3,
       desktop.sessionIcon,
-      'session rows must show a compact leading lucide icon',
+      'session rows must show a compact leading configured or lucide icon',
     ),
     createCheck(
       'terminal_action_buttons_component_replaced',
