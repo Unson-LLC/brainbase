@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605072040';
+const EXPECTED_CSS_VERSION = '202605072330';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -113,6 +113,15 @@ async function collectDesktopEvidence(page) {
       return getComputedStyle(element, pseudo).getPropertyValue(property);
     }
 
+    function activateInfoTab(tabName) {
+      document.querySelectorAll('.info-drawer-tab').forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+      });
+      document.querySelectorAll('.info-tab-content').forEach((content) => {
+        content.classList.toggle('active', content.dataset.tab === tabName);
+      });
+    }
+
     function elementStyle(element, property) {
       if (!element) return null;
       return getComputedStyle(element).getPropertyValue(property);
@@ -150,6 +159,69 @@ async function collectDesktopEvidence(page) {
     }
 
     ensureSampleTask();
+
+    function ensureSampleWiki() {
+      const panel = document.querySelector('#wiki-panel');
+      if (!panel || panel.querySelector('.wiki-idx-item')) return;
+      panel.innerHTML = `
+        <div class="wiki-idx">
+          <div class="wiki-idx-header">
+            <label class="wiki-idx-search-wrap">
+              <i data-lucide="search"></i>
+              <input type="text" class="wiki-idx-search" placeholder="Wiki を検索..." value="">
+            </label>
+            <button class="wiki-idx-scope" type="button"><span>スコープ: プロジェクト</span><i data-lucide="chevron-down"></i></button>
+            <button class="wiki-idx-refresh" title="更新"><i data-lucide="refresh-cw"></i></button>
+          </div>
+          <div class="wiki-idx-table-head" aria-hidden="true"><span>名前</span><span>更新日時</span><span>アクセス</span></div>
+          <div class="wiki-idx-list">
+            <div class="wiki-idx-folder">
+              <div class="wiki-idx-folder-header" data-folder="docs/dev" style="padding-left:4px">
+                <i data-lucide="folder-open"></i><i data-lucide="chevron-down" class="wiki-idx-chevron"></i>
+                <span class="wiki-idx-folder-label">開発ガイド</span><span class="wiki-idx-folder-count">5</span><span class="wiki-idx-status-dot warning"></span>
+              </div>
+              <div class="wiki-idx-item" data-path="docs/dev/setup" style="padding-left:20px">
+                <i data-lucide="file-text" class="wiki-idx-item-icon"></i>
+                <span class="wiki-idx-item-main"><span class="wiki-idx-item-title">開発環境セットアップ</span><span class="wiki-idx-item-path">/docs/dev/setup</span></span>
+                <span class="wiki-idx-item-updated">05/07 20:12</span><span class="wiki-idx-item-access success">チーム</span>
+              </div>
+            </div>
+          </div>
+          <button class="wiki-idx-preview" type="button" data-path="docs/dev/setup">
+            <i data-lucide="file-text"></i><span class="wiki-idx-preview-main"><span>開発環境セットアップ</span><small>/docs/dev/setup</small></span>
+            <span class="wiki-idx-preview-meta">05/07 20:12</span><i data-lucide="external-link"></i>
+          </button>
+        </div>
+      `;
+      window.lucide?.createIcons?.();
+    }
+
+    function ensureSampleLiveFeed() {
+      const panel = document.querySelector('#live-feed-panel');
+      if (!panel || panel.querySelector('.feed-item')) return;
+      panel.innerHTML = `
+        <div class="live-feed-container">
+          <div class="live-feed-header">
+            <div class="live-feed-status-wrap"><span class="live-feed-status active"><span class="live-feed-status-dot"></span>LIVE</span></div>
+            <div class="live-feed-filter-group"><button class="feed-filter-btn active">すべて</button><button class="feed-filter-btn">タスク</button><button class="feed-filter-btn">Wiki</button><button class="feed-filter-btn">セッション</button><button class="feed-filter-btn">システム</button></div>
+            <div class="live-feed-controls"><button class="feed-control-btn"><i data-lucide="pause"></i></button><button class="feed-control-btn"><i data-lucide="refresh-cw"></i></button><button class="feed-control-btn"><i data-lucide="sliders-horizontal"></i></button></div>
+          </div>
+          <div class="live-feed-list">
+            <section class="feed-section">
+              <div class="feed-section-label">NOW</div>
+              <div class="feed-item" data-tone="working">
+                <div class="feed-item-time">11:34:52</div><div class="feed-item-rail"><span class="feed-item-dot working"></span></div>
+                <div class="feed-item-icon feed-item-tone-working"><i data-lucide="terminal"></i></div>
+                <div class="feed-item-content"><div class="feed-item-mainline"><span class="feed-item-label">ターミナル出力</span><span class="feed-item-status">stdout</span></div><div class="feed-item-meta-line"><span class="feed-item-task">#P1 VibePro component replacement</span><span class="feed-item-session">session-1</span></div><div class="feed-item-step">Wiki と Live Feed の見た目を合わせています</div></div>
+                <div class="feed-item-actions"><button class="feed-item-action"><i data-lucide="external-link"></i></button><button class="feed-item-action"><i data-lucide="copy"></i></button></div>
+              </div>
+            </section>
+          </div>
+          <div class="live-feed-footer"><span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span><span>最終更新: 11:34:52</span><span>自動スクロール: ON</span></div>
+        </div>
+      `;
+      window.lucide?.createIcons?.();
+    }
 
     const activeSession = document.querySelector('.session-child-row.active');
     const firstSession = document.querySelector('.session-child-row:not(.active)') || activeSession || document.querySelector('.session-child-row');
@@ -385,6 +457,49 @@ async function collectDesktopEvidence(page) {
         window.lucide?.createIcons?.();
 
         return result;
+      })(),
+      wiki: (() => {
+        activateInfoTab('wiki');
+        ensureSampleWiki();
+        return {
+          active: document.querySelector('#wiki-panel')?.classList.contains('active') ?? false,
+          searchWrapDisplay: style('#wiki-panel .wiki-idx-search-wrap', 'display'),
+          headerGridColumns: style('#wiki-panel .wiki-idx-table-head', 'grid-template-columns'),
+          headerBorderBottomWidth: style('#wiki-panel .wiki-idx-table-head', 'border-bottom-width'),
+          folderHeaderBorderBottomWidth: style('#wiki-panel .wiki-idx-folder-header', 'border-bottom-width'),
+          folderHeaderBorderRadius: style('#wiki-panel .wiki-idx-folder-header', 'border-radius'),
+          folderCountBackground: style('#wiki-panel .wiki-idx-folder-count', 'background-color'),
+          statusDotCount: document.querySelectorAll('#wiki-panel .wiki-idx-status-dot').length,
+          itemGridColumns: style('#wiki-panel .wiki-idx-item', 'grid-template-columns'),
+          itemBorderBottomWidth: style('#wiki-panel .wiki-idx-item', 'border-bottom-width'),
+          itemBorderRadius: style('#wiki-panel .wiki-idx-item', 'border-radius'),
+          itemPathDisplay: style('#wiki-panel .wiki-idx-item-path', 'display'),
+          itemUpdatedText: document.querySelector('#wiki-panel .wiki-idx-item-updated')?.textContent?.trim() ?? '',
+          itemAccessText: document.querySelector('#wiki-panel .wiki-idx-item-access')?.textContent?.trim() ?? '',
+          previewDisplay: style('#wiki-panel .wiki-idx-preview', 'display'),
+          previewBorderTopWidth: style('#wiki-panel .wiki-idx-preview', 'border-top-width'),
+        };
+      })(),
+      liveFeed: (() => {
+        activateInfoTab('live-feed');
+        ensureSampleLiveFeed();
+        return {
+          active: document.querySelector('#live-feed-panel')?.classList.contains('active') ?? false,
+          headerDisplay: style('#live-feed-panel .live-feed-header', 'display'),
+          headerGridColumns: style('#live-feed-panel .live-feed-header', 'grid-template-columns'),
+          statusText: document.querySelector('#live-feed-panel .live-feed-status')?.textContent?.trim() ?? '',
+          filterButtonCount: document.querySelectorAll('#live-feed-panel .feed-filter-btn').length,
+          activeFilterBackground: style('#live-feed-panel .feed-filter-btn.active', 'background-color'),
+          controlButtonWidth: document.querySelector('#live-feed-panel .feed-control-btn')?.getBoundingClientRect().width ?? null,
+          sectionLabelText: document.querySelector('#live-feed-panel .feed-section-label')?.textContent?.trim() ?? '',
+          itemGridColumns: style('#live-feed-panel .feed-item', 'grid-template-columns'),
+          itemBorderBottomWidth: style('#live-feed-panel .feed-item', 'border-bottom-width'),
+          railBeforeBackground: pseudoStyle('#live-feed-panel .feed-item-rail', '::before', 'background-color'),
+          dotCount: document.querySelectorAll('#live-feed-panel .feed-item-dot').length,
+          actionCount: document.querySelectorAll('#live-feed-panel .feed-item-action').length,
+          footerDisplay: style('#live-feed-panel .live-feed-footer', 'display'),
+          footerText: document.querySelector('#live-feed-panel .live-feed-footer')?.textContent?.trim() ?? '',
+        };
       })(),
     };
 
@@ -685,6 +800,46 @@ function buildChecks(desktop, mobile) {
         assigneeAvatarText: desktop.sampleTask.assigneeAvatarText,
       },
       'task queue status must read as a badge and assignee must be an avatar, not a generic icon control',
+    ),
+    createCheck(
+      'wiki_tab_matches_generated_component',
+      desktop.wiki.active === true
+        && ['flex', 'inline-flex'].includes(desktop.wiki.searchWrapDisplay)
+        && includesAll(desktop.wiki.headerGridColumns, ['112', '86'])
+        && desktop.wiki.headerBorderBottomWidth === '1px'
+        && desktop.wiki.folderHeaderBorderBottomWidth === '1px'
+        && pxNumber(desktop.wiki.folderHeaderBorderRadius) === 0
+        && includesAll(desktop.wiki.folderCountBackground, ['191', '201', '214'])
+        && desktop.wiki.statusDotCount > 0
+        && includesAll(desktop.wiki.itemGridColumns, ['18', '104', '72'])
+        && desktop.wiki.itemBorderBottomWidth === '1px'
+        && pxNumber(desktop.wiki.itemBorderRadius) === 0
+        && desktop.wiki.itemPathDisplay !== 'none'
+        && desktop.wiki.itemUpdatedText.length > 0
+        && desktop.wiki.itemAccessText.length > 0
+        && desktop.wiki.previewDisplay === 'grid'
+        && desktop.wiki.previewBorderTopWidth === '1px',
+      desktop.wiki,
+      'Wiki tab must use the generated flat document index with toolbar, metadata columns, status dots, and preview strip',
+    ),
+    createCheck(
+      'live_feed_tab_matches_generated_component',
+      desktop.liveFeed.active === true
+        && desktop.liveFeed.headerDisplay === 'grid'
+        && desktop.liveFeed.statusText.includes('LIVE')
+        && desktop.liveFeed.filterButtonCount >= 5
+        && includesAll(desktop.liveFeed.activeFilterBackground, ['47', '128', '255'])
+        && pxNumber(desktop.liveFeed.controlButtonWidth) === 32
+        && desktop.liveFeed.sectionLabelText === 'NOW'
+        && includesAll(desktop.liveFeed.itemGridColumns, ['70', '18', '24'])
+        && desktop.liveFeed.itemBorderBottomWidth === '1px'
+        && includesAll(desktop.liveFeed.railBeforeBackground, ['191', '201', '214'])
+        && desktop.liveFeed.dotCount > 0
+        && desktop.liveFeed.actionCount >= 2
+        && desktop.liveFeed.footerDisplay === 'flex'
+        && desktop.liveFeed.footerText.includes('自動スクロール'),
+      desktop.liveFeed,
+      'Live Feed tab must use the generated timeline stream with live controls, segmented filters, rail dots, row actions, and footer status',
     ),
     createCheck(
       'mobile_no_horizontal_overflow',

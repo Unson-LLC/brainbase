@@ -162,7 +162,7 @@ export class WikiService {
         await this._getProjectSlugMap(); // ensure slug map is loaded
 
         const { rows } = await this.pool.query(
-            'SELECT path, title, role_min, sensitivity, project_id FROM wiki_pages WHERE content IS NOT NULL ORDER BY path'
+            'SELECT path, title, role_min, sensitivity, project_id, updated_at FROM wiki_pages WHERE content IS NOT NULL ORDER BY path'
         );
 
         const pages = [];
@@ -175,7 +175,8 @@ export class WikiService {
                 title: row.title,
                 role_min: row.role_min,
                 sensitivity: row.sensitivity,
-                project_id: row.project_id || null
+                project_id: row.project_id || null,
+                updated_at: row.updated_at ? row.updated_at.toISOString() : null
             });
         }
 

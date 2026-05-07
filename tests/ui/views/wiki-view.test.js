@@ -18,9 +18,9 @@ describe('WikiView', () => {
             container,
         });
         view._pages = [
-            { path: 'projects/brainbase/setup', title: 'Setup Guide' },
-            { path: 'projects/brainbase/api', title: 'API Reference' },
-            { path: '_archived/old-doc', title: 'Old Doc' },
+            { path: 'projects/brainbase/setup', title: 'Setup Guide', updated_at: '2026-05-07T11:12:00.000Z', role_min: 'public', sensitivity: 'public' },
+            { path: 'projects/brainbase/api', title: 'API Reference', role_min: 'member', sensitivity: 'internal' },
+            { path: '_archived/old-doc', title: 'Old Doc', role_min: 'admin', sensitivity: 'restricted' },
         ];
     });
 
@@ -46,5 +46,18 @@ describe('WikiView', () => {
         );
         expect(projectsHeader).toBeTruthy();
         expect(projectsHeader.classList.contains('collapsed')).toBe(false);
+    });
+
+    it('索引行にパス・更新日時・アクセス表示が含まれる', () => {
+        view._collapsed = { projects: false, 'projects/brainbase': false };
+        view._render();
+
+        expect(container.querySelector('.wiki-idx-search-wrap')).toBeTruthy();
+        expect(container.querySelector('.wiki-idx-table-head')?.textContent).toContain('アクセス');
+        const setupRow = container.querySelector('.wiki-idx-item[data-path="projects/brainbase/setup"]');
+        expect(setupRow?.querySelector('.wiki-idx-item-path')?.textContent).toContain('/projects/brainbase');
+        expect(setupRow?.querySelector('.wiki-idx-item-updated')?.textContent).toContain('05/07');
+        expect(setupRow?.querySelector('.wiki-idx-item-access')?.textContent).toBe('全員');
+        expect(container.querySelector('.wiki-idx-preview')).toBeTruthy();
     });
 });

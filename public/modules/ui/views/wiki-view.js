@@ -69,6 +69,35 @@ export class WikiView {
         return count;
     }
 
+    _formatUpdatedAt(page) {
+        const value = page.updated_at || page.updatedAt || page.updated || page.modified_at || '';
+        if (!value) return '更新: -';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '更新: -';
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hour = String(date.getHours()).padStart(2, '0');
+        const minute = String(date.getMinutes()).padStart(2, '0');
+        return `${month}/${day} ${hour}:${minute}`;
+    }
+
+    _accessLabel(page) {
+        const role = page.role_min || page.roleMin || '';
+        const sensitivity = page.sensitivity || '';
+        if (role === 'admin' || sensitivity === 'restricted' || sensitivity === 'secret') return '管理';
+        if (role === 'member' || sensitivity === 'internal') return 'チーム';
+        if (role === 'public' || sensitivity === 'public') return '全員';
+        return '全員';
+    }
+
+    _statusTone(page = {}) {
+        const sensitivity = page.sensitivity || '';
+        const role = page.role_min || page.roleMin || '';
+        if (sensitivity === 'restricted' || sensitivity === 'secret' || role === 'admin') return 'danger';
+        if (sensitivity === 'internal' || role === 'member') return 'success';
+        return 'neutral';
+    }
+
     _renderTree(node, depth = 0, parentPath = '') {
         let html = '';
         // Sort folders
@@ -84,6 +113,7 @@ export class WikiView {
             const chevron = collapsed ? 'chevron-right' : 'chevron-down';
             const label = this._folderLabel(key);
             const count = this._countPages(child);
+            const tone = key === '_archived' ? 'danger' : (depth >= 1 ? 'warning' : 'success');
 
             html += `<div class="wiki-idx-folder" data-depth="${depth}">
                 <div class="wiki-idx-folder-header" data-folder="${escapeHtml(folderPath)}" style="padding-left: ${depth * 16 + 4}px">
@@ -91,6 +121,7 @@ export class WikiView {
                     <i data-lucide="${chevron}" class="wiki-idx-chevron"></i>
                     <span class="wiki-idx-folder-label">${label}</span>
                     <span class="wiki-idx-folder-count">${count}</span>
+                    <span class="wiki-idx-status-dot ${tone}" aria-hidden="true"></span>
                 </div>`;
 
             if (!collapsed) {
@@ -100,8 +131,18 @@ export class WikiView {
                 for (const page of sorted) {
                     const name = page.path.split('/').pop();
                     const title = escapeHtml(page.title || name);
+                    const pathHint = escapeHtml(`/${page.path}`);
+                    const updatedAt = escapeHtml(this._formatUpdatedAt(page));
+                    const access = escapeHtml(this._accessLabel(page));
+                    const tone = this._statusTone(page);
                     html += `<div class="wiki-idx-item" data-path="${escapeHtml(page.path)}" title="${escapeHtml(page.path)}" style="padding-left: ${(depth + 1) * 16 + 4}px">
-                        <span class="wiki-idx-item-title">${title}</span>
+                        <i data-lucide="file-text" class="wiki-idx-item-icon"></i>
+                        <span class="wiki-idx-item-main">
+                            <span class="wiki-idx-item-title">${title}</span>
+                            <span class="wiki-idx-item-path">${pathHint}</span>
+                        </span>
+                        <span class="wiki-idx-item-updated">${updatedAt}</span>
+                        <span class="wiki-idx-item-access ${tone}">${access}</span>
                     </div>`;
                 }
             }
@@ -113,8 +154,18 @@ export class WikiView {
             const sorted = [...node._pages].sort((a, b) => (a.title || a.path).localeCompare(b.title || b.path));
             for (const page of sorted) {
                 const title = escapeHtml(page.title || page.path);
+                const pathHint = escapeHtml(`/${page.path}`);
+                const updatedAt = escapeHtml(this._formatUpdatedAt(page));
+                const access = escapeHtml(this._accessLabel(page));
+                const tone = this._statusTone(page);
                 html += `<div class="wiki-idx-item" data-path="${escapeHtml(page.path)}" title="${escapeHtml(page.path)}" style="padding-left: 4px">
-                    <span class="wiki-idx-item-title">${title}</span>
+                    <i data-lucide="file-text" class="wiki-idx-item-icon"></i>
+                    <span class="wiki-idx-item-main">
+                        <span class="wiki-idx-item-title">${title}</span>
+                        <span class="wiki-idx-item-path">${pathHint}</span>
+                    </span>
+                    <span class="wiki-idx-item-updated">${updatedAt}</span>
+                    <span class="wiki-idx-item-access ${tone}">${access}</span>
                 </div>`;
             }
         }
@@ -135,13 +186,35 @@ export class WikiView {
         const filtered = this._pages.filter(p => this._matchesFilter(p));
         const tree = this._buildTree(filtered);
         const indexHtml = this._renderTree(tree) || '<div class="wiki-idx-empty">ページなし</div>';
+        const previewPage = filtered.find((page) => page.title || page.path) || null;
 
         this._container.innerHTML = `<div class="wiki-idx">
             <div class="wiki-idx-header">
-                <input type="text" class="wiki-idx-search" placeholder="検索..." value="${escapeHtml(this._filter)}" />
+                <label class="wiki-idx-search-wrap">
+                    <i data-lucide="search"></i>
+                    <input type="text" class="wiki-idx-search" placeholder="Wiki を検索..." value="${escapeHtml(this._filter)}" />
+                </label>
+                <button class="wiki-idx-scope" type="button">
+                    <span>スコープ: プロジェクト</span>
+                    <i data-lucide="chevron-down"></i>
+                </button>
                 <button class="wiki-idx-refresh" title="更新"><i data-lucide="refresh-cw"></i></button>
             </div>
+            <div class="wiki-idx-table-head" aria-hidden="true">
+                <span>名前</span>
+                <span>更新日時</span>
+                <span>アクセス</span>
+            </div>
             <div class="wiki-idx-list">${indexHtml}</div>
+            ${previewPage ? `<button class="wiki-idx-preview" type="button" data-path="${escapeHtml(previewPage.path)}">
+                <i data-lucide="file-text"></i>
+                <span class="wiki-idx-preview-main">
+                    <span>${escapeHtml(previewPage.title || previewPage.path.split('/').pop())}</span>
+                    <small>${escapeHtml(`/${previewPage.path}`)}</small>
+                </span>
+                <span class="wiki-idx-preview-meta">${escapeHtml(this._formatUpdatedAt(previewPage))}</span>
+                <i data-lucide="external-link"></i>
+            </button>` : ''}
         </div>`;
 
         // Apply collapsed state via classList
@@ -177,6 +250,14 @@ export class WikiView {
                 if (path) this._openPage(path);
             });
         });
+
+        const preview = this._container.querySelector('.wiki-idx-preview');
+        if (preview) {
+            preview.addEventListener('click', () => {
+                const path = preview.dataset.path;
+                if (path) this._openPage(path);
+            });
+        }
 
         // Refresh
         const refreshBtn = this._container.querySelector('.wiki-idx-refresh');

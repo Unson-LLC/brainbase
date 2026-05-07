@@ -16158,3 +16158,632 @@ body.resizing iframe {
         opacity: 1;
     }
 }
+
+/* Command Center v10: Wiki and Live Feed match the generated drawer components. */
+.command-center-theme #wiki-panel,
+.command-center-theme #live-feed-panel {
+    background: #090c10;
+}
+
+.command-center-theme .wiki-idx,
+.command-center-theme .live-feed-container {
+    background:
+        linear-gradient(180deg, rgba(13, 18, 23, 0.96), rgba(8, 11, 14, 0.98));
+    color: #dce4ee;
+}
+
+.command-center-theme .wiki-idx-header,
+.command-center-theme .live-feed-header {
+    min-height: 64px;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.14);
+    background: rgba(8, 12, 16, 0.72);
+}
+
+.command-center-theme .wiki-idx-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.command-center-theme .wiki-idx-search-wrap svg,
+.command-center-theme .wiki-idx-search-wrap i {
+    position: absolute;
+    left: 13px;
+    width: 17px;
+    height: 17px;
+    color: #7f8da0;
+    pointer-events: none;
+}
+
+.command-center-theme .wiki-idx-search {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 12px 8px 40px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 4px;
+    background: rgba(7, 10, 13, 0.92);
+    color: #dce4ee;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.command-center-theme .wiki-idx-search::placeholder {
+    color: #7f8da0;
+}
+
+.command-center-theme .wiki-idx-search:focus {
+    border-color: rgba(47, 128, 255, 0.68);
+    box-shadow: inset 0 0 0 1px rgba(47, 128, 255, 0.18);
+}
+
+.command-center-theme .wiki-idx-scope,
+.command-center-theme .wiki-idx-refresh,
+.command-center-theme .feed-control-btn,
+.command-center-theme .feed-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 4px;
+    background: rgba(9, 13, 17, 0.86);
+    color: #b9c4d1;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.command-center-theme .wiki-idx-scope {
+    gap: 8px;
+    padding: 0 12px;
+    white-space: nowrap;
+}
+
+.command-center-theme .wiki-idx-scope svg,
+.command-center-theme .wiki-idx-refresh svg,
+.command-center-theme .feed-control-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.command-center-theme .wiki-idx-refresh {
+    width: 38px;
+    padding: 0;
+}
+
+.command-center-theme .wiki-idx-scope:hover,
+.command-center-theme .wiki-idx-refresh:hover,
+.command-center-theme .feed-control-btn:hover,
+.command-center-theme .feed-filter-btn:hover {
+    border-color: rgba(47, 128, 255, 0.34);
+    background: rgba(47, 128, 255, 0.1);
+    color: #eff6ff;
+}
+
+.command-center-theme .wiki-idx-table-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 112px 86px;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+    color: #7f8da0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.command-center-theme .wiki-idx-list,
+.command-center-theme .live-feed-list {
+    padding: 0;
+    background: rgba(8, 11, 14, 0.38);
+}
+
+.command-center-theme .wiki-idx-folder {
+    position: relative;
+}
+
+.command-center-theme .wiki-idx-folder::before {
+    content: "";
+    position: absolute;
+    top: 44px;
+    bottom: 0;
+    left: 31px;
+    width: 1px;
+    background: rgba(191, 201, 214, 0.13);
+}
+
+.command-center-theme .wiki-idx-folder-header,
+.command-center-theme .wiki-idx-item {
+    min-height: 48px;
+    margin: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+    border-radius: 0;
+    background: transparent;
+    transition: background 0.14s ease, color 0.14s ease;
+}
+
+.command-center-theme .wiki-idx-folder-header {
+    gap: 9px;
+    padding: 0 20px;
+    color: #d4dce7;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.command-center-theme .wiki-idx-folder-header:hover,
+.command-center-theme .wiki-idx-item:hover {
+    background: rgba(47, 128, 255, 0.08);
+    color: #f4f7fb;
+}
+
+.command-center-theme .wiki-idx-folder-header.collapsed {
+    opacity: 1;
+}
+
+.command-center-theme .wiki-idx-folder-header svg {
+    width: 18px;
+    height: 18px;
+    color: #aeb8c5;
+}
+
+.command-center-theme .wiki-idx-folder-header .wiki-idx-chevron {
+    width: 14px;
+    height: 14px;
+    color: #a4afbd;
+    opacity: 0.9;
+}
+
+.command-center-theme .wiki-idx-folder-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 21px;
+    padding: 0 6px;
+    border: 1px solid rgba(191, 201, 214, 0.1);
+    border-radius: 4px;
+    background: rgba(191, 201, 214, 0.07);
+    color: #b9c4d1;
+    font-size: 11px;
+    font-weight: 700;
+    opacity: 1;
+}
+
+.command-center-theme .wiki-idx-status-dot {
+    width: 8px;
+    height: 8px;
+    margin-left: 10px;
+    border-radius: 999px;
+    background: #7f8da0;
+}
+
+.command-center-theme .wiki-idx-status-dot.success { background: #25c26e; }
+.command-center-theme .wiki-idx-status-dot.warning { background: #f0b443; }
+.command-center-theme .wiki-idx-status-dot.danger { background: #f35d5d; }
+
+.command-center-theme .wiki-idx-item {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 104px 72px;
+    gap: 10px;
+    align-items: center;
+    padding-top: 0;
+    padding-bottom: 0;
+    color: #c8d2df;
+}
+
+.command-center-theme .wiki-idx-item-icon {
+    width: 16px;
+    height: 16px;
+    color: #aeb8c5;
+}
+
+.command-center-theme .wiki-idx-item-main {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+
+.command-center-theme .wiki-idx-item-title {
+    color: #e6edf5;
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .wiki-idx-item-path {
+    min-width: 0;
+    color: #8290a0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .wiki-idx-item-updated {
+    color: #aeb8c5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: right;
+}
+
+.command-center-theme .wiki-idx-item-access {
+    justify-self: end;
+    min-width: 42px;
+    padding: 4px 7px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 4px;
+    color: #b9c4d1;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.command-center-theme .wiki-idx-item-access.success { color: #74dea4; border-color: rgba(37, 194, 110, 0.24); }
+.command-center-theme .wiki-idx-item-access.danger { color: #ff9b9b; border-color: rgba(243, 93, 93, 0.24); }
+
+.command-center-theme .wiki-idx-preview {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto 18px;
+    gap: 12px;
+    align-items: center;
+    min-height: 68px;
+    padding: 12px 20px;
+    border: 0;
+    border-top: 1px solid rgba(191, 201, 214, 0.14);
+    background: rgba(9, 13, 17, 0.9);
+    color: #dce4ee;
+    cursor: pointer;
+    text-align: left;
+}
+
+.command-center-theme .wiki-idx-preview svg {
+    width: 18px;
+    height: 18px;
+    color: #aeb8c5;
+}
+
+.command-center-theme .wiki-idx-preview-main {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.command-center-theme .wiki-idx-preview-main span {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.command-center-theme .wiki-idx-preview-main small,
+.command-center-theme .wiki-idx-preview-meta {
+    color: #8b98a8;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.command-center-theme .live-feed-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-right: 12px;
+    padding-left: 12px;
+}
+
+.command-center-theme .live-feed-status-wrap,
+.command-center-theme .live-feed-controls,
+.command-center-theme .live-feed-filter-group {
+    display: flex;
+    align-items: center;
+}
+
+.command-center-theme .live-feed-filter-group {
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.command-center-theme .live-feed-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 4px;
+    background: rgba(9, 13, 17, 0.86);
+    color: #e6edf5;
+    font-size: 12px;
+    animation: none;
+}
+
+.command-center-theme .live-feed-status-dot,
+.command-center-theme .live-feed-footer-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #25c26e;
+    box-shadow: 0 0 0 3px rgba(37, 194, 110, 0.14);
+}
+
+.command-center-theme .feed-filter-btn {
+    min-width: 0;
+    padding: 0 8px;
+    border-radius: 0;
+    border-right: 0;
+    color: #aeb8c5;
+    font-size: 11.5px;
+}
+
+.command-center-theme .feed-filter-btn:first-child {
+    border-radius: 4px 0 0 4px;
+}
+
+.command-center-theme .feed-filter-btn:last-child {
+    border-right: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 0 4px 4px 0;
+}
+
+.command-center-theme .feed-filter-btn.active {
+    border-color: rgba(47, 128, 255, 0.58);
+    background: rgba(47, 128, 255, 0.14);
+    color: #67b3ff;
+}
+
+.command-center-theme .feed-control-btn {
+    width: 32px;
+    padding: 0;
+}
+
+.command-center-theme .live-feed-controls {
+    gap: 4px;
+    padding-left: 12px;
+    border-left: 1px solid rgba(191, 201, 214, 0.1);
+}
+
+.command-center-theme .feed-section {
+    padding: 10px 16px 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.11);
+}
+
+.command-center-theme .feed-section-label {
+    margin: 0 0 4px 0;
+    color: #7f8da0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.command-center-theme .feed-item {
+    display: grid;
+    grid-template-columns: 70px 18px 24px minmax(0, 1fr) 58px;
+    gap: 8px;
+    align-items: start;
+    min-height: 62px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+    background: transparent;
+    animation: none;
+}
+
+.command-center-theme .feed-item:last-child {
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+}
+
+.command-center-theme .feed-item:hover {
+    background: rgba(47, 128, 255, 0.06);
+}
+
+.command-center-theme .feed-item-time {
+    margin-top: 3px;
+    color: #aeb8c5;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-align: left;
+}
+
+.command-center-theme .feed-item-rail {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    min-height: 46px;
+}
+
+.command-center-theme .feed-item-rail::before {
+    content: "";
+    position: absolute;
+    top: 14px;
+    bottom: -20px;
+    width: 1px;
+    background: rgba(191, 201, 214, 0.18);
+}
+
+.command-center-theme .feed-item-dot {
+    position: relative;
+    z-index: 1;
+    width: 10px;
+    height: 10px;
+    margin-top: 6px;
+    border: 2px solid #090c10;
+    border-radius: 999px;
+    background: #7f8da0;
+    box-shadow: 0 0 0 1px rgba(191, 201, 214, 0.32);
+}
+
+.command-center-theme .feed-item-dot.working { background: #25c26e; }
+.command-center-theme .feed-item-dot.waiting { background: #f0b443; }
+.command-center-theme .feed-item-dot.done { background: #2f80ff; }
+.command-center-theme .feed-item-dot.blocked { background: #f35d5d; }
+.command-center-theme .feed-item-dot.paused { background: #c069d8; }
+
+.command-center-theme .feed-item-icon {
+    width: 24px;
+    height: 24px;
+    margin-top: 0;
+    border-radius: 4px;
+    background: transparent;
+}
+
+.command-center-theme .feed-item-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.command-center-theme .feed-item-mainline,
+.command-center-theme .feed-item-meta-line {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.command-center-theme .feed-item-label {
+    color: #edf3fa;
+    font-size: 13px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .feed-item-status {
+    margin-left: auto;
+    color: #8b98a8;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.command-center-theme .feed-item-task,
+.command-center-theme .feed-item-session,
+.command-center-theme .feed-item-step,
+.command-center-theme .feed-item-evidence {
+    min-width: 0;
+    color: #8b98a8;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .feed-item-step {
+    margin-top: 5px;
+    color: #c8d2df;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.command-center-theme .feed-item-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 0;
+}
+
+.command-center-theme .feed-item-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    background: transparent;
+    color: #8b98a8;
+    cursor: pointer;
+}
+
+.command-center-theme .feed-item-action svg {
+    width: 15px;
+    height: 15px;
+}
+
+.command-center-theme .feed-item-action:hover {
+    color: #f4f7fb;
+}
+
+.command-center-theme .live-feed-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    padding: 0 20px;
+    border-top: 1px solid rgba(191, 201, 214, 0.14);
+    color: #8b98a8;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.command-center-theme .live-feed-footer span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.command-center-theme .live-feed-footer span:last-child {
+    color: #67b3ff;
+}
+
+.command-center-theme .live-feed-empty {
+    min-height: 240px;
+    height: auto;
+    border-top: 1px solid rgba(191, 201, 214, 0.1);
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+    color: #8b98a8;
+}
+
+.command-center-theme .live-feed-empty svg {
+    width: 22px;
+    height: 22px;
+    color: #67b3ff;
+}
+
+.command-center-theme .live-feed-empty p {
+    color: #dce4ee;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.command-center-theme .live-feed-empty span {
+    font-size: 12px;
+}
+
+@media (max-width: 980px) {
+    .command-center-theme .wiki-idx-table-head,
+    .command-center-theme .wiki-idx-item {
+        grid-template-columns: 18px minmax(0, 1fr) 64px;
+    }
+
+    .command-center-theme .wiki-idx-table-head span:nth-child(2),
+    .command-center-theme .wiki-idx-item-updated {
+        display: none;
+    }
+
+    .command-center-theme .live-feed-header {
+        grid-template-columns: 1fr auto;
+    }
+
+    .command-center-theme .live-feed-filter-group {
+        grid-column: 1 / -1;
+        order: 3;
+    }
+
+    .command-center-theme .feed-item {
+        grid-template-columns: 58px 16px 22px minmax(0, 1fr);
+    }
+
+    .command-center-theme .feed-item-actions {
+        display: none;
+    }
+}
