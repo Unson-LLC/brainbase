@@ -15775,3 +15775,206 @@ body.resizing iframe {
     background-color: rgba(245, 159, 71, 0.12);
     color: #ffc36d;
 }
+
+/* Command Center v7: approved next-task toolbar fidelity. */
+.command-center-theme #tasks-tab-content .next-tasks-section .section-header {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 48px;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.12);
+}
+
+.command-center-theme #tasks-tab-content .next-tasks-section .section-header h3 {
+    display: block;
+    color: #f3f6fa;
+    font-size: 18px;
+    font-weight: 780;
+    line-height: 1;
+}
+
+.command-center-theme #tasks-tab-content .next-tasks-section .section-header h3 svg,
+.command-center-theme #tasks-tab-content .next-tasks-section .section-header h3 i,
+.command-center-theme #tasks-tab-content #toggle-all-tasks {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .task-tabs {
+    min-height: 44px;
+    gap: 30px;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.12);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .task-tab {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #9aa5b3;
+    font-size: 12.5px;
+    font-weight: 680;
+    box-shadow: none;
+}
+
+.command-center-theme #tasks-tab-content .task-tab:hover,
+.command-center-theme #tasks-tab-content .task-tab.active {
+    border-bottom-color: var(--bb-approved-blue);
+    background: transparent;
+    color: #56a0ff;
+    transform: none;
+}
+
+.command-center-theme #tasks-tab-content .task-tab svg,
+.command-center-theme #tasks-tab-content .task-tab i {
+    width: 13px;
+    height: 13px;
+}
+
+.command-center-theme #tasks-tab-content .task-filter {
+    display: grid;
+    grid-template-columns: minmax(104px, 0.58fr) minmax(0, 1fr) minmax(132px, 0.78fr) 32px;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 8px;
+    min-height: 50px;
+    padding: 9px 16px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.12);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .task-filter .filter-group {
+    display: block;
+    min-width: 0;
+}
+
+.command-center-theme #tasks-tab-content #local-tasks-panel .task-filter {
+    grid-template-columns: minmax(96px, 0.58fr) minmax(0, 1fr);
+}
+
+.command-center-theme #tasks-tab-content #nocodb-tasks-panel .task-filter .filter-group:nth-child(1) {
+    grid-column: 2;
+}
+
+.command-center-theme #tasks-tab-content #nocodb-tasks-panel .task-filter .filter-group:nth-child(2) {
+    grid-column: 1;
+}
+
+.command-center-theme #tasks-tab-content #nocodb-tasks-panel .task-filter .filter-group:nth-child(3) {
+    grid-column: 3;
+}
+
+.command-center-theme #tasks-tab-content #nocodb-sync-btn {
+    grid-column: 4;
+    grid-row: 1;
+}
+
+.command-center-theme #tasks-tab-content #local-tasks-panel .task-filter .filter-group:nth-child(1) {
+    grid-column: 2;
+}
+
+.command-center-theme #tasks-tab-content #local-tasks-panel .task-filter .filter-group:nth-child(2) {
+    grid-column: 1;
+}
+
+.command-center-theme #tasks-tab-content #local-tasks-panel .task-filter .filter-group:nth-child(3) {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .task-filter input,
+.command-center-theme #tasks-tab-content .task-filter select {
+    width: 100%;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 4px;
+    border-color: rgba(191, 201, 214, 0.16);
+    background-color: rgba(7, 9, 11, 0.92);
+    color: #dce4ee;
+    font-size: 12px;
+    font-weight: 620;
+}
+
+.command-center-theme #tasks-tab-content .task-filter input::placeholder {
+    color: #a6b0bf;
+}
+
+.command-center-theme #tasks-tab-content .task-filter select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, #8f9aaa 50%),
+        linear-gradient(135deg, #8f9aaa 50%, transparent 50%);
+    background-position:
+        calc(100% - 14px) 50%,
+        calc(100% - 10px) 50%;
+    background-size: 4px 4px, 4px 4px;
+    background-repeat: no-repeat;
+    padding-right: 24px;
+}
+
+.command-center-theme #tasks-tab-content .task-filter button,
+.command-center-theme #tasks-tab-content .task-filter .icon-btn,
+.command-center-theme #tasks-tab-content #nocodb-sync-btn {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border-radius: 4px;
+    border-color: rgba(191, 201, 214, 0.16);
+    background: rgba(7, 9, 11, 0.92);
+    color: #dce4ee;
+}
+
+.command-center-theme #tasks-tab-content .task-filter button:hover,
+.command-center-theme #tasks-tab-content .task-filter .icon-btn:hover,
+.command-center-theme #tasks-tab-content #nocodb-sync-btn:hover {
+    border-color: rgba(86, 160, 255, 0.38);
+    background: rgba(47, 128, 255, 0.1);
+}
+
+.command-center-theme #tasks-tab-content .task-filter button svg,
+.command-center-theme #tasks-tab-content .task-filter .icon-btn svg,
+.command-center-theme #tasks-tab-content #nocodb-sync-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-table-header {
+    min-height: 36px;
+}
+
+.command-center-theme #tasks-tab-content .task-table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 0 16px;
+    border-top: 1px solid rgba(191, 201, 214, 0.1);
+}
+
+.command-center-theme #tasks-tab-content .task-add-row-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #9aa5b3;
+    font-size: 12.5px;
+    font-weight: 620;
+}
+
+.command-center-theme #tasks-tab-content .task-add-row-btn:hover {
+    color: #56a0ff;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .task-add-row-btn svg,
+.command-center-theme #tasks-tab-content .task-add-row-btn i {
+    width: 14px;
+    height: 14px;
+}

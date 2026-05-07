@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071950';
+const EXPECTED_CSS_VERSION = '202605072010';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -247,6 +247,22 @@ async function collectDesktopEvidence(page) {
         taskTabActiveBorderBottomWidth: style('#tasks-tab-content .task-tab.active', 'border-bottom-width'),
         taskFilterBackground: style('#tasks-tab-content .task-filter', 'background-color'),
         taskFilterBorderRadius: style('#tasks-tab-content .task-filter', 'border-radius'),
+        taskHeaderToggleDisplay: style('#tasks-tab-content #toggle-all-tasks', 'display'),
+        taskHeaderIconDisplay: style('#tasks-tab-content .next-tasks-section .section-header h3 svg, #tasks-tab-content .next-tasks-section .section-header h3 i', 'display'),
+        taskFilterHeight: document.querySelector('#tasks-tab-content #nocodb-tasks-panel .task-filter')?.getBoundingClientRect().height ?? null,
+        taskFilterGridColumns: style('#tasks-tab-content #nocodb-tasks-panel .task-filter', 'grid-template-columns'),
+        taskFilterSearchTop: document.querySelector('#tasks-tab-content #nocodb-task-search')?.getBoundingClientRect().top ?? null,
+        taskFilterAssigneeTop: document.querySelector('#tasks-tab-content #nocodb-assignee-filter')?.getBoundingClientRect().top ?? null,
+        taskFilterProjectTop: document.querySelector('#tasks-tab-content #nocodb-project-filter')?.getBoundingClientRect().top ?? null,
+        taskFilterSyncTop: document.querySelector('#tasks-tab-content #nocodb-sync-btn')?.getBoundingClientRect().top ?? null,
+        taskFilterAssigneeLeft: document.querySelector('#tasks-tab-content #nocodb-assignee-filter')?.getBoundingClientRect().left ?? null,
+        taskFilterSearchLeft: document.querySelector('#tasks-tab-content #nocodb-task-search')?.getBoundingClientRect().left ?? null,
+        taskFilterProjectLeft: document.querySelector('#tasks-tab-content #nocodb-project-filter')?.getBoundingClientRect().left ?? null,
+        taskFilterSyncLeft: document.querySelector('#tasks-tab-content #nocodb-sync-btn')?.getBoundingClientRect().left ?? null,
+        taskFooterTop: document.querySelector('#tasks-tab-content #nocodb-tasks-panel .task-table-footer')?.getBoundingClientRect().top ?? null,
+        taskListTop: document.querySelector('#tasks-tab-content #nocodb-tasks-list')?.getBoundingClientRect().top ?? null,
+        taskFooterButtonText: document.querySelector('#tasks-tab-content #add-nocodb-task-btn')?.textContent?.trim() ?? '',
+        taskFooterButtonBorder: style('#tasks-tab-content #add-nocodb-task-btn', 'border-top-width'),
         taskListBorderRadius: style('#tasks-tab-content #nocodb-tasks-list', 'border-radius'),
         taskListBackground: style('#tasks-tab-content #nocodb-tasks-list', 'background-color'),
         filterBackground: style('#tasks-tab-content .task-filter input', 'background-color'),
@@ -547,6 +563,40 @@ function buildChecks(desktop, mobile) {
         filterBorderRadius: desktop.tasks.filterBorderRadius,
       },
       'dark structured filter inputs',
+    ),
+    createCheck(
+      'next_task_toolbar_matches_approved_reference',
+      desktop.tasks.taskHeaderToggleDisplay === 'none'
+        && (desktop.tasks.taskHeaderIconDisplay === 'none' || desktop.tasks.taskHeaderIconDisplay === null)
+        && pxNumber(desktop.tasks.taskFilterHeight) <= 52
+        && Math.abs(desktop.tasks.taskFilterSearchTop - desktop.tasks.taskFilterAssigneeTop) <= 1
+        && Math.abs(desktop.tasks.taskFilterAssigneeTop - desktop.tasks.taskFilterProjectTop) <= 1
+        && Math.abs(desktop.tasks.taskFilterProjectTop - desktop.tasks.taskFilterSyncTop) <= 1
+        && desktop.tasks.taskFilterAssigneeLeft < desktop.tasks.taskFilterSearchLeft
+        && desktop.tasks.taskFilterSearchLeft < desktop.tasks.taskFilterProjectLeft
+        && desktop.tasks.taskFilterProjectLeft < desktop.tasks.taskFilterSyncLeft
+        && desktop.tasks.taskFooterTop > desktop.tasks.taskListTop
+        && desktop.tasks.taskFooterButtonText.includes('タスクを追加')
+        && desktop.tasks.taskFooterButtonBorder === '0px',
+      {
+        taskHeaderToggleDisplay: desktop.tasks.taskHeaderToggleDisplay,
+        taskHeaderIconDisplay: desktop.tasks.taskHeaderIconDisplay,
+        taskFilterHeight: desktop.tasks.taskFilterHeight,
+        taskFilterGridColumns: desktop.tasks.taskFilterGridColumns,
+        taskFilterSearchTop: desktop.tasks.taskFilterSearchTop,
+        taskFilterAssigneeTop: desktop.tasks.taskFilterAssigneeTop,
+        taskFilterProjectTop: desktop.tasks.taskFilterProjectTop,
+        taskFilterSyncTop: desktop.tasks.taskFilterSyncTop,
+        taskFilterAssigneeLeft: desktop.tasks.taskFilterAssigneeLeft,
+        taskFilterSearchLeft: desktop.tasks.taskFilterSearchLeft,
+        taskFilterProjectLeft: desktop.tasks.taskFilterProjectLeft,
+        taskFilterSyncLeft: desktop.tasks.taskFilterSyncLeft,
+        taskFooterTop: desktop.tasks.taskFooterTop,
+        taskListTop: desktop.tasks.taskListTop,
+        taskFooterButtonText: desktop.tasks.taskFooterButtonText,
+        taskFooterButtonBorder: desktop.tasks.taskFooterButtonBorder,
+      },
+      'next-task header must be clean, filters must sit on one approved toolbar row, and add action must be in the footer row',
     ),
     createCheck(
       'overdue_task_card_component_replaced',
