@@ -117,6 +117,14 @@ export const activityServiceMethods = {
         if (!taskBrief) return null;
 
         await this._persistSessionTaskBrief(sessionId, taskBrief, timestamp);
+        this.reportActivity(sessionId, 'working', timestamp, {
+            lifecycle: 'turn_started',
+            eventType: 'brainbase/input-submit',
+            activityKind: 'task_started',
+            taskBrief,
+            currentStep: '依頼を送信済み',
+            latestEvidence: 'terminal input submitted'
+        });
         return taskBrief;
     },
 

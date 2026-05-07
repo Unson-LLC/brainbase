@@ -45,6 +45,7 @@
     "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:active-indicator": "vitest run tests/server/session-activity-state-machine-contract.test.js tests/server/session-manager.test.js tests/unit/session-activity-state.test.js tests/unit/session-indicators-ws.test.js tests/ui/views/session-view.test.js",
     "vibepro:ci": "node scripts/vibepro-score-run.mjs auto-run \"${VIBEPRO_RUN_DIR:-var/vibepro-ci-run}\"",
     "vibepro:score-verify": "node scripts/vibepro-score-run.mjs verify-changed",
     "vibepro:development-dag": "node scripts/vibepro-development-dag-check.mjs",
