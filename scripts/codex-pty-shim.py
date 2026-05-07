@@ -172,26 +172,61 @@ class ActivityReporter:
         self.last_report_at = now
 
     def _post(self, payload):
+        args = self._build_post_args(payload)
         try:
             subprocess.Popen(
-                [
-                    'curl',
-                    '-sS',
-                    '--max-time',
-                    '1',
-                    '-X',
-                    'POST',
-                    f'http://localhost:{self.port}/api/sessions/report_activity',
-                    '-H',
-                    'Content-Type: application/json',
-                    '-d',
-                    json.dumps(payload, ensure_ascii=False),
-                ],
+                args,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         except OSError as e:
             dbg('activity report failed', e)
+
+    def _get_csrf_token(self):
+        try:
+            result = subprocess.run(
+                [
+                    'curl',
+                    '-sS',
+                    '--max-time',
+                    '1',
+                    '-H',
+                    f'X-Session-Id: {self.session_id}',
+                    f'http://localhost:{self.port}/api/csrf-token',
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0 or not result.stdout:
+                return None
+            data = json.loads(result.stdout)
+            token = data.get('token') or data.get('csrfToken')
+            return token if isinstance(token, str) and token else None
+        except (OSError, ValueError, json.JSONDecodeError) as e:
+            dbg('csrf token fetch failed', e)
+            return None
+
+    def _build_post_args(self, payload):
+        args = [
+            'curl',
+            '-sS',
+            '--max-time',
+            '1',
+            '-X',
+            'POST',
+            f'http://localhost:{self.port}/api/sessions/report_activity',
+            '-H',
+            'Content-Type: application/json',
+            '-H',
+            f'X-Session-Id: {self.session_id}',
+        ]
+        token = self._get_csrf_token()
+        if token:
+            args.extend(['-H', f'X-CSRF-Token: {token}'])
+        args.extend(['-d', json.dumps(payload, ensure_ascii=False)])
+        return args
 
 
 # ── Intercept state machine ────────────────────────────────────────────────

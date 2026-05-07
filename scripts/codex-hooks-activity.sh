@@ -142,7 +142,4 @@ if [ -z "$payload_json" ]; then
   exit 0
 fi
 
-curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
-  -H "Content-Type: application/json" \
-  -d "$payload_json" \
-  --max-time 1 >/dev/null 2>&1 || true
+post_brainbase_activity_json "$PORT" "$payload_json" >/dev/null 2>&1 || true

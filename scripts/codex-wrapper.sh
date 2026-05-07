@@ -10,10 +10,7 @@ resolve_session_id
 if [ -n "$BRAINBASE_SESSION_ID" ] && command -v curl >/dev/null 2>&1; then
   PORT="$(resolve_brainbase_port)"
   REPORTED_AT=$(($(date +%s) * 1000))
-  curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
-    -H "Content-Type: application/json" \
-    -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"heartbeat\", \"eventType\": \"codex-wrapper-start\"}" \
-    --max-time 1 >/dev/null 2>&1 || true &
+  post_brainbase_activity_json "$PORT" "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"heartbeat\", \"eventType\": \"codex-wrapper-start\"}" >/dev/null 2>&1 || true &
 fi
 
 # Clean up codex temporary update directories (prevents ENOTEMPTY errors)

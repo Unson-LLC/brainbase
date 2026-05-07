@@ -10,14 +10,20 @@ const repoRoot = process.cwd();
 function createCurlStub(dir, logPath) {
     const stubPath = path.join(dir, 'curl');
     writeFileSync(stubPath, `#!/bin/sh
+headers=""
+prev=""
 for arg in "$@"; do
   case "$arg" in
     *"/api/version"*) exit 0 ;;
+    *"/api/csrf-token"*) printf '{"token":"test-csrf-token"}'; exit 0 ;;
   esac
 done
 payload=""
 prev=""
 for arg in "$@"; do
+  if [ "$prev" = "-H" ]; then
+    headers="$headers$arg\\n"
+  fi
   if [ "$prev" = "-d" ]; then
     payload="$arg"
     break
@@ -26,6 +32,9 @@ for arg in "$@"; do
 done
 if [ -n "$payload" ]; then
   printf '%s\\n' "$payload" >> "$CURL_LOG"
+  if [ -n "$CURL_HEADER_LOG" ]; then
+    printf '%s' "$headers" >> "$CURL_HEADER_LOG"
+  fi
 fi
 exit 0
 `);
@@ -56,6 +65,8 @@ describe('codex-notify.sh', () => {
     it('turnId付きheartbeat受信時_開始イベントなしでもworkingを報告する', () => {
         const tempDir = mkdtempSync(path.join(tmpdir(), 'codex-notify-'));
         const logPath = path.join(tempDir, 'curl.log');
+        const headerLogPath = path.join(tempDir, 'curl-headers.log');
+        writeFileSync(headerLogPath, '');
         createCurlStub(tempDir, logPath);
 
         const payload = {
@@ -69,6 +80,7 @@ describe('codex-notify.sh', () => {
                 ...process.env,
                 PATH: `${tempDir}:${process.env.PATH}`,
                 CURL_LOG: logPath,
+                CURL_HEADER_LOG: headerLogPath,
                 TMPDIR: tempDir,
                 BRAINBASE_SESSION_ID: 'session-codex-notify-test',
                 BRAINBASE_PORT: '31013'
@@ -78,6 +90,7 @@ describe('codex-notify.sh', () => {
 
         expect(result.status).toBe(0);
         const reports = waitForPayloads(logPath, 2);
+        const headers = readFileSync(headerLogPath, 'utf8');
         expect(reports).toEqual([
             expect.objectContaining({
                 status: 'working',
@@ -93,6 +106,8 @@ describe('codex-notify.sh', () => {
                 activityKind: 'running_command'
             })
         ]);
+        expect(headers).toContain('X-Session-Id: session-codex-notify-test');
+        expect(headers).toContain('X-CSRF-Token: test-csrf-token');
     });
 
     it('turn_completed判定にturn/completedを含める', () => {
