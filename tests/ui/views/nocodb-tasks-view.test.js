@@ -51,10 +51,11 @@ describe('NocoDBTasksView', () => {
         expect(filterArg.assignee).toBe('ksato');
         expect(container.textContent).toContain('Test task');
         expect(container.querySelector('.task-status-select.status-pending')).toBeTruthy();
+        expect(container.querySelector('select.task-status-select')).toBeNull();
         expect(container.querySelector('.assignee-avatar')?.textContent).toBe('KS');
     });
 
-    it('ステータスselectのクリックは親要素に伝播しない', () => {
+    it('ステータスコンボボックスのクリックは親要素に伝播せずメニューを開く', () => {
         const tasks = [{
             id: 'nocodb:proj:1',
             title: 'Status task',
@@ -79,9 +80,11 @@ describe('NocoDBTasksView', () => {
         container.querySelector('.task-status-select').click();
 
         expect(parentClick).not.toHaveBeenCalled();
+        expect(container.querySelector('.task-status-menu').style.display).toBe('block');
+        expect(container.querySelector('.task-status-select').getAttribute('aria-expanded')).toBe('true');
     });
 
-    it('ステータスselectで未着手から完了へ変更できる', async () => {
+    it('ステータスコンボボックスで未着手から完了へ変更できる', async () => {
         const tasks = [{
             id: 'nocodb:proj:1',
             title: 'Status task',
@@ -110,9 +113,8 @@ describe('NocoDBTasksView', () => {
         view.container = container;
         view.render();
 
-        const select = container.querySelector('.task-status-select');
-        select.value = 'completed';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
+        container.querySelector('.task-status-select').click();
+        container.querySelector('.task-status-option[data-status-value="completed"]').click();
         await Promise.resolve();
 
         expect(updateStatus).toHaveBeenCalledWith('nocodb:proj:1', 'completed');

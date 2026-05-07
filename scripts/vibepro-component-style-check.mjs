@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605072345';
+const EXPECTED_CSS_VERSION = '202605080847';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -85,11 +85,17 @@ async function collectDesktopEvidence(page) {
         <div class="task-title">VibePro component replacement sample</div>
         <div class="task-meta">
           <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
-          <select class="task-status-select status-pending">
-            <option value="pending" selected>未着手</option>
-            <option value="in_progress">進行中</option>
-            <option value="completed">完了</option>
-          </select>
+          <div class="task-status-combobox">
+            <button class="task-status-select status-pending" type="button" aria-expanded="false">
+              <span class="task-status-label">未着手</span>
+              <i data-lucide="chevron-down" class="task-status-chevron"></i>
+            </button>
+            <div class="task-status-menu" role="listbox" style="display: none;">
+              <button class="task-status-option status-pending selected" type="button" role="option" data-status-value="pending">未着手</button>
+              <button class="task-status-option status-progress" type="button" role="option" data-status-value="in_progress">進行中</button>
+              <button class="task-status-option status-completed" type="button" role="option" data-status-value="completed">完了</button>
+            </div>
+          </div>
           <div class="assignee-combobox">
             <button class="assignee-trigger">
               <span class="assignee-avatar" aria-hidden="true">OP</span>
@@ -148,11 +154,17 @@ async function collectDesktopEvidence(page) {
           <div class="task-title">VibePro component replacement sample</div>
           <div class="task-meta">
             <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
-            <select class="task-status-select status-pending">
-              <option value="pending" selected>未着手</option>
-              <option value="in_progress">進行中</option>
-              <option value="completed">完了</option>
-            </select>
+            <div class="task-status-combobox">
+              <button class="task-status-select status-pending" type="button" aria-expanded="false">
+                <span class="task-status-label">未着手</span>
+                <i data-lucide="chevron-down" class="task-status-chevron"></i>
+              </button>
+              <div class="task-status-menu" role="listbox" style="display: none;">
+                <button class="task-status-option status-pending selected" type="button" role="option" data-status-value="pending">未着手</button>
+                <button class="task-status-option status-progress" type="button" role="option" data-status-value="in_progress">進行中</button>
+                <button class="task-status-option status-completed" type="button" role="option" data-status-value="completed">完了</button>
+              </div>
+            </div>
             <div class="assignee-combobox">
               <button class="assignee-trigger">
                 <span class="assignee-avatar" aria-hidden="true">OP</span>
@@ -420,8 +432,9 @@ async function collectDesktopEvidence(page) {
         statusBackground: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'background-color'),
         statusBorderRadius: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'border-radius'),
         statusAppearance: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'appearance'),
-        statusOptionCount: document.querySelectorAll('#tasks-tab-content .nocodb-task-item.overdue .task-status-select option').length,
-        statusCompletedOption: Boolean(document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-status-select option[value="completed"]')),
+        statusComboboxExists: Boolean(document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-status-combobox')),
+        statusOptionCount: document.querySelectorAll('#tasks-tab-content .nocodb-task-item.overdue .task-status-option').length,
+        statusCompletedOption: Boolean(document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-status-option[data-status-value="completed"]')),
         assigneeAvatarWidth: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.getBoundingClientRect().width ?? null,
         assigneeAvatarText: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.textContent?.trim() ?? '',
       },
@@ -844,6 +857,7 @@ function buildChecks(desktop, mobile) {
       pxNumber(desktop.sampleTask.statusBorderRadius) <= 4
         && pxNumber(desktop.sampleTask.assigneeAvatarWidth) >= 26
         && desktop.sampleTask.assigneeAvatarText.length > 0
+        && desktop.sampleTask.statusComboboxExists === true
         && desktop.sampleTask.statusOptionCount >= 3
         && desktop.sampleTask.statusCompletedOption === true
         && includesAll(desktop.sampleTask.statusBackground, ['191', '201', '214']),
@@ -851,12 +865,13 @@ function buildChecks(desktop, mobile) {
         statusBackground: desktop.sampleTask.statusBackground,
         statusBorderRadius: desktop.sampleTask.statusBorderRadius,
         statusAppearance: desktop.sampleTask.statusAppearance,
+        statusComboboxExists: desktop.sampleTask.statusComboboxExists,
         statusOptionCount: desktop.sampleTask.statusOptionCount,
         statusCompletedOption: desktop.sampleTask.statusCompletedOption,
         assigneeAvatarWidth: desktop.sampleTask.assigneeAvatarWidth,
         assigneeAvatarText: desktop.sampleTask.assigneeAvatarText,
       },
-      'task queue status must read as a badge, include all status choices, and assignee must be an avatar',
+      'task queue status must be a stable custom combobox badge, include all status choices, and assignee must be an avatar',
     ),
     createCheck(
       'wiki_tab_matches_generated_component',

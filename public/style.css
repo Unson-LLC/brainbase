@@ -3803,6 +3803,74 @@ body.resizing iframe {
     border-color: var(--accent-color);
 }
 
+.nocodb-task-item .task-status-combobox {
+    position: relative;
+    display: inline-flex;
+}
+
+.nocodb-task-item .task-status-select {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 72px;
+}
+
+.nocodb-task-item .task-status-chevron,
+.nocodb-task-item .task-status-select svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    opacity: 0.72;
+}
+
+.nocodb-task-item .task-status-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    z-index: 80;
+    min-width: 108px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
+}
+
+.nocodb-task-item .task-status-option {
+    width: 100%;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.nocodb-task-item .task-status-option:hover,
+.nocodb-task-item .task-status-option:focus {
+    outline: none;
+    background: var(--surface-hover);
+}
+
+.nocodb-task-item .task-status-option.selected {
+    font-weight: 700;
+}
+
+.nocodb-task-item .task-status-option .check-icon,
+.nocodb-task-item .task-status-option svg {
+    width: 12px;
+    height: 12px;
+}
+
 .nocodb-task-item .task-assignee-select {
     padding: 4px 24px 4px 8px;
     font-size: 0.75rem;
@@ -15744,6 +15812,27 @@ body.resizing iframe {
     font-weight: 700;
     text-align: center;
     text-align-last: center;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-menu {
+    min-width: 112px;
+    border-radius: 4px;
+    border-color: rgba(191, 201, 214, 0.16);
+    background: #101316;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-option {
+    min-height: 28px;
+    border-radius: 3px;
+    color: #dfe6ef;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-option:hover,
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-option:focus {
+    background: rgba(47, 128, 255, 0.12);
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select.status-pending {

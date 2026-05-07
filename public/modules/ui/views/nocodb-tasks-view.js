@@ -332,11 +332,15 @@ export class NocoDBTasksView extends BaseView {
                 <div class="task-title">${escapeHtml(task.title)}</div>
                 <div class="task-meta">
                     ${dueDateHtml}
-                    <select class="task-status-select status-${statusTone}" data-task-id="${task.id}" aria-label="ステータス: ${escapeHtml(statusLabel)}">
-                        <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>未着手</option>
-                        <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>進行中</option>
-                        <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>完了</option>
-                    </select>
+                    <div class="task-status-combobox" data-task-id="${task.id}">
+                        <button class="task-status-select status-${statusTone}" type="button" data-task-id="${task.id}" data-status-value="${escapeHtml(task.status)}" aria-haspopup="listbox" aria-expanded="false" aria-label="ステータス: ${escapeHtml(statusLabel)}">
+                            <span class="task-status-label">${escapeHtml(statusLabel)}</span>
+                            <i data-lucide="chevron-down" class="task-status-chevron"></i>
+                        </button>
+                        <div class="task-status-menu" role="listbox" style="display: none;">
+                            ${this._renderStatusOptions(task.status)}
+                        </div>
+                    </div>
                     <div class="assignee-combobox" data-task-id="${task.id}">
                         <button class="assignee-trigger" type="button" title="${escapeHtml(assignee)}">
                             <span class="assignee-avatar" aria-hidden="true">${escapeHtml(assigneeInitials)}</span>
@@ -369,6 +373,26 @@ export class NocoDBTasksView extends BaseView {
         if (status === 'review' || status === 'review_waiting') return 'レビュー待ち';
         if (status === 'generating' || status === 'generated') return '生成中';
         return '未着手';
+    }
+
+    _getStatusOptions() {
+        return [
+            { value: 'pending', label: '未着手', tone: 'pending' },
+            { value: 'in_progress', label: '進行中', tone: 'progress' },
+            { value: 'completed', label: '完了', tone: 'completed' }
+        ];
+    }
+
+    _renderStatusOptions(currentStatus) {
+        return this._getStatusOptions().map((option) => {
+            const selected = option.value === currentStatus;
+            return `
+                <button class="task-status-option status-${option.tone}${selected ? ' selected' : ''}" type="button" role="option" aria-selected="${selected}" data-status-value="${option.value}">
+                    <span>${escapeHtml(option.label)}</span>
+                    ${selected ? '<i data-lucide="check" class="check-icon"></i>' : ''}
+                </button>
+            `;
+        }).join('');
     }
 
     _getAssigneeInitials(assignee) {
@@ -447,20 +471,70 @@ export class NocoDBTasksView extends BaseView {
      * ステータス変更ハンドラをアタッチ
      */
     _attachStatusHandlers() {
-        // ステータス変更
-        this.container.querySelectorAll('.task-status-select').forEach(select => {
+        this.container.querySelectorAll('.task-status-combobox').forEach(combobox => {
+            const trigger = combobox.querySelector('.task-status-select');
+            const menu = combobox.querySelector('.task-status-menu');
+            const taskId = combobox.dataset.taskId;
             const keepInteractionLocal = (e) => {
                 e.stopPropagation();
             };
 
-            select.addEventListener('pointerdown', keepInteractionLocal);
-            select.addEventListener('mousedown', keepInteractionLocal);
-            select.addEventListener('click', keepInteractionLocal);
-            select.addEventListener('keydown', keepInteractionLocal);
-            select.addEventListener('change', async (e) => {
+            const closeMenu = () => {
+                menu.style.display = 'none';
+                trigger.setAttribute('aria-expanded', 'false');
+            };
+
+            const openMenu = () => {
+                this.container.querySelectorAll('.task-status-menu').forEach(p => {
+                    p.style.display = 'none';
+                });
+                this.container.querySelectorAll('.task-status-select').forEach(button => {
+                    button.setAttribute('aria-expanded', 'false');
+                });
+                this.container.querySelectorAll('.assignee-popover').forEach(p => {
+                    p.style.display = 'none';
+                });
+                menu.style.display = 'block';
+                trigger.setAttribute('aria-expanded', 'true');
+            };
+
+            const toggleMenu = () => {
+                if (menu.style.display === 'none') {
+                    openMenu();
+                    return;
+                }
+                closeMenu();
+            };
+
+            trigger.addEventListener('pointerdown', keepInteractionLocal);
+            trigger.addEventListener('mousedown', keepInteractionLocal);
+            trigger.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const taskId = e.target.dataset.taskId;
-                const newStatus = e.target.value;
+                toggleMenu();
+            });
+            trigger.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleMenu();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    openMenu();
+                    menu.querySelector('.task-status-option')?.focus();
+                } else if (e.key === 'Escape') {
+                    closeMenu();
+                }
+            });
+
+            menu.addEventListener('pointerdown', keepInteractionLocal);
+            menu.addEventListener('mousedown', keepInteractionLocal);
+            menu.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const option = e.target.closest('.task-status-option');
+                if (!option) return;
+
+                const newStatus = option.dataset.statusValue;
+                closeMenu();
 
                 try {
                     await this.service.updateStatus(taskId, newStatus);
@@ -470,6 +544,28 @@ export class NocoDBTasksView extends BaseView {
                     this.render();
                 }
             });
+            menu.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                const option = e.target.closest('.task-status-option');
+                if ((e.key === 'Enter' || e.key === ' ') && option) {
+                    e.preventDefault();
+                    option.click();
+                } else if (e.key === 'Escape') {
+                    closeMenu();
+                    trigger.focus();
+                }
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.task-status-combobox')) {
+                this.container?.querySelectorAll('.task-status-menu').forEach(menu => {
+                    menu.style.display = 'none';
+                });
+                this.container?.querySelectorAll('.task-status-select').forEach(trigger => {
+                    trigger.setAttribute('aria-expanded', 'false');
+                });
+            }
         });
 
         // 担当者Combobox
