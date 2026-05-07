@@ -16,9 +16,9 @@ import { logger } from '../utils/logger.js';
 function parseGitHubRepoSpec(remoteUrl) {
     const value = String(remoteUrl || '').trim();
     const patterns = [
-        /^https:\/\/github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/,
-        /^git@github\.com:([^/]+\/[^/.]+?)(?:\.git)?$/,
-        /^ssh:\/\/git@github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/
+        /^https:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/,
+        /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?\/?$/,
+        /^ssh:\/\/git@github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/
     ];
 
     for (const pattern of patterns) {
