@@ -288,3 +288,7 @@ migration/
 .vibepro/
 graphify-out/
 apps/vibepro-panel/.next/
+.vibepro/raw/
+.vibepro/**/raw/
+.vibepro/**/secrets*
+.vibepro/**/*.log
