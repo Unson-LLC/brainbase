@@ -14,12 +14,10 @@
     "missed_gaps": [],
     "over_detected_gaps": [],
     "escaped_gate_violations": [],
-    "effective_interventions": [
-      "intervention.codex_file_metadata_cache"
-    ],
+    "effective_interventions": [],
     "weak_interventions": [],
     "next_rule_updates": [
-      "runtime反映後のLoki再測定を次runの観測factに含める"
+      "現在の診断ルールを維持し、次runで再測定する"
     ]
   }
 }

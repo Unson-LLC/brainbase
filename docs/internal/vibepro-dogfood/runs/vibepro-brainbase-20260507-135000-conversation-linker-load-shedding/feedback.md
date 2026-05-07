@@ -1,4 +1,4 @@
-# VibePro Brainbase Dogfood Feedback: ConversationLinker Load Shedding
+# VibePro Brainbase Dogfood Feedback: vibepro-brainbase-20260507-135000-conversation-linker-load-shedding
 
 ## 状態
 
@@ -12,9 +12,21 @@
 
 ## 正しく検出できた本番化ギャップ
 
-- `gap.conversation_linker.repeated_codex_jsonl_reads`
-- `gap.activity_logs.high_frequency_info`
+- gap.conversation_linker.repeated_codex_jsonl_reads
+- gap.activity_logs.high_frequency_info
+
+## 未検出本番化ギャップ
+
+- なし
+
+## 過検出本番化ギャップ
+
+- なし
+
+## 流出したゲート違反
+
+- なし
 
 ## 次回診断ルール更新候補
 
-- runtime反映後のLoki再測定を次runの観測factに含める。
+- 現在の診断ルールを維持し、次runで再測定する

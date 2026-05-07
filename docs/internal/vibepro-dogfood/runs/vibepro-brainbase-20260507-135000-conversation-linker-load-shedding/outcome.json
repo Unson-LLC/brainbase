@@ -4,13 +4,13 @@
   "generated_from": "observation.json",
   "actual_gaps": [
     {
-      "actual_gap_id": "actual.gap.conversation_linker.repeated_codex_jsonl_reads",
+      "actual_gap_id": "actual.gap.conversation_linker.codex_full_read_repeated",
       "fact_ids": [
         "fact.conversation_linker.codex_full_read_repeated"
       ],
       "severity": "high",
       "category": "runtime_load",
-      "reason": "A failing test reproduced the repeated cwd read; implementation changed second rebuild to zero cwd reads"
+      "reason": "Codex index rebuild rereads unchanged jsonl files after index cache expiry"
     },
     {
       "actual_gap_id": "actual.gap.activity_logs.high_frequency_info",
@@ -19,15 +19,9 @@
       ],
       "severity": "medium",
       "category": "log_volume",
-      "reason": "High-frequency status and websocket broadcast logs were moved to debug"
+      "reason": "Hook status and ActivityWs broadcast logs are emitted at heartbeat frequency"
     }
   ],
   "gate_violations": [],
-  "intervention_outcomes": [
-    {
-      "intervention_id": "intervention.codex_file_metadata_cache",
-      "result": "effective",
-      "evidence": "Real benchmark secondReads=0"
-    }
-  ]
+  "intervention_outcomes": []
 }

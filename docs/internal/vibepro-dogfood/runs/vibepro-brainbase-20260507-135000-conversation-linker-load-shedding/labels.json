@@ -7,7 +7,7 @@
   ],
   "actual_gaps": [
     {
-      "actual_gap_id": "actual.gap.conversation_linker.repeated_codex_jsonl_reads",
+      "actual_gap_id": "actual.gap.conversation_linker.codex_full_read_repeated",
       "matched_detected_gap_id": "gap.conversation_linker.repeated_codex_jsonl_reads",
       "judgment": "true_positive"
     },
@@ -18,10 +18,5 @@
     }
   ],
   "gate_violations": [],
-  "intervention_outcomes": [
-    {
-      "intervention_id": "intervention.codex_file_metadata_cache",
-      "judgment": "effective"
-    }
-  ]
+  "intervention_outcomes": []
 }

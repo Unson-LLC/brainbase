@@ -26,7 +26,42 @@
         "status": "M",
         "category": "test"
       }
-    ]
+    ],
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 16,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 5,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "unknown",
+    "has_ship_evidence": false,
+    "dogfood_story_unshipped": true
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
   },
   "observed_facts": [
     {
