@@ -29,25 +29,35 @@ const SUPPRESS_DURATION = 5000; // 5秒間サーバーポーリングの上書�
 function didHookStatusChange(prev, next) {
     if (!prev) return true;
     if (!next) return true;
-    const prevLiveActivity = prev.liveActivity || null;
-    const nextLiveActivity = next.liveActivity || null;
-    return prev.isWorking !== next.isWorking
-        || prev.isDone !== next.isDone
-        || prev.lastWorkingAt !== next.lastWorkingAt
-        || prev.lastDoneAt !== next.lastDoneAt
-        || prev.lastActivityAt !== next.lastActivityAt
-        || prev.lastEventType !== next.lastEventType
-        || prev.activeTurnCount !== next.activeTurnCount
+    const normalizedPrev = normalizeHookStatusForClient(prev);
+    const normalizedNext = normalizeHookStatusForClient(next);
+    const prevLiveActivity = normalizedPrev?.liveActivity || null;
+    const nextLiveActivity = normalizedNext?.liveActivity || null;
+    return normalizedPrev.isWorking !== normalizedNext.isWorking
+        || normalizedPrev.isDone !== normalizedNext.isDone
+        || normalizedPrev.state !== normalizedNext.state
+        || normalizedPrev.confidence !== normalizedNext.confidence
+        || normalizedPrev.lastWorkingAt !== normalizedNext.lastWorkingAt
+        || normalizedPrev.lastDoneAt !== normalizedNext.lastDoneAt
+        || normalizedPrev.lastActivityAt !== normalizedNext.lastActivityAt
+        || normalizedPrev.lastEventType !== normalizedNext.lastEventType
+        || normalizedPrev.activeTurnCount !== normalizedNext.activeTurnCount
         || prevLiveActivity?.activityKind !== nextLiveActivity?.activityKind
         || prevLiveActivity?.statusTone !== nextLiveActivity?.statusTone
         || prevLiveActivity?.updatedAt !== nextLiveActivity?.updatedAt
-        || prev.timestamp !== next.timestamp;
+        || normalizedPrev.timestamp !== normalizedNext.timestamp;
 }
 
 function normalizeHookStatusForClient(hookStatus) {
     if (!hookStatus || typeof hookStatus !== 'object') return null;
-    const isWorking = hookStatus.isWorking ?? hookStatus.status === 'working';
-    const isDone = hookStatus.isDone ?? hookStatus.status === 'done';
+    const state = typeof hookStatus.state === 'string' ? hookStatus.state : null;
+    const derivedWorking = state === 'starting'
+        || state === 'running'
+        || state === 'waiting'
+        || hookStatus.status === 'working';
+    const derivedDone = state === 'done-unread' || hookStatus.status === 'done';
+    const isWorking = hookStatus.isWorking ?? derivedWorking;
+    const isDone = hookStatus.isDone ?? derivedDone;
     return {
         ...hookStatus,
         isWorking: Boolean(isWorking),

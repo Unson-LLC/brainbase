@@ -32,6 +32,23 @@ export const ActivityState = Object.freeze({
 export function deriveActivityState(hookStatus) {
     if (!hookStatus) return ActivityState.IDLE;
 
+    if (typeof hookStatus.state === 'string') {
+        switch (hookStatus.state) {
+        case 'waiting':
+            return ActivityState.WAITING;
+        case 'running':
+            return ActivityState.THINKING;
+        case 'starting':
+            return ActivityState.WORKING;
+        case 'done-unread':
+            return ActivityState.DONE_UNREAD;
+        case 'idle':
+            return ActivityState.IDLE;
+        default:
+            break;
+        }
+    }
+
     const activeTurnCount = hookStatus.activeTurnCount || 0;
     const activityKind = hookStatus.liveActivity?.activityKind || null;
     const statusTone = hookStatus.liveActivity?.statusTone || null;
