@@ -14474,3 +14474,318 @@ body.resizing iframe {
     padding-bottom: 3px;
     font-size: 11px;
 }
+
+/* Command Center v3: remove nested card grouping; use line/table composition. */
+.command-center-theme {
+    --bb-flat-line: rgba(191, 201, 214, 0.105);
+    --bb-flat-line-strong: rgba(191, 201, 214, 0.16);
+    --bb-flat-surface: rgba(255, 255, 255, 0.012);
+}
+
+.command-center-theme .connection-status,
+.command-center-theme .sidebar-primary-toggle,
+.command-center-theme .session-view-toggle,
+.command-center-theme .info-drawer-tabs,
+.command-center-theme #tasks-tab-content .timeline-section,
+.command-center-theme #tasks-tab-content .next-tasks-section,
+.command-center-theme #tasks-tab-content .task-tabs,
+.command-center-theme #tasks-tab-content .task-filter,
+.command-center-theme #tasks-tab-content #nocodb-tasks-list,
+.command-center-theme #tasks-tab-content #next-tasks-list {
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.command-center-theme .connection-status {
+    min-height: 32px;
+    margin: 0 12px 8px;
+    padding: 0 10px;
+    border: 0;
+    border-bottom: 1px solid rgba(45, 212, 120, 0.28);
+    background: transparent;
+}
+
+.command-center-theme .add-session-btn {
+    height: 34px;
+    min-height: 34px;
+    margin: 0 12px 10px;
+    border-color: rgba(47, 128, 255, 0.38);
+    border-radius: 4px;
+    background: rgba(47, 128, 255, 0.08);
+    box-shadow: none;
+}
+
+.command-center-theme .add-session-btn:hover {
+    background: rgba(47, 128, 255, 0.13);
+    box-shadow: none;
+}
+
+.command-center-theme .sidebar-primary-toggle,
+.command-center-theme .session-view-toggle {
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--bb-flat-line);
+    border-bottom: 1px solid var(--bb-flat-line);
+    background: transparent;
+}
+
+.command-center-theme .sidebar-primary-btn,
+.command-center-theme .session-view-btn {
+    border-radius: 0;
+    border-color: transparent;
+    background: transparent;
+}
+
+.command-center-theme .sidebar-primary-btn.active,
+.command-center-theme .session-view-btn.active {
+    border-color: transparent;
+    border-bottom: 2px solid var(--bb-blue);
+    background: rgba(47, 128, 255, 0.1);
+    box-shadow: none;
+}
+
+.command-center-theme .sidebar-header,
+.command-center-theme .sidebar-footer {
+    border-color: var(--bb-flat-line);
+}
+
+.command-center-theme .info-drawer {
+    background: linear-gradient(180deg, rgba(10, 12, 15, 0.985), rgba(7, 9, 11, 0.985));
+}
+
+.command-center-theme .info-drawer-header {
+    min-height: 50px;
+    padding: 0 8px 0 12px;
+    border-bottom: 1px solid var(--bb-flat-line-strong);
+    background: rgba(8, 10, 13, 0.96);
+}
+
+.command-center-theme .info-drawer-tabs {
+    min-height: 50px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.command-center-theme .info-drawer-tab {
+    height: 49px;
+    min-height: 49px;
+    padding: 0 8px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme .info-drawer-tab.active {
+    border-color: var(--bb-blue);
+    background: rgba(47, 128, 255, 0.085);
+    box-shadow: none;
+}
+
+.command-center-theme .info-drawer-body {
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content {
+    padding: 0;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .focus-section:empty,
+.command-center-theme #tasks-tab-content .focus-section:has(#focus-task:empty) {
+    display: none;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section,
+.command-center-theme #tasks-tab-content .next-tasks-section {
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line-strong);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .timeline-section {
+    min-height: 286px;
+}
+
+.command-center-theme #tasks-tab-content .section-header {
+    min-height: 43px;
+    padding: 0 14px;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line);
+    border-radius: 0;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .section-header h3 {
+    font-size: 12.5px;
+}
+
+.command-center-theme #tasks-tab-content .section-header-actions .icon-btn,
+.command-center-theme #tasks-tab-content .section-header .icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .task-tabs {
+    min-height: 38px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .task-tab {
+    min-height: 37px;
+    padding: 0 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme #tasks-tab-content .task-tab.active {
+    border-color: var(--bb-blue);
+    background: rgba(47, 128, 255, 0.09);
+    box-shadow: none;
+}
+
+.command-center-theme #tasks-tab-content .task-filter {
+    padding: 8px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .task-filter input,
+.command-center-theme #tasks-tab-content .task-filter select,
+.command-center-theme #tasks-tab-content .task-filter button,
+.command-center-theme #tasks-tab-content .refresh-nocodb-tasks-btn {
+    min-height: 31px;
+    border-radius: 4px;
+    background-color: rgba(7, 9, 11, 0.78);
+}
+
+.command-center-theme #tasks-tab-content #timeline-list,
+.command-center-theme #tasks-tab-content #next-tasks-list,
+.command-center-theme #tasks-tab-content #nocodb-tasks-list {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .timeline-item {
+    border-bottom: 1px solid rgba(191, 201, 214, 0.065);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item {
+    min-height: 50px;
+    padding: 8px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line);
+    border-left: 2px solid transparent;
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item:hover {
+    background: rgba(47, 128, 255, 0.045);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item.overdue {
+    border-left-color: var(--bb-red);
+    background: transparent;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item.overdue:hover {
+    background: rgba(243, 93, 93, 0.045);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge,
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-status-select,
+.command-center-theme #tasks-tab-content .nocodb-task-item .assignee-trigger {
+    border-radius: 3px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-action-btn {
+    border-radius: 4px;
+    background: transparent;
+}
+
+.command-center-theme .session-list,
+.command-center-theme .session-project-children {
+    gap: 0;
+}
+
+.command-center-theme .session-child-row {
+    min-height: 40px;
+    padding: 5px 8px;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line);
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme .session-child-row:hover {
+    border-bottom-color: var(--bb-flat-line-strong);
+    border-left-color: rgba(47, 128, 255, 0.45);
+    background: rgba(47, 128, 255, 0.045);
+    box-shadow: none;
+    transform: none;
+}
+
+.command-center-theme .session-child-row.active {
+    min-height: 40px;
+    border: 0;
+    border-bottom: 1px solid rgba(47, 128, 255, 0.32);
+    border-left: 2px solid var(--bb-blue);
+    border-radius: 0;
+    background: rgba(47, 128, 255, 0.08);
+    box-shadow: none;
+}
+
+.command-center-theme .archive-toggle-container {
+    padding: 0;
+    border-top: 1px solid var(--bb-flat-line);
+}
+
+.command-center-theme .archive-toggle-btn,
+.command-center-theme .inbox-trigger,
+.command-center-theme .settings-link,
+.command-center-theme .auth-link {
+    min-height: 38px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 1px solid var(--bb-flat-line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme .archive-toggle-btn:hover,
+.command-center-theme .inbox-trigger:hover,
+.command-center-theme .settings-link:hover,
+.command-center-theme .auth-link:hover {
+    background: rgba(47, 128, 255, 0.055);
+    box-shadow: none;
+    transform: none;
+}
+
+.command-center-theme .sidebar-footer {
+    padding: 0;
+}
+
+.command-center-theme .sidebar-divider {
+    margin: 0;
+    background: var(--bb-flat-line);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item.overdue {
+    border-bottom: 1px solid var(--bb-flat-line);
+}

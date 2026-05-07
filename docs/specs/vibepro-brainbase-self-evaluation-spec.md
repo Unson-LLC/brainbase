@@ -311,7 +311,7 @@ node scripts/vibepro-score-run.mjs gate <run-dir>
 
 `vibepro-doc-trace-check.mjs` は `docs/internal/vibepro-dogfood/runs/` の差分がある時に、同じ差分内で Story / Architecture / Spec の正本更新を要求する。
 `vibepro-development-dag-check.mjs` は 2026-04-27 以降の新しい dogfood run で `development-run.json` と `development_dag` を要求し、開発DAG指標の gate を判定する。
-`vibepro-component-style-check.mjs` は、生成したデザインコンポーネントをアプリの既存レイアウトへそのまま移植せず、実アプリ DOM のコンポーネント単位で測定する。`vibepro-brainbase-20260507-101513-command-center-redesign` 以降の Command Center UI run では、セッション行・primary command・drawer tab・task filter・task item が compact row / line component として置換されていることを computed style で検証する。
+`vibepro-component-style-check.mjs` は、生成したデザインコンポーネントをアプリの既存レイアウトへそのまま移植せず、実アプリ DOM のコンポーネント単位で測定する。`vibepro-brainbase-20260507-101513-command-center-redesign` 以降の Command Center UI run では、セッション行・primary command・drawer tab・task filter・task item が compact row / line component として置換されていることを computed style で検証する。さらに drawer 内の timeline / task queue は、section card、tab card、filter card、list card の入れ子を禁止し、transparent surface + 1px divider + table row として測定する。
 `run` は `generate-outcome -> generate-labels -> score` を順に実行する。
 `auto-run` は `observe -> diagnosis/outcome/labels/score/feedback/report` をまとめて生成する。
 `gate` は日本語指標を判定し、流出してはいけない違反を検出する。
