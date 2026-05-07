@@ -50,6 +50,7 @@
     "vibepro:development-dag": "node scripts/vibepro-development-dag-check.mjs",
     "vibepro:doc-trace": "node scripts/vibepro-doc-trace-check.mjs",
     "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",
+    "vibepro:graphify-impact": "node scripts/vibepro-graphify-impact-gate.mjs",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh",

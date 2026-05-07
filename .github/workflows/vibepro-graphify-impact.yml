@@ -1,0 +1,35 @@
+name: VibePro Graphify Impact Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  graphify-impact:
+    name: Require Graphify Impact Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Graphify impact gate unit tests
+        run: npm run test:run -- tests/unit/vibepro-graphify-impact-gate.test.js
+
+      - name: Require Graphify evidence for graph-sensitive changes
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.sha }}
+        run: npm run vibepro:graphify-impact -- --json
