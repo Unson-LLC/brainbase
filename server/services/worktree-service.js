@@ -593,7 +593,7 @@ export class WorktreeService {
                 repoName,
                 worktreePath: workspacePath,
                 workspaceName,
-                bookmarkName,
+                bookmarkName: fallbackBookmarkName,
                 officialBookmarkName: null,
                 needsIntegration: false,
                 needsMerge: false
