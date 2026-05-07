@@ -416,6 +416,33 @@ describe('WorktreeService.merge', () => {
         expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark delete "session/session-1"');
     });
 
+    it('remote bookmarkがnon-trackingならtrackしてpushを再試行する', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: 'git@github.com:Unson-LLC/brainbase.git\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: abc\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockRejectedValueOnce(new Error('Error: Non-tracking remote bookmark session/session-1@origin exists'))
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '- feat: archive\n' })
+            .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase/pull/123\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service.merge('session-1', '/tmp/repo', 'Archive flow');
+
+        expect(result.success).toBe(true);
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark track "session/session-1" --remote=origin');
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" git push --bookmark "session/session-1"');
+    });
+
     it('PR作成時_ローカルパスではなくGitHub repo specを渡す', async () => {
         const { promises: fs } = await import('fs');
         vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
