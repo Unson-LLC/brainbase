@@ -963,6 +963,69 @@ describe('app switchSession runtime handling', () => {
     }), window.location.origin);
   });
 
+  it('mobile viewport更新時_極小layoutはttyd iframeへ送らない', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const modal = document.getElementById('mobile-live-terminal-modal');
+    const modalFrame = document.getElementById('mobile-live-terminal-frame');
+    modal.classList.add('active');
+    app.mobileLiveTerminalModalEl = modal;
+    app.mobileLiveTerminalFrameEl = modalFrame;
+    app._mobileTerminalMode = 'interactive';
+    app._mobileLiveTerminalSessionId = 'session-1';
+    Object.defineProperty(modalFrame, 'contentWindow', {
+      configurable: true,
+      value: { postMessage: vi.fn() }
+    });
+
+    app.scheduleTerminalFrameLayoutSync({
+      width: 2,
+      height: 1,
+      offsetTop: 0,
+      offsetLeft: 0,
+      keyboardOffset: 0,
+      keyboardOpen: false
+    });
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    expect(modalFrame.contentWindow.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('mobile snapshot refresh前にterminal geometry repairを呼ぶ', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app._mobileTerminalMode = 'snapshot';
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    vi.spyOn(app, '_loadTerminalSnapshot').mockResolvedValue({
+      text: 'fresh snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z',
+      mode: 'full'
+    });
+    httpClient.post.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      repaired: true,
+      paneSize: { cols: 2, rows: 1 },
+      repairedPaneSize: { cols: 80, rows: 24 }
+    });
+
+    await app._refreshMobileSnapshotDisplay();
+
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/geometry/repair', expect.objectContaining({
+      viewerId: 'viewer-test',
+      reason: 'mobile-snapshot-refresh'
+    }));
+  });
+
   it('start後にcurrent sessionをxtermへ昇格する', async () => {
     app._shouldUseXtermTransport = vi.fn(() => true);
     vi.spyOn(app, 'loadInitialData').mockImplementation(async () => {

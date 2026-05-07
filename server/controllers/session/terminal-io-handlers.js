@@ -2,6 +2,31 @@
 import { logger } from '../../utils/logger.js';
 
 export function installTerminalIoHandlers(controller) {
+    controller.repairTerminalGeometry = async (req, res) => {
+        const { id } = req.params;
+        const reason = typeof req.body?.reason === 'string' && req.body.reason.trim()
+            ? req.body.reason.trim()
+            : 'api';
+
+        try {
+            if (typeof controller.terminalIo?.repairCollapsedSessionWindow !== 'function') {
+                return res.status(503).json({ error: 'Terminal geometry repair is not available' });
+            }
+            const result = await controller.terminalIo.repairCollapsedSessionWindow(id, {
+                reason,
+                minCols: req.body?.minCols,
+                minRows: req.body?.minRows
+            });
+            if (result?.repaired) {
+                controller.captureCache?.invalidate?.(id);
+            }
+            res.json({ sessionId: id, ...result });
+        } catch (error) {
+            logger.error(`Failed to repair terminal geometry for ${id}:`, error.message);
+            res.status(500).json({ error: error.message || 'Failed to repair terminal geometry' });
+        }
+    };
+
     controller.sendInput = async (req, res) => {
         const { id } = req.params;
         const { input, type, forcePaste } = req.body;

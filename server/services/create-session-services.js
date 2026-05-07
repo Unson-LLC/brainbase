@@ -163,6 +163,8 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         },
         terminal: {
             io: {
+                getSessionPaneSize: shared.getSessionPaneSize,
+                repairCollapsedSessionWindow: shared.repairCollapsedSessionWindow,
                 resizeSessionWindow: shared.resizeSessionWindow,
                 scrollSession: shared.scrollSession,
                 selectPane: shared.selectPane,

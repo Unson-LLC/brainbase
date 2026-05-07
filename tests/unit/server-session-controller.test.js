@@ -49,6 +49,7 @@ describe('SessionController (Server)', () => {
     },
     terminalIo: {
       sendInput: mockSessionManager.sendInput,
+      repairCollapsedSessionWindow: mockSessionManager.repairCollapsedSessionWindow,
       scrollSession: mockSessionManager.scrollSession,
       selectPane: mockSessionManager.selectPane,
       exitCopyMode: mockSessionManager.exitCopyMode
@@ -90,6 +91,15 @@ describe('SessionController (Server)', () => {
       reconcileTerminalRuntime: vi.fn(),
       probeTerminalInput: vi.fn(),
       releaseTerminalOwnership: vi.fn(),
+      sendInput: vi.fn(),
+      repairCollapsedSessionWindow: vi.fn(async () => ({
+        repaired: false,
+        paneSize: { cols: 80, rows: 24 },
+        reason: 'pane-size-ok'
+      })),
+      scrollSession: vi.fn(),
+      selectPane: vi.fn(),
+      exitCopyMode: vi.fn(),
       getContent: vi.fn(),
       getVisibleContent: vi.fn(),
       getContentWithColors: vi.fn(async () => null),
@@ -640,6 +650,62 @@ describe('SessionController (Server)', () => {
           ownerLastSeenAt: '2026-03-14T14:00:00.000Z',
           canTakeover: true
         }
+      }));
+    });
+
+    it('snapshot取得時_collapsed paneを先に修復してcacheをinvalidateする', async () => {
+      const sessionId = 'session-snapshot-collapsed';
+      const invalidate = vi.fn();
+      sessionController.captureCache = {
+        invalidate,
+        getSnapshot: vi.fn(async () => ({
+          text: 'repaired snapshot',
+          colorText: null,
+          copyMode: false,
+          cursor: null,
+          capturedAt: '2026-05-10T00:00:00.000Z'
+        }))
+      };
+      mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+      mockSessionManager.repairCollapsedSessionWindow.mockResolvedValue({
+        repaired: true,
+        paneSize: { cols: 2, rows: 1 },
+        repairedPaneSize: { cols: 80, rows: 24 },
+        target: { cols: 80, rows: 24 },
+        reason: 'terminal-snapshot'
+      });
+      mockSessionManager.getContent.mockResolvedValue('repaired snapshot');
+      mockSessionManager.getPaneMode.mockResolvedValue(false);
+
+      await sessionController.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.repairCollapsedSessionWindow).toHaveBeenCalledWith(sessionId, {
+        reason: 'terminal-snapshot'
+      });
+      expect(invalidate).toHaveBeenCalledWith(sessionId);
+      expect(sessionController.captureCache.getSnapshot).toHaveBeenCalledWith(sessionId, expect.objectContaining({
+        lines: 200,
+        includeColors: true,
+        includeCopyMode: true
+      }));
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        text: 'repaired snapshot',
+        geometryRepair: expect.objectContaining({
+          repaired: true,
+          paneSize: { cols: 2, rows: 1 },
+          repairedPaneSize: { cols: 80, rows: 24 }
+        })
       }));
     });
   });

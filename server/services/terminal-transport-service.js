@@ -12,6 +12,8 @@ const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
+const MIN_TERMINAL_COLS = 40;
+const MIN_TERMINAL_ROWS = 12;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
@@ -133,8 +135,8 @@ export class TerminalTransportService {
             sessionId,
             viewerId,
             viewerLabel,
-            cols: cols || 120,
-            rows: rows || 40,
+            cols: cols ? Math.max(MIN_TERMINAL_COLS, cols) : 120,
+            rows: rows ? Math.max(MIN_TERMINAL_ROWS, rows) : 40,
             hasClientDimensions,
             closed: false,
             lastSnapshot: null,
@@ -591,8 +593,10 @@ export class TerminalTransportService {
                 return;
             }
             case 'resize': {
-                const cols = Number(message.cols);
-                const rows = Number(message.rows);
+                const rawCols = Number(message.cols);
+                const rawRows = Number(message.rows);
+                const cols = Number.isFinite(rawCols) ? Math.max(MIN_TERMINAL_COLS, rawCols) : rawCols;
+                const rows = Number.isFinite(rawRows) ? Math.max(MIN_TERMINAL_ROWS, rawRows) : rawRows;
                 this.captureCache.invalidate(sessionId);
                 if (Number.isFinite(cols) && cols > 0) {
                     connection.cols = cols;

@@ -7,6 +7,24 @@ import { TAKEOVER_COOLDOWN_MS } from './constants.js';
 
 const execAsync = promisify(exec);
 
+async function repairCollapsedTerminalGeometry(controller, sessionId, reason) {
+    if (typeof controller.terminalIo?.repairCollapsedSessionWindow !== 'function') {
+        return null;
+    }
+    const result = await controller.terminalIo.repairCollapsedSessionWindow(sessionId, { reason });
+    if (result?.repaired) {
+        controller.captureCache?.invalidate?.(sessionId);
+        logger.warn('[MOBILE_TERMINAL_GEOMETRY] repaired collapsed pane before terminal response', {
+            sessionId,
+            reason,
+            paneSize: result.paneSize,
+            repairedPaneSize: result.repairedPaneSize
+        });
+        return result;
+    }
+    return null;
+}
+
 export function installRuntimeHandlers(controller) {
     controller.get = async (req, res) => {
         const { id } = req.params;
@@ -119,6 +137,7 @@ export function installRuntimeHandlers(controller) {
                 });
             }
 
+            const geometryRepair = await repairCollapsedTerminalGeometry(controller, id, 'terminal-ensure');
             const updatedSession = controller._getSessionById(id);
             const terminalAccess = typeof viewerId === 'string' && viewerId.trim()
                 ? controller.ownership.getTerminalAccessState(id, viewerId.trim())
@@ -128,6 +147,9 @@ export function installRuntimeHandlers(controller) {
                 runtimeStatus: controller._withViewerRuntimeStatus(updatedSession?.runtimeStatus || null, viewerId),
                 terminalAccess
             };
+            if (geometryRepair) {
+                response.geometryRepair = geometryRepair;
+            }
             if (ttydResult) {
                 response.port = ttydResult.port;
                 response.proxyPath = controller._appendViewerIdToProxyPath(ttydResult.proxyPath, viewerId);
@@ -191,6 +213,7 @@ export function installRuntimeHandlers(controller) {
         const visibleOnly = terminalAccess?.state === 'blocked' ? false : requestedVisibleOnly;
 
         try {
+            const geometryRepair = await repairCollapsedTerminalGeometry(controller, id, 'terminal-snapshot');
             const payload = controller.captureCache
                 ? await controller.captureCache.getSnapshot(id, {
                     lines,
@@ -227,6 +250,7 @@ export function installRuntimeHandlers(controller) {
                 capturedAt: payload.capturedAt,
                 terminalAccess
             };
+            if (geometryRepair) response.geometryRepair = geometryRepair;
             if (payload.colorText) response.colorText = payload.colorText;
             res.json(response);
         } catch (error) {

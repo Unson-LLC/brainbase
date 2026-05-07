@@ -1267,6 +1267,21 @@ export function applyTerminalInputUxMixin(AppClass) {
         const unsubMobileInputSent = eventBus.on(EVENTS.MOBILE_INPUT_SENT, onMobileInputSent);
         this._terminalInputUxCleanup.push(unsubMobileInputSent);
 
+        const onMobileTabChanged = (event) => {
+            if (event?.detail?.tab !== 'terminal') return;
+            if (!this.isMobile() || !this._isMobileSnapshotMode()) return;
+            const sessionId = appStore.getState().currentSessionId;
+            if (!sessionId) return;
+            const repairPromise = this._repairTerminalGeometry
+                ? this._repairTerminalGeometry(sessionId, 'mobile-terminal-tab-return')
+                : Promise.resolve(null);
+            void Promise.resolve(repairPromise).finally(() => {
+                this._syncMobileSnapshotPolling({ immediate: true, force: true });
+            });
+        };
+        const unsubMobileTabChanged = eventBus.on(EVENTS.MOBILE_TAB_CHANGED, onMobileTabChanged);
+        this._terminalInputUxCleanup.push(unsubMobileTabChanged);
+
         // Handle OPEN_FILE from terminal link clicks
         const onOpenFileMessage = (event) => {
             if (event.origin !== window.location.origin) return;
