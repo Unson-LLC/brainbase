@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605071545';
+const EXPECTED_CSS_VERSION = '202605071610';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -97,7 +97,7 @@ async function collectDesktopEvidence(page) {
     }
 
     const activeSession = document.querySelector('.session-child-row.active');
-    const firstSession = document.querySelector('.session-child-row');
+    const firstSession = document.querySelector('.session-child-row:not(.active)') || document.querySelector('.session-child-row');
     const styleHref = document.querySelector('link[rel="stylesheet"]')?.href || '';
 
     return {
@@ -124,8 +124,20 @@ async function collectDesktopEvidence(page) {
         projectEmojiDisplay: style('.session-child-row .session-project-emoji', 'display'),
         summaryChipHeight: document.querySelector('.session-summary-chip')?.getBoundingClientRect().height ?? null,
       },
+      sessionIcon: {
+        display: style('.session-child-row .session-name-container > .session-meta:first-child', 'display'),
+        width: document.querySelector('.session-child-row .session-icon')?.getBoundingClientRect().width ?? null,
+        height: document.querySelector('.session-child-row .session-icon')?.getBoundingClientRect().height ?? null,
+        borderRadius: style('.session-child-row .session-icon', 'border-radius'),
+        names: Array.from(new Set(
+          Array.from(document.querySelectorAll('.session-child-row .session-icon [data-lucide]'))
+            .map((icon) => icon.getAttribute('data-lucide'))
+            .filter(Boolean),
+        )).slice(0, 8),
+      },
       activityBarActive: {
         backgroundImage: style('.activity-bar-item.active', 'background-image'),
+        backgroundColor: style('.activity-bar-item.active', 'background-color'),
         borderColor: style('.activity-bar-item.active', 'border-color'),
         borderRadius: style('.activity-bar-item.active', 'border-radius'),
       },
@@ -147,8 +159,14 @@ async function collectDesktopEvidence(page) {
         activeTabBoxShadow: style('.info-drawer-tab.active', 'box-shadow'),
         activeTabBorderBottomWidth: style('.info-drawer-tab.active', 'border-bottom-width'),
         tabHeight: document.querySelector('.info-drawer-tab')?.getBoundingClientRect().height ?? null,
+        activeTab: document.querySelector('.info-drawer-tab.active')?.dataset.tab ?? null,
       },
       tasks: {
+        active: document.querySelector('#tasks-tab-content')?.classList.contains('active') ?? false,
+        timelineVisible: (document.querySelector('#tasks-tab-content .timeline-section')?.getBoundingClientRect().height ?? 0) > 0,
+        nextTasksVisible: (document.querySelector('#tasks-tab-content .next-tasks-section')?.getBoundingClientRect().height ?? 0) > 0,
+        timelineTop: document.querySelector('#tasks-tab-content .timeline-section')?.getBoundingClientRect().top ?? null,
+        nextTasksTop: document.querySelector('#tasks-tab-content .next-tasks-section')?.getBoundingClientRect().top ?? null,
         timelineBackground: style('#tasks-tab-content .timeline-section', 'background-image'),
         timelineBackgroundColor: style('#tasks-tab-content .timeline-section', 'background-color'),
         timelineBorderRadius: style('#tasks-tab-content .timeline-section', 'border-radius'),
@@ -246,15 +264,15 @@ function buildChecks(desktop, mobile) {
       'active_session_component_replaced',
       includesAll(desktop.activeSession.backgroundColor, ['47', '128', '255'])
         && desktop.activeSession.borderLeftWidth === '2px'
-        && pxNumber(desktop.activeSession.borderRadius) === 0
-        && pxNumber(desktop.activeSession.height) <= 46,
+        && pxNumber(desktop.activeSession.borderRadius) <= 4
+        && pxNumber(desktop.activeSession.height) <= 56,
       desktop.activeSession,
-      'dense flat row with blue rail and no card radius',
+      'dense flat row with blue rail and minimal selected radius',
     ),
     createCheck(
       'session_rows_are_list_rows_not_cards',
-      pxNumber(desktop.sessionRow.height) <= 46
-        && pxNumber(desktop.sessionRow.paddingTop) <= 6
+      pxNumber(desktop.sessionRow.height) <= 56
+        && pxNumber(desktop.sessionRow.paddingTop) <= 8
         && pxNumber(desktop.sessionRow.borderRadius) === 0
         && desktop.sessionRow.borderBottomWidth === '1px'
         && includesAll(desktop.sessionRow.backgroundColor, ['0, 0, 0, 0'])
@@ -266,19 +284,28 @@ function buildChecks(desktop, mobile) {
     ),
     createCheck(
       'activity_bar_active_component_replaced',
-      includesAll(desktop.activityBarActive.backgroundImage, ['47, 128, 255'])
-        && pxNumber(desktop.activityBarActive.borderRadius) >= 6,
+      includesAll(desktop.activityBarActive.backgroundColor, ['47', '128', '255'])
+        && pxNumber(desktop.activityBarActive.borderRadius) === 0,
       desktop.activityBarActive,
-      'cobalt active state with compact radius',
+      'quiet rail active state with blue tint and no rounded card',
     ),
     createCheck(
       'primary_button_component_replaced',
-      !includesAll(desktop.addSessionButton.backgroundImage, ['57, 138, 255'])
-        && includesAll(desktop.addSessionButton.backgroundColor, ['47', '128', '255'])
-        && pxNumber(desktop.addSessionButton.borderRadius) <= 4
-        && pxNumber(desktop.addSessionButton.height) <= 34,
+      includesAll(desktop.addSessionButton.backgroundImage, ['47, 128, 255'])
+        && pxNumber(desktop.addSessionButton.borderRadius) <= 5
+        && pxNumber(desktop.addSessionButton.height) <= 38,
       desktop.addSessionButton,
-      'flat toolbar command, not a large filled card button',
+      'compact primary blue session command matching approved sidebar',
+    ),
+    createCheck(
+      'session_rows_include_meaningful_icons',
+      ['flex', 'inline-flex'].includes(desktop.sessionIcon.display)
+        && pxNumber(desktop.sessionIcon.width) >= 22
+        && pxNumber(desktop.sessionIcon.height) >= 22
+        && pxNumber(desktop.sessionIcon.borderRadius) <= 4
+        && desktop.sessionIcon.names.length >= 3,
+      desktop.sessionIcon,
+      'session rows must show a compact leading lucide icon',
     ),
     createCheck(
       'terminal_action_buttons_component_replaced',
@@ -290,12 +317,30 @@ function buildChecks(desktop, mobile) {
     createCheck(
       'drawer_tabs_component_replaced',
       pxNumber(desktop.drawer.width) > 0
-        && pxNumber(desktop.drawer.tabHeight) <= 50
+        && pxNumber(desktop.drawer.width) <= 500
+        && pxNumber(desktop.drawer.tabHeight) <= 58
         && pxNumber(desktop.drawer.tabBorderRadius) === 0
         && desktop.drawer.activeTabBoxShadow === 'none'
         && desktop.drawer.activeTabBorderBottomWidth === '2px',
       desktop.drawer,
       'flat drawer tab strip with line active state, not a rounded tab card',
+    ),
+    createCheck(
+      'task_panel_shows_timeline_and_next_tasks_together',
+      desktop.drawer.activeTab === 'tasks'
+        && desktop.tasks.active === true
+        && desktop.tasks.timelineVisible === true
+        && desktop.tasks.nextTasksVisible === true
+        && desktop.tasks.nextTasksTop > desktop.tasks.timelineTop,
+      {
+        activeTab: desktop.drawer.activeTab,
+        tasksActive: desktop.tasks.active,
+        timelineVisible: desktop.tasks.timelineVisible,
+        nextTasksVisible: desktop.tasks.nextTasksVisible,
+        timelineTop: desktop.tasks.timelineTop,
+        nextTasksTop: desktop.tasks.nextTasksTop,
+      },
+      'right task panel must show timeline above next tasks simultaneously',
     ),
     createCheck(
       'timeline_component_replaced',

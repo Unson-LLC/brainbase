@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202605071545">
+    <link rel="stylesheet" href="style.css?v=202605071610">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -338,10 +338,10 @@
                     <button class="info-drawer-tab" data-tab="commit-tree">
                         <i data-lucide="git-branch"></i> コミット
                     </button>
-                    <button class="info-drawer-tab" data-tab="tasks">
+                    <button class="info-drawer-tab active" data-tab="tasks">
                         <i data-lucide="list-todo"></i> タスク
                     </button>
-                    <button class="info-drawer-tab active" data-tab="wiki">
+                    <button class="info-drawer-tab" data-tab="wiki">
                         <i data-lucide="book-open"></i> Wiki
                     </button>
                     <button class="info-drawer-tab" data-tab="live-feed">
@@ -374,7 +374,7 @@
                 </div>
 
                 <!-- Tasks Tab -->
-                <div id="tasks-tab-content" class="info-tab-content" data-tab="tasks">
+                <div id="tasks-tab-content" class="info-tab-content active" data-tab="tasks">
                     <!-- Focus Task Section -->
                     <div class="focus-section" id="focus-section">
                         <div id="focus-task"></div>
@@ -497,7 +497,7 @@
                 </div>
 
                 <!-- Wiki Tab -->
-                <div id="wiki-panel" class="info-tab-content active" data-tab="wiki"></div>
+                <div id="wiki-panel" class="info-tab-content" data-tab="wiki"></div>
                 <!-- Live Feed Tab -->
                 <div id="live-feed-panel" class="info-tab-content" data-tab="live-feed"></div>
                 <!-- Portal Tab -->

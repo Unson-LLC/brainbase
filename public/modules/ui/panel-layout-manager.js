@@ -268,7 +268,7 @@ function _restoreState(store) {
                     ...ui,
                     panels: {
                         ...ui.panels,
-                        infoDrawerTab: saved.infoDrawerTab || 'wiki'
+                        infoDrawerTab: saved.infoDrawerTab || 'tasks'
                     }
                 }
             });
