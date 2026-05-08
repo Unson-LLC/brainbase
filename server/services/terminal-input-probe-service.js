@@ -1,12 +1,6 @@
 import { CliState, detectCliStateWithColors } from './cli-pattern-detector.js';
 
 const PROBE_COOLDOWN_MS = 2_000;
-const PROBE_WAIT_MS = 150;
-const PROBE_TIMEOUT_MS = 5_000;
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 function nowIso() {
     return new Date().toISOString();
@@ -69,41 +63,12 @@ export class TerminalInputProbeService {
         if (![CliState.READY, CliState.IDLE, CliState.WAITING].includes(cliResult.state)) {
             return this._fail(sessionId, 'CLI_NOT_IDLE', 'CLI is not ready for input', { terminalAccess, cliState: cliResult.state });
         }
-        if (cliResult.state === CliState.WAITING) {
-            const probe = {
-                status: 'passed',
-                lastPassedAt: nowIso(),
-                lastFailedAt: null,
-                reason: null,
-                mode: 'waiting_prompt',
-                cliReason: cliResult.reason || null
-            };
-            this.runtimeRegistry?.setInputProbe?.(sessionId, probe);
-            this.ownershipService?.touchTerminalOwnership?.(sessionId, viewerId, viewerLabel);
-            return {
-                success: true,
-                inputReady: true,
-                probe,
-                terminalAccess,
-                cliState: cliResult.state
-            };
-        }
-
-        const nonce = `BB_PROBE_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        await this.terminalIo.sendInput(sessionId, nonce, 'text');
-        const visible = await this._waitForProbeText(sessionId, nonce);
-        await this.terminalIo.sendInput(sessionId, 'C-u', 'key').catch(() => {});
-        this.captureCache?.invalidate?.(sessionId);
-
-        if (!visible) {
-            return this._fail(sessionId, 'PROBE_NOT_VISIBLE', 'probe text was not visible in terminal snapshot', { terminalAccess });
-        }
-
         const probe = {
             status: 'passed',
             lastPassedAt: nowIso(),
             lastFailedAt: null,
             reason: null,
+            mode: cliResult.state === CliState.WAITING ? 'waiting_prompt' : 'snapshot_ready',
             cliReason: cliResult.reason || null
         };
         this.runtimeRegistry?.setInputProbe?.(sessionId, probe);
@@ -112,7 +77,8 @@ export class TerminalInputProbeService {
             success: true,
             inputReady: true,
             probe,
-            terminalAccess
+            terminalAccess,
+            cliState: cliResult.state
         };
     }
 
@@ -138,19 +104,6 @@ export class TerminalInputProbeService {
             allowed: terminalAccess?.state === 'owner' || terminalAccess?.state === 'available',
             terminalAccess
         };
-    }
-
-    async _waitForProbeText(sessionId, nonce) {
-        const startedAt = Date.now();
-        while (Date.now() - startedAt <= PROBE_TIMEOUT_MS) {
-            await sleep(PROBE_WAIT_MS);
-            this.captureCache?.invalidate?.(sessionId);
-            const snapshot = await this._getSnapshot(sessionId);
-            if (String(snapshot.text || '').includes(nonce) || String(snapshot.colorText || '').includes(nonce)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     _fail(sessionId, code, message, extra = {}) {

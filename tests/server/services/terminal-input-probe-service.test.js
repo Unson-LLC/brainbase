@@ -40,16 +40,18 @@ function buildService(overrides = {}) {
 }
 
 describe('TerminalInputProbeService', () => {
-  it('probe成功時_inputProbe passedをregistryへ記録する', async () => {
+  it('ready判定時_文字列probeを送らずinputProbe passedをregistryへ記録する', async () => {
     const { service, runtimeRegistry, terminalIo } = buildService();
 
     const result = await service.probe({ sessionId: 'session-1', viewerId: 'viewer-1' });
 
     expect(result.success).toBe(true);
     expect(result.inputReady).toBe(true);
-    expect(terminalIo.sendInput).toHaveBeenCalledWith('session-1', expect.stringMatching(/^BB_PROBE_/), 'text');
-    expect(terminalIo.sendInput).toHaveBeenCalledWith('session-1', 'C-u', 'key');
-    expect(runtimeRegistry.setInputProbe).toHaveBeenCalledWith('session-1', expect.objectContaining({ status: 'passed' }));
+    expect(terminalIo.sendInput).not.toHaveBeenCalled();
+    expect(runtimeRegistry.setInputProbe).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      status: 'passed',
+      mode: 'snapshot_ready'
+    }));
   });
 
   it('ownerでないviewerはprobeできない', async () => {
