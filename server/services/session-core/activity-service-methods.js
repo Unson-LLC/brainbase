@@ -7,6 +7,7 @@ const PROMPT_BUFFER_MAX_LENGTH = 4000;
 const PANE_TITLE_SPINNER_CHARS = new Set(Array.from('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿'));
 const PANE_TITLE_SPINNER_STALE_TIMEOUT = 30 * 1000;
 const PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT = 30 * 1000;
+const PANE_TITLE_SUPPRESSION_TIMEOUT = 5 * 60 * 1000;
 const TMUX_PANE_TITLE_ROWS_CACHE_TTL = 1000;
 
 function trimPromptBuffer(value) {
@@ -894,15 +895,26 @@ export const activityServiceMethods = {
 
     _shouldSuppressPaneTitleActivity(sessionId) {
         if (!sessionId) return false;
-        if (this.paneTitleSuppressedSessionIds?.has(sessionId)) return true;
 
         const hookData = this._normalizeHookData(this.hookStatus.get(sessionId));
-        if (hookData?.paneTitleSuppressed) return true;
+        if (this.paneTitleSuppressedSessionIds?.has(sessionId)) {
+            if (!hookData || this._isPaneTitleSuppressionFresh(hookData)) return true;
+            this.paneTitleSuppressedSessionIds.delete(sessionId);
+        }
+
+        if (this._isPaneTitleSuppressionFresh(hookData)) return true;
 
         const state = this.stateStore?.get?.() || {};
         const session = (state.sessions || []).find((entry) => entry.id === sessionId);
         const storedHookData = this._normalizeHookData(session?.hookStatus);
-        return storedHookData?.paneTitleSuppressed === true;
+        return this._isPaneTitleSuppressionFresh(storedHookData);
+    },
+
+    _isPaneTitleSuppressionFresh(hookData) {
+        if (hookData?.paneTitleSuppressed !== true) return false;
+        const timestamp = Number.isFinite(hookData.timestamp) ? hookData.timestamp : 0;
+        if (timestamp <= 0) return true;
+        return this._now() - timestamp < PANE_TITLE_SUPPRESSION_TIMEOUT;
     },
 
     _isTerminalDoneEvent(eventType) {

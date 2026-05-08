@@ -105,6 +105,28 @@ describe('session activity SSOT contract', () => {
     expect(status?.isDone || false).toBe(false);
   });
 
+  it('old_done_read_suppression_does_not_hide_new_tmux_spinner_activity_forever', () => {
+    const manager = createManager();
+    let now = Date.now();
+    manager._now = () => now;
+
+    manager.clearDoneStatus('session-1');
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    expect(getStatus(manager)).toBeNull();
+
+    now += 5 * 60 * 1000 + 1;
+    manager._listTmuxPaneTitles = () => ['session-1\t⠸ session-1...'];
+
+    expect(getStatus(manager)).toMatchObject({
+      state: 'running',
+      confidence: 'fallback',
+      isWorking: true,
+      isDone: false,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
+  });
+
   it('submitted_input_after_done_read_reopens_activity_and_clears_spinner_suppression', async () => {
     const manager = createManager();
     const now = Date.now();
