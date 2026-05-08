@@ -105,6 +105,55 @@ describe('session activity SSOT contract', () => {
     expect(status?.isDone || false).toBe(false);
   });
 
+  it('submitted_input_after_done_read_reopens_activity_and_clears_spinner_suppression', async () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'terminal_done',
+      eventType: 'agent-turn-complete'
+    });
+    manager.clearDoneStatus('session-1');
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    expect(getStatus(manager)).toBeNull();
+
+    await manager._capturePromptInput('session-1', '相変わらず正しく動かない', 'text');
+    await manager._capturePromptInput('session-1', 'Enter', 'key');
+
+    expect(getStatus(manager)).toMatchObject({
+      state: 'running',
+      confidence: 'explicit',
+      isWorking: true,
+      isDone: false,
+      lastEventType: 'brainbase/input-submit'
+    });
+  });
+
+  it('transport_ready_done_is_not_user_visible_done_and_allows_tmux_fallback', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'codex/pty-shim-ready',
+      turnId: `codex-pty-turn-${now}-12345`
+    });
+
+    expect(getStatus(manager)).toBeNull();
+
+    manager._listTmuxPaneTitles = () => ['session-1\t⠴ session-1...'];
+
+    expect(getStatus(manager)).toMatchObject({
+      state: 'running',
+      confidence: 'fallback',
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 1,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
+  });
+
   it('one_completed_turn_keeps_running_while_another_turn_is_active', () => {
     const manager = createManager();
     const now = Date.now();
