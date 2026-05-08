@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605080957';
+const EXPECTED_CSS_VERSION = '202605081021';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -320,6 +320,21 @@ async function collectDesktopEvidence(page) {
             .map((icon) => icon.textContent?.trim())
             .filter(Boolean),
         )).slice(0, 8),
+      },
+      brandHeader: {
+        headerDisplay: style('.sidebar-header', 'display'),
+        headerGridColumns: style('.sidebar-header', 'grid-template-columns'),
+        headerHeight: document.querySelector('.sidebar-header')?.getBoundingClientRect().height ?? null,
+        logoSrc: document.querySelector('.brand-mark-img')?.getAttribute('src') ?? null,
+        logoWidth: document.querySelector('.brand-mark-img')?.getBoundingClientRect().width ?? null,
+        logoHeight: document.querySelector('.brand-mark-img')?.getBoundingClientRect().height ?? null,
+        lucideLogoExists: Boolean(document.querySelector('.brand-mark [data-lucide]')),
+        titleText: document.querySelector('.brand-copy strong')?.textContent?.trim() ?? '',
+        titleWidth: document.querySelector('.brand-copy strong')?.getBoundingClientRect().width ?? null,
+        versionText: document.querySelector('#app-version')?.textContent?.trim() ?? '',
+        versionWidth: document.querySelector('#app-version')?.getBoundingClientRect().width ?? null,
+        versionTitle: document.querySelector('#app-version')?.getAttribute('title') ?? '',
+        versionGitSha: document.querySelector('#app-version')?.dataset.gitSha ?? '',
       },
       activityBarActive: {
         backgroundImage: style('.activity-bar-item.active', 'background-image'),
@@ -727,6 +742,21 @@ function buildChecks(desktop, mobile) {
         && (desktop.sessionIcon.names.length + desktop.sessionIcon.labels.length) >= 1,
       desktop.sessionIcon,
       'session rows must show a compact leading configured or lucide icon',
+    ),
+    createCheck(
+      'sidebar_brand_lockup_is_clean',
+      desktop.brandHeader.headerDisplay === 'grid'
+        && String(desktop.brandHeader.logoSrc || '').includes('favicon.png')
+        && desktop.brandHeader.lucideLogoExists === false
+        && desktop.brandHeader.titleText === 'Brainbase'
+        && /^v\d+\.\d+\.\d+$/.test(desktop.brandHeader.versionText)
+        && !desktop.brandHeader.versionText.includes('(')
+        && pxNumber(desktop.brandHeader.versionWidth) <= 72
+        && pxNumber(desktop.brandHeader.logoWidth) >= 28
+        && pxNumber(desktop.brandHeader.logoHeight) >= 28
+        && desktop.brandHeader.versionTitle.includes('commit:'),
+      desktop.brandHeader,
+      'sidebar brand header must use the Brainbase favicon, keep version compact, and avoid title/version overlap',
     ),
     createCheck(
       'terminal_action_buttons_component_replaced',

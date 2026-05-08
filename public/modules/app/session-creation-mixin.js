@@ -36,15 +36,21 @@ export function applySessionCreationMixin(AppClass) {
                 const cwd = runtime?.cwd ? String(runtime.cwd) : null;
                 const pid = Number.isFinite(runtime?.pid) ? String(runtime.pid) : null;
 
-                const display = gitSha ? `${version} (${gitSha})` : version;
                 const details = [
+                    `version: ${version}`,
+                    gitSha ? `commit: ${gitSha}` : null,
                     branch ? `branch: ${branch}` : null,
                     cwd ? `cwd: ${cwd}` : null,
                     pid ? `pid: ${pid}` : null
                 ].filter(Boolean).join(' | ');
 
                 versionElements.forEach((element) => {
-                    element.textContent = display;
+                    element.textContent = version;
+                    if (gitSha) {
+                        element.dataset.gitSha = gitSha;
+                    } else {
+                        delete element.dataset.gitSha;
+                    }
                     if (details) {
                         element.title = details;
                     }
