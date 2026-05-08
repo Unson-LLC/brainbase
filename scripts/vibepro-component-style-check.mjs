@@ -420,36 +420,45 @@ async function collectDesktopEvidence(page) {
         filterBackground: style('#tasks-tab-content .task-filter input', 'background-color'),
         filterBorderRadius: style('#tasks-tab-content .task-filter input', 'border-radius'),
       },
-      sampleTask: {
-        backgroundImage: style('#tasks-tab-content .nocodb-task-item.overdue', 'background-image'),
-        backgroundColor: style('#tasks-tab-content .nocodb-task-item.overdue', 'background-color'),
-        borderLeftWidth: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-left-width'),
-        borderLeftColor: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-left-color'),
-        borderBottomWidth: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-bottom-width'),
-        borderRadius: style('#tasks-tab-content .nocodb-task-item.overdue', 'border-radius'),
-        boxShadow: style('#tasks-tab-content .nocodb-task-item.overdue', 'box-shadow'),
-        marginBottom: style('#tasks-tab-content .nocodb-task-item.overdue', 'margin-bottom'),
-        height: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue')?.getBoundingClientRect().height ?? null,
-        projectBadgeBackground: style('#tasks-tab-content .project-badge', 'background-color'),
-        projectBadgeWidth: document.querySelector('#tasks-tab-content .project-badge')?.getBoundingClientRect().width ?? null,
-        projectBadgeText: document.querySelector('#tasks-tab-content .project-badge')?.textContent?.trim() ?? '',
-        priorityWidth: style('#tasks-tab-content .priority-indicator.high', 'width'),
-        priorityAfterContent: pseudoStyle('#tasks-tab-content .priority-indicator.high', '::after', 'content'),
-        titleWhiteSpace: style('#tasks-tab-content .nocodb-task-item.overdue .task-title', 'white-space'),
-        titleLineClamp: style('#tasks-tab-content .nocodb-task-item.overdue .task-title-text', '-webkit-line-clamp'),
-        titleTextMaxHeight: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-title-text')?.getBoundingClientRect().height ?? null,
-        titleTooltipContent: pseudoStyle('#tasks-tab-content .nocodb-task-item.overdue .task-title:hover', '::after', 'content'),
-        titleFullText: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-title')?.dataset.fullTitle ?? '',
-        actionButtonBackground: style('#tasks-tab-content .nocodb-task-action-btn', 'background-color'),
-        statusBackground: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'background-color'),
-        statusBorderRadius: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'border-radius'),
-        statusAppearance: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'appearance'),
-        statusComboboxExists: Boolean(document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-status-combobox')),
-        statusOptionCount: document.querySelectorAll('#tasks-tab-content .nocodb-task-item.overdue .task-status-option').length,
-        statusCompletedOption: Boolean(document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-status-option[data-status-value="completed"]')),
-        assigneeAvatarWidth: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.getBoundingClientRect().width ?? null,
-        assigneeAvatarText: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .assignee-avatar')?.textContent?.trim() ?? '',
-      },
+      sampleTask: (() => {
+        const row = document.querySelector('#tasks-tab-content .nocodb-task-item.overdue');
+        const rowStyle = (selector, property) => elementStyle(row?.querySelector(selector), property);
+        const rowPseudoStyle = (selector, pseudo, property) => {
+          const element = row?.querySelector(selector);
+          if (!element) return null;
+          return getComputedStyle(element, pseudo).getPropertyValue(property);
+        };
+        return {
+          backgroundImage: elementStyle(row, 'background-image'),
+          backgroundColor: elementStyle(row, 'background-color'),
+          borderLeftWidth: elementStyle(row, 'border-left-width'),
+          borderLeftColor: elementStyle(row, 'border-left-color'),
+          borderBottomWidth: elementStyle(row, 'border-bottom-width'),
+          borderRadius: elementStyle(row, 'border-radius'),
+          boxShadow: elementStyle(row, 'box-shadow'),
+          marginBottom: elementStyle(row, 'margin-bottom'),
+          height: row?.getBoundingClientRect().height ?? null,
+          projectBadgeBackground: rowStyle('.project-badge', 'background-color'),
+          projectBadgeWidth: row?.querySelector('.project-badge')?.getBoundingClientRect().width ?? null,
+          projectBadgeText: row?.querySelector('.project-badge')?.textContent?.trim() ?? '',
+          priorityWidth: rowStyle('.priority-indicator.high', 'width'),
+          priorityAfterContent: rowPseudoStyle('.priority-indicator.high', '::after', 'content'),
+          titleWhiteSpace: rowStyle('.task-title', 'white-space'),
+          titleLineClamp: rowStyle('.task-title-text', '-webkit-line-clamp'),
+          titleTextMaxHeight: row?.querySelector('.task-title-text')?.getBoundingClientRect().height ?? null,
+          titleTooltipContent: rowPseudoStyle('.task-title:hover', '::after', 'content'),
+          titleFullText: row?.querySelector('.task-title')?.dataset.fullTitle ?? '',
+          actionButtonBackground: rowStyle('.nocodb-task-action-btn', 'background-color'),
+          statusBackground: rowStyle('.task-status-select', 'background-color'),
+          statusBorderRadius: rowStyle('.task-status-select', 'border-radius'),
+          statusAppearance: rowStyle('.task-status-select', 'appearance'),
+          statusComboboxExists: Boolean(row?.querySelector('.task-status-combobox')),
+          statusOptionCount: row?.querySelectorAll('.task-status-option').length ?? 0,
+          statusCompletedOption: Boolean(row?.querySelector('.task-status-option[data-status-value="completed"]')),
+          assigneeAvatarWidth: row?.querySelector('.assignee-avatar')?.getBoundingClientRect().width ?? null,
+          assigneeAvatarText: row?.querySelector('.assignee-avatar')?.textContent?.trim() ?? '',
+        };
+      })(),
       fileViewerReplacement: (() => {
         const main = document.querySelector('.main-content');
         const consoleArea = document.querySelector('#console-area');
