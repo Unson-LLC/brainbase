@@ -121,4 +121,30 @@ describe('NocoDBTasksView', () => {
         expect(tasks[0].status).toBe('completed');
         expect(parentChange).not.toHaveBeenCalled();
     });
+
+    it('開いたステータスメニューは再描画後も開いたままになる', () => {
+        const tasks = [{
+            id: 'nocodb:proj:1',
+            title: 'Status task',
+            project: 'proj',
+            status: 'pending',
+            assignee: 'ksato'
+        }];
+        const service = buildService({ getFilteredTasks: vi.fn(() => tasks) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+        view.render();
+
+        container.querySelector('.task-status-select').click();
+        expect(container.querySelector('.task-status-menu').style.display).toBe('block');
+
+        view.render();
+
+        expect(container.querySelector('.task-status-menu').style.display).toBe('block');
+        expect(container.querySelector('.task-status-select').getAttribute('aria-expanded')).toBe('true');
+    });
 });

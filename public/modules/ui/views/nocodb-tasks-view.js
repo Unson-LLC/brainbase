@@ -20,6 +20,7 @@ export class NocoDBTasksView extends BaseView {
             searchText: '',
             hideCompleted: true
         };
+        this.openStatusTaskId = null;
     }
 
     /**
@@ -257,6 +258,9 @@ export class NocoDBTasksView extends BaseView {
         }
 
         const tasks = this.service.getFilteredTasks(resolvedFilter);
+        if (this.openStatusTaskId && !tasks.some(task => task.id === this.openStatusTaskId)) {
+            this.openStatusTaskId = null;
+        }
 
         if (tasks.length === 0) {
             this.container.innerHTML = `
@@ -311,6 +315,7 @@ export class NocoDBTasksView extends BaseView {
         const dueDateHtml = task.due ? this._formatDueDate(task.due) : '';
         const assignee = task.assignee || '未割当';
         const assigneeInitials = this._getAssigneeInitials(assignee);
+        const isStatusOpen = this.openStatusTaskId === task.id;
 
         return `
             <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
@@ -333,11 +338,11 @@ export class NocoDBTasksView extends BaseView {
                 <div class="task-meta">
                     ${dueDateHtml}
                     <div class="task-status-combobox" data-task-id="${task.id}">
-                        <button class="task-status-select status-${statusTone}" type="button" data-task-id="${task.id}" data-status-value="${escapeHtml(task.status)}" aria-haspopup="listbox" aria-expanded="false" aria-label="ステータス: ${escapeHtml(statusLabel)}">
+                        <button class="task-status-select status-${statusTone}" type="button" data-task-id="${task.id}" data-status-value="${escapeHtml(task.status)}" aria-haspopup="listbox" aria-expanded="${isStatusOpen}" aria-label="ステータス: ${escapeHtml(statusLabel)}">
                             <span class="task-status-label">${escapeHtml(statusLabel)}</span>
                             <i data-lucide="chevron-down" class="task-status-chevron"></i>
                         </button>
-                        <div class="task-status-menu" role="listbox" style="display: none;">
+                        <div class="task-status-menu" role="listbox" style="display: ${isStatusOpen ? 'block' : 'none'};">
                             ${this._renderStatusOptions(task.status)}
                         </div>
                     </div>
@@ -482,9 +487,13 @@ export class NocoDBTasksView extends BaseView {
             const closeMenu = () => {
                 menu.style.display = 'none';
                 trigger.setAttribute('aria-expanded', 'false');
+                if (this.openStatusTaskId === taskId) {
+                    this.openStatusTaskId = null;
+                }
             };
 
             const openMenu = () => {
+                this.openStatusTaskId = taskId;
                 this.container.querySelectorAll('.task-status-menu').forEach(p => {
                     p.style.display = 'none';
                 });
@@ -559,6 +568,7 @@ export class NocoDBTasksView extends BaseView {
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.task-status-combobox')) {
+                this.openStatusTaskId = null;
                 this.container?.querySelectorAll('.task-status-menu').forEach(menu => {
                     menu.style.display = 'none';
                 });
