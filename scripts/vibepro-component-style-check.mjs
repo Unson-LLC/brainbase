@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605080847';
+const EXPECTED_CSS_VERSION = '202605080957';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -74,7 +74,7 @@ async function collectDesktopEvidence(page) {
     list.innerHTML = `
       <div class="nocodb-task-item overdue" data-task-id="vibepro-style-sample">
         <div class="task-header">
-          <span class="project-badge">Brainbase</span>
+          <span class="project-badge" title="Brainbase" aria-label="Brainbase"><span class="project-badge-text">BB</span></span>
           <span class="priority-indicator high" aria-label="priority high"></span>
           <div class="nocodb-task-actions">
             <button class="nocodb-task-action-btn nocodb-task-start-btn"><i data-lucide="play"></i></button>
@@ -82,7 +82,9 @@ async function collectDesktopEvidence(page) {
             <button class="nocodb-task-action-btn"><i data-lucide="trash-2"></i></button>
           </div>
         </div>
-        <div class="task-title">VibePro component replacement sample</div>
+        <div class="task-title" tabindex="0" data-full-title="VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover" aria-label="VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover">
+          <span class="task-title-text">VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover</span>
+        </div>
         <div class="task-meta">
           <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
           <div class="task-status-combobox">
@@ -143,7 +145,7 @@ async function collectDesktopEvidence(page) {
       list.innerHTML = `
         <div class="nocodb-task-item overdue" data-task-id="vibepro-style-sample">
           <div class="task-header">
-            <span class="project-badge">Brainbase</span>
+            <span class="project-badge" title="Brainbase" aria-label="Brainbase"><span class="project-badge-text">BB</span></span>
             <span class="priority-indicator high" aria-label="priority high"></span>
             <div class="nocodb-task-actions">
               <button class="nocodb-task-action-btn nocodb-task-start-btn"><i data-lucide="play"></i></button>
@@ -151,7 +153,9 @@ async function collectDesktopEvidence(page) {
               <button class="nocodb-task-action-btn"><i data-lucide="trash-2"></i></button>
             </div>
           </div>
-          <div class="task-title">VibePro component replacement sample</div>
+          <div class="task-title" tabindex="0" data-full-title="VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover" aria-label="VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover">
+            <span class="task-title-text">VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover</span>
+          </div>
           <div class="task-meta">
             <span class="deadline urgent"><i data-lucide="calendar"></i> 期限切れ</span>
             <div class="task-status-combobox">
@@ -427,7 +431,15 @@ async function collectDesktopEvidence(page) {
         marginBottom: style('#tasks-tab-content .nocodb-task-item.overdue', 'margin-bottom'),
         height: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue')?.getBoundingClientRect().height ?? null,
         projectBadgeBackground: style('#tasks-tab-content .project-badge', 'background-color'),
+        projectBadgeWidth: document.querySelector('#tasks-tab-content .project-badge')?.getBoundingClientRect().width ?? null,
+        projectBadgeText: document.querySelector('#tasks-tab-content .project-badge')?.textContent?.trim() ?? '',
         priorityWidth: style('#tasks-tab-content .priority-indicator.high', 'width'),
+        priorityAfterContent: pseudoStyle('#tasks-tab-content .priority-indicator.high', '::after', 'content'),
+        titleWhiteSpace: style('#tasks-tab-content .nocodb-task-item.overdue .task-title', 'white-space'),
+        titleLineClamp: style('#tasks-tab-content .nocodb-task-item.overdue .task-title-text', '-webkit-line-clamp'),
+        titleTextMaxHeight: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-title-text')?.getBoundingClientRect().height ?? null,
+        titleTooltipContent: pseudoStyle('#tasks-tab-content .nocodb-task-item.overdue .task-title:hover', '::after', 'content'),
+        titleFullText: document.querySelector('#tasks-tab-content .nocodb-task-item.overdue .task-title')?.dataset.fullTitle ?? '',
         actionButtonBackground: style('#tasks-tab-content .nocodb-task-action-btn', 'background-color'),
         statusBackground: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'background-color'),
         statusBorderRadius: style('#tasks-tab-content .nocodb-task-item.overdue .task-status-select', 'border-radius'),
@@ -857,6 +869,14 @@ function buildChecks(desktop, mobile) {
       pxNumber(desktop.sampleTask.statusBorderRadius) <= 4
         && pxNumber(desktop.sampleTask.assigneeAvatarWidth) >= 26
         && desktop.sampleTask.assigneeAvatarText.length > 0
+        && pxNumber(desktop.sampleTask.projectBadgeWidth) <= 30
+        && desktop.sampleTask.projectBadgeText.length > 0
+        && pxNumber(desktop.sampleTask.priorityWidth) <= 8
+        && (desktop.sampleTask.priorityAfterContent === 'none' || desktop.sampleTask.priorityAfterContent === 'normal')
+        && desktop.sampleTask.titleWhiteSpace === 'normal'
+        && String(desktop.sampleTask.titleLineClamp) === '2'
+        && pxNumber(desktop.sampleTask.titleTextMaxHeight) <= 38
+        && desktop.sampleTask.titleFullText.includes('reveal the full text on hover')
         && desktop.sampleTask.statusComboboxExists === true
         && desktop.sampleTask.statusOptionCount >= 3
         && desktop.sampleTask.statusCompletedOption === true
@@ -865,13 +885,21 @@ function buildChecks(desktop, mobile) {
         statusBackground: desktop.sampleTask.statusBackground,
         statusBorderRadius: desktop.sampleTask.statusBorderRadius,
         statusAppearance: desktop.sampleTask.statusAppearance,
+        projectBadgeWidth: desktop.sampleTask.projectBadgeWidth,
+        projectBadgeText: desktop.sampleTask.projectBadgeText,
+        priorityWidth: desktop.sampleTask.priorityWidth,
+        priorityAfterContent: desktop.sampleTask.priorityAfterContent,
+        titleWhiteSpace: desktop.sampleTask.titleWhiteSpace,
+        titleLineClamp: desktop.sampleTask.titleLineClamp,
+        titleTextMaxHeight: desktop.sampleTask.titleTextMaxHeight,
+        titleFullText: desktop.sampleTask.titleFullText,
         statusComboboxExists: desktop.sampleTask.statusComboboxExists,
         statusOptionCount: desktop.sampleTask.statusOptionCount,
         statusCompletedOption: desktop.sampleTask.statusCompletedOption,
         assigneeAvatarWidth: desktop.sampleTask.assigneeAvatarWidth,
         assigneeAvatarText: desktop.sampleTask.assigneeAvatarText,
       },
-      'task queue status must be a stable custom combobox badge, include all status choices, and assignee must be an avatar',
+      'task queue must use compact project icons, color-only priority, two-line titles with hover full text, stable status combobox, and avatar assignee',
     ),
     createCheck(
       'wiki_tab_matches_generated_component',

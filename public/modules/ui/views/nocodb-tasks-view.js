@@ -1,5 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
+import { getProjectConfig } from '../../project-mapping.js';
 import { escapeHtml, refreshIcons, formatDueDate } from '../../ui-helpers.js';
 import { BaseView } from './base-view.js';
 
@@ -316,11 +317,14 @@ export class NocoDBTasksView extends BaseView {
         const assignee = task.assignee || '未割当';
         const assigneeInitials = this._getAssigneeInitials(assignee);
         const isStatusOpen = this.openStatusTaskId === task.id;
+        const projectLabel = task.projectName || task.project || 'Project';
+        const projectIconHtml = this._renderProjectIcon(task.project || projectLabel, projectLabel);
+        const escapedTitle = escapeHtml(task.title);
 
         return `
             <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
                 <div class="task-header">
-                    <span class="project-badge">${escapeHtml(task.projectName || task.project)}</span>
+                    <span class="project-badge" title="${escapeHtml(projectLabel)}" aria-label="${escapeHtml(projectLabel)}">${projectIconHtml}</span>
                     <span class="priority-indicator ${priorityClass}" aria-label="優先度: ${escapeHtml(task.priority || 'normal')}"></span>
                     <div class="nocodb-task-actions">
                         <button class="nocodb-task-action-btn nocodb-task-start-btn" data-task-id="${task.id}" title="セッションを開始">
@@ -334,7 +338,9 @@ export class NocoDBTasksView extends BaseView {
                         </button>
                     </div>
                 </div>
-                <div class="task-title">${escapeHtml(task.title)}</div>
+                <div class="task-title" tabindex="0" data-full-title="${escapedTitle}" aria-label="${escapedTitle}">
+                    <span class="task-title-text">${escapedTitle}</span>
+                </div>
                 <div class="task-meta">
                     ${dueDateHtml}
                     <div class="task-status-combobox" data-task-id="${task.id}">
@@ -362,6 +368,30 @@ export class NocoDBTasksView extends BaseView {
                 </div>
             </div>
         `;
+    }
+
+    _isLucideIconName(value) {
+        return typeof value === 'string' && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(value.trim());
+    }
+
+    _renderProjectIcon(projectId, projectName) {
+        const projectConfig = getProjectConfig(projectId);
+        const configuredIcon = String(projectConfig?.icon || projectConfig?.emoji || '').trim();
+        if (configuredIcon) {
+            if (this._isLucideIconName(configuredIcon)) {
+                return `<i data-lucide="${escapeHtml(configuredIcon)}"></i>`;
+            }
+            return `<span class="project-badge-text">${escapeHtml(configuredIcon)}</span>`;
+        }
+
+        const initials = String(projectName || 'Project')
+            .split(/[\s._-]+/)
+            .filter(Boolean)
+            .map(part => Array.from(part)[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase() || 'P';
+        return `<span class="project-badge-text">${escapeHtml(initials)}</span>`;
     }
 
     _getStatusTone(status) {

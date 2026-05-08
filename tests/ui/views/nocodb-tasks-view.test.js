@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { projectMappingReady } from '../../../public/modules/project-mapping.js';
 import { NocoDBTasksView } from '../../../public/modules/ui/views/nocodb-tasks-view.js';
 import { appStore } from '../../../public/modules/core/store.js';
 
@@ -52,7 +53,34 @@ describe('NocoDBTasksView', () => {
         expect(container.textContent).toContain('Test task');
         expect(container.querySelector('.task-status-select.status-pending')).toBeTruthy();
         expect(container.querySelector('select.task-status-select')).toBeNull();
+        expect(container.querySelector('.task-title')?.dataset.fullTitle).toBe('Test task');
+        expect(container.querySelector('.task-title')?.getAttribute('tabindex')).toBe('0');
+        expect(container.querySelector('.project-badge')?.getAttribute('aria-label')).toBe('proj');
+        expect(container.querySelector('.project-badge-text')?.textContent).toBe('P');
         expect(container.querySelector('.assignee-avatar')?.textContent).toBe('KS');
+    });
+
+    it('プロジェクトメタ情報はconfigのアイコン表現を優先して表示する', async () => {
+        await projectMappingReady;
+        const tasks = [{
+            id: 'nocodb:brainbase:1',
+            title: 'Brainbase icon task',
+            project: 'brainbase',
+            status: 'pending',
+            assignee: 'ksato'
+        }];
+        const service = buildService({ getFilteredTasks: vi.fn(() => tasks) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+
+        view.render();
+
+        expect(container.querySelector('.project-badge')?.getAttribute('aria-label')).toBe('brainbase');
+        expect(container.querySelector('.project-badge-text')?.textContent).toBe('BB');
+        expect(container.querySelector('.project-badge [data-lucide]')).toBeNull();
     });
 
     it('ステータスコンボボックスのクリックは親要素に伝播せずメニューを開く', () => {

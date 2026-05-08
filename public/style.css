@@ -15593,6 +15593,134 @@ body.resizing iframe {
     color: #dce4ee;
 }
 
+/* Command Center v7: keep rows dense while giving the task title priority. */
+.command-center-theme #tasks-tab-content .nocodb-task-table-header {
+    grid-template-columns: 36px minmax(0, 1fr) 72px 94px 84px;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item {
+    grid-template-columns: 36px minmax(0, 1fr) 72px 94px 84px;
+    min-height: 62px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    overflow: visible;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    place-self: center start;
+    width: 28px;
+    height: 28px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(191, 201, 214, 0.16);
+    border-radius: 5px;
+    background: rgba(191, 201, 214, 0.07);
+    color: #dfe7f0;
+    overflow: hidden;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge i,
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge svg {
+    width: 15px;
+    height: 15px;
+    color: #8fc2ff;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .project-badge-text {
+    max-width: 22px;
+    overflow: hidden;
+    color: #dfe7f0;
+    font: 760 10px/1 "Geist Mono", var(--font-mono);
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    place-self: end start;
+    width: 7px;
+    height: 7px;
+    margin: 0 0 5px 23px;
+    border: 1px solid #0b0d0f;
+    border-radius: 999px;
+    background: var(--bb-approved-green);
+    box-shadow: none;
+    font: 0/0 a;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator::after {
+    content: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.high::after,
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.medium::after,
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.low::after {
+    content: none;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.high {
+    background: var(--bb-red);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.medium {
+    background: var(--bb-approved-yellow);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .priority-indicator.low {
+    background: var(--bb-approved-green);
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-title {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    position: relative;
+    align-self: center;
+    min-width: 0;
+    overflow: visible;
+    color: #f3f6fa;
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1.35;
+    white-space: normal;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-title-text {
+    display: -webkit-box;
+    max-height: calc(12.5px * 1.35 * 2);
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+}
+
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-title:hover::after,
+.command-center-theme #tasks-tab-content .nocodb-task-item .task-title:focus::after {
+    content: attr(data-full-title);
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 90;
+    width: min(360px, calc(100vw - 56px));
+    max-height: 150px;
+    overflow: auto;
+    padding: 9px 10px;
+    border: 1px solid rgba(191, 201, 214, 0.16);
+    border-radius: 5px;
+    background: #101316;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+    color: #edf3fa;
+    font-size: 12px;
+    font-weight: 520;
+    line-height: 1.55;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 /* Command Center v6: approved right-panel component fidelity. */
 .command-center-theme #tasks-tab-content .timeline-item {
     position: relative;
