@@ -8,7 +8,11 @@ describe('PortalOverlayView', () => {
 
     beforeEach(() => {
         document.body.innerHTML = `
-            <select id="portal-overlay-project-select"><option value="">Project</option></select>
+            <div class="terminal-header">
+                <select id="portal-overlay-project-select"><option value="">Project</option></select>
+                <input id="workspace-project-search" type="search">
+            </div>
+            <span id="portal-current-project-label"></span>
             <button id="portal-overlay-refresh"></button>
             <div id="test-container"></div>
         `;
@@ -44,6 +48,29 @@ describe('PortalOverlayView', () => {
         expect(container.querySelector('.portal-command-side .portal-ov-team')).toBeTruthy();
         expect(container.querySelector('.portal-command-side .portal-ov-frame')).toBeTruthy();
         expect(container.querySelectorAll('.portal-vl-column')).toHaveLength(4);
+        expect(document.getElementById('portal-overlay-project-select')?.value).toBe('brainbase');
+        expect(document.getElementById('portal-current-project-label')?.textContent).toBe('Brainbase');
+        expect(document.getElementById('workspace-project-search')?.value).toBe('Brainbase');
+    });
+
+    it('プロジェクト検索Enter時_一致したプロジェクトを読み込む', () => {
+        const view = new PortalOverlayView({
+            portalService,
+            configProjects: [
+                { id: 'brainbase', name: 'Brainbase' },
+                { id: 'salestailor', name: 'SalesTailor' }
+            ]
+        });
+
+        view.mount(container);
+
+        const search = document.getElementById('workspace-project-search');
+        search.value = 'sales';
+        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+        expect(portalService.loadPortalOverlay).toHaveBeenCalledWith('salestailor');
+        expect(document.getElementById('portal-overlay-project-select')?.value).toBe('salestailor');
+        expect(document.getElementById('portal-current-project-label')?.textContent).toBe('SalesTailor');
     });
 
     it('データ未選択時_空状態のみを表示する', () => {

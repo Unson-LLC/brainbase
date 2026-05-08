@@ -34,6 +34,7 @@ export class PortalOverlayView extends BaseView {
                     // Update selector
                     const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('portal-overlay-project-select'));
                     if (select) select.value = autoProject;
+                    this._syncProjectChrome(autoProject);
                 }
             }
         });
@@ -225,12 +226,27 @@ export class PortalOverlayView extends BaseView {
             // Set current selection
             const current = this.portalService.getCurrentProject();
             if (current) select.value = current;
+            this._syncProjectChrome(current);
 
             select.onchange = (e) => {
                 const projectCode = /** @type {HTMLSelectElement} */ (e.target).value;
                 if (projectCode) {
+                    this._syncProjectChrome(projectCode);
                     this.portalService.loadPortalOverlay(projectCode);
                 }
+            };
+        }
+
+        const search = /** @type {HTMLInputElement | null} */ (document.getElementById('workspace-project-search'));
+        if (search && select) {
+            search.onkeydown = (event) => {
+                if (event.key !== 'Enter') return;
+                const projectCode = this._findProjectCode(search.value);
+                if (!projectCode) return;
+
+                select.value = projectCode;
+                this._syncProjectChrome(projectCode);
+                this.portalService.loadPortalOverlay(projectCode);
             };
         }
 
@@ -256,5 +272,25 @@ export class PortalOverlayView extends BaseView {
                 this.render();
             });
         });
+    }
+
+    _findProjectCode(query) {
+        const normalized = String(query || '').trim().toLowerCase();
+        if (!normalized) return '';
+        const project = this.configProjects.find((p) => {
+            const id = String(p.id || '').toLowerCase();
+            const name = String(p.name || '').toLowerCase();
+            return id.includes(normalized) || name.includes(normalized);
+        });
+        return project?.id || '';
+    }
+
+    _syncProjectChrome(projectCode) {
+        const label = document.getElementById('portal-current-project-label');
+        const search = /** @type {HTMLInputElement | null} */ (document.getElementById('workspace-project-search'));
+        const project = this.configProjects.find((p) => p.id === projectCode);
+        const name = project?.name || projectCode || 'Project';
+        if (label) label.textContent = name;
+        if (search && projectCode) search.value = name;
     }
 }

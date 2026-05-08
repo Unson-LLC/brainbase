@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202605081053">
+    <link rel="stylesheet" href="style.css?v=202605081438">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -190,6 +190,28 @@
 
             <div class="console-area" id="console-area">
                 <div class="terminal-header" id="terminal-header">
+                    <div class="workspace-nav" aria-label="Workspace navigation">
+                        <div class="workspace-project-group">
+                            <label class="workspace-project-switcher" for="portal-overlay-project-select">
+                                <span class="workspace-project-prefix">Project:</span>
+                                <select class="portal-overlay-project-selector workspace-project-select" id="portal-overlay-project-select" aria-label="プロジェクトを切り替える">
+                                    <option value="">Project</option>
+                                </select>
+                            </label>
+                            <label class="workspace-project-search" for="workspace-project-search">
+                                <i data-lucide="search"></i>
+                                <input type="search" id="workspace-project-search" placeholder="Search project..." autocomplete="off">
+                            </label>
+                        </div>
+                        <div class="workspace-mode-segment" role="tablist" aria-label="Workspace mode">
+                            <button id="workspace-mode-terminal" class="workspace-mode-btn active" type="button" role="tab" aria-selected="true">
+                                Terminal
+                            </button>
+                            <button id="workspace-mode-portal" class="workspace-mode-btn" type="button" role="tab" aria-selected="false">
+                                Portal
+                            </button>
+                        </div>
+                    </div>
                     <div class="terminal-header-status-group">
                         <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
                         <div id="terminal-transport-switcher" class="terminal-transport-switcher hidden">
@@ -286,34 +308,32 @@
 	                                <!-- Choices will be dynamically added here -->
 	                            </div>
 	                        </div>
-	                    </div>
-                </div>
-            </div>
+		                    </div>
+	                </div>
 
-            <!-- File Viewer Panel -->
-            <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
+                    <!-- Portal Panel (replaces terminal stage when active) -->
+                    <div class="portal-overlay" id="portal-overlay">
+                        <div class="portal-overlay-header">
+                            <button id="portal-back-terminal" class="portal-terminal-back" type="button">
+                                <i data-lucide="arrow-left"></i>
+                                <span>Back to Terminal</span>
+                            </button>
+                            <div class="portal-overlay-title">
+                                <span>Portal</span>
+                                <span id="portal-current-project-label" class="portal-current-project-label">Project</span>
+                            </div>
+                            <div class="portal-overlay-actions">
+                                <button class="icon-btn portal-overlay-refresh" id="portal-overlay-refresh" title="更新">
+                                    <i data-lucide="refresh-cw"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="portal-overlay-panel"></div>
+                    </div>
+	            </div>
 
-            <!-- Portal Panel (replaces console area when active) -->
-            <div class="portal-overlay" id="portal-overlay">
-                <div class="portal-overlay-header">
-                    <div class="portal-overlay-title">
-                        <i data-lucide="compass"></i>
-                        <span>Portal</span>
-                        <select class="portal-overlay-project-selector" id="portal-overlay-project-select">
-                            <option value="">-- Select Project --</option>
-                        </select>
-                    </div>
-                    <div class="portal-overlay-actions">
-                        <button class="icon-btn portal-overlay-refresh" id="portal-overlay-refresh" title="更新">
-                            <i data-lucide="refresh-cw"></i>
-                        </button>
-                        <button id="portal-overlay-close" class="icon-btn" title="Portalを閉じる">
-                            <i data-lucide="x"></i>
-                        </button>
-                    </div>
-                </div>
-                <div id="portal-overlay-panel"></div>
-            </div>
+	            <!-- File Viewer Panel -->
+	            <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
 
             <!-- Mobile Tab Content (hidden on desktop, lazily populated) -->
             <div id="mobile-tab-content-files" class="mobile-tab-content" data-tab="files" role="tabpanel" aria-labelledby="mobile-tab-files"></div>
@@ -325,6 +345,7 @@
         </main>
 
         <!-- Info Drawer (right slide-in, unified tabs: Commit Tree / Tasks / Wiki / LiveFeed) -->
+        <div class="panel-resize-handle panel-resize-handle-info-drawer hidden" id="info-drawer-resize-handle" title="ドラッグで右パネル幅を変更" aria-hidden="true"></div>
         <aside class="info-drawer" id="info-drawer">
             <div class="info-drawer-header">
                 <div class="info-drawer-tabs">
@@ -1141,7 +1162,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=202605081053"></script>
+    <script type="module" src="app.js?v=202605081438"></script>
     <script>
         // defer scripts (lucide等) のロード後に実行
         if (typeof lucide !== 'undefined') {

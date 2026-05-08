@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605081053';
+const EXPECTED_CSS_VERSION = '202605081438';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -43,6 +43,9 @@ async function collectDesktopEvidence(page) {
 
     const drawer = document.querySelector('#info-drawer');
     drawer?.classList.add('open');
+    const drawerResizeHandle = document.querySelector('#info-drawer-resize-handle');
+    drawerResizeHandle?.classList.remove('hidden');
+    drawerResizeHandle?.setAttribute('aria-hidden', 'false');
 
     document.querySelectorAll('.info-drawer-tab').forEach((tab) => {
       tab.classList.toggle('active', tab.dataset.tab === 'tasks');
@@ -283,7 +286,29 @@ async function collectDesktopEvidence(page) {
       const drawer = document.querySelector('#info-drawer');
       drawer?.classList.remove('open');
       if (drawer) drawer.style.display = 'none';
+      document.body.classList.add('portal-mode-active');
       overlay.classList.add('open');
+      const consoleArea = document.querySelector('#console-area');
+      if (consoleArea) consoleArea.style.display = 'flex';
+      const terminalStage = document.querySelector('#terminal-stage');
+      if (terminalStage) terminalStage.style.display = 'none';
+      const terminalMode = document.querySelector('#workspace-mode-terminal');
+      const portalMode = document.querySelector('#workspace-mode-portal');
+      terminalMode?.classList.remove('active');
+      terminalMode?.setAttribute('aria-selected', 'false');
+      portalMode?.classList.add('active');
+      portalMode?.setAttribute('aria-selected', 'true');
+      const projectSelect = document.querySelector('#portal-overlay-project-select');
+      if (projectSelect) {
+        if (!projectSelect.querySelector('option[value="brainbase"]')) {
+          projectSelect.insertAdjacentHTML('beforeend', '<option value="brainbase">brainbase</option>');
+        }
+        projectSelect.value = 'brainbase';
+      }
+      const projectSearch = document.querySelector('#workspace-project-search');
+      if (projectSearch) projectSearch.value = 'brainbase';
+      const projectLabel = document.querySelector('#portal-current-project-label');
+      if (projectLabel) projectLabel.textContent = 'brainbase';
       if (panel.querySelector('.portal-command-grid')) return;
 
       panel.innerHTML = `
@@ -424,6 +449,10 @@ async function collectDesktopEvidence(page) {
       },
       drawer: {
         width: style('.info-drawer.open', 'width'),
+        resizeHandleExists: Boolean(document.querySelector('#info-drawer-resize-handle')),
+        resizeHandleDisplay: style('#info-drawer-resize-handle', 'display'),
+        resizeHandleWidth: document.querySelector('#info-drawer-resize-handle')?.getBoundingClientRect().width ?? null,
+        resizeHandleCursor: style('#info-drawer-resize-handle', 'cursor'),
         headerHeight: document.querySelector('.info-drawer-header')?.getBoundingClientRect().height ?? null,
         headerBeforeContent: getComputedStyle(document.querySelector('.info-drawer-header'), '::before').getPropertyValue('content'),
         tabBackground: style('.info-drawer-tabs', 'background-color'),
@@ -677,6 +706,21 @@ async function collectDesktopEvidence(page) {
           storyTop: story?.getBoundingClientRect().top ?? null,
           teamTop: team?.getBoundingClientRect().top ?? null,
           frameTop: frame?.getBoundingClientRect().top ?? null,
+          navigation: {
+            projectSelectInHeader: Boolean(document.querySelector('.terminal-header #portal-overlay-project-select')),
+            projectSelectWidth: document.querySelector('.terminal-header #portal-overlay-project-select')?.getBoundingClientRect().width ?? null,
+            projectSearchInHeader: Boolean(document.querySelector('.terminal-header #workspace-project-search')),
+            segmentDisplay: style('.terminal-header .workspace-mode-segment', 'display'),
+            segmentWidth: document.querySelector('.terminal-header .workspace-mode-segment')?.getBoundingClientRect().width ?? null,
+            terminalModeAria: document.querySelector('#workspace-mode-terminal')?.getAttribute('aria-selected') ?? null,
+            portalModeAria: document.querySelector('#workspace-mode-portal')?.getAttribute('aria-selected') ?? null,
+            portalModeActive: document.querySelector('#workspace-mode-portal')?.classList.contains('active') ?? false,
+            backButtonExists: Boolean(document.querySelector('#portal-back-terminal')),
+            closeButtonExists: Boolean(document.querySelector('#portal-overlay-close')),
+            portalInsideConsole: Boolean(document.querySelector('#console-area > #portal-overlay')),
+            consoleAreaDisplay: style('#console-area', 'display'),
+            terminalStageDisplay: style('#terminal-stage', 'display'),
+          },
         };
       })(),
     };
@@ -854,6 +898,10 @@ function buildChecks(desktop, mobile) {
       'drawer_tabs_component_replaced',
       pxNumber(desktop.drawer.width) > 0
         && pxNumber(desktop.drawer.width) <= 540
+        && desktop.drawer.resizeHandleExists === true
+        && desktop.drawer.resizeHandleDisplay !== 'none'
+        && pxNumber(desktop.drawer.resizeHandleWidth) >= 6
+        && desktop.drawer.resizeHandleCursor === 'ew-resize'
         && pxNumber(desktop.drawer.headerHeight) <= 56
         && desktop.drawer.headerBeforeContent === 'none'
         && pxNumber(desktop.drawer.tabHeight) <= 58
@@ -861,7 +909,7 @@ function buildChecks(desktop, mobile) {
         && desktop.drawer.activeTabBoxShadow === 'none'
         && desktop.drawer.activeTabBorderBottomWidth === '2px',
       desktop.drawer,
-      'flat drawer tab strip with no duplicate title row',
+      'flat drawer tab strip with no duplicate title row and a visible terminal/drawer resize handle',
     ),
     createCheck(
       'local_task_empty_state_is_refined',
@@ -1061,6 +1109,24 @@ function buildChecks(desktop, mobile) {
         && desktop.liveFeed.filterClick.footerText.includes('表示: システム'),
       desktop.liveFeed,
       'Live Feed tab must use the generated timeline stream with live controls, segmented filters, rail dots, row actions, and footer status',
+    ),
+    createCheck(
+      'portal_navigation_is_workspace_mode_not_modal',
+      desktop.portalOverlay.navigation.projectSelectInHeader === true
+        && pxNumber(desktop.portalOverlay.navigation.projectSelectWidth) >= 120
+        && desktop.portalOverlay.navigation.projectSearchInHeader === true
+        && desktop.portalOverlay.navigation.segmentDisplay === 'grid'
+        && pxNumber(desktop.portalOverlay.navigation.segmentWidth) >= 150
+        && desktop.portalOverlay.navigation.terminalModeAria === 'false'
+        && desktop.portalOverlay.navigation.portalModeAria === 'true'
+        && desktop.portalOverlay.navigation.portalModeActive === true
+        && desktop.portalOverlay.navigation.backButtonExists === true
+        && desktop.portalOverlay.navigation.closeButtonExists === false
+        && desktop.portalOverlay.navigation.portalInsideConsole === true
+        && desktop.portalOverlay.navigation.consoleAreaDisplay === 'flex'
+        && desktop.portalOverlay.navigation.terminalStageDisplay === 'none',
+      desktop.portalOverlay.navigation,
+      'Portal must be a workspace mode with visible project switching and Terminal/Portal controls, not a modal with an X close button',
     ),
     createCheck(
       'portal_overlay_matches_generated_reference',

@@ -3379,6 +3379,19 @@ body::after {
     border-left: 1px solid var(--border-color);
 }
 
+.panel-resize-handle-info-drawer {
+    width: 7px;
+    border-left: 1px solid rgba(191, 201, 214, 0.12);
+    border-right: 1px solid rgba(191, 201, 214, 0.08);
+    background: rgba(8, 10, 13, 0.88);
+}
+
+.panel-resize-handle-info-drawer::after {
+    width: 2px;
+    height: 52px;
+    background: rgba(191, 201, 214, 0.28);
+}
+
 /* リサイズ中の最適化 */
 body.resizing {
     cursor: ew-resize !important;
@@ -15204,8 +15217,27 @@ body.resizing iframe {
 
 /* Command Center v5: raise right task panel fidelity to the approved reference. */
 .command-center-theme .info-drawer.open {
-    width: 524px;
-    max-width: 36vw;
+    width: var(--info-drawer-width, 524px);
+    max-width: min(760px, 52vw);
+}
+
+.command-center-theme .panel-resize-handle-info-drawer {
+    z-index: 18;
+    width: 7px;
+    background: rgba(8, 10, 13, 0.94);
+    border-left: 1px solid rgba(191, 201, 214, 0.1);
+    border-right: 1px solid rgba(191, 201, 214, 0.14);
+}
+
+.command-center-theme .panel-resize-handle-info-drawer:hover,
+.command-center-theme .panel-resize-handle-info-drawer.dragging {
+    background: rgba(47, 128, 255, 0.1);
+}
+
+.command-center-theme .panel-resize-handle-info-drawer:hover::after,
+.command-center-theme .panel-resize-handle-info-drawer.dragging::after {
+    background: #56a0ff;
+    opacity: 1;
 }
 
 .command-center-theme .info-drawer-header {
@@ -17100,6 +17132,163 @@ body.resizing iframe {
     border-radius: 5px;
 }
 
+.command-center-theme .terminal-header {
+    display: grid;
+    grid-template-columns: minmax(500px, 1.15fr) minmax(140px, 0.8fr) auto;
+    align-items: center;
+    gap: 12px;
+}
+
+.command-center-theme .workspace-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.command-center-theme .workspace-project-group {
+    display: grid;
+    grid-template-columns: minmax(220px, 300px) minmax(160px, 230px);
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.command-center-theme .workspace-project-switcher {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    height: 34px;
+    padding: 0 8px 0 10px;
+    border: 1px solid rgba(191, 201, 214, 0.15);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #f2f6fb;
+}
+
+.command-center-theme .workspace-project-prefix {
+    color: #8e9aaa;
+    font: 680 11px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .workspace-project-select.portal-overlay-project-selector {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    margin: 0;
+    padding: 0 24px 0 0;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    color: #f7faff;
+    font: 720 13px/1 "Geist", var(--font-sans);
+}
+
+.command-center-theme .workspace-project-search {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid rgba(191, 201, 214, 0.12);
+    border-radius: 5px;
+    background: rgba(6, 8, 10, 0.76);
+    color: #798696;
+}
+
+.command-center-theme .workspace-project-search > i,
+.command-center-theme .workspace-project-search > svg,
+.command-center-theme .portal-terminal-back > i,
+.command-center-theme .portal-terminal-back > svg {
+    width: 15px;
+    height: 15px;
+}
+
+.command-center-theme .workspace-project-search input {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #cbd5e1;
+    font: 600 12px/1 "Geist", var(--font-sans);
+}
+
+.command-center-theme .workspace-mode-segment {
+    display: inline-grid;
+    flex: 0 0 164px;
+    grid-template-columns: 1fr 1fr;
+    width: 164px;
+    min-width: 164px;
+    height: 34px;
+    padding: 3px;
+    border: 1px solid rgba(191, 201, 214, 0.13);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.command-center-theme .workspace-mode-btn {
+    min-width: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #8f9aaa;
+    font: 720 11px/1 "Geist Mono", var(--font-mono);
+    cursor: pointer;
+}
+
+.command-center-theme .workspace-mode-btn.active {
+    background: #f1f5f9;
+    color: #0a0d11;
+}
+
+.command-center-theme.portal-mode-active .terminal-header {
+    border-bottom-color: rgba(191, 201, 214, 0.16);
+    background: rgba(8, 10, 13, 0.98);
+}
+
+.command-center-theme .portal-terminal-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.035);
+    color: #dce5ef;
+    font: 720 11.5px/1 "Geist Mono", var(--font-mono);
+    cursor: pointer;
+}
+
+.command-center-theme .portal-terminal-back:hover {
+    border-color: rgba(47, 128, 255, 0.36);
+    background: rgba(47, 128, 255, 0.1);
+    color: #f7fbff;
+}
+
+.command-center-theme .portal-overlay-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 14px;
+}
+
+.command-center-theme .portal-current-project-label {
+    min-width: 0;
+    padding-left: 10px;
+    border-left: 1px solid rgba(191, 201, 214, 0.14);
+    overflow: hidden;
+    color: #9fc6ff;
+    font: 680 12px/1.2 "Geist Mono", var(--font-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .command-center-theme .portal-overlay-content {
     display: flex;
     flex: 1;
@@ -17497,6 +17686,22 @@ body.resizing iframe {
 }
 
 @media (max-width: 1100px) {
+    .command-center-theme .terminal-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .command-center-theme .workspace-nav {
+        grid-column: 1 / -1;
+    }
+
+    .command-center-theme .workspace-project-group {
+        grid-template-columns: minmax(190px, 1fr);
+    }
+
+    .command-center-theme .workspace-project-search {
+        display: none;
+    }
+
     .command-center-theme .portal-command-grid {
         grid-template-columns: 1fr;
         overflow: auto;
@@ -17513,13 +17718,33 @@ body.resizing iframe {
 }
 
 @media (max-width: 760px) {
+    .command-center-theme .terminal-header {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .command-center-theme .workspace-nav {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .command-center-theme .workspace-mode-segment {
+        width: 100%;
+    }
+
+    .command-center-theme .terminal-header-status-group,
+    .command-center-theme .terminal-header-actions {
+        justify-content: flex-start;
+    }
+
     .command-center-theme .portal-overlay-header {
+        grid-template-columns: minmax(0, 1fr) auto;
         padding: 0 12px;
     }
 
-    .command-center-theme .portal-overlay-project-selector {
-        min-width: 0;
-        width: 150px;
+    .command-center-theme .portal-overlay-title {
+        display: none;
     }
 
     .command-center-theme .portal-kpi-bar,

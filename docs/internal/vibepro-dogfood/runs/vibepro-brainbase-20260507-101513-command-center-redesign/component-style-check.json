@@ -1,22 +1,22 @@
 {
   "status": "passed",
-  "generated_at": "2026-05-07T07:29:00.985Z",
-  "url": "http://localhost:31017",
+  "generated_at": "2026-05-08T05:44:45.166Z",
+  "url": "http://localhost:31014",
   "screenshots": {
     "desktop": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-desktop.png",
     "mobile": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign/component-style-mobile.png"
   },
   "component_coverage": {
-    "checked_count": 17,
-    "passed_count": 17,
+    "checked_count": 28,
+    "passed_count": 28,
     "failed_count": 0
   },
   "checks": [
     {
       "id": "css_cache_buster_updated",
       "status": "passed",
-      "actual": "http://localhost:31017/style.css?v=202605071610",
-      "expected": "style.css?v=202605071610"
+      "actual": "http://localhost:31014/style.css?v=202605081438",
+      "expected": "style.css?v=202605081438"
     },
     {
       "id": "layout_not_replaced_by_component_sheet",
@@ -50,7 +50,7 @@
         "borderBottomWidth": "1px",
         "backgroundImage": "none",
         "boxShadow": "none",
-        "projectEmojiDisplay": "none",
+        "projectEmojiDisplay": null,
         "summaryChipHeight": 15
       },
       "expected": "session rows must be compact list rows with no emoji tile or card shadow"
@@ -65,6 +65,60 @@
         "borderRadius": "0px"
       },
       "expected": "quiet rail active state with blue tint and no rounded card"
+    },
+    {
+      "id": "global_actions_moved_to_activity_bar",
+      "status": "passed",
+      "actual": {
+        "sidebarFooterExists": false,
+        "inboxInActivityBar": true,
+        "authInActivityBar": true,
+        "inboxInSidebar": false,
+        "authInSidebar": false,
+        "inboxWidth": 42,
+        "authWidth": 42,
+        "authBadgeClipPath": "inset(50%)",
+        "inboxLabelClipPath": "inset(50%)",
+        "dropdownLeft": "calc(100% + 8px)",
+        "inboxColor": "rgb(103, 179, 255)",
+        "inboxBadgeBackground": "rgb(243, 93, 93)",
+        "inboxBadgeBoxShadow": "rgba(243, 93, 93, 0.18) 0px 0px 0px 2px",
+        "authStatus": "anonymous",
+        "authIconName": "circle-user-round",
+        "authIconClass": "lucide lucide-circle-user-round lucide-icon",
+        "authColor": "rgb(233, 191, 106)",
+        "authBackground": "rgba(240, 180, 67, 0.07)",
+        "authBorderLeftColor": "rgba(240, 180, 67, 0.5)",
+        "authStatusDotBackground": "rgb(240, 180, 67)"
+      },
+      "expected": "notification and auth controls must be icon actions in the global activity bar, not rows in the session list"
+    },
+    {
+      "id": "global_action_status_components_are_legible",
+      "status": "passed",
+      "actual": {
+        "sidebarFooterExists": false,
+        "inboxInActivityBar": true,
+        "authInActivityBar": true,
+        "inboxInSidebar": false,
+        "authInSidebar": false,
+        "inboxWidth": 42,
+        "authWidth": 42,
+        "authBadgeClipPath": "inset(50%)",
+        "inboxLabelClipPath": "inset(50%)",
+        "dropdownLeft": "calc(100% + 8px)",
+        "inboxColor": "rgb(103, 179, 255)",
+        "inboxBadgeBackground": "rgb(243, 93, 93)",
+        "inboxBadgeBoxShadow": "rgba(243, 93, 93, 0.18) 0px 0px 0px 2px",
+        "authStatus": "anonymous",
+        "authIconName": "circle-user-round",
+        "authIconClass": "lucide lucide-circle-user-round lucide-icon",
+        "authColor": "rgb(233, 191, 106)",
+        "authBackground": "rgba(240, 180, 67, 0.07)",
+        "authBorderLeftColor": "rgba(240, 180, 67, 0.5)",
+        "authStatusDotBackground": "rgb(240, 180, 67)"
+      },
+      "expected": "notification must use a visible blue/red status treatment and auth must use a my-page icon with a colored login-state dot"
     },
     {
       "id": "primary_button_component_replaced",
@@ -86,14 +140,40 @@
         "height": 24,
         "borderRadius": "4px",
         "names": [
-          "terminal-square",
-          "palette",
-          "file-text",
-          "bot",
-          "search"
+          "terminal-square"
+        ],
+        "labels": [
+          "⚔️",
+          "🎓",
+          "🧠",
+          "💬",
+          "📱",
+          "🏥",
+          "🏢",
+          "🌸"
         ]
       },
-      "expected": "session rows must show a compact leading lucide icon"
+      "expected": "session rows must show a compact leading configured or lucide icon"
+    },
+    {
+      "id": "sidebar_brand_lockup_is_clean",
+      "status": "passed",
+      "actual": {
+        "headerDisplay": "grid",
+        "headerGridColumns": "188.797px 60.2031px",
+        "headerHeight": 58,
+        "logoSrc": "favicon.png",
+        "logoWidth": 30,
+        "logoHeight": 30,
+        "lucideLogoExists": false,
+        "titleText": "Brainbase",
+        "titleWidth": 98.828125,
+        "versionText": "v0.3.20",
+        "versionWidth": 60.203125,
+        "versionTitle": "version: v0.3.20 | commit: 14957183 | branch: session/portal-navigation-redesign-20260508 | cwd: /Volumes/UNSON-DRIVE/brainbase-worktrees/session-portal-navigation-redesign-20260508 | pid: 9967",
+        "versionGitSha": "14957183"
+      },
+      "expected": "sidebar brand header must use the Brainbase favicon, keep version compact, and avoid title/version overlap"
     },
     {
       "id": "terminal_action_buttons_component_replaced",
@@ -105,19 +185,50 @@
       "expected": "hairline bordered icon buttons"
     },
     {
+      "id": "file_viewer_replaces_full_terminal_area",
+      "status": "passed",
+      "actual": {
+        "bodyActive": true,
+        "consoleDisplay": "none",
+        "panelDisplay": "flex",
+        "panelHeight": 903,
+        "availableHeight": 903
+      },
+      "expected": "file viewer must hide the terminal and fill the available terminal area"
+    },
+    {
       "id": "drawer_tabs_component_replaced",
       "status": "passed",
       "actual": {
-        "width": "489.594px",
+        "width": "524px",
+        "resizeHandleExists": true,
+        "resizeHandleDisplay": "block",
+        "resizeHandleWidth": 7,
+        "resizeHandleCursor": "ew-resize",
+        "headerHeight": 49,
+        "headerBeforeContent": "none",
         "tabBackground": "rgba(0, 0, 0, 0)",
         "tabBorderRadius": "0px",
         "activeTabBackground": "none",
         "activeTabBoxShadow": "none",
         "activeTabBorderBottomWidth": "2px",
-        "tabHeight": 57,
+        "tabHeight": 48,
         "activeTab": "tasks"
       },
-      "expected": "flat drawer tab strip with line active state, not a rounded tab card"
+      "expected": "flat drawer tab strip with no duplicate title row and a visible terminal/drawer resize handle"
+    },
+    {
+      "id": "local_task_empty_state_is_refined",
+      "status": "passed",
+      "actual": {
+        "exists": true,
+        "titleText": "次に動かすローカルタスクはありません",
+        "copyText": "新しいタスクや保留中の作業が入るとここに並びます。",
+        "minHeight": "188px",
+        "borderTopWidth": "1px",
+        "iconWidth": 0
+      },
+      "expected": "local task empty state must be a designed quiet state, not a raw one-line label"
     },
     {
       "id": "task_panel_shows_timeline_and_next_tasks_together",
@@ -127,8 +238,8 @@
         "tasksActive": true,
         "timelineVisible": true,
         "nextTasksVisible": true,
-        "timelineTop": 59,
-        "nextTasksTop": 382.34375
+        "timelineTop": 49,
+        "nextTasksTop": 443
       },
       "expected": "right task panel must show timeline above next tasks simultaneously"
     },
@@ -139,13 +250,18 @@
         "active": true,
         "timelineVisible": true,
         "nextTasksVisible": true,
-        "timelineTop": 59,
-        "nextTasksTop": 382.34375,
+        "timelineTop": 49,
+        "nextTasksTop": 443,
         "timelineBackground": "none",
         "timelineBackgroundColor": "rgba(0, 0, 0, 0)",
         "timelineBorderRadius": "0px",
         "timelineBoxShadow": "none",
         "timelineItemDisplay": "grid",
+        "timelineMetaDisplay": "flex",
+        "timelineKindBadgeText": "会議",
+        "timelineAvatarCount": 21,
+        "timelineStatusDotCount": 0,
+        "timelineNowLabelWidth": 43.984375,
         "taskSectionBackground": "none",
         "taskSectionBackgroundColor": "rgba(0, 0, 0, 0)",
         "taskSectionBorderRadius": "0px",
@@ -158,12 +274,28 @@
         "taskTabActiveBorderBottomWidth": "2px",
         "taskFilterBackground": "rgba(0, 0, 0, 0)",
         "taskFilterBorderRadius": "0px",
+        "taskHeaderToggleDisplay": "none",
+        "taskHeaderIconDisplay": "none",
+        "taskFilterHeight": 51,
+        "taskFilterGridColumns": "106.906px 184.312px 143.781px 32px",
+        "taskFilterSearchTop": 545,
+        "taskFilterAssigneeTop": 545,
+        "taskFilterProjectTop": 545,
+        "taskFilterSyncTop": 545,
+        "taskFilterAssigneeLeft": 933,
+        "taskFilterSearchLeft": 1047.90625,
+        "taskFilterProjectLeft": 1240.21875,
+        "taskFilterSyncLeft": 1392,
+        "taskFooterTop": 685,
+        "taskListTop": 623,
+        "taskFooterButtonText": "タスクを追加",
+        "taskFooterButtonBorder": "0px",
         "taskListBorderRadius": "0px",
         "taskListBackground": "rgba(0, 0, 0, 0)",
-        "filterBackground": "rgba(7, 9, 11, 0.78)",
+        "filterBackground": "rgba(7, 9, 11, 0.92)",
         "filterBorderRadius": "4px"
       },
-      "expected": "flat timeline rows with no section card surface"
+      "expected": "flat timeline rows with approved badge, participant/status meta, and compact now marker"
     },
     {
       "id": "task_queue_is_table_not_nested_cards",
@@ -172,13 +304,18 @@
         "active": true,
         "timelineVisible": true,
         "nextTasksVisible": true,
-        "timelineTop": 59,
-        "nextTasksTop": 382.34375,
+        "timelineTop": 49,
+        "nextTasksTop": 443,
         "timelineBackground": "none",
         "timelineBackgroundColor": "rgba(0, 0, 0, 0)",
         "timelineBorderRadius": "0px",
         "timelineBoxShadow": "none",
         "timelineItemDisplay": "grid",
+        "timelineMetaDisplay": "flex",
+        "timelineKindBadgeText": "会議",
+        "timelineAvatarCount": 21,
+        "timelineStatusDotCount": 0,
+        "timelineNowLabelWidth": 43.984375,
         "taskSectionBackground": "none",
         "taskSectionBackgroundColor": "rgba(0, 0, 0, 0)",
         "taskSectionBorderRadius": "0px",
@@ -191,9 +328,25 @@
         "taskTabActiveBorderBottomWidth": "2px",
         "taskFilterBackground": "rgba(0, 0, 0, 0)",
         "taskFilterBorderRadius": "0px",
+        "taskHeaderToggleDisplay": "none",
+        "taskHeaderIconDisplay": "none",
+        "taskFilterHeight": 51,
+        "taskFilterGridColumns": "106.906px 184.312px 143.781px 32px",
+        "taskFilterSearchTop": 545,
+        "taskFilterAssigneeTop": 545,
+        "taskFilterProjectTop": 545,
+        "taskFilterSyncTop": 545,
+        "taskFilterAssigneeLeft": 933,
+        "taskFilterSearchLeft": 1047.90625,
+        "taskFilterProjectLeft": 1240.21875,
+        "taskFilterSyncLeft": 1392,
+        "taskFooterTop": 685,
+        "taskListTop": 623,
+        "taskFooterButtonText": "タスクを追加",
+        "taskFooterButtonBorder": "0px",
         "taskListBorderRadius": "0px",
         "taskListBackground": "rgba(0, 0, 0, 0)",
-        "filterBackground": "rgba(7, 9, 11, 0.78)",
+        "filterBackground": "rgba(7, 9, 11, 0.92)",
         "filterBorderRadius": "4px"
       },
       "expected": "task queue must be a line/table composition with no nested card wrappers"
@@ -202,10 +355,33 @@
       "id": "task_filters_component_replaced",
       "status": "passed",
       "actual": {
-        "filterBackground": "rgba(7, 9, 11, 0.78)",
+        "filterBackground": "rgba(7, 9, 11, 0.92)",
         "filterBorderRadius": "4px"
       },
       "expected": "dark structured filter inputs"
+    },
+    {
+      "id": "next_task_toolbar_matches_approved_reference",
+      "status": "passed",
+      "actual": {
+        "taskHeaderToggleDisplay": "none",
+        "taskHeaderIconDisplay": "none",
+        "taskFilterHeight": 51,
+        "taskFilterGridColumns": "106.906px 184.312px 143.781px 32px",
+        "taskFilterSearchTop": 545,
+        "taskFilterAssigneeTop": 545,
+        "taskFilterProjectTop": 545,
+        "taskFilterSyncTop": 545,
+        "taskFilterAssigneeLeft": 933,
+        "taskFilterSearchLeft": 1047.90625,
+        "taskFilterProjectLeft": 1240.21875,
+        "taskFilterSyncLeft": 1392,
+        "taskFooterTop": 685,
+        "taskListTop": 623,
+        "taskFooterButtonText": "タスクを追加",
+        "taskFooterButtonBorder": "0px"
+      },
+      "expected": "next-task header must be clean, filters must sit on one approved toolbar row, and add action must be in the footer row"
     },
     {
       "id": "overdue_task_card_component_replaced",
@@ -219,12 +395,165 @@
         "borderRadius": "0px",
         "boxShadow": "none",
         "marginBottom": "0px",
-        "height": 100.875,
-        "projectBadgeBackground": "rgba(47, 128, 255, 0.12)",
-        "priorityWidth": "6px",
-        "actionButtonBackground": "rgba(0, 0, 0, 0)"
+        "height": 62,
+        "projectBadgeBackground": "rgba(191, 201, 214, 0.07)",
+        "projectBadgeWidth": 28,
+        "projectBadgeText": "BB",
+        "priorityWidth": "7px",
+        "priorityAfterContent": "none",
+        "titleWhiteSpace": "normal",
+        "titleLineClamp": "2",
+        "titleTextMaxHeight": 33.75,
+        "titleTooltipContent": null,
+        "titleFullText": "VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover",
+        "actionButtonBackground": "rgba(0, 0, 0, 0)",
+        "statusBackground": "rgba(191, 201, 214, 0.07)",
+        "statusBorderRadius": "4px",
+        "statusAppearance": "none",
+        "statusComboboxExists": true,
+        "statusOptionCount": 3,
+        "statusCompletedOption": true,
+        "assigneeAvatarWidth": 28,
+        "assigneeAvatarText": "OP"
       },
       "expected": "transparent table row with thin red status rail, not a filled card"
+    },
+    {
+      "id": "task_queue_cells_match_approved_components",
+      "status": "passed",
+      "actual": {
+        "statusBackground": "rgba(191, 201, 214, 0.07)",
+        "statusBorderRadius": "4px",
+        "statusAppearance": "none",
+        "projectBadgeWidth": 28,
+        "projectBadgeText": "BB",
+        "priorityWidth": "7px",
+        "priorityAfterContent": "none",
+        "titleWhiteSpace": "normal",
+        "titleLineClamp": "2",
+        "titleTextMaxHeight": 33.75,
+        "titleFullText": "VibePro component replacement sample with a long title that must remain readable in two compact lines and reveal the full text on hover",
+        "statusComboboxExists": true,
+        "statusOptionCount": 3,
+        "statusCompletedOption": true,
+        "assigneeAvatarWidth": 28,
+        "assigneeAvatarText": "OP"
+      },
+      "expected": "task queue must use compact project icons, color-only priority, two-line titles with hover full text, stable status combobox, and avatar assignee"
+    },
+    {
+      "id": "wiki_tab_matches_generated_component",
+      "status": "passed",
+      "actual": {
+        "active": true,
+        "searchWrapDisplay": "flex",
+        "headerGridColumns": "285px 112px 86px",
+        "headerBorderBottomWidth": "1px",
+        "folderHeaderBorderBottomWidth": "1px",
+        "folderHeaderBorderRadius": "0px",
+        "folderCountBackground": "rgba(191, 201, 214, 0.07)",
+        "statusDotCount": 42,
+        "itemGridColumns": "18px 251px 104px 72px",
+        "itemBorderBottomWidth": "1px",
+        "itemBorderRadius": "0px",
+        "itemPathDisplay": "block",
+        "itemUpdatedText": "04/11 19:42",
+        "itemAccessText": "チーム",
+        "previewDisplay": "grid",
+        "previewBorderTopWidth": "1px"
+      },
+      "expected": "Wiki tab must use the generated flat document index with toolbar, metadata columns, status dots, and preview strip"
+    },
+    {
+      "id": "live_feed_tab_matches_generated_component",
+      "status": "passed",
+      "actual": {
+        "active": true,
+        "headerDisplay": "grid",
+        "headerGridColumns": "74.2812px 283.719px 117px",
+        "statusText": "LIVE",
+        "filterButtonCount": 5,
+        "filterCountBadges": 5,
+        "taskFilterCountText": "1",
+        "activeFilterBackground": "rgba(47, 128, 255, 0.14)",
+        "controlButtonWidth": 32,
+        "sectionLabelText": "NOW",
+        "itemGridColumns": "70px 18px 24px 289px 58px",
+        "itemBorderBottomWidth": "1px",
+        "railBeforeBackground": "rgba(191, 201, 214, 0.18)",
+        "dotCount": 3,
+        "actionCount": 6,
+        "footerDisplay": "flex",
+        "footerText": "リアルタイム接続中最終更新: 11:34:52表示: すべて",
+        "filterClick": {
+          "systemPressed": "true",
+          "activeFilterText": "システム1",
+          "visibleCount": 1,
+          "firstVisibleLabel": "システムイベント",
+          "footerText": "リアルタイム接続中最終更新: 11:34:52表示: システム"
+        }
+      },
+      "expected": "Live Feed tab must use the generated timeline stream with live controls, segmented filters, rail dots, row actions, and footer status"
+    },
+    {
+      "id": "portal_navigation_is_workspace_mode_not_modal",
+      "status": "passed",
+      "actual": {
+        "projectSelectInHeader": true,
+        "projectSelectWidth": 140.1875,
+        "projectSearchInHeader": true,
+        "segmentDisplay": "grid",
+        "segmentWidth": 164,
+        "terminalModeAria": "false",
+        "portalModeAria": "true",
+        "portalModeActive": true,
+        "backButtonExists": true,
+        "closeButtonExists": false,
+        "portalInsideConsole": true,
+        "consoleAreaDisplay": "flex",
+        "terminalStageDisplay": "none"
+      },
+      "expected": "Portal must be a workspace mode with visible project switching and Terminal/Portal controls, not a modal with an X close button"
+    },
+    {
+      "id": "portal_overlay_matches_generated_reference",
+      "status": "passed",
+      "actual": {
+        "open": true,
+        "commandGridDisplay": "grid",
+        "commandGridColumns": "665.031px 403.953px",
+        "kpiGridColumns": "267.25px 267.25px 267.25px 267.25px",
+        "kpiCardBorderRadius": "0px",
+        "kpiCardBoxShadow": "none",
+        "sectionBoxShadow": "none",
+        "sectionBorderBottomWidth": "1px",
+        "valueLoopGridColumns": "166px 166.016px 166px 166.016px",
+        "valueLoopColumnBorderRadius": "0px",
+        "valueLoopCardBorderRadius": "0px",
+        "valueLoopCardBackground": "rgba(0, 0, 0, 0)",
+        "valueLoopCardBoxShadow": "none",
+        "valueLoopTop": 311.46875,
+        "eventsTop": 623.46875,
+        "storyTop": 311.46875,
+        "teamTop": 541.46875,
+        "frameTop": 721.46875,
+        "navigation": {
+          "projectSelectInHeader": true,
+          "projectSelectWidth": 140.1875,
+          "projectSearchInHeader": true,
+          "segmentDisplay": "grid",
+          "segmentWidth": 164,
+          "terminalModeAria": "false",
+          "portalModeAria": "true",
+          "portalModeActive": true,
+          "backButtonExists": true,
+          "closeButtonExists": false,
+          "portalInsideConsole": true,
+          "consoleAreaDisplay": "flex",
+          "terminalStageDisplay": "none"
+        }
+      },
+      "expected": "Portal overlay must match the generated flat command dashboard: KPI strip, asymmetric grid, value-loop table, right story/team/frame stack, and no nested cards"
     },
     {
       "id": "mobile_no_horizontal_overflow",
@@ -239,7 +568,7 @@
       "id": "mobile_uses_updated_css",
       "status": "passed",
       "actual": {
-        "styleHref": "http://localhost:31017/style.css?v=202605071610",
+        "styleHref": "http://localhost:31014/style.css?v=202605081438",
         "mobileTabBorderRadius": "6px"
       },
       "expected": "mobile loads current component stylesheet"

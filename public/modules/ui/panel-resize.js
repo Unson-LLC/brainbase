@@ -13,7 +13,7 @@ const STORAGE_KEYS = {
 
 const DEFAULTS = {
     LEFT: { width: 280, min: 200, max: 400 },
-    RIGHT: { width: 350, min: 280, max: 500 },
+    RIGHT: { width: 524, min: 360, max: 760 },
     COMMIT_TREE: { width: 260, min: 200, max: 400 }
 };
 
@@ -27,7 +27,8 @@ export function initPanelResize() {
     const leftCleanup = initLeftPanelResize();
     if (leftCleanup) cleanupFns.push(leftCleanup);
 
-    // Note: Commit tree panel and context sidebar are now Info Drawer tabs (no standalone resize needed)
+    const infoDrawerCleanup = initInfoDrawerResize();
+    if (infoDrawerCleanup) cleanupFns.push(infoDrawerCleanup);
 
     return () => {
         cleanupFns.forEach(fn => fn());
@@ -57,8 +58,31 @@ function initLeftPanelResize() {
     });
 }
 
-// Note: initCommitTreePanelResize, initCommitTreePanelToggle, initRightPanelResize
-// have been removed — Commit Tree and Context Sidebar are now Info Drawer tabs.
+/**
+ * 右パネル（Info Drawer）のリサイズを初期化
+ */
+function initInfoDrawerResize() {
+    const handle = document.getElementById('info-drawer-resize-handle');
+    const panel = document.getElementById('info-drawer');
+
+    if (!handle || !panel) {
+        console.warn('[PanelResize] Info drawer resize elements not found');
+        return null;
+    }
+
+    return setupHorizontalResize({
+        handle,
+        panel,
+        storageKey: STORAGE_KEYS.RIGHT,
+        minWidth: DEFAULTS.RIGHT.min,
+        maxWidth: DEFAULTS.RIGHT.max,
+        defaultWidth: DEFAULTS.RIGHT.width,
+        direction: 'right'
+    });
+}
+
+// Note: initCommitTreePanelResize and initCommitTreePanelToggle have been removed:
+// Commit Tree and Context Sidebar are now Info Drawer tabs.
 
 /**
  * 水平リサイズのセットアップ
@@ -76,7 +100,7 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
     if (savedWidth) {
         const width = parseInt(savedWidth, 10);
         if (!isNaN(width) && width >= minWidth && width <= maxWidth) {
-            panel.style.width = `${width}px`;
+            applyWidth(width);
         }
     }
 
@@ -96,10 +120,18 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
 
     function updateWidth() {
         if (pendingWidth !== null) {
-            panel.style.width = `${pendingWidth}px`;
+            applyWidth(pendingWidth);
             pendingWidth = null;
         }
         rafId = null;
+    }
+
+    function applyWidth(width) {
+        panel.style.width = `${width}px`;
+        if (direction === 'right') {
+            panel.style.setProperty('--info-drawer-width', `${width}px`);
+            window.dispatchEvent(new Event('resize'));
+        }
     }
 
     function scheduleUpdate(width) {
@@ -149,7 +181,7 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
             rafId = null;
         }
         if (pendingWidth !== null) {
-            panel.style.width = `${pendingWidth}px`;
+            applyWidth(pendingWidth);
             pendingWidth = null;
         }
 
@@ -203,7 +235,7 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
             rafId = null;
         }
         if (pendingWidth !== null) {
-            panel.style.width = `${pendingWidth}px`;
+            applyWidth(pendingWidth);
             pendingWidth = null;
         }
 

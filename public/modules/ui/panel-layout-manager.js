@@ -64,9 +64,14 @@ export function setupPanelLayout({ store, eventBus }) {
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'dashboard', open: next });
     };
 
-    const togglePortalOverlay = () => {
+    const setPortalOverlay = (open) => {
         const panels = store.getState().ui.panels;
-        const next = !panels.portalOverlayOpen;
+        const next = Boolean(open);
+        if (panels.portalOverlayOpen === next) {
+            _applyPortalOverlay(next);
+            return;
+        }
+
         store.setState({
             ui: { ...store.getState().ui, panels: { ...panels, portalOverlayOpen: next, dashboardOpen: false, infoDrawerOpen: false } }
         });
@@ -83,6 +88,13 @@ export function setupPanelLayout({ store, eventBus }) {
             autoProject = currentSession?.project || null;
         }
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'portal-overlay', open: next, autoProject });
+    };
+
+    const openPortalOverlay = () => setPortalOverlay(true);
+    const closePortalOverlay = () => setPortalOverlay(false);
+    const togglePortalOverlay = () => {
+        const panels = store.getState().ui.panels;
+        setPortalOverlay(!panels.portalOverlayOpen);
     };
 
     const closeAllPanels = () => {
@@ -106,6 +118,11 @@ export function setupPanelLayout({ store, eventBus }) {
     function _applyInfoDrawer(open, activeTab) {
         const drawer = getEl('info-drawer');
         if (drawer) drawer.classList.toggle('open', open);
+        const resizeHandle = getEl('info-drawer-resize-handle');
+        if (resizeHandle) {
+            resizeHandle.classList.toggle('hidden', !open);
+            resizeHandle.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
 
         // Update tab content visibility
         const tabs = document.querySelectorAll('.info-drawer-tab');
@@ -137,12 +154,26 @@ export function setupPanelLayout({ store, eventBus }) {
         const overlay = getEl('portal-overlay');
         if (overlay) overlay.classList.toggle('open', open);
 
-        // Hide/show console area (portal replaces it in the same space)
+        // Portal is a workspace mode: keep the shared header visible and swap the stage.
         const consoleArea = getEl('console-area');
-        if (consoleArea) consoleArea.style.display = open ? 'none' : 'flex';
+        if (consoleArea) consoleArea.style.display = 'flex';
+        const terminalStage = getEl('terminal-stage');
+        if (terminalStage) terminalStage.style.display = open ? 'none' : '';
 
         const abPortal = getEl('ab-portal-btn');
         if (abPortal) abPortal.classList.toggle('active', open);
+
+        const terminalMode = getEl('workspace-mode-terminal');
+        const portalMode = getEl('workspace-mode-portal');
+        if (terminalMode) {
+            terminalMode.classList.toggle('active', !open);
+            terminalMode.setAttribute('aria-selected', open ? 'false' : 'true');
+        }
+        if (portalMode) {
+            portalMode.classList.toggle('active', open);
+            portalMode.setAttribute('aria-selected', open ? 'true' : 'false');
+        }
+        document.body.classList.toggle('portal-mode-active', open);
 
         const abSessions = getEl('ab-sessions-btn');
         const infoOpen = store.getState().ui.panels.infoDrawerOpen;
@@ -234,7 +265,7 @@ export function setupPanelLayout({ store, eventBus }) {
     _applyPortalOverlay(initialPanels.portalOverlayOpen || false);
 
     const consoleArea = getEl('console-area');
-    if (consoleArea) consoleArea.style.display = 'flex';
+    if (consoleArea && !initialPanels.portalOverlayOpen) consoleArea.style.display = 'flex';
 
     // --- Cleanup ---
 
@@ -244,7 +275,19 @@ export function setupPanelLayout({ store, eventBus }) {
         unsubCommitTreeReq();
     };
 
-    return { cleanup, toggleInfoDrawer, toggleWiki, toggleLiveFeed, togglePortal, togglePortalOverlay, toggleContextSidebar, toggleDashboard, closeAllPanels };
+    return {
+        cleanup,
+        toggleInfoDrawer,
+        toggleWiki,
+        toggleLiveFeed,
+        togglePortal,
+        openPortalOverlay,
+        closePortalOverlay,
+        togglePortalOverlay,
+        toggleContextSidebar,
+        toggleDashboard,
+        closeAllPanels
+    };
 }
 
 // --- Persistence helpers ---

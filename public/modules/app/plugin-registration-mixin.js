@@ -37,6 +37,9 @@ export function applyPluginRegistrationMixin(AppClass) {
                         const abCommitTreeBtn = document.getElementById('ab-commit-tree-btn');
                         const abTasksBtn = document.getElementById('ab-tasks-btn');
                         const abPortalBtn = document.getElementById('ab-portal-btn');
+                        const workspaceModeTerminalBtn = document.getElementById('workspace-mode-terminal');
+                        const workspaceModePortalBtn = document.getElementById('workspace-mode-portal');
+                        const portalBackTerminalBtn = document.getElementById('portal-back-terminal');
 
                         const onSessionsClick = () => panelLayout.closeAllPanels();
                         const onDashboardClick = () => panelLayout.toggleDashboard();
@@ -44,7 +47,9 @@ export function applyPluginRegistrationMixin(AppClass) {
                         const onLivefeedClick = () => panelLayout.toggleInfoDrawer('live-feed');
                         const onCommitTreeClick = () => panelLayout.toggleInfoDrawer('commit-tree');
                         const onTasksClick = () => panelLayout.toggleInfoDrawer('tasks');
-                        const onPortalClick = () => panelLayout.togglePortalOverlay();
+                        const onPortalClick = () => panelLayout.openPortalOverlay();
+                        const onTerminalModeClick = () => panelLayout.closePortalOverlay();
+                        const onPortalModeClick = () => panelLayout.openPortalOverlay();
 
                         if (abSessionsBtn) abSessionsBtn.addEventListener('click', onSessionsClick);
                         if (abDashboardBtn) abDashboardBtn.addEventListener('click', onDashboardClick);
@@ -53,14 +58,15 @@ export function applyPluginRegistrationMixin(AppClass) {
                         if (abCommitTreeBtn) abCommitTreeBtn.addEventListener('click', onCommitTreeClick);
                         if (abTasksBtn) abTasksBtn.addEventListener('click', onTasksClick);
                         if (abPortalBtn) abPortalBtn.addEventListener('click', onPortalClick);
+                        if (workspaceModeTerminalBtn) workspaceModeTerminalBtn.addEventListener('click', onTerminalModeClick);
+                        if (workspaceModePortalBtn) workspaceModePortalBtn.addEventListener('click', onPortalModeClick);
+                        if (portalBackTerminalBtn) portalBackTerminalBtn.addEventListener('click', onTerminalModeClick);
 
                         // Wire close buttons inside drawer/overlay
                         const infoCloseBtn = document.getElementById('info-drawer-close');
                         const dashCloseBtn = document.getElementById('dashboard-overlay-close');
-                        const portalOvCloseBtn = document.getElementById('portal-overlay-close');
                         if (infoCloseBtn) infoCloseBtn.addEventListener('click', panelLayout.closeAllPanels);
                         if (dashCloseBtn) dashCloseBtn.addEventListener('click', panelLayout.toggleDashboard);
-                        if (portalOvCloseBtn) portalOvCloseBtn.addEventListener('click', panelLayout.togglePortalOverlay);
 
                         return () => {
                             cleanupToggle?.();
@@ -72,9 +78,11 @@ export function applyPluginRegistrationMixin(AppClass) {
                             if (abCommitTreeBtn) abCommitTreeBtn.removeEventListener('click', onCommitTreeClick);
                             if (abTasksBtn) abTasksBtn.removeEventListener('click', onTasksClick);
                             if (abPortalBtn) abPortalBtn.removeEventListener('click', onPortalClick);
+                            if (workspaceModeTerminalBtn) workspaceModeTerminalBtn.removeEventListener('click', onTerminalModeClick);
+                            if (workspaceModePortalBtn) workspaceModePortalBtn.removeEventListener('click', onPortalModeClick);
+                            if (portalBackTerminalBtn) portalBackTerminalBtn.removeEventListener('click', onTerminalModeClick);
                             if (infoCloseBtn) infoCloseBtn.removeEventListener('click', panelLayout.closeAllPanels);
                             if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
-                            if (portalOvCloseBtn) portalOvCloseBtn.removeEventListener('click', panelLayout.togglePortalOverlay);
                         };
                     }
                 },
