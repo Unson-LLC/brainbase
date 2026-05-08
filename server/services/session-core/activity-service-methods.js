@@ -256,6 +256,9 @@ export const activityServiceMethods = {
         const isWorkingStale = lastActiveAt > 0 && (now - lastActiveAt > WORKING_TIMEOUT);
         if (isWorkingStale && activeTurnCount === 0 && !hasDone) return null;
         const hasOpenWorking = normalized.lastWorkingAt > normalized.lastDoneAt;
+        if (this._isTransportReadyEvent(normalized.lastEventType) && activeTurnCount === 0 && !hasOpenWorking) {
+            return null;
+        }
         if (isWorkingStale && (activeTurnCount > 0 || hasOpenWorking)) return null;
         const isWorking = (
             activeTurnCount > 0
@@ -910,9 +913,12 @@ export const activityServiceMethods = {
             'task_complete',
             'codex/event/task_complete',
             'codex/hook/Stop',
-            'codex/pty-shim-ready',
             'turn/completed'
         ].includes(eventType);
+    },
+
+    _isTransportReadyEvent(eventType) {
+        return eventType === 'codex/pty-shim-ready';
     },
 
     _coerceTimestamp(reportedAt) {

@@ -872,11 +872,7 @@ describe('SessionManager', () => {
       turnId: staleTurnId
     });
 
-    expect(manager.getSessionStatus()['session-1']).toMatchObject({
-      isWorking: false,
-      isDone: true,
-      activeTurnCount: 0
-    });
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
   });
 
   it('turn_started後_turn_completedまではassistant_response_completeでもdoneに倒れない', () => {
