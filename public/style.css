@@ -17054,3 +17054,482 @@ body.resizing iframe {
         display: none;
     }
 }
+
+/* Command Center v9: generated Portal overlay reference fidelity. */
+.command-center-theme .portal-overlay {
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 72% 18%, rgba(47, 128, 255, 0.045), transparent 32%),
+        linear-gradient(180deg, rgba(8, 11, 14, 0.995), rgba(6, 8, 11, 0.995));
+}
+
+.command-center-theme .portal-overlay-header {
+    min-height: 60px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.14);
+    background: rgba(8, 10, 13, 0.94);
+}
+
+.command-center-theme .portal-overlay-title {
+    min-width: 0;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 760;
+}
+
+.command-center-theme .portal-overlay-title > i,
+.command-center-theme .portal-overlay-title > svg {
+    display: none;
+}
+
+.command-center-theme .portal-overlay-project-selector {
+    min-width: 260px;
+    height: 34px;
+    margin-left: 10px;
+    border-radius: 5px;
+    font: 600 12px/1.2 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-overlay-actions {
+    gap: 8px;
+}
+
+.command-center-theme .portal-overlay-actions .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 5px;
+}
+
+.command-center-theme .portal-overlay-content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.command-center-theme .portal-overlay-empty {
+    display: grid;
+    min-height: 420px;
+    place-items: center;
+    color: #8b98a8;
+    font-size: 13px;
+}
+
+.command-center-theme .portal-kpi-bar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.14);
+    overflow: visible;
+}
+
+.command-center-theme .portal-kpi-card {
+    min-width: 0;
+    padding: 18px 24px 19px;
+    border: 0;
+    border-right: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme .portal-kpi-card:last-child {
+    border-right: 0;
+}
+
+.command-center-theme .portal-kpi-card-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    color: #9da8b6;
+    font: 760 10.5px/1.1 "Geist Mono", var(--font-mono);
+    letter-spacing: 0.05em;
+}
+
+.command-center-theme .portal-kpi-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #56a0ff;
+}
+
+.command-center-theme .portal-kpi-card[data-tone="green"] .portal-kpi-dot {
+    background: var(--bb-approved-green);
+}
+
+.command-center-theme .portal-kpi-card[data-tone="red"] .portal-kpi-dot {
+    background: var(--bb-red);
+}
+
+.command-center-theme .portal-kpi-card-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+}
+
+.command-center-theme .portal-kpi-card-value {
+    color: #f5f8fc;
+    font: 700 30px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-kpi-card-delta {
+    min-width: 0;
+    overflow: hidden;
+    color: #7f8b9a;
+    font: 560 11px/1.2 "Geist Mono", var(--font-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .portal-command-grid {
+    display: grid;
+    flex: 1;
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.82fr);
+    min-height: 0;
+}
+
+.command-center-theme .portal-command-main,
+.command-center-theme .portal-command-side {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+}
+
+.command-center-theme .portal-command-main {
+    grid-template-rows: minmax(0, 1fr) 238px;
+    border-right: 1px solid rgba(191, 201, 214, 0.14);
+}
+
+.command-center-theme .portal-command-side {
+    grid-template-rows: minmax(230px, 0.95fr) minmax(180px, 0.72fr) minmax(140px, 0.45fr);
+}
+
+.command-center-theme .portal-ov-section {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.14);
+    background: transparent;
+    overflow: hidden;
+}
+
+.command-center-theme .portal-ov-section-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+    color: #f2f5f9;
+}
+
+.command-center-theme .portal-ov-section-header:hover {
+    opacity: 1;
+    background: rgba(47, 128, 255, 0.035);
+}
+
+.command-center-theme .portal-ov-section-header > i,
+.command-center-theme .portal-ov-section-header > svg {
+    display: none;
+}
+
+.command-center-theme .portal-ov-section-title {
+    min-width: 0;
+    overflow: hidden;
+    color: #f3f6fa;
+    font-size: 15px;
+    font-weight: 760;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .portal-ov-section-badge {
+    margin-left: 0;
+    border-radius: 4px;
+    background: rgba(191, 201, 214, 0.06);
+    font: 650 10.5px/1.2 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-ov-section-content {
+    height: calc(100% - 48px);
+    min-height: 0;
+    overflow: auto;
+}
+
+.command-center-theme .portal-vl-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    height: 100%;
+    padding: 0;
+    gap: 0;
+}
+
+.command-center-theme .portal-vl-column {
+    min-height: 0;
+    border: 0;
+    border-right: 1px solid rgba(191, 201, 214, 0.12);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme .portal-vl-column:last-child {
+    border-right: 0;
+}
+
+.command-center-theme .portal-vl-column-header {
+    min-height: 38px;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.1);
+    color: #dfe7f0;
+    font: 760 12px/1.1 "Geist", var(--font-sans);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.command-center-theme .portal-vl-count {
+    border-radius: 4px;
+    background: rgba(191, 201, 214, 0.06);
+    color: #a8b3c1;
+    font-family: "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-vl-items {
+    gap: 0;
+    padding: 0;
+}
+
+.command-center-theme .portal-vl-card,
+.command-center-theme .portal-team-card {
+    margin: 0;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.09);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.command-center-theme .portal-vl-card:hover,
+.command-center-theme .portal-team-card:hover {
+    border-color: rgba(191, 201, 214, 0.12);
+    background: rgba(47, 128, 255, 0.04);
+    transform: none;
+}
+
+.command-center-theme .portal-vl-card-title {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #edf3fa;
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.command-center-theme .portal-vl-card-meta {
+    margin-top: 5px;
+    color: #7f8b9a;
+    font: 560 10.5px/1.35 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-events-timeline {
+    display: grid;
+    padding: 0;
+    border-left: 0;
+}
+
+.command-center-theme .portal-event-item {
+    display: grid;
+    position: relative;
+    grid-template-columns: 74px 18px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.09);
+    color: #dfe7f0;
+}
+
+.command-center-theme .portal-event-item::before {
+    content: "";
+    display: block;
+    grid-column: 2;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #56a0ff;
+    box-shadow: 0 0 0 3px rgba(86, 160, 255, 0.1);
+}
+
+.command-center-theme details.portal-event-item {
+    display: block;
+    padding: 0;
+}
+
+.command-center-theme details.portal-event-item::before {
+    position: absolute;
+    top: 15px;
+    left: 94px;
+}
+
+.command-center-theme details.portal-event-item > summary {
+    display: grid;
+    grid-template-columns: 74px 18px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 0 20px;
+}
+
+.command-center-theme .portal-event-date {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+    color: #8f9aaa;
+    font: 560 11px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-story-tree {
+    padding: 0;
+}
+
+.command-center-theme .portal-story-node {
+    display: grid;
+    grid-template-columns: 10px 58px minmax(0, 1fr) 70px;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    margin: 0;
+    padding: 0 20px !important;
+    border-left: 0;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.09);
+}
+
+.command-center-theme .portal-story-horizon {
+    grid-column: 2;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #8f9aaa;
+    font: 650 10.5px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .portal-story-status {
+    grid-column: 1;
+    width: 9px;
+    height: 9px;
+}
+
+.command-center-theme .portal-story-progress {
+    grid-column: 4;
+    width: 64px;
+    margin: 0;
+    background: rgba(191, 201, 214, 0.14);
+}
+
+.command-center-theme .portal-story-node > span:nth-child(3) {
+    min-width: 0;
+    overflow: hidden;
+    color: #dfe7f0;
+    font-size: 12px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .portal-team-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 0;
+}
+
+.command-center-theme .portal-team-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 42px;
+}
+
+.command-center-theme .portal-team-name {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: #edf3fa;
+    font-size: 12.5px;
+    font-weight: 680;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .portal-team-role {
+    grid-column: 1;
+    margin: 0;
+    color: #7f8b9a;
+}
+
+.command-center-theme .portal-team-stats {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+}
+
+.command-center-theme .portal-frame-summary,
+.command-center-theme .portal-frame-full {
+    padding: 14px 20px;
+    color: #a8b3c1;
+    font-size: 12px;
+}
+
+.command-center-theme .portal-vl-empty,
+.command-center-theme .portal-events-empty {
+    display: grid;
+    min-height: 96px;
+    place-items: center;
+    color: #667382;
+}
+
+@media (max-width: 1100px) {
+    .command-center-theme .portal-command-grid {
+        grid-template-columns: 1fr;
+        overflow: auto;
+    }
+
+    .command-center-theme .portal-command-main,
+    .command-center-theme .portal-command-side {
+        display: block;
+    }
+
+    .command-center-theme .portal-ov-section {
+        min-height: 260px;
+    }
+}
+
+@media (max-width: 760px) {
+    .command-center-theme .portal-overlay-header {
+        padding: 0 12px;
+    }
+
+    .command-center-theme .portal-overlay-project-selector {
+        min-width: 0;
+        width: 150px;
+    }
+
+    .command-center-theme .portal-kpi-bar,
+    .command-center-theme .portal-vl-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .command-center-theme .portal-kpi-card,
+    .command-center-theme .portal-vl-column {
+        border-right: 0;
+        border-bottom: 1px solid rgba(191, 201, 214, 0.12);
+    }
+}

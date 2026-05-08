@@ -5,7 +5,7 @@ import { chromium, devices } from 'playwright';
 
 const DEFAULT_URL = 'http://localhost:31014';
 const DEFAULT_RUN_DIR = 'docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260507-101513-command-center-redesign';
-const EXPECTED_CSS_VERSION = '202605081021';
+const EXPECTED_CSS_VERSION = '202605081053';
 
 function includesAll(value, needles) {
   const text = String(value || '');
@@ -272,6 +272,54 @@ async function collectDesktopEvidence(page) {
           if (footerFilter) footerFilter.textContent = `表示: ${label}`;
         });
       });
+      window.lucide?.createIcons?.();
+    }
+
+    function ensureSamplePortal() {
+      const overlay = document.querySelector('#portal-overlay');
+      const panel = document.querySelector('#portal-overlay-panel');
+      if (!overlay || !panel) return;
+
+      const drawer = document.querySelector('#info-drawer');
+      drawer?.classList.remove('open');
+      if (drawer) drawer.style.display = 'none';
+      overlay.classList.add('open');
+      if (panel.querySelector('.portal-command-grid')) return;
+
+      panel.innerHTML = `
+        <div class="portal-overlay-content">
+          <div class="portal-kpi-bar">
+            <div class="portal-kpi-card" data-tone="blue"><div class="portal-kpi-card-label"><span class="portal-kpi-dot"></span>Open Decisions</div><div class="portal-kpi-card-row"><div class="portal-kpi-card-value">7</div><div class="portal-kpi-card-delta">7 in loop</div></div></div>
+            <div class="portal-kpi-card" data-tone="green"><div class="portal-kpi-card-label"><span class="portal-kpi-dot"></span>Active Work</div><div class="portal-kpi-card-row"><div class="portal-kpi-card-value success">12</div><div class="portal-kpi-card-delta">12 running</div></div></div>
+            <div class="portal-kpi-card" data-tone="red"><div class="portal-kpi-card-label"><span class="portal-kpi-dot"></span>Blocked</div><div class="portal-kpi-card-row"><div class="portal-kpi-card-value danger">2</div><div class="portal-kpi-card-delta">needs decision</div></div></div>
+            <div class="portal-kpi-card" data-tone="blue"><div class="portal-kpi-card-label"><span class="portal-kpi-dot"></span>Shipped</div><div class="portal-kpi-card-row"><div class="portal-kpi-card-value">5</div><div class="portal-kpi-card-delta">5 releases</div></div></div>
+          </div>
+          <div class="portal-command-grid">
+            <div class="portal-command-main">
+              <section class="portal-ov-section portal-ov-value-loop" data-section="valueLoop">
+                <div class="portal-ov-section-header"><i data-lucide="repeat"></i><span class="portal-ov-section-title">Value Loop</span><span class="portal-ov-section-badge">D:3 W:5 S:2 L:1</span></div>
+                <div class="portal-ov-section-content">
+                  <div class="portal-vl-grid">
+                    <div class="portal-vl-column" data-phase="decision"><div class="portal-vl-column-header"><span>Decision</span><span class="portal-vl-count">3</span></div><div class="portal-vl-items"><div class="portal-vl-card"><div class="portal-vl-card-title">Auth model decision</div><div class="portal-vl-card-meta"><span>impact high</span><span>@owner</span></div></div></div></div>
+                    <div class="portal-vl-column" data-phase="work"><div class="portal-vl-column-header"><span>Work</span><span class="portal-vl-count">5</span></div><div class="portal-vl-items"><div class="portal-vl-card"><div class="portal-vl-card-title">Portal overlay implementation</div><div class="portal-vl-card-meta"><span>進行中</span><span>@operator</span></div></div></div></div>
+                    <div class="portal-vl-column" data-phase="ship"><div class="portal-vl-column-header"><span>Ship</span><span class="portal-vl-count">2</span></div><div class="portal-vl-items"><div class="portal-vl-card"><div class="portal-vl-card-title">Command center release</div><div class="portal-vl-card-meta"><span>release</span><span>shipped</span></div></div></div></div>
+                    <div class="portal-vl-column" data-phase="learn"><div class="portal-vl-column-header"><span>Learn</span><span class="portal-vl-count">1</span></div><div class="portal-vl-items"><div class="portal-vl-card"><div class="portal-vl-card-title">Flat rows scan faster</div><div class="portal-vl-card-meta"><span>Sprint review</span></div></div></div></div>
+                  </div>
+                </div>
+              </section>
+              <section class="portal-ov-section portal-ov-events" data-section="events">
+                <div class="portal-ov-section-header"><i data-lucide="activity"></i><span class="portal-ov-section-title">Recent Events</span><span class="portal-ov-section-badge">4 this week</span></div>
+                <div class="portal-ov-section-content"><div class="portal-events-timeline"><div class="portal-event-item" data-type="ship"><span>Ship</span><span>Portal reference implemented</span><span class="portal-event-date">5月8日</span></div></div></div>
+              </section>
+            </div>
+            <aside class="portal-command-side">
+              <section class="portal-ov-section portal-ov-story" data-section="storyMap"><div class="portal-ov-section-header"><i data-lucide="git-branch"></i><span class="portal-ov-section-title">Story Map</span></div><div class="portal-ov-section-content"><div class="portal-story-tree"><div class="portal-story-node"><span class="portal-story-status active"></span><span class="portal-story-horizon">Q</span><span>Portal is an operator dashboard</span><div class="portal-story-progress"><div class="portal-story-progress-fill" style="width:72%"></div></div></div></div></div></section>
+              <section class="portal-ov-section portal-ov-team" data-section="team"><div class="portal-ov-section-header"><i data-lucide="users"></i><span class="portal-ov-section-title">Team / RACI</span><span class="portal-ov-section-badge">3</span></div><div class="portal-ov-section-content"><div class="portal-team-grid"><div class="portal-team-card"><div class="portal-team-name">Operator K</div><div class="portal-team-role">Owner / A</div><div class="portal-team-stats"><span class="portal-team-stat">4件</span></div></div></div></div></section>
+              <section class="portal-ov-section portal-ov-frame" data-section="frame"><div class="portal-ov-section-header"><i data-lucide="target"></i><span class="portal-ov-section-title">Frame</span></div><div class="portal-ov-section-content"><div class="portal-frame-summary">North star, enemy, criteria, and current operating frame.</div></div></section>
+            </aside>
+          </div>
+        </div>
+      `;
       window.lucide?.createIcons?.();
     }
 
@@ -601,6 +649,34 @@ async function collectDesktopEvidence(page) {
               footerText: document.querySelector('#live-feed-panel .live-feed-footer')?.textContent?.trim() ?? '',
             };
           })(),
+        };
+      })(),
+      portalOverlay: (() => {
+        ensureSamplePortal();
+        const valueLoop = document.querySelector('.portal-ov-value-loop');
+        const events = document.querySelector('.portal-ov-events');
+        const story = document.querySelector('.portal-ov-story');
+        const team = document.querySelector('.portal-ov-team');
+        const frame = document.querySelector('.portal-ov-frame');
+        return {
+          open: document.querySelector('#portal-overlay')?.classList.contains('open') ?? false,
+          commandGridDisplay: style('#portal-overlay .portal-command-grid', 'display'),
+          commandGridColumns: style('#portal-overlay .portal-command-grid', 'grid-template-columns'),
+          kpiGridColumns: style('#portal-overlay .portal-kpi-bar', 'grid-template-columns'),
+          kpiCardBorderRadius: style('#portal-overlay .portal-kpi-card', 'border-radius'),
+          kpiCardBoxShadow: style('#portal-overlay .portal-kpi-card', 'box-shadow'),
+          sectionBoxShadow: style('#portal-overlay .portal-ov-section', 'box-shadow'),
+          sectionBorderBottomWidth: style('#portal-overlay .portal-ov-section', 'border-bottom-width'),
+          valueLoopGridColumns: style('#portal-overlay .portal-vl-grid', 'grid-template-columns'),
+          valueLoopColumnBorderRadius: style('#portal-overlay .portal-vl-column', 'border-radius'),
+          valueLoopCardBorderRadius: style('#portal-overlay .portal-vl-card', 'border-radius'),
+          valueLoopCardBackground: style('#portal-overlay .portal-vl-card', 'background-color'),
+          valueLoopCardBoxShadow: style('#portal-overlay .portal-vl-card', 'box-shadow'),
+          valueLoopTop: valueLoop?.getBoundingClientRect().top ?? null,
+          eventsTop: events?.getBoundingClientRect().top ?? null,
+          storyTop: story?.getBoundingClientRect().top ?? null,
+          teamTop: team?.getBoundingClientRect().top ?? null,
+          frameTop: frame?.getBoundingClientRect().top ?? null,
         };
       })(),
     };
@@ -985,6 +1061,27 @@ function buildChecks(desktop, mobile) {
         && desktop.liveFeed.filterClick.footerText.includes('表示: システム'),
       desktop.liveFeed,
       'Live Feed tab must use the generated timeline stream with live controls, segmented filters, rail dots, row actions, and footer status',
+    ),
+    createCheck(
+      'portal_overlay_matches_generated_reference',
+      desktop.portalOverlay.open === true
+        && desktop.portalOverlay.commandGridDisplay === 'grid'
+        && desktop.portalOverlay.kpiGridColumns.split(' ').length >= 4
+        && desktop.portalOverlay.commandGridColumns.split(' ').length >= 2
+        && desktop.portalOverlay.kpiCardBoxShadow === 'none'
+        && pxNumber(desktop.portalOverlay.kpiCardBorderRadius) === 0
+        && desktop.portalOverlay.sectionBoxShadow === 'none'
+        && desktop.portalOverlay.sectionBorderBottomWidth === '1px'
+        && desktop.portalOverlay.valueLoopGridColumns.split(' ').length >= 4
+        && pxNumber(desktop.portalOverlay.valueLoopColumnBorderRadius) === 0
+        && pxNumber(desktop.portalOverlay.valueLoopCardBorderRadius) === 0
+        && desktop.portalOverlay.valueLoopCardBoxShadow === 'none'
+        && includesAll(desktop.portalOverlay.valueLoopCardBackground, ['0, 0, 0, 0'])
+        && desktop.portalOverlay.eventsTop > desktop.portalOverlay.valueLoopTop
+        && desktop.portalOverlay.storyTop < desktop.portalOverlay.teamTop
+        && desktop.portalOverlay.teamTop < desktop.portalOverlay.frameTop,
+      desktop.portalOverlay,
+      'Portal overlay must match the generated flat command dashboard: KPI strip, asymmetric grid, value-loop table, right story/team/frame stack, and no nested cards',
     ),
     createCheck(
       'mobile_no_horizontal_overflow',

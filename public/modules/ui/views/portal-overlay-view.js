@@ -47,8 +47,7 @@ export class PortalOverlayView extends BaseView {
 
         this.container.innerHTML = `
             <div class="portal-overlay-content">
-                ${data ? this._renderKPIBar(data) : ''}
-                ${data ? this._renderSections(data) : this._renderEmpty()}
+                ${data ? this._renderPortalShell(data) : this._renderEmpty()}
             </div>
         `;
 
@@ -61,35 +60,86 @@ export class PortalOverlayView extends BaseView {
     }
 
     _renderEmpty() {
-        return '<div style="padding:64px 0;text-align:center;color:var(--text-secondary)">プロジェクトを選択してください</div>';
+        return '<div class="portal-overlay-empty">プロジェクトを選択してください</div>';
+    }
+
+    _renderPortalShell(data) {
+        return `
+            ${this._renderKPIBar(data)}
+            <div class="portal-command-grid">
+                <div class="portal-command-main">
+                    ${this._renderSection({
+                        id: 'valueLoop',
+                        title: 'Value Loop',
+                        icon: 'repeat',
+                        badge: this._vlBadge(data),
+                        className: 'portal-ov-value-loop',
+                        render: () => renderValueLoopSection(data.valueLoop, { escapeHtml: this._escapeHtml })
+                    })}
+                    ${this._renderSection({
+                        id: 'events',
+                        title: 'Recent Events',
+                        icon: 'activity',
+                        badge: data.events?.stats?.thisWeek ? `${data.events.stats.thisWeek} this week` : '',
+                        className: 'portal-ov-events',
+                        render: () => renderEventsSection(data.events, { escapeHtml: this._escapeHtml })
+                    })}
+                </div>
+                <aside class="portal-command-side">
+                    ${this._renderSection({
+                        id: 'storyMap',
+                        title: 'Story Map',
+                        icon: 'git-branch',
+                        className: 'portal-ov-story',
+                        render: () => renderStoryMapSection(data.storyMap, { escapeHtml: this._escapeHtml })
+                    })}
+                    ${this._renderSection({
+                        id: 'team',
+                        title: 'Team / RACI',
+                        icon: 'users',
+                        badge: `${(data.members || data.team?.members || []).length}`,
+                        className: 'portal-ov-team',
+                        render: () => renderTeamSection(data.members || data.team?.members || [], data.tasks, { escapeHtml: this._escapeHtml })
+                    })}
+                    ${this._renderSection({
+                        id: 'frame',
+                        title: 'Frame',
+                        icon: 'target',
+                        className: 'portal-ov-frame',
+                        render: () => renderFrameSection(data.frame, data.direction, { renderMarkdown: this._renderMarkdown.bind(this), escapeHtml: this._escapeHtml })
+                    })}
+                </aside>
+            </div>
+        `;
     }
 
     _renderKPIBar(data) {
-        const health = data.health?.score ?? 0;
-        const healthClass = health >= 70 ? 'success' : health >= 50 ? 'warning' : 'danger';
-
+        const openDecisions = (data.valueLoop?.decision?.milestones?.length || 0)
+            + (data.valueLoop?.decision?.issues?.length || 0)
+            + (data.valueLoop?.decision?.decisions?.length || 0);
         const blocked = (data.tasks?.items || []).filter(t => t.status === 'ブロック' || t.status === '保留').length;
-        const shipped = (data.valueLoop?.ship?.items || []).filter(s => s.status === 'shipped').length;
-        const activeTasks = (data.tasks?.items || []).filter(t => t.status !== '完了').length;
+        const shipped = (data.valueLoop?.ship?.items || []).length;
+        const activeWork = (data.valueLoop?.work?.tasks || []).filter(t => t.status !== '完了').length
+            || (data.tasks?.items || []).filter(t => t.status !== '完了').length;
+
+        const metrics = [
+            { label: 'Open Decisions', value: openDecisions, tone: 'blue', delta: `${openDecisions} in loop` },
+            { label: 'Active Work', value: activeWork, tone: 'green', delta: `${activeWork} running` },
+            { label: 'Blocked', value: blocked, tone: 'red', delta: blocked ? 'needs decision' : 'clear' },
+            { label: 'Shipped', value: shipped, tone: 'blue', delta: `${shipped} releases` }
+        ];
 
         return `
             <div class="portal-kpi-bar">
-                <div class="portal-kpi-card">
-                    <div class="portal-kpi-card-label">Health</div>
-                    <div class="portal-kpi-card-value ${healthClass}">${health}</div>
-                </div>
-                <div class="portal-kpi-card">
-                    <div class="portal-kpi-card-label">Blocked</div>
-                    <div class="portal-kpi-card-value ${blocked > 0 ? 'danger' : ''}">${blocked}</div>
-                </div>
-                <div class="portal-kpi-card">
-                    <div class="portal-kpi-card-label">Shipped</div>
-                    <div class="portal-kpi-card-value ${shipped > 0 ? 'success' : ''}">${shipped}</div>
-                </div>
-                <div class="portal-kpi-card">
-                    <div class="portal-kpi-card-label">Active Tasks</div>
-                    <div class="portal-kpi-card-value">${activeTasks}</div>
-                </div>
+                ${metrics.map(m => `
+                    <div class="portal-kpi-card" data-tone="${m.tone}">
+                        <div class="portal-kpi-card-label"><span class="portal-kpi-dot"></span>${m.label}</div>
+                        <div class="portal-kpi-card-row">
+                            <div class="portal-kpi-card-value ${m.tone === 'red' ? 'danger' : m.tone === 'green' ? 'success' : ''}">${m.value}</div>
+                            <div class="portal-kpi-card-delta">${m.delta}</div>
+                        </div>
+                    </div>
+                `).join('')}
             </div>
         `;
     }
@@ -117,14 +167,14 @@ export class PortalOverlayView extends BaseView {
     }
 
     /**
-     * @param {{ id: string, title: string, icon: string, badge?: string, render: () => string }} section
+     * @param {{ id: string, title: string, icon: string, badge?: string, className?: string, render: () => string }} section
      */
-    _renderSection({ id, title, icon, badge, render }) {
+    _renderSection({ id, title, icon, badge, className = '', render }) {
         const collapsed = this._collapsedSections.has(id);
         const chevron = collapsed ? 'chevron-right' : 'chevron-down';
 
         return `
-            <div class="portal-ov-section ${collapsed ? 'collapsed' : ''}" data-section="${id}">
+            <section class="portal-ov-section ${className} ${collapsed ? 'collapsed' : ''}" data-section="${id}">
                 <div class="portal-ov-section-header" data-toggle="${id}">
                     <i data-lucide="${chevron}"></i>
                     <i data-lucide="${icon}"></i>
@@ -134,7 +184,7 @@ export class PortalOverlayView extends BaseView {
                 <div class="portal-ov-section-content">
                     ${render()}
                 </div>
-            </div>
+            </section>
         `;
     }
 
