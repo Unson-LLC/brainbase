@@ -5,7 +5,6 @@ import { TaskParser } from '../../lib/task-parser.js';
 import { ScheduleParser } from '../../lib/schedule-parser.js';
 import { SqliteStore as StateStore } from '../../lib/sqlite-store.js';
 import { ConfigParser } from '../../lib/config-parser.js';
-import { InboxParser } from '../../lib/inbox-parser.js';
 import { createSessionServices } from '../services/create-session-services.js';
 import { ArchiveFinalizerService } from '../services/archive-finalizer-service.js';
 import { TerminalTransportService } from '../services/terminal-transport-service.js';
@@ -36,7 +35,6 @@ export function createCoreServices({
     worktreesDir,
     codexPath,
     configPath,
-    inboxFile,
     uploadsDir,
     serverDir,
     execPromise,
@@ -52,7 +50,6 @@ export function createCoreServices({
     const stateStore = new StateStore(stateFile, brainbaseRoot);
     const configParser = new ConfigParser(codexPath, configPath, brainbaseRoot, projectsRoot);
     const configService = new ConfigService(configPath, projectsRoot);
-    const inboxParser = new InboxParser(inboxFile);
     const infoSSOTService = new InfoSSOTService();
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
@@ -157,7 +154,6 @@ export function createCoreServices({
         stateStore,
         configParser,
         configService,
-        inboxParser,
         infoSSOTService,
         authService,
         wikiService,

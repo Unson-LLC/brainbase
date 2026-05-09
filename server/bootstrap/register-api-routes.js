@@ -2,7 +2,6 @@ import path from 'path';
 import { createTaskRouter } from '../routes/tasks.js';
 import { createStateRouter } from '../routes/state.js';
 import { createConfigRouter } from '../routes/config.js';
-import { createInboxRouter } from '../routes/inbox.js';
 import { createScheduleRouter } from '../routes/schedule.js';
 import { createSessionRouter } from '../routes/sessions.js';
 import { createBrainbaseRouter } from '../routes/brainbase.js';
@@ -25,7 +24,6 @@ export function registerApiRoutes(app, {
     configParser,
     configService,
     runtimePaths,
-    inboxParser,
     scheduleParser,
     googleCalendarService,
     worktreeService,
@@ -53,7 +51,6 @@ export function registerApiRoutes(app, {
         testMode
     ));
     app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths));
-    app.use('/api/inbox', createInboxRouter(inboxParser));
     app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
     app.use('/api/sessions', createSessionRouter(
         sessionServices,

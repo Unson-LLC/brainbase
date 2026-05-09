@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro Impact Report - inbox pending removal</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f17;
+      --panel: #121a28;
+      --panel-2: #172235;
+      --text: #e6edf7;
+      --muted: #94a3b8;
+      --line: #2a3a52;
+      --ok: #4ade80;
+      --warn: #facc15;
+      --accent: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 14px;
+      color: var(--muted);
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    p { margin: 0 0 12px; }
+    code {
+      background: #07101f;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: #bfdbfe;
+      padding: 1px 5px;
+    }
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    li { margin: 4px 0; }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+    }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 9px;
+      background: #0f172a;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0 24px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .metric {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--ok);
+      line-height: 1.2;
+    }
+    .label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin: 14px 0;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .status-ok { color: var(--ok); font-weight: 700; }
+    .status-warn { color: var(--warn); font-weight: 700; }
+    .accent { color: var(--accent); }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    .table th,
+    .table td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .table th { color: var(--muted); font-weight: 600; }
+    @media (max-width: 760px) {
+      main { padding: 22px 14px 40px; }
+      .grid,
+      .columns { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>VibePro Impact Report</h1>
+      <div class="meta">
+        <span class="pill">run: vibepro-brainbase-20260510-inbox-pending-removal</span>
+        <span class="pill">target: brainbase</span>
+        <span class="pill">frame: frm_vibepro</span>
+        <span class="pill">status: completed_with_residual_risk</span>
+      </div>
+    </header>
+
+    <section class="section">
+      <h2>対象</h2>
+      <p><code>_inbox/pending.md</code> を Brainbase runtime から使わないようにする変更。</p>
+      <p>Inbox UI 全体の削除ではなく、file-backed notification source の廃止に限定する。Learning candidate と learning health alert は引き続き Inbox UI に表示する。</p>
+    </section>
+
+    <div class="grid">
+      <div class="card">
+        <div class="metric">1.00</div>
+        <div class="label">本番化ギャップ捕捉率</div>
+      </div>
+      <div class="card">
+        <div class="metric">1.00</div>
+        <div class="label">本番化ギャップ的中率</div>
+      </div>
+      <div class="card">
+        <div class="metric">0.00</div>
+        <div class="label">ゲート違反流出率</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h2>判定</h2>
+      <p><span class="status-ok">targeted_success</span></p>
+      <p><code>_inbox/pending.md</code> の runtime 使用廃止は完了。Inbox UI の現行用途である Learning / health 通知は維持している。</p>
+    </section>
+
+    <section class="section">
+      <h2>削除した経路</h2>
+      <div class="columns">
+        <div>
+          <h3>Server</h3>
+          <ul>
+            <li><code>server.js</code> の <code>INBOX_FILE</code></li>
+            <li><code>server/bootstrap/core-services.js</code> の <code>InboxParser</code> 生成</li>
+            <li><code>server/bootstrap/register-api-routes.js</code> の <code>/api/inbox</code> 登録</li>
+            <li><code>server/routes/inbox.js</code></li>
+            <li><code>server/controllers/inbox-controller.js</code></li>
+            <li><code>lib/inbox-parser.js</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Client / Docs</h3>
+          <ul>
+            <li>UI の <code>/api/inbox/pending</code> 読み込み</li>
+            <li>file-backed 通知表示</li>
+            <li>Slack mention 変換</li>
+            <li>確認済み操作</li>
+            <li><code>INBOX_ITEM_COMPLETED</code> event</li>
+            <li>legacy commands の <code>_inbox/pending.md</code> 追記指示</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>残した経路</h2>
+      <ul>
+        <li><code>InboxService.loadInbox()</code> は <code>/api/learning/promotions?status=evaluated&amp;apply_mode=manual</code> と <code>/api/learning/health</code> を読む</li>
+        <li><code>InboxView</code> は learning candidate と health alert を描画する</li>
+        <li><code>INBOX_LOADED</code> event は残す</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>検証</h2>
+      <table class="table">
+        <thead>
+          <tr><th>Check</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>npx vitest run tests/domain/inbox/inbox-service.test.js tests/ui/views/inbox-view.test.js tests/api/server-endpoints.test.js</code></td>
+            <td><span class="status-ok">31 passed</span></td>
+          </tr>
+          <tr>
+            <td>touched JS lint</td>
+            <td><span class="status-ok">passed</span></td>
+          </tr>
+          <tr>
+            <td><code>git diff --check</code></td>
+            <td><span class="status-ok">passed</span></td>
+          </tr>
+          <tr>
+            <td>temporary server on <code>31014</code>, <code>/api/inbox/pending</code></td>
+            <td><span class="status-ok">404</span></td>
+          </tr>
+          <tr>
+            <td>VibePro score pipeline</td>
+            <td><span class="status-ok">scored</span></td>
+          </tr>
+          <tr>
+            <td>VibePro doc trace / development DAG</td>
+            <td><span class="status-ok">passed</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>残参照</h2>
+      <p>runtime / test / command / current architecture docs からは <code>_inbox/pending.md</code>, <code>/api/inbox</code>, <code>InboxParser</code>, <code>inboxParser</code>, <code>INBOX_ITEM_COMPLETED</code> を除去済み。</p>
+      <ul>
+        <li><code>docs/internal/MIGRATION_2025-12-31.md</code>: historical migration doc</li>
+        <li><code>.gitignore</code>: ignored runtime/private file pattern</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>残リスク</h2>
+      <ul>
+        <li><code>localhost:31013</code> は別 checkout から起動中で、この worktree の変更はまだ未反映</li>
+        <li>working copy には terminal/input 系の既存 dirty changes が残っている</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

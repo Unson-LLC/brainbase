@@ -619,7 +619,6 @@ export const EVENTS = {
 
     // Inbox
     INBOX_LOADED: 'inbox:loaded',
-    INBOX_ITEM_COMPLETED: 'inbox:item-completed'
 };
 ```
 

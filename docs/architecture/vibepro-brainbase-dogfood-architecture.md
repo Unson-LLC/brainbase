@@ -85,6 +85,7 @@ DAGでは上流ノードが失敗・欠落しているのに下流ノードを�
 | `vibepro-brainbase-20260506-212000-score-evidence-advisory-workflow` | `vibepro-dogfood/control-plane/20260506-score-evidence-advisory-workflow` | scorer workflow を生成型CIではなく、VibePro関連変更時だけコミット済み score evidence を検証する advisory check として接続する | `development-run.json` と `.github/workflows/vibepro-score-run.yml` |
 | `vibepro-brainbase-20260507-101513-command-center-redesign` | `vibepro-dogfood/ui-design/20260507-command-center-redesign` | accepted component sheet を実装ソースとして、Brainbase UIのgraphite/cobalt command-center化をVibePro run evidenceで閉じる | `development-run.json` と Playwright desktop/mobile visual smoke evidence |
 | `vibepro-brainbase-20260507-135000-conversation-linker-load-shedding` | `vibepro-dogfood/runtime-load/20260507-conversation-linker-load-shedding` | Lokiで見えた ConversationLinker の周期I/Oと heartbeat log volume を、Story / Spec / Test / Code / run evidence で閉じる | `development-run.json` と PR #616 |
+| `vibepro-brainbase-20260510-inbox-pending-removal` | `vibepro-dogfood/inbox-cleanup/20260510-inbox-pending-removal` | obsolete file-backed Inbox source を runtime から外し、現行 Learning/health Inbox を残す | `development-run.json` と scorer 出力 |
 
 ## 原則
 

@@ -61,10 +61,6 @@ describe('Server Endpoints - Active Routes', () => {
             expect(true).toBe(true); // プレースホルダー
         });
 
-        it('InboxRouter endpoints should be accessible via /api/inbox', async () => {
-            expect(true).toBe(true); // プレースホルダー
-        });
-
         it('SessionRouter endpoints should be accessible via /api/sessions', async () => {
             expect(true).toBe(true); // プレースホルダー
         });

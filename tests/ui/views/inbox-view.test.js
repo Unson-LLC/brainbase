@@ -10,8 +10,6 @@ vi.mock('../../../public/modules/domain/inbox/inbox-service.js', () => {
         InboxService: class MockInboxService {
             constructor() {
                 this.loadInbox = vi.fn();
-                this.markAsDone = vi.fn();
-                this.markAllAsDone = vi.fn();
                 this.getInboxCount = vi.fn(() => 0);
             }
         }
@@ -109,8 +107,8 @@ describe('InboxView', () => {
 
         it('render呼び出し時_inbox項目あり_項目が表示される', () => {
             const items = [
-                { id: '1', kind: 'notification', message: 'Test Message 1', sender: 'Alice', channel: 'general' },
-                { id: '2', kind: 'notification', message: 'Test Message 2', sender: 'Bob', channel: 'random' }
+                { id: '1', candidateId: '1', kind: 'learning', title: 'Test Message 1', sourcePreview: 'Alice', pillar: 'skill' },
+                { id: '2', candidateId: '2', kind: 'learning', title: 'Test Message 2', sourcePreview: 'Bob', pillar: 'skill' }
             ];
             appStore.setState({ inbox: items });
 
@@ -119,15 +117,13 @@ describe('InboxView', () => {
             const inboxList = document.getElementById('inbox-list');
             expect(inboxList.innerHTML).toContain('Test Message 1');
             expect(inboxList.innerHTML).toContain('Alice');
-            expect(inboxList.innerHTML).toContain('#general');
             expect(inboxList.innerHTML).toContain('Test Message 2');
             expect(inboxList.innerHTML).toContain('Bob');
-            expect(inboxList.innerHTML).toContain('#random');
         });
 
         it('render呼び出し時_HTMLエスケープが適用される', () => {
             const items = [
-                { id: '1', kind: 'notification', message: '<script>alert("XSS")</script>', sender: 'Hacker', channel: 'test' }
+                { id: '1', candidateId: '1', kind: 'learning', title: '<script>alert("XSS")</script>', sourcePreview: 'Hacker', pillar: 'skill' }
             ];
             appStore.setState({ inbox: items });
 
@@ -136,19 +132,6 @@ describe('InboxView', () => {
             const inboxList = document.getElementById('inbox-list');
             expect(inboxList.innerHTML).not.toContain('<script>');
             expect(inboxList.innerHTML).toContain('&lt;script&gt;');
-        });
-
-        it('render呼び出し時_slackUrlがある場合_リンクが表示される', () => {
-            const items = [
-                { id: '1', kind: 'notification', message: 'Test', sender: 'User', channel: 'general', slackUrl: 'https://slack.com/archives/C123' }
-            ];
-            appStore.setState({ inbox: items });
-
-            inboxView.render();
-
-            const inboxList = document.getElementById('inbox-list');
-            expect(inboxList.innerHTML).toContain('Slackで開く');
-            expect(inboxList.innerHTML).toContain('https://slack.com/archives/C123');
         });
 
         it('render呼び出し時_learning candidate は日本語ラベルで表示される', () => {
@@ -199,7 +182,7 @@ describe('InboxView', () => {
             inboxView.mount();
 
             const items = [
-                { id: '1', kind: 'notification', message: 'Test', sender: 'User', channel: 'general' }
+                { id: '1', candidateId: '1', kind: 'learning', title: 'Test', sourcePreview: 'User', pillar: 'skill' }
             ];
             appStore.setState({ inbox: items }); // mount後にstateを設定（Store購読でrender()が呼ばれる）
         });
@@ -237,25 +220,12 @@ describe('InboxView', () => {
             expect(inboxView.inboxOpen).toBe(false);
         });
 
-        it('mark as doneボタンクリック時_markAsDoneが呼ばれる', async () => {
-            mockInboxService.markAsDone.mockResolvedValue();
-
-            const doneBtn = document.querySelector('.inbox-done-btn');
-            doneBtn.click();
-
-            await vi.waitFor(() => {
-                expect(mockInboxService.markAsDone).toHaveBeenCalledWith('1');
-            });
-        });
-
-        it('mark all doneボタンクリック時_markAllAsDoneが呼ばれる', async () => {
-            mockInboxService.markAllAsDone.mockResolvedValue();
-
+        it('mark all doneボタンはfile-backed通知がなくても再読込だけ行う', async () => {
             const markAllBtn = document.getElementById('mark-all-done-btn');
             markAllBtn.click();
 
             await vi.waitFor(() => {
-                expect(mockInboxService.markAllAsDone).toHaveBeenCalled();
+                expect(mockInboxService.loadInbox).toHaveBeenCalled();
             });
         });
     });
@@ -283,7 +253,7 @@ describe('InboxView', () => {
             const renderSpy = vi.spyOn(inboxView, 'render');
 
             appStore.setState({
-                inbox: [{ id: '1', message: 'New notification', sender: 'System', channel: 'alerts' }]
+                inbox: [{ id: '1', candidateId: '1', kind: 'learning', title: 'New notification', pillar: 'skill' }]
             });
 
             expect(renderSpy).toHaveBeenCalled();
