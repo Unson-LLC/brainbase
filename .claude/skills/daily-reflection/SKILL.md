@@ -233,19 +233,19 @@ done
 
 ### 突合ルール
 - **完全一致**（name or alias）→ 既存流用
-- **表記ゆれ**（例: 河合英明 vs 川合秀明）→ 既存に alias 追加（既存 Wiki ページを取得・編集 → POST /api/wiki/page）
+- **表記ゆれ**（例: AI転写名 vs Graph正本名）→ 既存に alias 追加（既存 Wiki ページを取得・編集 → POST /api/wiki/page）
 - **未登録**（Wiki にある person なのに Graph にない）→ Wiki ページ新規 POST
 - **完全新規** → Wiki ページ新規 POST
 
 ### 表記ゆれの典型
 | 議事録表記 | 正本 |
 |---|---|
-| 河合英明 / 河合秀明 | **川合 秀明** |
+| AI転写名A / AI転写名A' | **Graph正本名A** |
 | hiroki | **山下 大輝** (Hiroki Yamashita) |
 | Kohei / 金田 | **金田 光平** |
 | 三協 | **サンキョウ** (株式会社サンキョウ) |
 | Sho | **持田 涉** (mochida_sho) |
-| シン | **佐藤 圭吾**（自分自身の呼び名） |
+| シン | **現在の利用者名**（自分自身の呼び名） |
 | YK | **倉本 裕太**（TechKnight） |
 
 ---
@@ -299,7 +299,7 @@ echo "$TOKEN" | cut -d'.' -f2 | node -e "console.log(JSON.parse(Buffer.from(proc
 
 RACI が未整備のプロジェクト・ドメインでは true だと 403。新規ドメインは false で投入。
 
-#### 受理プロジェクト（現時点 sato_keigo の場合）
+#### 受理プロジェクト（現時点の利用者 token の場合）
 ```
 brainbase, salestailor, zeims, techknight, baao, unson,
 mana, mywa, senrigan, postio, unson-os, aitle, ncom,
@@ -419,7 +419,7 @@ updated: YYYY-MM-DD                     # 必須
 **SalesTailor / Senrigan / TechKnight**（英語 column_name・SingleLineText）:
 ```json
 {
-  "title": "...", "assignee": "佐藤圭吾", "status": "未着手",
+  "title": "...", "assignee": "<schema_valid_assignee>", "status": "未着手",
   "priority": "高", "deadline": "YYYY-MM-DD", "description": "...",
   "project": "salestailor", "meeting_date": "YYYY-MM-DD",
   "meeting_title": "<slug>"
@@ -448,7 +448,7 @@ updated: YYYY-MM-DD                     # 必須
 **Brainbase**（日本語 column_name・`プロジェクト` SingleSelect={mana, brainbase, 共通}）:
 ```json
 {
-  "タイトル": "...", "担当者": "佐藤圭吾", "ステータス": "未着手",
+  "タイトル": "...", "担当者": "<schema_valid_assignee>", "ステータス": "未着手",
   "優先度": "高", "期限": "YYYY-MM-DD", "説明": "...",
   "プロジェクト": "共通",
   "背景": "...", "会議日": "YYYY-MM-DD", "会議タイトル": "<slug>"
@@ -472,14 +472,14 @@ gh api "repos/<owner>/<repo>/contents/<path>" \
 3. `repo:path` のみ（URL取得失敗時のフォールバック。Phase 7 に URL 欠落として報告）
 
 **Zeims**（英語 column_name・`assignee` は **MultiSelect**）:
-- 担当者の valid options は **太田 / 川合 / 佐藤** のみ
-- 「川合秀明」「佐藤圭吾」等のフルネームは **姓だけにマッピング**
+- 担当者の valid options は schema から取得した姓表記のみ
+- フルネームは schema に存在する姓表記へマッピング
 
 ```javascript
 const ZEIMS_ASSIGNEE = {
-  "川合秀明": "川合",
-  "佐藤圭吾": "佐藤",
-  "太田葉音": "太田",
+  "<full_name_a>": "<schema_option_a>",
+  "<full_name_b>": "<schema_option_b>",
+  "<full_name_c>": "<schema_option_c>",
 };
 ```
 
@@ -557,7 +557,7 @@ curl -s -H "xc-token: $NOCO_TOKEN" \
 ## 残作業（次回持ち越し）
 - 議事録未同期会議の手動補完
 - 未登録人物の情報収集
-- 表記ゆれ修正（川合/河合、サンキョウ/三協 等）
+- 表記ゆれ修正（AI転写名/Graph正本名、サンキョウ/三協 等）
 ```
 
 ---
@@ -568,7 +568,7 @@ curl -s -H "xc-token: $NOCO_TOKEN" \
 セッションが夜を跨ぐと「今日」が変わる。Phase 0 で明示的に確認する。
 
 ### G2: Slack MCP が salestailor workspace 固定
-他 workspace の channel（`C08SYTDR7R8` 等）には **直接アクセス不可**。議事録は必ず Github ルート経由で取得する。
+他 workspace の channel（`CXXXXXXXXXX` 等）には **直接アクセス不可**。議事録は必ず Github ルート経由で取得する。
 
 ### G3: Wiki API は ローカル 31013 でのみ動作
 `bb.unson.jp/api/wiki/*` は DB 非接続で 500。`http://localhost:31013` が正本。 brainbase-ui が起動していない場合は先に起動。
@@ -583,7 +583,7 @@ JWT の `projectCodes` と一致する形式を使用。`tech-knight` ≠ `techk
 Brainbase だけ日本語 column_name。他は英語。スキーマ確認を飛ばすと null レコードができる。
 
 ### G7: NocoDB 担当者 SingleSelect/MultiSelect の valid options
-Zeims は `太田/川合/佐藤` のみ受理。フルネーム不可。事前マッピング必須。
+Zeims は schema の valid options のみ受理。フルネーム不可。事前マッピング必須。
 
 ### G8: 二重投入
 スクリプトを `| tail` や `| head` で2回実行すると全件重複。投入前に既存件数チェック。
@@ -595,7 +595,7 @@ Markdown 本文を curl --data で直接渡すと改行でエラー。必ず `jq
 外部組織のWiki登録はWeb/公式情報確認が必須。議事録は案件文脈の根拠にはなるが、法人・ブランドの正本確認には不足する。公式About/会社概要/親会社公式情報などを確認し、出典URLを本文に残す。
 
 ### G10: 表記ゆれ
-- 川合秀明 ⇔ 河合英明（AI転写の誤記）
+- Graph正本名 ⇔ AI転写名（AI転写の誤記）
 - サンキョウ ⇔ 三協（漢字誤記）
 - Hiroki ⇔ 山下大輝
 - Kohei ⇔ 金田光平
