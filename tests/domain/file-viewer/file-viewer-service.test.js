@@ -58,6 +58,26 @@ describe('FileViewerService', () => {
         unsub();
     });
 
+    it('openFile_HTMLファイルの場合_ページプレビューURLをストアに設定する', async () => {
+        sessionService.getFileContent.mockResolvedValue({
+            sessionId: 'session-1',
+            relativePath: 'public/index.html',
+            fileName: 'index.html',
+            content: '<!doctype html><h1>Hello</h1>',
+            size: 32,
+            isMarkdown: false,
+            isHtml: true,
+            htmlPreviewUrl: '/api/sessions/session-1/html-preview/public/index.html'
+        });
+
+        await service.openFile('session-1', 'public/index.html');
+
+        const state = appStore.getState().fileViewer;
+        expect(state.isHtml).toBe(true);
+        expect(state.htmlPreviewUrl).toBe('/api/sessions/session-1/html-preview/public/index.html');
+        expect(state.renderedHtml).toBeNull();
+    });
+
     it('close呼び出し時_ストアがクリアされFILE_VIEWER_CLOSEDイベントが発火される', async () => {
         appStore.setState({
             fileViewer: {

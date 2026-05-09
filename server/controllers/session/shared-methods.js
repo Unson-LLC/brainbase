@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger.js';
 import {
     DEFAULT_TREE_DEPTH,
     EXCLUDED_DIRS,
+    HTML_EXTENSIONS,
     MARKDOWN_EXTENSIONS,
     MAX_FILE_READ_SIZE,
     MAX_TREE_DEPTH,
@@ -633,6 +634,7 @@ export function installSharedMethods(controller) {
 }
 
 export {
+    HTML_EXTENSIONS,
     MARKDOWN_EXTENSIONS,
     MAX_FILE_READ_SIZE
 };

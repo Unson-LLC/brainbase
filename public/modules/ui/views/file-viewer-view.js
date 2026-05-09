@@ -38,7 +38,7 @@ export class FileViewerView extends BaseView {
             return;
         }
 
-        const { relativePath, fileName, content, renderedHtml, isMarkdown, loading, error } = fileViewer;
+        const { relativePath, fileName, content, renderedHtml, isMarkdown, isHtml, htmlPreviewUrl, loading, error } = fileViewer;
 
         // Reset toggle when file changes
         if (relativePath !== this._currentPath) {
@@ -55,6 +55,16 @@ export class FileViewerView extends BaseView {
             bodyHtml = '<div class="file-viewer-loading">Loading...</div>';
         } else if (error) {
             bodyHtml = `<div class="file-viewer-error">${escapeHtml(error)}</div>`;
+        } else if (isHtml && htmlPreviewUrl) {
+            bodyHtml = `
+                <iframe
+                    class="file-viewer-html-frame"
+                    src="${escapeHtml(htmlPreviewUrl)}"
+                    sandbox="allow-scripts allow-forms allow-popups allow-modals"
+                    referrerpolicy="no-referrer"
+                    title="${escapeHtml(title || 'HTML preview')}"
+                ></iframe>
+            `;
         } else if (isMarkdown && !this._showRaw && renderedHtml) {
             bodyHtml = `<div class="file-viewer-markdown">${renderedHtml}</div>`;
         } else if (content != null) {
@@ -73,7 +83,7 @@ export class FileViewerView extends BaseView {
                 <button class="file-viewer-toolbar-btn" data-action="download" title="Download file">
                     <i data-lucide="download"></i>
                 </button>
-                ${isMarkdown ? `<button class="file-viewer-toolbar-btn${toggleClass}" data-action="toggle" title="${toggleTitle}">
+                ${isMarkdown && !isHtml ? `<button class="file-viewer-toolbar-btn${toggleClass}" data-action="toggle" title="${toggleTitle}">
                     <i data-lucide="${toggleIcon}"></i>
                 </button>` : ''}
             </div>

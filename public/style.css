@@ -11813,6 +11813,7 @@ body.resizing iframe {
 
 .file-viewer-content {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 16px 24px;
     background:
@@ -11829,6 +11830,16 @@ body.resizing iframe {
 
 .file-viewer-error {
     color: var(--error-color, #e74c3c);
+}
+
+.file-viewer-html-frame {
+    display: block;
+    width: 100%;
+    min-height: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 10px;
+    background: #fff;
 }
 
 .file-viewer-text {

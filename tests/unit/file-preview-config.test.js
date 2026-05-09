@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getPathExtension, isBrowserPreviewablePath, resolvePreviewRelativePath } from '../../public/modules/file-preview-config.js';
+import { getPathExtension, isBrowserPreviewablePath, isHtmlPreviewPath, resolvePreviewRelativePath } from '../../public/modules/file-preview-config.js';
 
 describe('file-preview-config', () => {
     it('コード系テキストファイルをブラウザ内表示対象にする', () => {
@@ -17,6 +17,12 @@ describe('file-preview-config', () => {
     it('クエリやハッシュを除いて拡張子を判定する', () => {
         expect(getPathExtension('public/app.js?line=12')).toBe('.js');
         expect(getPathExtension('docs/README.md#heading')).toBe('.md');
+    });
+
+    it('HTMLファイルをページプレビュー対象として判定する', () => {
+        expect(isBrowserPreviewablePath('public/index.html')).toBe(true);
+        expect(isHtmlPreviewPath('public/index.html')).toBe(true);
+        expect(isHtmlPreviewPath('public/app.js')).toBe(false);
     });
 
     it('workspace 内の絶対パスを relative に変換する', () => {
