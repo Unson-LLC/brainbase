@@ -29,7 +29,8 @@ const WS_CLOSE_BLOCKED = 4001;
 function isTtcDebugEnabled() {
     if (typeof window === 'undefined') return false;
     try {
-        return window.__BB_TTC_DEBUG__ === true || window.localStorage?.getItem('brainbase.ttcDebug') === '1';
+        const debugWindow = /** @type {Window & { __BB_TTC_DEBUG__?: boolean }} */ (window);
+        return debugWindow.__BB_TTC_DEBUG__ === true || window.localStorage?.getItem('brainbase.ttcDebug') === '1';
     } catch {
         return false;
     }
@@ -492,7 +493,9 @@ export class TerminalTransportClient {
     }
 
     focus() {
-        this.terminal?.focus();
+        if (typeof this.terminal?.focus === 'function') {
+            this.terminal.focus();
+        }
         this.status.isFocused = true;
         this._emitStatus();
     }
@@ -945,10 +948,46 @@ export class TerminalTransportClient {
         }));
     }
 
-    async syncViewportSize() {
+    async syncViewportSize({ refresh = false } = {}) {
         const dims = this._measureViewport();
         if (!dims) return;
         await this.resize(dims.cols, dims.rows);
+        if (refresh) {
+            this.refreshVisibleRows();
+        }
+    }
+
+    async restoreAfterReveal() {
+        this.focus();
+        await this.syncViewportSize({ refresh: true });
+        const refreshAgain = () => {
+            this.focus();
+            this.refreshVisibleRows();
+            void this.syncViewportSize({ refresh: true });
+        };
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(refreshAgain);
+        } else {
+            setTimeout(refreshAgain, 0);
+        }
+    }
+
+    refreshVisibleRows() {
+        if (!this.terminal) return;
+        const rows = Number(this.terminal.rows) || 0;
+        if (rows <= 0) return;
+        try {
+            if (typeof this.terminal.refresh === 'function') {
+                this.terminal.refresh(0, rows - 1);
+                return;
+            }
+            const renderService = this.terminal?._core?._renderService;
+            if (typeof renderService?.refreshRows === 'function') {
+                renderService.refreshRows(0, rows - 1);
+            }
+        } catch (error) {
+            console.warn('[TerminalTransportClient] Failed to refresh terminal rows', error);
+        }
     }
 
     async reconnect() {

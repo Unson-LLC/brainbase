@@ -134,6 +134,34 @@ describe('terminal-transport-client', () => {
     expect(client.syncViewportSize).toHaveBeenCalledTimes(1);
   });
 
+  it('非表示から戻った後はviewport同期とxterm再描画を行う', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 0));
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const refresh = vi.fn();
+    client.hostEl = {
+      getBoundingClientRect: () => ({ width: 640, height: 480 })
+    };
+    client.terminal = { cols: 100, rows: 30, refresh };
+    client.fitAddon = { fit: vi.fn() };
+    client.ws = { readyState: 1, send: vi.fn() };
+
+    await client.restoreAfterReveal();
+    await vi.runAllTimersAsync();
+
+    expect(client.fitAddon.fit).toHaveBeenCalled();
+    expect(client.ws.send).toHaveBeenCalledWith(JSON.stringify({
+      type: 'resize',
+      cols: 100,
+      rows: 30
+    }));
+    expect(refresh).toHaveBeenCalledWith(0, 29);
+  });
+
   it('blocked snapshotではスクロール可能なfull snapshotを要求する', async () => {
     httpClient.get.mockResolvedValueOnce({
       text: 'readonly snapshot',

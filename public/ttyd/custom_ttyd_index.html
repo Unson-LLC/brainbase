@@ -1108,11 +1108,43 @@
         return false;
     }
 
+    function refreshXtermAfterReveal() {
+        const run = function() {
+            focusXterm();
+            try {
+                if (window.fitAddon && typeof window.fitAddon.fit === 'function') {
+                    window.fitAddon.fit();
+                }
+            } catch (error) {
+                // ignore
+            }
+            try {
+                if (window.term && typeof window.term.refresh === 'function') {
+                    const rows = Number(window.term.rows) || 0;
+                    if (rows > 0) {
+                        window.term.refresh(0, rows - 1);
+                    }
+                }
+            } catch (error) {
+                // ignore
+            }
+            window.dispatchEvent(new Event('resize'));
+        };
+
+        run();
+        window.requestAnimationFrame(run);
+        window.setTimeout(run, 120);
+    }
+
     window.addEventListener('message', function(event) {
         const data = event.data || {};
         if (!isTrustedOrigin(event.origin) && data.source !== 'brainbase-mobile-keyboard') return;
         if (data.type === 'bb-terminal-focus') {
             focusXterm();
+            return;
+        }
+        if (data.type === 'bb-terminal-reveal') {
+            refreshXtermAfterReveal();
             return;
         }
         if (data.type === 'bb-terminal-layout') {
