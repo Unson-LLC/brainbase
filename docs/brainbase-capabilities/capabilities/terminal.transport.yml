@@ -1,0 +1,37 @@
+id: terminal.transport
+name: Terminal xterm transport
+purpose: Provide interactive terminal IO for Claude Code and Codex sessions through xterm.
+surfaces:
+  ui:
+    - xterm terminal pane
+  api:
+    - terminal websocket endpoints
+    - terminal transport HTTP helpers
+  code:
+    - public/modules/core/terminal-transport-client.js
+    - scripts/codex-pty-shim.py
+    - server/services/session-runtime
+  data:
+    - session runtime state
+    - terminal snapshots
+depends_on:
+  - runtime.launchd
+visibility_rules:
+  - Enter should provide immediate local feedback even when readiness probes lag.
+  - Table rendering snapshots must not be cleared by volatile prompt transitions.
+  - Focus loss can look like input transport failure.
+verification:
+  commands:
+    - npm test -- tests/unit/terminal-transport-client.test.js
+    - inspect /api/version to confirm canonical runtime sha
+  expected:
+    - Pure Enter input takes the fast path.
+    - Table snapshots remain stable across prompt/polling transitions.
+common_failures:
+  - Enter appears delayed because xterm is not repainted even though the backend received input.
+  - Snapshot preservation regresses after develop sync if the fix is not merged.
+  - Focus reporting bytes or focus loss disrupt input order.
+runbooks:
+  - ../runbooks/verify-31013-source.md
+troubleshooting:
+  - ../troubleshooting/launchd-overwrites-local-changes.md

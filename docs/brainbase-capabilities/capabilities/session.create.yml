@@ -1,0 +1,46 @@
+id: session.create
+name: Session creation
+purpose: Create a new AI session with a selected project, engine, initial command, and optional worktree.
+surfaces:
+  ui:
+    - "#create-session-modal"
+    - "#session-project-select"
+    - "#session-name-input"
+    - "#session-command-input"
+    - "#use-worktree-checkbox"
+  api:
+    - POST /api/sessions
+  code:
+    - public/modules/app/session-creation-mixin.js
+    - public/modules/app/ui-setup-mixin.js
+    - public/modules/domain/session/session-service.js
+    - server/controllers/session-controller.js
+    - server/services/worktree-service.js
+  data:
+    - state sessions
+    - config projects
+depends_on:
+  - project.selector
+  - auth.grants
+  - runtime.launchd
+visibility_rules:
+  - The selected project must appear in project.selector.
+  - Worktree availability depends on hasGitRepository(selectedProject).
+  - general uses the workspace root and always enables worktree by default.
+verification:
+  commands:
+    - GET /api/state or session list API after creation
+    - inspect state session.project
+    - inspect session path or worktree metadata
+  expected:
+    - New session appears in the session list.
+    - session.project equals the selected project.
+    - Worktree sessions have expected worktree path and repo metadata.
+common_failures:
+  - Project missing from dropdown due to auth grant filtering.
+  - Project path resolves to fallback because config local.path is missing or stale.
+  - Existing git/jj locks block worktree creation.
+runbooks:
+  - ../runbooks/missing-project-in-session-selector.md
+troubleshooting:
+  - ../troubleshooting/project-exists-but-selector-hides-it.md

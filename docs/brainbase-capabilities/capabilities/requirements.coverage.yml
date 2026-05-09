@@ -1,0 +1,38 @@
+id: requirements.coverage
+name: Requirement coverage after task completion
+purpose: Check that completed TODOs still satisfy acceptance criteria and requirement coverage before stopping.
+surfaces:
+  ui:
+    - TodoWrite completion state
+    - Agent completion summaries
+  api:
+    - PostToolUse TodoWrite hook
+  code:
+    - .claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts
+    - .claude/scripts/core/verification/requirement-checker.ts
+    - .claude/settings.json
+  data:
+    - TodoWrite payload
+    - requirement checker output
+depends_on:
+  - requirements.nocodb
+  - verification.testing
+visibility_rules:
+  - The hook runs after TodoWrite.
+  - Requirement checker is invoked when three or more todos are completed.
+  - Hook failures are non-blocking because it is PostToolUse, but the output should still be treated as a signal.
+verification:
+  commands:
+    - inspect TodoWrite PostToolUse registration in .claude/settings.json
+    - .claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts '<TodoWrite payload>'
+  expected:
+    - Small TODO updates do not trigger the checker.
+    - Completing three or more TODOs triggers requirement-checker.ts.
+common_failures:
+  - Treating completed TODOs as proof that acceptance criteria were met.
+  - Checker output is ignored because the hook does not hard-block.
+  - Requirement IDs are mentioned but NocoDB or Graph source records were not checked.
+runbooks:
+  - ../runbooks/check-requirement-coverage.md
+troubleshooting:
+  - ../troubleshooting/todo-complete-without-requirement-evidence.md

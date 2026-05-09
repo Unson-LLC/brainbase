@@ -1,0 +1,42 @@
+id: auth.grants
+name: Auth grants and project access
+purpose: Control who can log in and which project codes are visible to that user.
+surfaces:
+  ui:
+    - Slack OAuth login
+    - Session creation project selector
+    - Wiki and Graph access
+  api:
+    - GET /api/auth/verify
+    - POST /api/auth/refresh
+  code:
+    - server/services/auth-service.js
+    - server/controllers/auth-controller.js
+    - server/middleware/auth.js
+    - public/modules/auth/auth-manager.js
+  data:
+    - INFO_SSOT_DATABASE_URL.auth_grants
+    - localStorage brainbase.auth.access
+depends_on:
+  - INFO_SSOT_DATABASE_URL
+  - auth_grants
+visibility_rules:
+  - auth_grants.active must be true.
+  - project_codes is copied into JWT access.projectCodes.
+  - Browser localStorage may preserve stale access until refresh or relogin.
+  - Empty projectCodes means unrestricted only in UI selector logic; protected APIs may still require explicit project codes.
+verification:
+  commands:
+    - SELECT person_id, person_name, slack_user_id, role, project_codes FROM auth_grants WHERE active = true;
+    - GET /api/auth/verify with the browser session or bearer token
+  expected:
+    - The user's access.projectCodes contains all projects needed for the UI surface being tested.
+    - After auth_grants update, a new token or refresh reflects the new project_codes.
+common_failures:
+  - auth_grants has techknight but config has tech-knight.
+  - auth_grants was updated but JWT/localStorage still contains the old projectCodes.
+  - A user has project access for Graph but not for the session selector because different normalization rules are used.
+runbooks:
+  - ../runbooks/update-auth-grant-project-codes.md
+troubleshooting:
+  - ../troubleshooting/jwt-localstorage-access-stale.md

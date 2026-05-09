@@ -1,0 +1,43 @@
+id: runtime.launchd
+name: Canonical 31013 launchd runtime
+purpose: Keep the canonical Brainbase UI on port 31013 running from the main repo and synced to merged develop code.
+surfaces:
+  ui: []
+  api:
+    - GET /api/version
+  code:
+    - start.js
+    - server.js
+    - lib/runtime-paths.js
+    - server/bootstrap/direct-launch-guard.js
+  data:
+    - /Users/ksato/Library/LaunchAgents/com.brainbase.ui.plist
+    - /Users/ksato/.local/brainbase/launchd-start.sh
+    - /Users/ksato/Library/Logs/brainbase-ui.log
+    - /Users/ksato/Library/Logs/brainbase-ui.error.log
+depends_on:
+  - origin/develop
+  - /Users/ksato/workspace/code/brainbase
+  - /Users/ksato/workspace/var/brainbase.pid
+visibility_rules:
+  - Port 31013 must be treated as canonical runtime, not an arbitrary dev server.
+  - launchd-start syncs server/, scripts/, public/, start.js, .mcp.json, package.json, and package-lock.json from origin/develop before startup.
+  - Local unmerged patches in synced paths cannot persist through launchd restart.
+verification:
+  commands:
+    - curl -s http://127.0.0.1:31013/api/version
+    - lsof -nP -iTCP:31013 -sTCP:LISTEN
+    - launchctl print gui/$(id -u)/com.brainbase.ui
+  expected:
+    - /api/version runtime.cwd is /Users/ksato/workspace/code/brainbase
+    - /api/version runtime.git.sha matches the intended origin/develop commit
+    - /api/version runtime.git.dirty is false for canonical verification
+common_failures:
+  - Unmerged local changes disappear after launchd restart because launchd-start checks out origin/develop paths.
+  - A manual node start.js process does not replace launchd if KeepAlive restarts another process.
+  - A stale PID file can delay or confuse startup.
+runbooks:
+  - ../runbooks/restart-31013-launchd.md
+  - ../runbooks/verify-31013-source.md
+troubleshooting:
+  - ../troubleshooting/launchd-overwrites-local-changes.md

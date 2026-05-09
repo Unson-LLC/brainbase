@@ -1,0 +1,42 @@
+id: verification.testing
+name: Test verification routing
+purpose: Decide which tests must run when the user asks for tests or when changed files imply related test coverage.
+surfaces:
+  ui:
+    - Agent responses to test-related prompts
+    - Completion reports that claim behavior is verified
+  api:
+    - npm run test:vitest
+  code:
+    - .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts
+    - .claude/scripts/core/testing/test-enforcement-manager.ts
+    - .claude/settings.json
+  data:
+    - git diff --name-only
+    - git diff --cached --name-only
+    - git ls-files --others --exclude-standard
+    - tests/**/*.test.ts
+    - tests/**/*.spec.ts
+depends_on:
+  - code.reading
+visibility_rules:
+  - The hook runs only for prompts matching test-related text in `.claude/settings.json`.
+  - Explicit test paths in the prompt take priority.
+  - If no explicit path is provided, changed test files and related implementation tests are detected from git state.
+  - Passing tests are evidence, not a substitute for runtime verification when UI behavior is involved.
+verification:
+  commands:
+    - CLAUDE_USER_PROMPT="tests/unit/example.test.ts を実行して" .claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts
+    - npm run test:vitest -- <test-file>
+  expected:
+    - Explicit test paths run directly.
+    - Related tests are detected from changed implementation files when possible.
+    - Failures stop the flow and are reported.
+common_failures:
+  - Running only unit tests for a UI issue that requires browser/runtime verification.
+  - No related tests are found because file naming does not match the detector.
+  - Local `tsx` or `esbuild` platform mismatch prevents hook execution.
+runbooks:
+  - ../runbooks/verify-testing-scope.md
+troubleshooting:
+  - ../troubleshooting/test-hook-finds-no-related-tests.md
