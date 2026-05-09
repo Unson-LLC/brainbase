@@ -1,0 +1,42 @@
+id: development.workflow
+name: Brainbase development workflow
+purpose: Keep Brainbase implementation work reviewable and recoverable by treating jj as the primary workflow, not git's index-first model.
+surfaces:
+  ui:
+    - Agent coding sessions
+    - Worktree-backed sessions
+  api: []
+  code:
+    - scripts/bin/jj
+    - .claude/rules/commit-strategy.md
+    - .claude/skills/git-commit-rules/SKILL.md
+  data:
+    - .jj working-copy commit
+    - git worktree checkout
+depends_on:
+  - session.create
+visibility_rules:
+  - jj status is the authoritative local work state for Brainbase worktrees.
+  - git status is useful as a compatibility view, but it can show jj-committed local changes as dirty until bookmarks or git refs are updated.
+  - The current working copy is always a jj commit named `@`.
+  - A dirty `@` with `(no description set)` means there are changes on the current page that are not yet described as an intentional commit.
+  - Start coding tasks with `jj status` and `jj diff --stat`, then use `git status --short` only as a secondary view.
+verification:
+  commands:
+    - jj status
+    - jj diff --stat
+    - jj show @- --stat --no-pager
+    - git status --short --branch
+  expected:
+    - The intended change has a described jj commit.
+    - No unrelated changes are mixed into the intended change.
+    - Remaining dirty working-copy changes are explicitly classified before merge or handoff.
+common_failures:
+  - Looking only at `git status` and missing that jj `@` already contains unrelated dirty changes.
+  - Leaving `(no description set)` after finishing an implementation.
+  - Squashing or splitting files without first identifying which change owns each file.
+  - Calling a jj-described local change "merged" before the bookmark/PR/develop integration has happened.
+runbooks:
+  - ../runbooks/jj-working-copy-workflow.md
+troubleshooting:
+  - ../troubleshooting/jj-git-status-mismatch.md

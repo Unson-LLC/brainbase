@@ -47,10 +47,10 @@ troubleshooting: []
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |
+| `development.workflow` | Defines Brainbase's jj-first development workflow, including working-copy commits, dirty state checks, and commit splitting. |
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |
 | `vibepro.impact-review` | Defines when and how VibePro Graphify impact review is required for graph-sensitive changes. |
-| `secrets.infisical` | Defines the legal-entity-aligned 3 Org structure (Unson / TechKnight / SalesTailor) on self-hosted Infisical and the migration/cleanup paths for org-bound secrets. |
 
 ## Operating Rules
 
