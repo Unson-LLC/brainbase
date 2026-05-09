@@ -22,20 +22,8 @@
           },
           {
             "type": "command",
-            "command": "bash scripts/codex-hooks-reminder.sh",
-            "statusMessage": "brainbase reminders"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
+            "command": "bash scripts/codex-capability-map-reminder.sh",
+            "statusMessage": "brainbase capability map reminder"
           }
         ]
       }
