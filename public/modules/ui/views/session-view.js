@@ -25,6 +25,7 @@ export class SessionView {
         this.favoriteSessionIds = this._loadFavoriteSessionIds();
         this.sessionSearchQuery = '';
         this.showFavoriteSessionsOnly = false;
+        this._timelineAttentionSortBySessionId = new Map();
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
@@ -482,8 +483,8 @@ export class SessionView {
      * ソート優先度:
      * 1. 青インジケータセッション（active turnあり）を最上部に配置
      *    - 条件: activity === 'thinking'
-     * 2. 緑インジケータセッション（未読更新あり）を次に配置
-     *    - 条件: activity === 'done-unread'
+     * 2. 完了イベントがあったセッションを次に配置
+     *    - 緑インジケータが既読で消えても、その場で通常枠へ落とさない
      * 3. 残りのセッションは時系列順（最新が上）
      *
      * @param {Array} sessions - セッション一覧
@@ -492,21 +493,48 @@ export class SessionView {
      */
     _getTimelineSessions(sessions) {
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
+        const visibleIds = new Set(filtered.map((session) => session.id));
+        for (const sessionId of this._timelineAttentionSortBySessionId.keys()) {
+            if (!visibleIds.has(sessionId)) {
+                this._timelineAttentionSortBySessionId.delete(sessionId);
+            }
+        }
+
+        const sortMetadataById = new Map();
+        for (const session of filtered) {
+            const uiState = deriveSessionUiState(session.id);
+            const livePriority = this._getActivitySortPriority(uiState);
+            const liveTimestamp = this._getSessionSortTimestamp(session, uiState);
+
+            if (livePriority === 1) {
+                this._timelineAttentionSortBySessionId.delete(session.id);
+            } else if (livePriority === 2) {
+                this._timelineAttentionSortBySessionId.set(session.id, liveTimestamp);
+            }
+
+            const hasRememberedDone = this._timelineAttentionSortBySessionId.has(session.id);
+            sortMetadataById.set(session.id, {
+                priority: livePriority === 3 && hasRememberedDone ? 2 : livePriority,
+                timestamp: livePriority === 3 && hasRememberedDone
+                    ? this._timelineAttentionSortBySessionId.get(session.id)
+                    : liveTimestamp
+            });
+        }
 
         const sorted = [...filtered].sort((a, b) => {
             const favoriteA = this._isFavoriteSession(a.id) ? 0 : 1;
             const favoriteB = this._isFavoriteSession(b.id) ? 0 : 1;
             if (favoriteA !== favoriteB) return favoriteA - favoriteB;
 
-            const uiStateA = deriveSessionUiState(a.id);
-            const uiStateB = deriveSessionUiState(b.id);
-            const priorityA = this._getActivitySortPriority(uiStateA);
-            const priorityB = this._getActivitySortPriority(uiStateB);
+            const metaA = sortMetadataById.get(a.id) || {};
+            const metaB = sortMetadataById.get(b.id) || {};
+            const priorityA = metaA.priority || 3;
+            const priorityB = metaB.priority || 3;
 
             if (priorityA !== priorityB) return priorityA - priorityB;
 
             // 優先度3: 同一優先度内は時系列順（最新が上）
-            return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
+            return (metaB.timestamp || 0) - (metaA.timestamp || 0);
         });
 
         return sorted;
@@ -563,7 +591,7 @@ export class SessionView {
      * セッションのソート用タイムスタンプを取得
      * @private
      */
-    _getSessionSortTimestamp(session) {
+    _getSessionSortTimestamp(session, uiStateOverride = null) {
         const pickTimestamp = (value) => {
             if (!value) return null;
             if (typeof value === 'number') return value;
@@ -571,7 +599,7 @@ export class SessionView {
             return Number.isNaN(parsed) ? null : parsed;
         };
 
-        const uiState = session?.id ? deriveSessionUiState(session.id) : null;
+        const uiState = uiStateOverride || (session?.id ? deriveSessionUiState(session.id) : null);
         const liveStatus = uiState?.hookStatus || null;
 
         // done-unread sessions: use completion/output timestamp for ordering within the green group

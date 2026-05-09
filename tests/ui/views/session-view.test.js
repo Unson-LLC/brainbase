@@ -647,6 +647,61 @@ describe('SessionView', () => {
             expect(after).toEqual(['session-1', 'session-2']);
         });
 
+        it('should keep timeline order when a green done session is marked read', async () => {
+            appStore.setState({
+                sessions: [
+                    {
+                        id: 'session-1',
+                        name: 'Older Done',
+                        project: 'test',
+                        intendedState: 'active',
+                        createdAt: '2026-03-17T00:00:00.000Z'
+                    },
+                    {
+                        id: 'session-2',
+                        name: 'Newer Idle',
+                        project: 'test',
+                        intendedState: 'active',
+                        createdAt: '2026-03-17T00:00:04.000Z'
+                    }
+                ],
+                ui: {
+                    sessionListView: 'timeline'
+                },
+                sessionUi: {
+                    byId: {
+                        'session-1': {
+                            hookStatus: {
+                                isDone: true,
+                                isWorking: false,
+                                lastDoneAt: Date.parse('2026-03-17T00:00:05.000Z')
+                            }
+                        },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+            sessionView.render();
+
+            const beforeRead = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(beforeRead).toEqual(['session-1', 'session-2']);
+
+            appStore.setState({
+                sessionUi: {
+                    byId: {
+                        'session-1': { hookStatus: null },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+            sessionView.render();
+
+            const afterRead = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(afterRead).toEqual(['session-1', 'session-2']);
+            expect(container.querySelector('[data-id="session-1"] .session-activity-indicator')?.className)
+                .not.toContain('done');
+        });
+
         it('should promote sessions from working heartbeat in timeline view', async () => {
             appStore.setState({
                 sessions: [

@@ -133,6 +133,33 @@ describe('SessionView', () => {
             expect(result[2].id).toBe('session-a'); // 通常・古い
         });
 
+        it('緑インジケータが既読で消えても_直前のタイムライン位置を維持する', () => {
+            const sessions = [
+                { id: 'session-old-done', intendedState: 'running', createdAt: 1000 },
+                { id: 'session-new-idle', intendedState: 'running', createdAt: 4000 }
+            ];
+
+            mockUiStateBySessionId['session-old-done'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false, lastDoneAt: 5000 }
+            };
+
+            expect(sessionView._getTimelineSessions(sessions).map(session => session.id)).toEqual([
+                'session-old-done',
+                'session-new-idle'
+            ]);
+
+            mockUiStateBySessionId['session-old-done'] = {
+                activity: 'idle',
+                hookStatus: null
+            };
+
+            expect(sessionView._getTimelineSessions(sessions).map(session => session.id)).toEqual([
+                'session-old-done',
+                'session-new-idle'
+            ]);
+        });
+
         it('アーカイブセッションは除外される', () => {
             // Arrange
             const sessions = [
