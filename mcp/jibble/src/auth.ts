@@ -7,9 +7,9 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Load .env from workspace root
-config({ path: resolve(process.cwd(), '.env') });
+config({ path: resolve(process.cwd(), '.env'), quiet: true });
 // Also try workspace root explicitly
-config({ path: '/Users/ksato/workspace/.env' });
+config({ path: '/Users/ksato/workspace/.env', quiet: true });
 
 interface TokenResponse {
   access_token: string;

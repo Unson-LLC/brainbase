@@ -249,7 +249,7 @@ if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
 fi
 if [ -f "$REPO_ROOT/.codex/hooks.json" ]; then
-    CODEX_HOOKS_ARG="-c features.codex_hooks=true"
+    CODEX_HOOKS_ARG="-c features.hooks=true"
 fi
 
 sync_codex_prompts_link() {

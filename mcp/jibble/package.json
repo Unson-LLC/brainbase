@@ -7,7 +7,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "node ./node_modules/typescript/lib/tsc.js",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
