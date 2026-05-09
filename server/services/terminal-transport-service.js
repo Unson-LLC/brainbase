@@ -240,7 +240,6 @@ export class TerminalTransportService {
         // ストリーミング出力は8msバッチで送られるため、snapshot+streamingの
         // 重なり描画（ghosting）は発生しない。
         try {
-            const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
             const visibleSnapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: true });
             if (ws.readyState !== 1) return;
             connection.lastSnapshot = visibleSnapshot.text;
@@ -248,12 +247,11 @@ export class TerminalTransportService {
             connection.initialFrameDelivered = true;
             const snapshotMsg = {
                 type: 'snapshot',
-                text: snapshot.text,
-                visibleText: visibleSnapshot.text,
-                capturedAt: visibleSnapshot.capturedAt
+                text: visibleSnapshot.text,
+                capturedAt: visibleSnapshot.capturedAt,
+                screenOnly: true
             };
-            if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
-            if (visibleSnapshot.colorText) snapshotMsg.visibleColorText = visibleSnapshot.colorText;
+            if (visibleSnapshot.colorText) snapshotMsg.colorText = visibleSnapshot.colorText;
             if (visibleSnapshot.cursor) snapshotMsg.cursor = visibleSnapshot.cursor;
             ws.send(JSON.stringify(snapshotMsg));
         } catch {
@@ -380,7 +378,6 @@ export class TerminalTransportService {
         if (connection.closed || connection.ws.readyState !== 1) return;
 
         this.captureCache.invalidate(connection.sessionId);
-        const snapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true });
         const visibleSnapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true, visibleOnly: true });
         connection.initialFrameDelivered = true;
         connection.lastSnapshot = visibleSnapshot.text;
@@ -392,12 +389,11 @@ export class TerminalTransportService {
 
         const snapshotMsg = {
             type: 'snapshot',
-            text: snapshot.text,
-            visibleText: visibleSnapshot.text,
-            capturedAt: visibleSnapshot.capturedAt
+            text: visibleSnapshot.text,
+            capturedAt: visibleSnapshot.capturedAt,
+            screenOnly: true
         };
-        if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
-        if (visibleSnapshot.colorText) snapshotMsg.visibleColorText = visibleSnapshot.colorText;
+        if (visibleSnapshot.colorText) snapshotMsg.colorText = visibleSnapshot.colorText;
         if (visibleSnapshot.cursor) snapshotMsg.cursor = visibleSnapshot.cursor;
         connection.ws.send(JSON.stringify(snapshotMsg));
         connection.ws.send(JSON.stringify({
@@ -459,19 +455,11 @@ export class TerminalTransportService {
             return;
         }
 
-        const screenOnlySnapshot = connection.transport === 'streaming';
-        const liveSnapshotPolling = connection.transport === 'snapshot-polling';
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: screenOnlySnapshot });
-        const visibleSnapshot = liveSnapshotPolling
-            ? await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: true })
-            : null;
+        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: true });
         const snapshotKey = JSON.stringify({
             text: snapshot.text,
             colorText: snapshot.colorText || null,
-            cursor: snapshot.cursor || null,
-            visibleText: visibleSnapshot?.text || null,
-            visibleColorText: visibleSnapshot?.colorText || null,
-            visibleCursor: visibleSnapshot?.cursor || null
+            cursor: snapshot.cursor || null
         });
         if (snapshotKey !== connection.lastSnapshot) {
             connection.lastSnapshot = snapshotKey;
@@ -479,21 +467,15 @@ export class TerminalTransportService {
                 type: 'snapshot',
                 text: snapshot.text,
                 capturedAt: snapshot.capturedAt,
-                screenOnly: screenOnlySnapshot
+                screenOnly: true
             };
             if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
-            if (visibleSnapshot) {
-                pollSnapshotMsg.visibleText = visibleSnapshot.text;
-                if (visibleSnapshot.colorText) pollSnapshotMsg.visibleColorText = visibleSnapshot.colorText;
-                if (visibleSnapshot.cursor) pollSnapshotMsg.cursor = visibleSnapshot.cursor;
-            } else if (snapshot.cursor) {
-                pollSnapshotMsg.cursor = snapshot.cursor;
-            }
+            if (snapshot.cursor) pollSnapshotMsg.cursor = snapshot.cursor;
             ws.send(JSON.stringify(pollSnapshotMsg));
         }
 
         // CLI状態検出（色ベース優先、テキストフォールバック）
-        const statusSnapshot = visibleSnapshot || snapshot;
+        const statusSnapshot = snapshot;
         const cliResult = detectCliStateWithColors(statusSnapshot.text, statusSnapshot.colorText);
         const cliState = cliResult.state;
         this.runtimeRegistry?.setCliState?.(sessionId, cliResult);
@@ -503,7 +485,7 @@ export class TerminalTransportService {
             connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
-                mode: screenOnlySnapshot || liveSnapshotPolling ? 'live' : 'snapshot',
+                mode: connection.transport === 'snapshot' ? 'snapshot' : 'live',
                 copyMode: statusSnapshot.copyMode,
                 transport: connection.transport,
                 cliState,
