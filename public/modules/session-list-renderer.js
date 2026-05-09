@@ -76,6 +76,7 @@ function renderSessionIcon({ configuredIcon, fallbackIcon, title }) {
  * @param {string} options.project - プロジェクト名
  * @param {boolean} options.showProjectEmoji - プロジェクト絵文字を表示するか
  * @param {boolean} options.isDraggable - ドラッグ可能か
+ * @param {boolean} options.isFavorite - お気に入りかどうか
  * @param {Object} options.sessionUiState - セッションUI状態（deriveSessionUiStateから）
  * @returns {string} HTML文字列
  */
@@ -85,6 +86,7 @@ export function renderSessionRowHTML(session, options = {}) {
     project = 'General',
     showProjectEmoji = false,
     isDraggable = true,
+    isFavorite = false,
     sessionUiState = null
   } = options;
   const displayName = escapeHtml(session.name || session.id);
@@ -101,6 +103,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
   const transportClass = transport ? ` transport-${transport}` : '';
   const attentionClass = attention !== 'none' ? ` attention-${attention}` : '';
+  const favoriteClass = isFavorite ? ' favorite' : '';
   const draggableAttr = isDraggable ? 'true' : 'false';
 
   // 意図的な一時停止状態かどうか（intendedStateで判定）
@@ -233,9 +236,11 @@ export function renderSessionRowHTML(session, options = {}) {
 
   const archiveLabel = session.intendedState === 'archived' ? 'Unarchive' : 'Archive';
   const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
+  const favoriteTitle = isFavorite ? 'お気に入りから外す' : 'お気に入りに追加';
+  const favoriteMenuItem = `<button class="dropdown-item favorite-session-btn${isFavorite ? ' active' : ''}" aria-pressed="${isFavorite ? 'true' : 'false'}"><i data-lucide="star"></i>${favoriteTitle}</button>`;
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${transportClass}${attentionClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="false">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${transportClass}${attentionClass}${favoriteClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="false">
       <span class="drag-handle" title="Drag to reorder" draggable="${draggableAttr}"><i data-lucide="grip-vertical"></i></span>
       ${activityIndicator}
       <div class="session-row-main">
@@ -260,6 +265,7 @@ export function renderSessionRowHTML(session, options = {}) {
         <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
         <div class="session-dropdown-menu hidden">
           <button class="dropdown-item rename-session-btn"><i data-lucide="edit-2"></i>Rename</button>
+          ${favoriteMenuItem}
           ${commitTreeMenuItem}
           ${mergeMenuItem}
           <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>

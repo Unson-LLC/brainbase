@@ -52,6 +52,22 @@ describe('session-list-renderer', () => {
       expect(html).toContain('active');
     });
 
+    it('should render favorite state as an accessible menu action', () => {
+      const session = { id: 's1', name: 'Favorite' };
+
+      const html = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        isFavorite: true
+      });
+
+      expect(html).toContain('favorite');
+      expect(html).toContain('favorite-session-btn active');
+      expect(html).toContain('aria-pressed="true"');
+      expect(html).toContain('data-lucide="star"');
+      expect(html).not.toContain('session-favorite-btn');
+    });
+
     it('should show worktree badge when session has worktree', () => {
       const session = {
         id: 's1',

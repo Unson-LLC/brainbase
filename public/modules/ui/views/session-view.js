@@ -9,6 +9,8 @@ import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
+const SESSION_FAVORITES_STORAGE_KEY = 'brainbase.sessionFavorites.v1';
+
 /**
  * セッション表示のUIコンポーネント
  * 現行版と同じ構造でプロジェクトグループ表示
@@ -20,6 +22,9 @@ export class SessionView {
         this.container = null;
         this._unsubscribers = [];
         this._renderRafId = null;
+        this.favoriteSessionIds = this._loadFavoriteSessionIds();
+        this.sessionSearchQuery = '';
+        this.showFavoriteSessionsOnly = false;
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
@@ -69,11 +74,13 @@ export class SessionView {
             summary.changesNotPushed || 0,
             summary.prStatus || '',
             convSummary.totalConversations || 0,
+            options.isFavorite ? '1' : '0',
         ].join('\t');
     }
 
     _buildSessionRowElement(session, currentSessionId, options = {}) {
         const { project, showProjectEmoji = false, isDraggable = true, enableDrag = true } = options;
+        const isFavorite = this._isFavoriteSession(session.id);
         const sessionUiState = deriveSessionUiState(session.id);
         const wrapper = document.createElement('div');
         wrapper.innerHTML = renderSessionRowHTML(session, {
@@ -81,10 +88,11 @@ export class SessionView {
             project,
             showProjectEmoji,
             isDraggable,
+            isFavorite,
             sessionUiState
         });
         const childRow = wrapper.firstElementChild;
-        childRow.dataset.fingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
+        childRow.dataset.fingerprint = this._computeRowFingerprint(session, currentSessionId, { project, isFavorite });
 
         childRow.addEventListener('click', async (e) => {
             if (!e.target.closest('button') && !e.target.closest('.drag-handle')) {
@@ -118,7 +126,10 @@ export class SessionView {
             const isDraggable = dragHandle?.getAttribute('draggable') !== 'false';
             const enableDrag = isDraggable;
             // フィンガープリント比較：レンダリング入力が同じなら差し替え不要
-            const newFingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
+            const newFingerprint = this._computeRowFingerprint(session, currentSessionId, {
+                project,
+                isFavorite: this._isFavoriteSession(session.id)
+            });
             if (currentRow.dataset.fingerprint === newFingerprint) continue;
 
             const nextRow = this._buildSessionRowElement(session, currentSessionId, {
@@ -244,33 +255,201 @@ export class SessionView {
             return;
         }
 
+        const toolbar = this._renderSessionListToolbar(sessions);
+        this.container.appendChild(toolbar);
+        this._attachSessionListToolbarHandlers(toolbar);
+
+        const visibleSessions = this._filterSessionsForList(sessions);
+
+        if (visibleSessions.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-state session-list-empty';
+            empty.textContent = this.showFavoriteSessionsOnly
+                ? 'お気に入りのセッションはありません'
+                : '一致するセッションがありません';
+            this.container.appendChild(empty);
+            refreshIcons({ root: this.container });
+            return;
+        }
+
         if (sessionListView === 'timeline') {
-            const timelineList = this._renderTimelineList(sessions, currentSessionId);
+            const timelineList = this._renderTimelineList(visibleSessions, currentSessionId);
             this.container.appendChild(timelineList);
         } else {
             // 状態別にセッションを分類（アーカイブを除く）
-            const activeSessions = sessions.filter(s =>
+            const activeSessions = visibleSessions.filter(s =>
                 s.intendedState !== 'archived' &&
                 s.intendedState !== 'paused' &&
                 (!s.intendedState || s.intendedState === 'active')
             );
-            const pausedSessions = sessions.filter(s => s.intendedState === 'paused');
+            const pausedSessions = visibleSessions.filter(s => s.intendedState === 'paused');
 
             // 作業中セクション
             if (activeSessions.length > 0) {
-                const workingSection = this._renderSection('作業中', activeSessions, currentSessionId, true);
+                const workingSection = this._renderSection('作業中', this._sortFavoriteSessionsFirst(activeSessions), currentSessionId, true);
                 this.container.appendChild(workingSection);
             }
 
             // 一時停止セクション
             if (pausedSessions.length > 0) {
-                const pausedSection = this._renderSection('一時停止', pausedSessions, currentSessionId, false);
+                const pausedSection = this._renderSection('一時停止', this._sortFavoriteSessionsFirst(pausedSessions), currentSessionId, false);
                 this.container.appendChild(pausedSection);
             }
         }
 
         // Lucideアイコンを初期化
         refreshIcons({ root: this.container });
+    }
+
+    _loadFavoriteSessionIds() {
+        try {
+            const storage = window.localStorage;
+            if (!storage || typeof storage.getItem !== 'function') return new Set();
+            const raw = storage.getItem(SESSION_FAVORITES_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            return new Set(Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : []);
+        } catch (error) {
+            console.warn('Failed to load session favorites:', error);
+            return new Set();
+        }
+    }
+
+    _persistFavoriteSessionIds() {
+        try {
+            const storage = window.localStorage;
+            if (!storage || typeof storage.setItem !== 'function') return;
+            storage.setItem(
+                SESSION_FAVORITES_STORAGE_KEY,
+                JSON.stringify(Array.from(this.favoriteSessionIds))
+            );
+        } catch (error) {
+            console.warn('Failed to persist session favorites:', error);
+        }
+    }
+
+    _isFavoriteSession(sessionId) {
+        return this.favoriteSessionIds.has(String(sessionId || ''));
+    }
+
+    _toggleSessionFavorite(sessionId) {
+        const id = String(sessionId || '');
+        if (!id) return;
+        if (this.favoriteSessionIds.has(id)) {
+            this.favoriteSessionIds.delete(id);
+        } else {
+            this.favoriteSessionIds.add(id);
+        }
+        this._persistFavoriteSessionIds();
+        this.render();
+    }
+
+    _renderSessionListToolbar(sessions) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'session-list-toolbar';
+        const favoriteCount = (sessions || []).filter(session => this._isFavoriteSession(session.id)).length;
+        toolbar.innerHTML = `
+            <label class="session-search-wrap">
+                <i data-lucide="search"></i>
+                <input
+                    class="session-search-input"
+                    type="search"
+                    value="${escapeHtml(this.sessionSearchQuery)}"
+                    placeholder="セッションを検索"
+                    aria-label="セッションを検索"
+                >
+            </label>
+            <button
+                class="session-favorites-filter-btn${this.showFavoriteSessionsOnly ? ' active' : ''}"
+                type="button"
+                aria-pressed="${this.showFavoriteSessionsOnly ? 'true' : 'false'}"
+                title="お気に入りのみ"
+                aria-label="お気に入りのみ"
+            >
+                <i data-lucide="star"></i>
+                <span class="session-favorites-count">${favoriteCount}</span>
+            </button>
+        `;
+        return toolbar;
+    }
+
+    _attachSessionListToolbarHandlers(toolbar) {
+        const searchInput = toolbar.querySelector('.session-search-input');
+        if (searchInput) {
+            let isComposing = false;
+            const applySearch = () => {
+                const cursor = searchInput.selectionStart ?? searchInput.value.length;
+                this.sessionSearchQuery = searchInput.value;
+                this.render();
+                requestAnimationFrame(() => {
+                    const nextInput = this.container?.querySelector('.session-search-input');
+                    if (!nextInput) return;
+                    nextInput.focus();
+                    if (typeof nextInput.setSelectionRange === 'function') {
+                        nextInput.setSelectionRange(cursor, cursor);
+                    }
+                });
+            };
+
+            searchInput.addEventListener('compositionstart', () => {
+                isComposing = true;
+            });
+
+            searchInput.addEventListener('compositionend', () => {
+                isComposing = false;
+                applySearch();
+            });
+
+            searchInput.addEventListener('input', (event) => {
+                if (isComposing || event.isComposing) return;
+                applySearch();
+            });
+        }
+
+        const favoritesButton = toolbar.querySelector('.session-favorites-filter-btn');
+        if (favoritesButton) {
+            favoritesButton.addEventListener('click', () => {
+                this.showFavoriteSessionsOnly = !this.showFavoriteSessionsOnly;
+                this.render();
+            });
+        }
+    }
+
+    _filterSessionsForList(sessions) {
+        const query = this.sessionSearchQuery.trim().toLowerCase();
+        return (sessions || []).filter(session => {
+            if (this.showFavoriteSessionsOnly && !this._isFavoriteSession(session.id)) return false;
+            if (!query) return true;
+            return this._getSessionSearchText(session).includes(query);
+        });
+    }
+
+    _getSessionSearchText(session) {
+        const project = getProjectFromSession(session);
+        const uiState = session?.id ? deriveSessionUiState(session.id) : {};
+        const summary = uiState?.summary || session?.summary || {};
+        const recentFile = uiState?.recentFile || {};
+        return [
+            session?.id,
+            session?.name,
+            project,
+            session?.engine,
+            session?.path,
+            session?.worktree?.path,
+            summary.repo,
+            summary.baseBranch,
+            summary.workspacePath,
+            recentFile.path,
+            recentFile.label,
+        ].filter(Boolean).join(' ').toLowerCase();
+    }
+
+    _sortFavoriteSessionsFirst(sessions) {
+        return [...(sessions || [])].sort((a, b) => {
+            const favoriteA = this._isFavoriteSession(a.id) ? 0 : 1;
+            const favoriteB = this._isFavoriteSession(b.id) ? 0 : 1;
+            if (favoriteA !== favoriteB) return favoriteA - favoriteB;
+            return 0;
+        });
     }
 
     /**
@@ -315,6 +494,10 @@ export class SessionView {
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
 
         const sorted = [...filtered].sort((a, b) => {
+            const favoriteA = this._isFavoriteSession(a.id) ? 0 : 1;
+            const favoriteB = this._isFavoriteSession(b.id) ? 0 : 1;
+            if (favoriteA !== favoriteB) return favoriteA - favoriteB;
+
             const uiStateA = deriveSessionUiState(a.id);
             const uiStateB = deriveSessionUiState(b.id);
             const priorityA = this._getActivitySortPriority(uiStateA);
@@ -349,7 +532,7 @@ export class SessionView {
         const listDiv = this.container?.querySelector('.session-timeline-list');
         if (!listDiv) return;
         const { sessions } = appStore.getState();
-        const expected = this._getTimelineSessions(sessions);
+        const expected = this._getTimelineSessions(this._filterSessionsForList(sessions));
         const rows = listDiv.querySelectorAll('.session-child-row');
 
         // 順序が同じならスキップ
@@ -599,6 +782,11 @@ export class SessionView {
             if (dropdownMenu) {
                 dropdownMenu.classList.add('hidden');
             }
+            const hasOpenMenu = Array.from(document.querySelectorAll('.session-dropdown-menu'))
+                .some(menu => !menu.classList.contains('hidden'));
+            if (!hasOpenMenu) {
+                document.getElementById('menu-overlay')?.classList.add('hidden');
+            }
         };
 
         // Rename button
@@ -766,6 +954,15 @@ export class SessionView {
                 e.stopPropagation();
                 closeDropdown();
                 await this.sessionService.resumeSession(session.id);
+            });
+        }
+
+        const favoriteBtn = row.querySelector('.favorite-session-btn');
+        if (favoriteBtn) {
+            favoriteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeDropdown();
+                this._toggleSessionFavorite(session.id);
             });
         }
 

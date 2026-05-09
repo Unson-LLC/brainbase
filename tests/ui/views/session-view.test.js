@@ -57,6 +57,16 @@ describe('SessionView', () => {
         // window.confirm, window.prompt をモック
         global.confirm = vi.fn(() => true);
         global.prompt = vi.fn((message) => 'Test Session');
+        const storage = new Map();
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            value: {
+                getItem: vi.fn((key) => storage.get(key) ?? null),
+                setItem: vi.fn((key, value) => storage.set(key, String(value))),
+                removeItem: vi.fn((key) => storage.delete(key)),
+                clear: vi.fn(() => storage.clear())
+            }
+        });
 
         // モックサービス
         mockSessionService = new SessionService();
@@ -290,6 +300,103 @@ describe('SessionView', () => {
 
             const projectGroups = container.querySelectorAll('.session-project-group');
             expect(projectGroups.length).toBe(2);
+        });
+
+        it('should filter sessions from the session list search box', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Brainbase Design', project: 'brainbase', intendedState: 'active' },
+                { id: 'session-2', name: 'Sales Ops', project: 'salestailor', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+
+            sessionView.render();
+            const input = container.querySelector('.session-search-input');
+            input.value = 'design';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual(['session-1']);
+        });
+
+        it('should keep the search input mounted while Japanese IME composition is active', () => {
+            const mockSessions = [
+                { id: 'session-kana', name: 'かきくけこ', project: 'brainbase', intendedState: 'active' },
+                { id: 'session-alpha', name: 'Alpha', project: 'brainbase', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+
+            sessionView.render();
+            const input = container.querySelector('.session-search-input');
+            input.dispatchEvent(new Event('compositionstart', { bubbles: true }));
+            input.value = 'k';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            expect(container.querySelector('.session-search-input')).toBe(input);
+            expect(sessionView.sessionSearchQuery).toBe('');
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-kana',
+                'session-alpha'
+            ]);
+
+            input.value = 'か';
+            input.dispatchEvent(new Event('compositionend', { bubbles: true }));
+
+            expect(sessionView.sessionSearchQuery).toBe('か');
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual(['session-kana']);
+        });
+
+        it('should favorite sessions, persist them, and pin them above normal sessions', () => {
+            const mockSessions = [
+                {
+                    id: 'session-old',
+                    name: 'Old Favorite',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    createdAt: '2026-03-17T00:00:00.000Z'
+                },
+                {
+                    id: 'session-new',
+                    name: 'New Normal',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    createdAt: '2026-03-17T00:00:01.000Z'
+                }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+
+            sessionView.render();
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-new',
+                'session-old'
+            ]);
+
+            container.querySelector('[data-id="session-old"] .session-menu-toggle').click();
+            expect(document.getElementById('menu-overlay')?.classList.contains('hidden')).toBe(false);
+            container.querySelector('[data-id="session-old"] .favorite-session-btn').click();
+
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-old',
+                'session-new'
+            ]);
+            expect(container.querySelector('[data-id="session-old"] .favorite-session-btn')?.getAttribute('aria-pressed')).toBe('true');
+            expect(document.getElementById('menu-overlay')?.classList.contains('hidden')).toBe(true);
+            expect(JSON.parse(window.localStorage.getItem('brainbase.sessionFavorites.v1'))).toEqual(['session-old']);
+        });
+
+        it('should show only favorite sessions when the favorite filter is enabled', () => {
+            const mockSessions = [
+                { id: 'session-favorite', name: 'Favorite', project: 'brainbase', intendedState: 'active' },
+                { id: 'session-normal', name: 'Normal', project: 'brainbase', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+
+            sessionView.render();
+            container.querySelector('[data-id="session-favorite"] .favorite-session-btn').click();
+            container.querySelector('.session-favorites-filter-btn').click();
+
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-favorite'
+            ]);
+            expect(container.querySelector('.session-favorites-filter-btn')?.getAttribute('aria-pressed')).toBe('true');
         });
     });
 

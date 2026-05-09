@@ -616,6 +616,109 @@ body::after {
     /* Disable pinch-zoom in scrollable area */
 }
 
+.session-list-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0 8px;
+}
+
+.session-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    height: 34px;
+    padding: 0 9px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.58);
+    color: var(--text-secondary);
+}
+
+.session-search-wrap i,
+.session-search-wrap svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.session-search-input {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+}
+
+.session-search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.session-favorites-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.58);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.session-favorites-filter-btn {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 7px;
+}
+
+.session-favorites-count {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border: 1px solid rgba(7, 10, 13, 0.92);
+    border-radius: 999px;
+    background: rgba(240, 180, 67, 0.96);
+    color: #101316;
+    font: 750 9px/13px "Geist Mono", var(--font-mono);
+}
+
+.session-favorites-filter-btn i,
+.session-favorites-filter-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.session-favorites-filter-btn:hover {
+    border-color: rgba(240, 180, 67, 0.36);
+    background: rgba(240, 180, 67, 0.1);
+    color: #f4c76d;
+}
+
+.session-favorites-filter-btn.active {
+    border-color: rgba(240, 180, 67, 0.44);
+    background: rgba(240, 180, 67, 0.12);
+    color: #f4c76d;
+}
+
+.session-favorites-filter-btn.active svg,
+.favorite-session-btn.active svg {
+    fill: currentColor;
+}
+
+.session-list-empty {
+    margin-top: 8px;
+}
+
 .folder-tree-view {
     display: flex;
     flex-direction: column;
@@ -4039,13 +4142,12 @@ body.resizing iframe {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     background: rgba(15, 23, 42, 0.72);
     color: var(--text-secondary);
 }
 
 .nocodb-task-action-btn:hover {
-    transform: translateY(-1px);
     border-color: rgba(47, 125, 246, 0.3);
 }
 
@@ -11691,6 +11793,7 @@ body.resizing iframe {
    ========================================= */
 #file-viewer-panel {
     flex: 1;
+    min-width: 0;
     overflow: hidden;
     width: 100%;
     height: 100%;
@@ -11698,9 +11801,31 @@ body.resizing iframe {
         linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(2, 6, 23, 0.98) 100%);
 }
 
+#file-viewer-panel > .file-viewer {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+}
+
+@media (min-width: 769px) {
+    .file-viewer-active .info-drawer.open,
+    .file-viewer-active #info-drawer.open {
+        width: 0 !important;
+        max-width: 0 !important;
+        border-left-width: 0;
+        overflow: hidden;
+    }
+
+    .file-viewer-active .panel-resize-handle-info-drawer {
+        display: none !important;
+    }
+}
+
 .file-viewer {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    min-width: 0;
     height: 100%;
     overflow: hidden;
     color: #e5eefb;
@@ -11821,6 +11946,16 @@ body.resizing iframe {
         linear-gradient(180deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.96) 100%);
 }
 
+.file-viewer-html-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+    border: 0;
+    border-radius: 4px;
+    background: #fff;
+}
+
 .file-viewer-loading,
 .file-viewer-error {
     padding: 24px;
@@ -11830,16 +11965,6 @@ body.resizing iframe {
 
 .file-viewer-error {
     color: var(--error-color, #e74c3c);
-}
-
-.file-viewer-html-frame {
-    display: block;
-    width: 100%;
-    min-height: 100%;
-    height: 100%;
-    border: 0;
-    border-radius: 10px;
-    background: #fff;
 }
 
 .file-viewer-text {
@@ -13794,7 +13919,6 @@ body.resizing iframe {
     border-color: rgba(47, 128, 255, 0.4);
     background: rgba(47, 128, 255, 0.12);
     color: #f8fbff;
-    transform: translateY(-1px);
 }
 
 #tasks-tab-content .timeline {
@@ -15038,6 +15162,46 @@ body.resizing iframe {
     padding: 8px 12px 0;
 }
 
+.command-center-theme .session-list-toolbar {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    gap: 6px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--bb-flat-line);
+}
+
+.command-center-theme .session-search-wrap {
+    height: 32px;
+    border-color: rgba(191, 201, 214, 0.12);
+    border-radius: 4px;
+    background: rgba(7, 9, 11, 0.72);
+    color: #8793a3;
+}
+
+.command-center-theme .session-search-input {
+    font-size: 11.5px;
+    letter-spacing: 0;
+}
+
+.command-center-theme .session-favorites-filter-btn {
+    width: 32px;
+    height: 32px;
+    border-color: rgba(191, 201, 214, 0.12);
+    border-radius: 4px;
+    background: transparent;
+}
+
+.command-center-theme .session-favorites-filter-btn.active {
+    border-color: rgba(240, 180, 67, 0.38);
+    background: rgba(240, 180, 67, 0.09);
+    color: var(--bb-approved-yellow);
+}
+
+.command-center-theme .session-favorites-count {
+    right: -4px;
+    bottom: -4px;
+    background: var(--bb-approved-yellow);
+}
+
 .command-center-theme .session-project-header {
     min-height: 34px;
     padding: 18px 10px 6px;
@@ -15059,6 +15223,10 @@ body.resizing iframe {
     border-left: 2px solid transparent;
     border-radius: 0;
     background: transparent;
+}
+
+.command-center-theme .session-child-row.favorite {
+    border-left-color: rgba(240, 180, 67, 0.55);
 }
 
 .command-center-theme .session-child-row:hover {
@@ -15655,23 +15823,23 @@ body.resizing iframe {
     grid-row: 1 / span 2;
     justify-self: end;
     align-self: center;
-    gap: 8px;
+    gap: 4px;
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-action-btn {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border-color: transparent;
     color: #dce4ee;
 }
 
 /* Command Center v7: keep rows dense while giving the task title priority. */
 .command-center-theme #tasks-tab-content .nocodb-task-table-header {
-    grid-template-columns: 36px minmax(0, 1fr) 72px 94px 84px;
+    grid-template-columns: 36px minmax(0, 1fr) 72px 94px 96px;
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item {
-    grid-template-columns: 36px minmax(0, 1fr) 72px 94px 84px;
+    grid-template-columns: 36px minmax(0, 1fr) 72px 94px 96px;
     min-height: 62px;
     padding-top: 7px;
     padding-bottom: 7px;
@@ -17100,7 +17268,7 @@ body.resizing iframe {
 
 /* Command Center v9: generated Portal overlay reference fidelity. */
 .command-center-theme .portal-overlay {
-    overflow: hidden;
+    overflow: auto;
     background:
         radial-gradient(circle at 72% 18%, rgba(47, 128, 255, 0.045), transparent 32%),
         linear-gradient(180deg, rgba(8, 11, 14, 0.995), rgba(6, 8, 11, 0.995));
@@ -17306,7 +17474,7 @@ body.resizing iframe {
     flex-direction: column;
     min-height: 0;
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .command-center-theme .portal-overlay-empty {
@@ -17387,9 +17555,9 @@ body.resizing iframe {
 
 .command-center-theme .portal-command-grid {
     display: grid;
-    flex: 1;
+    flex: 0 0 auto;
     grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.82fr);
-    min-height: 0;
+    min-height: calc(100dvh - 60px - 84px);
 }
 
 .command-center-theme .portal-command-main,
@@ -17400,12 +17568,12 @@ body.resizing iframe {
 }
 
 .command-center-theme .portal-command-main {
-    grid-template-rows: minmax(0, 1fr) 238px;
+    grid-template-rows: minmax(460px, auto) minmax(238px, auto);
     border-right: 1px solid rgba(191, 201, 214, 0.14);
 }
 
 .command-center-theme .portal-command-side {
-    grid-template-rows: minmax(230px, 0.95fr) minmax(180px, 0.72fr) minmax(140px, 0.45fr);
+    grid-template-rows: minmax(230px, auto) minmax(180px, auto) minmax(140px, auto);
 }
 
 .command-center-theme .portal-ov-section {
@@ -17415,7 +17583,7 @@ body.resizing iframe {
     border: 0;
     border-bottom: 1px solid rgba(191, 201, 214, 0.14);
     background: transparent;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .command-center-theme .portal-ov-section-header {
@@ -17456,9 +17624,8 @@ body.resizing iframe {
 }
 
 .command-center-theme .portal-ov-section-content {
-    height: calc(100% - 48px);
     min-height: 0;
-    overflow: auto;
+    overflow: visible;
 }
 
 .command-center-theme .portal-vl-grid {
@@ -17715,7 +17882,7 @@ body.resizing iframe {
 
     .command-center-theme .portal-command-grid {
         grid-template-columns: 1fr;
-        overflow: auto;
+        min-height: 0;
     }
 
     .command-center-theme .portal-command-main,
