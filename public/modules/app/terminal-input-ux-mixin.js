@@ -10,6 +10,40 @@ import { buildTerminalBlockedText, formatTerminalTimestamp, isLoopbackHost } fro
 import { ansiToHtml } from '../utils/ansi-to-html.js';
 import { getSessionStatus, getSessionUiEntry, mergeSessionUiEntry } from '../session-ui-state.js';
 
+function normalizeAbsoluteFilePathForSessionMatch(filePath) {
+    if (typeof filePath !== 'string' || !filePath.startsWith('/')) return null;
+    return filePath.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+function resolveSessionForAbsoluteFilePath(filePath, sessions = []) {
+    const normalizedFilePath = normalizeAbsoluteFilePathForSessionMatch(filePath);
+    if (!normalizedFilePath) return null;
+
+    let bestMatch = null;
+    for (const session of sessions || []) {
+        const candidates = [session?.worktree?.path, session?.path]
+            .filter(Boolean)
+            .map((root) => String(root).replace(/\\/g, '/').replace(/\/+$/, ''));
+
+        for (const workspaceRoot of candidates) {
+            if (!workspaceRoot || normalizedFilePath === workspaceRoot || !normalizedFilePath.startsWith(`${workspaceRoot}/`)) {
+                continue;
+            }
+
+            if (!bestMatch || workspaceRoot.length > bestMatch.workspaceRoot.length) {
+                bestMatch = {
+                    session,
+                    sessionId: session.id,
+                    workspaceRoot,
+                    relativePath: normalizedFilePath.slice(workspaceRoot.length + 1)
+                };
+            }
+        }
+    }
+
+    return bestMatch;
+}
+
 export function applyTerminalInputUxMixin(AppClass) {
     AppClass.prototype._setCurrentSessionUiState = function(updates = {}, options = {}) {
         const sessionId = this._terminalSwitchState === 'switching' && this._terminalPresentationSessionId
@@ -1254,10 +1288,13 @@ export function applyTerminalInputUxMixin(AppClass) {
                 sessionId: msgSessionId || null
             });
 
-            const currentSessionId = msgSessionId || appStore.getState().currentSessionId;
-            const session = appStore.getState().sessions.find(s => s.id === currentSessionId);
-            const workspaceRoot = session?.worktree?.path || session?.path || null;
-            const previewRelativePath = previewPath
+            const state = appStore.getState();
+            const ownerMatch = resolveSessionForAbsoluteFilePath(filePath, state.sessions || []);
+            const currentSessionId = ownerMatch?.sessionId || msgSessionId || state.currentSessionId;
+            const session = (state.sessions || []).find(s => s.id === currentSessionId);
+            const workspaceRoot = ownerMatch?.workspaceRoot || session?.worktree?.path || session?.path || null;
+            const previewRelativePath = ownerMatch?.relativePath
+                || previewPath
                 || resolvePreviewRelativePath(filePath, workspaceRoot, currentSessionId)
                 || null;
             const shouldOpenInBrowser = Boolean(previewRelativePath)
@@ -1266,6 +1303,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             console.log('[OPEN_FILE] resolved', {
                 currentSessionId,
                 workspaceRoot,
+                ownerSessionId: ownerMatch?.sessionId || null,
                 previewRelativePath,
                 shouldOpenInBrowser
             });

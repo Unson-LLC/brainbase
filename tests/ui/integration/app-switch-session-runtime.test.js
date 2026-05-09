@@ -820,6 +820,58 @@ describe('app switchSession runtime handling', () => {
     expect(openSpy).toHaveBeenCalledWith('session-1');
   });
 
+  it('OPEN_FILEは絶対パスから所有セッションと相対HTMLパスを解決する', async () => {
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app.fileViewerService = {
+      openFile: vi.fn(async () => {})
+    };
+    app.showFileViewer = vi.fn();
+
+    appStore.setState({
+      currentSessionId: 'session-current',
+      sessions: [
+        {
+          id: 'session-current',
+          name: 'Current Session',
+          path: '/tmp/current-session',
+          engine: 'codex',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-1778299307006',
+          name: 'Aitle',
+          path: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1778299307006-Aitle',
+          worktree: {
+            path: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1778299307006-Aitle'
+          },
+          engine: 'codex',
+          intendedState: 'active'
+        }
+      ]
+    });
+
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: window.location.origin,
+      data: {
+        type: 'OPEN_FILE',
+        filePath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1778299307006-Aitle/.vibepro/pr/story-shadow-gpt-realtime-2-architecture/pr-prepare.html',
+        previewPath: null,
+        previewable: true,
+        sessionId: 'session-current',
+        source: 'xterm'
+      }
+    }));
+
+    await vi.waitFor(() => {
+      expect(app.fileViewerService.openFile).toHaveBeenCalledWith(
+        'session-1778299307006',
+        '.vibepro/pr/story-shadow-gpt-realtime-2-architecture/pr-prepare.html'
+      );
+    });
+    expect(app.showFileViewer).toHaveBeenCalled();
+  });
+
   it('mobile status pill clickはlive terminal modalを開く', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     app.terminalFrame = document.getElementById('terminal-frame');
