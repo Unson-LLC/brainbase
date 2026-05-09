@@ -7,6 +7,8 @@ surfaces:
     - Worktree-backed sessions
   api: []
   code:
+    - .codex/hooks.json
+    - scripts/codex-hooks-reminder.sh
     - scripts/bin/jj
     - .claude/rules/commit-strategy.md
     - .claude/skills/git-commit-rules/SKILL.md
@@ -33,6 +35,7 @@ verification:
     - Remaining dirty working-copy changes are explicitly classified before merge or handoff.
 common_failures:
   - Looking only at `git status` and missing that jj `@` already contains unrelated dirty changes.
+  - Codex sessions missing the UserPromptSubmit reminder and starting Brainbase work without opening the relevant capability.
   - Leaving `(no description set)` after finishing an implementation.
   - Squashing or splitting files without first identifying which change owns each file.
   - Calling a jj-described local change "merged" before the bookmark/PR/develop integration has happened.
