@@ -2,6 +2,7 @@ export const MAX_TREE_DEPTH = 3;
 export const DEFAULT_TREE_DEPTH = 2;
 export const MAX_TREE_ENTRIES = 200;
 export const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
+export const VISIBLE_DOT_DIRS = new Set(['.vibepro']);
 export const UI_SUMMARY_TTL_MS = 60_000;
 export const TAKEOVER_COOLDOWN_MS = 5000;
 export const MAX_FILE_READ_SIZE = 512 * 1024;

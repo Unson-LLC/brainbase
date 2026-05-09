@@ -534,8 +534,9 @@
         // Match file paths with or without :line_number.
         // Supports relative, absolute, and home-relative paths.
         const FILE_EXTS = 'ts|js|tsx|jsx|md|mdx|markdown|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh|toml|cfg|ini|xml|svg';
+        const PATH_START = '(?:[a-zA-Z0-9_]|\\.[a-zA-Z0-9_])';
         const filePathRegex = new RegExp(
-            '((?:~\\/|\\.{1,2}\\/|\\/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
+            '((?:~\\/|\\.{1,2}\\/|\\/)?' + PATH_START + '[a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
             'g'
         );
 

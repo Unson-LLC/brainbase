@@ -1313,6 +1313,31 @@ describe('SessionController (Server)', () => {
       }));
     });
 
+    it('.vibeproディレクトリはHTMLプレビュー成果物用に表示し_他のdot directoryは隠す', async () => {
+      await fs.mkdir(path.join(tempDir, '.vibepro', 'pr', 'story'), { recursive: true });
+      await fs.mkdir(path.join(tempDir, '.git'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, '.vibepro', 'pr', 'story', 'pr-prepare.html'), '<!doctype html>');
+      await fs.writeFile(path.join(tempDir, '.hidden.html'), '<!doctype html>');
+
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: 'session-tree', path: tempDir }]
+      });
+
+      const req = {
+        params: { id: 'session-tree' },
+        query: {}
+      };
+
+      await sessionController.getFolderTree(req, mockRes);
+
+      const payload = mockRes.json.mock.calls[0][0];
+      expect(payload.nodes).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: '.vibepro', type: 'directory', hasChildren: true })
+      ]));
+      expect(payload.nodes.some((node) => node.name === '.git')).toBe(false);
+      expect(payload.nodes.some((node) => node.name === '.hidden.html')).toBe(false);
+    });
+
     it('相対パス指定時_配下ノードを返す', async () => {
       await fs.mkdir(path.join(tempDir, 'src', 'ui'), { recursive: true });
       await fs.writeFile(path.join(tempDir, 'src', 'index.js'), 'console.log(1);');

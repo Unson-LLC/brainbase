@@ -54,6 +54,25 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
+    it('dot directoryから始まる相対HTMLパスを抽出する', () => {
+        expect(extractFileMatches('.vibepro/pr/story/gate-dag.html')).toEqual([
+            {
+                path: '.vibepro/pr/story/gate-dag.html',
+                line: null,
+                start: 0,
+                end: 31
+            }
+        ]);
+        expect(extractFileMatches('./.vibepro/pr/story/gate-dag.html')).toEqual([
+            {
+                path: './.vibepro/pr/story/gate-dag.html',
+                line: null,
+                start: 0,
+                end: 33
+            }
+        ]);
+    });
+
     it('ファイル名の直後に識別子が続く場合は誤検出しない', () => {
         expect(extractFileMatches('public/app.jsExtra')).toEqual([]);
     });
@@ -171,6 +190,34 @@ describe('iframe-contextmenu-handler', () => {
                 range: {
                     start: { x: 3, y: 11 },
                     end: { x: 35, y: 11 }
+                }
+            })
+        ]);
+    });
+
+    it('インデントなしで折り返したdot directory absolute pathを1本として扱う', () => {
+        expect(buildAdjacentContinuationSegments(
+            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-',
+            'architecture/pr-prepare.html',
+            20,
+            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1'
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                text: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-',
+                range: {
+                    start: { x: 1, y: 20 },
+                    end: { x: 84, y: 20 }
+                }
+            }),
+            expect.objectContaining({
+                rawPath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                text: 'architecture/pr-prepare.html',
+                range: {
+                    start: { x: 1, y: 21 },
+                    end: { x: 28, y: 21 }
                 }
             })
         ]);

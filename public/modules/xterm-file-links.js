@@ -1,17 +1,20 @@
 import { isBrowserPreviewablePath, resolvePreviewRelativePath } from './file-preview-config.js';
 
 const XTERM_FILE_EXTS = 'markdown|mdx|tsx|jsx|json|yaml|yml|toml|html|css|txt|svg|xml|ini|cfg|env|sql|bash|md|mjs|cjs|js|ts|py|rb|go|rs|java|kt|swift|php|cpp|hpp|cc|sh|zsh|c|h|log';
+const XTERM_PATH_START = '(?:[a-zA-Z0-9_]|\\.[a-zA-Z0-9_])';
 const XTERM_FILE_TOKEN_REGEX = new RegExp(
-    '((?:~\\/|\\.{1,2}\\/|\\/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',
+    '((?:~\\/|\\.{1,2}\\/|\\/)?' + XTERM_PATH_START + '[a-zA-Z0-9_/.\\-]*\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',
     'g'
 );
 const XTERM_WRAPPED_ABSOLUTE_FILE_TOKEN_REGEX = new RegExp(
-    '((?:~\\/|\\.{1,2}\\/|\\/)[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*(?:\\s+[a-zA-Z0-9_/.\\-]+)+\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',
+    '((?:~\\/|\\.{1,2}\\/|\\/)' + XTERM_PATH_START + '[a-zA-Z0-9_/.\\-]*(?:\\s+[a-zA-Z0-9_/.\\-]+)+\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',
     'g'
 );
-const XTERM_CONTINUATION_PREFIX_REGEX = /((?:~\/|\.{1,2}\/|\/)[a-zA-Z0-9_/.\\-]*)$/;
+const XTERM_CONTINUATION_PREFIX_REGEX = new RegExp(
+    '((?:~\\/|\\.{1,2}\\/|\\/)?' + XTERM_PATH_START + '[a-zA-Z0-9_/.\\\\-]*)$'
+);
 const XTERM_CONTINUATION_SUFFIX_REGEX = new RegExp(
-    '^(\\s+)([a-zA-Z0-9_/.\\-]+\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',
+    '^(\\s*)([a-zA-Z0-9_/.\\-]+\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',
     ''
 );
 

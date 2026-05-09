@@ -145,6 +145,33 @@ describe('SessionController.getFileContent', () => {
         }));
     });
 
+    it('.vibepro配下のHTMLファイルもページプレビューURLを返す', async () => {
+        req.query.path = '.vibepro/pr/story/pr-prepare.html';
+        const content = '<!doctype html><h1>VibePro</h1>';
+        const contentBuf = Buffer.from(content);
+        mockStat.mockResolvedValue({ size: contentBuf.length });
+        const mockFd = {
+            read: vi.fn().mockImplementation((buffer, offset, length) => {
+                const toCopy = Math.min(length, contentBuf.length);
+                contentBuf.copy(buffer, offset, 0, toCopy);
+                return Promise.resolve({ bytesRead: toCopy, buffer });
+            }),
+            close: vi.fn().mockResolvedValue()
+        };
+        mockOpen.mockResolvedValue(mockFd);
+        mockReadFile.mockResolvedValue(content);
+
+        await controller.getFileContent(req, res);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            sessionId: 'session-1',
+            relativePath: '.vibepro/pr/story/pr-prepare.html',
+            fileName: 'pr-prepare.html',
+            isHtml: true,
+            htmlPreviewUrl: '/api/sessions/session-1/html-preview/.vibepro/pr/story/pr-prepare.html'
+        }));
+    });
+
     it('getHtmlPreview_HTMLファイルをtext/htmlで返す', async () => {
         req.query.path = 'dist/index.html';
         const content = '<!doctype html><h1>Hello</h1>';

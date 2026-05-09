@@ -14,7 +14,8 @@ import {
     MAX_FILE_READ_SIZE,
     MAX_TREE_DEPTH,
     MAX_TREE_ENTRIES,
-    UI_SUMMARY_TTL_MS
+    UI_SUMMARY_TTL_MS,
+    VISIBLE_DOT_DIRS
 } from './constants.js';
 
 const execAsync = promisify(exec);
@@ -453,7 +454,8 @@ export function installSharedMethods(controller) {
         const children = await fs.readdir(absPath, { withFileTypes: true });
         return children.some((child) => {
             if (child.isDirectory()) {
-                return !child.name.startsWith('.') && !EXCLUDED_DIRS.has(child.name);
+                return (!child.name.startsWith('.') || VISIBLE_DOT_DIRS.has(child.name))
+                    && !EXCLUDED_DIRS.has(child.name);
             }
             return !child.name.startsWith('.');
         });
@@ -463,8 +465,10 @@ export function installSharedMethods(controller) {
         const entries = await fs.readdir(absPath, { withFileTypes: true });
         const visible = entries
             .filter((entry) => {
-                if (entry.name.startsWith('.')) return false;
                 if (entry.isDirectory() && EXCLUDED_DIRS.has(entry.name)) return false;
+                if (entry.name.startsWith('.') && !(entry.isDirectory() && VISIBLE_DOT_DIRS.has(entry.name))) {
+                    return false;
+                }
                 return true;
             })
             .sort((a, b) => {
