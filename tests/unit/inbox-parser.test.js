@@ -95,4 +95,29 @@ message d
         expect(items).toHaveLength(1);
         expect(items[0].id).toBe('INBOX-1766718363259250');
     });
+
+    it('appendItem呼び出し時_DailyOps指示をpendingとして追記できる', async () => {
+        const item = await parser.appendItem({
+            title: 'Slack返信ドラフト',
+            message: '実送信は別確認で行う',
+            sender: 'Ohayo Report',
+            channel: 'daily-ops',
+            instruction: {
+                intent: 'slack_reply_draft',
+                safety: { draft_only: true, dry_run: true }
+            }
+        }, new Date('2026-05-10T08:15:00+09:00'));
+
+        const items = await parser.getPendingItems();
+
+        expect(item.id).toBe('INBOX-DAILY-1778368500000');
+        expect(items).toHaveLength(1);
+        expect(items[0]).toEqual(expect.objectContaining({
+            id: 'INBOX-DAILY-1778368500000',
+            channel: 'daily-ops',
+            sender: 'Ohayo Report',
+            status: 'pending',
+            message: '実送信は別確認で行う'
+        }));
+    });
 });

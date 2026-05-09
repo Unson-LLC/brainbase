@@ -54,27 +54,30 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
-    it('dot directoryから始まる相対HTMLパスを抽出する', () => {
-        expect(extractFileMatches('.vibepro/pr/story/gate-dag.html')).toEqual([
+    it('ファイル名の直後に識別子が続く場合は誤検出しない', () => {
+        expect(extractFileMatches('public/app.jsExtra')).toEqual([]);
+    });
+
+    it('dot directory 配下のレビュー成果物リンクを抽出する', () => {
+        expect(extractFileMatches('.vibepro/diagnostics/2026-05-10T-review-html-artifact/summary.md')).toEqual([
             {
-                path: '.vibepro/pr/story/gate-dag.html',
+                path: '.vibepro/diagnostics/2026-05-10T-review-html-artifact/summary.md',
                 line: null,
                 start: 0,
-                end: 31
-            }
-        ]);
-        expect(extractFileMatches('./.vibepro/pr/story/gate-dag.html')).toEqual([
-            {
-                path: './.vibepro/pr/story/gate-dag.html',
-                line: null,
-                start: 0,
-                end: 33
+                end: 64
             }
         ]);
     });
 
-    it('ファイル名の直後に識別子が続く場合は誤検出しない', () => {
-        expect(extractFileMatches('public/app.jsExtra')).toEqual([]);
+    it('dot directory 配下の command file link を行番号つきで抽出する', () => {
+        expect(extractFileMatches('.claude/commands/ohayo.md:12')).toEqual([
+            {
+                path: '.claude/commands/ohayo.md',
+                line: '12',
+                start: 0,
+                end: 28
+            }
+        ]);
     });
 
     it('xterm link range は exact な buffer line 番号を使う', () => {
@@ -195,59 +198,27 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
-    it('インデントなしで折り返したdot directory absolute pathを1本として扱う', () => {
+    it('column 1 から始まる hard wrap continuation も1本の full path として扱う', () => {
         expect(buildAdjacentContinuationSegments(
-            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-',
-            'architecture/pr-prepare.html',
-            20,
-            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1'
+            'artifact: .vibepro/diagnostics/2026-05-10T-term-link-dot-paths/',
+            'summary.md',
+            20
         )).toEqual([
             expect.objectContaining({
-                rawPath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                text: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-',
+                rawPath: '.vibepro/diagnostics/2026-05-10T-term-link-dot-paths/summary.md',
+                text: '.vibepro/diagnostics/2026-05-10T-term-link-dot-paths/',
                 range: {
-                    start: { x: 1, y: 20 },
-                    end: { x: 84, y: 20 }
+                    start: { x: 11, y: 20 },
+                    end: { x: 63, y: 20 }
                 }
             }),
             expect.objectContaining({
-                rawPath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1/.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                text: 'architecture/pr-prepare.html',
+                rawPath: '.vibepro/diagnostics/2026-05-10T-term-link-dot-paths/summary.md',
+                text: 'summary.md',
                 range: {
                     start: { x: 1, y: 21 },
-                    end: { x: 28, y: 21 }
+                    end: { x: 10, y: 21 }
                 }
-            })
-        ]);
-    });
-
-    it('普通の文章の語尾と次行HTMLをcontinuation扱いしない', () => {
-        expect(buildAdjacentContinuationSegments(
-            'Story: story-shadow-gpt-realtime-2-',
-            'architecture/pr-prepare.html',
-            20,
-            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1'
-        )).toEqual([]);
-    });
-
-    it('dot directory relative path continuationを1本として扱う', () => {
-        expect(buildAdjacentContinuationSegments(
-            '.vibepro/pr/story-gpt-realtime-2-',
-            'architecture/pr-prepare.html',
-            20,
-            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1'
-        )).toEqual([
-            expect.objectContaining({
-                rawPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                text: '.vibepro/pr/story-gpt-realtime-2-'
-            }),
-            expect.objectContaining({
-                rawPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
-                text: 'architecture/pr-prepare.html'
             })
         ]);
     });

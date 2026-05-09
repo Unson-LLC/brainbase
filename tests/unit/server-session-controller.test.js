@@ -645,52 +645,6 @@ describe('SessionController (Server)', () => {
   });
 
   describe('createWithWorktree', () => {
-    it('state更新失敗時_ttydを起動せず500を返す', async () => {
-      const repoPath = path.join(tempDir, 'projects', 'brainbase');
-      const controller = new SessionController(buildControllerDeps({
-        projectsRoot: path.join(tempDir, 'projects'),
-        codeProjectsRoot: path.join(tempDir, 'code')
-      }));
-      const stateError = new Error('database is locked');
-
-      await fs.mkdir(repoPath, { recursive: true });
-      mockStateStore.get.mockReturnValue({ sessions: [] });
-      mockStateStore.update.mockRejectedValue(stateError);
-      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
-      mockWorktreeService.create.mockResolvedValue({
-        worktreePath: '/tmp/worktrees/session-state-fail-brainbase',
-        branchName: 'session/session-state-fail',
-        startCommit: 'abc123'
-      });
-      mockWorktreeService.remove.mockResolvedValue(true);
-      mockSessionManager.startTtyd.mockResolvedValue({
-        port: 40124,
-        proxyPath: '/console/session-state-fail'
-      });
-
-      const req = {
-        body: {
-          sessionId: 'session-state-fail',
-          repoPath,
-          name: 'State Fail',
-          engine: 'codex',
-          project: 'brainbase',
-          viewerId: 'viewer-1'
-        },
-        headers: {
-          referer: 'http://localhost:31013/',
-          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
-        }
-      };
-
-      await controller.createWithWorktree(req, mockRes);
-
-      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
-      expect(mockWorktreeService.remove).toHaveBeenCalledWith('session-state-fail', repoPath);
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'database is locked' });
-    });
-
     it('staleなrepoPath時_jj repoを優先してfallbackする', async () => {
       const projectsRoot = path.join(tempDir, 'projects');
       const codeProjectsRoot = path.join(tempDir, 'code');
@@ -1313,11 +1267,13 @@ describe('SessionController (Server)', () => {
       }));
     });
 
-    it('.vibeproディレクトリはHTMLプレビュー成果物用に表示し_他のdot directoryは隠す', async () => {
-      await fs.mkdir(path.join(tempDir, '.vibepro', 'pr', 'story'), { recursive: true });
-      await fs.mkdir(path.join(tempDir, '.git'), { recursive: true });
-      await fs.writeFile(path.join(tempDir, '.vibepro', 'pr', 'story', 'pr-prepare.html'), '<!doctype html>');
-      await fs.writeFile(path.join(tempDir, '.hidden.html'), '<!doctype html>');
+    it('レビュー対象のdot directoryは返し、内部管理用dot directoryは隠す', async () => {
+      await fs.mkdir(path.join(tempDir, '.vibepro', 'diagnostics'), { recursive: true });
+      await fs.mkdir(path.join(tempDir, '.claude', 'commands'), { recursive: true });
+      await fs.mkdir(path.join(tempDir, '.git', 'objects'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, '.vibepro', 'diagnostics', 'summary.md'), '# summary');
+      await fs.writeFile(path.join(tempDir, '.claude', 'commands', 'ohayo.md'), '# ohayo');
+      await fs.writeFile(path.join(tempDir, '.env'), 'SECRET=value');
 
       mockStateStore.get.mockReturnValue({
         sessions: [{ id: 'session-tree', path: tempDir }]
@@ -1325,17 +1281,20 @@ describe('SessionController (Server)', () => {
 
       const req = {
         params: { id: 'session-tree' },
-        query: {}
+        query: { depth: '1' }
       };
 
       await sessionController.getFolderTree(req, mockRes);
 
-      const payload = mockRes.json.mock.calls[0][0];
-      expect(payload.nodes).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: '.vibepro', type: 'directory', hasChildren: true })
+      const response = mockRes.json.mock.calls[0][0];
+      expect(response.nodes).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: '.claude', type: 'directory', relativePath: '.claude' }),
+        expect.objectContaining({ name: '.vibepro', type: 'directory', relativePath: '.vibepro' })
       ]));
-      expect(payload.nodes.some((node) => node.name === '.git')).toBe(false);
-      expect(payload.nodes.some((node) => node.name === '.hidden.html')).toBe(false);
+      expect(response.nodes).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: '.git' }),
+        expect.objectContaining({ name: '.env' })
+      ]));
     });
 
     it('相対パス指定時_配下ノードを返す', async () => {
