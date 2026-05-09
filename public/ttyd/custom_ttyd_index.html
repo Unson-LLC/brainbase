@@ -217,36 +217,27 @@
     let touchAccum = 0;
     let touchFlushTimer = null;
 
-    function getSessionIdFromPath() {
+    function isAlternateBuffer(term) {
         try {
-            const match = window.location.pathname.match(/\/console\/([^/?#]+)/);
-            if (!match) return null;
-            const decoded = decodeURIComponent(match[1]);
-            return decoded && decoded.startsWith('session-') ? decoded : null;
+            return !!(term && term.buffer && term.buffer.alternate && term.buffer.active === term.buffer.alternate);
         } catch (error) {
-            return null;
+            return false;
         }
     }
 
-    function notifyParentScroll(direction, steps, handledByIframe) {
+    function postScroll(direction, steps) {
         try {
             if (!window.parent || window.parent === window) return false;
             window.parent.postMessage({
                 type: 'TMUX_SCROLL',
                 direction: direction,
-                steps: steps,
-                sessionId: getSessionIdFromPath(),
-                handledByIframe: handledByIframe
+                steps: steps
             }, '*');
             return true;
         } catch (error) {
             console.error('[WheelScroll] Failed to post message:', error);
         }
         return false;
-    }
-
-    function postScroll(direction, steps) {
-        return notifyParentScroll(direction, steps, false);
     }
 
     function isTerminalTarget(target) {
@@ -294,6 +285,8 @@
         const term = window.term;
         if (!term) return;
 
+        // Only intercept in alternate buffer (tmux full-screen), otherwise allow xterm scrollback
+        if (!isAlternateBuffer(term)) return;
         if (!isTerminalTarget(e.target)) return;
 
         // Prevent page scroll / default behavior and block xterm wheel handling
@@ -534,9 +527,10 @@
         // Match file paths with or without :line_number.
         // Supports relative, absolute, and home-relative paths.
         const FILE_EXTS = 'ts|js|tsx|jsx|md|mdx|markdown|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh|toml|cfg|ini|xml|svg';
-        const PATH_START = '(?:[a-zA-Z0-9_]|\\.[a-zA-Z0-9_])';
+        const PATH_START_CHARS = '[a-zA-Z0-9_.]';
+        const PATH_CHARS = '[a-zA-Z0-9_/.\\-]';
         const filePathRegex = new RegExp(
-            '((?:~\\/|\\.{1,2}\\/|\\/)?' + PATH_START + '[a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
+            '((?:~\\/|\\.{1,2}\\/|\\/)?' + PATH_START_CHARS + PATH_CHARS + '*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
             'g'
         );
 

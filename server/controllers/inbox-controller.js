@@ -28,6 +28,23 @@ export class InboxController {
     });
 
     /** @param {Request} req @param {Response} res */
+    createItem = asyncHandler(async (req, res) => {
+        const { title, message, sender, channel, instruction, source } = req.body || {};
+        if (!title && !message) {
+            throw new AppError('title or message is required', ErrorCodes.VALIDATION_ERROR);
+        }
+        const item = await this.inboxParser.appendItem({
+            title,
+            message,
+            sender,
+            channel,
+            instruction,
+            source
+        });
+        res.status(201).json({ success: true, item });
+    });
+
+    /** @param {Request} req @param {Response} res */
     markAsDone = asyncHandler(async (req, res) => {
         const { id } = req.params;
         const success = await this.inboxParser.markAsDone(id);

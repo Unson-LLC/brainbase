@@ -15,6 +15,9 @@ export function createInboxRouter(inboxParser) {
     // GET /api/inbox/count - 保留中アイテム数を取得
     router.get('/count', controller.getCount);
 
+    // POST /api/inbox - AIに渡す指示をInboxへ追加
+    router.post('/', controller.createItem);
+
     // POST /api/inbox/:id/done - 単一アイテムを完了としてマーク
     router.post('/:id/done', controller.markAsDone);
 
