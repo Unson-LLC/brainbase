@@ -1,6 +1,7 @@
 // @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { isHtmlPreviewPath } from '../../file-preview-config.js';
 
 /**
  * ファイルビューアのビジネスロジック
@@ -21,9 +22,18 @@ export class FileViewerService {
     async openFile(sessionId, relativePath) {
         try {
             const result = await this.sessionService.getFileContent(sessionId, relativePath);
-            const { fileName, content, size, isMarkdown, treeNavigable, treeRootPath, treeRelativePath } = result;
+            const { fileName, content, size, isMarkdown, isHtml, htmlPreviewUrl, treeNavigable, treeRootPath, treeRelativePath } = result;
 
             const rendered = isMarkdown ? this._renderMarkdown(content) : null;
+            const shouldPreviewHtml = Boolean(isHtml || isHtmlPreviewPath(fileName || relativePath));
+            const encodedPreviewPath = String(relativePath || '')
+                .split('/')
+                .filter(Boolean)
+                .map((segment) => encodeURIComponent(segment))
+                .join('/');
+            const previewUrl = shouldPreviewHtml
+                ? (htmlPreviewUrl || `/api/sessions/${encodeURIComponent(sessionId)}/html-preview/${encodedPreviewPath}`)
+                : null;
 
             this.store.setState({
                 fileViewer: {
@@ -34,6 +44,8 @@ export class FileViewerService {
                     renderedHtml: rendered,
                     size,
                     isMarkdown,
+                    isHtml: shouldPreviewHtml,
+                    htmlPreviewUrl: previewUrl,
                     treeNavigable: Boolean(treeNavigable),
                     treeRootPath: treeRootPath || null,
                     treeRelativePath: treeRelativePath || null,
@@ -49,7 +61,8 @@ export class FileViewerService {
                 treeRootPath: treeRootPath || null,
                 treeRelativePath: treeRelativePath || null,
                 fileName,
-                isMarkdown
+                isMarkdown,
+                isHtml: shouldPreviewHtml
             });
         } catch (error) {
             this.store.setState({
@@ -61,6 +74,8 @@ export class FileViewerService {
                     renderedHtml: null,
                     size: 0,
                     isMarkdown: false,
+                    isHtml: false,
+                    htmlPreviewUrl: null,
                     loading: false,
                     error: error.message || 'Failed to load file'
                 }

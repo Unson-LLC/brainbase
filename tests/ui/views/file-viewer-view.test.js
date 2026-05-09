@@ -68,6 +68,30 @@ describe('FileViewerView', () => {
         expect(container.textContent).toContain('console.log');
     });
 
+    it('HTMLファイル表示時_iframeでページとして表示される', () => {
+        appStore.setState({
+            fileViewer: {
+                relativePath: 'public/index.html',
+                fileName: 'index.html',
+                content: '<!doctype html><h1>Hello</h1>',
+                renderedHtml: null,
+                isMarkdown: false,
+                isHtml: true,
+                htmlPreviewUrl: '/api/sessions/session-1/html-preview/public/index.html',
+                loading: false,
+                error: null
+            }
+        });
+
+        view.mount(container);
+        const frame = container.querySelector('.file-viewer-html-frame');
+        expect(frame).toBeTruthy();
+        expect(frame.getAttribute('src')).toBe('/api/sessions/session-1/html-preview/public/index.html');
+        expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-forms allow-popups allow-modals');
+        expect(container.querySelector('.file-viewer-text')).toBeNull();
+        expect(container.innerHTML).not.toContain('<!doctype');
+    });
+
     it('エラー表示時_エラーメッセージが表示される', () => {
         appStore.setState({
             fileViewer: {

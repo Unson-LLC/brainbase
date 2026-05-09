@@ -51,7 +51,9 @@ describe('SessionController.getFileContent', () => {
 
         res = {
             status: vi.fn().mockReturnThis(),
-            json: vi.fn()
+            json: vi.fn(),
+            setHeader: vi.fn(),
+            send: vi.fn()
         };
 
         vi.clearAllMocks();
@@ -112,6 +114,68 @@ describe('SessionController.getFileContent', () => {
             content,
             isMarkdown: true
         }));
+    });
+
+    it('HTMLファイルの場合_ページプレビューURLを返す', async () => {
+        req.query.path = 'dist/index.html';
+        const content = '<!doctype html><h1>Hello</h1>';
+        const contentBuf = Buffer.from(content);
+        mockStat.mockResolvedValue({ size: contentBuf.length });
+        const mockFd = {
+            read: vi.fn().mockImplementation((buffer, offset, length) => {
+                const toCopy = Math.min(length, contentBuf.length);
+                contentBuf.copy(buffer, offset, 0, toCopy);
+                return Promise.resolve({ bytesRead: toCopy, buffer });
+            }),
+            close: vi.fn().mockResolvedValue()
+        };
+        mockOpen.mockResolvedValue(mockFd);
+        mockReadFile.mockResolvedValue(content);
+
+        await controller.getFileContent(req, res);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            sessionId: 'session-1',
+            relativePath: 'dist/index.html',
+            fileName: 'index.html',
+            content,
+            isMarkdown: false,
+            isHtml: true,
+            htmlPreviewUrl: '/api/sessions/session-1/html-preview/dist/index.html'
+        }));
+    });
+
+    it('getHtmlPreview_HTMLファイルをtext/htmlで返す', async () => {
+        req.query.path = 'dist/index.html';
+        const content = '<!doctype html><h1>Hello</h1>';
+        const contentBuf = Buffer.from(content);
+        mockStat.mockResolvedValue({ size: contentBuf.length, isFile: () => true });
+        const mockFd = {
+            read: vi.fn().mockImplementation((buffer, offset, length) => {
+                const toCopy = Math.min(length, contentBuf.length);
+                contentBuf.copy(buffer, offset, 0, toCopy);
+                return Promise.resolve({ bytesRead: toCopy, buffer });
+            }),
+            close: vi.fn().mockResolvedValue()
+        };
+        mockOpen.mockResolvedValue(mockFd);
+        mockReadFile.mockResolvedValue(Buffer.from(content));
+
+        await controller.getHtmlPreview(req, res);
+
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/html; charset=utf-8');
+        expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+        expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+        expect(res.send).toHaveBeenCalledWith(Buffer.from(content));
+    });
+
+    it('getHtmlPreview_非HTMLファイルは415を返す', async () => {
+        req.query.path = 'README.md';
+        mockStat.mockResolvedValue({ size: 32, isFile: () => true });
+
+        await controller.getHtmlPreview(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(415);
     });
 
     it('パストラバーサル攻撃_400を返す', async () => {

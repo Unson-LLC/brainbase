@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { logger } from '../../utils/logger.js';
-import { MARKDOWN_EXTENSIONS, MAX_FILE_READ_SIZE } from './shared-methods.js';
+import { HTML_EXTENSIONS, MARKDOWN_EXTENSIONS, MAX_FILE_READ_SIZE } from './shared-methods.js';
 
 function isEphemeralCwd(candidate) {
     return typeof candidate === 'string'
@@ -11,6 +11,33 @@ function isEphemeralCwd(candidate) {
             || candidate === '/tmp/'
             || candidate === '/private/tmp'
             || candidate === '/private/tmp/');
+}
+
+const HTML_PREVIEW_ASSET_TYPES = new Map([
+    ['.html', 'text/html; charset=utf-8'],
+    ['.htm', 'text/html; charset=utf-8'],
+    ['.css', 'text/css; charset=utf-8'],
+    ['.js', 'text/javascript; charset=utf-8'],
+    ['.mjs', 'text/javascript; charset=utf-8'],
+    ['.json', 'application/json; charset=utf-8'],
+    ['.svg', 'image/svg+xml; charset=utf-8'],
+    ['.png', 'image/png'],
+    ['.jpg', 'image/jpeg'],
+    ['.jpeg', 'image/jpeg'],
+    ['.gif', 'image/gif'],
+    ['.webp', 'image/webp'],
+    ['.ico', 'image/x-icon'],
+    ['.woff', 'font/woff'],
+    ['.woff2', 'font/woff2'],
+    ['.ttf', 'font/ttf']
+]);
+
+function encodePreviewPath(relativePath) {
+    return String(relativePath || '')
+        .split('/')
+        .filter(Boolean)
+        .map((segment) => encodeURIComponent(segment))
+        .join('/');
 }
 
 export function installContextHandlers(controller) {
@@ -188,6 +215,7 @@ export function installContextHandlers(controller) {
             const fileName = path.basename(targetPath);
             const ext = path.extname(fileName).toLowerCase();
             const isMarkdown = MARKDOWN_EXTENSIONS.has(ext);
+            const isHtml = HTML_EXTENSIONS.has(ext);
 
             res.json({
                 sessionId: id,
@@ -198,7 +226,11 @@ export function installContextHandlers(controller) {
                 fileName,
                 content,
                 size: stat.size,
-                isMarkdown
+                isMarkdown,
+                isHtml,
+                htmlPreviewUrl: isHtml
+                    ? `/api/sessions/${encodeURIComponent(id)}/html-preview/${encodePreviewPath(relativePath)}`
+                    : null
             });
         } catch (error) {
             if (error.code === 'ENOENT') {
@@ -211,6 +243,88 @@ export function installContextHandlers(controller) {
             res.status(500).json({ error: error.message || 'Failed to read file' });
         }
     };
+
+    async function sendHtmlPreviewFile(req, res, { requireHtml }) {
+        const { id } = req.params;
+        const pathParam = req.params.previewPath;
+        const rawPath = Array.isArray(pathParam)
+            ? pathParam.join('/')
+            : (typeof pathParam === 'string' && pathParam ? pathParam : req.query.path || '');
+
+        if (!rawPath) {
+            return res.status(400).json({ error: 'path query parameter is required' });
+        }
+
+        const session = controller._findSessionOrFail(id, res);
+        if (!session) return;
+
+        try {
+            const { targetPath } = await controller._resolveFilePreviewTarget(session, rawPath);
+            const fileName = path.basename(targetPath);
+            const ext = path.extname(fileName).toLowerCase();
+            if (requireHtml && !HTML_EXTENSIONS.has(ext)) {
+                return res.status(415).json({ error: 'Only HTML files can be opened as pages' });
+            }
+            const contentType = HTML_PREVIEW_ASSET_TYPES.get(ext);
+            if (!contentType) {
+                return res.status(415).json({ error: 'Unsupported HTML preview asset type' });
+            }
+
+            const stat = await fs.stat(targetPath);
+            if (!stat.isFile()) {
+                return res.status(400).json({ error: 'Target path is not a file' });
+            }
+            if (stat.size > MAX_FILE_READ_SIZE) {
+                return res.status(413).json({ error: 'File too large to preview' });
+            }
+
+            if (HTML_EXTENSIONS.has(ext)) {
+                const fd = await fs.open(targetPath, 'r');
+                try {
+                    const probeSize = Math.min(8192, stat.size);
+                    const probeBuf = Buffer.alloc(probeSize);
+                    const { bytesRead } = await fd.read(probeBuf, 0, probeSize, 0);
+                    const probe = probeBuf.subarray(0, bytesRead);
+                    if (probe.includes(0)) {
+                        return res.status(415).json({ error: 'Binary files cannot be previewed' });
+                    }
+                } finally {
+                    await fd.close();
+                }
+            }
+
+            const content = await fs.readFile(targetPath);
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader(
+                'Content-Security-Policy',
+                [
+                    "default-src 'self' data: blob:",
+                    "img-src 'self' data: blob:",
+                    "style-src 'self' 'unsafe-inline'",
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                    "connect-src 'self' data: blob:",
+                    "frame-ancestors 'self'",
+                    "base-uri 'none'",
+                    "form-action 'none'"
+                ].join('; ')
+            );
+            return res.send(content);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return res.status(404).json({ error: 'File not found' });
+            }
+            if (error.message === 'Invalid path') {
+                return res.status(400).json({ error: 'Invalid path' });
+            }
+            logger.error('Failed to get HTML preview:', error);
+            return res.status(500).json({ error: error.message || 'Failed to preview HTML file' });
+        }
+    }
+
+    controller.getHtmlPreview = async (req, res) => sendHtmlPreviewFile(req, res, { requireHtml: true });
+    controller.getHtmlPreviewAsset = async (req, res) => sendHtmlPreviewFile(req, res, { requireHtml: false });
 
     controller.getCommitLog = async (req, res) => {
         const { id } = req.params;

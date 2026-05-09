@@ -148,6 +148,8 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.get('/:id/context', controller.getContext);
     router.get('/:id/folder-tree', controller.getFolderTree);
     router.get('/:id/file-content', controller.getFileContent);
+    router.get('/:id/html-preview', controller.getHtmlPreview);
+    router.get('/:id/html-preview/*previewPath', controller.getHtmlPreviewAsset);
     router.get('/:id/commit-log', controller.getCommitLog);
     router.post('/:id/commit-notify', controller.commitNotify);
     router.get('/:id/commit-notify', controller.getCommitNotify);
