@@ -91,23 +91,35 @@ export function installWorktreeHandlers(controller) {
 
             controller._updateProgress(sessionId, 'state', 60, 'セッション状態を更新中...');
 
-            const [stateResult, ttydResult] = await Promise.allSettled([
-                controller._updateStateWithRetry((state) => ({
+            try {
+                const persistedState = await controller._updateStateWithRetry((state) => ({
                     ...state,
                     sessions: [...(state.sessions || []).filter((session) => session.id !== sessionId), newSession]
-                })),
-                (async () => {
-                    controller._updateProgress(sessionId, 'ttyd', 80, 'ターミナルを起動中...');
-                    return controller.runtimeLifecycle.startTtyd({
-                        sessionId,
-                        cwd: worktreePath,
-                        initialCommand,
-                        engine
-                    });
-                })()
-            ]);
+                }));
+                const persistedSessions = persistedState?.sessions || [];
+                if (!persistedSessions.some((session) => session.id === sessionId)) {
+                    throw new Error('Session state was not persisted');
+                }
+            } catch (stateError) {
+                controller._updateProgress(sessionId, 'error', 0, 'セッション状態の更新に失敗');
+                try {
+                    await controller.worktreeService.remove(sessionId, resolvedRepoPath);
+                } catch (cleanupError) {
+                    logger.error('[createWithWorktree] Worktree cleanup after state failure failed:', cleanupError);
+                }
+                throw stateError;
+            }
 
-            if (ttydResult.status === 'rejected') {
+            let result;
+            try {
+                controller._updateProgress(sessionId, 'ttyd', 80, 'ターミナルを起動中...');
+                result = await controller.runtimeLifecycle.startTtyd({
+                    sessionId,
+                    cwd: worktreePath,
+                    initialCommand,
+                    engine
+                });
+            } catch (ttydError) {
                 controller._updateProgress(sessionId, 'error', 0, 'ターミナル起動に失敗');
                 try {
                     await controller._updateStateWithRetry((state) => ({
@@ -118,14 +130,9 @@ export function installWorktreeHandlers(controller) {
                     logger.error('[createWithWorktree] Rollback failed:', rollbackError);
                 }
                 controller.worktreeService.remove(sessionId, resolvedRepoPath).catch(() => {});
-                throw ttydResult.reason;
+                throw ttydError;
             }
 
-            if (stateResult.status === 'rejected') {
-                logger.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
-            }
-
-            const result = ttydResult.value;
             const ownership = controller.ownership.forceTerminalOwnership(sessionId, viewerId, viewerLabel);
             controller._updateProgress(sessionId, 'done', 100, 'セッション作成完了！');
 

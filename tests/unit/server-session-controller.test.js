@@ -645,6 +645,52 @@ describe('SessionController (Server)', () => {
   });
 
   describe('createWithWorktree', () => {
+    it('state更新失敗時_ttydを起動せず500を返す', async () => {
+      const repoPath = path.join(tempDir, 'projects', 'brainbase');
+      const controller = new SessionController(buildControllerDeps({
+        projectsRoot: path.join(tempDir, 'projects'),
+        codeProjectsRoot: path.join(tempDir, 'code')
+      }));
+      const stateError = new Error('database is locked');
+
+      await fs.mkdir(repoPath, { recursive: true });
+      mockStateStore.get.mockReturnValue({ sessions: [] });
+      mockStateStore.update.mockRejectedValue(stateError);
+      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      mockWorktreeService.create.mockResolvedValue({
+        worktreePath: '/tmp/worktrees/session-state-fail-brainbase',
+        branchName: 'session/session-state-fail',
+        startCommit: 'abc123'
+      });
+      mockWorktreeService.remove.mockResolvedValue(true);
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40124,
+        proxyPath: '/console/session-state-fail'
+      });
+
+      const req = {
+        body: {
+          sessionId: 'session-state-fail',
+          repoPath,
+          name: 'State Fail',
+          engine: 'codex',
+          project: 'brainbase',
+          viewerId: 'viewer-1'
+        },
+        headers: {
+          referer: 'http://localhost:31013/',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+        }
+      };
+
+      await controller.createWithWorktree(req, mockRes);
+
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockWorktreeService.remove).toHaveBeenCalledWith('session-state-fail', repoPath);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'database is locked' });
+    });
+
     it('staleなrepoPath時_jj repoを優先してfallbackする', async () => {
       const projectsRoot = path.join(tempDir, 'projects');
       const codeProjectsRoot = path.join(tempDir, 'code');
