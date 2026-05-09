@@ -14,18 +14,12 @@ import type {
 import { logHookExecution } from "../../lib/logging/hook-logger.js";
 
 async function main() {
-  console.error("🔍 [DEBUG] forbidden-commands-wrapper.ts が呼び出されました");
-  console.error("🔍 [DEBUG] process.argv:", process.argv);
-
   try {
     const inputString = process.argv[2];
-    console.error("🔍 [DEBUG] Raw input:", inputString);
 
     const input: BashToolInput = JSON.parse(inputString);
-    console.error("🔍 [DEBUG] Parsed input:", JSON.stringify(input, null, 2));
 
     if (input.tool !== "Bash") {
-      console.error("🔍 [DEBUG] Not a Bash tool, allowing");
       console.log(
         JSON.stringify({
           permissionDecision: "allow",
@@ -36,14 +30,11 @@ async function main() {
     }
 
     const command = input.parameters.command;
-    console.error("🔍 [DEBUG] Command to check:", command);
 
     const checker = new CommandChecker();
     const result = checker.checkCommand(command);
-    console.error("🔍 [DEBUG] Check result:", JSON.stringify(result, null, 2));
 
     if (!result.allowed) {
-      console.error("🔍 [DEBUG] Command is FORBIDDEN, blocking");
       logHookExecution(
         "PreToolUse",
         "forbidden-command-blocked",
@@ -62,7 +53,6 @@ async function main() {
     }
 
     if (result.isWarning && result.message) {
-      console.error("🔍 [DEBUG] Command has WARNING");
       logHookExecution(
         "PreToolUse",
         "forbidden-command-warning",
@@ -77,7 +67,6 @@ async function main() {
       );
     }
 
-    console.error("🔍 [DEBUG] Command is ALLOWED");
     const hookResult: HookResult = {
       permissionDecision: "allow",
       blocked: false,
@@ -105,13 +94,8 @@ async function main() {
 
 // Hook entry point
 if (process.argv[1] === import.meta.url.replace("file://", "")) {
-  console.error("🔍 [DEBUG] Hook entry point matched, starting main()");
   main().catch((error) => {
     console.error("❌ フック実行エラー:", error);
     process.exit(1);
   });
-} else {
-  console.error("🔍 [DEBUG] Hook entry point NOT matched");
-  console.error("🔍 [DEBUG] process.argv[1]:", process.argv[1]);
-  console.error("🔍 [DEBUG] import.meta.url:", import.meta.url);
 }
