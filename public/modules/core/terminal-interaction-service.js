@@ -32,16 +32,21 @@ export class TerminalInteractionService {
 
     async sendInput(sessionId, payload) {
         if (!payload) return;
+        await this.sendText(sessionId, `${payload}\n`);
+    }
+
+    async sendText(sessionId, text) {
+        if (!text) return;
         this._assertSendable(sessionId);
 
         if (this._canSendViaXterm(sessionId)) {
             const transport = this.getTerminalTransportClient();
-            await transport.sendText(payload + '\n');
+            await transport.sendText(text);
             return;
         }
 
         await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
-            input: payload + '\n',
+            input: text,
             type: 'text'
         });
         await this._syncActiveXtermSnapshot(sessionId);

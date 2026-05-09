@@ -145,7 +145,8 @@ export class App {
             compressImage,
             showSuccess,
             showError,
-            showInfo
+            showInfo,
+            getTerminalInteractionService: () => this.terminalInteractionService
         });
     }
 
@@ -502,7 +503,9 @@ export class App {
         }
 
         // 6.5. Initialize file upload (Drag & Drop, Clipboard)
-        initFileUpload(() => appStore.getState().currentSessionId);
+        initFileUpload(() => appStore.getState().currentSessionId, {
+            getTerminalInteractionService: () => this.terminalInteractionService
+        });
 
         const onPageHide = () => {
             void this.releaseTerminalOwnership(appStore.getState().currentSessionId);

@@ -14,6 +14,16 @@ let getSessionId = null; // Callback to get current session ID
 let consoleArea = null;
 let dropOverlay = null;
 let dragCounter = 0;
+let getTerminalInteractionService = null;
+
+const IMAGE_COMPRESSION_MIN_BYTES = 256 * 1024;
+
+function yieldToBrowser() {
+    if (typeof requestAnimationFrame === 'function') {
+        return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    }
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 // --- Core Functions ---
 
@@ -26,12 +36,41 @@ let dragCounter = 0;
  * @returns {Promise<Blob>} Compressed image blob
  */
 export async function compressImage(blob, maxWidth = 1920, maxHeight = 1080, quality = 0.8) {
+    if (!blob || blob.size < IMAGE_COMPRESSION_MIN_BYTES) {
+        return blob;
+    }
+
+    if (typeof createImageBitmap === 'function' && typeof OffscreenCanvas === 'function') {
+        try {
+            await yieldToBrowser();
+            const bitmap = await createImageBitmap(blob);
+            let width = bitmap.width;
+            let height = bitmap.height;
+
+            if (width > maxWidth || height > maxHeight) {
+                const ratio = Math.min(maxWidth / width, maxHeight / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+            }
+
+            const canvas = new OffscreenCanvas(width, height);
+            const ctx = canvas.getContext('2d');
+            await yieldToBrowser();
+            ctx.drawImage(bitmap, 0, 0, width, height);
+            bitmap.close?.();
+            return await canvas.convertToBlob({ type: 'image/jpeg', quality });
+        } catch (error) {
+            console.warn('[file-upload] Offscreen image compression failed, falling back:', error);
+        }
+    }
+
     return new Promise((resolve) => {
         const img = new Image();
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
+        const objectUrl = URL.createObjectURL(blob);
 
-        img.onload = () => {
+        img.onload = async () => {
             let width = img.width;
             let height = img.height;
 
@@ -44,18 +83,34 @@ export async function compressImage(blob, maxWidth = 1920, maxHeight = 1080, qua
 
             canvas.width = width;
             canvas.height = height;
+            await yieldToBrowser();
             ctx.drawImage(img, 0, 0, width, height);
 
             canvas.toBlob((compressedBlob) => {
+                URL.revokeObjectURL(objectUrl);
                 resolve(compressedBlob || blob);
             }, 'image/jpeg', quality);
         };
 
         img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
             resolve(blob); // エラー時は元のBlobを返す
         };
 
-        img.src = URL.createObjectURL(blob);
+        img.src = objectUrl;
+    });
+}
+
+async function sendTextToTerminal(sessionId, text) {
+    const terminalInteractionService = getTerminalInteractionService?.();
+    if (terminalInteractionService?.sendText) {
+        await terminalInteractionService.sendText(sessionId, text);
+        return;
+    }
+
+    await httpClient.post(`/api/sessions/${sessionId}/input`, {
+        input: text,
+        type: 'text'
     });
 }
 
@@ -112,10 +167,7 @@ async function handleFiles(files) {
         // 注: forcePaste:true (paste-buffer + bracketed paste markers) は
         //   Codex が \e[200~ の ESC を ESCキーと誤認 → "Conversation interrupted"
         //   になるため使わない。中長文/path は server 側で typing simulation にする。
-        await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-            input: path,
-            type: 'text'
-        });
+        await sendTextToTerminal(currentSessionId, path);
         showSuccess('画像パスをターミナルに挿入したよ');
     } catch (error) {
         console.error('[file-upload] File upload failed:', error);
@@ -325,10 +377,7 @@ async function pasteTextToTerminal(sessionId, text) {
     try {
         // 注: forcePaste:true は Codex で会話中断を起こすため使わない。
         // 中長文は server 側の typing simulation に任せる。
-        await httpClient.post(`/api/sessions/${sessionId}/input`, {
-            input: text,
-            type: 'text'
-        });
+        await sendTextToTerminal(sessionId, text);
     } catch (error) {
         console.error('Failed to paste text:', error);
         alert('テキストの貼り付けに失敗しました');
@@ -504,9 +553,14 @@ function setupImageFilePicker() {
 /**
  * Initialize file upload module
  * @param {function} sessionIdGetter - Function that returns current session ID
+ * @param {Object} [options]
+ * @param {function} [options.getTerminalInteractionService]
  */
-export function initFileUpload(sessionIdGetter) {
+export function initFileUpload(sessionIdGetter, options = {}) {
     getSessionId = sessionIdGetter;
+    getTerminalInteractionService = typeof options.getTerminalInteractionService === 'function'
+        ? options.getTerminalInteractionService
+        : () => options.terminalInteractionService || null;
     consoleArea = document.querySelector('.console-area');
     dropOverlay = document.getElementById('drop-overlay');
 

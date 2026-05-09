@@ -26,6 +26,24 @@ describe('TerminalInteractionService', () => {
         expect(httpClient.post).not.toHaveBeenCalled();
     });
 
+    it('sendTextは改行を付けずにxtermへ即時送信する', async () => {
+        const httpClient = { post: vi.fn() };
+        const transport = {
+            canSendInput: vi.fn(() => true),
+            sendText: vi.fn(async () => {})
+        };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => transport,
+            shouldUseXtermTransport: () => true
+        });
+
+        await service.sendText('session-1', '/tmp/image.png');
+
+        expect(transport.sendText).toHaveBeenCalledWith('/tmp/image.png');
+        expect(httpClient.post).not.toHaveBeenCalled();
+    });
+
     it('xtermがwritableでなければHTTP fallback後にsnapshot同期する', async () => {
         const httpClient = { post: vi.fn(async () => {}) };
         const transport = {
@@ -45,6 +63,29 @@ describe('TerminalInteractionService', () => {
         expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/input', {
             input: 'Escape',
             type: 'key'
+        });
+        expect(transport.refreshSnapshot).toHaveBeenCalled();
+    });
+
+    it('sendTextのHTTP fallback後もsnapshot同期する', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const transport = {
+            canSendInput: vi.fn(() => false),
+            isActiveForSession: vi.fn(() => true),
+            isBlockedForSession: vi.fn(() => false),
+            refreshSnapshot: vi.fn(async () => {})
+        };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => transport,
+            shouldUseXtermTransport: () => true
+        });
+
+        await service.sendText('session-1', '/tmp/image.png');
+
+        expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/input', {
+            input: '/tmp/image.png',
+            type: 'text'
         });
         expect(transport.refreshSnapshot).toHaveBeenCalled();
     });
