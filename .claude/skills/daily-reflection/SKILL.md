@@ -163,6 +163,42 @@ gh api "repos/<owner>/<repo>/contents/<path>" \
 - **アクション**: 「📅 次の手配・アクション」セクション（mana の標準セクション）
 - **期限表現**: 「今週中」「GW明け」「明日のMTG」等 → 絶対日付へ変換
 
+### タスク化候補の文脈必須契約
+
+議事録から NocoDB タスク候補を作る場合、抽出結果には必ず以下を含める。これを満たさない候補は NocoDB に登録せず、Phase 7 の「要確認」に回す。
+
+```json
+{
+  "title": "実行可能な作業タイトル",
+  "why_now": "なぜこのタスクが必要か。議事録から読み取れる背景だけを書く",
+  "source_meetings": [
+    {
+      "repo": "Unson-LLC/Drive",
+      "path": "meetings/unson-board/minutes/YYYY-MM-DD_slug.md",
+      "source_url": "https://github.com/Unson-LLC/Drive/blob/<commit-or-branch>/meetings/unson-board/minutes/YYYY-MM-DD_slug.md",
+      "source_ref": "<commit-sha-or-branch>",
+      "meeting_date": "YYYY-MM-DD",
+      "meeting_title": "会議名またはslug",
+      "source_type": "minutes|transcript",
+      "evidence_quote": "タスク化の根拠になった短い引用または要約",
+      "speaker": "発言者名"
+    }
+  ],
+  "extraction_reason": "この発言をタスク化した判断理由",
+  "acceptance_criteria": ["完了条件1", "完了条件2"]
+}
+```
+
+**禁止**:
+- 背景・根拠議事録・引用なしでタスクを作らない
+- 議事録の「構造化発言」や「提案」を、ユーザーの実行意思があるタスクとして勝手に独立プロジェクト化しない
+- 「自動抽出パイプラインを作る」のようなメタタスクを、議事録内の示唆だけから作らない。必要なら `oyasumi` 実行中の改善メモとして残す
+
+**判断基準**:
+- 会議中に明示された次アクションか？ → タスク化可
+- 正本候補・知見として残すべきだけか？ → Graph/Wiki/learning 候補へ回し、NocoDB タスクにはしない
+- 文脈が不足しているか？ → 登録せず、Phase 7 に「確認が必要な候補」として出す
+
 ### 期限表現→日付変換（会議日基準）
 | 表現 | 変換ロジック |
 |---|---|
@@ -362,6 +398,25 @@ updated: YYYY-MM-DD                     # 必須
 }
 ```
 
+`description` には必ず以下の見出しを含める：
+
+```markdown
+## 背景
+<why_now>
+
+## 根拠議事録
+- <source_url>（<repo>:<path> / ref: <source_ref> / 会議日: YYYY-MM-DD / 会議: <meeting_title>）
+
+## 根拠発言
+<speaker>: <evidence_quote>
+
+## タスク化した理由
+<extraction_reason>
+
+## 完了条件
+- <acceptance_criteria>
+```
+
 **Brainbase**（日本語 column_name・`プロジェクト` SingleSelect={mana, brainbase, 共通}）:
 ```json
 {
@@ -371,6 +426,22 @@ updated: YYYY-MM-DD                     # 必須
   "背景": "...", "会議日": "YYYY-MM-DD", "会議タイトル": "<slug>"
 }
 ```
+
+`背景` には `description` と同じ文脈テンプレートを入れる。テーブルに source URL / repo / path 専用カラムが無い場合も、`背景` または `description` 内に必ず埋め込む。
+
+### GitHub ソース URL の作り方
+
+Phase 2 で `gh api repos/<owner>/<repo>/contents/<path>` を呼ぶ時点で、レスポンスの `html_url` / `git_url` / `sha` を保存する。タスク説明に貼る URL は、可能なら branch URL ではなく commit SHA 付き permalink にする。
+
+```bash
+gh api "repos/<owner>/<repo>/contents/<path>" \
+  | jq -r '{html_url, git_url, sha, path}'
+```
+
+**優先順位**:
+1. `https://github.com/<owner>/<repo>/blob/<commit-sha>/<path>`（内容固定できる場合）
+2. API レスポンスの `html_url`
+3. `repo:path` のみ（URL取得失敗時のフォールバック。Phase 7 に URL 欠落として報告）
 
 **Zeims**（英語 column_name・`assignee` は **MultiSelect**）:
 - 担当者の valid options は **太田 / 川合 / 佐藤** のみ
