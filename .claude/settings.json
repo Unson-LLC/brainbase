@@ -18,16 +18,6 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/post-tool-use/edit-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
-            "timeout": 20000
-          }
-        ]
-      },
-      {
         "matcher": ".*",
         "hooks": [
           {
@@ -68,11 +58,6 @@
     "Stop": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/push-guard.ts",
-            "timeout": 10000
-          },
           {
             "type": "command",
             "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/jj-commit-guard.ts",
