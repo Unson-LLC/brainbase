@@ -25,6 +25,27 @@ const EXPECTED_CLOSE_CODES = new Set([
 // Custom close code: ownership was taken over by another viewer
 const WS_CLOSE_BLOCKED = 4001;
 
+function isTtcDebugEnabled() {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.__BB_TTC_DEBUG__ === true || window.localStorage?.getItem('brainbase.ttcDebug') === '1';
+    } catch {
+        return false;
+    }
+}
+
+function ttcDebug(...args) {
+    if (isTtcDebugEnabled() && typeof console !== 'undefined' && console.log) {
+        console.log(...args);
+    }
+}
+
+function ttcWarn(...args) {
+    if (isTtcDebugEnabled() && typeof console !== 'undefined' && console.warn) {
+        console.warn(...args);
+    }
+}
+
 const DEFAULT_TERMINAL_THEME = {
     background: '#000000',
     foreground: '#e2e8f0',
@@ -184,12 +205,12 @@ export class TerminalTransportClient {
             if (data === '\r' && this._imePostEnterPending) {
                 this._imePostEnterPending = false;
                 clearTimeout(this._imePostEnterTimer);
-                console.log('[TTC-PROBE][onData] IME post-Enter: natural \\r arrived, timer cancelled');
+                ttcDebug('[TTC-PROBE][onData] IME post-Enter: natural \\r arrived, timer cancelled');
             }
             if (this._isImeCommitText(data)) {
                 this._setImeComposing(false, { settleCursor: true });
             }
-            console.log('[TTC-PROBE][onData] fired', {
+            ttcDebug('[TTC-PROBE][onData] fired', {
                 len: data.length,
                 preview: data.slice(0, 20),
                 token,
@@ -202,14 +223,14 @@ export class TerminalTransportClient {
             this._inputQueue = this._inputQueue
                 .then(() => {
                     const resumedAt = performance.now();
-                    console.log('[TTC-PROBE][onData] chain resumed', {
+                    ttcDebug('[TTC-PROBE][onData] chain resumed', {
                         len: data.length,
                         waitMs: Math.round(resumedAt - enqueueAt),
                         capturedToken: token,
                         currentToken: this._connectToken
                     });
                     if (this._connectToken !== token) {
-                        console.warn('[TTC-PROBE][onData] DROPPED token mismatch', {
+                        ttcWarn('[TTC-PROBE][onData] DROPPED token mismatch', {
                             len: data.length,
                             preview: data.slice(0, 20),
                             capturedToken: token,
@@ -235,7 +256,7 @@ export class TerminalTransportClient {
         });
         this.hostEl.addEventListener('focusin', (e) => {
             this.status.isFocused = true;
-            console.log('[TTC-PROBE][focus] focusin', { target: e.target?.tagName, mode: this.status.mode });
+            ttcDebug('[TTC-PROBE][focus] focusin', { target: e.target?.tagName, mode: this.status.mode });
             this._emitStatus();
         });
         // hostEl 配下の keydown を capture で監視。onData が来ない時にキーが届いているか確認する。
@@ -243,7 +264,7 @@ export class TerminalTransportClient {
         // xtermが握り潰す場合がある。bare Enterを検知してタイマーで\rを補完する。
         // IME確定Enter自体では\rを送らない（確定だけで送信しない）。
         this.hostEl.addEventListener('keydown', (e) => {
-            console.log('[TTC-PROBE][hostEl-keydown]', {
+            ttcDebug('[TTC-PROBE][hostEl-keydown]', {
                 key: e.key.slice(0, 10),
                 isComposing: e.isComposing,
                 target: e.target?.tagName,
@@ -272,7 +293,7 @@ export class TerminalTransportClient {
                         return;
                     }
                     this._imePostEnterPending = false;
-                    console.log('[TTC-PROBE][hostEl-keydown] Enter rescue: sending \\r');
+                    ttcDebug('[TTC-PROBE][hostEl-keydown] Enter rescue: sending \\r');
                     this._inputQueue = this._inputQueue.then(() => this.sendText('\r')).catch(() => {
                         inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { source: 'enter-rescue' });
                     });
@@ -282,7 +303,7 @@ export class TerminalTransportClient {
         this.hostEl.addEventListener('focusout', (e) => {
             this.status.isFocused = false;
             this._setImeComposing(false);
-            console.log('[TTC-PROBE][focus] focusout', {
+            ttcDebug('[TTC-PROBE][focus] focusout', {
                 target: e.target?.tagName,
                 relatedTarget: e.relatedTarget?.tagName,
                 mode: this.status.mode
@@ -295,16 +316,16 @@ export class TerminalTransportClient {
         this._focusLostToIframe = false;
         this._windowBlurHandler = () => {
             this._focusLostToIframe = document.activeElement?.tagName === 'IFRAME';
-            console.log('[TTC-PROBE][window] blur, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'activeEl:', document.activeElement?.tagName, 'iframeCaused:', this._focusLostToIframe);
+            ttcDebug('[TTC-PROBE][window] blur, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'activeEl:', document.activeElement?.tagName, 'iframeCaused:', this._focusLostToIframe);
         };
         window.addEventListener('blur', this._windowBlurHandler);
 
         this._windowFocusHandler = () => {
             const wasIframeCaused = this._focusLostToIframe;
             this._focusLostToIframe = false;
-            console.log('[TTC-PROBE][window] focus, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'wasIframeCaused:', wasIframeCaused);
+            ttcDebug('[TTC-PROBE][window] focus, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'wasIframeCaused:', wasIframeCaused);
             if (!wasIframeCaused && !this.status.isFocused && (this.status.mode === 'live' || this.status.mode === 'waiting')) {
-                console.log('[TTC-PROBE][window] refocusing terminal');
+                ttcDebug('[TTC-PROBE][window] refocusing terminal');
                 this.terminal?.focus();
             }
         };
@@ -313,7 +334,7 @@ export class TerminalTransportClient {
         // xterm.js は内部で処理するはずだが、overlay 等で届かない場合の保険。
         this._hostPointerFocusHandler = () => {
             const hadDomFocus = this.hasDomFocus();
-            console.log('[TTC-PROBE][focus-recovery] host interaction, focusing terminal', {
+            ttcDebug('[TTC-PROBE][focus-recovery] host interaction, focusing terminal', {
                 statusFocused: this.status.isFocused,
                 hadDomFocus,
                 activeEl: document.activeElement?.tagName
@@ -443,7 +464,7 @@ export class TerminalTransportClient {
         const prevToken = this._connectToken;
         this._connectToken += 1;
         const connectToken = this._connectToken;
-        console.warn('[TTC-PROBE] connectToken++', {
+        ttcWarn('[TTC-PROBE] connectToken++', {
             from: prevToken,
             to: connectToken,
             switchingSessions,
@@ -458,9 +479,9 @@ export class TerminalTransportClient {
         if (bufferedBeforeSwitch) {
             if (this.ws?.readyState === WebSocket.OPEN && this.canSendInput(this.sessionId)) {
                 this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedBeforeSwitch }));
-                console.log('[TTC-PROBE] connect drain flushed', { len: bufferedBeforeSwitch.length });
+                ttcDebug('[TTC-PROBE] connect drain flushed', { len: bufferedBeforeSwitch.length });
             } else {
-                console.warn('[TTC-PROBE] connect drain DROPPED', {
+                ttcWarn('[TTC-PROBE] connect drain DROPPED', {
                     len: bufferedBeforeSwitch.length,
                     preview: bufferedBeforeSwitch.slice(0, 40),
                     wsState: this.ws?.readyState,
@@ -531,7 +552,7 @@ export class TerminalTransportClient {
                         this.status.mode = 'live';
                         this.status.connected = true;
                         this._applyRuntimeStatus(message);
-                        console.log('[TTC] ready received');
+                        ttcDebug('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
                         void this.syncViewportSize();
@@ -545,7 +566,7 @@ export class TerminalTransportClient {
                         break;
                     case 'snapshot': {
                         const snapshotLen = (message.colorText || message.text || '').length;
-                        console.log(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
+                        ttcDebug(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
                         this._queueOrApplySnapshot(message.colorText || message.text || '', message.cursor || null, {
                             plainText: message.text || '',
                             visibleText: message.visibleColorText || message.visibleText || null,
@@ -606,7 +627,7 @@ export class TerminalTransportClient {
 
             ws.addEventListener('close', (closeEvent) => {
                 const closeCode = closeEvent?.code;
-                console.warn('[TTC-PROBE] ws close', {
+                ttcWarn('[TTC-PROBE] ws close', {
                     code: closeCode,
                     reason: closeEvent?.reason,
                     wasClean: closeEvent?.wasClean,
@@ -618,7 +639,7 @@ export class TerminalTransportClient {
                     manualClose: this._manualClose,
                     sessionId: this.sessionId
                 });
-                console.log(`[TTC] ws close: code=${closeCode}, stale=${this._connectToken !== connectToken}`);
+                ttcDebug(`[TTC] ws close: code=${closeCode}, stale=${this._connectToken !== connectToken}`);
                 if (this._connectToken !== connectToken || this.ws !== ws) {
                     cleanup();
                     return;
@@ -696,7 +717,7 @@ export class TerminalTransportClient {
     async sendText(value) {
         const capturedToken = this._connectToken;
         const capturedSessionId = this.sessionId;
-        console.log('[TTC-PROBE][sendText] entered', {
+        ttcDebug('[TTC-PROBE][sendText] entered', {
             len: value?.length,
             canSend: this.canSendInput(this.sessionId),
             mode: this.status.mode,
@@ -720,14 +741,14 @@ export class TerminalTransportClient {
         // などで矢印が効かなくなる問題を回避。
         const skipProbe = this._canBypassInputReadyProbe(value);
         if (!skipProbe && !this.canSendInput(this.sessionId)) {
-            console.log('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
+            ttcDebug('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
             const ok = await this._ensureInputReadyForUserInput();
             const probeMs = Math.round(performance.now() - probeStart);
-            console.log('[TTC-PROBE][sendText] probe returned', { ok, probeMs });
+            ttcDebug('[TTC-PROBE][sendText] probe returned', { ok, probeMs });
             // probe 中にセッション切り替えが発生した場合は別セッションに誤送しない。
             if (this._connectToken !== capturedToken || this.sessionId !== capturedSessionId) {
-                console.warn('[TTC-PROBE] sendText dropped: session changed during probe', {
+                ttcWarn('[TTC-PROBE] sendText dropped: session changed during probe', {
                     capturedToken, currentToken: this._connectToken,
                     capturedSession: capturedSessionId, currentSession: this.sessionId
                 });
@@ -747,7 +768,7 @@ export class TerminalTransportClient {
                     const message = { type: 'input', inputType: 'text', value };
                     this._messageQueue.enqueue(message);
                     inputTelemetry.inc('queued');
-                    console.warn('[TTC-PROBE] sendText queued (probe failed, will flush on reconnect)', {
+                    ttcWarn('[TTC-PROBE] sendText queued (probe failed, will flush on reconnect)', {
                         len: value.length,
                         mode: this.status.mode,
                         inputReady: this.status.inputReady,
@@ -757,7 +778,7 @@ export class TerminalTransportClient {
                     });
                     return;
                 }
-                console.warn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
+                ttcWarn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
                     len: value.length,
                     mode: this.status.mode,
                     inputReady: this.status.inputReady,
@@ -777,7 +798,7 @@ export class TerminalTransportClient {
                 return;
             }
         }
-        console.log('[TTC-PROBE] sendText accepted', {
+        ttcDebug('[TTC-PROBE] sendText accepted', {
             len: value.length,
             pendingBefore: this._pendingTextBuffer.length,
             mode: this.status.mode,
@@ -901,20 +922,20 @@ export class TerminalTransportClient {
 
     async _ensureInputReadyForUserInput() {
         if (this.ws?.readyState !== WebSocket.OPEN) {
-            console.warn('[TTC-PROBE][ensureInputReady] early-return ws not open', { wsState: this.ws?.readyState });
+            ttcWarn('[TTC-PROBE][ensureInputReady] early-return ws not open', { wsState: this.ws?.readyState });
             return false;
         }
         if (this.status.mode === 'blocked' || this.status.terminalAccess?.state !== 'owner') {
-            console.warn('[TTC-PROBE][ensureInputReady] early-return blocked', {
+            ttcWarn('[TTC-PROBE][ensureInputReady] early-return blocked', {
                 mode: this.status.mode,
                 owner: this.status.terminalAccess?.state
             });
             return false;
         }
-        console.log('[TTC-PROBE][ensureInputReady] calling verifyInputReady');
+        ttcDebug('[TTC-PROBE][ensureInputReady] calling verifyInputReady');
         const vStart = performance.now();
         const result = await this.verifyInputReady();
-        console.log('[TTC-PROBE][ensureInputReady] verifyInputReady returned', {
+        ttcDebug('[TTC-PROBE][ensureInputReady] verifyInputReady returned', {
             result,
             ms: Math.round(performance.now() - vStart)
         });
@@ -1082,13 +1103,13 @@ export class TerminalTransportClient {
             if (enqueueIfUnavailable) {
                 this._messageQueue.enqueue(message);
                 inputTelemetry.inc('queued');
-                console.warn('[TTC-PROBE] dispatch queued (ws not open)', {
+                ttcWarn('[TTC-PROBE] dispatch queued (ws not open)', {
                     len: value.length,
                     wsState: this.ws?.readyState,
                     queueSize: this._messageQueue.size()
                 });
             } else {
-                console.warn('[TTC-PROBE] dispatch DROPPED (ws not open, no enqueue)', {
+                ttcWarn('[TTC-PROBE] dispatch DROPPED (ws not open, no enqueue)', {
                     len: value.length,
                     wsState: this.ws?.readyState,
                     enqueueIfUnavailable,
@@ -1109,7 +1130,7 @@ export class TerminalTransportClient {
             if (enqueueIfUnavailable) {
                 this._messageQueue.enqueue(message);
                 inputTelemetry.inc('queued');
-                console.warn('[TTC-PROBE] dispatch queued (canSendInput=false)', {
+                ttcWarn('[TTC-PROBE] dispatch queued (canSendInput=false)', {
                     len: value.length,
                     mode: this.status.mode,
                     inputReady: this.status.inputReady,
@@ -1119,7 +1140,7 @@ export class TerminalTransportClient {
                 });
                 return;
             }
-            console.warn('[TTC-PROBE] dispatch DROPPED (canSendInput=false, ws OPEN)', {
+            ttcWarn('[TTC-PROBE] dispatch DROPPED (canSendInput=false, ws OPEN)', {
                 len: value.length,
                 mode: this.status.mode,
                 inputReady: this.status.inputReady,
@@ -1138,7 +1159,7 @@ export class TerminalTransportClient {
         }
         this.ws.send(JSON.stringify(message));
         inputTelemetry.inc('sentOk');
-        console.log('[TTC-PROBE] dispatch sent', { len: value.length });
+        ttcDebug('[TTC-PROBE] dispatch sent', { len: value.length });
     }
 
     _canSendInputWithoutReady(sessionId) {
@@ -1363,7 +1384,7 @@ export class TerminalTransportClient {
         const normalizedText = this._buildSnapshotForTerminal(text || '', cursor, options);
         if (this._shouldDeferSnapshotForPendingEcho(normalizedText)) {
             this._deferredSnapshotWhileEchoPending = normalizedText;
-            console.warn('[TTC-PROBE] snapshot deferred while local echo pending', {
+            ttcWarn('[TTC-PROBE] snapshot deferred while local echo pending', {
                 echoLen: this._pendingEchoText.length,
                 snapshotLen: normalizedText.length
             });
