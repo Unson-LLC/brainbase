@@ -2,6 +2,11 @@ import { appStore } from '../core/store.js';
 import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 
+function isVisibleTerminalElement(element) {
+    if (!element || element.classList?.contains('hidden')) return false;
+    return window.getComputedStyle(element).display !== 'none';
+}
+
 export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype.syncMobileTerminalReserve = function(
         viewportHeight = window.visualViewport?.height || window.innerHeight,
@@ -186,13 +191,65 @@ export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype._scheduleTerminalViewportSync = function() {
         scheduleAfterNextPaint(() => {
             if (!this._isConsoleVisible()) return;
+            this._restoreTerminalSurfaceAfterReveal('viewport-sync');
+        });
+    };
 
-            if (this._isXtermTransportActive()) {
-                void this.terminalTransportClient?.syncViewportSize();
+    AppClass.prototype._restoreTerminalSurfaceAfterReveal = function(reason = 'unknown') {
+        if (!this._isConsoleVisible()) return;
+
+        const xtermHost = this.terminalXtermHost || document.getElementById('terminal-xterm-host');
+        if (isVisibleTerminalElement(xtermHost) && this.terminalTransportClient?.restoreAfterReveal) {
+            void this.terminalTransportClient.restoreAfterReveal();
+            return;
+        }
+
+        const frame = this._mobileTerminalMode === 'interactive'
+            ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
+            : this.terminalFrame || document.getElementById('terminal-frame');
+        if (isVisibleTerminalElement(frame)) {
+            this._restoreTerminalFrameAfterReveal(frame, reason);
+            return;
+        }
+
+        window.dispatchEvent(new Event('resize'));
+    };
+
+    AppClass.prototype._restoreTerminalFrameAfterReveal = function(frame, reason = 'unknown') {
+        const rect = frame.getBoundingClientRect?.();
+        const width = Math.max(0, Math.round(rect?.width || frame.clientWidth || 0));
+        const height = Math.max(0, Math.round(rect?.height || frame.clientHeight || 0));
+
+        frame.classList.add('terminal-frame-revealing');
+        try {
+            frame.focus?.();
+        } catch (error) {
+            // ignore
+        }
+        try {
+            frame.contentWindow?.focus?.();
+        } catch (error) {
+            // ignore
+        }
+        const postFrameMessage = (message) => {
+            if (typeof this.postTerminalFrameMessage === 'function') {
+                this.postTerminalFrameMessage(message, frame);
                 return;
             }
+            try {
+                frame.contentWindow?.postMessage?.(message, window.location.origin);
+            } catch (error) {
+                // ignore
+            }
+        };
+        postFrameMessage({ type: 'bb-terminal-layout', width, height, reason });
+        postFrameMessage({ type: 'bb-terminal-reveal', reason });
+        postFrameMessage({ type: 'bb-terminal-focus', reason });
+        window.dispatchEvent(new Event('resize'));
 
-            window.dispatchEvent(new Event('resize'));
+        window.requestAnimationFrame?.(() => {
+            frame.classList.remove('terminal-frame-revealing');
+            postFrameMessage({ type: 'bb-terminal-reveal', reason: `${reason}:after-paint` });
         });
     };
 

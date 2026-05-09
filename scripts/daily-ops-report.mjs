@@ -95,41 +95,253 @@ export function buildDailyOpsReportHtml(report) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(report.modeLabel)} ${escapeHtml(report.date)} - ${escapeHtml(report.title)}</title>
   <style>
-    :root { color-scheme: light; --bg: #f7f8fa; --panel: #fff; --text: #18202f; --muted: #667085; --line: #d9dee7; --accent: #2563eb; --warn: #b45309; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    main { max-width: 1120px; margin: 0 auto; padding: 28px 18px 48px; }
-    header { display: grid; gap: 8px; margin-bottom: 20px; }
-    h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
-    h2 { margin: 0 0 12px; font-size: 18px; letter-spacing: 0; }
-    p { margin: 0; line-height: 1.6; }
-    .meta { color: var(--muted); font-size: 13px; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
-    .sections { display: grid; gap: 14px; }
-    section, aside { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
-    .item { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
-    .item:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
-    .item-title { font-weight: 700; }
-    .item-meta, .evidence { color: var(--muted); font-size: 12px; margin-top: 6px; }
-    .empty { color: var(--muted); }
-    .actions { position: sticky; top: 16px; display: grid; gap: 12px; }
+    :root {
+      color-scheme: light;
+      --bg: #f4f1eb;
+      --paper: #fffdf8;
+      --panel: #ffffff;
+      --text: #20242c;
+      --heading: #111827;
+      --muted: #68707d;
+      --faint: #8a929e;
+      --line: #ded8cd;
+      --line-soft: #ece6dc;
+      --accent: #0f766e;
+      --accent-soft: #e6f2ef;
+      --warn: #9a5b13;
+      --warn-soft: #fff4df;
+      --shadow: 0 18px 42px rgba(39, 33, 24, 0.07);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 253, 248, 0.82), rgba(244, 241, 235, 0.96) 300px),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 44px 22px 64px; }
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px 28px;
+      align-items: end;
+      margin-bottom: 28px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      color: var(--heading);
+      font-size: clamp(30px, 4vw, 48px);
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.08;
+    }
+    h2 {
+      margin: 0;
+      color: var(--heading);
+      font-size: 17px;
+      font-weight: 740;
+      letter-spacing: 0;
+      line-height: 1.35;
+    }
+    p { margin: 0; }
+    a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    .summary {
+      max-width: 74ch;
+      margin-top: 16px;
+      color: #343a45;
+      font-size: 16px;
+      line-height: 1.85;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .generated {
+      justify-self: end;
+      min-width: 180px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.56);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-align: right;
+    }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+    .sections { display: grid; gap: 18px; }
+    section, aside {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+    section { display: grid; grid-template-columns: 190px minmax(0, 1fr); padding: 0; overflow: hidden; }
+    .section-heading {
+      padding: 18px 18px 18px 20px;
+      border-right: 1px solid var(--line-soft);
+      background: rgba(255, 255, 255, 0.42);
+    }
+    .section-count {
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+    }
+    .section-body { min-width: 0; padding: 2px 20px; }
+    .item {
+      display: grid;
+      gap: 7px;
+      padding: 18px 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    .item:first-of-type { border-top: 0; }
+    .item-head {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .item-title {
+      min-width: 0;
+      color: var(--heading);
+      font-weight: 720;
+      line-height: 1.45;
+    }
+    .item-summary {
+      max-width: 78ch;
+      color: #3e4652;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
+    .badge {
+      flex: 0 0 auto;
+      max-width: 46%;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8f4ec;
+      color: #5d6470;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.6;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .badge[data-tone="done"], .badge[data-tone="ok"] {
+      border-color: #b8d8d1;
+      background: var(--accent-soft);
+      color: #0f615b;
+    }
+    .badge[data-tone="warn"], .badge[data-tone="hold"] {
+      border-color: #efd5a6;
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+    .item-meta, .evidence {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.65;
+      overflow-wrap: anywhere;
+    }
+    .evidence { color: var(--faint); }
+    .empty { padding: 18px 0; color: var(--muted); }
+    .actions {
+      position: sticky;
+      top: 18px;
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      background: #fffdf9;
+    }
+    .actions h2 { margin-bottom: 7px; }
     .action-grid { display: grid; gap: 8px; }
-    button { border: 1px solid var(--line); background: #fff; color: var(--text); border-radius: 6px; min-height: 36px; padding: 8px 10px; font: inherit; cursor: pointer; text-align: left; }
-    button:hover { border-color: var(--accent); }
-    .copy-btn { background: var(--accent); color: #fff; border-color: var(--accent); text-align: center; }
-    textarea { width: 100%; min-height: 220px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
-    input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; min-height: 34px; padding: 7px 9px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .safety { color: var(--warn); font-size: 12px; }
+    button {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+      border-radius: 8px;
+      min-height: 38px;
+      padding: 9px 11px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color .16s ease, background-color .16s ease, transform .16s ease;
+    }
+    button:hover { border-color: var(--accent); background: #fbfffd; }
+    button:active { transform: translateY(1px); }
+    .copy-btn { background: var(--accent); color: #fff; border-color: var(--accent); text-align: center; font-weight: 700; }
+    textarea {
+      width: 100%;
+      min-height: 230px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfaf7;
+      color: #252b35;
+      padding: 12px;
+      font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      resize: vertical;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      min-height: 36px;
+      padding: 8px 10px;
+      font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .safety { color: var(--warn); font-size: 12px; line-height: 1.7; }
     .status { color: var(--muted); font-size: 12px; min-height: 18px; }
-    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .actions { position: static; } }
+    @media (max-width: 900px) {
+      main { padding: 28px 14px 44px; }
+      header { grid-template-columns: 1fr; }
+      .generated { justify-self: stretch; text-align: left; }
+      .layout { grid-template-columns: 1fr; }
+      .actions { position: static; }
+      section { grid-template-columns: 1fr; }
+      .section-heading { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+      .item-head { display: grid; }
+      .badge { max-width: 100%; justify-self: start; }
+    }
+    @media print {
+      body { background: #fff; }
+      main { max-width: none; padding: 0; }
+      aside { display: none; }
+      section { break-inside: avoid; box-shadow: none; }
+    }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <p class="meta">${escapeHtml(report.modeLabel)} / ${escapeHtml(report.date)}</p>
-      <h1>${escapeHtml(report.title)}</h1>
-      <p>${escapeHtml(report.summary)}</p>
-      <p class="meta">Generated: ${escapeHtml(report.generatedAt)}</p>
+      <div>
+        <p class="eyebrow">${escapeHtml(report.modeLabel)} / ${escapeHtml(report.date)}</p>
+        <h1>${escapeHtml(report.title)}</h1>
+        <p class="summary">${escapeHtml(report.summary)}</p>
+      </div>
+      <p class="meta generated">Generated<br>${escapeHtml(formatGeneratedAt(report.generatedAt))}</p>
     </header>
     <div class="layout">
       <div class="sections">
@@ -212,22 +424,32 @@ export function buildDailyOpsReportHtml(report) {
 function renderSection(section) {
     const items = section.items || [];
     return `<section>
-  <h2>${escapeHtml(section.title)}</h2>
-  ${items.length ? items.map(renderItem).join('\n') : '<p class="empty">記録なし</p>'}
+  <div class="section-heading">
+    <h2>${escapeHtml(section.title)}</h2>
+    <span class="section-count">${items.length} item${items.length === 1 ? '' : 's'}</span>
+  </div>
+  <div class="section-body">
+    ${items.length ? items.map(renderItem).join('\n') : '<p class="empty">記録なし</p>'}
+  </div>
 </section>`;
 }
 
 function renderItem(item) {
     const meta = Object.entries(item.meta || {})
-        .filter(([, value]) => value !== undefined && value !== null && value !== '')
+        .filter(([key, value]) => key !== 'status' && value !== undefined && value !== null && value !== '')
         .map(([key, value]) => `${escapeHtml(key)}: ${escapeHtml(String(value))}`)
         .join(' / ');
     const evidence = normalizeEvidence(item.evidence || [])
         .map((entry) => `${escapeHtml(entry.type || 'ref')}: ${escapeHtml(entry.ref || entry.label || '')}`)
         .join(' / ');
+    const status = item.meta?.status ? String(item.meta.status) : '';
+    const tone = getStatusTone(status);
     return `<article class="item">
-  <p class="item-title">${escapeHtml(item.title || 'Untitled')}</p>
-  <p>${escapeHtml(item.summary || '')}</p>
+  <div class="item-head">
+    <p class="item-title">${escapeHtml(item.title || 'Untitled')}</p>
+    ${status ? `<span class="badge" data-tone="${escapeHtml(tone)}">${escapeHtml(status)}</span>` : ''}
+  </div>
+  ${item.summary ? `<p class="item-summary">${escapeHtml(item.summary)}</p>` : ''}
   ${meta ? `<p class="item-meta">${meta}</p>` : ''}
   ${evidence ? `<p class="evidence">${evidence}</p>` : ''}
 </article>`;
@@ -236,8 +458,13 @@ function renderItem(item) {
 function renderEvidenceSection(evidence) {
     if (!evidence.length) return '';
     return `<section>
-  <h2>証跡</h2>
-  ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p>${escapeHtml(entry.ref || '')}</p></article>`).join('\n')}
+  <div class="section-heading">
+    <h2>証跡</h2>
+    <span class="section-count">${evidence.length} item${evidence.length === 1 ? '' : 's'}</span>
+  </div>
+  <div class="section-body">
+    ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p class="item-summary">${escapeHtml(entry.ref || '')}</p></article>`).join('\n')}
+  </div>
 </section>`;
 }
 
@@ -254,12 +481,38 @@ function normalizeSection(id, fallbackTitle, value) {
 
 function normalizeItem(value) {
     if (typeof value === 'string') return { title: value, summary: '', meta: {}, evidence: [] };
+    const meta = { ...(value.meta || {}) };
+    for (const key of ['status', 'deadline', 'assignee', 'source']) {
+        if (value[key] !== undefined && value[key] !== null && value[key] !== '' && meta[key] === undefined) {
+            meta[key] = value[key];
+        }
+    }
     return {
         title: value.title || value.name || value.subject || 'Untitled',
-        summary: value.summary || value.body || value.description || '',
-        meta: value.meta || {},
+        summary: value.summary || value.detail || value.body || value.description || '',
+        meta,
         evidence: normalizeEvidence(value.evidence || [])
     };
+}
+
+function getStatusTone(status) {
+    const text = String(status || '').toLowerCase();
+    if (/完了|成功|取得済み|done|success|ok|passed/.test(text)) return 'done';
+    if (/未投入|候補|未完了|失敗|要|保留|task化|pending|failed|hold|warn/.test(text)) return 'hold';
+    return 'neutral';
+}
+
+function formatGeneratedAt(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
 function normalizeEvidence(value) {

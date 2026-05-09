@@ -1825,6 +1825,10 @@ body::after {
     display: block;
 }
 
+.console-area iframe.terminal-frame-revealing {
+    transform: translateZ(0);
+}
+
 .terminal-xterm-host {
     flex: 1;
     width: 100%;

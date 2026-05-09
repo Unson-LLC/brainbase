@@ -26,7 +26,7 @@ export const ActivityState = Object.freeze({
 /**
  * hookStatusから細分化されたアクティビティ状態を導出
  *
- * @param {{ isWorking: boolean, isDone: boolean, activeTurnCount?: number, liveActivity?: { activityKind?: string|null, statusTone?: string|null }|null }|null} hookStatus
+ * @param {{ state?: string, isWorking: boolean, isDone: boolean, activeTurnCount?: number, liveActivity?: { activityKind?: string|null, statusTone?: string|null }|null }|null} hookStatus
  * @returns {string} ActivityState value
  */
 export function deriveActivityState(hookStatus) {
