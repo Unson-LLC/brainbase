@@ -9,6 +9,7 @@ const DEFAULT_SNAPSHOT_LINES = 400;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
+const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
@@ -144,6 +145,9 @@ export class TerminalTransportService {
             streamCleanup: null,
             initialFrameDelivered: false,
             initialSnapshotTimer: null,
+            inputSnapshotRefreshTimer: null,
+            inputSnapshotRefreshInFlight: false,
+            inputSnapshotRefreshRequested: false,
             terminalAccess: ownership.terminalAccess,
             inputReady: false,
             runtimeState: 'transport_connected',
@@ -166,6 +170,10 @@ export class TerminalTransportService {
             if (connection.initialSnapshotTimer) {
                 clearTimeout(connection.initialSnapshotTimer);
                 connection.initialSnapshotTimer = null;
+            }
+            if (connection.inputSnapshotRefreshTimer) {
+                clearTimeout(connection.inputSnapshotRefreshTimer);
+                connection.inputSnapshotRefreshTimer = null;
             }
             // activeConnectionsから削除（自分の接続の場合のみ）
             const current = this.activeConnections.get(sessionId);
@@ -573,7 +581,7 @@ export class TerminalTransportService {
                 }
 
                 if (connection.transport !== 'streaming') {
-                    await this._pollConnection(connection);
+                    this._scheduleInputSnapshotRefresh(connection);
                 }
                 return;
             }
@@ -640,6 +648,33 @@ export class TerminalTransportService {
             await this.terminalIo.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
         }
+    }
+
+    _scheduleInputSnapshotRefresh(connection, delayMs = INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS) {
+        if (!connection || connection.closed || connection.transport === 'streaming') return;
+
+        connection.inputSnapshotRefreshRequested = true;
+        if (connection.inputSnapshotRefreshTimer || connection.inputSnapshotRefreshInFlight) {
+            return;
+        }
+
+        connection.inputSnapshotRefreshTimer = setTimeout(() => {
+            connection.inputSnapshotRefreshTimer = null;
+            if (connection.closed) return;
+
+            connection.inputSnapshotRefreshRequested = false;
+            connection.inputSnapshotRefreshInFlight = true;
+            void this._pollConnection(connection)
+                .catch((err) => {
+                    logger.warn(`[TerminalTransport] input snapshot refresh failed for ${connection.sessionId}: ${err?.message || err}`);
+                })
+                .finally(() => {
+                    connection.inputSnapshotRefreshInFlight = false;
+                    if (connection.inputSnapshotRefreshRequested && !connection.closed) {
+                        this._scheduleInputSnapshotRefresh(connection);
+                    }
+                });
+        }, delayMs);
     }
 
     async _getSnapshotPayload(sessionId, options = {}) {

@@ -266,6 +266,44 @@ describe('TerminalTransportService', () => {
         expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
     });
 
+    it('snapshot-polling input は同期pollせず短時間でまとめてrefreshする', async () => {
+        vi.useFakeTimers();
+
+        const { service, sessionManager } = buildService();
+        service._pollConnection = vi.fn(async () => {});
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot-polling',
+            closed: false,
+            inputSnapshotRefreshTimer: null,
+            inputSnapshotRefreshInFlight: false,
+            inputSnapshotRefreshRequested: false
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'a'
+        }));
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\x7f'
+        }));
+
+        expect(sessionManager.sendInput).toHaveBeenCalledTimes(2);
+        expect(service._pollConnection).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(100);
+
+        expect(service._pollConnection).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
+    });
+
     it('ready送信時_eager snapshotも送る', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({
