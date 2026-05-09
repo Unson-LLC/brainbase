@@ -1843,31 +1843,12 @@ body::after {
     height: 100%;
 }
 
-.terminal-xterm-host .composition-view {
-    transform: translateY(-100%) !important;
-}
-
 .terminal-xterm-host.bb-ime-composing .xterm-helper-textarea {
-    transform: translateY(calc(-1 * var(--bb-terminal-row-height, 19px))) !important;
     caret-color: transparent !important;
 }
 
 .terminal-xterm-host.bb-ime-cursor-settling .xterm-helper-textarea {
-    transform: translateY(calc(-1 * var(--bb-terminal-row-height, 19px))) !important;
-}
-
-.terminal-xterm-host.bb-ime-cursor-settling .xterm-cursor {
-    transform: none !important;
-}
-
-.terminal-xterm-host.bb-ime-cursor-settling .xterm-helper-textarea {
     caret-color: transparent !important;
-}
-
-.terminal-xterm-host.bb-ime-cursor-settling .xterm-cursor {
-    position: relative !important;
-    top: calc(-1 * var(--bb-terminal-row-height, 19px)) !important;
-    opacity: 1 !important;
 }
 
 .terminal-xterm-host.bb-ime-composing .xterm-cursor,
