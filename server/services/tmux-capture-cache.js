@@ -1,5 +1,6 @@
 // @ts-check
 const DEFAULT_CAPTURE_TTL_MS = 3000;
+const MAX_CAPTURE_LINES = 5000;
 
 /**
  * @typedef {object} TmuxCaptureOptions
@@ -110,7 +111,7 @@ export class TmuxCaptureCache {
      */
     async getSnapshot(sessionId, options = {}) {
         const normalized = {
-            lines: Math.max(50, Math.min(400, Number.parseInt(options.lines, 10) || 200)),
+            lines: Math.max(50, Math.min(MAX_CAPTURE_LINES, Number.parseInt(options.lines, 10) || 200)),
             includeColors: options.includeColors !== false,
             includeCopyMode: options.includeCopyMode !== false,
             visibleOnly: options.visibleOnly === true
@@ -199,4 +200,4 @@ export class TmuxCaptureCache {
     }
 }
 
-export { DEFAULT_CAPTURE_TTL_MS };
+export { DEFAULT_CAPTURE_TTL_MS, MAX_CAPTURE_LINES };

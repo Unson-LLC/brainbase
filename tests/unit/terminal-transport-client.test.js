@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TerminalTransportClient, shouldUseXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
+import { TerminalTransportClient, TERMINAL_SCROLLBACK_LINES, shouldUseXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
 import { httpClient } from '../../public/modules/core/http-client.js';
 
 describe('terminal-transport-client', () => {
@@ -27,6 +27,10 @@ describe('terminal-transport-client', () => {
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' });
 
     expect(shouldUseXtermTransport()).toBe(true);
+  });
+
+  it('xterm scrollbackはtmux history-limit相当を保持する', async () => {
+    expect(TERMINAL_SCROLLBACK_LINES).toBe(5000);
   });
 
   it('mobile環境ではxterm transportを使わない', () => {
@@ -99,6 +103,80 @@ describe('terminal-transport-client', () => {
 
     expect(client.isBlockedForSession('session-1')).toBe(true);
     expect(client.isBlockedForSession('session-2')).toBe(false);
+  });
+
+  it('xterm host幅が変わるとviewport同期を予約する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 0));
+    vi.stubGlobal('cancelAnimationFrame', (id) => clearTimeout(id));
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.syncViewportSize = vi.fn();
+    client._lastObservedHostWidth = 320;
+    client._lastObservedHostHeight = 720;
+
+    client._handleHostResize({ width: 640, height: 720 });
+    await vi.runAllTimersAsync();
+
+    expect(client.syncViewportSize).toHaveBeenCalledTimes(1);
+
+    client._handleHostResize({ width: 640, height: 720 });
+    await vi.runAllTimersAsync();
+
+    expect(client.syncViewportSize).toHaveBeenCalledTimes(1);
+
+    client._handleHostResize({ width: 80, height: 720 });
+    await vi.runAllTimersAsync();
+
+    expect(client.syncViewportSize).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocked snapshotではスクロール可能なfull snapshotを要求する', async () => {
+    httpClient.get.mockResolvedValueOnce({
+      text: 'readonly snapshot',
+      colorText: 'readonly snapshot',
+      capturedAt: '2026-05-09T01:00:00.000Z'
+    });
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-blocked';
+    client.status.mode = 'blocked';
+    client.status.terminalAccess = { state: 'blocked' };
+    client._queueOrApplySnapshot = vi.fn();
+
+    await client.refreshSnapshot();
+
+    expect(httpClient.get).toHaveBeenCalledWith(expect.stringContaining('/api/sessions/session-blocked/terminal/snapshot?'));
+    const url = new URL(httpClient.get.mock.calls[0][0], 'http://localhost');
+    expect(url.searchParams.get('lines')).toBe('400');
+    expect(url.searchParams.get('visibleOnly')).toBe('0');
+    expect(client._queueOrApplySnapshot).toHaveBeenCalledWith('readonly snapshot', null);
+  });
+
+  it('owner snapshotでは表示安定用にvisible snapshotを要求する', async () => {
+    httpClient.get.mockResolvedValueOnce({
+      text: 'visible snapshot',
+      colorText: 'visible snapshot',
+      capturedAt: '2026-05-09T01:00:00.000Z'
+    });
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-owner';
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client._queueOrApplySnapshot = vi.fn();
+
+    await client.refreshSnapshot();
+
+    const url = new URL(httpClient.get.mock.calls[0][0], 'http://localhost');
+    expect(url.searchParams.get('visibleOnly')).toBe('1');
   });
 
   it('hasDomFocusはxterm host内の実DOM focusだけをtrueにする', () => {

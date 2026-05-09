@@ -130,8 +130,8 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         panel.style.width = `${width}px`;
         if (direction === 'right') {
             panel.style.setProperty('--info-drawer-width', `${width}px`);
-            window.dispatchEvent(new Event('resize'));
         }
+        window.dispatchEvent(new Event('resize'));
     }
 
     function scheduleUpdate(width) {

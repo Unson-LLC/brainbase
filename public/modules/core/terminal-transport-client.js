@@ -5,6 +5,7 @@ import { MessageQueue } from './message-queue.js';
 import { inputTelemetry } from './input-telemetry.js';
 
 const SNAPSHOT_LINES = 400;
+export const TERMINAL_SCROLLBACK_LINES = 5000;
 const CONNECT_TIMEOUT_MS = 15000;
 
 // WebSocket reconnection settings (CommandMate pattern)
@@ -138,6 +139,10 @@ export class TerminalTransportClient {
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
         this._lastSentCols = 0;
         this._lastSentRows = 0;
+        this._hostResizeObserver = null;
+        this._hostResizeRaf = null;
+        this._lastObservedHostWidth = 0;
+        this._lastObservedHostHeight = 0;
         // xterm.js 5.x: short IME commit後にbare EnterでonData('\r')が発火しない場合がある。
         // IME確定Enter(isComposing=true)でフラグを立て、直後のbare Enter(isComposing=false)を
         // xtermが握り潰したと判断できるタイマーで\rを補完する。IME確定Enter自体は\rを送らない。
@@ -164,7 +169,7 @@ export class TerminalTransportClient {
             fontFamily: appearance.fontFamily,
             fontSize: appearance.fontSize,
             lineHeight: appearance.lineHeight,
-            scrollback: 1000,
+            scrollback: TERMINAL_SCROLLBACK_LINES,
             convertEol: true,
             allowTransparency: false,
             allowProposedApi: true,
@@ -350,10 +355,10 @@ export class TerminalTransportClient {
                 const rect = this.hostEl.getBoundingClientRect();
                 if (rect.height < 50 || rect.width < 100) return;
             }
-            this.fitAddon?.fit();
-            // fitAddon.fit() triggers terminal.onResize which calls resize() — no need to call again
+            void this.syncViewportSize();
         };
         window.addEventListener('resize', this._resizeHandler);
+        this._setupHostResizeObserver();
 
         this._visibilityHandler = () => {
             if (document.hidden) {
@@ -380,6 +385,7 @@ export class TerminalTransportClient {
             window.removeEventListener('resize', this._resizeHandler);
             this._resizeHandler = null;
         }
+        this._teardownHostResizeObserver();
         if (this._visibilityHandler) {
             document.removeEventListener('visibilitychange', this._visibilityHandler);
             this._visibilityHandler = null;
@@ -401,6 +407,59 @@ export class TerminalTransportClient {
         this.terminal?.dispose();
         this.terminal = null;
         this.fitAddon = null;
+    }
+
+    _setupHostResizeObserver() {
+        this._teardownHostResizeObserver();
+        if (!this.hostEl || typeof ResizeObserver === 'undefined') return;
+        const rect = this.hostEl.getBoundingClientRect();
+        this._lastObservedHostWidth = Math.round(rect.width || 0);
+        this._lastObservedHostHeight = Math.round(rect.height || 0);
+        this._hostResizeObserver = new ResizeObserver((entries) => {
+            const entry = Array.isArray(entries)
+                ? entries.find((item) => item.target === this.hostEl) || entries[0]
+                : null;
+            const contentRect = entry?.contentRect || this.hostEl?.getBoundingClientRect?.();
+            if (!contentRect) return;
+            this._handleHostResize(contentRect);
+        });
+        this._hostResizeObserver.observe(this.hostEl);
+    }
+
+    _teardownHostResizeObserver() {
+        if (this._hostResizeObserver) {
+            this._hostResizeObserver.disconnect();
+            this._hostResizeObserver = null;
+        }
+        if (this._hostResizeRaf != null) {
+            if (typeof cancelAnimationFrame === 'function') {
+                cancelAnimationFrame(this._hostResizeRaf);
+            } else {
+                clearTimeout(this._hostResizeRaf);
+            }
+            this._hostResizeRaf = null;
+        }
+    }
+
+    _handleHostResize(rect) {
+        const width = Math.round(Number(rect.width) || 0);
+        const height = Math.round(Number(rect.height) || 0);
+        if (width < 100 || height < 50) return;
+        if (width === this._lastObservedHostWidth && height === this._lastObservedHostHeight) return;
+        this._lastObservedHostWidth = width;
+        this._lastObservedHostHeight = height;
+        this._scheduleHostResizeSync();
+    }
+
+    _scheduleHostResizeSync() {
+        if (this._hostResizeRaf != null) return;
+        const run = () => {
+            this._hostResizeRaf = null;
+            void this.syncViewportSize();
+        };
+        this._hostResizeRaf = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame(run)
+            : setTimeout(run, 16);
     }
 
     getStatus() {
@@ -945,7 +1004,11 @@ export class TerminalTransportClient {
     async _refreshSnapshot({ preserveMode = false } = {}) {
         if (!this.sessionId) return;
         try {
-            const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}&visibleOnly=1`);
+            const isBlockedSnapshot = this.status.mode === 'blocked'
+                || this.status.terminalAccess?.state === 'blocked'
+                || this.status.blockedAccess?.state === 'blocked';
+            const visibleOnly = isBlockedSnapshot ? '0' : '1';
+            const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}&visibleOnly=${visibleOnly}`);
             if (typeof res?.text === 'string') {
                 this._queueOrApplySnapshot(res.colorText || res.text, res.cursor || null);
                 this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();

@@ -172,8 +172,8 @@ export function installRuntimeHandlers(controller) {
         const { id } = req.params;
         const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
         const viewerLabel = controller._resolveViewerLabel(req, req.query?.viewerLabel);
-        const lines = Math.max(50, Math.min(400, Number.parseInt(req.query?.lines, 10) || 200));
-        const visibleOnly = req.query?.visibleOnly === '1' || req.query?.visibleOnly === 'true';
+        const lines = Math.max(50, Math.min(5000, Number.parseInt(req.query?.lines, 10) || 200));
+        const requestedVisibleOnly = req.query?.visibleOnly === '1' || req.query?.visibleOnly === 'true';
 
         if (!id) {
             return res.status(400).json({ error: 'Session ID is required' });
@@ -188,6 +188,7 @@ export function installRuntimeHandlers(controller) {
         }
 
         const terminalAccess = controller.ownership.getTerminalAccessState(id, viewerId);
+        const visibleOnly = terminalAccess?.state === 'blocked' ? false : requestedVisibleOnly;
 
         try {
             const payload = controller.captureCache

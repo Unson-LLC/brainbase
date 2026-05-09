@@ -148,6 +148,7 @@ export function setupPanelLayout({ store, eventBus }) {
         // Sessions button is active only when no panel is open
         const dashOpen = store.getState().ui.panels.dashboardOpen;
         if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen && !portalOvOpen);
+        window.dispatchEvent(new Event('resize'));
     }
 
     function _applyPortalOverlay(open) {

@@ -6,6 +6,7 @@ import { TmuxControlRegistry } from './tmux-control-registry.js';
 import { logger } from '../utils/logger.js';
 
 const DEFAULT_SNAPSHOT_LINES = 400;
+const HISTORY_SNAPSHOT_LINES = 5000;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
@@ -248,19 +249,23 @@ export class TerminalTransportService {
         // ストリーミング出力は8msバッチで送られるため、snapshot+streamingの
         // 重なり描画（ghosting）は発生しない。
         try {
-            const visibleSnapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: true });
+            const historySnapshot = await this._getSnapshotPayload(sessionId, {
+                lines: HISTORY_SNAPSHOT_LINES,
+                includeColors: true,
+                visibleOnly: false
+            });
             if (ws.readyState !== 1) return;
-            connection.lastSnapshot = visibleSnapshot.text;
-            connection.lastCopyMode = visibleSnapshot.copyMode;
+            connection.lastSnapshot = historySnapshot.text;
+            connection.lastCopyMode = historySnapshot.copyMode;
             connection.initialFrameDelivered = true;
             const snapshotMsg = {
                 type: 'snapshot',
-                text: visibleSnapshot.text,
-                capturedAt: visibleSnapshot.capturedAt,
-                screenOnly: true
+                text: historySnapshot.text,
+                capturedAt: historySnapshot.capturedAt,
+                screenOnly: false
             };
-            if (visibleSnapshot.colorText) snapshotMsg.colorText = visibleSnapshot.colorText;
-            if (visibleSnapshot.cursor) snapshotMsg.cursor = visibleSnapshot.cursor;
+            if (historySnapshot.colorText) snapshotMsg.colorText = historySnapshot.colorText;
+            if (historySnapshot.cursor) snapshotMsg.cursor = historySnapshot.cursor;
             ws.send(JSON.stringify(snapshotMsg));
         } catch {
             // スナップショット失敗時はストリーミングかフォールバックに任せる
@@ -679,7 +684,7 @@ export class TerminalTransportService {
 
     async _getSnapshotPayload(sessionId, options = {}) {
         return await this.captureCache.getSnapshot(sessionId, {
-            lines: DEFAULT_SNAPSHOT_LINES,
+            lines: options.lines || DEFAULT_SNAPSHOT_LINES,
             includeColors: options.includeColors === true,
             includeCopyMode: options.includeCopyMode !== false,
             visibleOnly: options.visibleOnly === true

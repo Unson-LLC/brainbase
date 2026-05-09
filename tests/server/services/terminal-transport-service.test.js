@@ -304,11 +304,11 @@ describe('TerminalTransportService', () => {
         vi.useRealTimers();
     });
 
-    it('ready送信時_eager snapshotも送る', async () => {
+    it('ready送信時_履歴付きeager snapshotを送る', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({
-            text: 'snapshot',
-            colorText: '\x1b[32msnapshot\x1b[0m',
+            text: 'history\nsnapshot',
+            colorText: '\x1b[32mhistory\x1b[0m\n\x1b[32msnapshot\x1b[0m',
             copyMode: false,
             cursor: { x: 2, y: 12 },
             capturedAt: '2026-03-23T00:00:01.000Z'
@@ -335,16 +335,16 @@ describe('TerminalTransportService', () => {
         expect(sentTypes).toEqual(['ready', 'snapshot']);
         expect(sent[1]).toMatchObject({
             type: 'snapshot',
-            text: 'snapshot',
-            colorText: '\x1b[32msnapshot\x1b[0m',
-            cursor: { x: 2, y: 12 },
-            screenOnly: true
+            text: 'history\nsnapshot',
+            colorText: '\x1b[32mhistory\x1b[0m\n\x1b[32msnapshot\x1b[0m',
+            cursor: { x: 2, y: 12 }
         });
+        expect(sent[1].screenOnly).toBe(false);
         expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
-            lines: 400,
+            lines: 5000,
             includeColors: true,
             includeCopyMode: true,
-            visibleOnly: true
+            visibleOnly: false
         });
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });

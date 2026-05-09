@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setupPanelLayout } from '../../public/modules/ui/panel-layout-manager.js';
 
@@ -8,6 +8,13 @@ describe('setupPanelLayout', () => {
     let eventBus;
 
     beforeEach(() => {
+        const storage = new Map();
+        vi.stubGlobal('localStorage', {
+            clear: vi.fn(() => storage.clear()),
+            getItem: vi.fn((key) => storage.get(key) ?? null),
+            setItem: vi.fn((key, value) => storage.set(key, String(value))),
+            removeItem: vi.fn((key) => storage.delete(key))
+        });
         localStorage.clear();
         document.body.innerHTML = `
             <div id="console-area">
@@ -49,6 +56,10 @@ describe('setupPanelLayout', () => {
         };
     });
 
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it('openPortalOverlay呼び出し時_ヘッダーを残してPortalを作業モードとして表示する', () => {
         const layout = setupPanelLayout({ store, eventBus });
 
@@ -85,18 +96,23 @@ describe('setupPanelLayout', () => {
     });
 
     it('toggleInfoDrawer呼び出し時_右パネルのリサイズハンドルを表示する', () => {
+        const resizeEvent = vi.fn();
+        window.addEventListener('resize', resizeEvent);
         const layout = setupPanelLayout({ store, eventBus });
 
         layout.toggleInfoDrawer('tasks');
 
         expect(document.getElementById('info-drawer-resize-handle')?.classList.contains('hidden')).toBe(false);
         expect(document.getElementById('info-drawer-resize-handle')?.getAttribute('aria-hidden')).toBe('false');
+        expect(resizeEvent).toHaveBeenCalled();
 
         layout.closeAllPanels();
 
         expect(document.getElementById('info-drawer-resize-handle')?.classList.contains('hidden')).toBe(true);
         expect(document.getElementById('info-drawer-resize-handle')?.getAttribute('aria-hidden')).toBe('true');
+        expect(resizeEvent.mock.calls.length).toBeGreaterThanOrEqual(2);
 
         layout.cleanup();
+        window.removeEventListener('resize', resizeEvent);
     });
 });
