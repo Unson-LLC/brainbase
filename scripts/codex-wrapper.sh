@@ -36,13 +36,80 @@ export TERM="${TERM:-xterm-256color}"
 export LANG="${LANG:-en_US.UTF-8}"
 export LC_ALL="${LC_ALL:-en_US.UTF-8}"
 
-# Prefer /usr/local/bin/codex (native aarch64 binary on Apple Silicon) over
-# nvm-installed codex which may only have the x86_64 binary (causing TUI hang
-# in detached tmux sessions due to Rosetta 2 + terminal capability mismatch).
-CODEX_BIN="codex"
-if [ -x "/usr/local/bin/codex" ]; then
-    CODEX_BIN="/usr/local/bin/codex"
-fi
+# Disable crossterm keyboard enhancement probes in brainbase-managed terminals.
+# ttyd/tmux do not reliably complete the full query/response sequence, which can
+# leave Codex initialized but visually blank.
+export CODEX_TUI_DISABLE_KEYBOARD_ENHANCEMENT="${CODEX_TUI_DISABLE_KEYBOARD_ENHANCEMENT:-1}"
+
+resolve_codex_bin() {
+    if [ -n "$BRAINBASE_CODEX_BIN" ] && [ -x "$BRAINBASE_CODEX_BIN" ]; then
+        printf '%s\n' "$BRAINBASE_CODEX_BIN"
+        return 0
+    fi
+
+    local target_triple package_name
+    case "$(uname -s)-$(uname -m)" in
+        Darwin-arm64)
+            target_triple="aarch64-apple-darwin"
+            package_name="@openai/codex-darwin-arm64"
+            ;;
+        Darwin-x86_64)
+            target_triple="x86_64-apple-darwin"
+            package_name="@openai/codex-darwin-x64"
+            ;;
+        Linux-x86_64)
+            target_triple="x86_64-unknown-linux-musl"
+            package_name="@openai/codex-linux-x64"
+            ;;
+        Linux-aarch64|Linux-arm64)
+            target_triple="aarch64-unknown-linux-musl"
+            package_name="@openai/codex-linux-arm64"
+            ;;
+    esac
+
+    if [ -n "$target_triple" ]; then
+        local global_root candidate
+        for global_root in \
+            "$HOME/.npm-global/lib/node_modules" \
+            "$(npm root -g 2>/dev/null)" \
+            "/usr/local/lib/node_modules" \
+            "/opt/homebrew/lib/node_modules"; do
+            [ -n "$global_root" ] || continue
+            candidate="$global_root/@openai/codex/node_modules/$package_name/vendor/$target_triple/codex/codex"
+            if [ -x "$candidate" ]; then
+                printf '%s\n' "$candidate"
+                return 0
+            fi
+        done
+
+        for global_root in \
+            "$HOME/.npm-global/lib/node_modules" \
+            "$(npm root -g 2>/dev/null)" \
+            "/usr/local/lib/node_modules" \
+            "/opt/homebrew/lib/node_modules"; do
+            [ -n "$global_root" ] || continue
+            for candidate in \
+                "$global_root/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex" \
+                "$global_root/@openai/codex/node_modules/@openai/codex-darwin-x64/vendor/x86_64-apple-darwin/codex/codex" \
+                "$global_root/@openai/codex/node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/codex/codex" \
+                "$global_root/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex"; do
+                if [ -x "$candidate" ]; then
+                    printf '%s\n' "$candidate"
+                    return 0
+                fi
+            done
+        done
+    fi
+
+    if [ -x "/usr/local/bin/codex" ]; then
+        printf '%s\n' "/usr/local/bin/codex"
+        return 0
+    fi
+
+    printf '%s\n' "codex"
+}
+
+CODEX_BIN="$(resolve_codex_bin)"
 
 # Use PTY shim to intercept crossterm's Kitty keyboard protocol query (ESC[?u).
 # codex 0.121.0 blocks ALL threads in kevent() waiting for ESC[?0u response.
