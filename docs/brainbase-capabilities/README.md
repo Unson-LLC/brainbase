@@ -50,6 +50,7 @@ troubleshooting: []
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |
 | `vibepro.impact-review` | Defines when and how VibePro Graphify impact review is required for graph-sensitive changes. |
+| `secrets.infisical` | Defines the legal-entity-aligned 3 Org structure (Unson / TechKnight / SalesTailor) on self-hosted Infisical and the migration/cleanup paths for org-bound secrets. |
 
 ## Operating Rules
 
