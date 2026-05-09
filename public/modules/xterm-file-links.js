@@ -11,7 +11,7 @@ const XTERM_WRAPPED_ABSOLUTE_FILE_TOKEN_REGEX = new RegExp(
     'g'
 );
 const XTERM_CONTINUATION_PREFIX_REGEX = new RegExp(
-    '((?:~\\/|\\.{1,2}\\/|\\/)?' + XTERM_PATH_START + '[a-zA-Z0-9_/.\\\\-]*)$'
+    '((?:(?:~\\/|\\.{1,2}\\/|\\/)' + XTERM_PATH_START + '|\\.[a-zA-Z0-9_])[a-zA-Z0-9_/.\\\\-]*)$'
 );
 const XTERM_CONTINUATION_SUFFIX_REGEX = new RegExp(
     '^(\\s*)([a-zA-Z0-9_/.\\-]+\\.(?:' + XTERM_FILE_EXTS + '))(?::([0-9]+))?',

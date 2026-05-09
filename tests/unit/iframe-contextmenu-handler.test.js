@@ -223,6 +223,35 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
+    it('普通の文章の語尾と次行HTMLをcontinuation扱いしない', () => {
+        expect(buildAdjacentContinuationSegments(
+            'Story: story-shadow-gpt-realtime-2-',
+            'architecture/pr-prepare.html',
+            20,
+            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1'
+        )).toEqual([]);
+    });
+
+    it('dot directory relative path continuationを1本として扱う', () => {
+        expect(buildAdjacentContinuationSegments(
+            '.vibepro/pr/story-gpt-realtime-2-',
+            'architecture/pr-prepare.html',
+            20,
+            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1'
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                text: '.vibepro/pr/story-gpt-realtime-2-'
+            }),
+            expect.objectContaining({
+                rawPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                previewPath: '.vibepro/pr/story-gpt-realtime-2-architecture/pr-prepare.html',
+                text: 'architecture/pr-prepare.html'
+            })
+        ]);
+    });
+
     it('同じ範囲に fragment と full path がある場合は full path を優先する', () => {
         expect(pickBestLinkAtPosition([
             {
