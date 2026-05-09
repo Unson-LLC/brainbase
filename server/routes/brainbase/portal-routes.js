@@ -75,9 +75,24 @@ export function createBrainbasePortalRouter(options = {}) {
             }
             : { decision: {}, work: {}, ship: {}, learn: {} };
 
-        const rawStories = await fetchStories(projectCode);
+        const wikiStories = await fetchStories(projectCode);
+        const graphStories = await fetchGraphStories(projectCode);
+        const storySource = graphStories.length ? 'graph' : 'wiki';
+        const rawStories = graphStories.length
+            ? _mergeGraphStoriesWithWikiDetails(graphStories, wikiStories)
+            : wikiStories;
         const mergedStories = _mergeStoriesAndMilestones(rawStories, milestones);
-        const storyMap = { stories: mergedStories, sprints, milestones: milestones.filter(m => !m.story_id && m.name) };
+        const storyMap = {
+            stories: mergedStories,
+            sprints,
+            milestones: milestones.filter(m => !m.story_id && m.name),
+            meta: {
+                storySource,
+                graphStoryCount: graphStories.length,
+                wikiStoryCount: wikiStories.length,
+                projectionSource: nocodbBaseId ? 'nocodb' : null
+            }
+        };
 
         res.json({
             project: { code: projectCode, name: projectConfig.name || projectCode },
@@ -203,6 +218,88 @@ export function createBrainbasePortalRouter(options = {}) {
             logger.warn('Portal: Failed to fetch stories', { projectCode, error: error.message });
             return [];
         }
+    }
+
+    async function fetchGraphStories(projectCode) {
+        try {
+            if (!infoSSOTService?.listGraphEntities) return [];
+            const access = {
+                role: 'gm',
+                projectCodes: Array.from(new Set([projectCode, 'brainbase', 'unson'].filter(Boolean))),
+                clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
+            };
+            const records = await infoSSOTService.listGraphEntities(access, {
+                projectCode: null,
+                entityType: 'story'
+            });
+            return (records || [])
+                .filter(record => _isGraphStoryForProject(record, projectCode))
+                .map(_normalizeGraphStory)
+                .filter(story => story.story_id && story.name);
+        } catch (error) {
+            logger.warn('Portal: Failed to fetch graph stories', { projectCode, error: error.message });
+            return [];
+        }
+    }
+
+    function _isGraphStoryForProject(record, projectCode) {
+        const payload = record?.payload || {};
+        const source = String(payload.source || '');
+        const projectCandidates = []
+            .concat(payload.project_codes || [])
+            .concat(payload.projects || [])
+            .concat(payload.project_code || [])
+            .concat(record?.project_code || [])
+            .filter(Boolean)
+            .map(value => String(value).toLowerCase());
+        const normalizedProject = String(projectCode || '').toLowerCase();
+        if (projectCandidates.includes(normalizedProject)) return true;
+        if (source.startsWith(`${projectCode}/`)) return true;
+        return source === 'common/00_stories.md' || source.startsWith('common/');
+    }
+
+    function _normalizeGraphStory(record) {
+        const payload = record?.payload || {};
+        const storyId = payload.story_id || payload.storyId || record?.id || '';
+        return {
+            story_id: storyId,
+            frame_id: payload.frame_id || payload.frameId || '',
+            horizon: payload.horizon || '',
+            view: payload.view || '',
+            name: payload.name || payload.title || storyId,
+            status: payload.status || '',
+            period: payload.period || '',
+            started_at: payload.started_at || payload.startedAt || '',
+            due_at: payload.due_at || payload.dueAt || '',
+            enemy: payload.enemy || '',
+            context: payload.context || payload.description || '',
+            criteria: payload.criteria || undefined,
+            beat_map: payload.beat_map || undefined,
+            source: 'graph',
+            graphEntityId: record?.id || record?.entity_id || '',
+            graphProjectCode: record?.project_code || '',
+            graphSource: payload.source || ''
+        };
+    }
+
+    function _mergeGraphStoriesWithWikiDetails(graphStories, wikiStories) {
+        const wikiById = new Map((wikiStories || []).map(story => [story.story_id, story]));
+        return graphStories.map(graphStory => {
+            const wikiStory = wikiById.get(graphStory.story_id) || {};
+            return {
+                ...graphStory,
+                horizon: graphStory.horizon || wikiStory.horizon || '',
+                view: graphStory.view || wikiStory.view || 'business',
+                status: graphStory.status || wikiStory.status || 'active',
+                period: graphStory.period || wikiStory.period || '',
+                started_at: graphStory.started_at || wikiStory.started_at || '',
+                due_at: graphStory.due_at || wikiStory.due_at || '',
+                enemy: graphStory.enemy || wikiStory.enemy || '',
+                context: graphStory.context || wikiStory.context || '',
+                criteria: graphStory.criteria || wikiStory.criteria,
+                beat_map: graphStory.beat_map || wikiStory.beat_map
+            };
+        });
     }
 
     function _parseStoryYaml(yaml) {

@@ -69,6 +69,8 @@ external/
 # 非公開: 個人設定・データ
 .claude/commands/*
 !.claude/commands/deploy-merged-pr.md
+!.claude/commands/ohayo.md
+!.claude/commands/oyasumi.md
 .claude/hooks/
 !.claude/hooks/session-start-copy-plugins.sh
 !.claude/hooks/*.sample

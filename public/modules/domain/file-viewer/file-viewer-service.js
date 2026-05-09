@@ -20,6 +20,42 @@ export class FileViewerService {
      * @param {string} relativePath - セッションワークスペースからの相対パス
      */
     async openFile(sessionId, relativePath) {
+        const htmlPreviewTarget = this._parseHtmlPreviewUrl(relativePath);
+        if (htmlPreviewTarget) {
+            const previewSessionId = htmlPreviewTarget.sessionId || sessionId;
+            const previewPath = htmlPreviewTarget.relativePath;
+            const fileName = previewPath.split('/').pop() || previewPath;
+            this.store.setState({
+                fileViewer: {
+                    sessionId: previewSessionId,
+                    relativePath: previewPath,
+                    fileName,
+                    content: null,
+                    renderedHtml: null,
+                    size: 0,
+                    isMarkdown: false,
+                    isHtml: true,
+                    htmlPreviewUrl: htmlPreviewTarget.previewUrl,
+                    treeNavigable: false,
+                    treeRootPath: null,
+                    treeRelativePath: null,
+                    loading: false,
+                    error: null
+                }
+            });
+            await this.eventBus.emit(EVENTS.FILE_VIEWER_OPENED, {
+                sessionId: previewSessionId,
+                relativePath: previewPath,
+                treeNavigable: false,
+                treeRootPath: null,
+                treeRelativePath: null,
+                fileName,
+                isMarkdown: false,
+                isHtml: true
+            });
+            return;
+        }
+
         try {
             const result = await this.sessionService.getFileContent(sessionId, relativePath);
             const { fileName, content, size, isMarkdown, isHtml, htmlPreviewUrl, treeNavigable, treeRootPath, treeRelativePath } = result;
@@ -87,6 +123,39 @@ export class FileViewerService {
                 error: error.message || 'Failed to load file'
             });
         }
+    }
+
+    _parseHtmlPreviewUrl(value) {
+        if (typeof value !== 'string' || !value) return null;
+        let pathname = value;
+        try {
+            const baseUrl = typeof window !== 'undefined' && window.location?.origin
+                ? window.location.origin
+                : 'http://localhost';
+            pathname = new URL(value, baseUrl).pathname;
+        } catch {
+            pathname = value.split(/[?#]/, 1)[0];
+        }
+
+        const match = pathname.match(/^\/api\/sessions\/([^/]+)\/html-preview\/(.+)$/);
+        if (!match) return null;
+        const previewSessionId = decodeURIComponent(match[1]);
+        const relativePath = match[2]
+            .split('/')
+            .filter(Boolean)
+            .map((segment) => decodeURIComponent(segment))
+            .join('/');
+        if (!isHtmlPreviewPath(relativePath)) return null;
+        const previewUrl = `/api/sessions/${encodeURIComponent(previewSessionId)}/html-preview/${relativePath
+            .split('/')
+            .filter(Boolean)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/')}`;
+        return {
+            sessionId: previewSessionId,
+            relativePath,
+            previewUrl
+        };
     }
 
     /**

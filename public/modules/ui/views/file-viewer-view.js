@@ -1,5 +1,6 @@
 // @ts-check
 import { appStore } from '../../core/store.js';
+import { isHtmlPreviewPath } from '../../file-preview-config.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 import { showSuccess, showError } from '../../toast.js';
 import { BaseView } from './base-view.js';
@@ -38,7 +39,7 @@ export class FileViewerView extends BaseView {
             return;
         }
 
-        const { relativePath, fileName, content, renderedHtml, isMarkdown, isHtml, htmlPreviewUrl, loading, error } = fileViewer;
+        const { sessionId, relativePath, fileName, content, renderedHtml, isMarkdown, isHtml, htmlPreviewUrl, loading, error } = fileViewer;
 
         // Reset toggle when file changes
         if (relativePath !== this._currentPath) {
@@ -49,17 +50,21 @@ export class FileViewerView extends BaseView {
         const title = fileName || relativePath || '';
         const subtitle = relativePath && relativePath !== title ? relativePath : '';
         const hasContent = !loading && !error && content != null;
+        const shouldPreviewHtml = Boolean(isHtml || isHtmlPreviewPath(fileName || relativePath));
+        const resolvedHtmlPreviewUrl = shouldPreviewHtml
+            ? (htmlPreviewUrl || this._buildHtmlPreviewUrl(sessionId, relativePath))
+            : null;
 
         let bodyHtml = '';
         if (loading) {
             bodyHtml = '<div class="file-viewer-loading">Loading...</div>';
         } else if (error) {
             bodyHtml = `<div class="file-viewer-error">${escapeHtml(error)}</div>`;
-        } else if (isHtml && htmlPreviewUrl) {
+        } else if (shouldPreviewHtml && resolvedHtmlPreviewUrl) {
             bodyHtml = `
                 <iframe
                     class="file-viewer-html-frame"
-                    src="${escapeHtml(htmlPreviewUrl)}"
+                    src="${escapeHtml(resolvedHtmlPreviewUrl)}"
                     sandbox="allow-scripts allow-forms allow-popups allow-modals"
                     referrerpolicy="no-referrer"
                     title="${escapeHtml(title || 'HTML preview')}"
@@ -83,7 +88,7 @@ export class FileViewerView extends BaseView {
                 <button class="file-viewer-toolbar-btn" data-action="download" title="Download file">
                     <i data-lucide="download"></i>
                 </button>
-                ${isMarkdown && !isHtml ? `<button class="file-viewer-toolbar-btn${toggleClass}" data-action="toggle" title="${toggleTitle}">
+                ${isMarkdown && !shouldPreviewHtml ? `<button class="file-viewer-toolbar-btn${toggleClass}" data-action="toggle" title="${toggleTitle}">
                     <i data-lucide="${toggleIcon}"></i>
                 </button>` : ''}
             </div>
@@ -134,6 +139,17 @@ export class FileViewerView extends BaseView {
             });
 
         refreshIcons();
+    }
+
+    _buildHtmlPreviewUrl(sessionId, relativePath) {
+        if (!sessionId || !relativePath) return null;
+        const encodedPath = String(relativePath)
+            .split('/')
+            .filter(Boolean)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/');
+        if (!encodedPath) return null;
+        return `/api/sessions/${encodeURIComponent(sessionId)}/html-preview/${encodedPath}`;
     }
 
     /** Copy raw file content to clipboard */

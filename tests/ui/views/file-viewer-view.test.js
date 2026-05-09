@@ -92,6 +92,29 @@ describe('FileViewerView', () => {
         expect(container.innerHTML).not.toContain('<!doctype');
     });
 
+    it('HTMLメタ情報が欠けていても拡張子からiframe表示にfallbackする', () => {
+        appStore.setState({
+            fileViewer: {
+                sessionId: 'session-1',
+                relativePath: 'public/setup.html',
+                fileName: 'setup.html',
+                content: '<!DOCTYPE html><html><body>Setup</body></html>',
+                renderedHtml: null,
+                isMarkdown: false,
+                loading: false,
+                error: null
+            }
+        });
+
+        view.mount(container);
+
+        const frame = container.querySelector('.file-viewer-html-frame');
+        expect(frame).toBeTruthy();
+        expect(frame.getAttribute('src')).toBe('/api/sessions/session-1/html-preview/public/setup.html');
+        expect(container.querySelector('.file-viewer-text')).toBeNull();
+        expect(container.innerHTML).not.toContain('&lt;!DOCTYPE');
+    });
+
     it('エラー表示時_エラーメッセージが表示される', () => {
         appStore.setState({
             fileViewer: {

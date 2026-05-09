@@ -248,6 +248,8 @@ export const activityServiceMethods = {
         const normalized = this._normalizeHookData(hookData);
         if (!normalized) return null;
 
+        this._normalizeCompletedActiveTurns(normalized);
+
         const activeTurnCount = normalized.activeTurnIds.length;
         const hasWorking = normalized.lastWorkingAt > 0;
         const hasDone = normalized.lastDoneAt > 0;
@@ -569,6 +571,17 @@ export const activityServiceMethods = {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
         } else {
             lastDoneAt = Math.max(lastDoneAt, timestamp);
+            if (this._isTerminalDoneEvent(lastEventType) && activeTurnIds.size > 0) {
+                const completedTs = this._extractTurnTimestamp(turnId) || timestamp;
+                for (const tid of [...activeTurnIds]) {
+                    if (!this._isCodexPtyTurnId(tid)) continue;
+                    const tidTs = this._extractTurnTimestamp(tid);
+                    if (tidTs <= 0 || tidTs <= completedTs) {
+                        logger.info(`[Hook] Clearing active turn ${tid} for terminal done event ${lastEventType} on ${sessionId}`);
+                        activeTurnIds.delete(tid);
+                    }
+                }
+            }
         }
 
         const effectiveStatus = activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt ? 'working' : 'done';
@@ -915,6 +928,30 @@ export const activityServiceMethods = {
         const timestamp = Number.isFinite(hookData.timestamp) ? hookData.timestamp : 0;
         if (timestamp <= 0) return true;
         return this._now() - timestamp < PANE_TITLE_SUPPRESSION_TIMEOUT;
+    },
+
+    _normalizeCompletedActiveTurns(hookData) {
+        if (!hookData || !Array.isArray(hookData.activeTurnIds) || hookData.activeTurnIds.length === 0) return hookData;
+        if (!this._isTerminalDoneEvent(hookData.lastEventType)) return hookData;
+        if ((hookData.lastDoneAt || 0) <= 0 || hookData.lastDoneAt < (hookData.lastWorkingAt || 0)) return hookData;
+        if (!hookData.activeTurnIds.every((turnId) => this._isCodexPtyTurnId(turnId))) return hookData;
+
+        hookData.activeTurnIds = [];
+        hookData.status = 'done';
+        hookData.liveActivity = this._deriveLiveActivity({
+            status: 'done',
+            timestamp: hookData.lastDoneAt,
+            metadata: { activityKind: 'done', currentStep: '完了' },
+            currentHookData: hookData,
+            eventType: hookData.lastEventType,
+            activeTurnIds: new Set()
+        });
+        return hookData;
+    },
+
+    _isCodexPtyTurnId(turnId) {
+        return typeof turnId === 'string'
+            && (turnId.startsWith('codex-pty-turn-') || turnId.startsWith('codex-pty-session-'));
     },
 
     _isTerminalDoneEvent(eventType) {

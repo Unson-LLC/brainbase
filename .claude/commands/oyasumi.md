@@ -1,0 +1,73 @@
+# oyasumi
+
+寝る前の1日振り返りルーティン。議事録から固有名詞・顧客・パートナー・意思決定・次アクションを抽出し、Graph SSOT (bb.unson.jp) と NocoDB (noco.unson.jp) の両方に自動反映する。
+
+## トリガー
+
+- `/oyasumi`
+- `/oyasumi YYYY-MM-DD`（対象日指定）
+- ユーザーが「今日の振り返り」「おやすみ前に整理」「今日の SSOT 反映」と言及
+- `/ohayo` の対（朝=入力 / 夜=出力）
+
+## 実行フロー
+
+`daily-reflection` skill を呼び出し、以下の 7 Phase を実行:
+
+1. **Phase 0**: 日付確定（跨ぎ検知）
+2. **Phase 1**: `gog calendar list` で対象日の会議を取得
+3. **Phase 2**: Github の mana 管理リポジトリから議事録を一括取得
+4. **Phase 3**: 議事録から固有名詞・決定・アクションを抽出、期限表現を絶対日付に変換
+5. **Phase 4**: Graph 既存エンティティと突合（表記ゆれ修正含む）
+6. **Phase 5**: Graph SSOT 書き込み
+   - Decision: `POST https://bb.unson.jp/api/info/decisions`
+   - Person/Customer/Partner Wiki: `POST http://localhost:31013/api/wiki/page`
+7. **Phase 6**: NocoDB 各プロジェクト base のタスクテーブルに一括投入
+   - 二重投入ガード（既存件数チェック）
+   - base ごとの column_name 差異対応（Brainbase だけ日本語、Zeims は 担当者 MultiSelect）
+8. **Phase 7**: 成功/失敗件数・残作業のサマリ報告
+
+## Archive Blocked Triage
+
+`/oyasumi` は archive blocked の日次整理トリガーでもある。Phase 7 の前に必ず実行する。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+node scripts/archive-blocked-report.mjs --limit 20
+```
+
+blocked がある場合、各項目に対して以下のいずれかを決める。
+
+- **fix + retry**: worktree を確認し、commit/merge/不要変更の明示処理後に retry する
+- **task 化**: 当日解けないものは NocoDB/Inbox に「Archive blocked 解消」タスクとして残す
+- **例外化**: 外部事情で待つものは理由と次回確認日を残す
+
+重要: `/oyasumi` では `blocked` を単に報告して終わらない。少なくとも「解消済み / task 化 / 例外化」のどれかに分類する。
+
+## 使い分け
+
+| コマンド | 用途 |
+|---|---|
+| `/ohayo` | 朝: インプット整理（カレンダー確認・メール仕分け・今日のフォーカス提案） |
+| `/oyasumi` | 夜: アウトプット整理（今日の会議結果を SSOT に反映し、archive blocked を日次整理して寝る） |
+| `/retro` | 週次: Ship/Learn/Block 集計 |
+
+## 出力先
+
+| 出力 | 場所 |
+|---|---|
+| Graph Decision | POSTは `http://localhost:31013`、正本確認は `https://bb.unson.jp` (DBは `localhost:25432` SSHトンネル経由でLightsail) |
+| Wiki ページ | `http://localhost:31013` → PostgreSQL wiki_pages |
+| NocoDB タスク | `https://noco.unson.jp` 各プロジェクト base |
+| 中間成果物 | `/tmp/meetings-YYYY-MM-DD/` |
+
+## 詳細
+
+`.claude/skills/daily-reflection/SKILL.md` 参照。過去の事故集（G1〜G10 Gotchas）も参照のこと。
+
+## 注意
+
+- Wiki API は **ローカル ポート 31013** でのみ動作（bb.unson.jp は 500 を返す）
+- Decision API もPOSTは **ローカル ポート 31013** だが、DB接続は **localhost:25432 → Lightsail:5432** のSSHトンネル必須。`localhost:5432` へ向けるとローカルDBへ誤投入する。
+- projectCode は **ハイフン無し** 形式（`techknight` ≠ `tech-knight`）
+- NocoDB 投入スクリプトは **1回だけ** 実行（head/tail で2回実行すると重複）
+- 日付またぎに注意（夜遅くに実行すると「今日」が変わる）

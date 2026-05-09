@@ -78,6 +78,18 @@ describe('FileViewerService', () => {
         expect(state.renderedHtml).toBeNull();
     });
 
+    it('HTMLプレビューURLの場合_ファイル取得せずiframe状態へ正規化する', async () => {
+        await service.openFile('session-1', '/api/sessions/session-1/html-preview/public/setup.html');
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('public/setup.html');
+        expect(state.fileName).toBe('setup.html');
+        expect(state.isHtml).toBe(true);
+        expect(state.htmlPreviewUrl).toBe('/api/sessions/session-1/html-preview/public/setup.html');
+        expect(state.error).toBeNull();
+    });
+
     it('close呼び出し時_ストアがクリアされFILE_VIEWER_CLOSEDイベントが発火される', async () => {
         appStore.setState({
             fileViewer: {

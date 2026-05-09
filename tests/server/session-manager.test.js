@@ -178,6 +178,27 @@ describe('SessionManager', () => {
     expect(status.isDone).toBe(true);
   });
 
+  it('legacy_terminal_done_event_clears_existing_codex_pty_turn', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now - 2000, {
+      lifecycle: 'turn_started',
+      eventType: 'codex/pty-shim-start',
+      turnId: `codex-pty-turn-${now - 2000}-12345`
+    });
+    manager.reportActivity('session-1', 'done', now, {
+      eventType: 'agent-turn-complete'
+    });
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      activeTurnCount: 0,
+      lastEventType: 'agent-turn-complete'
+    });
+  });
+
   it('clearDoneStatus_removes_done_state', () => {
     const manager = createManager();
     const now = Date.now();
@@ -253,6 +274,37 @@ describe('SessionManager', () => {
     });
 
     expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+  });
+
+  it('terminal_done_event_with_residual_active_turn_surfaces_as_done', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.hookStatus.set('session-1', {
+      status: 'working',
+      timestamp: now,
+      lastWorkingAt: now - 1000,
+      lastDoneAt: now,
+      lastActivityAt: now,
+      lastEventType: 'agent-turn-complete',
+      activeTurnIds: [`codex-pty-turn-${now - 2000}-12345`],
+      liveActivity: {
+        activityKind: 'task_completed',
+        currentStep: '作業が一区切り完了',
+        statusTone: 'working',
+        updatedAt: now,
+        assistantSnippetUpdatedAt: 0
+      }
+    });
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+      isWorking: false,
+      isDone: true,
+      activeTurnCount: 0,
+      liveActivity: expect.objectContaining({
+        statusTone: 'done'
+      })
+    });
   });
 
   it('getSessionStatus_tmux_pane_title_spinner_is_reported_as_active_turn', () => {
