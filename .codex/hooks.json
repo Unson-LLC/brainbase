@@ -28,18 +28,6 @@
         ]
       }
     ],
-    "PreToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "*",
