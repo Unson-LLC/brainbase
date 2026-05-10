@@ -71,6 +71,23 @@ describe('TerminalInputProbeService', () => {
     expect(terminalIo.sendInput).not.toHaveBeenCalled();
   });
 
+  it('snapshot取得が詰まってもprobeをtimeoutで失敗させる', async () => {
+    const { service, runtimeRegistry, captureCache } = buildService({
+      probeTimeoutMs: 20
+    });
+    captureCache.getSnapshot.mockImplementation(() => new Promise(() => {}));
+
+    const result = await service.probe({ sessionId: 'session-1', viewerId: 'viewer-1' });
+
+    expect(result.success).toBe(false);
+    expect(result.inputReady).toBe(false);
+    expect(result.code).toBe('PROBE_TIMEOUT');
+    expect(runtimeRegistry.setInputProbe).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      status: 'failed',
+      reason: 'PROBE_TIMEOUT'
+    }));
+  });
+
   it('Claude選択式プロンプト時_文字列probeなしでinputReadyを返す', async () => {
     const { service, runtimeRegistry, terminalIo, captureCache } = buildService();
     captureCache.getSnapshot.mockResolvedValue({

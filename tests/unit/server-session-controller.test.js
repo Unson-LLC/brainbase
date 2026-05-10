@@ -701,6 +701,75 @@ describe('SessionController (Server)', () => {
         }
       });
     });
+
+    it('runtimeが既にinteractive_readyならensureとworkspace解決をスキップする', async () => {
+      const sessionId = 'session-ready-runtime';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/session-ready-runtime',
+          initialCommand: 'npm run dev',
+          engine: 'codex',
+          intendedState: 'active',
+          runtimeStatus: {
+            ttydRunning: false,
+            proxyPath: null,
+            runtimeState: 'interactive_ready',
+            inputReady: true,
+            recoveryState: 'ok'
+          }
+        }]
+      });
+      mockSessionManager.getObservedRuntime.mockReturnValue({
+        runtimeState: 'interactive_ready',
+        observed: {
+          inputProbe: {
+            status: 'passed',
+            lastPassedAt: '2026-05-16T00:00:00.000Z'
+          }
+        }
+      });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.ensureTerminalRuntime({
+        params: { id: sessionId },
+        body: {
+          viewerId: 'viewer-1'
+        }
+      }, mockRes);
+
+      expect(mockSessionManager.resolveSessionWorkspacePath).not.toHaveBeenCalled();
+      expect(mockSessionManager.ensureSessionRuntime).not.toHaveBeenCalled();
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockSessionManager.repairCollapsedSessionWindow).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        runtimeStatus: {
+          ttydRunning: false,
+          proxyPath: null,
+          interactiveUrl: null,
+          runtimeState: 'interactive_ready',
+          inputReady: true,
+          inputProbe: {
+            status: 'passed',
+            lastPassedAt: '2026-05-16T00:00:00.000Z'
+          },
+          recoveryState: 'ok'
+        },
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        },
+        fastPath: true
+      });
+    });
   });
 
   describe('getTerminalSnapshot', () => {

@@ -11,7 +11,7 @@
 
 ## 実行フロー
 
-`daily-reflection` skill を呼び出し、以下の 7 Phase を実行:
+`daily-reflection` skill を呼び出し、以下の 7 Phase を実行：
 
 1. **Phase 0**: 日付確定（跨ぎ検知）
 2. **Phase 1**: `gog calendar list` で対象日の会議を取得
@@ -147,7 +147,7 @@ npm run sns:feedback-learning -- --date YYYY-MM-DD
 
 | 出力 | 場所 |
 |---|---|
-| Graph Decision | POSTは `http://localhost:31013`、正本確認は `https://bb.unson.jp` (DBは `localhost:25432` SSHトンネル経由でLightsail) |
+| Graph Decision | `https://bb.unson.jp` (decisions テーブル) |
 | Wiki ページ | `http://localhost:31013` → PostgreSQL wiki_pages |
 | NocoDB タスク | `https://noco.unson.jp` 各プロジェクト base |
 | 中間成果物 | `/tmp/meetings-YYYY-MM-DD/` |
@@ -159,7 +159,6 @@ npm run sns:feedback-learning -- --date YYYY-MM-DD
 ## 注意
 
 - Wiki API は **ローカル ポート 31013** でのみ動作（bb.unson.jp は 500 を返す）
-- Decision API もPOSTは **ローカル ポート 31013** だが、DB接続は **localhost:25432 → Lightsail:5432** のSSHトンネル必須。`localhost:5432` へ向けるとローカルDBへ誤投入する。
 - projectCode は **ハイフン無し** 形式（`techknight` ≠ `tech-knight`）
 - NocoDB 投入スクリプトは **1回だけ** 実行（head/tail で2回実行すると重複）
 - 日付またぎに注意（夜遅くに実行すると「今日」が変わる）

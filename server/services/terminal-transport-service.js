@@ -279,8 +279,8 @@ export class TerminalTransportService {
             ...this._buildRuntimeStatusPayload(connection)
         }));
 
-        // Do not block ready on a full-history snapshot. Streaming output should paint
-        // immediately; the initial visible snapshot fallback handles quiet terminals.
+        // xterm接続のreadyを全履歴snapshot取得でブロックしない。
+        // 初回描画が来ない場合のみ _scheduleInitialSnapshotFallback が visible snapshot を送る。
     }
 
     _startSnapshotPolling(connection) {

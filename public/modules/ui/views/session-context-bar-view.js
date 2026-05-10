@@ -16,6 +16,8 @@ export class SessionContextBarView extends BaseView {
         this.sessionService = sessionService;
         this.pollIntervalMs = pollIntervalMs;
         this.switchDelayMs = 150;
+        this.terminalSwitchRefreshDelayMs = 250;
+        this.terminalSwitchRefreshMaxWaitMs = 2500;
         this._requestId = 0;
         this._pollTimer = null;
         this._refreshTimer = null;
@@ -48,7 +50,11 @@ export class SessionContextBarView extends BaseView {
         this._addSubscriptions(
             appStore.subscribeToSelector(
                 (state) => state.currentSessionId,
-                () => this._scheduleRefresh({ forceLoading: false, delayMs: this.switchDelayMs })
+                () => this._scheduleRefresh({
+                    forceLoading: false,
+                    delayMs: this.switchDelayMs,
+                    waitForTerminalSwitch: true
+                })
             ),
             eventBus.on(EVENTS.SESSION_LOADED, refresh),
             eventBus.on(EVENTS.SESSION_UPDATED, refresh),
@@ -90,7 +96,12 @@ export class SessionContextBarView extends BaseView {
     }
 
     _scheduleRefresh(options = {}) {
-        const { forceLoading = false, delayMs = 0 } = options;
+        const {
+            forceLoading = false,
+            delayMs = 0,
+            waitForTerminalSwitch = false,
+            startedAt = Date.now()
+        } = options;
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
             this._refreshTimer = null;
@@ -98,8 +109,30 @@ export class SessionContextBarView extends BaseView {
 
         this._refreshTimer = setTimeout(() => {
             this._refreshTimer = null;
+            if (
+                waitForTerminalSwitch
+                && this._isTerminalSwitchActive()
+                && Date.now() - startedAt < this.terminalSwitchRefreshMaxWaitMs
+            ) {
+                this._scheduleRefresh({
+                    forceLoading,
+                    delayMs: this.terminalSwitchRefreshDelayMs,
+                    waitForTerminalSwitch,
+                    startedAt
+                });
+                return;
+            }
             void this.refresh({ forceLoading });
         }, delayMs);
+    }
+
+    _isTerminalSwitchActive() {
+        if (typeof window === 'undefined') return false;
+        const sessionId = appStore.getState().currentSessionId;
+        const pending = window.brainbaseApp?._pendingTerminalSwitch;
+        if (!pending) return false;
+        if (sessionId && pending.toSessionId && pending.toSessionId !== sessionId) return false;
+        return true;
     }
 
     _shortPath(pathValue) {
