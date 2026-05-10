@@ -2,6 +2,8 @@ import { appStore } from '../core/store.js';
 import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 
+const BLANK_TERMINAL_FRAME_REPAIR_DELAYS_MS = [80, 180, 360, 720, 1200, 1800];
+
 function isVisibleTerminalElement(element) {
     if (!element || element.classList?.contains('hidden')) return false;
     return window.getComputedStyle(element).display !== 'none';
@@ -231,18 +233,60 @@ export function applyTerminalDisplayMixin(AppClass) {
             || null;
     };
 
-    AppClass.prototype._repairBlankTerminalFrameAfterReveal = function(frame, reason = 'unknown') {
+    AppClass.prototype._clearScheduledBlankTerminalFrameRepair = function() {
+        if (!this._blankTerminalFrameRepairTimer) return;
+        window.clearTimeout(this._blankTerminalFrameRepairTimer);
+        this._blankTerminalFrameRepairTimer = null;
+    };
+
+    AppClass.prototype._scheduleBlankTerminalFrameRepair = function(reason = 'unknown', attempt = 0) {
+        if (attempt >= BLANK_TERMINAL_FRAME_REPAIR_DELAYS_MS.length) {
+            this._clearScheduledBlankTerminalFrameRepair();
+            window.dispatchEvent(new Event('resize'));
+            return true;
+        }
+        if (this._blankTerminalFrameRepairTimer) return true;
+
+        const delay = BLANK_TERMINAL_FRAME_REPAIR_DELAYS_MS[attempt];
+        this._blankTerminalFrameRepairTimer = window.setTimeout(() => {
+            this._blankTerminalFrameRepairTimer = null;
+            if (!this._isConsoleVisible()) return;
+
+            const frame = this._mobileTerminalMode === 'interactive'
+                ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
+                : this.terminalFrame || document.getElementById('terminal-frame');
+            if (!isVisibleTerminalElement(frame)) return;
+
+            if (this._repairBlankTerminalFrameAfterReveal(frame, `${reason}:retry-${attempt + 1}`, attempt + 1)) {
+                return;
+            }
+            if (!isBlankTerminalFrame(frame)) {
+                this._restoreTerminalFrameAfterReveal(frame, `${reason}:retry-${attempt + 1}`);
+            }
+        }, delay);
+        return true;
+    };
+
+    AppClass.prototype._repairBlankTerminalFrameAfterReveal = function(frame, reason = 'unknown', attempt = 0) {
         if (!isBlankTerminalFrame(frame)) return false;
-        if (this._pendingTerminalSwitch) return false;
+        if (this._pendingTerminalSwitch) {
+            return this._scheduleBlankTerminalFrameRepair(reason, attempt);
+        }
 
         const sessionId = this._resolveTerminalRecoverySessionId();
-        if (!sessionId) return false;
+        if (!sessionId) {
+            return this._scheduleBlankTerminalFrameRepair(reason, attempt);
+        }
 
         const session = this._getSessionById?.(sessionId)
             || (appStore.getState().sessions || []).find((item) => item?.id === sessionId);
         if (session?.intendedState === 'archived') return false;
+        if (typeof this.switchSession !== 'function') {
+            return this._scheduleBlankTerminalFrameRepair(reason, attempt);
+        }
 
-        void this.switchSession?.(sessionId, {
+        this._clearScheduledBlankTerminalFrameRepair();
+        void this.switchSession(sessionId, {
             forceTtyd: true,
             previousSessionId: sessionId,
             recoveryReason: reason

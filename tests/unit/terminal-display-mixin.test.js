@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTerminalDisplayMixin } from '../../public/modules/app/terminal-display-mixin.js';
 import { appStore } from '../../public/modules/core/store.js';
 
@@ -36,9 +36,14 @@ describe('terminal-display-mixin', () => {
         `;
     });
 
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it('ttyd iframe表示復帰時にlayout/reveal/focusを送る', () => {
         const app = new TestApp();
         const frame = document.getElementById('terminal-frame');
+        frame.setAttribute('src', '/console/session-1/');
         frame.getBoundingClientRect = () => ({ width: 960, height: 540 });
 
         app._restoreTerminalSurfaceAfterReveal('file-viewer-back');
@@ -86,6 +91,60 @@ describe('terminal-display-mixin', () => {
             forceTtyd: true,
             previousSessionId: 'session-1',
             recoveryReason: 'page-show'
+        });
+        expect(app.messages).toEqual([]);
+    });
+
+    it('ttyd iframeがabout:blankでセッション切替中なら完了後に再接続をリトライする', () => {
+        vi.useFakeTimers();
+        appStore.setState({
+            currentSessionId: 'session-1',
+            sessions: [{ id: 'session-1', intendedState: 'active' }]
+        });
+        const app = new TestApp();
+        app._pendingTerminalSwitch = { sessionId: 'session-1' };
+        app.switchSession = vi.fn();
+        const frame = document.getElementById('terminal-frame');
+        frame.setAttribute('src', 'about:blank');
+
+        app._restoreTerminalSurfaceAfterReveal('file-viewer-back');
+
+        expect(app.switchSession).not.toHaveBeenCalled();
+        expect(app.messages).toEqual([]);
+
+        app._pendingTerminalSwitch = null;
+        vi.advanceTimersByTime(80);
+
+        expect(app.switchSession).toHaveBeenCalledWith('session-1', {
+            forceTtyd: true,
+            previousSessionId: 'session-1',
+            recoveryReason: 'file-viewer-back:retry-1'
+        });
+        expect(app.messages).toEqual([]);
+    });
+
+    it('ttyd iframeがabout:blankで現在セッション未確定なら確定後に再接続をリトライする', () => {
+        vi.useFakeTimers();
+        const app = new TestApp();
+        app.switchSession = vi.fn();
+        const frame = document.getElementById('terminal-frame');
+        frame.setAttribute('src', 'about:blank');
+
+        app._restoreTerminalSurfaceAfterReveal('page-show');
+
+        expect(app.switchSession).not.toHaveBeenCalled();
+        expect(app.messages).toEqual([]);
+
+        appStore.setState({
+            currentSessionId: 'session-2',
+            sessions: [{ id: 'session-2', intendedState: 'active' }]
+        });
+        vi.advanceTimersByTime(80);
+
+        expect(app.switchSession).toHaveBeenCalledWith('session-2', {
+            forceTtyd: true,
+            previousSessionId: 'session-2',
+            recoveryReason: 'page-show:retry-1'
         });
         expect(app.messages).toEqual([]);
     });
