@@ -332,7 +332,7 @@ export class SessionView {
         return this.favoriteSessionIds.has(String(sessionId || ''));
     }
 
-    _toggleSessionFavorite(sessionId) {
+    _toggleSessionFavorite(sessionId, options = {}) {
         const id = String(sessionId || '');
         if (!id) return;
         if (this.favoriteSessionIds.has(id)) {
@@ -342,6 +342,9 @@ export class SessionView {
         }
         this._persistFavoriteSessionIds();
         this.render();
+        if (typeof options.afterRender === 'function') {
+            options.afterRender();
+        }
     }
 
     _renderSessionListToolbar(sessions) {
@@ -373,7 +376,8 @@ export class SessionView {
         return toolbar;
     }
 
-    _attachSessionListToolbarHandlers(toolbar) {
+    _attachSessionListToolbarHandlers(toolbar, options = {}) {
+        const { afterRender = null, focusRoot = null } = options;
         const searchInput = toolbar.querySelector('.session-search-input');
         if (searchInput) {
             let isComposing = false;
@@ -381,8 +385,14 @@ export class SessionView {
                 const cursor = searchInput.selectionStart ?? searchInput.value.length;
                 this.sessionSearchQuery = searchInput.value;
                 this.render();
+                if (typeof afterRender === 'function') {
+                    afterRender();
+                }
                 requestAnimationFrame(() => {
-                    const nextInput = this.container?.querySelector('.session-search-input');
+                    const root = typeof focusRoot === 'function'
+                        ? focusRoot()
+                        : (focusRoot || this.container);
+                    const nextInput = root?.querySelector('.session-search-input');
                     if (!nextInput) return;
                     nextInput.focus();
                     if (typeof nextInput.setSelectionRange === 'function') {
@@ -411,7 +421,18 @@ export class SessionView {
             favoritesButton.addEventListener('click', () => {
                 this.showFavoriteSessionsOnly = !this.showFavoriteSessionsOnly;
                 this.render();
+                if (typeof afterRender === 'function') {
+                    afterRender();
+                }
             });
+        }
+    }
+
+    attachToolbarHandlersToContainer(container, options = {}) {
+        if (!container) return;
+        const toolbar = container.querySelector('.session-list-toolbar');
+        if (toolbar) {
+            this._attachSessionListToolbarHandlers(toolbar, options);
         }
     }
 
@@ -772,6 +793,37 @@ export class SessionView {
                 // Viewport boundary detection — flip menu above if it overflows
                 if (isOpening) {
                     requestAnimationFrame(() => {
+                        dropdownMenu.style.top = '';
+                        dropdownMenu.style.bottom = '';
+                        dropdownMenu.style.marginTop = '';
+                        dropdownMenu.style.marginBottom = '';
+                        dropdownMenu.style.maxHeight = '';
+                        dropdownMenu.style.overflowY = '';
+
+                        const mobileSessionList = row.closest('#mobile-session-list');
+                        const mobileBoundary = mobileSessionList || row.closest('.bottom-sheet-content');
+                        if (mobileBoundary) {
+                            const rowRect = row.getBoundingClientRect();
+                            const boundaryRect = mobileBoundary.getBoundingClientRect();
+                            const menuHeight = dropdownMenu.scrollHeight;
+                            const gap = 4;
+                            const spaceBelow = Math.max(0, boundaryRect.bottom - rowRect.bottom - gap);
+                            const spaceAbove = Math.max(0, rowRect.top - boundaryRect.top - gap);
+                            const openBelow = spaceBelow >= Math.min(menuHeight, 180) || spaceBelow >= spaceAbove;
+                            const availableSpace = openBelow ? spaceBelow : spaceAbove;
+
+                            dropdownMenu.style.top = openBelow ? '100%' : 'auto';
+                            dropdownMenu.style.bottom = openBelow ? 'auto' : '100%';
+                            dropdownMenu.style.marginTop = openBelow ? `${gap}px` : '0';
+                            dropdownMenu.style.marginBottom = openBelow ? '0' : `${gap}px`;
+
+                            if (availableSpace > 0 && menuHeight > availableSpace) {
+                                dropdownMenu.style.maxHeight = `${Math.max(96, availableSpace)}px`;
+                                dropdownMenu.style.overflowY = 'auto';
+                            }
+                            return;
+                        }
+
                         const menuRect = dropdownMenu.getBoundingClientRect();
                         if (menuRect.bottom > window.innerHeight) {
                             dropdownMenu.style.top = 'auto';
@@ -990,7 +1042,9 @@ export class SessionView {
             favoriteBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                this._toggleSessionFavorite(session.id);
+                this._toggleSessionFavorite(session.id, {
+                    afterRender: options.afterRender || options.onFavoriteToggled
+                });
             });
         }
 

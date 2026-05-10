@@ -398,6 +398,63 @@ describe('SessionView', () => {
             ]);
             expect(container.querySelector('.session-favorites-filter-btn')?.getAttribute('aria-pressed')).toBe('true');
         });
+
+        it('should refresh cloned mobile session list after favorite actions and filter taps', () => {
+            const mockSessions = [
+                {
+                    id: 'session-old',
+                    name: 'Old Favorite',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    createdAt: '2026-03-17T00:00:00.000Z'
+                },
+                {
+                    id: 'session-new',
+                    name: 'New Normal',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    createdAt: '2026-03-17T00:00:01.000Z'
+                }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const mobileContainer = document.createElement('div');
+            document.body.appendChild(mobileContainer);
+            const syncMobileList = () => {
+                mobileContainer.innerHTML = container.innerHTML;
+                sessionView.attachToolbarHandlersToContainer(mobileContainer, {
+                    afterRender: syncMobileList,
+                    focusRoot: () => mobileContainer
+                });
+                sessionView.attachActionHandlersToContainer(mobileContainer, {
+                    enableDrag: false,
+                    afterRender: syncMobileList
+                });
+            };
+            syncMobileList();
+
+            expect([...mobileContainer.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-new',
+                'session-old'
+            ]);
+
+            mobileContainer.querySelector('[data-id="session-old"] .session-menu-toggle').click();
+            mobileContainer.querySelector('[data-id="session-old"] .favorite-session-btn').click();
+
+            expect([...mobileContainer.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-old',
+                'session-new'
+            ]);
+            expect(mobileContainer.querySelector('[data-id="session-old"] .favorite-session-btn')?.getAttribute('aria-pressed'))
+                .toBe('true');
+
+            mobileContainer.querySelector('.session-favorites-filter-btn').click();
+            expect([...mobileContainer.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-old'
+            ]);
+            expect(mobileContainer.querySelector('.session-favorites-filter-btn')?.getAttribute('aria-pressed')).toBe('true');
+        });
     });
 
     describe('session group header', () => {
