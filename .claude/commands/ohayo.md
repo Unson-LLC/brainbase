@@ -46,6 +46,7 @@ gog calendar events primary --from "${TODAY}T00:00:00+09:00" --to "${NEXT_WEEK}T
 
 - 今日の予定が 0 件: 0件と報告
 - 今日の予定が 1 件以上: 時刻、件名、相手、準備が必要なもの、移動/衝突リスクを朝のブリーフィングに載せる
+- HTMLレポートの各予定 item には Calendar の `htmlLink` または開けるURLを `links` に必ず入れる
 - 予定の作成・更新・返信は勝手に実行せず、必要なら提案またはドラフト化する
 - 認証エラーの場合は `gog auth list --check` で状態を確認し、未認証ならセットアップ不足として報告する
 
@@ -71,31 +72,32 @@ gog gmail thread get <threadId> --json --no-input
 
 - 未処理メールが 0 件: 0件と報告
 - 未処理メールが 1 件以上: 送信者、件名、要約、必要アクション、期限が見えるものを朝のブリーフィングに載せる
+- HTMLレポートの各メール item には Gmail で開ける thread link を `links` に必ず入れる。threadId がある場合は `https://mail.google.com/mail/u/0/#inbox/<threadId>` を使う
 - 返信や送信は勝手に実行せず、必要ならドラフトまたはタスク化する
 - Gmail検索結果だけで判断しきれないものは thread を開いて本文を確認する
 - 認証エラーの場合は `gog auth list --check` で状態を確認し、未認証ならセットアップ不足として報告する
 
 ## Slack Check
 
-毎朝必ず `slack-mentions` skill に従って、佐藤圭吾宛のSlackメンション・DMを確認する。
+毎朝必ず `slack-mentions` skill に従って、佐藤圭吾宛のSlackメンション・DMを直近3日分確認する。目的は「今日来たもの」ではなく「直近3日で返信すべきなのに未対応のもの」を拾うこと。
 
 最低限の確認:
 
-1. User ID検索で全チャンネル横断メンションを拾う
+1. User ID検索で直近3日分の全チャンネル横断メンションを拾う
 
 ```text
-slack_search_public_and_private(query="<@U08FB9S7HUL>", sort="timestamp", count=20)
+slack_search_public_and_private(query="<@U08FB9S7HUL>", filter_date_after="<3日前の日付 YYYY-MM-DD>", sort="timestamp", count=50)
 ```
 
-2. メンションなしDMを補完するため、主要DMを直接読む
+2. メンションなしDMを補完するため、主要DMを直近3日分直接読む
 
 ```text
-slack_read_channel(channel_id="D08FB9SB97W", limit=10)  # 堀さんDM
-slack_read_channel(channel_id="D09GQSYG42H", limit=10)  # 渡邊さんDM
-slack_read_channel(channel_id="D0A264FGG65", limit=5)   # mana DM
+slack_read_channel(channel_id="D08FB9SB97W", limit=50)  # 堀さんDM
+slack_read_channel(channel_id="D09GQSYG42H", limit=50)  # 渡邊さんDM
+slack_read_channel(channel_id="D0A264FGG65", limit=20)  # mana DM
 ```
 
-3. スレッド文脈が必要なものだけ展開する
+3. 返信済み/未対応の判定に必要なスレッドだけ展開する
 
 ```text
 slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
@@ -105,8 +107,25 @@ slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
 
 - 未対応メンション/DMが 0 件: 0件と報告
 - 未対応メンション/DMが 1 件以上: 送信者、チャンネル/DM、要約、必要アクションを朝のブリーフィングに載せる
+- 未対応判定は、依頼・質問・確認待ち・判断待ち・返信要求があり、その後に佐藤圭吾（`U08FB9S7HUL`）の返信または明示的な完了反応が見つからないものを対象にする
+- HTMLレポートの各Slack item には Slack permalink（可能なら `https://<workspace>.slack.com/archives/<channel>/p<ts>`）を `links` に必ず入れる。permalinkが作れない場合も channel_id / ts / thread_ts を evidence に残す
 - 返信や送信が必要な場合は、勝手に送らずドラフトまたはタスク化する
 - Slack検索APIだけを信用せず、主要DMの直接確認で補完する
+
+## HTML Report
+
+Calendar / Mail / Slack / Archive Blocked / 今日の優先タスクを整理したら、日付別HTMLレポートを必ず生成する。
+
+```bash
+TODAY=$(date +%F)
+node scripts/daily-ops-report.mjs ohayo \
+  --date "$TODAY" \
+  --input "/tmp/ohayo-${TODAY}.json"
+```
+
+各 item には可能な限り `links` を入れる。Calendar は `htmlLink`、Mail は Gmail thread link、Slack は permalink を優先する。
+証跡は Slack channel/thread ts、Gmail thread id、Calendar event id、NocoDB table/record など、後で追える粒度で `evidence` に残す。
+HTML内のボタンはAIに渡す構造化指示だけを生成する。Slack投稿・NocoDB更新など外部副作用は既定で `draft_only` / `dry_run` とし、実送信・実更新は別確認なしに行わない。
 
 ## 関連トリガー
 

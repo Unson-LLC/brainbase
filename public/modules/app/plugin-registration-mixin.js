@@ -100,6 +100,12 @@ export function applyPluginRegistrationMixin(AppClass) {
 
                         // Setup backward-compatible navigation helpers
                         const { cleanup, showConsole, showDashboard, showFileViewer, showWiki } = setupViewNavigation({
+                            onConsoleActivated: () => {
+                                this._restoreTerminalSurfaceAfterReveal?.('show-console');
+                                window.setTimeout(() => {
+                                    this._restoreTerminalSurfaceAfterReveal?.('show-console:delayed');
+                                }, 120);
+                            },
                             onDashboardActivated: () => {
                                 this.dashboardController?.init();
                             },
