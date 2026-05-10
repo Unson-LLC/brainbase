@@ -7614,6 +7614,12 @@ body.resizing iframe {
         padding: 12px 8px;
         font-size: 0.82rem;
     }
+    .mobile-files-preview .file-viewer-image-stage {
+        min-height: 100%;
+    }
+    .mobile-files-preview .file-viewer-image {
+        max-height: calc(100dvh - 180px);
+    }
     .mobile-files-preview .file-viewer-markdown {
         font-size: 0.92rem;
         line-height: 1.5;
@@ -11939,6 +11945,21 @@ body.resizing iframe {
     border: 0;
     border-radius: 4px;
     background: #fff;
+}
+
+.file-viewer-image-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100%;
+}
+
+.file-viewer-image {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 180px);
+    object-fit: contain;
 }
 
 .file-viewer-loading,

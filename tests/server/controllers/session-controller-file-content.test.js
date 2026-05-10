@@ -205,6 +205,21 @@ describe('SessionController.getFileContent', () => {
         expect(res.status).toHaveBeenCalledWith(415);
     });
 
+    it('getHtmlPreviewAsset_画像ファイルを画像MIMEで返す', async () => {
+        req.params.previewPath = ['assets', 'logo.png'];
+        req.query.path = '';
+        const imageBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+        mockStat.mockResolvedValue({ size: imageBuffer.length, isFile: () => true });
+        mockReadFile.mockResolvedValue(imageBuffer);
+
+        await controller.getHtmlPreviewAsset(req, res);
+
+        expect(mockOpen).not.toHaveBeenCalled();
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+        expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+        expect(res.send).toHaveBeenCalledWith(imageBuffer);
+    });
+
     it('パストラバーサル攻撃_400を返す', async () => {
         req.query.path = '../../../etc/passwd';
         await controller.getFileContent(req, res);

@@ -1,6 +1,6 @@
 // @ts-check
 import { appStore } from '../../core/store.js';
-import { isHtmlPreviewPath } from '../../file-preview-config.js';
+import { isHtmlPreviewPath, isImagePreviewPath } from '../../file-preview-config.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 import { showSuccess, showError } from '../../toast.js';
 import { BaseView } from './base-view.js';
@@ -39,7 +39,20 @@ export class FileViewerView extends BaseView {
             return;
         }
 
-        const { sessionId, relativePath, fileName, content, renderedHtml, isMarkdown, isHtml, htmlPreviewUrl, loading, error } = fileViewer;
+        const {
+            sessionId,
+            relativePath,
+            fileName,
+            content,
+            renderedHtml,
+            isMarkdown,
+            isHtml,
+            isImage,
+            htmlPreviewUrl,
+            imagePreviewUrl,
+            loading,
+            error
+        } = fileViewer;
 
         // Reset toggle when file changes
         if (relativePath !== this._currentPath) {
@@ -54,12 +67,26 @@ export class FileViewerView extends BaseView {
         const resolvedHtmlPreviewUrl = shouldPreviewHtml
             ? (htmlPreviewUrl || this._buildHtmlPreviewUrl(sessionId, relativePath))
             : null;
+        const shouldPreviewImage = Boolean(isImage || isImagePreviewPath(fileName || relativePath));
+        const resolvedImagePreviewUrl = shouldPreviewImage
+            ? (imagePreviewUrl || this._buildHtmlPreviewUrl(sessionId, relativePath))
+            : null;
 
         let bodyHtml = '';
         if (loading) {
             bodyHtml = '<div class="file-viewer-loading">Loading...</div>';
         } else if (error) {
             bodyHtml = `<div class="file-viewer-error">${escapeHtml(error)}</div>`;
+        } else if (shouldPreviewImage && resolvedImagePreviewUrl) {
+            bodyHtml = `
+                <div class="file-viewer-image-stage">
+                    <img
+                        class="file-viewer-image"
+                        src="${escapeHtml(resolvedImagePreviewUrl)}"
+                        alt="${escapeHtml(title || 'Image preview')}"
+                    >
+                </div>
+            `;
         } else if (shouldPreviewHtml && resolvedHtmlPreviewUrl) {
             bodyHtml = `
                 <iframe

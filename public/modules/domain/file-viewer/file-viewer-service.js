@@ -1,7 +1,7 @@
 // @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { isHtmlPreviewPath } from '../../file-preview-config.js';
+import { isHtmlPreviewPath, isImagePreviewPath } from '../../file-preview-config.js';
 
 /**
  * ファイルビューアのビジネスロジック
@@ -20,10 +20,10 @@ export class FileViewerService {
      * @param {string} relativePath - セッションワークスペースからの相対パス
      */
     async openFile(sessionId, relativePath) {
-        const htmlPreviewTarget = this._parseHtmlPreviewUrl(relativePath);
-        if (htmlPreviewTarget) {
-            const previewSessionId = htmlPreviewTarget.sessionId || sessionId;
-            const previewPath = htmlPreviewTarget.relativePath;
+        const previewTarget = this._parseBrowserPreviewUrl(relativePath);
+        if (previewTarget) {
+            const previewSessionId = previewTarget.sessionId || sessionId;
+            const previewPath = previewTarget.relativePath;
             const fileName = previewPath.split('/').pop() || previewPath;
             this.store.setState({
                 fileViewer: {
@@ -34,8 +34,10 @@ export class FileViewerService {
                     renderedHtml: null,
                     size: 0,
                     isMarkdown: false,
-                    isHtml: true,
-                    htmlPreviewUrl: htmlPreviewTarget.previewUrl,
+                    isHtml: previewTarget.isHtml,
+                    isImage: previewTarget.isImage,
+                    htmlPreviewUrl: previewTarget.isHtml ? previewTarget.previewUrl : null,
+                    imagePreviewUrl: previewTarget.isImage ? previewTarget.previewUrl : null,
                     treeNavigable: false,
                     treeRootPath: null,
                     treeRelativePath: null,
@@ -51,7 +53,45 @@ export class FileViewerService {
                 treeRelativePath: null,
                 fileName,
                 isMarkdown: false,
-                isHtml: true
+                isHtml: previewTarget.isHtml,
+                isImage: previewTarget.isImage
+            });
+            return;
+        }
+
+        if (isImagePreviewPath(relativePath)) {
+            const fileName = relativePath.split('/').pop() || relativePath;
+            const imagePreviewUrl = this._buildAssetPreviewUrl(sessionId, relativePath);
+            this.store.setState({
+                fileViewer: {
+                    sessionId,
+                    relativePath,
+                    fileName,
+                    content: null,
+                    renderedHtml: null,
+                    size: 0,
+                    isMarkdown: false,
+                    isHtml: false,
+                    isImage: true,
+                    htmlPreviewUrl: null,
+                    imagePreviewUrl,
+                    treeNavigable: false,
+                    treeRootPath: null,
+                    treeRelativePath: null,
+                    loading: false,
+                    error: null
+                }
+            });
+            await this.eventBus.emit(EVENTS.FILE_VIEWER_OPENED, {
+                sessionId,
+                relativePath,
+                treeNavigable: false,
+                treeRootPath: null,
+                treeRelativePath: null,
+                fileName,
+                isMarkdown: false,
+                isHtml: false,
+                isImage: true
             });
             return;
         }
@@ -81,7 +121,9 @@ export class FileViewerService {
                     size,
                     isMarkdown,
                     isHtml: shouldPreviewHtml,
+                    isImage: false,
                     htmlPreviewUrl: previewUrl,
+                    imagePreviewUrl: null,
                     treeNavigable: Boolean(treeNavigable),
                     treeRootPath: treeRootPath || null,
                     treeRelativePath: treeRelativePath || null,
@@ -98,7 +140,8 @@ export class FileViewerService {
                 treeRelativePath: treeRelativePath || null,
                 fileName,
                 isMarkdown,
-                isHtml: shouldPreviewHtml
+                isHtml: shouldPreviewHtml,
+                isImage: false
             });
         } catch (error) {
             this.store.setState({
@@ -111,7 +154,9 @@ export class FileViewerService {
                     size: 0,
                     isMarkdown: false,
                     isHtml: false,
+                    isImage: false,
                     htmlPreviewUrl: null,
+                    imagePreviewUrl: null,
                     loading: false,
                     error: error.message || 'Failed to load file'
                 }
@@ -125,7 +170,7 @@ export class FileViewerService {
         }
     }
 
-    _parseHtmlPreviewUrl(value) {
+    _parseBrowserPreviewUrl(value) {
         if (typeof value !== 'string' || !value) return null;
         let pathname = value;
         try {
@@ -145,17 +190,26 @@ export class FileViewerService {
             .filter(Boolean)
             .map((segment) => decodeURIComponent(segment))
             .join('/');
-        if (!isHtmlPreviewPath(relativePath)) return null;
-        const previewUrl = `/api/sessions/${encodeURIComponent(previewSessionId)}/html-preview/${relativePath
-            .split('/')
-            .filter(Boolean)
-            .map((segment) => encodeURIComponent(segment))
-            .join('/')}`;
+        const isHtml = isHtmlPreviewPath(relativePath);
+        const isImage = isImagePreviewPath(relativePath);
+        if (!isHtml && !isImage) return null;
+        const previewUrl = this._buildAssetPreviewUrl(previewSessionId, relativePath);
         return {
             sessionId: previewSessionId,
             relativePath,
-            previewUrl
+            previewUrl,
+            isHtml,
+            isImage
         };
+    }
+
+    _buildAssetPreviewUrl(sessionId, relativePath) {
+        const encodedPath = String(relativePath || '')
+            .split('/')
+            .filter(Boolean)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/');
+        return `/api/sessions/${encodeURIComponent(sessionId)}/html-preview/${encodedPath}`;
     }
 
     /**

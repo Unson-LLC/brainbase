@@ -90,6 +90,41 @@ describe('FileViewerService', () => {
         expect(state.error).toBeNull();
     });
 
+    it('画像ファイルの場合_ファイル本文を取得せず画像プレビューURLをストアに設定する', async () => {
+        const listener = vi.fn();
+        const unsub = eventBus.on(EVENTS.FILE_VIEWER_OPENED, listener);
+
+        await service.openFile('session-1', 'assets/logo.png');
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('assets/logo.png');
+        expect(state.fileName).toBe('logo.png');
+        expect(state.isImage).toBe(true);
+        expect(state.isHtml).toBe(false);
+        expect(state.content).toBeNull();
+        expect(state.imagePreviewUrl).toBe('/api/sessions/session-1/html-preview/assets/logo.png');
+        expect(listener.mock.calls[0][0].detail).toEqual(expect.objectContaining({
+            sessionId: 'session-1',
+            relativePath: 'assets/logo.png',
+            isImage: true
+        }));
+
+        unsub();
+    });
+
+    it('画像プレビューURLの場合_ファイル取得せず画像状態へ正規化する', async () => {
+        await service.openFile('session-1', '/api/sessions/session-1/html-preview/.vibepro/out/chart.webp');
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('.vibepro/out/chart.webp');
+        expect(state.fileName).toBe('chart.webp');
+        expect(state.isImage).toBe(true);
+        expect(state.imagePreviewUrl).toBe('/api/sessions/session-1/html-preview/.vibepro/out/chart.webp');
+        expect(state.error).toBeNull();
+    });
+
     it('close呼び出し時_ストアがクリアされFILE_VIEWER_CLOSEDイベントが発火される', async () => {
         appStore.setState({
             fileViewer: {

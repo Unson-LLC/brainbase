@@ -27,6 +27,8 @@ const HTML_PREVIEW_ASSET_TYPES = new Map([
     ['.gif', 'image/gif'],
     ['.webp', 'image/webp'],
     ['.ico', 'image/x-icon'],
+    ['.avif', 'image/avif'],
+    ['.bmp', 'image/bmp'],
     ['.woff', 'font/woff'],
     ['.woff2', 'font/woff2'],
     ['.ttf', 'font/ttf']
