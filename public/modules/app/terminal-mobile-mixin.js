@@ -1,5 +1,38 @@
 import { appStore } from '../core/store.js';
+import { httpClient } from '../core/http-client.js';
 import { getSessionStatus } from '../session-ui-state.js';
+
+const MIN_MOBILE_TERMINAL_LAYOUT_WIDTH = 320;
+const MIN_MOBILE_TERMINAL_LAYOUT_HEIGHT = 240;
+
+function finiteNumber(value, fallback = 0) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function buildSafeMobileTerminalLayout(layout, frameEl) {
+    const frameRect = frameEl?.getBoundingClientRect?.() || null;
+    const visualViewport = typeof window !== 'undefined' ? window.visualViewport : null;
+    const viewportWidth = visualViewport?.width || window.innerWidth || 0;
+    const viewportHeight = visualViewport?.height || window.innerHeight || 0;
+
+    const width = finiteNumber(layout?.width, frameRect?.width || viewportWidth);
+    const height = finiteNumber(layout?.height, frameRect?.height || viewportHeight);
+    if (width < MIN_MOBILE_TERMINAL_LAYOUT_WIDTH || height < MIN_MOBILE_TERMINAL_LAYOUT_HEIGHT) {
+        return null;
+    }
+
+    const keyboardOffset = Math.max(0, Math.min(height, finiteNumber(layout?.keyboardOffset, 0)));
+    return {
+        ...(layout || {}),
+        width: Math.round(width),
+        height: Math.round(height),
+        offsetTop: finiteNumber(layout?.offsetTop, visualViewport?.offsetTop || 0),
+        offsetLeft: finiteNumber(layout?.offsetLeft, visualViewport?.offsetLeft || 0),
+        keyboardOffset,
+        keyboardOpen: Boolean(layout?.keyboardOpen && keyboardOffset > 0)
+    };
+}
 
 export function applyTerminalMobileMixin(AppClass) {
     AppClass.prototype._getSessionById = function(sessionId) {
@@ -44,6 +77,7 @@ export function applyTerminalMobileMixin(AppClass) {
 
         this._mobileSnapshotInFlight = true;
         try {
+            await this._repairTerminalGeometry(sessionId, 'mobile-snapshot-refresh');
             // Mobile snapshot polling must bypass cache on every tick.
             // Otherwise the timer runs but only re-renders stale cached content.
             const snapshot = await this._loadTerminalSnapshot(sessionId, { force: true });
@@ -63,6 +97,33 @@ export function applyTerminalMobileMixin(AppClass) {
                 this._updateTerminalInputStatus();
                 this._setMobileSnapshotPoll(this._getMobileSnapshotPollInterval(sessionId));
             }
+        }
+    };
+
+    AppClass.prototype._repairTerminalGeometry = async function(sessionId, reason = 'mobile') {
+        if (!sessionId) return null;
+        try {
+            const result = await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/terminal/geometry/repair`, {
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel,
+                reason
+            });
+            if (result?.repaired) {
+                console.warn('[MOBILE_TERMINAL_GEOMETRY] repaired terminal geometry', {
+                    sessionId,
+                    reason,
+                    paneSize: result.paneSize,
+                    repairedPaneSize: result.repairedPaneSize
+                });
+            }
+            return result || null;
+        } catch (error) {
+            console.warn('[MOBILE_TERMINAL_GEOMETRY] repair request failed', {
+                sessionId,
+                reason,
+                message: error?.message || String(error)
+            });
+            return null;
         }
     };
 
@@ -123,16 +184,27 @@ export function applyTerminalMobileMixin(AppClass) {
         if (!this.isMobile() || this._mobileTerminalMode !== 'interactive' || !this.mobileLiveTerminalFrameEl) {
             return;
         }
+        if (!this.mobileLiveTerminalModalEl?.classList.contains('active')) {
+            return;
+        }
         if (this._terminalFrameLayoutSyncRaf) {
             window.cancelAnimationFrame(this._terminalFrameLayoutSyncRaf);
         }
         this._terminalFrameLayoutSyncRaf = window.requestAnimationFrame(() => {
             this._terminalFrameLayoutSyncRaf = null;
             if (!this._latestMobileViewportLayout || this._mobileTerminalMode !== 'interactive') return;
+            const safeLayout = buildSafeMobileTerminalLayout(this._latestMobileViewportLayout, this.mobileLiveTerminalFrameEl);
+            if (!safeLayout) {
+                console.warn('[MOBILE_TERMINAL_GEOMETRY] skipped unsafe mobile terminal layout', {
+                    sessionId: this._mobileLiveTerminalSessionId,
+                    layout: this._latestMobileViewportLayout
+                });
+                return;
+            }
             this.postTerminalFrameMessage({
                 type: 'bb-terminal-layout',
                 source: 'brainbase-mobile-keyboard',
-                ...this._latestMobileViewportLayout
+                ...safeLayout
             }, this.mobileLiveTerminalFrameEl);
         });
     };

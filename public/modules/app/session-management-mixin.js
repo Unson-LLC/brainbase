@@ -129,6 +129,7 @@ export function applySessionManagementMixin(AppClass) {
                 };
             }
             this._terminalLastNavigateAt = Date.now();
+            await this._repairTerminalGeometry?.(sessionId, 'mobile-live-terminal-open');
             this.scheduleTerminalFrameLayoutSync(this._latestMobileViewportLayout);
             this._updateTerminalInputStatus();
         },

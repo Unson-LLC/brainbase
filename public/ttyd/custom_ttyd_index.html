@@ -1041,6 +1041,10 @@
 
     let pendingLayout = null;
     let layoutFrame = null;
+    const MIN_PARENT_LAYOUT_WIDTH = 320;
+    const MIN_PARENT_LAYOUT_HEIGHT = 240;
+    const MIN_TERMINAL_COLS = 40;
+    const MIN_TERMINAL_ROWS = 12;
 
     function scheduleLayoutApply(payload) {
         pendingLayout = payload;
@@ -1056,6 +1060,14 @@
         const container = document.getElementById('terminal-container');
         const width = Math.max(0, Number(payload.width) || window.innerWidth || 0);
         const height = Math.max(0, Number(payload.height) || window.innerHeight || 0);
+        if (width < MIN_PARENT_LAYOUT_WIDTH || height < MIN_PARENT_LAYOUT_HEIGHT) {
+            console.warn('[MOBILE_TERMINAL_GEOMETRY] skipped unsafe parent layout', {
+                width,
+                height,
+                payload
+            });
+            return;
+        }
 
         document.documentElement.style.setProperty('--bb-parent-width', `${width}px`);
         document.documentElement.style.setProperty('--bb-parent-height', `${height}px`);
@@ -1073,8 +1085,8 @@
                 const cellWidth = Number(dimensions?.width) || 0;
                 const cellHeight = Number(dimensions?.height) || 0;
                 if (cellWidth > 0 && cellHeight > 0) {
-                    const cols = Math.max(20, Math.floor(Math.max(0, width - 10) / cellWidth));
-                    const rows = Math.max(5, Math.floor(Math.max(0, height - 10) / cellHeight));
+                    const cols = Math.max(MIN_TERMINAL_COLS, Math.floor(Math.max(0, width - 10) / cellWidth));
+                    const rows = Math.max(MIN_TERMINAL_ROWS, Math.floor(Math.max(0, height - 10) / cellHeight));
                     window.term.resize(cols, rows);
                 }
             }

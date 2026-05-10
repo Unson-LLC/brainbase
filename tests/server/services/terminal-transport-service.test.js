@@ -567,6 +567,31 @@ describe('TerminalTransportService', () => {
             .toBeLessThan(controlClient.resize.mock.invocationCallOrder[0]);
     });
 
+    it('resize message が極小寸法の場合_tmux/control clientへ安全な最小寸法で渡す', async () => {
+        const { service, sessionManager, controlClient } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'resize',
+            cols: 2,
+            rows: 1
+        }));
+
+        expect(sessionManager.resizeSessionWindow).toHaveBeenCalledWith('session-1', 40, 12);
+        expect(controlClient.resize).toHaveBeenCalledWith(40, 12);
+        expect(connection.cols).toBe(40);
+        expect(connection.rows).toBe(12);
+    });
+
     it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {
         const { service, sessionManager } = buildService();
         sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });

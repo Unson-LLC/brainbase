@@ -26,12 +26,76 @@ const TEXT_CONTROL_KEY_MAP = new Map([
 const TYPING_SIMULATION_MIN_CHARS = 40;
 const TYPING_SIMULATION_MAX_CHARS = 500;
 const TYPING_SIMULATION_DELAY_MS = 12;
+const COLLAPSED_PANE_COLS = 20;
+const COLLAPSED_PANE_ROWS = 5;
+const REPAIR_PANE_COLS = 80;
+const REPAIR_PANE_ROWS = 24;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export const terminalIoMethods = {
+    async getSessionPaneSize(sessionId) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const { stdout } = await this.execPromise(
+            `tmux display-message -p -t "${sessionId}" "#{pane_width},#{pane_height}" 2>/dev/null || true`
+        );
+        const [colsRaw, rowsRaw] = stdout.trim().split(',');
+        const cols = Number.parseInt(colsRaw, 10);
+        const rows = Number.parseInt(rowsRaw, 10);
+        if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) {
+            return null;
+        }
+        return { cols, rows };
+    },
+
+    async repairCollapsedSessionWindow(sessionId, options = {}) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const paneSize = await this.getSessionPaneSize(sessionId);
+        if (!paneSize) {
+            return {
+                repaired: false,
+                paneSize: null,
+                reason: 'pane-size-unavailable'
+            };
+        }
+
+        const needsRepair = paneSize.cols < COLLAPSED_PANE_COLS || paneSize.rows < COLLAPSED_PANE_ROWS;
+        if (!needsRepair) {
+            return {
+                repaired: false,
+                paneSize,
+                reason: 'pane-size-ok'
+            };
+        }
+
+        const targetCols = Math.max(REPAIR_PANE_COLS, Number(options.minCols) || 0);
+        const targetRows = Math.max(REPAIR_PANE_ROWS, Number(options.minRows) || 0);
+        console.warn('[MOBILE_TERMINAL_GEOMETRY] repairing collapsed tmux pane', {
+            sessionId,
+            paneSize,
+            target: { cols: targetCols, rows: targetRows },
+            source: options.reason || 'unknown'
+        });
+        await this.resizeSessionWindow(sessionId, targetCols, targetRows);
+        const repairedPaneSize = await this.getSessionPaneSize(sessionId).catch(() => null);
+
+        return {
+            repaired: true,
+            paneSize,
+            repairedPaneSize,
+            target: { cols: targetCols, rows: targetRows },
+            reason: options.reason || 'collapsed-pane'
+        };
+    },
+
     async resizeSessionWindow(sessionId, cols, rows) {
         if (!sessionId) {
             throw new Error('Session ID required');

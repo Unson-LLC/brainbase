@@ -48,6 +48,7 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.post('/:id/terminal/takeover', controller.takeoverTerminal);
     router.post('/:id/terminal/probe-input', controller.probeTerminalInput);
     router.post('/:id/terminal/recover', controller.recoverTerminal);
+    router.post('/:id/terminal/geometry/repair', controller.repairTerminalGeometry);
     router.post('/:id/release-terminal', controller.releaseTerminal);
     router.get('/:id/terminal/snapshot', controller.getTerminalSnapshot);
     router.get('/:id', controller.get);
