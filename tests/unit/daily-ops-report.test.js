@@ -99,7 +99,28 @@ describe('daily-ops-report', () => {
 
         expect(html).toContain('href="https://calendar.google.com/calendar/event?eid=abc"');
         expect(html).toContain('href="https://mail.google.com/mail/u/0/#inbox/thread-1"');
-        expect(html).toContain('href="https://salestailor.slack.com/archives/C123/p1760000000000000"');
+        expect(html).toContain('href="slack://channel?team=T08EUJKQY07&amp;id=C123&amp;message=1760000000.000000"');
         expect(html).not.toContain('javascript:alert(1)');
+    });
+
+    it('converts Slack web permalinks to app deep links', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'ohayo',
+            date: '2026-05-10',
+            sections: {
+                slack: [{
+                    title: 'Slack確認',
+                    links: [{
+                        label: 'Slack web',
+                        url: 'https://salestailor.slack.com/archives/C08SX913NER/p1778324649001229'
+                    }]
+                }]
+            }
+        });
+
+        const html = buildDailyOpsReportHtml(report);
+
+        expect(html).toContain('href="slack://channel?team=T08EUJKQY07&amp;id=C08SX913NER&amp;message=1778324649.001229"');
+        expect(html).not.toContain('href="https://salestailor.slack.com/archives/C08SX913NER/p1778324649001229"');
     });
 });
