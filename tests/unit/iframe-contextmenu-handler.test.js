@@ -80,6 +80,32 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
+    it('画像ファイルリンクも抽出する', () => {
+        expect(extractFileMatches('tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg')).toEqual([
+            {
+                path: 'tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg',
+                line: null,
+                start: 0,
+                end: 54
+            }
+        ]);
+    });
+
+    it('画像ファイルリンクを browser preview 対象として扱う', () => {
+        expect(buildFileLinksForBufferLine(
+            'tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg',
+            18,
+            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1778113092477-brainbase'
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: 'tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg',
+                previewPath: 'tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg',
+                previewable: true,
+                text: 'tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg'
+            })
+        ]);
+    });
+
     it('xterm link range は exact な buffer line 番号を使う', () => {
         expect(buildFileLinksForBufferLine('public/app.js:1568', 42)).toEqual([
             expect.objectContaining({

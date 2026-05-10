@@ -70,7 +70,8 @@ export class SessionService {
             localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
                 sessions: (sessions || []).map(s => ({
                     id: s.id, name: s.name, project: s.project, path: s.path,
-                    intendedState: s.intendedState, engine: s.engine,
+                    intendedState: s.intendedState, favorite: s.favorite === true,
+                    engine: s.engine,
                     worktree: s.worktree, createdAt: s.createdAt,
                     archivedAt: s.archivedAt, pausedReason: s.pausedReason
                 })),
@@ -394,6 +395,60 @@ export class SessionService {
             );
             this.store.setState({ sessions: reconciledSessions });
             return { success: true, sessionId, updates: nextUpdates, eventResult };
+        } catch (error) {
+            if (previousSession) {
+                this.store.setState({
+                    sessions: previousSessions.map((session) =>
+                        session.id === sessionId ? previousSession : session
+                    )
+                });
+            } else {
+                this.store.setState({ sessions: previousSessions });
+            }
+            await this.eventBus.emit(EVENTS.SESSION_UPDATED, {
+                sessionId,
+                updates: previousSession || {},
+                rollback: true
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * セッションのお気に入り状態をサーバー状態に保存する。
+     * localStorageではなく /api/state/sessions/:id を正本にすることで、
+     * Cloudflare経由のモバイル表示とも同期される。
+     *
+     * @param {string} sessionId
+     * @param {boolean} favorite
+     * @returns {Promise<{success: boolean, sessionId: string, favorite: boolean, eventResult: Object}>}
+     */
+    async setSessionFavorite(sessionId, favorite) {
+        const nextFavorite = favorite === true;
+        const now = new Date().toISOString();
+        const previousState = this.store.getState();
+        const previousSessions = Array.isArray(previousState.sessions) ? previousState.sessions : [];
+        const previousSession = previousSessions.find((session) => session.id === sessionId) || null;
+        const updates = {
+            favorite: nextFavorite,
+            updatedAt: now
+        };
+
+        const optimisticSessions = previousSessions.map((session) =>
+            session.id === sessionId ? { ...session, ...updates } : session
+        );
+        this.store.setState({ sessions: optimisticSessions });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
+
+        try {
+            const patchedSession = await this.httpClient.patch(`/api/state/sessions/${encodeURIComponent(sessionId)}`, updates);
+            const currentSessions = this.store.getState().sessions || optimisticSessions;
+            const reconciledSessions = currentSessions.map((session) =>
+                session.id === sessionId ? { ...session, ...(patchedSession || {}) } : session
+            );
+            this.store.setState({ sessions: reconciledSessions });
+            this._saveToCache();
+            return { success: true, sessionId, favorite: nextFavorite, eventResult };
         } catch (error) {
             if (previousSession) {
                 this.store.setState({

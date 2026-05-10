@@ -57,6 +57,15 @@ export function applyMobileNavigationMixin(AppClass) {
 
                 // Re-attach all handlers using dedicated functions
                 try {
+                    const refreshMobileSessions = () => {
+                        renderMobileSessionList();
+                    };
+
+                    this.views.sessionView?.attachToolbarHandlersToContainer(mobileSessionList, {
+                        afterRender: refreshMobileSessions,
+                        focusRoot: () => mobileSessionList
+                    });
+
                     // セッション行クリックハンドラ
                     attachSessionRowClickHandlers(mobileSessionList, (sessionId) => {
                         eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
@@ -74,7 +83,10 @@ export function applyMobileNavigationMixin(AppClass) {
                     attachGroupHeaderHandlers(mobileSessionList);
 
                     // セッションアクションハンドラ（リネーム、削除、アーカイブ等）
-                    this.views.sessionView?.attachActionHandlersToContainer(mobileSessionList);
+                    this.views.sessionView?.attachActionHandlersToContainer(mobileSessionList, {
+                        enableDrag: false,
+                        afterRender: refreshMobileSessions
+                    });
                 } catch (error) {
                     console.error('Error attaching handlers:', error);
                 }

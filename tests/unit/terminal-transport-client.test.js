@@ -1005,6 +1005,36 @@ describe('terminal-transport-client', () => {
     );
   });
 
+  it('tmux snapshot末尾の区切り改行でカーソル行を1段ずらさない', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot('row 1\n› prompt\n', { x: 2, y: 1 });
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hrow 1\n› prompt\x1b[2;3H',
+      expect.any(Function)
+    );
+  });
+
   it('履歴付きsnapshot適用時_full snapshotをvisible paneで部分上書きせず保持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
@@ -1214,7 +1244,38 @@ describe('terminal-transport-client', () => {
     await Promise.resolve();
 
     expect(terminal.write).toHaveBeenCalledWith(
-      '\x1b[2J\x1b[Hlive frame',
+      '\x1b[2J\x1b[H\x1b[?7l\x1b[1;1Hlive frame\x1b[?7h',
+      expect.any(Function)
+    );
+  });
+
+  it('screenOnly snapshotは行を絶対座標で描いてtmuxカーソル行と同期する', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      cols: 10,
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._queueOrApplySnapshot('1234567890\n\n› prompt\nstatus\n', { x: 8, y: 2 }, { screenOnly: true });
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[H\x1b[?7l\x1b[1;1H1234567890\x1b[3;1H› prompt\x1b[4;1Hstatus\x1b[?7h\x1b[3;9H',
       expect.any(Function)
     );
   });

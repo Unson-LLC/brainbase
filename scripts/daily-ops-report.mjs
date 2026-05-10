@@ -60,6 +60,12 @@ const MODE_CONFIG = {
     }
 };
 
+const SLACK_TEAM_IDS_BY_DOMAIN = {
+    salestailor: process.env.SLACK_TEAM_ID_SALESTAILOR
+        || process.env.SLACK_SALESTAILOR_TEAM_ID
+        || 'T08EUJKQY07'
+};
+
 export function normalizeDailyOpsReport(input = {}, options = {}) {
     const mode = options.mode || input.mode;
     const config = MODE_CONFIG[mode];
@@ -528,32 +534,70 @@ function inferLinksFromEvidence(evidence) {
         if (entry.type === 'gmail_thread_id' && entry.ref) {
             return [{ label: 'Gmail thread', url: `https://mail.google.com/mail/u/0/#inbox/${entry.ref}` }];
         }
-        const slackUrl = inferSlackPermalink(entry);
-        if (slackUrl) return [{ label: 'Slack message', url: slackUrl }];
+        const slackUrl = inferSlackDeepLink(entry);
+        if (slackUrl) return [{ label: 'Slack app', url: slackUrl }];
         return [];
     }));
 }
 
-function inferSlackPermalink(entry) {
+function inferSlackDeepLink(entry) {
     if (!entry || !String(entry.type || '').startsWith('slack_')) return '';
     const channelAndTs = parseSlackChannelAndTs(entry);
     if (!channelAndTs) return '';
-    const tsForUrl = channelAndTs.ts.replace(/\D/g, '');
-    if (!tsForUrl) return '';
-    return `https://salestailor.slack.com/archives/${channelAndTs.channel}/p${tsForUrl}`;
+    return buildSlackDeepLink({
+        team: channelAndTs.team,
+        channel: channelAndTs.channel,
+        ts: channelAndTs.ts
+    });
 }
 
 function parseSlackChannelAndTs(entry) {
     const ref = String(entry.ref || '').trim();
     const refMatch = ref.match(/\b([CDG][A-Z0-9]+)\/([0-9]{10,}\.[0-9]+)\b/);
-    if (refMatch) return { channel: refMatch[1], ts: refMatch[2] };
+    if (refMatch) return { team: resolveSlackTeamId(entry), channel: refMatch[1], ts: refMatch[2] };
 
     const channel = String(entry.channel_id || entry.channelId || entry.channel || '').trim();
     const ts = String(entry.ts || entry.message_ts || entry.thread_ts || '').trim();
     if (/^[CDG][A-Z0-9]+$/.test(channel) && /^[0-9]{10,}\.[0-9]+$/.test(ts)) {
-        return { channel, ts };
+        return { team: resolveSlackTeamId(entry), channel, ts };
     }
     return null;
+}
+
+function resolveSlackTeamId(entry = {}) {
+    const explicit = String(entry.team_id || entry.teamId || entry.team || '').trim();
+    if (/^T[A-Z0-9]+$/.test(explicit)) return explicit;
+
+    const workspace = String(entry.workspace || entry.domain || 'salestailor').trim().toLowerCase();
+    return SLACK_TEAM_IDS_BY_DOMAIN[workspace] || '';
+}
+
+function buildSlackDeepLink({ team, channel, ts }) {
+    if (!/^T[A-Z0-9]+$/.test(String(team || ''))) return '';
+    if (!/^[CDG][A-Z0-9]+$/.test(String(channel || ''))) return '';
+    if (!/^[0-9]{10,}\.[0-9]+$/.test(String(ts || ''))) return '';
+
+    const params = new URLSearchParams({
+        team,
+        id: channel,
+        message: ts
+    });
+    return `slack://channel?${params.toString()}`;
+}
+
+function normalizeSlackArchiveUrl(url) {
+    const parsed = new URL(url);
+    const hostMatch = parsed.hostname.match(/^([a-z0-9-]+)\.slack\.com$/i);
+    if (!hostMatch) return '';
+
+    const pathMatch = parsed.pathname.match(/^\/archives\/([CDG][A-Z0-9]+)\/p([0-9]{10})([0-9]{6})$/);
+    if (!pathMatch) return '';
+
+    const workspace = hostMatch[1].toLowerCase();
+    const team = SLACK_TEAM_IDS_BY_DOMAIN[workspace] || '';
+    const channel = pathMatch[1];
+    const ts = `${pathMatch[2]}.${pathMatch[3]}`;
+    return buildSlackDeepLink({ team, channel, ts });
 }
 
 function mergeLinks(...linkGroups) {
@@ -592,6 +636,9 @@ function normalizeLinkUrl(value) {
     if (!url) return '';
     try {
         const parsed = new URL(url);
+        if (parsed.protocol === 'slack:') return url;
+        const slackDeepLink = parsed.protocol === 'https:' ? normalizeSlackArchiveUrl(url) : '';
+        if (slackDeepLink) return slackDeepLink;
         if (['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return url;
     } catch {
         // Relative links are intentionally not accepted in generated local reports.

@@ -5,6 +5,8 @@ import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { __resetSessionIndicatorStateForTests, pollSessionStatus } from '../../../public/modules/session-indicators.js';
 
+const mockSetSessionFavorite = vi.hoisted(() => vi.fn());
+
 vi.mock('../../../public/modules/confirm-modal.js', () => ({
     showConfirm: vi.fn(async () => true),
     showConfirmWithAction: vi.fn(async () => true)
@@ -33,6 +35,7 @@ vi.mock('../../../public/modules/domain/session/session-service.js', () => {
                 this.unarchiveSession = vi.fn();
                 this.mergeSession = vi.fn(async () => ({ success: true }));
                 this.switchSession = vi.fn(async () => ({ success: true }));
+                this.setSessionFavorite = mockSetSessionFavorite;
             }
         }
     };
@@ -68,11 +71,7 @@ describe('SessionView', () => {
             }
         });
 
-        // モックサービス
-        mockSessionService = new SessionService();
-        sessionView = new SessionView({
-            sessionService: mockSessionService
-        });
+        vi.clearAllMocks();
 
         // ストア初期化
         __resetSessionIndicatorStateForTests();
@@ -84,7 +83,20 @@ describe('SessionView', () => {
             ui: { sessionListView: 'timeline' }
         });
 
-        vi.clearAllMocks();
+        // モックサービス
+        mockSessionService = new SessionService();
+        mockSetSessionFavorite.mockImplementation(async (sessionId, favorite) => {
+            const state = appStore.getState();
+            appStore.setState({
+                sessions: (state.sessions || []).map((session) =>
+                    session.id === sessionId ? { ...session, favorite: favorite === true } : session
+                )
+            });
+            return { success: true, sessionId, favorite: favorite === true };
+        });
+        sessionView = new SessionView({
+            sessionService: mockSessionService
+        });
     });
 
     afterEach(() => {
@@ -344,7 +356,7 @@ describe('SessionView', () => {
             expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual(['session-kana']);
         });
 
-        it('should favorite sessions, persist them, and pin them above normal sessions', () => {
+        it('should favorite sessions on the server state and pin them above normal sessions', () => {
             const mockSessions = [
                 {
                     id: 'session-old',
@@ -379,7 +391,31 @@ describe('SessionView', () => {
             ]);
             expect(container.querySelector('[data-id="session-old"] .favorite-session-btn')?.getAttribute('aria-pressed')).toBe('true');
             expect(document.getElementById('menu-overlay')?.classList.contains('hidden')).toBe(true);
-            expect(JSON.parse(window.localStorage.getItem('brainbase.sessionFavorites.v1'))).toEqual(['session-old']);
+            expect(mockSessionService.setSessionFavorite).toHaveBeenCalledWith('session-old', true);
+            expect((appStore.getState().sessions || []).find((session) => session.id === 'session-old')?.favorite).toBe(true);
+            expect(window.localStorage.getItem('brainbase.sessionFavorites.v1')).toBeNull();
+        });
+
+        it('should migrate legacy localStorage favorites to server state', async () => {
+            window.localStorage.setItem('brainbase.sessionFavorites.v1', JSON.stringify(['session-legacy']));
+            sessionView = new SessionView({
+                sessionService: mockSessionService
+            });
+            sessionView.mount(container);
+
+            appStore.setState({
+                sessions: [
+                    { id: 'session-legacy', name: 'Legacy Favorite', project: 'brainbase', intendedState: 'active' }
+                ],
+                ui: { sessionListView: 'timeline' }
+            });
+
+            sessionView.render();
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(mockSessionService.setSessionFavorite).toHaveBeenCalledWith('session-legacy', true);
+            expect(window.localStorage.getItem('brainbase.sessionFavorites.v1')).toBeNull();
         });
 
         it('should show only favorite sessions when the favorite filter is enabled', () => {
@@ -397,6 +433,63 @@ describe('SessionView', () => {
                 'session-favorite'
             ]);
             expect(container.querySelector('.session-favorites-filter-btn')?.getAttribute('aria-pressed')).toBe('true');
+        });
+
+        it('should refresh cloned mobile session list after favorite actions and filter taps', () => {
+            const mockSessions = [
+                {
+                    id: 'session-old',
+                    name: 'Old Favorite',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    createdAt: '2026-03-17T00:00:00.000Z'
+                },
+                {
+                    id: 'session-new',
+                    name: 'New Normal',
+                    project: 'brainbase',
+                    intendedState: 'active',
+                    createdAt: '2026-03-17T00:00:01.000Z'
+                }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const mobileContainer = document.createElement('div');
+            document.body.appendChild(mobileContainer);
+            const syncMobileList = () => {
+                mobileContainer.innerHTML = container.innerHTML;
+                sessionView.attachToolbarHandlersToContainer(mobileContainer, {
+                    afterRender: syncMobileList,
+                    focusRoot: () => mobileContainer
+                });
+                sessionView.attachActionHandlersToContainer(mobileContainer, {
+                    enableDrag: false,
+                    afterRender: syncMobileList
+                });
+            };
+            syncMobileList();
+
+            expect([...mobileContainer.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-new',
+                'session-old'
+            ]);
+
+            mobileContainer.querySelector('[data-id="session-old"] .session-menu-toggle').click();
+            mobileContainer.querySelector('[data-id="session-old"] .favorite-session-btn').click();
+
+            expect([...mobileContainer.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-old',
+                'session-new'
+            ]);
+            expect(mobileContainer.querySelector('[data-id="session-old"] .favorite-session-btn')?.getAttribute('aria-pressed'))
+                .toBe('true');
+
+            mobileContainer.querySelector('.session-favorites-filter-btn').click();
+            expect([...mobileContainer.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-old'
+            ]);
+            expect(mobileContainer.querySelector('.session-favorites-filter-btn')?.getAttribute('aria-pressed')).toBe('true');
         });
     });
 

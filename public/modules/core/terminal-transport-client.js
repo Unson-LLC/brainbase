@@ -1531,19 +1531,51 @@ export class TerminalTransportClient {
     }
 
     _formatSnapshotForTerminal(text, cursor = null) {
-        const normalizedText = this._normalizeSnapshotAutowrap(text || '');
+        const normalizedText = this._normalizeSnapshotAutowrap(
+            this._stripSnapshotRecordSeparator(text || '')
+        );
+        const cursorMove = this._formatCursorMoveSequence(cursor);
+        return cursorMove ? `${normalizedText}${cursorMove}` : normalizedText;
+    }
+
+    _formatCursorMoveSequence(cursor = null) {
         if (!cursor || !Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) {
-            return normalizedText;
+            return '';
         }
 
         const row = Math.max(1, Math.floor(cursor.y) + 1);
         const col = Math.max(1, Math.floor(cursor.x) + 1);
-        return `${normalizedText}\x1b[${row};${col}H`;
+        return `\x1b[${row};${col}H`;
+    }
+
+    _formatScreenSnapshotForTerminal(text, cursor = null) {
+        const snapshotText = this._stripSnapshotRecordSeparator(text || '');
+        if (!snapshotText) return this._formatCursorMoveSequence(cursor);
+
+        const rows = snapshotText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        const chunks = ['\x1b[?7l'];
+        rows.forEach((line, index) => {
+            if (!line) return;
+            chunks.push(`\x1b[${index + 1};1H${line}`);
+        });
+        chunks.push('\x1b[?7h');
+        const cursorMove = this._formatCursorMoveSequence(cursor);
+        if (cursorMove) chunks.push(cursorMove);
+        return chunks.join('');
     }
 
     _buildSnapshotForTerminal(text, cursor = null, options = {}) {
-        void options;
+        if (options.screenOnly === true) {
+            return this._formatScreenSnapshotForTerminal(text, cursor);
+        }
         return this._formatSnapshotForTerminal(text, cursor);
+    }
+
+    _stripSnapshotRecordSeparator(text) {
+        if (!text) return '';
+        if (text.endsWith('\r\n')) return text.slice(0, -2);
+        if (text.endsWith('\n') || text.endsWith('\r')) return text.slice(0, -1);
+        return text;
     }
 
     _normalizeSnapshotAutowrap(text) {

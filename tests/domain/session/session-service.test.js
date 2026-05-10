@@ -3,7 +3,7 @@ import { SessionService } from '../../../public/modules/domain/session/session-s
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
-import { addSession } from '../../../public/modules/state-api.js';
+import { addSession, saveSessionOrder } from '../../../public/modules/state-api.js';
 import { listenForEvent } from '../../helpers/event-test-utils.js';
 
 // モジュールをモック化
@@ -11,7 +11,8 @@ vi.mock('../../../public/modules/core/http-client.js', () => ({
     httpClient: {
         get: vi.fn(),
         post: vi.fn(),
-        patch: vi.fn()
+        patch: vi.fn(),
+        delete: vi.fn()
     }
 }));
 
@@ -20,7 +21,8 @@ vi.mock('../../../public/modules/state-api.js', () => ({
     saveState: vi.fn(),
     updateSession: vi.fn(),
     removeSession: vi.fn(),
-    addSession: vi.fn()
+    addSession: vi.fn(),
+    saveSessionOrder: vi.fn()
 }));
 
 vi.mock('../../../public/modules/project-mapping.js', () => ({
@@ -240,16 +242,12 @@ describe('SessionService', () => {
             httpClient.get
                 .mockResolvedValueOnce({ sessions: mockSessions })
                 .mockResolvedValueOnce({ sessions: persistedSessions });
-            httpClient.post.mockResolvedValue({});
+            httpClient.delete.mockResolvedValue({});
 
             await sessionService.deleteSession('session-1');
 
             expect(httpClient.get).toHaveBeenCalledWith('/api/state');
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.not.arrayContaining([
-                    expect.objectContaining({ id: 'session-1' })
-                ])
-            }));
+            expect(httpClient.delete).toHaveBeenCalledWith('/api/state/sessions/session-1');
         });
 
         it('should emit SESSION_DELETED event', async () => {
@@ -257,7 +255,7 @@ describe('SessionService', () => {
             httpClient.get
                 .mockResolvedValueOnce({ sessions: mockSessions })
                 .mockResolvedValueOnce({ sessions: persistedSessions });
-            httpClient.post.mockResolvedValue({});
+            httpClient.delete.mockResolvedValue({});
             const listener = vi.fn();
             eventBus.on(EVENTS.SESSION_DELETED, listener);
 
@@ -280,7 +278,7 @@ describe('SessionService', () => {
             httpClient.get
                 .mockReturnValueOnce(deferred.promise)
                 .mockResolvedValueOnce({ sessions: persistedSessions });
-            httpClient.post.mockResolvedValue({});
+            httpClient.delete.mockResolvedValue({});
 
             const deletePromise = sessionService.deleteSession('session-1');
 
@@ -302,7 +300,7 @@ describe('SessionService', () => {
             httpClient.get
                 .mockReturnValueOnce(deferred.promise)
                 .mockResolvedValueOnce({ sessions: persistedSessions });
-            httpClient.post.mockResolvedValue({});
+            httpClient.delete.mockResolvedValue({});
 
             const deletePromise = sessionService.deleteSession('session-1');
 
@@ -320,7 +318,7 @@ describe('SessionService', () => {
             });
 
             httpClient.get.mockResolvedValueOnce({ sessions: mockSessions });
-            httpClient.post.mockRejectedValueOnce(new Error('save failed'));
+            httpClient.delete.mockRejectedValueOnce(new Error('save failed'));
             const loadedListener = vi.fn();
             eventBus.on(EVENTS.SESSION_LOADED, loadedListener);
 
@@ -345,7 +343,7 @@ describe('SessionService', () => {
             httpClient.get
                 .mockReturnValueOnce(deferred.promise)
                 .mockResolvedValueOnce({ sessions: persistedSessions });
-            httpClient.post.mockResolvedValue({});
+            httpClient.delete.mockResolvedValue({});
 
             const p1 = sessionService.deleteSession('session-1');
             const p2 = sessionService.deleteSession('session-1');
@@ -353,7 +351,7 @@ describe('SessionService', () => {
             deferred.resolve({ sessions: mockSessions });
             await Promise.all([p1, p2]);
 
-            expect(httpClient.post).toHaveBeenCalledTimes(1);
+            expect(httpClient.delete).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -642,18 +640,21 @@ describe('SessionService', () => {
                 ]
             };
 
+            httpClient.get.mockReset();
             httpClient.get.mockResolvedValue(stateWithStopped);
-            httpClient.post.mockResolvedValue({});
+            httpClient.patch.mockReset();
+            httpClient.patch.mockResolvedValue({});
 
             await sessionService.loadSessions();
 
             // Check that the sessions were migrated to "paused"
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', {
-                sessions: [
-                    { id: 'session-1', name: 'Session 1', intendedState: 'paused', pausedReason: 'migrated_from_stopped' },
-                    { id: 'session-2', name: 'Session 2', intendedState: 'active' },
-                    { id: 'session-3', name: 'Session 3', intendedState: 'paused', pausedReason: 'migrated_from_stopped' }
-                ]
+            expect(httpClient.patch).toHaveBeenCalledWith('/api/state/sessions/session-1', {
+                intendedState: 'paused',
+                pausedReason: 'migrated_from_stopped'
+            });
+            expect(httpClient.patch).toHaveBeenCalledWith('/api/state/sessions/session-3', {
+                intendedState: 'paused',
+                pausedReason: 'migrated_from_stopped'
             });
 
             // Check that the migrated sessions were saved to store
@@ -849,36 +850,57 @@ describe('SessionService', () => {
                 { id: 'session-2', name: 'Client stale name' },
                 { id: 'session-1', name: 'Client stale name' }
             ];
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
-            httpClient.post.mockResolvedValue({});
+            saveSessionOrder.mockResolvedValue({});
 
             await sessionService.saveSessionOrder(reorderedSessions);
 
-            // Server data should be used (not client data), reordered by client ID order
-            const postedSessions = httpClient.post.mock.calls[0][1].sessions;
-            expect(postedSessions[0].id).toBe('session-2');
-            expect(postedSessions[0].name).toBe('Session 2'); // Server name preserved
-            expect(postedSessions[1].id).toBe('session-1');
-            expect(postedSessions[1].name).toBe('Session 1'); // Server name preserved
+            expect(saveSessionOrder).toHaveBeenCalledWith(['session-2', 'session-1']);
         });
 
         it('saveSessionOrder呼び出し時_APIエラー発生_例外がスローされる', async () => {
             const error = new Error('Network error');
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
-            httpClient.post.mockRejectedValue(error);
+            saveSessionOrder.mockRejectedValue(error);
 
             await expect(sessionService.saveSessionOrder([])).rejects.toThrow('Network error');
         });
 
         it('saveSessionOrder呼び出し時_空配列でも正常に保存される', async () => {
-            httpClient.get.mockResolvedValue({ sessions: [] });
-            httpClient.post.mockResolvedValue({});
+            saveSessionOrder.mockResolvedValue({});
 
             await sessionService.saveSessionOrder([]);
 
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: []
+            expect(saveSessionOrder).toHaveBeenCalledWith([]);
+        });
+    });
+
+    describe('setSessionFavorite', () => {
+        it('setSessionFavorite呼び出し時_楽観更新してサーバーへPATCHする', async () => {
+            appStore.setState({ sessions: mockSessions });
+            httpClient.patch.mockResolvedValue({ ...mockSessions[0], favorite: true, updatedAt: 'server-time' });
+
+            const result = await sessionService.setSessionFavorite('session-1', true);
+
+            expect(httpClient.patch).toHaveBeenCalledWith('/api/state/sessions/session-1', expect.objectContaining({
+                favorite: true,
+                updatedAt: expect.any(String)
             }));
+            expect(result).toEqual(expect.objectContaining({
+                success: true,
+                sessionId: 'session-1',
+                favorite: true
+            }));
+            expect((appStore.getState().sessions || []).find((session) => session.id === 'session-1')).toEqual(
+                expect.objectContaining({ favorite: true, updatedAt: 'server-time' })
+            );
+        });
+
+        it('setSessionFavorite呼び出し時_PATCH失敗で元の状態へ戻す', async () => {
+            appStore.setState({ sessions: mockSessions });
+            httpClient.patch.mockRejectedValue(new Error('Network error'));
+
+            await expect(sessionService.setSessionFavorite('session-1', true)).rejects.toThrow('Network error');
+
+            expect((appStore.getState().sessions || []).find((session) => session.id === 'session-1')?.favorite).toBeUndefined();
         });
     });
 });
