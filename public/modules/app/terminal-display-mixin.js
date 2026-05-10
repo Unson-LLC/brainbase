@@ -7,6 +7,11 @@ function isVisibleTerminalElement(element) {
     return window.getComputedStyle(element).display !== 'none';
 }
 
+function isBlankTerminalFrame(frame) {
+    const src = frame?.getAttribute?.('src') || '';
+    return !src || src === 'about:blank';
+}
+
 export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype.syncMobileTerminalReserve = function(
         viewportHeight = window.visualViewport?.height || window.innerHeight,
@@ -208,11 +213,41 @@ export function applyTerminalDisplayMixin(AppClass) {
             ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
             : this.terminalFrame || document.getElementById('terminal-frame');
         if (isVisibleTerminalElement(frame)) {
+            if (this._repairBlankTerminalFrameAfterReveal(frame, reason)) {
+                return;
+            }
             this._restoreTerminalFrameAfterReveal(frame, reason);
             return;
         }
 
         window.dispatchEvent(new Event('resize'));
+    };
+
+    AppClass.prototype._resolveTerminalRecoverySessionId = function() {
+        const state = appStore.getState();
+        return state.currentSessionId
+            || this._terminalPresentationSessionId
+            || document.querySelector('.session-child-row.active')?.dataset?.id
+            || null;
+    };
+
+    AppClass.prototype._repairBlankTerminalFrameAfterReveal = function(frame, reason = 'unknown') {
+        if (!isBlankTerminalFrame(frame)) return false;
+        if (this._pendingTerminalSwitch) return false;
+
+        const sessionId = this._resolveTerminalRecoverySessionId();
+        if (!sessionId) return false;
+
+        const session = this._getSessionById?.(sessionId)
+            || (appStore.getState().sessions || []).find((item) => item?.id === sessionId);
+        if (session?.intendedState === 'archived') return false;
+
+        void this.switchSession?.(sessionId, {
+            forceTtyd: true,
+            previousSessionId: sessionId,
+            recoveryReason: reason
+        });
+        return true;
     };
 
     AppClass.prototype._restoreTerminalFrameAfterReveal = function(frame, reason = 'unknown') {

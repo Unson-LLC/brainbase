@@ -9,6 +9,32 @@ export function applyEventListenersMixin(AppClass) {
     AppClass.prototype.setupEventListeners = async function() {
         this._cacheTerminalUiElements?.();
 
+        const restoreTerminalAfterPageReturn = (reason) => {
+            scheduleAfterNextPaint(() => {
+                this._restoreTerminalSurfaceAfterReveal?.(reason);
+                window.setTimeout(() => {
+                    this._restoreTerminalSurfaceAfterReveal?.(`${reason}:delayed`);
+                }, 180);
+            });
+        };
+
+        const onPageShow = () => restoreTerminalAfterPageReturn('page-show');
+        const onWindowFocus = () => restoreTerminalAfterPageReturn('window-focus');
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                restoreTerminalAfterPageReturn('visibility-visible');
+            }
+        };
+
+        window.addEventListener('pageshow', onPageShow);
+        window.addEventListener('focus', onWindowFocus);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        this.unsubscribers.push(() => {
+            window.removeEventListener('pageshow', onPageShow);
+            window.removeEventListener('focus', onWindowFocus);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        });
+
         // Terminal copy modal
         const copyTerminalBtn = document.getElementById('copy-terminal-btn');
         const copyTerminalModal = document.getElementById('copy-terminal-modal');
