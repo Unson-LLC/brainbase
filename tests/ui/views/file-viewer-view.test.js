@@ -115,6 +115,52 @@ describe('FileViewerView', () => {
         expect(container.innerHTML).not.toContain('&lt;!DOCTYPE');
     });
 
+    it('画像ファイル表示時_imgで画像として表示される', () => {
+        appStore.setState({
+            fileViewer: {
+                sessionId: 'session-1',
+                relativePath: 'assets/logo.png',
+                fileName: 'logo.png',
+                content: null,
+                renderedHtml: null,
+                isMarkdown: false,
+                isHtml: false,
+                isImage: true,
+                imagePreviewUrl: '/api/sessions/session-1/html-preview/assets/logo.png',
+                loading: false,
+                error: null
+            }
+        });
+
+        view.mount(container);
+        const image = container.querySelector('.file-viewer-image');
+        expect(image).toBeTruthy();
+        expect(image.getAttribute('src')).toBe('/api/sessions/session-1/html-preview/assets/logo.png');
+        expect(image.getAttribute('alt')).toBe('logo.png');
+        expect(container.querySelector('.file-viewer-html-frame')).toBeNull();
+        expect(container.querySelector('.file-viewer-text')).toBeNull();
+    });
+
+    it('画像メタ情報が欠けていても拡張子からimg表示にfallbackする', () => {
+        appStore.setState({
+            fileViewer: {
+                sessionId: 'session-1',
+                relativePath: '.vibepro/out/chart.webp',
+                fileName: 'chart.webp',
+                content: null,
+                renderedHtml: null,
+                isMarkdown: false,
+                loading: false,
+                error: null
+            }
+        });
+
+        view.mount(container);
+        const image = container.querySelector('.file-viewer-image');
+        expect(image).toBeTruthy();
+        expect(image.getAttribute('src')).toBe('/api/sessions/session-1/html-preview/.vibepro/out/chart.webp');
+    });
+
     it('エラー表示時_エラーメッセージが表示される', () => {
         appStore.setState({
             fileViewer: {

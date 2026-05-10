@@ -1,9 +1,21 @@
 export const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 export const HTML_EXTENSIONS = new Set(['.html', '.htm']);
+export const IMAGE_EXTENSIONS = new Set([
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.ico',
+    '.avif',
+    '.bmp'
+]);
 
 export const BROWSER_PREVIEWABLE_EXTENSIONS = new Set([
     ...MARKDOWN_EXTENSIONS,
     ...HTML_EXTENSIONS,
+    ...IMAGE_EXTENSIONS,
     '.txt',
     '.log',
     '.json',
@@ -15,7 +27,6 @@ export const BROWSER_PREVIEWABLE_EXTENSIONS = new Set([
     '.cfg',
     '.env',
     '.xml',
-    '.svg',
     '.css',
     '.js',
     '.jsx',
@@ -55,6 +66,10 @@ export function isBrowserPreviewablePath(filePath) {
 
 export function isHtmlPreviewPath(filePath) {
     return HTML_EXTENSIONS.has(getPathExtension(filePath));
+}
+
+export function isImagePreviewPath(filePath) {
+    return IMAGE_EXTENSIONS.has(getPathExtension(filePath));
 }
 
 function normalizePathSegments(input) {

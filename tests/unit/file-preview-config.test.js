@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getPathExtension, isBrowserPreviewablePath, isHtmlPreviewPath, resolvePreviewRelativePath } from '../../public/modules/file-preview-config.js';
+import {
+    getPathExtension,
+    isBrowserPreviewablePath,
+    isHtmlPreviewPath,
+    isImagePreviewPath,
+    resolvePreviewRelativePath
+} from '../../public/modules/file-preview-config.js';
 
 describe('file-preview-config', () => {
     it('コード系テキストファイルをブラウザ内表示対象にする', () => {
@@ -9,8 +15,8 @@ describe('file-preview-config', () => {
         expect(isBrowserPreviewablePath('config/settings.yaml')).toBe(true);
     });
 
-    it('バイナリ系や拡張子なしは対象にしない', () => {
-        expect(isBrowserPreviewablePath('image.png')).toBe(false);
+    it('非プレビュー拡張子や拡張子なしは対象にしない', () => {
+        expect(isBrowserPreviewablePath('archive.zip')).toBe(false);
         expect(isBrowserPreviewablePath('LICENSE')).toBe(false);
     });
 
@@ -23,6 +29,13 @@ describe('file-preview-config', () => {
         expect(isBrowserPreviewablePath('public/index.html')).toBe(true);
         expect(isHtmlPreviewPath('public/index.html')).toBe(true);
         expect(isHtmlPreviewPath('public/app.js')).toBe(false);
+    });
+
+    it('画像ファイルを画像プレビュー対象として判定する', () => {
+        expect(isBrowserPreviewablePath('assets/image.png')).toBe(true);
+        expect(isImagePreviewPath('assets/image.png')).toBe(true);
+        expect(isImagePreviewPath('assets/photo.JPG')).toBe(true);
+        expect(isImagePreviewPath('public/index.html')).toBe(false);
     });
 
     it('workspace 内の絶対パスを relative に変換する', () => {

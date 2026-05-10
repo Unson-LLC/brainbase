@@ -133,6 +133,40 @@ describe('FolderTreeView', () => {
         expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
     });
 
+    it('画像ファイルクリック時_fileViewerServiceがあればopenFileが呼ばれる', async () => {
+        const fileViewerService = {
+            openFile: vi.fn().mockResolvedValue()
+        };
+        const viewWithFV = new FolderTreeView({ sessionService, fileViewerService });
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1',
+            folderTree: {
+                bySessionId: {
+                    'session-1': {
+                        rootPath: '/tmp/project',
+                        nodesByPath: {
+                            '': [
+                                { name: 'logo.png', relativePath: 'assets/logo.png', type: 'file', hasChildren: false }
+                            ]
+                        }
+                    }
+                },
+                expandedPaths: {},
+                loading: false,
+                error: null
+            }
+        });
+        viewWithFV.render(container);
+        const fileButton = container.querySelector('.folder-tree-file');
+        fileButton.click();
+
+        await vi.waitFor(() => {
+            expect(fileViewerService.openFile).toHaveBeenCalledWith('session-1', 'assets/logo.png');
+        });
+        expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
+    });
+
     it('ファイルクリック時_open-fileが呼ばれてイベントが発火される', async () => {
         appStore.setState({
             sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
