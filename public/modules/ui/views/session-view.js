@@ -22,7 +22,8 @@ export class SessionView {
         this.container = null;
         this._unsubscribers = [];
         this._renderRafId = null;
-        this.favoriteSessionIds = this._loadFavoriteSessionIds();
+        this.legacyFavoriteSessionIds = this._loadFavoriteSessionIds();
+        this._legacyFavoritesMigrationInFlight = false;
         this.sessionSearchQuery = '';
         this.showFavoriteSessionsOnly = false;
         this._timelineAttentionSortBySessionId = new Map();
@@ -81,7 +82,7 @@ export class SessionView {
 
     _buildSessionRowElement(session, currentSessionId, options = {}) {
         const { project, showProjectEmoji = false, isDraggable = true, enableDrag = true } = options;
-        const isFavorite = this._isFavoriteSession(session.id);
+        const isFavorite = this._isFavoriteSession(session);
         const sessionUiState = deriveSessionUiState(session.id);
         const wrapper = document.createElement('div');
         wrapper.innerHTML = renderSessionRowHTML(session, {
@@ -129,7 +130,7 @@ export class SessionView {
             // フィンガープリント比較：レンダリング入力が同じなら差し替え不要
             const newFingerprint = this._computeRowFingerprint(session, currentSessionId, {
                 project,
-                isFavorite: this._isFavoriteSession(session.id)
+                isFavorite: this._isFavoriteSession(session)
             });
             if (currentRow.dataset.fingerprint === newFingerprint) continue;
 
@@ -259,6 +260,7 @@ export class SessionView {
         const toolbar = this._renderSessionListToolbar(sessions);
         this.container.appendChild(toolbar);
         this._attachSessionListToolbarHandlers(toolbar);
+        this._migrateLegacyFavoritesToServer(sessions);
 
         const visibleSessions = this._filterSessionsForList(sessions);
 
@@ -321,26 +323,96 @@ export class SessionView {
             if (!storage || typeof storage.setItem !== 'function') return;
             storage.setItem(
                 SESSION_FAVORITES_STORAGE_KEY,
-                JSON.stringify(Array.from(this.favoriteSessionIds))
+                JSON.stringify(Array.from(this.legacyFavoriteSessionIds))
             );
         } catch (error) {
             console.warn('Failed to persist session favorites:', error);
         }
     }
 
-    _isFavoriteSession(sessionId) {
-        return this.favoriteSessionIds.has(String(sessionId || ''));
+    _clearLegacyFavoriteSessionIds() {
+        this.legacyFavoriteSessionIds.clear();
+        try {
+            window.localStorage?.removeItem?.(SESSION_FAVORITES_STORAGE_KEY);
+        } catch {
+            // ignore storage failures; server state is authoritative.
+        }
+    }
+
+    _removeLegacyFavoriteSessionId(sessionId) {
+        const id = String(sessionId || '');
+        if (!id) return;
+        if (!this.legacyFavoriteSessionIds.delete(id)) return;
+        if (this.legacyFavoriteSessionIds.size === 0) {
+            this._clearLegacyFavoriteSessionIds();
+            return;
+        }
+        this._persistFavoriteSessionIds();
+    }
+
+    _findSessionById(sessionId) {
+        const id = String(sessionId || '');
+        const sessions = appStore.getState().sessions || [];
+        return sessions.find((session) => session.id === id) || null;
+    }
+
+    _hasServerFavoriteValue(session) {
+        return Boolean(session && Object.prototype.hasOwnProperty.call(session, 'favorite'));
+    }
+
+    _isFavoriteSession(sessionOrId) {
+        const session = typeof sessionOrId === 'object' && sessionOrId
+            ? sessionOrId
+            : this._findSessionById(sessionOrId);
+        const id = String(session?.id || sessionOrId || '');
+        if (this._hasServerFavoriteValue(session)) {
+            return session.favorite === true;
+        }
+        return this.legacyFavoriteSessionIds.has(id);
+    }
+
+    _migrateLegacyFavoritesToServer(sessions = []) {
+        if (this._legacyFavoritesMigrationInFlight || this.legacyFavoriteSessionIds.size === 0) return;
+        if (!this.sessionService || typeof this.sessionService.setSessionFavorite !== 'function') return;
+
+        const idsToMigrate = (sessions || [])
+            .filter((session) => this.legacyFavoriteSessionIds.has(String(session.id || '')) && session.favorite !== true)
+            .map((session) => session.id);
+
+        if (idsToMigrate.length === 0) {
+            this._clearLegacyFavoriteSessionIds();
+            return;
+        }
+
+        this._legacyFavoritesMigrationInFlight = true;
+        Promise.all(idsToMigrate.map((sessionId) => this.sessionService.setSessionFavorite(sessionId, true)))
+            .then(() => {
+                this._clearLegacyFavoriteSessionIds();
+            })
+            .catch((error) => {
+                console.warn('Failed to migrate legacy session favorites:', error);
+            })
+            .finally(() => {
+                this._legacyFavoritesMigrationInFlight = false;
+            });
     }
 
     _toggleSessionFavorite(sessionId, options = {}) {
         const id = String(sessionId || '');
         if (!id) return;
-        if (this.favoriteSessionIds.has(id)) {
-            this.favoriteSessionIds.delete(id);
-        } else {
-            this.favoriteSessionIds.add(id);
+        const session = this._findSessionById(id);
+        const nextFavorite = !this._isFavoriteSession(session || id);
+        const promise = typeof this.sessionService?.setSessionFavorite === 'function'
+            ? this.sessionService.setSessionFavorite(id, nextFavorite)
+            : this.sessionService?.updateSession?.(id, { favorite: nextFavorite });
+
+        this._removeLegacyFavoriteSessionId(id);
+        if (promise && typeof promise.catch === 'function') {
+            promise.catch((error) => {
+                console.error('Failed to update session favorite:', error);
+                showError('お気に入りの保存に失敗しました');
+            });
         }
-        this._persistFavoriteSessionIds();
         this.render();
         if (typeof options.afterRender === 'function') {
             options.afterRender();
@@ -350,7 +422,7 @@ export class SessionView {
     _renderSessionListToolbar(sessions) {
         const toolbar = document.createElement('div');
         toolbar.className = 'session-list-toolbar';
-        const favoriteCount = (sessions || []).filter(session => this._isFavoriteSession(session.id)).length;
+        const favoriteCount = (sessions || []).filter(session => this._isFavoriteSession(session)).length;
         toolbar.innerHTML = `
             <label class="session-search-wrap">
                 <i data-lucide="search"></i>
@@ -439,7 +511,7 @@ export class SessionView {
     _filterSessionsForList(sessions) {
         const query = this.sessionSearchQuery.trim().toLowerCase();
         return (sessions || []).filter(session => {
-            if (this.showFavoriteSessionsOnly && !this._isFavoriteSession(session.id)) return false;
+            if (this.showFavoriteSessionsOnly && !this._isFavoriteSession(session)) return false;
             if (!query) return true;
             return this._getSessionSearchText(session).includes(query);
         });
@@ -467,8 +539,8 @@ export class SessionView {
 
     _sortFavoriteSessionsFirst(sessions) {
         return [...(sessions || [])].sort((a, b) => {
-            const favoriteA = this._isFavoriteSession(a.id) ? 0 : 1;
-            const favoriteB = this._isFavoriteSession(b.id) ? 0 : 1;
+            const favoriteA = this._isFavoriteSession(a) ? 0 : 1;
+            const favoriteB = this._isFavoriteSession(b) ? 0 : 1;
             if (favoriteA !== favoriteB) return favoriteA - favoriteB;
             return 0;
         });
@@ -543,8 +615,8 @@ export class SessionView {
         }
 
         const sorted = [...filtered].sort((a, b) => {
-            const favoriteA = this._isFavoriteSession(a.id) ? 0 : 1;
-            const favoriteB = this._isFavoriteSession(b.id) ? 0 : 1;
+            const favoriteA = this._isFavoriteSession(a) ? 0 : 1;
+            const favoriteB = this._isFavoriteSession(b) ? 0 : 1;
             if (favoriteA !== favoriteB) return favoriteA - favoriteB;
 
             const metaA = sortMetadataById.get(a.id) || {};

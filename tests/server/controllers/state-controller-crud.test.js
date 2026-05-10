@@ -111,6 +111,38 @@ describe('StateController CRUD session routes', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('persists session favorite flag through PATCH', async () => {
+    const sessions = [
+      { id: 'session-2', name: 'target', favorite: false, intendedState: 'active' }
+    ];
+    stateStore.get.mockReturnValue({ sessions });
+    stateStore.patchSession.mockResolvedValue({
+      sessions: [
+        { ...sessions[0], favorite: true }
+      ]
+    });
+    const res = createRes();
+    const next = vi.fn();
+
+    controller.patch({
+      params: { sessionId: 'session-2' },
+      body: { favorite: true }
+    }, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(stateStore.patchSession).toHaveBeenCalledWith('session-2', expect.objectContaining({
+      id: 'session-2',
+      favorite: true
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'session-2',
+      favorite: true
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('reorders authoritative sessions and preserves unknown ids by appending', async () => {
     const sessions = [
       { id: 'session-a', name: 'A' },

@@ -39,7 +39,7 @@ import { AppError, ErrorCodes } from '../lib/errors.js';
 const ALLOWED_SESSION_FIELDS = [
     // 基本情報
     'id', 'name', 'project', 'path', 'cwd', 'worktree', 'initialCommand',
-    'engine', 'intendedState', 'createdAt', 'archivedAt', 'archive', 'merged', 'mergedAt', 'mergedPrUrl',
+    'engine', 'intendedState', 'favorite', 'createdAt', 'archivedAt', 'archive', 'merged', 'mergedAt', 'mergedPrUrl',
     'updatedAt', 'taskBrief', 'taskBriefUpdatedAt', 'lastAssistantSnippet', 'lastAssistantSnippetAt',
     // Schema v2 追加フィールド
     'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',
