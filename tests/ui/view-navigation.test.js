@@ -82,6 +82,26 @@ describe('setupViewNavigation', () => {
         expect(document.getElementById('file-viewer-panel').style.display).toBe('flex');
     });
 
+    it('showConsole呼び出し時_レイアウト完了後に復帰フックを呼ぶ', () => {
+        const callbacks = [];
+        const originalRequestAnimationFrame = window.requestAnimationFrame;
+        window.requestAnimationFrame = vi.fn((callback) => {
+            callbacks.push(callback);
+            return callbacks.length;
+        });
+        const onConsoleActivated = vi.fn();
+
+        const { showConsole } = setupViewNavigation({ onConsoleActivated });
+        showConsole();
+        expect(onConsoleActivated).not.toHaveBeenCalled();
+
+        callbacks.shift()?.();
+        callbacks.shift()?.();
+        expect(onConsoleActivated).toHaveBeenCalledTimes(1);
+
+        window.requestAnimationFrame = originalRequestAnimationFrame;
+    });
+
     it('showWiki呼び出し時_wikiドロワーがトグルされる', () => {
         const onWikiActivated = vi.fn();
         const { showWiki } = setupViewNavigation({ onWikiActivated });

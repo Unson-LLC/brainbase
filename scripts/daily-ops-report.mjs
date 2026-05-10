@@ -265,6 +265,21 @@ export function buildDailyOpsReportHtml(report) {
       overflow-wrap: anywhere;
     }
     .evidence { color: var(--faint); }
+    .item-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .item-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .item-link:hover { border-color: var(--accent); background: #eef8f5; }
     .empty { padding: 18px 0; color: var(--muted); }
     .actions {
       position: sticky;
@@ -442,6 +457,7 @@ function renderItem(item) {
     const evidence = normalizeEvidence(item.evidence || [])
         .map((entry) => `${escapeHtml(entry.type || 'ref')}: ${escapeHtml(entry.ref || entry.label || '')}`)
         .join(' / ');
+    const links = renderLinks(item.links || []);
     const status = item.meta?.status ? String(item.meta.status) : '';
     const tone = getStatusTone(status);
     return `<article class="item">
@@ -451,6 +467,7 @@ function renderItem(item) {
   </div>
   ${item.summary ? `<p class="item-summary">${escapeHtml(item.summary)}</p>` : ''}
   ${meta ? `<p class="item-meta">${meta}</p>` : ''}
+  ${links}
   ${evidence ? `<p class="evidence">${evidence}</p>` : ''}
 </article>`;
 }
@@ -463,9 +480,14 @@ function renderEvidenceSection(evidence) {
     <span class="section-count">${evidence.length} item${evidence.length === 1 ? '' : 's'}</span>
   </div>
   <div class="section-body">
-    ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p class="item-summary">${escapeHtml(entry.ref || '')}</p></article>`).join('\n')}
+    ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p class="item-summary">${escapeHtml(entry.ref || '')}</p>${renderLinks(entry.url ? [{ label: 'Open', url: entry.url }] : [])}</article>`).join('\n')}
   </div>
 </section>`;
+}
+
+function renderLinks(links) {
+    if (!Array.isArray(links) || links.length === 0) return '';
+    return `<div class="item-links">${links.map((link) => `<a class="item-link" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label || link.url)}</a>`).join('')}</div>`;
 }
 
 function normalizeSection(id, fallbackTitle, value) {
@@ -487,12 +509,94 @@ function normalizeItem(value) {
             meta[key] = value[key];
         }
     }
+    const evidence = normalizeEvidence(value.evidence || []);
     return {
         title: value.title || value.name || value.subject || 'Untitled',
         summary: value.summary || value.detail || value.body || value.description || '',
         meta,
-        evidence: normalizeEvidence(value.evidence || [])
+        links: mergeLinks(
+            normalizeLinks(value.links || value.link || value.url || value.htmlLink || value.permalink || []),
+            inferLinksFromEvidence(evidence)
+        ),
+        evidence
     };
+}
+
+function inferLinksFromEvidence(evidence) {
+    return normalizeLinks(evidence.flatMap((entry) => {
+        if (entry.url) return [{ label: entry.label || 'Open', url: entry.url }];
+        if (entry.type === 'gmail_thread_id' && entry.ref) {
+            return [{ label: 'Gmail thread', url: `https://mail.google.com/mail/u/0/#inbox/${entry.ref}` }];
+        }
+        const slackUrl = inferSlackPermalink(entry);
+        if (slackUrl) return [{ label: 'Slack message', url: slackUrl }];
+        return [];
+    }));
+}
+
+function inferSlackPermalink(entry) {
+    if (!entry || !String(entry.type || '').startsWith('slack_')) return '';
+    const channelAndTs = parseSlackChannelAndTs(entry);
+    if (!channelAndTs) return '';
+    const tsForUrl = channelAndTs.ts.replace(/\D/g, '');
+    if (!tsForUrl) return '';
+    return `https://salestailor.slack.com/archives/${channelAndTs.channel}/p${tsForUrl}`;
+}
+
+function parseSlackChannelAndTs(entry) {
+    const ref = String(entry.ref || '').trim();
+    const refMatch = ref.match(/\b([CDG][A-Z0-9]+)\/([0-9]{10,}\.[0-9]+)\b/);
+    if (refMatch) return { channel: refMatch[1], ts: refMatch[2] };
+
+    const channel = String(entry.channel_id || entry.channelId || entry.channel || '').trim();
+    const ts = String(entry.ts || entry.message_ts || entry.thread_ts || '').trim();
+    if (/^[CDG][A-Z0-9]+$/.test(channel) && /^[0-9]{10,}\.[0-9]+$/.test(ts)) {
+        return { channel, ts };
+    }
+    return null;
+}
+
+function mergeLinks(...linkGroups) {
+    const seen = new Set();
+    return linkGroups
+        .flat()
+        .filter((link) => {
+            if (!link?.url || seen.has(link.url)) return false;
+            seen.add(link.url);
+            return true;
+        });
+}
+
+function normalizeLinks(value) {
+    const items = Array.isArray(value) ? value : [value];
+    return items
+        .map((entry) => {
+            if (!entry) return null;
+            if (typeof entry === 'string') {
+                const url = normalizeLinkUrl(entry);
+                return url ? { label: url, url } : null;
+            }
+            const rawUrl = entry.url || entry.href || entry.htmlLink || entry.permalink || '';
+            const url = normalizeLinkUrl(rawUrl);
+            if (!url) return null;
+            return {
+                label: entry.label || entry.title || entry.kind || entry.type || url,
+                url
+            };
+        })
+        .filter(Boolean);
+}
+
+function normalizeLinkUrl(value) {
+    const url = String(value || '').trim();
+    if (!url) return '';
+    try {
+        const parsed = new URL(url);
+        if (['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return url;
+    } catch {
+        // Relative links are intentionally not accepted in generated local reports.
+    }
+    return '';
 }
 
 function getStatusTone(status) {
@@ -519,11 +623,14 @@ function normalizeEvidence(value) {
     if (!Array.isArray(value)) return [];
     return value.map((entry) => {
         if (typeof entry === 'string') return { label: entry, ref: entry, type: 'ref' };
+        const url = normalizeLinkUrl(entry.url || entry.href || entry.htmlLink || entry.permalink || '');
         return {
             label: entry.label || entry.type || entry.ref || '',
             type: entry.type || 'ref',
-            ref: entry.ref || entry.id || entry.url || '',
-            url: entry.url || ''
+            ref: entry.ref || entry.id || url || '',
+            url,
+            channel_id: entry.channel_id || entry.channelId || entry.channel || '',
+            ts: entry.ts || entry.message_ts || entry.thread_ts || ''
         };
     });
 }

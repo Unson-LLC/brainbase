@@ -5,10 +5,18 @@
 export function setupViewNavigation({
     root = document,
     onDashboardActivated,
+    onConsoleActivated,
     onWikiActivated,
     onLiveFeedActivated
 } = {}) {
     const getById = (id) => (root.getElementById ? root.getElementById(id) : root.querySelector(`#${id}`));
+    const scheduleAfterNextPaint = (callback) => {
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
+            return;
+        }
+        window.setTimeout(callback, 0);
+    };
 
     const consoleArea = getById('console-area');
     const fileViewerPanel = getById('file-viewer-panel');
@@ -29,8 +37,9 @@ export function setupViewNavigation({
         // xterm.jsのfit()がコンテナサイズを正しく計算できるよう、
         // レイアウト完了後にresizeイベントを発火する。
         // これがないとファイルビューアから戻った時にターミナルが細く表示される。
-        requestAnimationFrame(() => {
+        scheduleAfterNextPaint(() => {
             window.dispatchEvent(new Event('resize'));
+            onConsoleActivated?.();
         });
         const frame = getById('terminal-frame');
         if (frame) {
