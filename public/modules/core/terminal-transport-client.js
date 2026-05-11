@@ -15,6 +15,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 1024;
+const LOCAL_ECHO_SNAPSHOT_DEFER_MS = 1200;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
 
 // Expected close codes that should NOT trigger reconnection
@@ -131,6 +132,8 @@ export class TerminalTransportClient {
         this._pendingSnapshotOptions = null;
         this._lastSnapshotText = null;
         this._pendingEchoText = '';
+        this._pendingEchoSince = 0;
+        this._pendingEchoExpiryTimer = null;
         this._deferredSnapshotWhileEchoPending = null;
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
@@ -576,7 +579,7 @@ export class TerminalTransportClient {
         this._pendingSnapshotOptions = null;
         this._deferredSnapshotWhileEchoPending = null;
         if (switchingSessions) {
-            this._pendingEchoText = '';
+            this._clearPendingEchoState();
         }
 
         if (switchingSessions) {
@@ -767,8 +770,7 @@ export class TerminalTransportClient {
             this.status.transport = 'snapshot';
             this._pendingSnapshotText = null;
             this._pendingSnapshotOptions = null;
-            this._pendingEchoText = '';
-            this._deferredSnapshotWhileEchoPending = null;
+            this._clearPendingEchoState();
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
             this.terminal?.reset();
@@ -1166,6 +1168,49 @@ export class TerminalTransportClient {
         this._pendingTextFlushTimer = null;
     }
 
+    _clearPendingEchoExpiryTimer() {
+        if (!this._pendingEchoExpiryTimer) return;
+        clearTimeout(this._pendingEchoExpiryTimer);
+        this._pendingEchoExpiryTimer = null;
+    }
+
+    _clearPendingEchoState({ clearDeferred = true } = {}) {
+        this._clearPendingEchoExpiryTimer();
+        this._pendingEchoText = '';
+        this._pendingEchoSince = 0;
+        if (clearDeferred) {
+            this._deferredSnapshotWhileEchoPending = null;
+        }
+    }
+
+    _schedulePendingEchoExpiry() {
+        this._clearPendingEchoExpiryTimer();
+        if (!this._pendingEchoText) return;
+        this._pendingEchoExpiryTimer = setTimeout(() => {
+            this._expirePendingEcho();
+        }, LOCAL_ECHO_SNAPSHOT_DEFER_MS);
+    }
+
+    _expirePendingEcho() {
+        if (!this._pendingEchoText) {
+            this._clearPendingEchoState();
+            return;
+        }
+
+        const deferred = this._deferredSnapshotWhileEchoPending;
+        ttcWarn('[TTC-PROBE] pending local echo expired; releasing snapshot gate', {
+            echoLen: this._pendingEchoText.length,
+            hasDeferredSnapshot: Boolean(deferred)
+        });
+        this._clearPendingEchoState({ clearDeferred: false });
+        this._deferredSnapshotWhileEchoPending = null;
+        if (!deferred || !this.terminal) return;
+        this._applySnapshot(deferred.text, {
+            resetTerminal: deferred.resetTerminal,
+            screenOnly: deferred.screenOnly
+        });
+    }
+
     _scheduleBufferedTextFlush() {
         this._clearPendingTextFlushTimer();
         this._pendingTextFlushTimer = setTimeout(() => {
@@ -1485,11 +1530,16 @@ export class TerminalTransportClient {
 
         const normalizedText = this._buildSnapshotForTerminal(text || '', cursor, options);
         if (this._shouldDeferSnapshotForPendingEcho(normalizedText)) {
-            this._deferredSnapshotWhileEchoPending = normalizedText;
+            this._deferredSnapshotWhileEchoPending = {
+                text: normalizedText,
+                resetTerminal: this._resetTerminalOnNextSnapshot,
+                screenOnly: options.screenOnly === true
+            };
             ttcWarn('[TTC-PROBE] snapshot deferred while local echo pending', {
                 echoLen: this._pendingEchoText.length,
                 snapshotLen: normalizedText.length
             });
+            this._schedulePendingEchoExpiry();
             return;
         }
 
@@ -1526,6 +1576,14 @@ export class TerminalTransportClient {
 
     _shouldDeferSnapshotForPendingEcho(snapshotText) {
         if (!this._pendingEchoText) return false;
+        if (this._pendingEchoSince && Date.now() - this._pendingEchoSince > LOCAL_ECHO_SNAPSHOT_DEFER_MS) {
+            ttcWarn('[TTC-PROBE] stale local echo ignored for snapshot', {
+                echoLen: this._pendingEchoText.length,
+                ageMs: Date.now() - this._pendingEchoSince
+            });
+            this._clearPendingEchoState({ clearDeferred: false });
+            return false;
+        }
         if (!snapshotText) return true;
         return !snapshotText.includes(this._pendingEchoText);
     }
@@ -1671,7 +1729,7 @@ export class TerminalTransportClient {
         if (!shouldResetTerminal && this._lastSnapshotText === normalizedText) return;
         this._lastSnapshotText = normalizedText;
         this._resetTerminalOnNextSnapshot = false;
-        this._pendingEchoText = '';
+        this._clearPendingEchoState();
 
         const viewportState = options.forceViewportState || this._captureViewportState();
         if (shouldResetTerminal && typeof this.terminal.reset === 'function') {
@@ -1703,6 +1761,10 @@ export class TerminalTransportClient {
             if (!normalized) continue;
 
             this._pendingEchoText += normalized;
+            if (!this._pendingEchoSince) {
+                this._pendingEchoSince = Date.now();
+            }
+            this._schedulePendingEchoExpiry();
             this._writeToTerminal(normalized);
         }
     }
@@ -1710,8 +1772,7 @@ export class TerminalTransportClient {
     _applySubmitFeedback(text) {
         if (!this.terminal || !this._hasSubmitText(text) || this.status.mode !== 'live') return;
         this._clearImeCursorState();
-        this._pendingEchoText = '';
-        this._deferredSnapshotWhileEchoPending = null;
+        this._clearPendingEchoState();
         this._writeToTerminal('\r\n');
     }
 
@@ -1729,14 +1790,12 @@ export class TerminalTransportClient {
     _consumePendingEcho(text) {
         if (!this._pendingEchoText) return text;
         if (!text.startsWith(this._pendingEchoText)) {
-            this._pendingEchoText = '';
-            this._deferredSnapshotWhileEchoPending = null;
+            this._clearPendingEchoState();
             return text;
         }
 
         const remaining = text.slice(this._pendingEchoText.length);
-        this._pendingEchoText = '';
-        this._deferredSnapshotWhileEchoPending = null;
+        this._clearPendingEchoState();
         return remaining;
     }
 
@@ -1764,8 +1823,7 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = true;
         this._pendingSnapshotText = null;
         this._pendingSnapshotOptions = null;
-        this._pendingEchoText = '';
-        this._deferredSnapshotWhileEchoPending = null;
+        this._clearPendingEchoState();
         this._preTerminalSnapshot = null;
         this._lastSnapshotText = null;
         this._resetTerminalOnNextSnapshot = true;

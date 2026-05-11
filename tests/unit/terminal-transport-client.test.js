@@ -1597,8 +1597,9 @@ describe('terminal-transport-client', () => {
     client._queueOrApplySnapshot('old prompt');
 
     expect(terminal.write).not.toHaveBeenCalled();
-    expect(client._deferredSnapshotWhileEchoPending).toBe('old prompt');
+    expect(client._deferredSnapshotWhileEchoPending).toMatchObject({ text: 'old prompt' });
     expect(client._pendingEchoText).toBe('draft');
+    client._clearPendingEchoState();
   });
 
   it('local echo確認後_保留した古いsnapshotは適用せず破棄する', () => {
@@ -1620,6 +1621,33 @@ describe('terminal-transport-client', () => {
     expect(terminal.write).not.toHaveBeenCalled();
     expect(client._pendingEchoText).toBe('');
     expect(client._deferredSnapshotWhileEchoPending).toBeNull();
+  });
+
+  it('local echo未確認の保留snapshotは期限切れで描画を再開する', () => {
+    vi.useFakeTimers();
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = '/tmp/brainbase-uploaded-image.png';
+    client._pendingEchoSince = Date.now();
+
+    client._queueOrApplySnapshot('prompt after image');
+
+    expect(terminal.write).not.toHaveBeenCalled();
+    expect(client._deferredSnapshotWhileEchoPending).toMatchObject({ text: 'prompt after image' });
+
+    vi.advanceTimersByTime(1300);
+
+    expect(client._pendingEchoText).toBe('');
+    expect(client._deferredSnapshotWhileEchoPending).toBeNull();
+    expect(terminal.write).toHaveBeenCalledWith('\u001b[2J\u001b[3J\u001b[Hprompt after image', expect.any(Function));
   });
 
   it('output適用時_上にスクロール中ならviewport位置を維持する', async () => {
