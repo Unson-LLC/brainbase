@@ -70,6 +70,11 @@ export class ConfigService {
 
         const nextYaml = yaml.dump(data, { lineWidth: -1, noRefs: true });
         await fs.writeFile(this.configPath, nextYaml, 'utf-8');
+
+        // SPEC-settings-phase0-guards INV-4: invalidate ConfigParser cache after write
+        if (this.configParser && typeof this.configParser.invalidateCache === 'function') {
+            this.configParser.invalidateCache();
+        }
     }
 
     /**

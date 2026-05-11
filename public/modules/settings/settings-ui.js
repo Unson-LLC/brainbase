@@ -1,4 +1,4 @@
-import { refreshIcons } from '../ui-helpers.js';
+import { refreshIcons, escapeHtml } from '../ui-helpers.js';
 
 /**
  * Settings UI Module
@@ -130,14 +130,15 @@ export class SettingsUI {
   renderTabs(tabs, activeTabId) {
     if (!this.tabsContainer) return;
 
+    // INV-3 (SPEC-settings-phase0-guards): displayName must be escaped before innerHTML
     this.tabsContainer.innerHTML = tabs
       .map(tab => `
         <button
           class="settings-tab ${tab.id === activeTabId ? 'active' : ''}"
-          data-tab="${tab.id}"
+          data-tab="${this._escapeAttr(tab.id)}"
         >
-          <i data-lucide="${this._getTabIcon(tab.id)}"></i>
-          ${tab.displayName}
+          <i data-lucide="${this._escapeAttr(this._getTabIcon(tab.id))}"></i>
+          ${this._escapeText(tab.displayName)}
         </button>
       `)
       .join('');
@@ -237,5 +238,15 @@ export class SettingsUI {
     };
 
     return iconMap[tabId] || 'folder';
+  }
+
+  /** @private */
+  _escapeText(value) {
+    return escapeHtml(String(value ?? ''));
+  }
+
+  /** @private */
+  _escapeAttr(value) {
+    return escapeHtml(String(value ?? '')).replace(/"/g, '&quot;');
   }
 }
