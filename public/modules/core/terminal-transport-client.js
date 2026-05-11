@@ -436,7 +436,7 @@ export class TerminalTransportClient {
             this._hostResizeObserver = null;
         }
         if (this._hostResizeRaf != null) {
-            if (typeof cancelAnimationFrame === 'function') {
+            if (typeof cancelAnimationFrame === 'function' && typeof this._hostResizeRaf === 'number') {
                 cancelAnimationFrame(this._hostResizeRaf);
             } else {
                 clearTimeout(this._hostResizeRaf);
