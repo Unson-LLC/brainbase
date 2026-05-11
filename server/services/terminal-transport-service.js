@@ -111,9 +111,16 @@ export class TerminalTransportService {
 
         const existing = this.activeConnections.get(sessionId);
         if (existing && existing.viewerId !== viewerId && existing.ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
-            ws.close(WS_CLOSE_BLOCKED, 'session_owned_by_other_viewer');
-            return;
+            logger.info(`[TerminalTransport] closing superseded active connection: session=${sessionId}, oldViewer=${existing.viewerId}, newViewer=${viewerId}`);
+            if (existing.ws.readyState === 1) {
+                existing.ws.send(JSON.stringify({
+                    type: 'blocked',
+                    reason: 'session_taken_over',
+                    terminalAccess: ownership.terminalAccess
+                }));
+                existing.ws.close(WS_CLOSE_BLOCKED, 'session_taken_over');
+            }
+            this.activeConnections.delete(sessionId);
         }
 
         if (ws.readyState !== 1) {
@@ -182,6 +189,7 @@ export class TerminalTransportService {
             const current = this.activeConnections.get(sessionId);
             if (current && current.ws === ws) {
                 this.activeConnections.delete(sessionId);
+                this.ownershipService?.releaseTerminalOwnership?.(sessionId, viewerId);
             }
             this.runtimeRegistry?.setGateway?.(sessionId, {
                 connected: false,
@@ -604,6 +612,7 @@ export class TerminalTransportService {
                 if (Number.isFinite(rows) && rows > 0) {
                     connection.rows = rows;
                 }
+                this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
                 if (connection.transport === 'streaming' && connection.controlClient) {
                     await this.terminalIo.resizeSessionWindow(sessionId, cols, rows);

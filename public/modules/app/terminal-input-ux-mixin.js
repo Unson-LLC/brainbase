@@ -249,6 +249,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             if (this._shouldUseXtermTransport() && this.terminalTransportClient) {
                 const transportResult = await this._connectXtermTransport(session);
                 if (transportResult.ok) {
+                    await this.terminalTransportClient?.syncViewportSize?.({ refresh: true });
                     this._updateTerminalInputStatus();
                     showInfo('ターミナルを引き継いだよ');
                     return;
