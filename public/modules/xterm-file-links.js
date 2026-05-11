@@ -1,26 +1,27 @@
 import { isBrowserPreviewablePath, resolvePreviewRelativePath } from './file-preview-config.js';
 
 const XTERM_FILE_EXTS = 'markdown|mdx|tsx|jsx|json|yaml|yml|toml|html|css|txt|svg|png|jpg|jpeg|gif|webp|ico|avif|bmp|xml|ini|cfg|env|sql|bash|md|mjs|cjs|js|ts|py|rb|go|rs|java|kt|swift|php|cpp|hpp|cc|sh|zsh|c|h|log';
-const XTERM_PATH_START_CHARS = '[a-zA-Z0-9_.]';
-const XTERM_PATH_CHARS = '[a-zA-Z0-9_/.\\-]';
+const XTERM_PATH_START_CHARS = '[\\p{L}\\p{N}_.]';
+const XTERM_PATH_CHARS = '[\\p{L}\\p{N}\\p{M}_/.\\-]';
 const XTERM_FILE_TOKEN_REGEX = new RegExp(
     `((?:~\\/|\\.{1,2}\\/|\\/)?${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
-    'g'
+    'gu'
 );
 const XTERM_WRAPPED_ABSOLUTE_FILE_TOKEN_REGEX = new RegExp(
     `((?:~\\/|\\.{1,2}\\/|\\/)${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*(?:\\s+${XTERM_PATH_CHARS}+)+\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
-    'g'
+    'gu'
 );
 const XTERM_CONTINUATION_PREFIX_REGEX = new RegExp(
-    `((?:(?:~\\/|\\.{1,2}\\/|\\/)?${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\/))$`
+    `((?:(?:~\\/|\\.{1,2}\\/|\\/)?${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\/))$`,
+    'u'
 );
 const XTERM_CONTINUATION_SUFFIX_REGEX = new RegExp(
     `^(\\s*)(${XTERM_PATH_CHARS}+\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
-    ''
+    'u'
 );
 
 function isPathLikeChar(char) {
-    return /[a-zA-Z0-9_/.~:\-]/.test(char || '');
+    return /[\p{L}\p{N}\p{M}_/.~:\-]/u.test(char || '');
 }
 
 function isValidPathBoundary(char) {

@@ -90,6 +90,21 @@ describe('FileViewerService', () => {
         expect(state.error).toBeNull();
     });
 
+    it('日本語HTMLプレビューURLの場合_decodeして再encodeしたiframe状態へ正規化する', async () => {
+        await service.openFile(
+            'session-1',
+            '/api/sessions/session-1/html-preview/docs/%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88.html'
+        );
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('docs/日本語レポート.html');
+        expect(state.fileName).toBe('日本語レポート.html');
+        expect(state.isHtml).toBe(true);
+        expect(state.htmlPreviewUrl).toBe('/api/sessions/session-1/html-preview/docs/%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88.html');
+        expect(state.error).toBeNull();
+    });
+
     it('画像ファイルの場合_ファイル本文を取得せず画像プレビューURLをストアに設定する', async () => {
         const listener = vi.fn();
         const unsub = eventBus.on(EVENTS.FILE_VIEWER_OPENED, listener);
@@ -111,6 +126,17 @@ describe('FileViewerService', () => {
         }));
 
         unsub();
+    });
+
+    it('日本語画像ファイルの場合_プレビューURLをsegmentごとにencodeする', async () => {
+        await service.openFile('session-1', 'assets/画像テスト.png');
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('assets/画像テスト.png');
+        expect(state.fileName).toBe('画像テスト.png');
+        expect(state.isImage).toBe(true);
+        expect(state.imagePreviewUrl).toBe('/api/sessions/session-1/html-preview/assets/%E7%94%BB%E5%83%8F%E3%83%86%E3%82%B9%E3%83%88.png');
     });
 
     it('画像プレビューURLの場合_ファイル取得せず画像状態へ正規化する', async () => {

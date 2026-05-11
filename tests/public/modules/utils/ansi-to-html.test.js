@@ -15,13 +15,13 @@ describe('ansiToHtml', () => {
     it('基本色（30-37）をspan変換する', () => {
         const input = '\x1b[32mgreen text\x1b[0m';
         const result = ansiToHtml(input);
-        expect(result).toContain('<span style="color:#00cd00">green text</span>');
+        expect(result).toContain('<span style="color:#4e9a06">green text</span>');
     });
 
     it('明るい色（90-97）をspan変換する', () => {
         const input = '\x1b[91mbright red\x1b[0m';
         const result = ansiToHtml(input);
-        expect(result).toContain('<span style="color:#ff0000">bright red</span>');
+        expect(result).toContain('<span style="color:#ef2929">bright red</span>');
     });
 
     it('256色（38;5;N）をspan変換する', () => {
@@ -121,6 +121,25 @@ describe('ansiToHtml', () => {
         const result = ansiToHtml('src/utils/helper.c');
         expect(result).toContain('snapshot-file-link');
         expect(result).toContain('data-path="src/utils/helper.c"');
+    });
+
+    it('日本語ファイル名のパスを検出する', () => {
+        const result = ansiToHtml('open docs/日本語レポート.md:12');
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain('data-path="docs/日本語レポート.md"');
+        expect(result).toContain('data-line="12"');
+    });
+
+    it('日本語画像ファイル名のパスを検出する', () => {
+        const result = ansiToHtml('open assets/画像テスト.png');
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain('data-path="assets/画像テスト.png"');
+    });
+
+    it('dot directory 配下の日本語HTMLパスを検出する', () => {
+        const result = ansiToHtml('open .vibepro/pr/story/日本語レポート.html');
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain('data-path=".vibepro/pr/story/日本語レポート.html"');
     });
 
     // --- 非SGRシーケンス除去テスト ---
