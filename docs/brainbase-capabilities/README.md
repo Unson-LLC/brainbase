@@ -48,6 +48,7 @@ troubleshooting: []
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |
 | `development.workflow` | Defines Brainbase's jj-first development workflow, including working-copy commits, dirty state checks, and commit splitting. |
+| `git.protected-push` | Defines the PreToolUse guard (Claude Code + Codex) that blocks direct push, refspec push, force push, and force branch-update against `develop` / `main` / `master`. |
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |
 | `vibepro.impact-review` | Defines when and how VibePro Graphify impact review is required for graph-sensitive changes. |

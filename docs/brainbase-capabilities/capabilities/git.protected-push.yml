@@ -1,0 +1,44 @@
+id: git.protected-push
+name: Protected branch push guard
+purpose: Prevent AI agents and humans from bypassing PR review on develop / main / master via direct push, refspec push, force push, or branch force-update.
+surfaces:
+  ui: []
+  api: []
+  code:
+    - scripts/lib/protected-push-guard.js
+    - scripts/codex-hooks-pre-tool-use-protected-push.sh
+    - .claude/scripts/lib/file-system/forbidden-commands.ts
+    - .claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts
+    - tests/security/protected-push-guard.test.js
+  data:
+    - .claude/settings.json (PreToolUse Bash matcher)
+    - .codex/hooks.json (PreToolUse matcher *)
+depends_on:
+  - .codex/config.toml sandbox_mode/approval_policy
+  - Node.js (Claude Code hook runtime)
+  - Python 3 (Codex hook runtime)
+visibility_rules:
+  - Protected branch set is hard-coded: develop / main / master.
+  - The guard runs BEFORE the tool executes — denied commands never reach the shell.
+  - Both Claude Code and Codex share the same regex patterns via scripts/lib/protected-push-guard.js.
+  - Emergency override exists as `BRAINBASE_ALLOW_PROTECTED_PUSH=1` prefix; use only when PR flow is genuinely unavailable.
+verification:
+  commands:
+    - npm run test -- --run tests/security/
+    - 'echo ''{"tool_input":{"command":"git push origin develop"}}'' | bash scripts/codex-hooks-pre-tool-use-protected-push.sh; echo "exit=$?"'
+    - 'echo ''{"tool":"Bash","parameters":{"command":"git push origin develop"}}'' | npx tsx .claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts ''{"tool":"Bash","parameters":{"command":"git push origin develop"}}'''
+  expected:
+    - tests/security/protected-push-guard.test.js 35 tests pass
+    - Codex hook exits with code 2 and prints JSON containing "permissionDecision":"deny"
+    - Claude wrapper prints "blocked":true with permissionDecision "deny"
+    - Equivalent good commands (`git pull origin develop`, `git push origin feat/foo`) exit 0 / allow
+common_failures:
+  - PreToolUse hook is registered for the wrong matcher (must include Bash for Claude, `*` for Codex).
+  - Codex `sandbox_mode = "danger-full-access"` plus `approval_policy = "never"` allows shell commands without confirmation; the guard is the only enforcement layer.
+  - Editing scripts/lib/protected-push-guard.js without updating tests/security/ leaves regex regression undetected.
+  - A new shell wrapper that calls git via an alias or different binary name (e.g., `/usr/local/bin/git`) bypasses the regex if the command string starts with the alias rather than `git`. The regex anchors on `\bgit\b`, so aliasing `g` would slip through.
+  - The wrapper script `scripts/bin/jj` only catches `jj` invocations; raw `git` commands rely on this PreToolUse guard.
+runbooks:
+  - ../runbooks/revert-and-remerge-silent-drop.md
+troubleshooting:
+  - ../troubleshooting/route-disappeared-after-rebase.md
