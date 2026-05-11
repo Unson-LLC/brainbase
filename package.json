@@ -55,6 +55,7 @@
     "vibepro:component-style": "node scripts/vibepro-component-style-check.mjs",
     "migrate:m5a": "node scripts/migrate-m5a-production-schema.js",
     "seed:personal-kg:sns-foundation": "node scripts/seed-personal-kg-sns-foundation.js",
+    "seed:personal-kg:baao-minutes": "node scripts/seed-personal-kg-baao-minutes.js",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh",
