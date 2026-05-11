@@ -13,13 +13,16 @@ Slack検索APIは DM のスレッドやチャンネル内スレッドを取り�
 
 ## ユーザー情報
 
-| 項目 | 値 |
-|------|-----|
-| 表示名 | 佐藤圭吾 / Keigo Sato |
-| User ID | `U08FB9S7HUL` |
-| ワークスペース | salestailor |
+佐藤圭吾（Keigo Sato）のSlack確認は、1ワークスペースだけで完了扱いにしない。
+少なくとも以下3ワークスペースを横断する。
 
-## 主要チャンネル・DM相手
+| workspace | MCP namespace | 佐藤圭吾 User ID | DM Channel ID |
+|---|---|---|---|
+| salestailor | `mcp__slack_salestailor__` | `U08FB9S7HUL` | 主要DMは下表 |
+| unson | `mcp__slack_unson__` | `U07LNUP582X` | `D07L8FG6L4F` |
+| techknight | `mcp__slack_techknight__` | `U07B19N048G` | `D07ACCJUXK5` |
+
+## 主要チャンネル・DM相手（salestailor）
 
 | 名前 | User ID | チャンネル種別 | Channel/DM ID |
 |------|---------|--------------|---------------|
@@ -39,22 +42,25 @@ Slack検索APIは DM のスレッドやチャンネル内スレッドを取り�
 
 ## 抽出手順
 
-### Step 1: User IDでgrep検索（最優先・これだけで全チャンネル横断）
+### Step 1: User IDで全ワークスペース検索（最優先）
 
 **これが最も確実。チャンネルリストの管理不要で、スレッド内も全て拾える。**
 
 ```
-slack_search_public_and_private(query="<@U08FB9S7HUL>", sort="timestamp", count=20)
+salestailor: slack_search_public_and_private(query="<@U08FB9S7HUL>", sort="timestamp", count=50)
+unson: slack_search_public_and_private(query="<@U07LNUP582X>", sort="timestamp", count=50)
+techknight: slack_search_public_and_private(query="<@U07B19N048G>", sort="timestamp", count=50)
 ```
 
-- 全チャンネル（public/private）+ DM + スレッド内を横断検索
+- 各ワークスペースの全チャンネル（public/private）+ DM + スレッド内を横断検索
 - `to:me` より確実（`to:me`はスレッド内を取りこぼす）
 - チャンネルリストに無い場所のメンションも拾える
-- **これを最初に実行し、結果を元にまとめる**
+- **3ワークスペース分を最初に実行し、結果を元にまとめる**
 
 ### Step 2: DM履歴の補完（検索に出ないDMメッセージ用）
 
 DMは`@`メンションなしで送られることがあるため、主要DMは直接読む。
+salestailorは下記の主要DMを優先する。unson / techknight は `users_search` でDM IDを確認し、直接読めない場合は `filter_users_with=<workspace user id>` で補完し、取得制限を evidence に残す。
 
 ```
 # 堀さんDM
@@ -134,7 +140,7 @@ Slack APIのタイムスタンプはUNIX timestamp。JSTはUTC+9。
 ### 「未対応のメンションをまとめて」
 
 ```
-1. Step 1-3 を全て実行
+1. Step 1-3 を3ワークスペース全てで実行
 2. 自分の返信がないメンションをフィルタ
 3. アクション必要なものを優先順位付け
 ```
