@@ -19,11 +19,6 @@
             "type": "command",
             "command": "bash scripts/codex-hooks-activity.sh",
             "statusMessage": "brainbase activity"
-          },
-          {
-            "type": "command",
-            "command": "bash scripts/codex-capability-map-reminder.sh",
-            "statusMessage": "brainbase capability map reminder"
           }
         ]
       }

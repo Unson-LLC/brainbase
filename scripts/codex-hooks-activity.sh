@@ -8,10 +8,6 @@ source "$SCRIPT_DIR/lib/brainbase-common.sh"
 
 resolve_session_id
 
-if [ -z "${BRAINBASE_SESSION_ID:-}" ] || ! command -v curl >/dev/null 2>&1; then
-  exit 0
-fi
-
 payload="${1:-}"
 if [ -z "$payload" ]; then
   payload="$(cat || true)"
@@ -21,11 +17,53 @@ if [ -z "$payload" ]; then
   exit 0
 fi
 
-PORT="$(resolve_brainbase_port)"
-REPORTED_AT=$(($(date +%s) * 1000))
+event_name="$(
+  PAYLOAD="$payload" python3 - <<'PY'
+import json
+import os
 
-payload_json="$(
-  PAYLOAD="$payload" BRAINBASE_SESSION_ID="$BRAINBASE_SESSION_ID" REPORTED_AT="$REPORTED_AT" python3 - <<'PY'
+try:
+    data = json.loads(os.environ.get("PAYLOAD", "") or "{}")
+except Exception:
+    data = {}
+
+print(data.get("hook_event_name") or data.get("hookEventName") or "")
+PY
+)" || event_name=""
+
+capability_context_json=""
+if [ "$event_name" = "UserPromptSubmit" ]; then
+  capability_context_json="$(
+    python3 - <<'PY'
+import json
+
+context = (
+    "Brainbaseケイパビリティ確認リマインダー: Brainbaseの機能、UI/API/コード/データの責務、"
+    "プロジェクト/セッション作成、auth grant、31013 runtime、xterm/terminal transport、"
+    "表示されない/動かない問題、検証、復旧に触れる依頼では、まずbrainbase-capability-mapを入口にする。"
+    "docs/brainbase-capabilities/README.mdを読み、次にdocs/brainbase-capabilities/capabilities/配下の"
+    "最小の関連ファイルを確認する。機能が動いていると主張するときは、確認に使ったファイル/API/プロセス/ログを明示する。"
+)
+
+print(json.dumps({
+    "continue": True,
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": context,
+    },
+    "suppressOutput": True,
+}, ensure_ascii=False))
+PY
+  )" || capability_context_json=""
+fi
+
+payload_json=""
+if [ -n "${BRAINBASE_SESSION_ID:-}" ] && command -v curl >/dev/null 2>&1; then
+  PORT="$(resolve_brainbase_port)"
+  REPORTED_AT=$(($(date +%s) * 1000))
+
+  payload_json="$(
+    PAYLOAD="$payload" BRAINBASE_SESSION_ID="$BRAINBASE_SESSION_ID" REPORTED_AT="$REPORTED_AT" python3 - <<'PY'
 import json
 import os
 import re
@@ -136,10 +174,13 @@ for key, value in report.items():
 
 print(json.dumps(output, ensure_ascii=False))
 PY
-)"
-
-if [ -z "$payload_json" ]; then
-  exit 0
+  )" || payload_json=""
 fi
 
-post_brainbase_activity_json "$PORT" "$payload_json" >/dev/null 2>&1 || true
+if [ -n "$payload_json" ]; then
+  post_brainbase_activity_json "$PORT" "$payload_json" >/dev/null 2>&1 || true
+fi
+
+if [ -n "$capability_context_json" ]; then
+  printf '%s\n' "$capability_context_json"
+fi

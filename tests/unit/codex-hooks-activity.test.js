@@ -94,7 +94,7 @@ describe('codex-hooks-activity.sh', () => {
         ]);
     });
 
-    it('UserPromptSubmit受信時_turn_startedとしてworkingを報告する', () => {
+    it('UserPromptSubmit受信時_turn_startedとしてworkingを報告しcapability map文脈を返す', () => {
         const { result, reports, headers } = runHook({
             hook_event_name: 'UserPromptSubmit',
             turn_id: 'turn-hook-1',
@@ -102,7 +102,14 @@ describe('codex-hooks-activity.sh', () => {
         });
 
         expect(result.status).toBe(0);
-        expect(result.stdout).toBe('');
+        const output = JSON.parse(result.stdout);
+        expect(output.continue).toBe(true);
+        expect(output.suppressOutput).toBe(true);
+        expect(output.hookSpecificOutput).toEqual(expect.objectContaining({
+            hookEventName: 'UserPromptSubmit',
+            additionalContext: expect.stringContaining('docs/brainbase-capabilities/README.md')
+        }));
+        expect(output.hookSpecificOutput.additionalContext).toContain('brainbase-capability-map');
         expect(reports).toEqual([
             expect.objectContaining({
                 sessionId: 'session-codex-hooks-test',
@@ -156,12 +163,11 @@ describe('codex-hooks-activity.sh', () => {
             'bash scripts/codex-hooks-activity.sh'
         ]);
         expect(config.hooks.UserPromptSubmit[0].hooks.map((hook) => hook.command)).toEqual([
-            'bash scripts/codex-hooks-activity.sh',
-            'bash scripts/codex-capability-map-reminder.sh'
+            'bash scripts/codex-hooks-activity.sh'
         ]);
         expect(commands.length).toBeGreaterThan(0);
         expect(commands).toContain('bash scripts/codex-hooks-activity.sh');
-        expect(commands).toContain('bash scripts/codex-capability-map-reminder.sh');
+        expect(commands).not.toContain('bash scripts/codex-capability-map-reminder.sh');
         for (const command of commands) {
             expect(command).toMatch(/^bash scripts\/codex-[a-z-]+\.sh$/);
         }
