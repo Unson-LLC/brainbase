@@ -27,6 +27,7 @@ function buildService() {
         resizeSessionWindow: vi.fn(async () => {}),
         exitCopyMode: vi.fn(async () => {}),
         touchTerminalOwnership: vi.fn(),
+        releaseTerminalOwnership: vi.fn(() => true),
         ensureTerminalOwnership: vi.fn(() => ({ allowed: true })),
         getTerminalAccessState: vi.fn(() => ({ state: 'owner' })),
         getSession: vi.fn(() => ({
@@ -534,6 +535,49 @@ describe('TerminalTransportService', () => {
             ws._listeners.close();
 
             expect(service.activeConnections.has('session-1')).toBe(false);
+        });
+
+        it('takeover後に古いactive connectionが残っている場合_古い接続を閉じて新ownerを通す', async () => {
+            const { service, sessionManager } = buildService();
+            sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true, terminalAccess: { state: 'owner' } });
+            const oldWs = buildMockWs();
+            const newWs = buildMockWs();
+            service.activeConnections.set('session-1', {
+                viewerId: 'viewer-old',
+                ws: oldWs,
+                connection: { sessionId: 'session-1', viewerId: 'viewer-old' }
+            });
+
+            await service._handleConnection(newWs, {}, {
+                sessionId: 'session-1',
+                viewerId: 'viewer-new',
+                viewerLabel: 'Mac',
+                cols: 120,
+                rows: 40
+            });
+
+            expect(oldWs.send).toHaveBeenCalledWith(expect.stringContaining('session_taken_over'));
+            expect(oldWs.close).toHaveBeenCalledWith(4001, 'session_taken_over');
+            expect(newWs.close).not.toHaveBeenCalled();
+            expect(service.activeConnections.get('session-1').viewerId).toBe('viewer-new');
+
+            newWs._listeners.close();
+        });
+
+        it('current owner connection close時にownershipを解放する', async () => {
+            const { service, sessionManager } = buildService();
+            sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });
+            const ws = buildMockWs();
+
+            await service._handleConnection(ws, {}, {
+                sessionId: 'session-1',
+                viewerId: 'viewer-1',
+                viewerLabel: 'Mac'
+            });
+
+            ws._listeners.close();
+
+            expect(sessionManager.releaseTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1');
         });
     });
 

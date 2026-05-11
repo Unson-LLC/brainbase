@@ -114,6 +114,47 @@ describe('app switchSession runtime handling', () => {
     expect(app.reconnectManager.setCurrentSession).toHaveBeenCalledWith('session-1');
   });
 
+  it('xterm takeover成功後に現在の表示幅でviewportを強制同期する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app._connectXtermTransport = vi.fn(async () => ({ ok: true }));
+    app._updateTerminalInputStatus = vi.fn();
+    app.terminalTransportClient = {
+      syncViewportSize: vi.fn(async () => {}),
+      destroy: vi.fn()
+    };
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    httpClient.post.mockResolvedValueOnce({
+      success: true,
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: '2026-05-11T01:00:00.000Z',
+        canTakeover: false
+      }
+    });
+
+    await app.takeOverCurrentTerminal();
+
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/takeover', {
+      viewerId: app.viewerId,
+      viewerLabel: app.viewerLabel
+    });
+    expect(app._connectXtermTransport).toHaveBeenCalled();
+    expect(app.terminalTransportClient.syncViewportSize).toHaveBeenCalledWith({ refresh: true });
+    expect(app._updateTerminalInputStatus).toHaveBeenCalled();
+  });
+
   it('forces ttyd startup when ttyd frame needs a runtime', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
 
