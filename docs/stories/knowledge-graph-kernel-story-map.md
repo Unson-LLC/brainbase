@@ -147,6 +147,23 @@ criteria:
 
 ### Wave 3: 最初の出口（SNS read-only curator）
 
+#### NEW: personal-kg-sns-seed-mvp
+```yaml
+priority: 5.8
+prerequisites: [candidate-store-mvp, private-preference-promotion]
+size: M
+target: 個人KG（owner-visible Graph SSOT entries + personal-scope candidate-store cognitive memory）から SNS ネタ候補を作る最小 read model。新しい Graph schema は増やさず、candidate-store personal scope を読んで SNS curator の source entity に変換する。
+criteria:
+  - candidate-store の ACL を通した owner-visible memory だけを source entity 化
+  - redacted / rejected / expired / agency_level=none / sns-curator 由来 candidate を除外
+  - source_candidate_id / source_event_ids / evidence_ids で provenance を保持
+  - SnsReadonlyCurator に渡すと Persona Brain 付き draft candidate を生成できる
+non_goal:
+  - production Graph write
+  - X posting / scheduling
+  - _codex/sns/drafts/ への durable write
+```
+
 #### NEW: sns-readonly-curator（_codex非依存に更新）
 ```yaml
 priority: 6
