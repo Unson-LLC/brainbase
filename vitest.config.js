@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
-    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js', 'tests/candidate-store/**/*.test.js'],
+    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js', 'tests/candidate-store/**/*.test.js', 'tests/account/**/*.test.js', 'tests/sns/curator/**/*.test.js', 'tests/settings/phase0/**/*.test.js'],
     setupFiles: ['tests/setup/test-setup.js'],
     environmentMatchGlobs: [
       // config-parser等のサーバーサイドテストのみnode環境
@@ -31,6 +31,10 @@ export default defineConfig({
       ['tests/access-contracts/**/*.test.js', 'node'],
       // Candidate store tests are pure logic + in-memory repo, node環境
       ['tests/candidate-store/**/*.test.js', 'node'],
+      // Account / SNS curator / Settings phase0 tests are pure logic, node環境
+      ['tests/account/**/*.test.js', 'node'],
+      ['tests/sns/**/*.test.js', 'node'],
+      ['tests/settings/**/*.test.js', 'node'],
     ],
     coverage: {
       provider: 'v8',

@@ -5,9 +5,32 @@
 import express from 'express';
 import { ConfigController } from '../controllers/config-controller.js';
 
-export function createConfigRouter(configParser, configService, runtimePaths = null) {
+/**
+ * SPEC-settings-phase0-guards INV-2: server-side auth + role guard
+ * write op の前に actor / role を検証する middleware
+ */
+export function requireConfigAuth(req, res, next) {
+    const actor = req.actor || req.user || req.auth;
+    if (!actor || !actor.sub) {
+        return res.status(401).json({ error: 'authentication required' });
+    }
+    return next();
+}
+
+export function requireConfigWriteRole(req, res, next) {
+    const actor = req.actor || req.user || req.auth || {};
+    const role = actor.role || 'member';
+    if (!['gm', 'ceo'].includes(role)) {
+        return res.status(403).json({ error: 'role required: gm or ceo', actual: role });
+    }
+    return next();
+}
+
+export function createConfigRouter(configParser, configService, runtimePaths = null, options = {}) {
     const router = express.Router();
     const controller = new ConfigController(configParser, configService, runtimePaths);
+    const authGuard = options.authGuard || requireConfigAuth;
+    const writeGuard = options.writeGuard || requireConfigWriteRole;
 
     // GET /api/config - すべての設定を取得
     router.get('/', controller.getAll);
@@ -23,9 +46,9 @@ export function createConfigRouter(configParser, configService, runtimePaths = n
 
     // GET /api/config/projects - プロジェクトを取得
     router.get('/projects', controller.getProjects);
-    router.post('/projects', controller.upsertProject);
-    router.put('/projects/:projectId', controller.upsertProject);
-    router.delete('/projects/:projectId', controller.deleteProject);
+    router.post('/projects', authGuard, writeGuard, controller.upsertProject);
+    router.put('/projects/:projectId', authGuard, writeGuard, controller.upsertProject);
+    router.delete('/projects/:projectId', authGuard, writeGuard, controller.deleteProject);
 
     // GET /api/config/github - GitHub設定を取得
     router.get('/github', controller.getGitHub);
