@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { applyTerminalInputUxMixin } from '../../public/modules/app/terminal-input-ux-mixin.js';
@@ -84,5 +87,20 @@ describe('terminal token status', () => {
     expect(app.terminalTokenStatusEl.textContent).toBe(
       'context used 70% · 700 / 1K | ⏱ 5h:26% t:60% 📅 7d:63% t:85%'
     );
+  });
+
+  it('terminal token status is rendered in the header instead of overlaying terminal input', () => {
+    const indexHtml = readFileSync(join(process.cwd(), 'public/index.html'), 'utf8');
+    const styleCss = readFileSync(join(process.cwd(), 'public/style.css'), 'utf8');
+    const headerStatusStart = indexHtml.indexOf('<div class="terminal-header-status-group">');
+    const tokenStatusIndex = indexHtml.indexOf('id="terminal-token-status"');
+    const terminalStageIndex = indexHtml.indexOf('id="terminal-stage"');
+    const tokenStatusBlock = styleCss.match(/\\.terminal-token-status\\s*{[^}]+}/)?.[0] || '';
+
+    expect(headerStatusStart).toBeGreaterThan(-1);
+    expect(tokenStatusIndex).toBeGreaterThan(headerStatusStart);
+    expect(tokenStatusIndex).toBeLessThan(terminalStageIndex);
+    expect(tokenStatusBlock).not.toContain('position: absolute');
+    expect(tokenStatusBlock).not.toContain('bottom:');
   });
 });
