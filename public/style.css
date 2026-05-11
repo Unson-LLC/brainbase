@@ -17336,9 +17336,13 @@ body.resizing iframe {
 }
 
 .command-center-theme .workspace-project-group {
-    display: block;
+    display: none;
     min-width: 0;
     width: min(300px, 30vw);
+}
+
+.command-center-theme.portal-mode-active .workspace-project-group {
+    display: block;
 }
 
 .command-center-theme .workspace-project-combobox {
