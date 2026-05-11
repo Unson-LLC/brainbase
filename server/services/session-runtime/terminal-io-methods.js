@@ -204,6 +204,25 @@ export const terminalIoMethods = {
             return;
         }
 
+        const brainbaseCommand = this._getBrainbaseCommandSubmit(sessionId, normalizedInput, normalizedType);
+        if (brainbaseCommand) {
+            this._clearPromptBuffer?.(sessionId);
+            await this._capturePromptInput(sessionId, brainbaseCommand.prompt, 'text');
+            await this._capturePromptInput(sessionId, 'Enter', 'key');
+
+            await this._enqueueTerminalMutation(sessionId, async () => {
+                const target = sessionId.replace(/"/g, '\\"');
+                await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
+
+                if (brainbaseCommand.clearCurrentLine) {
+                    await this._sendNamedKey(sessionId, 'C-u');
+                }
+                await this._sendLiteralText(sessionId, brainbaseCommand.prompt);
+                await this._sendNamedKey(sessionId, 'Enter');
+            });
+            return;
+        }
+
         await this._capturePromptInput(sessionId, normalizedInput, normalizedType);
 
         await this._enqueueTerminalMutation(sessionId, async () => {
@@ -384,6 +403,57 @@ export const terminalIoMethods = {
 
     _looksLikeSlashCommand(input) {
         return /^\/[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\r\n]*)?$/.test(input);
+    },
+
+    _getBrainbaseCommandSubmit(sessionId, input, type) {
+        if (type === 'key' && input === 'Enter') {
+            const prompt = (this.promptBuffers?.get(sessionId) || '').trim();
+            const expanded = this._expandBrainbaseCommandPrompt(sessionId, prompt);
+            return expanded ? { prompt: expanded, clearCurrentLine: true } : null;
+        }
+
+        if (type !== 'text' || typeof input !== 'string') return null;
+        const normalized = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!normalized.endsWith('\n')) return null;
+
+        const lines = normalized.split('\n');
+        if (lines.length !== 2 || lines[1] !== '') return null;
+
+        const expanded = this._expandBrainbaseCommandPrompt(sessionId, lines[0].trim());
+        return expanded ? { prompt: expanded, clearCurrentLine: false } : null;
+    },
+
+    _expandBrainbaseCommandPrompt(sessionId, rawPrompt) {
+        if (typeof rawPrompt !== 'string' || !rawPrompt) return null;
+        const match = rawPrompt.match(/^\/([A-Za-z][A-Za-z0-9_-]*)(?:\s+([^\r\n]*))?$/);
+        if (!match) return null;
+
+        const commandName = match[1];
+        const commandArgs = match[2] && match[2].trim() ? match[2].trim() : '(none)';
+        if (!this._brainbaseCommandFileExists(sessionId, commandName)) return null;
+
+        return `Brainbase command /${commandName} was invoked. Read .claude/commands/${commandName}.md and execute it as the active user request. Command arguments: ${commandArgs}.`;
+    },
+
+    _brainbaseCommandFileExists(sessionId, commandName) {
+        const relativePath = path.join('.claude', 'commands', `${commandName}.md`);
+        const candidates = [];
+        const session = typeof this.getSession === 'function' ? this.getSession(sessionId) : null;
+        const worktreePath = session?.worktree?.path;
+        const sessionPath = session?.path;
+
+        if (worktreePath) candidates.push(path.join(worktreePath, relativePath));
+        if (sessionPath) candidates.push(path.join(sessionPath, relativePath));
+        if (this.serverDir) candidates.push(path.join(this.serverDir, relativePath));
+        candidates.push(path.join(process.cwd(), relativePath));
+
+        return candidates.some(candidate => {
+            try {
+                return fs.existsSync(candidate);
+            } catch {
+                return false;
+            }
+        });
     },
 
     async _runTmux(args) {

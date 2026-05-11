@@ -106,4 +106,46 @@ describe('terminalIoMethods input routing', () => {
         expect(manager._runTmux).toHaveBeenCalledTimes(1);
         expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', '-l', '--', imagePath]);
     });
+
+    it('Enter送信時_入力中のBrainbase slash commandを通常プロンプトへ展開する', async () => {
+        const manager = {
+            ...terminalIoMethods,
+            ALLOWED_KEYS: ['Enter', 'C-u'],
+            terminalMutationQueues: new Map(),
+            promptBuffers: new Map([['session-1', '/oyasumi 5/8']]),
+            serverDir: process.cwd(),
+            execPromise: vi.fn(async () => ({ stdout: '' })),
+            _capturePromptInput: vi.fn(async () => {}),
+            _clearPromptBuffer: vi.fn((sessionId) => manager.promptBuffers.delete(sessionId)),
+            _runTmux: vi.fn(async () => ({ stdout: '' }))
+        };
+
+        await manager.sendInput('session-1', 'Enter', 'key');
+
+        const expanded = 'Brainbase command /oyasumi was invoked. Read .claude/commands/oyasumi.md and execute it as the active user request. Command arguments: 5/8.';
+        expect(manager._clearPromptBuffer).toHaveBeenCalledWith('session-1');
+        expect(manager._capturePromptInput).toHaveBeenCalledWith('session-1', expanded, 'text');
+        expect(manager._capturePromptInput).toHaveBeenCalledWith('session-1', 'Enter', 'key');
+        expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', 'C-u']);
+        expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', '-l', '--', expanded]);
+        expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', 'Enter']);
+    });
+
+    it('存在しないBrainbase slash commandは展開しない', async () => {
+        const manager = {
+            ...terminalIoMethods,
+            ALLOWED_KEYS: ['Enter'],
+            terminalMutationQueues: new Map(),
+            promptBuffers: new Map([['session-1', '/missing-command']]),
+            serverDir: process.cwd(),
+            execPromise: vi.fn(async () => ({ stdout: '' })),
+            _capturePromptInput: vi.fn(async () => {}),
+            _runTmux: vi.fn(async () => ({ stdout: '' }))
+        };
+
+        await manager.sendInput('session-1', 'Enter', 'key');
+
+        expect(manager._capturePromptInput).toHaveBeenCalledWith('session-1', 'Enter', 'key');
+        expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', 'Enter']);
+    });
 });
