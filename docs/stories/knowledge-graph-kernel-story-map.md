@@ -114,7 +114,10 @@ criteria:
 references:
   - docs/stories/STR-006-mana-secretary-memory-promotion.md
   - docs/architecture/mana-secretary-memory-promotion-architecture.md
+  - docs/architecture/ADR-010-memory-promotion-kernel-boundary.md
 ```
+
+M5 decision: candidate-store を brainbase / mana / zeims / SNS feedback 共通の Memory Promotion Kernel とする。ただし M5-A は brainbase-owned schema migration と Pg-backed repository contract に限定し、mana / zeims は後続 adapter story で Raw Ledger-compatible envelope を接続する。
 
 #### NEW: private-preference-promotion
 ```yaml
