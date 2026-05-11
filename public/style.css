@@ -2091,7 +2091,7 @@ body::after {
     display: none;
     position: absolute;
     top: calc(100% + 6px);
-    left: 0;
+    right: 0;
     min-width: 160px;
     flex-direction: column;
     gap: 2px;
@@ -2104,6 +2104,10 @@ body::after {
 }
 .terminal-transport-switcher.open .terminal-transport-dropdown {
     display: flex;
+}
+
+.portal-mode-active .terminal-transport-switcher {
+    display: none;
 }
 .terminal-transport-option {
     display: flex;
@@ -17336,9 +17340,13 @@ body.resizing iframe {
 }
 
 .command-center-theme .workspace-project-group {
-    display: block;
+    display: none;
     min-width: 0;
     width: min(300px, 30vw);
+}
+
+.command-center-theme.portal-mode-active .workspace-project-group {
+    display: block;
 }
 
 .command-center-theme .workspace-project-combobox {
