@@ -17336,18 +17336,32 @@ body.resizing iframe {
 }
 
 .command-center-theme .workspace-project-group {
-    display: grid;
-    grid-template-columns: minmax(220px, 300px) minmax(160px, 230px);
-    align-items: center;
-    gap: 8px;
+    display: block;
+    min-width: 0;
+    width: min(300px, 30vw);
+}
+
+.command-center-theme .workspace-project-combobox {
+    position: relative;
     min-width: 0;
 }
 
-.command-center-theme .workspace-project-switcher {
+.command-center-theme .workspace-project-select.portal-overlay-project-selector {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.command-center-theme .workspace-project-trigger {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) 16px;
     align-items: center;
     gap: 7px;
+    width: 100%;
     min-width: 0;
     height: 34px;
     padding: 0 8px 0 10px;
@@ -17355,6 +17369,7 @@ body.resizing iframe {
     border-radius: 5px;
     background: rgba(255, 255, 255, 0.04);
     color: #f2f6fb;
+    cursor: pointer;
 }
 
 .command-center-theme .workspace-project-prefix {
@@ -17362,17 +17377,40 @@ body.resizing iframe {
     font: 680 11px/1 "Geist Mono", var(--font-mono);
 }
 
-.command-center-theme .workspace-project-select.portal-overlay-project-selector {
-    width: 100%;
+.command-center-theme .workspace-project-trigger-label {
+    display: block;
     min-width: 0;
-    height: 30px;
-    margin: 0;
-    padding: 0 24px 0 0;
-    border: 0;
-    border-radius: 0;
-    background-color: transparent;
     color: #f7faff;
     font: 720 13px/1 "Geist", var(--font-sans);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.command-center-theme .workspace-project-trigger > i,
+.command-center-theme .workspace-project-trigger > svg {
+    width: 15px;
+    height: 15px;
+    color: #8e9aaa;
+}
+
+.command-center-theme .workspace-project-menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 90;
+    display: none;
+    width: min(340px, 72vw);
+    padding: 8px;
+    border: 1px solid rgba(191, 201, 214, 0.16);
+    border-radius: 7px;
+    background: rgba(8, 10, 13, 0.98);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.command-center-theme .workspace-project-combobox.open .workspace-project-menu {
+    display: block;
 }
 
 .command-center-theme .workspace-project-search {
@@ -17406,6 +17444,45 @@ body.resizing iframe {
     background: transparent;
     color: #cbd5e1;
     font: 600 12px/1 "Geist", var(--font-sans);
+}
+
+.command-center-theme .workspace-project-options {
+    max-height: 280px;
+    margin-top: 8px;
+    overflow-y: auto;
+}
+
+.command-center-theme .workspace-project-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #d8e0ea;
+    cursor: pointer;
+    text-align: left;
+}
+
+.command-center-theme .workspace-project-option:hover,
+.command-center-theme .workspace-project-option.selected {
+    background: rgba(47, 128, 255, 0.12);
+    color: #ffffff;
+}
+
+.command-center-theme .workspace-project-option small {
+    color: #738092;
+    font: 600 10px/1 "Geist Mono", var(--font-mono);
+}
+
+.command-center-theme .workspace-project-empty {
+    padding: 12px 8px 8px;
+    color: #738092;
+    font: 600 12px/1.35 "Geist", var(--font-sans);
 }
 
 .command-center-theme .workspace-mode-segment {
@@ -17883,11 +17960,7 @@ body.resizing iframe {
     }
 
     .command-center-theme .workspace-project-group {
-        grid-template-columns: minmax(190px, 1fr);
-    }
-
-    .command-center-theme .workspace-project-search {
-        display: none;
+        width: min(260px, 52vw);
     }
 
     .command-center-theme .portal-command-grid {

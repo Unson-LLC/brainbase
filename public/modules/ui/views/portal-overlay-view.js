@@ -19,6 +19,7 @@ export class PortalOverlayView extends BaseView {
         this.portalService = portalService;
         this.configProjects = configProjects || [];
         this._collapsedSections = new Set();
+        this._boundProjectMenuOutsideClick = null;
     }
 
     _setupEventListeners() {
@@ -35,6 +36,7 @@ export class PortalOverlayView extends BaseView {
                     const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('portal-overlay-project-select'));
                     if (select) select.value = autoProject;
                     this._syncProjectChrome(autoProject);
+                    this._renderProjectOptions();
                 }
             }
         });
@@ -231,24 +233,44 @@ export class PortalOverlayView extends BaseView {
             select.onchange = (e) => {
                 const projectCode = /** @type {HTMLSelectElement} */ (e.target).value;
                 if (projectCode) {
-                    this._syncProjectChrome(projectCode);
-                    this.portalService.loadPortalOverlay(projectCode);
+                    this._selectProject(projectCode);
                 }
             };
         }
 
         const search = /** @type {HTMLInputElement | null} */ (document.getElementById('workspace-project-search'));
         if (search && select) {
+            search.oninput = () => this._renderProjectOptions(search.value);
             search.onkeydown = (event) => {
                 if (event.key !== 'Enter') return;
                 const projectCode = this._findProjectCode(search.value);
                 if (!projectCode) return;
 
-                select.value = projectCode;
-                this._syncProjectChrome(projectCode);
-                this.portalService.loadPortalOverlay(projectCode);
+                this._selectProject(projectCode);
             };
         }
+
+        const trigger = /** @type {HTMLButtonElement | null} */ (document.getElementById('workspace-project-trigger'));
+        const combobox = document.getElementById('workspace-project-combobox');
+        if (trigger && combobox) {
+            trigger.onclick = () => {
+                const isOpen = combobox.classList.toggle('open');
+                trigger.setAttribute('aria-expanded', String(isOpen));
+                if (isOpen) {
+                    this._renderProjectOptions(search?.value || '');
+                    search?.focus();
+                    search?.select();
+                }
+            };
+        }
+
+        this._renderProjectOptions(search?.value || '');
+
+        document.addEventListener('click', this._boundProjectMenuOutsideClick ??= (event) => {
+            const root = document.getElementById('workspace-project-combobox');
+            if (!root || root.contains(/** @type {Node} */ (event.target))) return;
+            this._closeProjectMenu();
+        });
 
         // Refresh button
         const refreshBtn = document.getElementById('portal-overlay-refresh');
@@ -285,12 +307,64 @@ export class PortalOverlayView extends BaseView {
         return project?.id || '';
     }
 
+    _renderProjectOptions(query = '') {
+        const optionsRoot = document.getElementById('workspace-project-options');
+        if (!optionsRoot) return;
+        const normalized = String(query || '').trim().toLowerCase();
+        const current = this.portalService.getCurrentProject();
+        const projects = this.configProjects.filter((p) => {
+            if (!normalized) return true;
+            const id = String(p.id || '').toLowerCase();
+            const name = String(p.name || '').toLowerCase();
+            return id.includes(normalized) || name.includes(normalized);
+        });
+
+        optionsRoot.innerHTML = projects.length
+            ? projects.map((p) => {
+                const id = this._escapeHtml(p.id || '');
+                const name = this._escapeHtml(p.name || p.id || '');
+                const selected = p.id === current;
+                return `
+                    <button class="workspace-project-option ${selected ? 'selected' : ''}" type="button" role="option" aria-selected="${selected}" data-project-id="${id}">
+                        <span>${name}</span>
+                        <small>${id}</small>
+                    </button>
+                `;
+            }).join('')
+            : '<div class="workspace-project-empty">No matching project</div>';
+
+        optionsRoot.querySelectorAll('.workspace-project-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const projectCode = option.getAttribute('data-project-id');
+                if (projectCode) this._selectProject(projectCode);
+            });
+        });
+    }
+
+    _selectProject(projectCode) {
+        const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('portal-overlay-project-select'));
+        if (select) select.value = projectCode;
+        this._syncProjectChrome(projectCode);
+        this._renderProjectOptions();
+        this._closeProjectMenu();
+        this.portalService.loadPortalOverlay(projectCode);
+    }
+
+    _closeProjectMenu() {
+        const combobox = document.getElementById('workspace-project-combobox');
+        const trigger = document.getElementById('workspace-project-trigger');
+        combobox?.classList.remove('open');
+        trigger?.setAttribute('aria-expanded', 'false');
+    }
+
     _syncProjectChrome(projectCode) {
         const label = document.getElementById('portal-current-project-label');
         const search = /** @type {HTMLInputElement | null} */ (document.getElementById('workspace-project-search'));
+        const triggerLabel = document.getElementById('workspace-project-trigger-label');
         const project = this.configProjects.find((p) => p.id === projectCode);
         const name = project?.name || projectCode || 'Project';
         if (label) label.textContent = name;
         if (search && projectCode) search.value = name;
+        if (triggerLabel) triggerLabel.textContent = name;
     }
 }

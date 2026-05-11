@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202605111020">
+    <link rel="stylesheet" href="style.css?v=202605111125">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -192,16 +192,23 @@
                 <div class="terminal-header" id="terminal-header">
                     <div class="workspace-nav" aria-label="Workspace navigation">
                         <div class="workspace-project-group">
-                            <label class="workspace-project-switcher" for="portal-overlay-project-select">
-                                <span class="workspace-project-prefix">Project:</span>
+                            <div class="workspace-project-combobox" id="workspace-project-combobox">
                                 <select class="portal-overlay-project-selector workspace-project-select" id="portal-overlay-project-select" aria-label="プロジェクトを切り替える">
                                     <option value="">Project</option>
                                 </select>
-                            </label>
-                            <label class="workspace-project-search" for="workspace-project-search">
-                                <i data-lucide="search"></i>
-                                <input type="search" id="workspace-project-search" placeholder="Search project..." autocomplete="off">
-                            </label>
+                                <button class="workspace-project-trigger" id="workspace-project-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="workspace-project-menu">
+                                    <span class="workspace-project-prefix">Project:</span>
+                                    <span class="workspace-project-trigger-label" id="workspace-project-trigger-label">Project</span>
+                                    <i data-lucide="chevron-down"></i>
+                                </button>
+                                <div class="workspace-project-menu" id="workspace-project-menu" role="presentation">
+                                    <label class="workspace-project-search" for="workspace-project-search">
+                                        <i data-lucide="search"></i>
+                                        <input type="search" id="workspace-project-search" placeholder="Search project..." autocomplete="off">
+                                    </label>
+                                    <div class="workspace-project-options" id="workspace-project-options" role="listbox" aria-label="Project options"></div>
+                                </div>
+                            </div>
                         </div>
                         <div class="workspace-mode-segment" role="tablist" aria-label="Workspace mode">
                             <button id="workspace-mode-terminal" class="workspace-mode-btn active" type="button" role="tab" aria-selected="true">
