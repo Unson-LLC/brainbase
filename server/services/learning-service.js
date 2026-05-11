@@ -12,6 +12,15 @@ const SOURCE_TYPES = new Set(['review', 'explicit_learn', 'session_log', 'codex_
 const OUTCOMES = new Set(['success', 'failure', 'partial']);
 const PROMOTION_HINTS = new Set(['auto', 'wiki', 'skill', 'both']);
 const APPLY_MODES = new Set(['auto', 'manual']);
+const MEMORY_SUBJECT_TYPES = new Set(['person', 'role', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term']);
+const MEMORY_VISIBILITIES = new Set(['private', 'role', 'project', 'org']);
+const MEMORY_ROLE_MIN = new Set(['member', 'gm', 'ceo']);
+const MEMORY_SENSITIVITIES = new Set(['internal', 'restricted', 'hr', 'finance', 'contract']);
+const MEMORY_PROMOTION_STATUSES = new Set(['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired', 'promoted_to_graph']);
+const MEMORY_REDACTION_STATUSES = new Set(['none', 'redacted', 'needs_redaction']);
+const MEMORY_DRAFT_STATUSES = ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired'];
+const MEMORY_APPROVED_FOR_GRAPH_STATUSES = new Set(['approved', 'auto_promoted']);
+const MEMORY_GRAPH_ENTITY_TYPES = new Set(['person', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term']);
 const SYSTEM_WIKI_ACCESS = {
     role: 'ceo',
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
@@ -284,6 +293,103 @@ function normalizeApplyMode(value) {
     return APPLY_MODES.has(value) ? value : 'manual';
 }
 
+function normalizeOptionalString(value) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeMemoryJson(value, fieldName) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new Error(`${fieldName} must be an object`);
+    }
+    return value;
+}
+
+function normalizeMemoryCandidateInput(payload = {}) {
+    if (!payload || typeof payload !== 'object') {
+        throw new Error('memory candidate payload is required');
+    }
+
+    const ownerPersonId = normalizeOptionalString(payload.owner_person_id || payload.ownerPersonId);
+    if (!ownerPersonId) throw new Error('owner_person_id is required');
+
+    const sourceSystem = normalizeOptionalString(payload.source_system || payload.sourceSystem);
+    if (!sourceSystem) throw new Error('source_system is required');
+
+    const subjectType = normalizeOptionalString(payload.subject_type || payload.subjectType);
+    if (!MEMORY_SUBJECT_TYPES.has(subjectType)) {
+        throw new Error('subject_type is invalid');
+    }
+
+    const visibility = normalizeOptionalString(payload.visibility) || 'private';
+    if (!MEMORY_VISIBILITIES.has(visibility)) {
+        throw new Error('visibility is invalid');
+    }
+
+    const roleMin = normalizeOptionalString(payload.role_min || payload.roleMin) || 'member';
+    if (!MEMORY_ROLE_MIN.has(roleMin)) {
+        throw new Error('role_min is invalid');
+    }
+
+    const sensitivity = normalizeOptionalString(payload.sensitivity);
+    if (!MEMORY_SENSITIVITIES.has(sensitivity)) {
+        throw new Error('sensitivity is invalid');
+    }
+
+    const promotionStatus = normalizeOptionalString(payload.promotion_status || payload.promotionStatus) || 'candidate';
+    if (!MEMORY_PROMOTION_STATUSES.has(promotionStatus)) {
+        throw new Error('promotion_status is invalid');
+    }
+
+    const redactionStatus = normalizeOptionalString(payload.redaction_status || payload.redactionStatus) || 'none';
+    if (!MEMORY_REDACTION_STATUSES.has(redactionStatus)) {
+        throw new Error('redaction_status is invalid');
+    }
+
+    const confidence = Number(payload.confidence);
+    const requiresApproval = payload.requires_approval ?? payload.requiresApproval;
+
+    return {
+        id: normalizeOptionalString(payload.candidate_id || payload.id) || `memcand_${ulid()}`,
+        owner_person_id: ownerPersonId,
+        actor_person_id: normalizeOptionalString(payload.actor_person_id || payload.actorPersonId),
+        source_system: sourceSystem,
+        source_event_ids: uniqueStrings(payload.source_event_ids || payload.sourceEventIds),
+        workspace: normalizeOptionalString(payload.workspace),
+        channel_id: normalizeOptionalString(payload.channel_id || payload.channelId),
+        thread_ts: normalizeOptionalString(payload.thread_ts || payload.threadTs),
+        project_code: normalizeOptionalString(payload.project_code || payload.projectCode),
+        subject_type: subjectType,
+        subject_id: normalizeOptionalString(payload.subject_id || payload.subjectId),
+        visibility,
+        role_min: roleMin,
+        sensitivity,
+        promotion_status: promotionStatus,
+        requires_approval: typeof requiresApproval === 'boolean' ? requiresApproval : true,
+        recommended_owner_person_id: normalizeOptionalString(payload.recommended_owner_person_id || payload.recommendedOwnerPersonId),
+        permission_snapshot: normalizeMemoryJson(payload.permission_snapshot || payload.permissionSnapshot || {}, 'permission_snapshot'),
+        evidence_ids: uniqueStrings(payload.evidence_ids || payload.evidenceIds),
+        expires_at: normalizeOptionalString(payload.expires_at || payload.expiresAt),
+        redaction_status: redactionStatus,
+        confidence: Number.isFinite(confidence) ? confidence : null,
+        memory: normalizeMemoryJson(payload.memory || {}, 'memory')
+    };
+}
+
+function isLowRiskPrivateMemoryCandidate(candidate) {
+    return candidate.visibility === 'private'
+        && candidate.sensitivity === 'internal'
+        && candidate.role_min === 'member'
+        && candidate.redaction_status === 'none'
+        && candidate.requires_approval === false;
+}
+
+function mapMemoryCandidateGraphType(candidate) {
+    const subjectType = normalizeOptionalString(candidate.subject_type);
+    if (subjectType === 'role') return 'raci_assignment';
+    if (MEMORY_GRAPH_ENTITY_TYPES.has(subjectType)) return subjectType;
+    throw new Error(`memory candidate subject_type cannot be promoted to graph: ${subjectType || 'unknown'}`);
+}
+
 function normalizeIngestion(payload = {}) {
     if (!payload || typeof payload !== 'object') return null;
     const adapterName = typeof payload.adapter_name === 'string' ? payload.adapter_name.trim() : '';
@@ -532,6 +638,305 @@ export class LearningService {
         }
 
         return { id, ...episode, deduped: false };
+    }
+
+    async createMemoryCandidate(payload = {}) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const candidate = normalizeMemoryCandidateInput(payload);
+        await this.pool.query(
+            `INSERT INTO memory_candidates (
+                id, owner_person_id, actor_person_id, source_system, source_event_ids,
+                workspace, channel_id, thread_ts, project_code, subject_type, subject_id,
+                visibility, role_min, sensitivity, promotion_status, requires_approval,
+                recommended_owner_person_id, permission_snapshot, evidence_ids, expires_at,
+                redaction_status, confidence, memory, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,NOW(),NOW())`,
+            [
+                candidate.id,
+                candidate.owner_person_id,
+                candidate.actor_person_id,
+                candidate.source_system,
+                JSON.stringify(candidate.source_event_ids),
+                candidate.workspace,
+                candidate.channel_id,
+                candidate.thread_ts,
+                candidate.project_code,
+                candidate.subject_type,
+                candidate.subject_id,
+                candidate.visibility,
+                candidate.role_min,
+                candidate.sensitivity,
+                candidate.promotion_status,
+                candidate.requires_approval,
+                candidate.recommended_owner_person_id,
+                JSON.stringify(candidate.permission_snapshot),
+                JSON.stringify(candidate.evidence_ids),
+                candidate.expires_at,
+                candidate.redaction_status,
+                candidate.confidence,
+                JSON.stringify(candidate.memory)
+            ]
+        );
+
+        return candidate;
+    }
+
+    async listMemoryCandidates({
+        owner_person_id,
+        ownerPersonId,
+        visibility,
+        scope,
+        sensitivity,
+        project_code,
+        projectCode,
+        status,
+        promotion_status,
+        subject_type,
+        subjectType,
+        include_promoted = false,
+        includePromoted = false
+    } = {}) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const values = [];
+        const whereClauses = [];
+        const owner = normalizeOptionalString(owner_person_id || ownerPersonId);
+        const candidateVisibility = normalizeOptionalString(visibility || scope);
+        const candidateSensitivity = normalizeOptionalString(sensitivity);
+        const project = normalizeOptionalString(project_code || projectCode);
+        const candidateStatus = normalizeOptionalString(promotion_status || status);
+        const subject = normalizeOptionalString(subject_type || subjectType);
+        const shouldIncludePromoted = include_promoted === true || includePromoted === true;
+
+        if (owner) {
+            values.push(owner);
+            whereClauses.push(`owner_person_id = $${values.length}`);
+        }
+        if (candidateVisibility) {
+            values.push(candidateVisibility);
+            whereClauses.push(`visibility = $${values.length}`);
+        }
+        if (candidateSensitivity) {
+            values.push(candidateSensitivity);
+            whereClauses.push(`sensitivity = $${values.length}`);
+        }
+        if (project) {
+            values.push(project);
+            whereClauses.push(`project_code = $${values.length}`);
+        }
+        if (candidateStatus) {
+            values.push(candidateStatus);
+            whereClauses.push(`promotion_status = $${values.length}`);
+        } else if (!shouldIncludePromoted) {
+            values.push(MEMORY_DRAFT_STATUSES);
+            whereClauses.push(`promotion_status = ANY($${values.length}::text[])`);
+        }
+        if (subject) {
+            values.push(subject);
+            whereClauses.push(`subject_type = $${values.length}`);
+        }
+
+        const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+        const { rows } = await this.pool.query(
+            `SELECT id, owner_person_id, actor_person_id, source_system, source_event_ids,
+                    workspace, channel_id, thread_ts, project_code, subject_type, subject_id,
+                    visibility, role_min, sensitivity, promotion_status, requires_approval,
+                    recommended_owner_person_id, permission_snapshot, evidence_ids, expires_at,
+                    redaction_status, confidence, memory, created_at, updated_at
+             FROM memory_candidates
+             ${where}
+             ORDER BY created_at ASC`,
+            values
+        );
+
+        return rows.map((row) => this._mapMemoryCandidateRow(row));
+    }
+
+    async getMemoryCandidate(id) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const candidateId = normalizeOptionalString(id);
+        if (!candidateId) throw new Error('candidate id is required');
+
+        const { rows } = await this.pool.query(
+            `SELECT id, owner_person_id, actor_person_id, source_system, source_event_ids,
+                    workspace, channel_id, thread_ts, project_code, subject_type, subject_id,
+                    visibility, role_min, sensitivity, promotion_status, requires_approval,
+                    recommended_owner_person_id, permission_snapshot, evidence_ids, expires_at,
+                    redaction_status, confidence, memory, created_at, updated_at
+             FROM memory_candidates
+             WHERE id = $1
+             LIMIT 1`,
+            [candidateId]
+        );
+
+        return rows[0] ? this._mapMemoryCandidateRow(rows[0]) : null;
+    }
+
+    async classifyMemoryCandidate(id, options = {}) {
+        const candidate = await this.getMemoryCandidate(id);
+        if (!candidate) return { success: false, notFound: true };
+        if (candidate.promotion_status !== 'candidate') {
+            throw new Error(`invalid memory candidate transition: ${candidate.promotion_status} -> gate_classified`);
+        }
+
+        const nextStatus = isLowRiskPrivateMemoryCandidate(candidate) ? 'auto_promoted' : 'pending_approval';
+        return this._transitionMemoryCandidate(candidate, {
+            nextStatus,
+            actor_person_id: options.actor_person_id || options.actorPersonId,
+            decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
+            decision_reason: options.reason || options.decision_reason || 'promotion_gate_classified',
+            requires_approval: nextStatus !== 'auto_promoted'
+        });
+    }
+
+    async approveMemoryCandidate(id, options = {}) {
+        const candidate = await this.getMemoryCandidate(id);
+        if (!candidate) return { success: false, notFound: true };
+
+        const decisionOwner = normalizeOptionalString(options.decision_owner_person_id || options.decisionOwnerPersonId);
+        const expectedOwner = candidate.recommended_owner_person_id || candidate.owner_person_id;
+        if (!decisionOwner || decisionOwner !== expectedOwner) {
+            throw new Error('memory candidate approval requires the assigned owner');
+        }
+
+        return this._transitionMemoryCandidate(candidate, {
+            expectedStatuses: ['pending_approval'],
+            nextStatus: 'approved',
+            actor_person_id: options.actor_person_id || options.actorPersonId,
+            decision_owner_person_id: decisionOwner,
+            decision_reason: options.reason || options.decision_reason || 'approved'
+        });
+    }
+
+    async rejectMemoryCandidate(id, options = {}) {
+        const candidate = await this.getMemoryCandidate(id);
+        if (!candidate) return { success: false, notFound: true };
+        return this._transitionMemoryCandidate(candidate, {
+            expectedStatuses: ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved'],
+            nextStatus: 'rejected',
+            actor_person_id: options.actor_person_id || options.actorPersonId,
+            decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
+            decision_reason: options.reason || options.decision_reason || 'rejected'
+        });
+    }
+
+    async expireMemoryCandidate(id, options = {}) {
+        const candidate = await this.getMemoryCandidate(id);
+        if (!candidate) return { success: false, notFound: true };
+        return this._transitionMemoryCandidate(candidate, {
+            expectedStatuses: ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved'],
+            nextStatus: 'expired',
+            actor_person_id: options.actor_person_id || options.actorPersonId,
+            decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
+            decision_reason: options.reason || options.decision_reason || 'expired'
+        });
+    }
+
+    async markMemoryCandidatePromotedToGraph(id, options = {}) {
+        const candidate = await this.getMemoryCandidate(id);
+        if (!candidate) return { success: false, notFound: true };
+        if (!MEMORY_APPROVED_FOR_GRAPH_STATUSES.has(candidate.promotion_status)) {
+            throw new Error(`invalid memory candidate transition: ${candidate.promotion_status} -> promoted_to_graph`);
+        }
+        return this._transitionMemoryCandidate(candidate, {
+            expectedStatuses: Array.from(MEMORY_APPROVED_FOR_GRAPH_STATUSES),
+            nextStatus: 'promoted_to_graph',
+            actor_person_id: options.actor_person_id || options.actorPersonId,
+            decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
+            decision_reason: options.reason || options.decision_reason || 'promoted_to_graph'
+        });
+    }
+
+    async promoteMemoryCandidateToGraph(id, options = {}) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const candidate = await this.getMemoryCandidate(id);
+        if (!candidate) return { success: false, notFound: true };
+        if (!MEMORY_APPROVED_FOR_GRAPH_STATUSES.has(candidate.promotion_status)) {
+            throw new Error(`invalid memory candidate transition: ${candidate.promotion_status} -> promoted_to_graph`);
+        }
+        if (candidate.redaction_status === 'needs_redaction') {
+            throw new Error('memory candidate requires redaction before graph promotion');
+        }
+
+        const entityType = mapMemoryCandidateGraphType(candidate);
+        const projectCode = normalizeOptionalString(candidate.project_code);
+        const projectId = projectCode ? `prj_${projectCode.replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}` : null;
+        if (projectCode) {
+            await this.pool.query(
+                `INSERT INTO projects (id, code, name)
+                 VALUES ($1,$2,$3)
+                 ON CONFLICT (code) DO NOTHING`,
+                [projectId, projectCode, projectCode]
+            );
+        }
+
+        const graphEntityId = `mem_${candidate.id}`;
+        const payload = {
+            memory_candidate_id: candidate.id,
+            subject_type: candidate.subject_type,
+            subject_id: candidate.subject_id,
+            owner_person_id: candidate.owner_person_id,
+            actor_person_id: candidate.actor_person_id,
+            visibility: candidate.visibility,
+            role_min: candidate.role_min,
+            sensitivity: candidate.sensitivity,
+            source_system: candidate.source_system,
+            source_event_ids: candidate.source_event_ids,
+            workspace: candidate.workspace,
+            channel_id: candidate.channel_id,
+            thread_ts: candidate.thread_ts,
+            project_code: candidate.project_code,
+            evidence_ids: candidate.evidence_ids,
+            permission_snapshot: candidate.permission_snapshot,
+            memory: candidate.memory,
+            promoted_at: new Date().toISOString()
+        };
+
+        await this.pool.query(
+            `INSERT INTO graph_entities (
+                id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+            ON CONFLICT (id)
+            DO UPDATE SET
+                entity_type = EXCLUDED.entity_type,
+                project_id = EXCLUDED.project_id,
+                payload = EXCLUDED.payload,
+                role_min = EXCLUDED.role_min,
+                sensitivity = EXCLUDED.sensitivity,
+                updated_at = NOW()`,
+            [
+                graphEntityId,
+                entityType,
+                projectId,
+                JSON.stringify(payload),
+                candidate.role_min,
+                candidate.sensitivity
+            ]
+        );
+
+        const transition = await this._transitionMemoryCandidate(candidate, {
+            expectedStatuses: Array.from(MEMORY_APPROVED_FOR_GRAPH_STATUSES),
+            nextStatus: 'promoted_to_graph',
+            actor_person_id: options.actor_person_id || options.actorPersonId,
+            decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
+            decision_reason: options.reason || options.decision_reason || 'promoted_to_graph'
+        });
+
+        return {
+            ...transition,
+            graph_entity: {
+                id: graphEntityId,
+                entity_type: entityType,
+                payload
+            }
+        };
     }
 
     async listPromotions({ status, pillar, apply_mode } = {}) {
@@ -894,6 +1299,83 @@ export class LearningService {
             linked_candidate_ids: toArray(row.linked_candidate_ids),
             evaluation_summary: row.evaluation_summary || {},
             merged_episode_count: Number(row.merged_episode_count || 1)
+        };
+    }
+
+    _mapMemoryCandidateRow(row) {
+        const confidence = Number(row.confidence);
+        return {
+            ...row,
+            candidate_id: row.id,
+            source_event_ids: toArray(row.source_event_ids),
+            permission_snapshot: row.permission_snapshot || {},
+            evidence_ids: toArray(row.evidence_ids),
+            confidence: Number.isFinite(confidence) ? confidence : null,
+            memory: row.memory || {},
+            graph_truth: row.promotion_status === 'promoted_to_graph'
+        };
+    }
+
+    async _transitionMemoryCandidate(candidate, {
+        expectedStatuses = null,
+        nextStatus,
+        actor_person_id = null,
+        decision_owner_person_id = null,
+        decision_reason = '',
+        requires_approval = undefined
+    }) {
+        if (!MEMORY_PROMOTION_STATUSES.has(nextStatus)) {
+            throw new Error('next promotion status is invalid');
+        }
+        if (expectedStatuses && !expectedStatuses.includes(candidate.promotion_status)) {
+            throw new Error(`invalid memory candidate transition: ${candidate.promotion_status} -> ${nextStatus}`);
+        }
+
+        const previousStatus = candidate.promotion_status;
+        const auditId = `mca_${ulid()}`;
+        const nextRequiresApproval = typeof requires_approval === 'boolean'
+            ? requires_approval
+            : candidate.requires_approval;
+
+        await this.pool.query(
+            `UPDATE memory_candidates
+             SET promotion_status = $2,
+                 requires_approval = $3,
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [candidate.id, nextStatus, nextRequiresApproval]
+        );
+        await this.pool.query(
+            `INSERT INTO memory_candidate_audit_logs (
+                id, candidate_id, actor_person_id, decision_owner_person_id,
+                decision_reason, previous_status, next_status, evidence_ids, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
+            [
+                auditId,
+                candidate.id,
+                normalizeOptionalString(actor_person_id),
+                normalizeOptionalString(decision_owner_person_id),
+                normalizeOptionalString(decision_reason) || '',
+                previousStatus,
+                nextStatus,
+                JSON.stringify(candidate.evidence_ids || [])
+            ]
+        );
+
+        return {
+            success: true,
+            candidate: {
+                ...candidate,
+                promotion_status: nextStatus,
+                requires_approval: nextRequiresApproval,
+                graph_truth: nextStatus === 'promoted_to_graph'
+            },
+            audit: {
+                id: auditId,
+                candidate_id: candidate.id,
+                previous_status: previousStatus,
+                next_status: nextStatus
+            }
         };
     }
 

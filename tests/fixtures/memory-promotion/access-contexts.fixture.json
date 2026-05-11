@@ -1,0 +1,128 @@
+{
+  "schema_version": "0.1.0",
+  "contexts": [
+    {
+      "context_id": "sato_personal_brainbase",
+      "person_id": "per_keigo_sato",
+      "workspace": "unson",
+      "channel_id": null,
+      "project_codes": [
+        "brainbase"
+      ],
+      "roles": [
+        "member"
+      ],
+      "clearance": [
+        "internal",
+        "restricted"
+      ],
+      "session_id": "session-personal-brainbase",
+      "expected_memory": [
+        "memcand_private_preference_001",
+        "memcand_project_visible_001"
+      ],
+      "denied_memory": [
+        "memcand_customer_policy_001"
+      ]
+    },
+    {
+      "context_id": "sato_unson_gm",
+      "person_id": "per_keigo_sato",
+      "workspace": "unson",
+      "channel_id": "C_BRAINBASE",
+      "project_codes": [
+        "brainbase"
+      ],
+      "roles": [
+        "gm"
+      ],
+      "clearance": [
+        "internal",
+        "restricted",
+        "contract"
+      ],
+      "session_id": "session-gm-brainbase",
+      "expected_memory": [
+        "memcand_project_visible_001",
+        "memcand_customer_policy_001"
+      ],
+      "denied_memory": [
+        "memcand_private_preference_001"
+      ]
+    },
+    {
+      "context_id": "project_member",
+      "person_id": "per_project_member",
+      "workspace": "unson",
+      "channel_id": "C_BRAINBASE",
+      "project_codes": [
+        "brainbase"
+      ],
+      "roles": [
+        "member"
+      ],
+      "clearance": [
+        "internal",
+        "restricted"
+      ],
+      "session_id": "session-project-member",
+      "expected_memory": [
+        "memcand_project_visible_001"
+      ],
+      "denied_memory": [
+        "memcand_private_preference_001",
+        "memcand_customer_policy_001"
+      ]
+    },
+    {
+      "context_id": "slack_channel_outsider",
+      "person_id": "per_channel_outsider",
+      "workspace": "unson",
+      "channel_id": "C_OTHER",
+      "project_codes": [
+        "brainbase"
+      ],
+      "roles": [
+        "member"
+      ],
+      "clearance": [
+        "internal",
+        "restricted"
+      ],
+      "session_id": "session-channel-outsider",
+      "expected_memory": [],
+      "denied_memory": [
+        "memcand_private_preference_001",
+        "memcand_project_visible_001",
+        "memcand_customer_policy_001"
+      ]
+    },
+    {
+      "context_id": "expired_gm_role",
+      "person_id": "per_former_gm",
+      "workspace": "unson",
+      "channel_id": "C_BRAINBASE",
+      "project_codes": [
+        "brainbase"
+      ],
+      "roles": [
+        "member"
+      ],
+      "expired_roles": [
+        "gm"
+      ],
+      "clearance": [
+        "internal",
+        "restricted"
+      ],
+      "session_id": "session-expired-role",
+      "expected_memory": [
+        "memcand_project_visible_001"
+      ],
+      "denied_memory": [
+        "memcand_private_preference_001",
+        "memcand_customer_policy_001"
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
-/** @typedef {{ role: string, projectCodes: string[], clearance: string[] }} AccessContext */
+/** @typedef {{ role: string, projectCodes: string[], clearance: string[], personId?: string | null, workspace?: string | null, channelId?: string | null, sessionId?: string | null }} AccessContext */
 
 /** @param {unknown} error */
 function getErrorMessage(error) {
@@ -24,11 +24,19 @@ function buildAccessContext(req) {
     const clearanceHeader = req.get('x-brainbase-clearance') || req.get('x-clearance') || '';
     const projectCodes = parseCsv(projectHeader);
     const clearance = parseCsv(clearanceHeader);
+    const personId = req.get('x-brainbase-person-id') || req.get('x-person-id') || null;
+    const workspace = req.get('x-brainbase-workspace') || req.get('x-workspace') || null;
+    const channelId = req.get('x-brainbase-channel-id') || req.get('x-channel-id') || null;
+    const sessionId = req.get('x-brainbase-session-id') || req.get('x-session-id') || null;
 
     return {
         role,
         projectCodes,
-        clearance
+        clearance,
+        personId,
+        workspace,
+        channelId,
+        sessionId
     };
 }
 
@@ -156,6 +164,11 @@ export class InfoSSOTController {
             const objectType = req.query.objectType || null;
             const operation = req.query.operation || null;
             const maxRecommended = req.query.maxRecommended || null;
+            const includeMemory = String(req.query.includeMemory || req.query.include_memory || '').toLowerCase() === 'true';
+            const personId = req.query.personId || req.query.person_id || access.personId || null;
+            const workspace = req.query.workspace || access.workspace || null;
+            const channelId = req.query.channelId || req.query.channel_id || access.channelId || null;
+            const sessionId = req.query.sessionId || req.query.session_id || access.sessionId || null;
 
             const result = await this.infoSSOTService.getContext(access, {
                 projectCode,
@@ -167,7 +180,17 @@ export class InfoSSOTController {
                 scope,
                 objectType,
                 operation,
-                maxRecommended
+                maxRecommended,
+                includeMemory,
+                memoryAccessContext: {
+                    person_id: personId,
+                    workspace,
+                    channel_id: channelId,
+                    session_id: sessionId,
+                    roles: [access.role],
+                    project_codes: access.projectCodes,
+                    clearance: access.clearance
+                }
             });
 
             res.json(result);

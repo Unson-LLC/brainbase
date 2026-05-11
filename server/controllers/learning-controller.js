@@ -42,6 +42,105 @@ export class LearningController {
         }
     };
 
+    createMemoryCandidate = async (req, res) => {
+        try {
+            const result = await this.learningService.createMemoryCandidate(req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create memory candidate', { error });
+            res.status(400).json({ error: error.message || 'Failed to create memory candidate' });
+        }
+    };
+
+    listMemoryCandidates = async (req, res) => {
+        try {
+            const includePromoted = req.query.include_promoted === 'true' || req.query.includePromoted === 'true';
+            const result = await this.learningService.listMemoryCandidates({
+                owner_person_id: req.query.owner_person_id,
+                ownerPersonId: req.query.ownerPersonId,
+                visibility: req.query.visibility,
+                scope: req.query.scope,
+                sensitivity: req.query.sensitivity,
+                project_code: req.query.project_code,
+                projectCode: req.query.projectCode,
+                promotion_status: req.query.promotion_status,
+                status: req.query.status,
+                subject_type: req.query.subject_type,
+                subjectType: req.query.subjectType,
+                include_promoted: includePromoted
+            });
+            res.json({ candidates: result });
+        } catch (error) {
+            logger.error('Failed to list memory candidates', { error });
+            res.status(500).json({ error: 'Failed to list memory candidates' });
+        }
+    };
+
+    classifyMemoryCandidate = async (req, res) => {
+        try {
+            const result = await this.learningService.classifyMemoryCandidate(req.params.id, req.body || {});
+            if (result.notFound || !result.success) {
+                return res.status(404).json({ error: 'Memory candidate not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to classify memory candidate', { error });
+            res.status(400).json({ error: error.message || 'Failed to classify memory candidate' });
+        }
+    };
+
+    approveMemoryCandidate = async (req, res) => {
+        try {
+            const result = await this.learningService.approveMemoryCandidate(req.params.id, req.body || {});
+            if (result.notFound || !result.success) {
+                return res.status(404).json({ error: 'Memory candidate not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to approve memory candidate', { error });
+            res.status(400).json({ error: error.message || 'Failed to approve memory candidate' });
+        }
+    };
+
+    rejectMemoryCandidate = async (req, res) => {
+        try {
+            const result = await this.learningService.rejectMemoryCandidate(req.params.id, req.body || {});
+            if (result.notFound || !result.success) {
+                return res.status(404).json({ error: 'Memory candidate not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to reject memory candidate', { error });
+            res.status(400).json({ error: error.message || 'Failed to reject memory candidate' });
+        }
+    };
+
+    expireMemoryCandidate = async (req, res) => {
+        try {
+            const result = await this.learningService.expireMemoryCandidate(req.params.id, req.body || {});
+            if (result.notFound || !result.success) {
+                return res.status(404).json({ error: 'Memory candidate not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to expire memory candidate', { error });
+            res.status(400).json({ error: error.message || 'Failed to expire memory candidate' });
+        }
+    };
+
+    promoteMemoryCandidateToGraph = async (req, res) => {
+        try {
+            const result = await this.learningService.promoteMemoryCandidateToGraph(req.params.id, req.body || {});
+            if (result.notFound || !result.success) {
+                return res.status(404).json({ error: 'Memory candidate not found' });
+            }
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to promote memory candidate to graph', { error });
+            res.status(400).json({ error: error.message || 'Failed to promote memory candidate to graph' });
+        }
+    };
+
     getPromotion = async (req, res) => {
         try {
             const result = await this.learningService.getPromotion(req.params.id);
