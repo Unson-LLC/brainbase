@@ -7,22 +7,62 @@
 import { scoreDraftCandidate } from './curator-scoring.js';
 
 const DEFAULT_DAILY_LIMIT = 30;
+const PERSONA_BRAIN_FIELDS = [
+    'target_person',
+    'current_situation',
+    'existing_belief',
+    'misunderstanding',
+    'fear',
+    'blocker',
+    'resonant_detail',
+    'avoid_phrasing',
+    'natural_next_action',
+    'success_signal'
+];
+
+function hasCompletePersonaBrain(personaBrain) {
+    if (!personaBrain || typeof personaBrain !== 'object') return false;
+    return PERSONA_BRAIN_FIELDS.every((field) =>
+        typeof personaBrain[field] === 'string' && personaBrain[field].trim().length > 0
+    );
+}
+
+function defaultPersonaBrain(source, viewer) {
+    const target = viewer?.persona || viewer?.target_person || 'AI導入を任された事業責任者 / DX責任者';
+    const interests = Array.isArray(viewer?.interests) && viewer.interests.length > 0
+        ? viewer.interests.join(', ')
+        : 'AI活用と業務フロー設計';
+    return {
+        target_person: target,
+        current_situation: `${interests} に関心はあるが、本番業務への接続で迷っている`,
+        existing_belief: '良いツールと研修を入れればAI活用が進む',
+        misunderstanding: 'AI活用の問題は個人スキル不足だけだと思っている',
+        fear: '事故や誤操作が起きた時に責任を取れない',
+        blocker: 'どの業務から始め、どこで人間承認に戻すべきか分からない',
+        resonant_detail: source?.body || '禁止事項、承認ライン、証跡、レビュー',
+        avoid_phrasing: 'AIで全部自動化できます',
+        natural_next_action: 'プロフィールや固定導線を見て、自社の最初の1業務を考える',
+        success_signal: 'profile_visit_or_bookmark'
+    };
+}
 
 export class SnsReadonlyCurator {
     /**
      * @param {{
      *   graphReader: { listRecentEntities: (opts:{since:string, viewer:any}) => Promise<Array<any>> },
      *   candidateService?: any,
-     *   dailyLimit?: number
+     *   dailyLimit?: number,
+     *   personaBrainProvider?: (source:any, viewer:any) => any
      * }} deps
      */
-    constructor({ graphReader, candidateService = null, dailyLimit = DEFAULT_DAILY_LIMIT }) {
+    constructor({ graphReader, candidateService = null, dailyLimit = DEFAULT_DAILY_LIMIT, personaBrainProvider = defaultPersonaBrain }) {
         if (!graphReader || typeof graphReader.listRecentEntities !== 'function') {
             throw new Error('graphReader required');
         }
         this.graphReader = graphReader;
         this.candidateService = candidateService;
         this.dailyLimit = dailyLimit;
+        this.personaBrainProvider = personaBrainProvider;
         /** @type {Map<string, Array<number>>} viewer.sub → timestamps */
         this.dailyCounts = new Map();
     }
@@ -46,13 +86,16 @@ export class SnsReadonlyCurator {
             if (drafts.length >= limit) break;
             const { score, breakdown } = scoreDraftCandidate(src, viewer, history);
             if (score <= 0) continue;
+            const personaBrain = this.personaBrainProvider(src, viewer);
+            if (!hasCompletePersonaBrain(personaBrain)) continue;
             drafts.push({
                 source_entity_id: src.id,
                 cognitive_type: 'claim',
                 body: src.body,  // LLM disabled mode: paraphrase なし
                 score,
                 breakdown,
-                derived_from: [src.id]
+                derived_from: [src.id],
+                persona_brain: personaBrain
             });
         }
         return drafts.sort((a, b) => b.score - a.score);
@@ -73,6 +116,9 @@ export class SnsReadonlyCurator {
         if (!this.candidateService) throw new Error('candidateService required');
         const saved = [];
         for (const d of drafts) {
+            if (!hasCompletePersonaBrain(d.persona_brain)) {
+                throw new Error('persona_brain required');
+            }
             if (this._todayCount(viewer.sub) >= this.dailyLimit) {
                 break;  // rate limit overflow → skip remaining
             }
@@ -95,7 +141,12 @@ export class SnsReadonlyCurator {
                     uri: `graph:entity:${d.source_entity_id}`,
                     hash: 'sha256:source'
                 }],
-                permission_snapshot: { roles: [viewer.role || 'member'] },
+                permission_snapshot: {
+                    roles: [viewer.role || 'member'],
+                    sns: {
+                        persona_brain: d.persona_brain
+                    }
+                },
                 recommended_subject_type: null
             });
             if (!result.blocked) {

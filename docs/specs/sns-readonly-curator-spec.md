@@ -10,6 +10,7 @@ related_adrs:
   - ADR-008
 related_specs:
   - SPEC-candidate-store-mvp
+  - SPEC-sns-persona-brain-gate
 implementation_files:
   - server/services/sns/curator-scoring.js
   - server/services/sns/sns-readonly-curator.js
@@ -33,6 +34,7 @@ Graph SSOT 上の最近 promote された insight / decision / claim / philosoph
 - **INV-4**: source entity（元 insight / decision）への `derived_from` reference を draft に持つ（provenance）。
 - **INV-5**: agency_level=none の entity は候補から除外（INV: SPEC-acl-contract-test S-8 と整合）。
 - **INV-6**: rate limit（default 30 draft/day per user）を超えた candidate は作成しない。
+- **INV-7**: draft は `persona_brain` を持つ。Persona Brain は読者の脳内モデル（状況、誤解、不安、自然な次行動）を明示する。
 
 ## Contracts
 
@@ -62,6 +64,25 @@ class SnsReadonlyCurator {
 ```
 
 LLM はオプション。enabled=false（テスト） では body は source の paraphrase 不要、source body をそのまま使う。
+
+### Contract-3: persona brain gate
+
+```ts
+type PersonaBrain = {
+  target_person: string;
+  current_situation: string;
+  existing_belief: string;
+  misunderstanding: string;
+  fear: string;
+  blocker: string;
+  resonant_detail: string;
+  avoid_phrasing: string;
+  natural_next_action: string;
+  success_signal: string;
+}
+```
+
+すべての field は non-empty string。`saveDraftsToCandidateStore` は `persona_brain` 欠落時に candidate-store mutation 前に失敗する。
 
 ## Scenarios
 
