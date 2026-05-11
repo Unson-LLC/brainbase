@@ -31,52 +31,9 @@ export function formatDueDate(dateStr) {
  */
 export function escapeHtml(str) {
     if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-/**
- * Replace an element's children with a sanitized subset of HTML.
- * Use this only for trusted templates or content already normalized by renderers.
- * Prefer textContent for plain user-provided strings.
- * @param {Element} element
- * @param {string} html
- */
-export function setSanitizedHtml(element, html) {
-    if (!element) return;
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(String(html || ''), 'text/html');
-    sanitizeHtmlTree(doc.body);
-    element.replaceChildren(...Array.from(doc.body.childNodes));
-}
-
-function sanitizeHtmlTree(root) {
-    const blockedTags = new Set(['script', 'iframe', 'object', 'embed', 'link', 'meta']);
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-    const removals = [];
-
-    while (walker.nextNode()) {
-        const el = /** @type {Element} */ (walker.currentNode);
-        const tagName = el.tagName.toLowerCase();
-        if (blockedTags.has(tagName)) {
-            removals.push(el);
-            continue;
-        }
-
-        for (const attr of Array.from(el.attributes)) {
-            const name = attr.name.toLowerCase();
-            const value = attr.value.trim().toLowerCase();
-            if (name.startsWith('on') || value.startsWith('javascript:')) {
-                el.removeAttribute(attr.name);
-            }
-        }
-    }
-
-    removals.forEach((node) => node.remove());
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 
 /**

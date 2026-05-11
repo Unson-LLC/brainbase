@@ -1,7 +1,6 @@
 import { Pool } from 'pg';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
-import { buildScopedMemoryResult } from './memory-scope-policy.js';
 
 const ROLE_RANK = {
     member: 1,
@@ -1093,9 +1092,7 @@ export class InfoSSOTService {
         scope,
         objectType,
         operation,
-        maxRecommended,
-        includeMemory,
-        memoryAccessContext
+        maxRecommended
     }) {
         this.assertReady();
         if (!projectCode) {
@@ -1152,27 +1149,6 @@ export class InfoSSOTService {
             };
 
             const result = { entities, edges, report, meta };
-            if (includeMemory) {
-                const graphRecords = await this.fetchGraphEntities(client, access, {
-                    projectCode,
-                    entityType: null,
-                    limit: safeLimit
-                });
-                const memoryRecords = graphRecords.filter(record => {
-                    let payload = record?.payload || {};
-                    if (typeof payload === 'string') {
-                        try {
-                            payload = JSON.parse(payload);
-                        } catch {
-                            payload = {};
-                        }
-                    }
-                    return Boolean(payload.memory_candidate_id || payload.candidate_id);
-                });
-                result.scoped_memory = buildScopedMemoryResult(memoryRecords, memoryAccessContext || {});
-                result.meta.scoped_memory_count = result.scoped_memory.records.length;
-                result.meta.scoped_memory_denied_count = result.scoped_memory.denied.length;
-            }
             if (includePhilosophy) {
                 result.philosophy_context = await this.resolvePhilosophyContext(client, access, {
                     projectCode,
