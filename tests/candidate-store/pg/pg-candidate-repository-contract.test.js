@@ -1,0 +1,114 @@
+// @ts-check
+import { describe, it, expect } from 'vitest';
+import {
+    PgCandidateRepository,
+    DuplicateCandidateError,
+    InvalidTransitionError
+} from '../../../server/services/candidate-store/candidate-repository.js';
+import { baseDraft } from '../_helpers.js';
+
+class ScriptedPg {
+    constructor(responses = []) {
+        this.responses = responses;
+        this.calls = [];
+    }
+
+    async query(sql, params = []) {
+        this.calls.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+        const next = this.responses.shift();
+        if (!next) return { rows: [] };
+        if (next.error) throw next.error;
+        return { rows: next.rows || [] };
+    }
+}
+
+const dbRow = (overrides = {}) => ({
+    id: 'cand_pg_1',
+    cognitive_type: 'observation',
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    source_system: 'brainbase',
+    source_event_ids: ['session:pg:1'],
+    workspace: 'unson',
+    channel_id: null,
+    thread_ts: null,
+    project_code: 'brainbase',
+    org_ids: ['unson'],
+    project_ids: [],
+    team_id: null,
+    visibility: 'owner',
+    sensitivity: 'internal',
+    role_min: 'member',
+    agency_level: 'synthesize',
+    recommended_subject_type: null,
+    recommended_owner_person_id: null,
+    promotion_status: 'candidate',
+    promoted_graph_entity_id: null,
+    requires_approval: true,
+    permission_snapshot: null,
+    evidence_ids: [],
+    body: 'Pg contract candidate',
+    redaction_status: 'none',
+    confidence: null,
+    expires_at: null,
+    created_at: new Date('2026-05-11T00:00:00.000Z'),
+    updated_at: new Date('2026-05-11T00:00:00.000Z'),
+    ...overrides
+});
+
+describe('PgCandidateRepository contract', () => {
+    it('creates candidate rows with JSON/array fields and returns normalized records', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow()] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+        const created = await repo.create(baseDraft({
+            id: 'cand_pg_1',
+            body: 'Pg contract candidate',
+            source_event_ids: ['session:pg:1']
+        }));
+
+        expect(created.created_at).toBe('2026-05-11T00:00:00.000Z');
+        expect(created.source_event_ids).toEqual(['session:pg:1']);
+        expect(pg.calls[0].sql).toContain('INSERT INTO memory_candidates');
+        expect(pg.calls[0].params).toContain('cand_pg_1');
+        expect(pg.calls[0].params).toContain(JSON.stringify(['session:pg:1']));
+    });
+
+    it('maps unique source constraint violations to DuplicateCandidateError', async () => {
+        const pg = new ScriptedPg([{ error: Object.assign(new Error('duplicate'), { code: '23505' }) }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+        await expect(repo.create(baseDraft())).rejects.toBeInstanceOf(DuplicateCandidateError);
+    });
+
+    it('transitions status in one transaction and appends audit', async () => {
+        const pg = new ScriptedPg([
+            {},
+            { rows: [dbRow()] },
+            { rows: [dbRow({ promotion_status: 'pending_approval' })] },
+            { rows: [{ id: 1, candidate_id: 'cand_pg_1', actor_person_id: 'sato_keigo', previous_status: 'candidate', next_status: 'pending_approval', decided_at: new Date('2026-05-11T00:00:01.000Z') }] },
+            {}
+        ]);
+        const repo = new PgCandidateRepository({ pool: pg });
+        const transitioned = await repo.transition('cand_pg_1', 'pending_approval', { actor_person_id: 'sato_keigo' });
+
+        expect(transitioned.promotion_status).toBe('pending_approval');
+        expect(pg.calls.map((c) => c.sql)).toEqual(expect.arrayContaining([
+            'BEGIN',
+            'COMMIT'
+        ]));
+        expect(pg.calls.some((c) => c.sql.includes('INSERT INTO promotion_audit_events'))).toBe(true);
+    });
+
+    it('rejects invalid status transitions before update', async () => {
+        const pg = new ScriptedPg([
+            {},
+            { rows: [dbRow({ promotion_status: 'pending_approval' })] },
+            {}
+        ]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await expect(repo.transition('cand_pg_1', 'candidate', { actor_person_id: 'sato_keigo' }))
+            .rejects.toBeInstanceOf(InvalidTransitionError);
+        expect(pg.calls.some((c) => c.sql.startsWith('UPDATE memory_candidates'))).toBe(false);
+        expect(pg.calls.map((c) => c.sql)).toContain('ROLLBACK');
+    });
+});

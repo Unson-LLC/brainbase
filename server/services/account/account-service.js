@@ -14,8 +14,8 @@ export class AccountService {
     }
 
     async create(input, actor) {
-        const record = this.repository.create({ ...input, created_by_person_id: actor.actor_person_id });
-        this.repository.recordAudit({
+        const record = await this.repository.create({ ...input, created_by_person_id: actor.actor_person_id });
+        await this.repository.recordAudit({
             account_id: record.id,
             actor_person_id: actor.actor_person_id,
             action: 'CONNECTED',
@@ -25,8 +25,8 @@ export class AccountService {
     }
 
     async revoke(id, actor) {
-        const r = this.repository.updateStatus(id, 'revoked', actor);
-        this.repository.recordAudit({
+        const r = await this.repository.updateStatus(id, 'revoked', actor);
+        await this.repository.recordAudit({
             account_id: id,
             actor_person_id: actor.actor_person_id,
             action: 'REVOKED'
@@ -35,8 +35,8 @@ export class AccountService {
     }
 
     async reauthorize(id, actor) {
-        const r = this.repository.updateStatus(id, 'connected', actor);
-        this.repository.recordAudit({
+        const r = await this.repository.updateStatus(id, 'connected', actor);
+        await this.repository.recordAudit({
             account_id: id,
             actor_person_id: actor.actor_person_id,
             action: 'REAUTHORIZED'
@@ -45,7 +45,7 @@ export class AccountService {
     }
 
     async listForActor(actor) {
-        return this.repository.list({}).filter((acc) => this._canViewSync(acc, actor));
+        return (await this.repository.list({})).filter((acc) => this._canViewSync(acc, actor));
     }
 
     _canViewSync(acc, actor) {
@@ -64,13 +64,13 @@ export class AccountService {
     }
 
     async setDefault({ subject_type, subject_id, service, purpose, account_id }, actor) {
-        const acc = this.repository.findById(account_id);
+        const acc = await this.repository.findById(account_id);
         if (!acc) throw new Error(`account not found: ${account_id}`);
-        this.repository.setDefault({
+        await this.repository.setDefault({
             subject_type, subject_id, service, purpose, account_id,
             created_by_person_id: actor.actor_person_id
         });
-        this.repository.recordAudit({
+        await this.repository.recordAudit({
             account_id,
             actor_person_id: actor.actor_person_id,
             action: 'DEFAULT_CHANGED',
@@ -79,13 +79,13 @@ export class AccountService {
     }
 
     async getDefault(subject_type, subject_id, service, purpose) {
-        const def = this.repository.getDefault(subject_type, subject_id, service, purpose);
+        const def = await this.repository.getDefault(subject_type, subject_id, service, purpose);
         if (!def) return null;
         return this.repository.findById(def.account_id);
     }
 
     async canUseForPost(account_id, actor) {
-        const acc = this.repository.findById(account_id);
+        const acc = await this.repository.findById(account_id);
         if (!acc) return { allow: false, reason: 'account-not-found' };
         if (acc.status !== 'connected') return { allow: false, reason: `status-${acc.status}` };
 
@@ -117,7 +117,7 @@ export class AccountService {
     }
 
     async recordPost(account_id, actor) {
-        this.repository.recordAudit({
+        await this.repository.recordAudit({
             account_id,
             actor_person_id: actor.actor_person_id,
             action: 'USED_FOR_POST'

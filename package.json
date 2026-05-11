@@ -53,6 +53,7 @@
     "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",
     "vibepro:graphify-impact": "node scripts/vibepro-graphify-impact-gate.mjs",
     "vibepro:component-style": "node scripts/vibepro-component-style-check.mjs",
+    "migrate:m5a": "node scripts/migrate-m5a-production-schema.js",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh",

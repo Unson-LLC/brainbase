@@ -15,6 +15,13 @@ const CATALOG_SUBJECT_TYPES = new Set([
     'story', 'raci_assignment'
 ]);
 
+function maybeMap(value, mapper) {
+    if (value && typeof value.then === 'function') {
+        return value.then(mapper);
+    }
+    return mapper(value);
+}
+
 /**
  * @typedef {Object} GraphWriter
  * @property {(payload: any, options: {derived_from_candidate_id: string}) => Promise<{id: string}>} createEntity
@@ -55,7 +62,7 @@ export class PromotionGateService {
             draft = { ...draft, redaction_status: 'needs_redaction' };
         }
 
-        const candidate = this.repository.create(draft);
+        const candidate = await this.repository.create(draft);
 
         // Auto-promote policy 評価（INV-9 / INV-1 redaction中はスキップ）
         if (candidate.redaction_status === 'none') {
@@ -85,12 +92,12 @@ export class PromotionGateService {
      * INV-7: catalog mapping 不一致なら rejected で reason 記録
      */
     async approveCandidate(id, approver, options = {}) {
-        const candidate = this.repository.findById(id);
+        const candidate = await this.repository.findById(id);
         if (!candidate) throw new Error(`candidate not found: ${id}`);
 
         const targetType = options.targetSubjectType || candidate.recommended_subject_type;
         if (!targetType || !CATALOG_SUBJECT_TYPES.has(targetType)) {
-            const rejected = this.repository.transition(id, 'rejected', {
+            const rejected = await this.repository.transition(id, 'rejected', {
                 actor_person_id: approver.actor_person_id,
                 decision_owner_person_id: approver.actor_person_id,
                 decision_reason: 'no catalog mapping'
@@ -98,7 +105,7 @@ export class PromotionGateService {
             return { candidate: rejected, graphEntity: null, rejected: true };
         }
 
-        const approved = this.repository.transition(id, 'approved', {
+        const approved = await this.repository.transition(id, 'approved', {
             actor_person_id: approver.actor_person_id,
             decision_owner_person_id: approver.actor_person_id,
             decision_reason: options.reason || 'approved'
@@ -109,12 +116,12 @@ export class PromotionGateService {
             recommended_subject_type: targetType
         });
 
-        const promoted = this.repository.transition(id, 'promoted_to_graph', {
+        const promoted = await this.repository.transition(id, 'promoted_to_graph', {
             actor_person_id: approver.actor_person_id,
             decision_owner_person_id: approver.actor_person_id,
             decision_reason: 'promoted'
         });
-        this.repository.setPromotedGraphEntity(id, graphEntity.id);
+        await this.repository.setPromotedGraphEntity(id, graphEntity.id);
 
         return { candidate: { ...promoted, promoted_graph_entity_id: graphEntity.id }, graphEntity };
     }
@@ -131,14 +138,12 @@ export class PromotionGateService {
         if (typeof redactedBody !== 'string' || redactedBody.length === 0) {
             throw new Error('redactedBody required');
         }
-        const r = this.repository.setRedaction(id, 'redacted', redactedBody);
-        this.repository.auditEvents.push({
-            id: this.repository.auditEvents.length + 1,
+        const r = await this.repository.setRedaction(id, 'redacted', redactedBody);
+        await this.repository.recordAudit({
             candidate_id: id,
             actor_person_id: approver.actor_person_id,
             decision_owner_person_id: approver.actor_person_id,
             decision_reason: 'redaction applied',
-            decided_at: new Date().toISOString(),
             previous_status: r.promotion_status,
             next_status: r.promotion_status,
             evidence_ids: null
@@ -147,7 +152,7 @@ export class PromotionGateService {
     }
 
     async autoPromote(id, policy, reason) {
-        const candidate = this.repository.findById(id);
+        const candidate = await this.repository.findById(id);
         if (!candidate) throw new Error(`candidate not found: ${id}`);
         const verdict = policy.applies(candidate);
         if (!verdict.applies) {
@@ -156,13 +161,13 @@ export class PromotionGateService {
         const approver = { actor_person_id: 'system:auto-promote' };
         const targetType = policy.targetSubjectType();
 
-        this.repository.transition(id, 'pending_approval', {
+        await this.repository.transition(id, 'pending_approval', {
             actor_person_id: approver.actor_person_id,
             decision_owner_person_id: candidate.owner_person_id,
             decision_reason: `auto-promote policy:${policy.name}:${reason}`
         });
 
-        const approved = this.repository.transition(id, 'approved', {
+        const approved = await this.repository.transition(id, 'approved', {
             actor_person_id: approver.actor_person_id,
             decision_owner_person_id: candidate.owner_person_id,
             decision_reason: 'auto-approved'
@@ -175,12 +180,12 @@ export class PromotionGateService {
             payload
         });
 
-        const promoted = this.repository.transition(id, 'promoted_to_graph', {
+        const promoted = await this.repository.transition(id, 'promoted_to_graph', {
             actor_person_id: approver.actor_person_id,
             decision_owner_person_id: candidate.owner_person_id,
             decision_reason: 'auto-promoted'
         });
-        this.repository.setPromotedGraphEntity(id, graphEntity.id);
+        await this.repository.setPromotedGraphEntity(id, graphEntity.id);
         if (policy.recordPromote) policy.recordPromote(candidate.owner_person_id);
 
         return { candidate: { ...promoted, promoted_graph_entity_id: graphEntity.id }, graphEntity };
@@ -220,19 +225,22 @@ export class PromotionGateService {
 
     listCandidates(filter, viewer) {
         const list = this.repository.list(filter);
-        if (!viewer) return list;
-        // INV-1/INV-2: candidate-store ACL
-        return list.filter((c) => {
-            if (c.owner_person_id === viewer.sub) return true;
-            if (c.visibility === 'public') return true;
-            if (c.visibility === 'team' && viewer.team_ids?.includes(c.team_id)) return true;
-            if (c.visibility === 'org') {
-                const memberOrgs = viewer.org_ids || [];
-                return c.org_ids.some((o) => memberOrgs.includes(o));
-            }
-            if (c.recommended_owner_person_id === viewer.sub) return true; // approver
-            return false;
-        });
+        const applyAcl = (records) => {
+            if (!viewer) return records;
+            // INV-1/INV-2: candidate-store ACL
+            return records.filter((c) => {
+                if (c.owner_person_id === viewer.sub) return true;
+                if (c.visibility === 'public') return true;
+                if (c.visibility === 'team' && viewer.team_ids?.includes(c.team_id)) return true;
+                if (c.visibility === 'org') {
+                    const memberOrgs = viewer.org_ids || [];
+                    return c.org_ids.some((o) => memberOrgs.includes(o));
+                }
+                if (c.recommended_owner_person_id === viewer.sub) return true; // approver
+                return false;
+            });
+        };
+        return maybeMap(list, applyAcl);
     }
 
     listAudit(candidateId) {
