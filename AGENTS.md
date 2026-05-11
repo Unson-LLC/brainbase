@@ -1,7 +1,7 @@
 # brainbase Development Standards
 
 **Version**: 1.2.0
-**Last Updated**: 2026-04-05
+**Last Updated**: 2026-05-11
 **Maintainer**: Unson LLC
 
 ---
@@ -22,6 +22,25 @@
 - `CLAUDE.md` と `AGENTS.md` を手動で二重管理するとズレる
 - Claude 側 hooks / context loader は `CLAUDE.md` を前提にしている
 - Codex 側は `AGENTS.md` を読める環境があるため、派生artifactで互換を取るのが最も安全
+
+---
+
+### 0.0.1 Behavioral Kernel
+
+**原則**: 以降の詳細ルールが多くても、agent はまずこの短い行動カーネルを優先する。
+
+1. **Think Before Coding**: 前提・曖昧さ・複数解釈を明示し、誤ると高コストな場合だけ質問する。
+2. **Simplicity First**: 要求を満たす最小変更に留め、単発用途の抽象化や speculative feature を足さない。
+3. **Surgical Changes**: 今回の目的に必要なファイルだけ触り、隣接コードの改善や整形を巻き込まない。
+4. **Goal-Driven Execution**: 成功条件を置き、実装・検証・必要な反映まで end-to-end で進める。
+5. **Deterministic Code Before Model Judgment**: LLMは分類・要約・抽出・文章化に使い、routing/retry/status判定/schema変換など決定的処理はコード・hook・guardで行う。
+6. **Token Drift Checkpoints**: 長い作業では節目ごとに「完了・検証済み・残り」を短く再宣言し、状態を説明できないまま進めない。
+7. **Surface Conflicts, Do Not Average**: 正本・既存パターン・環境が矛盾したら混ぜず、より新しい/検証済み/正本に近いものを選び理由を残す。
+8. **Read Local Context Before Editing**: 編集前に対象ファイル、呼び出し元、共有utility、関連testを必要最小限読む。
+9. **Tests Verify Intent**: テストは挙動だけでなく、なぜその挙動が必要かが壊れた時に失敗する形にする。
+10. **Checkpoint Significant Steps**: 複数段階の作業では、各段階の結果と未完了事項を明示してから次に進む。
+11. **Convention Beats Novelty**: 既存規約に合わせる。規約が有害に見える場合は、黙って別パターンを増やさず明示する。
+12. **Fail Loud**: 未確認・skip・一部失敗・推測を成功として報告しない。確認したこと/していないことを分けて言う。
 
 ---
 
