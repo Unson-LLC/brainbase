@@ -97,8 +97,15 @@ export function installWorktreeHandlers(controller) {
                     sessions: [...(state.sessions || []).filter((session) => session.id !== sessionId), newSession]
                 }));
                 const persistedSessions = persistedState?.sessions || [];
-                if (!persistedSessions.some((session) => session.id === sessionId)) {
+                const persistedSession = persistedSessions.find((session) => session.id === sessionId);
+                if (!persistedSession) {
                     throw new Error('Session state was not persisted');
+                }
+                if (persistedSession.path !== worktreePath || persistedSession.worktree?.path !== worktreePath) {
+                    throw new Error('Session state missing persisted worktree.path');
+                }
+                if (!await controller._pathExists(worktreePath)) {
+                    throw new Error(`Persisted worktree path does not exist: ${worktreePath}`);
                 }
             } catch (stateError) {
                 controller._updateProgress(sessionId, 'error', 0, 'セッション状態の更新に失敗');

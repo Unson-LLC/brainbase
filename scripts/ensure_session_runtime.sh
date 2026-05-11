@@ -71,8 +71,20 @@ except Exception:
     pass
 " 2>/dev/null)
 fi
-if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
-    cd "$WORKTREE_PATH"
+if [ -z "$WORKTREE_PATH" ] && [ -n "$BRAINBASE_RUNTIME_CWD" ]; then
+    WORKTREE_PATH="$BRAINBASE_RUNTIME_CWD"
+fi
+if [ -z "$WORKTREE_PATH" ]; then
+    echo "[ensure_session_runtime] Refusing to start $SESSION_NAME: session state missing worktree.path/path and no BRAINBASE_RUNTIME_CWD was provided" >&2
+    exit 74
+fi
+if [ ! -d "$WORKTREE_PATH" ]; then
+    echo "[ensure_session_runtime] Refusing to start $SESSION_NAME: workspace path does not exist: $WORKTREE_PATH" >&2
+    exit 74
+fi
+if ! cd "$WORKTREE_PATH"; then
+    echo "[ensure_session_runtime] Refusing to start $SESSION_NAME: failed to cd to workspace path: $WORKTREE_PATH" >&2
+    exit 74
 fi
 
 RESUME_SESSION_ID=""
@@ -276,6 +288,17 @@ EOF
     done
 }
 
+paths_match() {
+    python3 - "$1" "$2" <<'PY' 2>/dev/null
+import os
+import sys
+
+left = os.path.realpath(sys.argv[1])
+right = os.path.realpath(sys.argv[2])
+sys.exit(0 if left == right else 1)
+PY
+}
+
 tmux set -g escape-time 0 2>/dev/null || true
 # Use xterm-256color as default terminal: tmux-256color causes codex TUI initialization
 # to hang (crossterm waits for terminal capability responses that don't arrive).
@@ -293,11 +316,12 @@ if [ -d "$JJ_GUARD_DIR" ]; then
 fi
 
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-    # worktreeパスが存在すればそこをデフォルトディレクトリにしてセッション作成
-    if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
-        tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_PATH"
-    else
-        tmux new-session -d -s "$SESSION_NAME"
+    tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_PATH"
+    PANE_CWD="$(tmux display-message -p -t "$SESSION_NAME" '#{pane_current_path}' 2>/dev/null || true)"
+    if [ -z "$PANE_CWD" ] || ! paths_match "$PANE_CWD" "$WORKTREE_PATH"; then
+        tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
+        echo "[ensure_session_runtime] Refusing to start $SESSION_NAME: tmux cwd preflight failed (expected $WORKTREE_PATH, got ${PANE_CWD:-unknown})" >&2
+        exit 75
     fi
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SERVER_PATH "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -317,7 +341,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" TERM "xterm-256color"
         # cwdが無効な場合（外付けドライブ再マウント等）に備え、絶対パスにcd。
         # cd . ではinodeが壊れている場合にcwdを修復できない。
-        _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
+        _CWD_TARGET="$WORKTREE_PATH"
         LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=xterm-256color"
 
         if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
@@ -368,7 +392,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" TERM "xterm-256color"
         # cwdが無効な場合（外付けドライブ再マウント等）に備え、絶対パスにcd。
         # cd . ではinodeが壊れている場合にcwdを修復できない。
-        _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
+        _CWD_TARGET="$WORKTREE_PATH"
         LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=xterm-256color"
         CLAUDE_RESUME_FLAG=""
         if [ -n "$RESUME_SESSION_ID" ]; then

@@ -40,6 +40,7 @@ export const runtimeLifecycleMethods = {
         }
         if (cwd) {
             spawnOptions.cwd = cwd;
+            spawnOptions.env.BRAINBASE_RUNTIME_CWD = cwd;
         }
 
         await new Promise((resolve, reject) => {
@@ -218,6 +219,7 @@ export const runtimeLifecycleMethods = {
 
         if (cwd) {
             spawnOptions.cwd = cwd;
+            spawnOptions.env.BRAINBASE_RUNTIME_CWD = cwd;
         }
 
         const resolveTtydPath = () => {

@@ -724,6 +724,8 @@ describe('SessionController (Server)', () => {
 
       await fs.mkdir(fallbackRepoPath, { recursive: true });
       await fs.mkdir(gitOnlyRepoPath, { recursive: true });
+      const worktreePath = path.join(tempDir, 'worktrees', 'session-new-techknight');
+      await fs.mkdir(worktreePath, { recursive: true });
 
       mockStateStore.get.mockReturnValue({ sessions: [] });
       mockStateStore.update.mockResolvedValue({ sessions: [] });
@@ -741,7 +743,7 @@ describe('SessionController (Server)', () => {
       });
       mockWorktreeService._isJujutsuRepo.mockImplementation(async (candidate) => candidate === fallbackRepoPath);
       mockWorktreeService.create.mockResolvedValue({
-        worktreePath: '/tmp/worktrees/session-new-techknight',
+        worktreePath,
         branchName: 'session/session-new',
         startCommit: 'abc123'
       });
@@ -770,7 +772,7 @@ describe('SessionController (Server)', () => {
       );
       expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 'session-new',
-        cwd: '/tmp/worktrees/session-new-techknight',
+        cwd: worktreePath,
         engine: 'codex'
       }));
       expect(mockStateStore.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -779,7 +781,7 @@ describe('SessionController (Server)', () => {
             id: 'session-new',
             worktree: expect.objectContaining({
               repo: fallbackRepoPath,
-              path: '/tmp/worktrees/session-new-techknight'
+              path: worktreePath
             })
           })
         ])
@@ -787,6 +789,47 @@ describe('SessionController (Server)', () => {
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
         proxyPath: '/console/session-new/?viewerId=viewer-1'
+      }));
+    });
+
+    it('state永続化後にworktree.pathが欠ける場合_runtimeを起動しない', async () => {
+      const repoPath = path.join(tempDir, 'repo');
+      const worktreePath = path.join(tempDir, 'worktrees', 'session-bad-repo');
+      const controller = new SessionController(buildControllerDeps());
+
+      await fs.mkdir(repoPath, { recursive: true });
+      await fs.mkdir(worktreePath, { recursive: true });
+
+      mockWorktreeService.create.mockResolvedValue({
+        worktreePath,
+        branchName: 'session/session-bad',
+        startCommit: 'abc123'
+      });
+      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      controller._updateStateWithRetry = vi.fn(async () => ({
+        sessions: [{
+          id: 'session-bad',
+          path: worktreePath,
+          worktree: { repo: repoPath }
+        }]
+      }));
+
+      await controller.createWithWorktree({
+        body: {
+          sessionId: 'session-bad',
+          repoPath,
+          name: 'Bad Session',
+          engine: 'codex',
+          viewerId: 'viewer-1'
+        },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockWorktreeService.remove).toHaveBeenCalledWith('session-bad', repoPath);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: 'Session state missing persisted worktree.path'
       }));
     });
   });
