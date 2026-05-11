@@ -143,4 +143,23 @@ describe('daily-ops-report', () => {
         expect(html).toContain('href="slack://channel?team=T08EUJKQY07&amp;id=C08SX913NER&amp;message=1778324649.001229"');
         expect(html).not.toContain('href="https://salestailor.slack.com/archives/C08SX913NER/p1778324649001229"');
     });
+
+    it('normalizes scalar meta without spreading strings into character keys', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'oyasumi',
+            date: '2026-05-11',
+            sections: {
+                meetings: [{
+                    title: 'Zeimsオンラインデモ',
+                    meta: 'Unson-LLC/zeims-project'
+                }]
+            }
+        });
+
+        const html = buildDailyOpsReportHtml(report);
+
+        expect(html).toContain('info: Unson-LLC/zeims-project');
+        expect(html).not.toContain('0: U');
+        expect(html).not.toContain('1: n');
+    });
 });

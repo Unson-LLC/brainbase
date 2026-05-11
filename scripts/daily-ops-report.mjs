@@ -476,7 +476,7 @@ function normalizeSection(id, fallbackTitle, value) {
 
 function normalizeItem(value) {
     if (typeof value === 'string') return { title: value, summary: '', meta: {}, evidence: [] };
-    const meta = { ...(value.meta || {}) };
+    const meta = normalizeMeta(value.meta);
     for (const key of ['status', 'deadline', 'assignee', 'source']) {
         if (value[key] !== undefined && value[key] !== null && value[key] !== '' && meta[key] === undefined) {
             meta[key] = value[key];
@@ -493,6 +493,23 @@ function normalizeItem(value) {
         ),
         evidence
     };
+}
+
+function normalizeMeta(value) {
+    if (!value) return {};
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return { info: String(value) };
+    }
+    if (Array.isArray(value)) {
+        return {
+            info: value
+                .filter((entry) => entry !== undefined && entry !== null && entry !== '')
+                .map((entry) => String(entry))
+                .join(' / ')
+        };
+    }
+    if (typeof value !== 'object') return {};
+    return { ...value };
 }
 
 function inferLinksFromEvidence(evidence) {
