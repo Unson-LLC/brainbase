@@ -583,7 +583,7 @@ export class TerminalTransportService {
                 this.captureCache.invalidate(sessionId);
                 this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
-                if (inputType === 'text' && normalizedValue && normalizedValue.includes('\n')) {
+                if (inputType === 'text' && this._shouldCheckPastedTextOverlay(normalizedValue)) {
                     void this._handlePastedTextOverlay(connection);
                 }
 
@@ -705,6 +705,14 @@ export class TerminalTransportService {
         return value
             .replace(OSC_SEQUENCE_PATTERN, '')
             .replace(FOCUS_EVENT_PATTERN, '');
+    }
+
+    _shouldCheckPastedTextOverlay(value) {
+        if (typeof value !== 'string' || !value) return false;
+        const normalized = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!normalized.includes('\n')) return false;
+        const nonEmptyLines = normalized.split('\n').filter(line => line.trim().length > 0);
+        return nonEmptyLines.length > 1;
     }
 
     async _recoverInputReadyFromSnapshot(sessionId, viewerId, viewerLabel) {

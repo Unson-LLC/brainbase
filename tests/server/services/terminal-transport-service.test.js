@@ -304,6 +304,19 @@ describe('TerminalTransportService', () => {
         vi.useRealTimers();
     });
 
+    it('単一行submitはpasted text overlay検出を走らせない', () => {
+        const { service } = buildService();
+
+        expect(service._shouldCheckPastedTextOverlay('/tmp/uploads/image.png\n')).toBe(false);
+        expect(service._shouldCheckPastedTextOverlay('/tmp/uploads/image.png\r')).toBe(false);
+    });
+
+    it('複数行pasteはpasted text overlay検出対象にする', () => {
+        const { service } = buildService();
+
+        expect(service._shouldCheckPastedTextOverlay('line one\nline two\n')).toBe(true);
+    });
+
     it('ready送信時_履歴付きeager snapshotを送る', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({

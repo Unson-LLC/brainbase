@@ -59,3 +59,45 @@ describe('terminalIoMethods terminal geometry repair', () => {
         expect(manager.execPromise).not.toHaveBeenCalledWith(expect.stringContaining('resize-window'));
     });
 });
+
+describe('terminalIoMethods input routing', () => {
+    it('長い画像パスはtyping simulationせずliteral textで送る対象にする', () => {
+        const imagePath = '/Users/ksato/workspace/code/brainbase/uploads/2026-05-11/codex-image-path-performance-probe-abcdefghijklmnopqrstuvwxyz0123456789.png';
+
+        expect(terminalIoMethods._shouldUseTypingSimulation(imagePath, 'text')).toBe(false);
+        expect(terminalIoMethods._shouldUseLiteralText(imagePath, 'text')).toBe(true);
+        expect(terminalIoMethods._isFastStructuredText(imagePath)).toBe(true);
+    });
+
+    it('長いslash commandはtyping simulationしない', () => {
+        const command = '/ohayo --include-calendar --include-mail --include-slack --format html';
+
+        expect(terminalIoMethods._shouldUseTypingSimulation(command, 'text')).toBe(false);
+        expect(terminalIoMethods._shouldUseLiteralText(command, 'text')).toBe(true);
+        expect(terminalIoMethods._isFastStructuredText(command)).toBe(true);
+    });
+
+    it('長い自然文はCodex向けtyping simulationを維持する', () => {
+        const prompt = 'Please analyze the current UI rendering issue and summarize the remaining heavy path before changing code.';
+
+        expect(terminalIoMethods._shouldUseTypingSimulation(prompt, 'text')).toBe(true);
+        expect(terminalIoMethods._isFastStructuredText(prompt)).toBe(false);
+    });
+
+    it('長い画像パスのsendInputは1回のliteral送信にする', async () => {
+        const manager = {
+            ...terminalIoMethods,
+            ALLOWED_KEYS: [],
+            terminalMutationQueues: new Map(),
+            execPromise: vi.fn(async () => ({ stdout: '' })),
+            _capturePromptInput: vi.fn(async () => {}),
+            _runTmux: vi.fn(async () => ({ stdout: '' }))
+        };
+        const imagePath = '/Users/ksato/workspace/code/brainbase/uploads/2026-05-11/codex-image-path-performance-probe-abcdefghijklmnopqrstuvwxyz0123456789.png';
+
+        await manager.sendInput('session-1', imagePath, 'text');
+
+        expect(manager._runTmux).toHaveBeenCalledTimes(1);
+        expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', '-l', '--', imagePath]);
+    });
+});

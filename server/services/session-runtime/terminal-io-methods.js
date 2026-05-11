@@ -30,6 +30,7 @@ const COLLAPSED_PANE_COLS = 20;
 const COLLAPSED_PANE_ROWS = 5;
 const REPAIR_PANE_COLS = 80;
 const REPAIR_PANE_ROWS = 24;
+const FAST_STRUCTURED_TEXT_PATTERN = /^[\x20-\x7e]+$/;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -293,8 +294,27 @@ export const terminalIoMethods = {
         if (type !== 'text' || typeof input !== 'string' || !input) return false;
         if (input.includes('\n') || input.includes('\r')) return false;
         if (/[\x00-\x1f\x7f]/.test(input)) return false;
+        if (this._isFastStructuredText(input)) return false;
         const chars = Array.from(input).length;
         return chars >= TYPING_SIMULATION_MIN_CHARS && chars <= TYPING_SIMULATION_MAX_CHARS;
+    },
+
+    _isFastStructuredText(input) {
+        if (typeof input !== 'string' || !input) return false;
+        if (!FAST_STRUCTURED_TEXT_PATTERN.test(input)) return false;
+        return this._looksLikeFilePath(input) || this._looksLikeSlashCommand(input);
+    },
+
+    _looksLikeFilePath(input) {
+        const trimmed = input.trim();
+        if (trimmed !== input) return false;
+        if (!(/^(?:\/|~\/|\.\.?\/)/.test(trimmed))) return false;
+        if (!trimmed.includes('/')) return false;
+        return /\/[^/\s][^/]*\.[A-Za-z0-9]{1,12}(?:[?#].*)?$/.test(trimmed);
+    },
+
+    _looksLikeSlashCommand(input) {
+        return /^\/[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\r\n]*)?$/.test(input);
     },
 
     async _runTmux(args) {
