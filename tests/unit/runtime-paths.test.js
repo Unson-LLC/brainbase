@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -81,8 +81,8 @@ describe('runtime-paths', () => {
     expect(linkedPort).toBe(await fs.realpath(runtimePaths.portFile));
   });
 
-  it('treats EEXIST from a concurrent expected symlink creation as success', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-runtime-paths-race-'));
+  it('leaves existing expected shadow symlinks unchanged', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-runtime-paths-existing-link-'));
     createdDirs.push(tempRoot);
 
     const runtimePaths = resolveRuntimePaths({
@@ -96,23 +96,49 @@ describe('runtime-paths', () => {
     await fs.writeFile(runtimePaths.stateFile, '{"sessions":[]}');
     await fs.writeFile(runtimePaths.pidFile, '12345');
     await fs.writeFile(runtimePaths.portFile, '31013');
+    await fs.mkdir(runtimePaths.shadowVarDir, { recursive: true });
+    await fs.symlink(
+      path.relative(runtimePaths.shadowVarDir, runtimePaths.stateFile),
+      path.join(runtimePaths.shadowVarDir, 'state.json')
+    );
 
-    const originalSymlink = fs.symlink.bind(fs);
-    const symlinkSpy = vi.spyOn(fs, 'symlink').mockImplementationOnce(async (target, linkPath) => {
-      await originalSymlink(target, linkPath);
-      const error = new Error('file exists');
-      error.code = 'EEXIST';
-      throw error;
-    });
-
-    try {
-      await ensureShadowRuntimeLinks(runtimePaths, { warn: () => {} });
-    } finally {
-      symlinkSpy.mockRestore();
-    }
+    await ensureShadowRuntimeLinks(runtimePaths, { warn: () => {} });
 
     expect(await fs.realpath(path.join(runtimePaths.shadowVarDir, 'state.json')))
       .toBe(await fs.realpath(runtimePaths.stateFile));
+  });
+
+  it('replaces stale shadow symlinks that point at another var dir', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-runtime-paths-stale-link-'));
+    createdDirs.push(tempRoot);
+
+    const runtimePaths = resolveRuntimePaths({
+      repoDir: path.join(tempRoot, 'workspace', 'code', 'brainbase'),
+      env: {
+        BRAINBASE_VAR_DIR: path.join(tempRoot, 'workspace', 'var')
+      }
+    });
+    const rogueVarDir = path.join(tempRoot, 'worktree', 'var', 'e2e-brainbase-var');
+    const warnings = [];
+
+    await fs.mkdir(runtimePaths.varDir, { recursive: true });
+    await fs.mkdir(runtimePaths.shadowVarDir, { recursive: true });
+    await fs.mkdir(rogueVarDir, { recursive: true });
+    await fs.writeFile(runtimePaths.stateFile, '{"sessions":[]}');
+    await fs.writeFile(runtimePaths.pidFile, '12345');
+    await fs.writeFile(runtimePaths.portFile, '31013');
+    await fs.writeFile(path.join(rogueVarDir, 'state.json'), '{"sessions":[{"id":"rogue"}]}');
+    await fs.symlink(
+      path.relative(runtimePaths.shadowVarDir, path.join(rogueVarDir, 'state.json')),
+      path.join(runtimePaths.shadowVarDir, 'state.json')
+    );
+
+    await ensureShadowRuntimeLinks(runtimePaths, { warn: (message) => warnings.push(message) });
+
+    expect(await fs.realpath(path.join(runtimePaths.shadowVarDir, 'state.json')))
+      .toBe(await fs.realpath(runtimePaths.stateFile));
+    expect(warnings.some((message) => message.includes('Shadow runtime symlink retargeted'))).toBe(true);
+    expect((await fs.readdir(runtimePaths.shadowVarDir)).some((name) => name.includes('shadow-backup'))).toBe(false);
   });
 
   it('does not rewrite shared runtime links for custom var dirs', async () => {
