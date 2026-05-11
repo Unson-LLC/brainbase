@@ -26,9 +26,10 @@ visibility_rules:
   - If projectCodes is non-empty, match project id, hyphenless project id, GitHub repo slug, app parent id, and configured prefix aliases.
 verification:
   commands:
-    - node --input-type=module scripts/manual-check-session-selector.mjs
+    - node scripts/manual-check-session-selector.mjs zeims
   expected:
     - getSessionSelectableProjects(['salestailor']) includes salestailor-app
+    - getSessionSelectableProjects(['zeims']) includes zeims-app
     - getSessionSelectableProjects(['techknight']) includes tech-knight
     - getSessionSelectableProjects(['ncom']) includes ncom-catalyst
 common_failures:
