@@ -9,8 +9,10 @@ related_adrs:
   - ADR-007
   - ADR-008
   - ADR-009
+  - ADR-010
 related_specs:
   - SPEC-acl-contract-test
+  - SPEC-006
 implementation_files:
   - server/sql/candidate-store-schema.sql
   - server/services/candidate-store/candidate-repository.js
@@ -31,6 +33,8 @@ test_files:
 STR-006 Memory Promotion Pipeline の First Slice を実装する。Brainbase session/terminal activity を Raw Ledger 経由で candidate に変換し、Promotion Gate を経て **承認されたものだけ** Graph SSOT へ promote する。
 
 ADR-007 で定義した cognitive types（observation/insight/claim/preference/hypothesis/experiment/result）は **すべて candidate-store に住む**。Graph SSOT 直接書き込み禁止。
+
+ADR-010 により、candidate-store は brainbase / mana / zeims / SNS feedback が共有する Memory Promotion Kernel とする。ただし M5-A は PostgreSQL schema と Pg-backed repository の本番接続に限定し、mana / zeims の物理統合や履歴投入は別 adapter story で扱う。
 
 ## Invariants
 
