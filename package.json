@@ -56,6 +56,7 @@
     "migrate:m5a": "node scripts/migrate-m5a-production-schema.js",
     "seed:personal-kg:sns-foundation": "node scripts/seed-personal-kg-sns-foundation.js",
     "seed:personal-kg:baao-minutes": "node scripts/seed-personal-kg-baao-minutes.js",
+    "seed:personal-kg:cross-project-minutes": "node scripts/seed-personal-kg-cross-project-minutes.js",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh",
