@@ -48,7 +48,6 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.post('/:id/terminal/takeover', controller.takeoverTerminal);
     router.post('/:id/terminal/probe-input', controller.probeTerminalInput);
     router.post('/:id/terminal/recover', controller.recoverTerminal);
-    router.post('/:id/terminal/geometry/repair', controller.repairTerminalGeometry);
     router.post('/:id/release-terminal', controller.releaseTerminal);
     router.get('/:id/terminal/snapshot', controller.getTerminalSnapshot);
     router.get('/:id', controller.get);
@@ -149,8 +148,6 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.get('/:id/context', controller.getContext);
     router.get('/:id/folder-tree', controller.getFolderTree);
     router.get('/:id/file-content', controller.getFileContent);
-    router.get('/:id/html-preview', controller.getHtmlPreview);
-    router.get('/:id/html-preview/*previewPath', controller.getHtmlPreviewAsset);
     router.get('/:id/commit-log', controller.getCommitLog);
     router.post('/:id/commit-notify', controller.commitNotify);
     router.get('/:id/commit-notify', controller.getCommitNotify);

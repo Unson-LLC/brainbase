@@ -1,0 +1,94 @@
+{
+  "schema_version": "0.1.0",
+  "records": [
+    {
+      "raw_event_id": "raw_brainbase_session_001",
+      "source_system": "brainbase",
+      "source_event_id": "session:session-1778219472083:activity:turn-complete",
+      "occurred_at": "2026-05-08T10:00:00.000Z",
+      "captured_at": "2026-05-08T10:00:03.000Z",
+      "actor_external_id": "brainbase:user:per_keigo_sato",
+      "actor_person_id": "per_keigo_sato",
+      "workspace": "unson",
+      "channel_id": null,
+      "project_code": "brainbase",
+      "permission_snapshot": {
+        "roles": [
+          "gm"
+        ],
+        "channel_membership": null,
+        "project_membership": true,
+        "clearance": [
+          "internal",
+          "restricted"
+        ]
+      },
+      "evidence_ref": {
+        "kind": "source_pointer",
+        "uri": "brainbase:session:session-1778219472083:activity:turn-complete",
+        "hash": "sha256:raw-brainbase-session-001"
+      },
+      "retention_policy": "envelope_only",
+      "redaction_status": "none"
+    },
+    {
+      "raw_event_id": "raw_mana_slack_001",
+      "source_system": "mana_slack",
+      "source_event_id": "slack:T_UNSON:C_BRAINBASE:1715155200.000100",
+      "occurred_at": "2026-05-08T10:05:00.000Z",
+      "captured_at": "2026-05-08T10:05:02.000Z",
+      "actor_external_id": "slack:U_KEIGO",
+      "actor_person_id": "per_keigo_sato",
+      "workspace": "unson",
+      "channel_id": "C_BRAINBASE",
+      "project_code": "brainbase",
+      "permission_snapshot": {
+        "roles": [
+          "gm"
+        ],
+        "channel_membership": true,
+        "project_membership": true,
+        "clearance": [
+          "internal",
+          "restricted"
+        ]
+      },
+      "evidence_ref": {
+        "kind": "source_pointer",
+        "uri": "mana:dynamodb:message-history:T_UNSON:C_BRAINBASE:1715155200.000100",
+        "hash": "sha256:raw-mana-slack-001"
+      },
+      "retention_policy": "source_retained",
+      "redaction_status": "none"
+    },
+    {
+      "raw_event_id": "raw_mana_workflow_001",
+      "source_system": "mana_workflow",
+      "source_event_id": "github-actions:Unson-LLC/mana:mana-daily:run-20260508",
+      "occurred_at": "2026-05-08T12:01:00.000Z",
+      "captured_at": "2026-05-08T12:01:30.000Z",
+      "actor_external_id": "github-actions:mana-daily",
+      "actor_person_id": null,
+      "workspace": "unson",
+      "channel_id": null,
+      "project_code": "brainbase",
+      "permission_snapshot": {
+        "roles": [
+          "system"
+        ],
+        "channel_membership": null,
+        "project_membership": true,
+        "clearance": [
+          "internal"
+        ]
+      },
+      "evidence_ref": {
+        "kind": "source_pointer",
+        "uri": "mana:github-actions:mana-daily:run-20260508",
+        "hash": "sha256:raw-mana-workflow-001"
+      },
+      "retention_policy": "envelope_only",
+      "redaction_status": "none"
+    }
+  ]
+}
