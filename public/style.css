@@ -15069,6 +15069,10 @@ body.resizing iframe {
     box-shadow: none;
 }
 
+.command-center-theme .activity-bar-item.active::before {
+    content: none;
+}
+
 .command-center-theme .sidebar {
     width: 288px;
     background:
