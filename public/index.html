@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=202605111150">
+    <link rel="stylesheet" href="style.css?v=202605111620">
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/lucide@1.7.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
@@ -222,6 +222,7 @@
                     </div>
                     <div class="terminal-header-status-group">
                         <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
+                        <div id="terminal-token-status" class="terminal-token-status hidden" role="status" aria-live="polite"></div>
                         <div id="terminal-owner-label" class="terminal-owner-label hidden" aria-live="polite"></div>
                         <div id="terminal-snapshot-meta" class="terminal-snapshot-meta hidden" aria-live="polite"></div>
                     </div>
@@ -275,7 +276,6 @@
                     </div>
                 </div>
                 <div class="terminal-stage" id="terminal-stage">
-                    <div id="terminal-token-status" class="terminal-token-status hidden" role="status" aria-live="polite"></div>
                     <div id="terminal-snapshot-panel" class="terminal-snapshot-panel hidden" aria-live="polite">
                         <div class="terminal-snapshot-header">
                             <span id="terminal-snapshot-title" class="terminal-snapshot-title">Snapshot</span>
