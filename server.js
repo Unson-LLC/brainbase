@@ -113,7 +113,7 @@ console.log(`[BRAINBASE] Runtime var directory: ${RUNTIME_PATHS.varDir}`);
 console.log(`[BRAINBASE] Runtime state file: ${RUNTIME_PATHS.stateFile}`);
 
 // Worktree検知: .worktrees配下で実行されている場合は別ポートをデフォルトに
-const isWorktree = __dirname.includes('.worktrees') || __dirname.includes('brainbase-worktrees');
+const isWorktree = __dirname.includes('.worktrees');
 
 async function resolveGitInfo(repoDir) {
     const info = {
@@ -284,7 +284,6 @@ const CODEX_PATH = path.join(__dirname, 'examples', 'codex');
 const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
     ? path.join(BRAINBASE_ROOT, 'config.yml')
     : path.join(__dirname, 'config.yml');
-const INBOX_FILE = path.join(BRAINBASE_ROOT, '_inbox/pending.md');
 
 const ensureDir = async (dir) => {
     try {
@@ -298,7 +297,6 @@ await ensureDir(BRAINBASE_ROOT);
 await ensureDir(VAR_DIR);
 await ensureDir(UPLOADS_DIR);
 await ensureDir(path.join(BRAINBASE_ROOT, '_tasks'));
-await ensureDir(path.join(BRAINBASE_ROOT, '_inbox'));
 await ensureDir(SCHEDULES_DIR);
 await ensureShadowRuntimeLinks(RUNTIME_PATHS, console);
 
@@ -309,7 +307,6 @@ const {
     stateStore,
     configParser,
     configService,
-    inboxParser,
     infoSSOTService,
     authService,
     wikiService,
@@ -334,12 +331,10 @@ const {
     worktreesDir: WORKTREES_DIR,
     codexPath: CODEX_PATH,
     configPath: CONFIG_PATH,
-    inboxFile: INBOX_FILE,
     uploadsDir: UPLOADS_DIR,
     serverDir: __dirname,
     execPromise,
-    port: PORT,
-    testMode: TEST_MODE
+    port: PORT
 });
 
 // Middleware
@@ -434,7 +429,6 @@ registerApiRoutes(app, {
     configParser,
     configService,
     runtimePaths: RUNTIME_PATHS,
-    inboxParser,
     scheduleParser,
     googleCalendarService,
     worktreeService,
@@ -553,7 +547,6 @@ app.use('/api/mesh', createMeshRouter(meshService));
 // - TaskRouter: /api/tasks
 // - StateRouter: /api/state
 // - ConfigRouter: /api/config
-// - InboxRouter: /api/inbox
 // - ScheduleRouter: /api/schedule
 // - SessionRouter: /api/sessions
 // - MeshRouter: /api/mesh

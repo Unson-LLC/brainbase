@@ -1,5 +1,3 @@
-import { createBrainbaseActivityRawLedgerRecord } from '../../services/session-core/activity-raw-ledger-adapter.js';
-
 export function installActivityHandlers(controller) {
     controller.reportActivity = async (req, res) => {
         const {
@@ -13,43 +11,11 @@ export function installActivityHandlers(controller) {
             taskBrief,
             assistantSnippet,
             currentStep,
-            latestEvidence,
-            actorPersonId,
-            actorExternalId,
-            workspace,
-            channelId,
-            projectCode,
-            permissionSnapshot
+            latestEvidence
         } = req.body;
         if (!sessionId || !status) {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
-        if (status !== 'working' && status !== 'done') {
-            return res.status(400).json({ error: 'Invalid status' });
-        }
-
-        const activityMetadata = {
-            lifecycle,
-            eventType,
-            turnId,
-            activityKind,
-            taskBrief,
-            assistantSnippet,
-            currentStep,
-            latestEvidence,
-            actorPersonId,
-            actorExternalId,
-            workspace,
-            channelId,
-            projectCode,
-            permissionSnapshot
-        };
-        const rawLedgerRecord = createBrainbaseActivityRawLedgerRecord({
-            sessionId,
-            status,
-            reportedAt,
-            metadata: activityMetadata
-        });
 
         controller.activity.reportActivity(sessionId, status, reportedAt, {
             lifecycle,
@@ -61,7 +27,7 @@ export function installActivityHandlers(controller) {
             currentStep,
             latestEvidence
         });
-        res.json({ success: true, rawLedgerRecord });
+        res.json({ success: true });
     };
 
     controller.getStatus = (req, res) => {

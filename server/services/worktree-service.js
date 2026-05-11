@@ -95,7 +95,6 @@ export class WorktreeService {
     async cleanupZombieWorktrees(repoPath) {
         const removed = [];
         try {
-            await fs.mkdir(this.worktreesDir, { recursive: true });
             const entries = await fs.readdir(this.worktreesDir, { withFileTypes: true });
             const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
             if (!dirs.length) return removed;

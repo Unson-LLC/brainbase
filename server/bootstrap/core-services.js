@@ -4,9 +4,7 @@ import multer from 'multer';
 import { TaskParser } from '../../lib/task-parser.js';
 import { ScheduleParser } from '../../lib/schedule-parser.js';
 import { SqliteStore as StateStore } from '../../lib/sqlite-store.js';
-import { StateStore as JsonStateStore } from '../../lib/state-store.js';
 import { ConfigParser } from '../../lib/config-parser.js';
-import { InboxParser } from '../../lib/inbox-parser.js';
 import { createSessionServices } from '../services/create-session-services.js';
 import { ArchiveFinalizerService } from '../services/archive-finalizer-service.js';
 import { TerminalTransportService } from '../services/terminal-transport-service.js';
@@ -37,12 +35,10 @@ export function createCoreServices({
     worktreesDir,
     codexPath,
     configPath,
-    inboxFile,
     uploadsDir,
     serverDir,
     execPromise,
-    port,
-    testMode = false
+    port
 }) {
     const taskParser = new TaskParser(tasksFile);
     const googleCalendarService = new GoogleCalendarService();
@@ -51,13 +47,9 @@ export function createCoreServices({
     process.env.BRAINBASE_VAR_DIR = varDir;
     process.env.BRAINBASE_STATE_PATH = stateFile;
 
-    const StateStoreClass = testMode && process.env.BRAINBASE_USE_SQLITE_IN_TEST !== '1'
-        ? JsonStateStore
-        : StateStore;
-    const stateStore = new StateStoreClass(stateFile, brainbaseRoot);
+    const stateStore = new StateStore(stateFile, brainbaseRoot);
     const configParser = new ConfigParser(codexPath, configPath, brainbaseRoot, projectsRoot);
     const configService = new ConfigService(configPath, projectsRoot);
-    const inboxParser = new InboxParser(inboxFile);
     const infoSSOTService = new InfoSSOTService();
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
@@ -162,7 +154,6 @@ export function createCoreServices({
         stateStore,
         configParser,
         configService,
-        inboxParser,
         infoSSOTService,
         authService,
         wikiService,

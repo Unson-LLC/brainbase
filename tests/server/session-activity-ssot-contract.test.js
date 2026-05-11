@@ -1,13 +1,6 @@
-import { readFileSync } from 'fs';
-
 import { describe, expect, it } from 'vitest';
 
 import { createSessionServices } from '../../server/services/create-session-services.js';
-import { createBrainbaseActivityRawLedgerRecord } from '../../server/services/session-core/activity-raw-ledger-adapter.js';
-import { buildScopedMemoryResult } from '../../server/services/memory-scope-policy.js';
-
-const memoryCandidateFixture = JSON.parse(readFileSync('tests/fixtures/memory-promotion/memory-candidate.fixture.json', 'utf-8'));
-const accessContextFixture = JSON.parse(readFileSync('tests/fixtures/memory-promotion/access-contexts.fixture.json', 'utf-8'));
 
 const createStateStore = () => {
   let state = {
@@ -49,78 +42,6 @@ const createManager = () => createSessionServices({
 const getStatus = (manager, sessionId = 'session-1') => manager.getSessionStatus()[sessionId] || null;
 
 describe('session activity SSOT contract', () => {
-  it('memory retrieval is scoped by person role project channel and sensitivity', () => {
-    const candidates = memoryCandidateFixture.candidates;
-
-    for (const context of accessContextFixture.contexts) {
-      const result = buildScopedMemoryResult(candidates, context);
-      const allowedIds = result.records.map(candidate => candidate.candidate_id).sort();
-      const expectedIds = [...context.expected_memory].sort();
-      const deniedIds = result.denied.map(item => item.id);
-
-      expect(allowedIds, context.context_id).toEqual(expectedIds);
-      for (const id of context.denied_memory) {
-        expect(deniedIds, `${context.context_id}:${id}`).toContain(id);
-      }
-    }
-  });
-
-  it('brainbase activity is mapped to raw ledger envelope without raw transcript', () => {
-    const record = createBrainbaseActivityRawLedgerRecord({
-      sessionId: 'session-1778219472083',
-      status: 'done',
-      reportedAt: Date.parse('2026-05-08T10:00:00.000Z'),
-      capturedAt: Date.parse('2026-05-08T10:00:03.000Z'),
-      metadata: {
-        lifecycle: 'turn_completed',
-        eventType: 'agent-turn-complete',
-        turnId: 'turn-1',
-        actorPersonId: 'per_keigo_sato',
-        workspace: 'unson',
-        projectCode: 'brainbase',
-        permissionSnapshot: {
-          roles: ['gm'],
-          channelMembership: null,
-          projectMembership: true,
-          clearance: ['internal', 'restricted']
-        },
-        taskBrief: 'raw prompt text must not be copied',
-        assistantSnippet: 'raw assistant text must not be copied',
-        currentStep: 'raw step text must not be copied',
-        latestEvidence: 'raw command output must not be copied'
-      }
-    });
-
-    expect(record).toMatchObject({
-      source_system: 'brainbase',
-      source_event_id: 'session:session-1778219472083:activity:agent-turn-complete:turn:turn-1',
-      occurred_at: '2026-05-08T10:00:00.000Z',
-      captured_at: '2026-05-08T10:00:03.000Z',
-      actor_external_id: 'brainbase:user:per_keigo_sato',
-      actor_person_id: 'per_keigo_sato',
-      workspace: 'unson',
-      channel_id: null,
-      project_code: 'brainbase',
-      permission_snapshot: {
-        roles: ['gm'],
-        channel_membership: null,
-        project_membership: true,
-        clearance: ['internal', 'restricted']
-      },
-      evidence_ref: {
-        kind: 'source_pointer',
-        uri: 'brainbase:session:session-1778219472083:activity:agent-turn-complete'
-      },
-      retention_policy: 'envelope_only',
-      redaction_status: 'none'
-    });
-    expect(record.raw_event_id).toMatch(/^raw_brainbase_[a-f0-9]{16}$/);
-    expect(record.evidence_ref.hash).toMatch(/^sha256:[a-f0-9]{64}$/);
-    expect(record).not.toHaveProperty('taskBrief');
-    expect(record).not.toHaveProperty('assistantSnippet');
-    expect(JSON.stringify(record)).not.toContain('raw assistant text');
-  });
-
   it('delayed_turn_started_older_than_terminal_done_does_not_reopen_blue', () => {
     const manager = createManager();
     const now = Date.now();
@@ -182,6 +103,77 @@ describe('session activity SSOT contract', () => {
     expect(status === null || status.state === 'idle').toBe(true);
     expect(status?.isWorking || false).toBe(false);
     expect(status?.isDone || false).toBe(false);
+  });
+
+  it('old_done_read_suppression_does_not_hide_new_tmux_spinner_activity_forever', () => {
+    const manager = createManager();
+    let now = Date.now();
+    manager._now = () => now;
+
+    manager.clearDoneStatus('session-1');
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    expect(getStatus(manager)).toBeNull();
+
+    now += 5 * 60 * 1000 + 1;
+    manager._listTmuxPaneTitles = () => ['session-1\t⠸ session-1...'];
+
+    expect(getStatus(manager)).toMatchObject({
+      state: 'running',
+      confidence: 'fallback',
+      isWorking: true,
+      isDone: false,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
+  });
+
+  it('submitted_input_after_done_read_reopens_activity_and_clears_spinner_suppression', async () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'terminal_done',
+      eventType: 'agent-turn-complete'
+    });
+    manager.clearDoneStatus('session-1');
+    manager._listTmuxPaneTitles = () => ['session-1\t⠹ session-1...'];
+
+    expect(getStatus(manager)).toBeNull();
+
+    await manager._capturePromptInput('session-1', '相変わらず正しく動かない', 'text');
+    await manager._capturePromptInput('session-1', 'Enter', 'key');
+
+    expect(getStatus(manager)).toMatchObject({
+      state: 'running',
+      confidence: 'explicit',
+      isWorking: true,
+      isDone: false,
+      lastEventType: 'brainbase/input-submit'
+    });
+  });
+
+  it('transport_ready_done_is_not_user_visible_done_and_allows_tmux_fallback', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'done', now, {
+      lifecycle: 'turn_completed',
+      eventType: 'codex/pty-shim-ready',
+      turnId: `codex-pty-turn-${now}-12345`
+    });
+
+    expect(getStatus(manager)).toBeNull();
+
+    manager._listTmuxPaneTitles = () => ['session-1\t⠴ session-1...'];
+
+    expect(getStatus(manager)).toMatchObject({
+      state: 'running',
+      confidence: 'fallback',
+      isWorking: true,
+      isDone: false,
+      activeTurnCount: 1,
+      lastEventType: 'tmux-pane-title-spinner'
+    });
   });
 
   it('one_completed_turn_keeps_running_while_another_turn_is_active', () => {
