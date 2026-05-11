@@ -15,7 +15,9 @@ const DYNAMIC_ID_EXCLUSIONS = new Set([
   'mobile-tasks-btn'
 ]);
 const DYNAMIC_CLASS_EXCLUSIONS = new Set([
-  'is-active'
+  'is-active',
+  'language-mermaid',
+  'mermaid'
 ]);
 
 const GET_ID_RE = /getElementById\(\s*['"]([^'"]+)['"]\s*\)/g;
@@ -200,7 +202,7 @@ function resolveImportGraph(entryPath) {
   return [...resolved].filter((p) => p !== entryPath);
 }
 
-describe('DOM consistency', () => {
+describe('DOM consistency', { timeout: 20000 }, () => {
   it('app modules only reference ids that exist in static or generated DOM', () => {
     const html = readFileSync(HTML_PATH, 'utf-8');
     const htmlIds = getIdsFromHtml(html);

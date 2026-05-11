@@ -157,13 +157,6 @@ export function detectCliStateWithColors(plainText, colorText) {
     const textResult = detectCliStateDetail(plainText);
     const textState = textResult.state;
 
-    // Confirmation/choice UIs often use the same colors as normal prompt rows.
-    // If the text clearly says it is waiting for a choice, do not let ANSI color
-    // heuristics downgrade it to READY.
-    if (textState === CliState.WAITING) {
-        return { state: CliState.WAITING, confidence: 0.95, source: 'text', reason: textResult.reason };
-    }
-
     if (!colorText || typeof colorText !== 'string') {
         if (textState === CliState.UNKNOWN) {
             return { state: CliState.UNKNOWN, confidence: 0, source: 'none', reason: textResult.reason };
@@ -194,6 +187,13 @@ export function detectCliStateWithColors(plainText, colorText) {
             return { state: CliState.UNKNOWN, confidence: 0, source: 'none', reason: textResult.reason };
         }
         return { state: textState, confidence: 0.5, source: 'text', reason: textResult.reason };
+    }
+
+    // Confirmation/choice UIs often use the same colors as normal prompt rows.
+    // If the text clearly says it is waiting for a choice, do not let ANSI color
+    // heuristics downgrade it to READY.
+    if (textState === CliState.WAITING && colorState !== CliState.WAITING) {
+        return { state: CliState.WAITING, confidence: 0.95, source: 'text', reason: textResult.reason };
     }
 
     // 色とテキストが一致 → 高confidence

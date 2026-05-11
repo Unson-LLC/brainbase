@@ -67,10 +67,10 @@ export class NocoDBService {
      */
     async getProjectStats(projectId) {
         try {
-            // タスクとストーリーを並列取得
+            // タスクとマイルストーンを並列取得
             const [tasks, milestones] = await Promise.all([
                 this._fetchRecords(projectId, 'タスク'),
-                this._fetchRecords(projectId, 'ストーリー')
+                this._fetchRecords(projectId, 'マイルストーン')
             ]);
 
             // タスク統計

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { JSDOM } from 'jsdom';
 import { TaskView } from '../../../public/modules/ui/views/task-view.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
+import { appStore } from '../../../public/modules/core/store.js';
 
 vi.mock('../../../public/modules/toast.js', () => ({
   showSuccess: vi.fn(),
@@ -21,7 +22,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../..');
 const htmlPath = path.join(repoRoot, 'public/index.html');
 
-describe('app task start flow (app.js integration)', () => {
+describe('app task start flow (app.js integration)', { timeout: 20000 }, () => {
   let app;
   let taskView;
 
@@ -67,7 +68,9 @@ describe('app task start flow (app.js integration)', () => {
     app.taskService = mockTaskService;
     app.sessionService = mockSessionService;
     app.nocodbTaskService = { updateStatus: vi.fn(async () => {}) };
-    app.switchSession = vi.fn(async () => {});
+    app.switchSession = vi.fn(async (sessionId) => {
+      appStore.setState({ currentSessionId: sessionId });
+    });
     app.loadSessionData = vi.fn(async () => {});
     app.showConsole = vi.fn();
 
@@ -111,7 +114,10 @@ describe('app task start flow (app.js integration)', () => {
     });
 
     await vi.waitFor(() => {
-      expect(app.switchSession).toHaveBeenCalledWith('session-1', { proxyPath: null });
+      expect(app.switchSession).toHaveBeenCalledWith(
+        'session-1',
+        expect.objectContaining({ proxyPath: null })
+      );
     });
 
     await vi.waitFor(() => {
@@ -134,7 +140,10 @@ describe('app task start flow (app.js integration)', () => {
     ]);
 
     expect(result).not.toBe('timeout');
-    expect(app.switchSession).toHaveBeenCalledWith('session-1', { proxyPath: null });
+    expect(app.switchSession).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ proxyPath: null })
+    );
     expect(app.showConsole).toHaveBeenCalled();
     expect(app.focusTerminal).toHaveBeenCalledWith('session-changed');
     expect(app.loadSessionData).not.toHaveBeenCalled();

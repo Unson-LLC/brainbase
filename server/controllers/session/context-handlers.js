@@ -48,18 +48,19 @@ function parseCsv(value) {
 }
 
 function buildSessionMemoryPolicy(req, session) {
-    const includeMemory = String(req.query.includeMemory || req.query.include_memory || '').toLowerCase() === 'true';
-    const roles = parseCsv(req.query.roles || req.get?.('x-brainbase-role') || req.get?.('x-role') || '');
-    const projectCodes = parseCsv(req.query.projectCodes || req.query.project_codes || req.get?.('x-brainbase-projects') || req.get?.('x-projects') || '');
-    const clearance = parseCsv(req.query.clearance || req.get?.('x-brainbase-clearance') || req.get?.('x-clearance') || '');
+    const query = req.query || {};
+    const includeMemory = String(query.includeMemory || query.include_memory || '').toLowerCase() === 'true';
+    const roles = parseCsv(query.roles || req.get?.('x-brainbase-role') || req.get?.('x-role') || '');
+    const projectCodes = parseCsv(query.projectCodes || query.project_codes || req.get?.('x-brainbase-projects') || req.get?.('x-projects') || '');
+    const clearance = parseCsv(query.clearance || req.get?.('x-brainbase-clearance') || req.get?.('x-clearance') || '');
 
     return {
         mode: 'deny_by_default',
         includeMemory,
         injectedMemoryCount: 0,
-        personId: req.query.personId || req.query.person_id || req.get?.('x-brainbase-person-id') || req.get?.('x-person-id') || null,
-        workspace: req.query.workspace || req.get?.('x-brainbase-workspace') || req.get?.('x-workspace') || null,
-        channelId: req.query.channelId || req.query.channel_id || req.get?.('x-brainbase-channel-id') || req.get?.('x-channel-id') || null,
+        personId: query.personId || query.person_id || req.get?.('x-brainbase-person-id') || req.get?.('x-person-id') || null,
+        workspace: query.workspace || req.get?.('x-brainbase-workspace') || req.get?.('x-workspace') || null,
+        channelId: query.channelId || query.channel_id || req.get?.('x-brainbase-channel-id') || req.get?.('x-channel-id') || null,
         sessionId: session?.id || null,
         roles,
         projectCodes,

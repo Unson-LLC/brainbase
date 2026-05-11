@@ -380,7 +380,6 @@ export function buildDailyOpsReportHtml(report) {
         <textarea id="ai-instruction" readonly placeholder="ボタンを押すと、AIに渡す構造化指示が入ります"></textarea>
         <input id="brainbase-endpoint" value="http://127.0.0.1:31013" aria-label="Brainbase API endpoint">
         <button type="button" class="copy-btn" id="copy-instruction">指示をコピー</button>
-        <button type="button" id="send-inbox">Brainbase Inboxへ送る</button>
         <p class="status" id="send-status"></p>
       </aside>
     </div>
@@ -403,38 +402,6 @@ export function buildDailyOpsReportHtml(report) {
       if (!textarea.value) return;
       await navigator.clipboard.writeText(textarea.value);
       sendStatus.textContent = 'コピーしました';
-    });
-    document.getElementById('send-inbox').addEventListener('click', async () => {
-      if (!selectedAction || !textarea.value) {
-        sendStatus.textContent = '先に指示ボタンを選んでください';
-        return;
-      }
-      const endpoint = document.getElementById('brainbase-endpoint').value.replace(/\\/$/, '');
-      sendStatus.textContent = '送信中...';
-      try {
-        const csrfResponse = await fetch(endpoint + '/api/csrf-token', { credentials: 'include' });
-        const csrf = csrfResponse.ok ? await csrfResponse.json() : {};
-        const response = await fetch(endpoint + '/api/inbox', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrf.token ? { 'X-CSRF-Token': csrf.token } : {})
-          },
-          body: JSON.stringify({
-            source: 'daily_ops_html_report',
-            title: selectedAction.label,
-            sender: '${escapeJs(report.modeLabel)} Report',
-            channel: 'daily-ops',
-            message: '${escapeJs(report.modeLabel)} ${escapeJs(report.date)}: ' + selectedAction.label + ' を確認待ちにしました。実送信・実更新は別確認が必要です。',
-            instruction: selectedAction.instruction
-          })
-        });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        sendStatus.textContent = 'Brainbase Inboxへ追加しました';
-      } catch (error) {
-        sendStatus.textContent = '送信できませんでした: ' + error.message;
-      }
     });
   </script>
 </body>

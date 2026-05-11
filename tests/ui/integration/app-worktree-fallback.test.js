@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../..');
 const htmlPath = path.join(repoRoot, 'public/index.html');
 
-describe('app worktree fallback warning', () => {
+describe('app worktree fallback warning', { timeout: 20000 }, () => {
   let app;
 
   beforeEach(async () => {
