@@ -266,7 +266,7 @@ Phase 5: 統合レポート生成
 
 ## 参照
 
-- **CLAUDE.md**: `§1 Architecture Principles`
+- **Source**: この `architecture-patterns` Skill
 - **Skills**: なし（独立動作）
 - **Model**: sonnet（全Phase）
 

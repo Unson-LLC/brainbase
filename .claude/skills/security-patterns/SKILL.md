@@ -277,7 +277,7 @@ Phase 3: Input Validation チェック
 
 ## 参照
 
-- **CLAUDE.md**: `§4 Security Guidelines`
+- **Source**: この `security-patterns` Skill
 - **Skills**: なし（独立動作）
 - **Model**: sonnet（全Phase）
 

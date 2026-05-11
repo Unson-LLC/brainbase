@@ -34,7 +34,7 @@ Phase 3: 命名規約チェック
 
 ## 参照
 
-- **CLAUDE.md**: `§2 Test Strategy`
+- **Source**: この `test-strategy` Skill
 
 ---
 

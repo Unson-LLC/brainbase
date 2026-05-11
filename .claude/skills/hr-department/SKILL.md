@@ -6,7 +6,7 @@ skills: [raci-format, task-format, principles, knowledge-frontmatter, git-commit
 teammates:
   - name: skills-analyst
     agentType: skills-analyst
-    description: 既存Skillsを収集・分類し、新規チームに適したSkillsを抽出。CLAUDE.mdから81個のSkills一覧を読み込み、ドメイン別フィルタリング、Orchestrator型/ガイド型の分類を実行。
+    description: 既存Skillsを収集・分類し、新規チームに適したSkillsを抽出。`.claude/skills/*/SKILL.md` からSkills一覧を読み込み、ドメイン別フィルタリング、Orchestrator型/ガイド型の分類を実行。
     tools: [Read, Write]
   - name: organization-designer
     agentType: organization-designer
@@ -103,13 +103,13 @@ Task({
 
 ## 入力
 - ドメイン: ${domain}
-- CLAUDE.md（セクション5）: 81個のSkills一覧
+- `.claude/skills/*/SKILL.md`: Skills一覧
 
 ## Workflows（5つ）
 
 ### W1: Skills索引読み込み
-- Read: /Users/ksato/workspace/shared/.worktrees/session-1770385136710-brainbase/CLAUDE.md（セクション5）
-- 81個のSkills一覧を抽出
+- Read: repo root の `.claude/skills/*/SKILL.md`
+- Skills一覧を抽出
 
 ### W2: ドメイン別フィルタリング
 - 指定ドメイン（${domain}）に関連するSkillsを抽出
@@ -129,8 +129,8 @@ Task({
 
 ## 実行手順
 
-1. Read tool で CLAUDE.md を読み込み
-2. セクション5のSkills一覧を抽出
+1. `.claude/skills/*/SKILL.md` を読み込み
+2. frontmatter からSkills一覧を抽出
 3. ドメイン別フィルタリング
 4. Orchestrator型/ガイド型の分類
 5. 推奨Skills一覧を生成
@@ -164,14 +164,14 @@ Task({
 
 ## Success Criteria
 
-- [ ] 81個全てのSkillsが読み込まれている
+- [ ] 全てのSkillsが読み込まれている
 - [ ] ドメイン関連Skillsが10個以上抽出されている
 - [ ] Orchestrator型/ガイド型に分類されている
 - [ ] 推奨Skills一覧が3-4職能分生成されている
 
 ## Notes
 
-- CLAUDE.md（セクション5）は81個のSkills一覧を含む
+- `.claude/skills/*/SKILL.md` はSkills一覧と各Skillのfrontmatterを含む
 - ドメイン未指定時はエラー
 - 推奨構成はmarketing-opsの実装を参考に生成
 `
@@ -583,7 +583,7 @@ TeamDelete()
 
 - **メタレベル自動化**: Agent Teams作成プロセス自体をAgent Teamsで自動化
 - **ops-daily/marketing-opsパターン踏襲**: 3職能 × 複数ワークフロー、JSON形式データフロー
-- **既存Skills索引活用**: CLAUDE.md（セクション5）の81個のSkills一覧を入力データとして使用
+- **既存Skills索引活用**: `.claude/skills/*/SKILL.md` のfrontmatter一覧を入力データとして使用
 - **テンプレート生成**: ops-daily/marketing-opsの実装をテンプレートとして参照
 - **Review & Replan**: エラー時は最大3回まで再実行
 - **統合レポート**: コード生成サマリーで全職能の成果物を一覧化

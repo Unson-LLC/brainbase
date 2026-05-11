@@ -1523,7 +1523,7 @@ A3: CSSの定義だけ見て、HTMLを確認しなかった（Assumption Trap）
 
 ## References
 
-- **CLAUDE.md**: Section 1.1-1.5 (Architecture Principles)
+- **Architecture Skill**: `architecture-patterns`
 - **DESIGN.md**: UI/UX design patterns
 - **Git commits**: 11 real bug cases (6dc723e, e954dde, 7df3b60, 67e4cdf, d9f4dd2, c466f26, a95dff5, 02cb9db, b24e4d0, 6f8175e, a5aa3be)
 - **Session**: 2025-12-31 Settings Modal debugging session（佐藤圭吾との対話から抽出）

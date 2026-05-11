@@ -77,7 +77,7 @@ export function enforceSerenaMcp(input: ToolUseInput): EnforcementResult {
           },
         ],
         reference:
-          "@CLAUDE.md セクション11: 超重要事項：コード読み込み時のSerena MCP使用必須",
+          "CLAUDE.md Behavioral Kernel: Read Local Context Before Editing",
       };
 
       return result;

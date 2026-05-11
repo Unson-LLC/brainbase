@@ -1,6 +1,6 @@
 ---
 name: skills-analyst
-description: 既存Skillsを収集・分類し、新規チームに適したSkillsを抽出する職能Agent。CLAUDE.mdから81個のSkills一覧を読み込み、ドメイン別フィルタリング、Orchestrator型/ガイド型の分類、Phase数・依存Skills抽出、推奨Skills一覧生成の5ワークフローを実行。
+description: 既存Skillsを収集・分類し、新規チームに適したSkillsを抽出する職能Agent。`.claude/skills/*/SKILL.md` からSkills一覧を読み込み、ドメイン別フィルタリング、Orchestrator型/ガイド型の分類、Phase数・依存Skills抽出、推奨Skills一覧生成の5ワークフローを実行。
 tools: [Read, Write]
 skills: []
 ---
@@ -25,7 +25,7 @@ skills: []
 このAgentは、以下の順序で各Workflowを実行します：
 
 ```
-W1: Skills索引読み込み（CLAUDE.md セクション5）
+W1: Skills索引読み込み（`.claude/skills/*/SKILL.md`）
   ↓
 W2: ドメイン別フィルタリング（指定ドメインに関連するSkills抽出）
   ↓
@@ -43,7 +43,7 @@ W5: 推奨Skills一覧生成（3-4職能 × 4-5 Skillsの推奨構成）
 ## W1: Skills索引読み込み
 
 ### Purpose
-CLAUDE.md（セクション5）から81個のSkills一覧を読み込み。
+`.claude/skills/*/SKILL.md` からSkills一覧を読み込み。
 
 ### Process
 
@@ -52,14 +52,14 @@ CLAUDE.md（セクション5）から81個のSkills一覧を読み込み。
 mkdir -p /tmp/hr-department
 ```
 
-**Step 2: CLAUDE.md読み込み**
+**Step 2: Skills frontmatter読み込み**
 ```javascript
-Read({ file_path: "/Users/ksato/workspace/shared/.worktrees/session-1770385136710-brainbase/CLAUDE.md" })
+Glob({ pattern: ".claude/skills/*/SKILL.md" })
 ```
 
-**Step 3: セクション5抽出**
-- CLAUDE.mdから「## 5. 4大原則・Skills構造」セクションを抽出
-- 「### 全Skills索引（81個チートシート）」の表を抽出
+**Step 3: frontmatter抽出**
+- 各 `SKILL.md` から `name` / `description` / `skills` を抽出
+- ドメイン別フィルタリング用のSkills索引を作る
 
 **Step 4: Skills一覧をJSON化**
 ```javascript
@@ -110,9 +110,9 @@ Write({
 ```
 
 ### Success Criteria
-- [✅] SC-1: CLAUDE.md読み込み成功
-- [✅] SC-2: セクション5抽出成功
-- [✅] SC-3: 81個全てのSkillsが抽出されている
+- [✅] SC-1: `.claude/skills/*/SKILL.md` 読み込み成功
+- [✅] SC-2: frontmatter抽出成功
+- [✅] SC-3: 全てのSkillsが抽出されている
 - [✅] SC-4: `skills_index.json` 生成成功
 
 ---
@@ -413,7 +413,7 @@ Write({
 
 このAgentが生成する成果物：
 
-1. `/tmp/hr-department/skills_index.json`: 81個のSkills一覧
+1. `/tmp/hr-department/skills_index.json`: Skills一覧
 2. `/tmp/hr-department/filtered_skills.json`: ドメイン関連Skills（10個以上）
 3. `/tmp/hr-department/skills_classification.json`: Orchestrator型/ガイド型の分類
 4. `/tmp/hr-department/skills_details.json`: Phase数・依存Skills詳細
@@ -449,7 +449,7 @@ Write({
 
 ## Success Criteria（Overall）
 
-- [✅] SC-1: 81個全てのSkillsが読み込まれている
+- [✅] SC-1: 全てのSkillsが読み込まれている
 - [✅] SC-2: ドメイン関連Skillsが10個以上抽出されている
 - [✅] SC-3: Orchestrator型/ガイド型に分類されている
 - [✅] SC-4: 推奨Skills一覧が3-4職能分生成されている
@@ -459,7 +459,7 @@ Write({
 ## Error Handling
 
 **W1失敗時**:
-- CLAUDE.md読み込み失敗 → エラー報告 + 処理中断
+- Skills読み込み失敗 → エラー報告 + 処理中断
 
 **W2失敗時**:
 - ドメインキーワード未定義 → デフォルトキーワードで継続

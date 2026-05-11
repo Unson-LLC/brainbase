@@ -32,7 +32,7 @@ Phase 2: 5ステップチェック
 
 ## 参照
 
-- **CLAUDE.md**: `§3 Refactoring Workflow`
+- **Source**: この `refactoring-workflow` Skill
 - **ドキュメント**: `docs/REFACTORING_PLAN.md`
 
 ---

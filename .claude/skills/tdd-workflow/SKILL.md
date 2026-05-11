@@ -414,7 +414,7 @@ PASS ✅ all tests passed
 
 ## 参照
 
-- **CLAUDE.md**: `§1.5 Test-Driven Development (TDD)`
+- **Source**: この `tdd-workflow` Skill
 - **Skills**: なし（独立動作）
 - **Model**: opus（Phase 1）、sonnet（Phase 2-4）
 

@@ -83,7 +83,7 @@ launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
 
 ## 参照
 
-- **CLAUDE.md**: `§6.5 Commit (Decision capture)`
+- **Source**: この `git-workflow` Skill
 - **Skills**: git-commit-rules
 - **Commands**: `/deploy-merged-pr`
 
