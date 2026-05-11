@@ -6,12 +6,13 @@ export function mockGraphReader(entities) {
     return { listRecentEntities: async () => entities };
 }
 
-export function makeCurator({ entities = [], dailyLimit = 30 } = {}) {
+export function makeCurator({ entities = [], dailyLimit = 30, personaBrainProvider = undefined } = {}) {
     const { service: candidateService } = makeService();
     const curator = new SnsReadonlyCurator({
         graphReader: mockGraphReader(entities),
         candidateService,
-        dailyLimit
+        dailyLimit,
+        personaBrainProvider
     });
     return { curator, candidateService };
 }
