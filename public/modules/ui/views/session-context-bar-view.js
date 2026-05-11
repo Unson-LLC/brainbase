@@ -3,7 +3,7 @@ import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { AdaptivePoller } from '../../core/adaptive-poller.js';
 import { getSessionStatus } from '../../session-ui-state.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, setSanitizedHtml } from '../../ui-helpers.js';
 import { BaseView } from './base-view.js';
 
 /**
@@ -129,13 +129,13 @@ export class SessionContextBarView extends BaseView {
 
     _renderEmpty(message) {
         if (!this.container) return;
-        this.container.innerHTML = `<div class="session-context-bar-inner"><div class="session-context-empty">${escapeHtml(message)}</div></div>`;
+        setSanitizedHtml(this.container, `<div class="session-context-bar-inner"><div class="session-context-empty">${escapeHtml(message)}</div></div>`);
     }
 
     _renderLoading(sessionId) {
         if (!this.container) return;
         const title = sessionId ? `読み込み中: ${sessionId}` : '読み込み中';
-        this.container.innerHTML = `<div class="session-context-bar-inner"><div class="session-context-empty">${escapeHtml(title)}</div></div>`;
+        setSanitizedHtml(this.container, `<div class="session-context-bar-inner"><div class="session-context-empty">${escapeHtml(title)}</div></div>`);
     }
 
     _renderContext(context) {
@@ -179,6 +179,12 @@ export class SessionContextBarView extends BaseView {
         if (hasCwdMismatch) {
             alerts.push('<span class="context-alert is-cwd-mismatch" title="Current directory differs from workspace">⚠ cwd!=workspace</span>');
         }
+        if (context.memoryPolicy?.mode === 'deny_by_default') {
+            const memoryStatus = context.memoryPolicy.status === 'scoped'
+                ? `memory scoped:${Number(context.memoryPolicy.injectedMemoryCount || 0)}`
+                : 'memory gated';
+            alerts.push(`<span class="context-alert is-memory-gated" title="Memory retrieval is deny-by-default">${escapeHtml(memoryStatus)}</span>`);
+        }
 
         const alertsHtml = alerts.length > 0 ? ` <span class="context-separator">|</span> ${alerts.join(' ')}` : '';
 
@@ -205,10 +211,16 @@ export class SessionContextBarView extends BaseView {
                     <span class="context-detail-label">Session:</span>
                     <span class="context-detail-value">${escapeHtml(sessionId)}</span>
                 </div>
+                ${context.memoryPolicy?.mode === 'deny_by_default' ? `
+                <div class="context-detail-item">
+                    <span class="context-detail-label">Memory:</span>
+                    <span class="context-detail-value">${escapeHtml(context.memoryPolicy.status || 'gated')} / ${escapeHtml((context.memoryPolicy.roles || []).join(',') || '-')}</span>
+                </div>
+                ` : ''}
             </div>
         ` : '';
 
-        this.container.innerHTML = `
+        setSanitizedHtml(this.container, `
             <div class="session-context-bar-inner">
                 <div class="context-primary">
                     ${primaryInfo}${alertsHtml}
@@ -216,7 +228,7 @@ export class SessionContextBarView extends BaseView {
                 </div>
                 ${detailsHtml}
             </div>
-        `;
+        `);
 
         // contextを保存（展開/折りたたみ時に再利用）
         this._currentContext = context;
