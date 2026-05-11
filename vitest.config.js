@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
-    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js'],
+    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js', 'tests/candidate-store/**/*.test.js'],
     setupFiles: ['tests/setup/test-setup.js'],
     environmentMatchGlobs: [
       // config-parser等のサーバーサイドテストのみnode環境
@@ -29,6 +29,8 @@ export default defineConfig({
       ['tests/security/**/*.test.js', 'node'],
       // Access contract tests are pure logic + fixtures, node環境
       ['tests/access-contracts/**/*.test.js', 'node'],
+      // Candidate store tests are pure logic + in-memory repo, node環境
+      ['tests/candidate-store/**/*.test.js', 'node'],
     ],
     coverage: {
       provider: 'v8',
