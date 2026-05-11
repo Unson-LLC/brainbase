@@ -13,6 +13,7 @@ import type {
   CommandPattern,
   CheckResult,
 } from "../../../../src/types/hooks/command-checker.js";
+import { isProtectedPushBlocked } from "../../../../scripts/lib/protected-push-guard.js";
 
 const execAsync = promisify(exec);
 
@@ -180,7 +181,24 @@ export class CommandChecker {
     return { allowed: true };
   }
 
+  private checkProtectedPush(command: string): CheckResult {
+    const result = isProtectedPushBlocked(command);
+    if (result.blocked) {
+      return {
+        allowed: false,
+        message: `保護ブランチ違反: ${result.reason} (緊急時のみ \`BRAINBASE_ALLOW_PROTECTED_PUSH=1\` プレフィックスで override 可)`,
+      };
+    }
+    return { allowed: true };
+  }
+
   public checkCommand(command: string): CheckResult {
+    // 保護ブランチへの直 push / force / branch -f を最優先で block
+    const protectedResult = this.checkProtectedPush(command);
+    if (!protectedResult.allowed) {
+      return protectedResult;
+    }
+
     // 禁止コマンドチェック
     const forbiddenResult = this.checkForbiddenCommands(command);
     if (!forbiddenResult.allowed) {
