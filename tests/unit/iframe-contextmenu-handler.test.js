@@ -91,6 +91,32 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
+    it('日本語ファイル名のリンクも抽出する', () => {
+        expect(extractFileMatches('docs/日本語レポート.md:12')).toEqual([
+            {
+                path: 'docs/日本語レポート.md',
+                line: '12',
+                start: 0,
+                end: 18
+            }
+        ]);
+    });
+
+    it('dot directory 配下の日本語HTMLリンクを browser preview 対象として扱う', () => {
+        expect(buildFileLinksForBufferLine(
+            '.vibepro/pr/story/日本語レポート.html',
+            18,
+            '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1778113092477-brainbase'
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: '.vibepro/pr/story/日本語レポート.html',
+                previewPath: '.vibepro/pr/story/日本語レポート.html',
+                previewable: true,
+                text: '.vibepro/pr/story/日本語レポート.html'
+            })
+        ]);
+    });
+
     it('画像ファイルリンクを browser preview 対象として扱う', () => {
         expect(buildFileLinksForBufferLine(
             'tmp/file-viewer-samples/brainbase-jpg-preview-test.jpg',
