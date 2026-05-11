@@ -78,7 +78,32 @@ describe('session-list-renderer', () => {
       const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
       expect(html).toContain('has-worktree');
-      expect(html).toContain('git-merge');
+      expect(html).not.toContain('merge-session-btn');
+      expect(html).not.toContain('Merge to base branch');
+    });
+
+    it('should render only current session management actions in overflow menu', () => {
+      const session = {
+        id: 's-actions',
+        name: 'Action Session',
+        worktree: { path: '/worktree/path' }
+      };
+
+      const html = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        isFavorite: false
+      });
+
+      expect(html).toContain('名前を変更');
+      expect(html).toContain('お気に入りに追加');
+      expect(html).toContain('一時停止');
+      expect(html).toContain('アーカイブ');
+      expect(html).toContain('削除');
+      expect(html).not.toContain('Commit tree');
+      expect(html).not.toContain('commit-tree-btn');
+      expect(html).not.toContain('Merge to base branch');
+      expect(html).not.toContain('merge-session-btn');
     });
 
     it('should not show worktree badge when no worktree', () => {

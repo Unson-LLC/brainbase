@@ -5,7 +5,7 @@ const BASE_URL = process.env.BRAINBASE_BASE_URL
   || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
 
 test.describe('session list actions', () => {
-    test('should handle quick actions and commit tree from a session row', async ({ page, request }) => {
+    test('should handle current session row quick actions', async ({ page, request }) => {
         test.setTimeout(60000);
         const stamp = Date.now();
         const originalName = `pw-session-${stamp}`;
@@ -67,7 +67,6 @@ test.describe('session list actions', () => {
             await page.goto(BASE_URL);
             await expect(page.locator('#session-list')).toBeVisible();
             await page.waitForTimeout(2000);
-            await page.locator('.session-view-btn[data-view="project"]').first().click();
 
             await page.locator('#add-session-btn').click();
             await expect(page.locator('#create-session-modal')).toHaveClass(/active/);
@@ -80,34 +79,15 @@ test.describe('session list actions', () => {
             await expect(row(originalName)).toBeVisible({ timeout: 30000 });
             console.log('created session');
 
-            await domClick(originalName, '.child-actions .pause-session-btn');
-            await expect(row(originalName)).toContainText('Manual pause');
+            await domClick(originalName, '.session-dropdown-menu .pause-session-btn');
+            await expect(row(originalName)).toHaveClass(/paused/);
             console.log('paused session');
 
-            await domClick(originalName, '.child-actions .resume-session-btn');
-            await expect(row(originalName)).not.toContainText('Manual pause', { timeout: 15000 });
+            await domClick(originalName, '.session-dropdown-menu .resume-session-btn');
+            await expect(row(originalName)).not.toHaveClass(/paused/, { timeout: 15000 });
             console.log('resumed session');
 
-            const commitTreePanel = page.locator('#commit-tree-panel');
-            await page.evaluate(() => {
-                const panel = document.getElementById('commit-tree-panel');
-                const expandBtn = document.getElementById('commit-tree-expand-btn');
-                if (panel) {
-                    panel.classList.add('is-collapsed');
-                    panel.style.display = 'none';
-                }
-                if (expandBtn) {
-                    expandBtn.classList.remove('hidden');
-                    expandBtn.classList.add('active');
-                }
-            });
-            await domClick(originalName, '.session-dropdown-menu .commit-tree-btn');
-            await expect.poll(async () => (
-                commitTreePanel.evaluate((element) => element.classList.contains('is-collapsed'))
-            )).toBe(false);
-            console.log('opened commit tree');
-
-            await domClick(originalName, '.child-actions .archive-session-btn');
+            await domClick(originalName, '.session-dropdown-menu .archive-session-btn');
             await expect(row(originalName)).toHaveCount(0);
             console.log('archived session');
         } finally {

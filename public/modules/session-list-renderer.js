@@ -200,41 +200,24 @@ export function renderSessionRowHTML(session, options = {}) {
     })
     : '';
 
-  // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
-  const mergeButton = hasWorktree && session.intendedState !== 'archived'
-    ? '<button class="merge-session-btn" title="Merge to base branch"><i data-lucide="git-merge"></i></button>'
-    : '';
-
-  const commitTreeButton = session.intendedState !== 'archived'
-    ? '<button class="commit-tree-btn" title="Commit tree"><i data-lucide="git-branch"></i></button>'
-    : '';
-
   // 再開ボタン: 一時停止中の場合に表示
   const resumeButton = isPaused
-    ? '<button class="resume-session-btn" title="Resume session"><i data-lucide="play-circle"></i></button>'
+    ? '<button class="resume-session-btn" title="再開"><i data-lucide="play-circle"></i></button>'
     : '';
 
   // 一時停止ボタン: 作業中（paused以外）の場合に表示
   const pauseButton = !isPaused && session.intendedState !== 'archived'
-    ? '<button class="pause-session-btn" title="Pause session"><i data-lucide="pause-circle"></i></button>'
+    ? '<button class="pause-session-btn" title="一時停止"><i data-lucide="pause-circle"></i></button>'
     : '';
 
   // ドロップダウンメニュー項目
-  const mergeMenuItem = hasWorktree && session.intendedState !== 'archived'
-    ? '<button class="dropdown-item merge-session-btn"><i data-lucide="git-merge"></i>Merge to base branch</button>'
-    : '';
-
-  const commitTreeMenuItem = session.intendedState !== 'archived'
-    ? '<button class="dropdown-item commit-tree-btn"><i data-lucide="git-branch"></i>Commit tree</button>'
-    : '';
-
   const resumePauseMenuItem = isPaused
-    ? '<button class="dropdown-item resume-session-btn"><i data-lucide="play-circle"></i>Resume session</button>'
+    ? '<button class="dropdown-item resume-session-btn"><i data-lucide="play-circle"></i>再開</button>'
     : (!isPaused && session.intendedState !== 'archived'
-        ? '<button class="dropdown-item pause-session-btn"><i data-lucide="pause-circle"></i>Pause session</button>'
+        ? '<button class="dropdown-item pause-session-btn"><i data-lucide="pause-circle"></i>一時停止</button>'
         : '');
 
-  const archiveLabel = session.intendedState === 'archived' ? 'Unarchive' : 'Archive';
+  const archiveLabel = session.intendedState === 'archived' ? '復元' : 'アーカイブ';
   const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
   const favoriteTitle = isFavorite ? 'お気に入りから外す' : 'お気に入りに追加';
   const favoriteMenuItem = `<button class="dropdown-item favorite-session-btn${isFavorite ? ' active' : ''}" aria-pressed="${isFavorite ? 'true' : 'false'}"><i data-lucide="star"></i>${favoriteTitle}</button>`;
@@ -264,26 +247,23 @@ export function renderSessionRowHTML(session, options = {}) {
       <div class="session-actions-container">
         <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
         <div class="session-dropdown-menu hidden">
-          <button class="dropdown-item rename-session-btn"><i data-lucide="edit-2"></i>Rename</button>
+          <button class="dropdown-item rename-session-btn"><i data-lucide="edit-2"></i>名前を変更</button>
           ${favoriteMenuItem}
-          ${commitTreeMenuItem}
-          ${mergeMenuItem}
-          <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
-          ${resumePauseMenuItem}
           <div class="dropdown-divider"></div>
-          <button class="dropdown-item delete-session-btn danger"><i data-lucide="trash-2"></i>Delete</button>
+          ${resumePauseMenuItem}
+          <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item delete-session-btn danger"><i data-lucide="trash-2"></i>削除</button>
         </div>
       </div>
       <div class="child-actions" style="display: none;">
-        <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
-        ${commitTreeButton}
-        ${mergeButton}
-        <button class="archive-session-btn" title="${session.intendedState === 'archived' ? 'Unarchive' : 'Archive'}">
+        <button class="rename-session-btn" title="名前を変更"><i data-lucide="edit-2"></i></button>
+        <button class="archive-session-btn" title="${archiveLabel}">
           <i data-lucide="${session.intendedState === 'archived' ? 'archive-restore' : 'archive'}"></i>
         </button>
         ${resumeButton}
         ${pauseButton}
-        <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
+        <button class="delete-session-btn" title="削除"><i data-lucide="trash-2"></i></button>
       </div>
     </div>
   `;

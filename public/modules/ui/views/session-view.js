@@ -1120,16 +1120,6 @@ export class SessionView {
             });
         }
 
-        // Merge button
-        const mergeBtn = row.querySelector('.merge-session-btn');
-        if (mergeBtn) {
-            mergeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
-            });
-        }
-
         if (enableDrag) {
             // Drag and Drop handlers
             const project = row.dataset.project;
