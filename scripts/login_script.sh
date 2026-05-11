@@ -76,7 +76,30 @@ create_initial_cmd_file() {
     else
         INITIAL_CMD_FILE="/tmp/brainbase-initial-${SESSION_NAME}.txt"
     fi
-    printf '%s' "$INITIAL_CMD" > "$INITIAL_CMD_FILE"
+    printf '%s' "$(expand_brainbase_command_prompt "$INITIAL_CMD")" > "$INITIAL_CMD_FILE"
+}
+
+expand_brainbase_command_prompt() {
+    local raw="$1"
+
+    if [[ "$raw" =~ ^/([A-Za-z][A-Za-z0-9_-]*)([[:space:]]+(.*))?$ ]]; then
+        local command_name="${BASH_REMATCH[1]}"
+        local command_args="${BASH_REMATCH[3]}"
+        local command_path=".claude/commands/${command_name}.md"
+
+        if [ -f "$command_path" ]; then
+            if [ -z "$command_args" ]; then
+                command_args="(none)"
+            fi
+            printf 'Brainbase command /%s was invoked. Read %s and execute it as the active user request. Command arguments: %s.' \
+                "$command_name" \
+                "$command_path" \
+                "$command_args"
+            return 0
+        fi
+    fi
+
+    printf '%s' "$raw"
 }
 
 sync_claude_runtime() {
@@ -252,22 +275,36 @@ if [ -f "$REPO_ROOT/.codex/hooks.json" ]; then
     CODEX_HOOKS_ARG="-c features.hooks=true"
 fi
 
-sync_codex_prompts_link() {
+sync_codex_project_commands() {
     local codex_dir="$HOME/.codex"
     local prompts_link="$codex_dir/prompts"
+    local commands_dir="$codex_dir/commands"
     local project_prompts_dir="$PWD/.claude/commands"
 
     if [ ! -d "$project_prompts_dir" ]; then
         return 0
     fi
 
-    mkdir -p "$codex_dir" 2>/dev/null || true
+    mkdir -p "$codex_dir" "$commands_dir" 2>/dev/null || true
 
-    # Use the current project command directory as the single source for /prompts:*.
+    # Legacy Codex builds used ~/.codex/prompts. Keep the symlink for older
+    # sessions, but current Codex reads ~/.codex/commands for slash commands.
     if [ -L "$prompts_link" ] || [ -e "$prompts_link" ]; then
         rm -rf "$prompts_link" 2>/dev/null || true
     fi
     ln -s "$project_prompts_dir" "$prompts_link" 2>/dev/null || true
+
+    local command_file
+    for command_file in "$project_prompts_dir"/*.md; do
+        [ -f "$command_file" ] || continue
+        local command_name
+        command_name="$(basename "$command_file" .md)"
+        cat > "$commands_dir/${command_name}.md" <<EOF
+Brainbase command /${command_name} was invoked. Read .claude/commands/${command_name}.md and execute it as the active user request. Command arguments: \$ARGUMENTS.
+
+If \$ARGUMENTS is empty or not replaced by the runtime, treat the command arguments as (none).
+EOF
+    done
 }
 
 # Apply tmux settings first (before session creation/attachment)
@@ -278,7 +315,7 @@ tmux set -g mouse off 2>/dev/null || true
 tmux set -g history-limit 5000 2>/dev/null || true
 
 if [ "$ENGINE" = "codex" ]; then
-    sync_codex_prompts_link
+    sync_codex_project_commands
 fi
 
 if [ -d "$JJ_GUARD_DIR" ]; then
