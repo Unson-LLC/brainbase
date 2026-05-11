@@ -188,17 +188,7 @@ export function applyPluginRegistrationMixin(AppClass) {
                                     rootOverrideBySessionId
                                 }
                             });
-                            void (async () => {
-                                if (targetSessionId && targetSessionId !== currentSessionId) {
-                                    await this.switchSession?.(targetSessionId);
-                                }
-                                if (this.isMobile() && this.mobileTabController) {
-                                    this.mobileTabController.switchTab('terminal');
-                                } else {
-                                    this.showConsole?.();
-                                }
-                                this._scheduleTerminalViewportSync();
-                            })();
+                            void this._restoreTerminalAfterFileViewerClose?.(targetSessionId);
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();

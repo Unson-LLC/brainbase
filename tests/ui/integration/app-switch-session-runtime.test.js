@@ -155,6 +155,89 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(app._updateTerminalInputStatus).toHaveBeenCalled();
   });
 
+  it('file viewerから戻る時にxtermがblockedならtakeoverで復帰する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.showConsole = vi.fn(() => {
+      document.getElementById('console-area').style.display = 'flex';
+      document.getElementById('file-viewer-panel').style.display = 'none';
+    });
+    app.takeOverCurrentTerminal = vi.fn(async () => {});
+    app.switchSession = vi.fn(async () => ({ ok: true }));
+    app.terminalTransportClient = {
+      getStatus: vi.fn(() => ({
+        mode: 'blocked',
+        connected: false,
+        runtimeState: 'blocked_by_owner',
+        terminalAccess: { state: 'blocked', canTakeover: true },
+        blockedAccess: { state: 'blocked', canTakeover: true }
+      })),
+      isActiveForSession: vi.fn(() => true),
+      restoreAfterReveal: vi.fn(async () => {}),
+      destroy: vi.fn()
+    };
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    await app._restoreTerminalAfterFileViewerClose('session-1');
+
+    await vi.waitFor(() => {
+      expect(app.takeOverCurrentTerminal).toHaveBeenCalledTimes(1);
+    });
+    expect(app.switchSession).not.toHaveBeenCalled();
+    expect(app.terminalTransportClient.restoreAfterReveal).not.toHaveBeenCalled();
+  });
+
+  it('file viewerから戻る時にxtermが切断状態なら同一セッションを再接続する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.showConsole = vi.fn(() => {
+      document.getElementById('console-area').style.display = 'flex';
+      document.getElementById('file-viewer-panel').style.display = 'none';
+    });
+    app.takeOverCurrentTerminal = vi.fn(async () => {});
+    app.switchSession = vi.fn(async () => ({ ok: true }));
+    app.terminalTransportClient = {
+      getStatus: vi.fn(() => ({
+        mode: 'snapshot',
+        connected: false,
+        terminalAccess: { state: 'owner', canTakeover: false }
+      })),
+      isActiveForSession: vi.fn(() => true),
+      restoreAfterReveal: vi.fn(async () => {}),
+      destroy: vi.fn()
+    };
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    await app._restoreTerminalAfterFileViewerClose('session-1');
+
+    await vi.waitFor(() => {
+      expect(app.switchSession).toHaveBeenCalledWith('session-1', {
+        previousSessionId: 'session-1',
+        recoveryReason: 'file-viewer-close'
+      });
+    });
+    expect(app.takeOverCurrentTerminal).not.toHaveBeenCalled();
+    expect(app.terminalTransportClient.restoreAfterReveal).not.toHaveBeenCalled();
+  });
+
   it('forces ttyd startup when ttyd frame needs a runtime', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
 

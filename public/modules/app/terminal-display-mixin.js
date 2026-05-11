@@ -21,6 +21,20 @@ function isPendingTerminalSwitchStale(pending) {
     return startedAt > 0 && Date.now() - startedAt >= BLANK_TERMINAL_FRAME_PENDING_STALE_MS;
 }
 
+function isBlockedTerminalStatus(status) {
+    return status?.terminalAccess?.state === 'blocked'
+        || status?.blockedAccess?.state === 'blocked'
+        || status?.runtimeState === 'blocked_by_owner';
+}
+
+function canTakeoverTerminalStatus(status) {
+    return Boolean(status?.terminalAccess?.canTakeover || status?.blockedAccess?.canTakeover);
+}
+
+function isLiveTerminalStatus(status) {
+    return Boolean(status?.mode === 'live' && status?.connected === true && !isBlockedTerminalStatus(status));
+}
+
 export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype.syncMobileTerminalReserve = function(
         viewportHeight = window.visualViewport?.height || window.innerHeight,
@@ -206,6 +220,65 @@ export function applyTerminalDisplayMixin(AppClass) {
         scheduleAfterNextPaint(() => {
             if (!this._isConsoleVisible()) return;
             this._restoreTerminalSurfaceAfterReveal('viewport-sync');
+        });
+    };
+
+    AppClass.prototype._isTerminalTransportReadyAfterReveal = function(sessionId = appStore.getState().currentSessionId) {
+        if (!this._shouldUseXtermTransport?.()) return false;
+        if (!this.terminalTransportClient?.isActiveForSession?.(sessionId)) return false;
+        return isLiveTerminalStatus(this.terminalTransportClient?.getStatus?.() || {});
+    };
+
+    AppClass.prototype._restoreTerminalAfterFileViewerClose = async function(targetSessionId = null) {
+        const initialState = appStore.getState();
+        const currentSessionId = initialState.currentSessionId || null;
+        const sessionId = targetSessionId || currentSessionId;
+        const restoreToken = (this._fileViewerCloseRestoreToken || 0) + 1;
+        this._fileViewerCloseRestoreToken = restoreToken;
+
+        let switchedOnClose = false;
+        if (sessionId && sessionId !== currentSessionId) {
+            switchedOnClose = true;
+            await this.switchSession?.(sessionId, {
+                previousSessionId: currentSessionId,
+                recoveryReason: 'file-viewer-close'
+            });
+        }
+
+        if (this.isMobile() && this.mobileTabController) {
+            this.mobileTabController.switchTab('terminal');
+        } else {
+            this.showConsole?.();
+        }
+
+        scheduleAfterNextPaint(() => {
+            if (this._fileViewerCloseRestoreToken !== restoreToken) return;
+            if (!this._isConsoleVisible()) return;
+
+            const activeSessionId = appStore.getState().currentSessionId || sessionId;
+            if (!activeSessionId || (sessionId && activeSessionId !== sessionId)) return;
+
+            const status = this.terminalTransportClient?.getStatus?.() || {};
+            if (this._isTerminalTransportReadyAfterReveal(activeSessionId)) {
+                void this.terminalTransportClient?.restoreAfterReveal?.();
+                return;
+            }
+
+            if (this._shouldUseXtermTransport?.()) {
+                if (isBlockedTerminalStatus(status) && canTakeoverTerminalStatus(status) && this.takeOverCurrentTerminal) {
+                    void this.takeOverCurrentTerminal();
+                    return;
+                }
+                if (!switchedOnClose) {
+                    void this.switchSession?.(activeSessionId, {
+                        previousSessionId: activeSessionId,
+                        recoveryReason: 'file-viewer-close'
+                    });
+                    return;
+                }
+            }
+
+            this._restoreTerminalSurfaceAfterReveal('file-viewer-close');
         });
     };
 
