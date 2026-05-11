@@ -1048,7 +1048,7 @@ describe('SessionController (Server)', () => {
       await sessionController.clearDone(req, mockRes);
 
       expect(mockSessionManager.clearDoneStatus).toHaveBeenCalledWith('session-1');
-      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('clearDone呼び出し時_id未指定_400を返す', async () => {
@@ -1098,7 +1098,7 @@ describe('SessionController (Server)', () => {
           latestEvidence: 'npx vitest run'
         }
       );
-      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
   });
 

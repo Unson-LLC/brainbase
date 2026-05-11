@@ -49,7 +49,7 @@ describe('daily-ops-report', () => {
         expect(html).toContain('\\u003c/script\\u003e');
     });
 
-    it('renders an Inbox handoff button for selected AI instructions', () => {
+    it('renders copy-only AI instruction handoff without dead Inbox API wiring', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',
             date: '2026-05-10'
@@ -57,9 +57,9 @@ describe('daily-ops-report', () => {
 
         const html = buildDailyOpsReportHtml(report);
 
-        expect(html).toContain('Brainbase Inboxへ送る');
-        expect(html).toContain("fetch(endpoint + '/api/inbox'");
-        expect(html).toContain('実送信・実更新は別確認が必要です');
+        expect(html).toContain('指示をコピー');
+        expect(html).not.toContain("fetch(endpoint + '/api/inbox'");
+        expect(html).not.toContain('Brainbase Inboxへ送る');
     });
 
     it('renders safe links for calendar mail and slack report items', () => {

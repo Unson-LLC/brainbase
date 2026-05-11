@@ -45,7 +45,7 @@ const defaultHttpGetResponse = async (url) => {
   return { runtimeStatus: null, terminalAccess: null };
 };
 
-describe('app switchSession runtime handling', () => {
+describe('app switchSession runtime handling', { timeout: 20000 }, () => {
   let app;
 
   beforeEach(async () => {

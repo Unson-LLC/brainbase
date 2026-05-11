@@ -37,7 +37,9 @@ export function deriveActivityState(hookStatus) {
         case 'waiting':
             return ActivityState.WAITING;
         case 'running':
-            return ActivityState.THINKING;
+            return (hookStatus.activeTurnCount || 0) > 0
+                ? ActivityState.THINKING
+                : ActivityState.WORKING;
         case 'starting':
             return ActivityState.WORKING;
         case 'done-unread':

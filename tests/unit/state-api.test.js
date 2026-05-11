@@ -70,45 +70,31 @@ describe('state-api', () => {
 
   describe('removeSession', () => {
     it('should remove a session by id', async () => {
-      const existingState = {
-        sessions: [
-          { id: 'session-1' },
-          { id: 'session-2' }
-        ]
-      };
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(existingState)
-        })
-        .mockResolvedValueOnce({ ok: true });
+      mockFetch.mockResolvedValueOnce({ ok: true });
 
       await removeSession('session-1');
 
-      const saveCall = mockFetch.mock.calls[1];
-      const savedState = JSON.parse(saveCall[1].body);
-      expect(savedState.sessions).toHaveLength(1);
-      expect(savedState.sessions[0].id).toBe('session-2');
+      expect(mockFetch).toHaveBeenCalledWith('/api/state/sessions/session-1', {
+        method: 'DELETE'
+      });
     });
   });
 
   describe('addSession', () => {
     it('should add a new session', async () => {
-      const existingState = { sessions: [{ id: 'session-1' }] };
       const newSession = { id: 'session-2', name: 'New' };
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(existingState)
-        })
-        .mockResolvedValueOnce({ ok: true });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(newSession)
+      });
 
       await addSession(newSession);
 
-      const saveCall = mockFetch.mock.calls[1];
-      const savedState = JSON.parse(saveCall[1].body);
-      expect(savedState.sessions).toHaveLength(2);
-      expect(savedState.sessions[1]).toEqual(newSession);
+      expect(mockFetch).toHaveBeenCalledWith('/api/state/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSession)
+      });
     });
   });
 });
