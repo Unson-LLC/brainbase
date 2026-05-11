@@ -1,0 +1,116 @@
+{
+  "access_contexts": [
+    {
+      "id": "ctx-sato-4org",
+      "label": "Sato, CEO, four-org member",
+      "jwt": {
+        "sub": "sato",
+        "person_id": "sato",
+        "role": "ceo",
+        "level": 4,
+        "clearance": ["internal", "restricted", "confidential", "top-secret"],
+        "projectCodes": ["brainbase", "unson", "salestailor", "techknight", "baao"],
+        "team_ids": ["team-exec", "team-legal", "team-sales"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-exec", "chan-sales"]
+        }
+      }
+    },
+    {
+      "id": "ctx-unson-only-member",
+      "label": "Unson-only member",
+      "jwt": {
+        "sub": "unson_member",
+        "person_id": "unson_member",
+        "role": "member",
+        "level": 1,
+        "clearance": ["internal"],
+        "projectCodes": ["brainbase", "unson"],
+        "team_ids": ["team-product"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-product"]
+        }
+      }
+    },
+    {
+      "id": "ctx-st-only-member",
+      "label": "SalesTailor-only member",
+      "jwt": {
+        "sub": "st_member",
+        "person_id": "st_member",
+        "role": "member",
+        "level": 1,
+        "clearance": ["internal"],
+        "projectCodes": ["salestailor"],
+        "team_ids": ["team-sales"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-sales"]
+        }
+      }
+    },
+    {
+      "id": "ctx-tk-only-member",
+      "label": "TechKnight-only member",
+      "jwt": {
+        "sub": "tk_member",
+        "person_id": "tk_member",
+        "role": "member",
+        "level": 1,
+        "clearance": ["internal"],
+        "projectCodes": ["techknight"],
+        "team_ids": ["team-engineering"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-engineering"]
+        }
+      }
+    },
+    {
+      "id": "ctx-baao-only-member",
+      "label": "BAAO-only member",
+      "jwt": {
+        "sub": "baao_member",
+        "person_id": "baao_member",
+        "role": "member",
+        "level": 1,
+        "clearance": ["internal"],
+        "projectCodes": ["baao"],
+        "team_ids": ["team-baao"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-baao"]
+        }
+      }
+    },
+    {
+      "id": "ctx-ex-gm-demoted",
+      "label": "Expired GM, demoted to member",
+      "jwt": {
+        "sub": "ex_gm",
+        "person_id": "ex_gm",
+        "role": "member",
+        "level": 1,
+        "clearance": ["internal", "restricted"],
+        "projectCodes": ["brainbase", "unson"],
+        "team_ids": ["team-exec"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-exec"]
+        }
+      }
+    },
+    {
+      "id": "ctx-channel-outsider",
+      "label": "Slack channel outsider",
+      "jwt": {
+        "sub": "channel_outsider",
+        "person_id": "channel_outsider",
+        "role": "gm",
+        "level": 3,
+        "clearance": ["internal", "restricted", "confidential"],
+        "projectCodes": ["brainbase", "unson"],
+        "team_ids": ["team-exec"],
+        "permission_snapshot": {
+          "channel_ids": ["chan-other"]
+        }
+      }
+    }
+  ]
+}
