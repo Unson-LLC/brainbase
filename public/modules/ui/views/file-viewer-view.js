@@ -18,6 +18,10 @@ export class FileViewerView extends BaseView {
         this._showRaw = false;
         /** @type {string|null} Track current file to reset toggle on change */
         this._currentPath = null;
+        /** @type {number} Prevent stale async Mermaid renders from updating a newer file */
+        this._renderToken = 0;
+        /** @type {boolean} Mermaid global initialization guard */
+        this._mermaidInitialized = false;
     }
 
     _setupEventListeners() {
@@ -165,7 +169,67 @@ export class FileViewerView extends BaseView {
                 window.open(anchor.href, '_blank', 'noopener,noreferrer');
             });
 
+        void this._renderMermaidDiagrams();
         refreshIcons();
+    }
+
+    async _renderMermaidDiagrams() {
+        if (!this.container || this._showRaw) return;
+        const markdownRoot = this.container.querySelector('.file-viewer-markdown');
+        if (!markdownRoot) return;
+
+        const blocks = Array.from(markdownRoot.querySelectorAll('pre > code.language-mermaid, pre > code.mermaid'));
+        if (blocks.length === 0) return;
+
+        const mermaid = /** @type {any} */ (window).mermaid;
+        if (!mermaid || typeof mermaid.render !== 'function') {
+            markdownRoot.classList.add('mermaid-unavailable');
+            return;
+        }
+
+        if (!this._mermaidInitialized && typeof mermaid.initialize === 'function') {
+            mermaid.initialize({
+                startOnLoad: false,
+                securityLevel: 'strict',
+                theme: 'dark'
+            });
+            this._mermaidInitialized = true;
+        }
+
+        const renderToken = ++this._renderToken;
+        await Promise.all(blocks.map(async (codeBlock, index) => {
+            const pre = codeBlock.parentElement;
+            if (!pre) return;
+
+            const source = codeBlock.textContent || '';
+            const diagram = document.createElement('div');
+            diagram.className = 'file-viewer-mermaid';
+            diagram.textContent = 'Rendering diagram...';
+            pre.replaceWith(diagram);
+
+            try {
+                const renderId = `file-viewer-mermaid-${Date.now()}-${index}`;
+                const result = await mermaid.render(renderId, source);
+                if (renderToken !== this._renderToken || !diagram.isConnected) return;
+                const svg = typeof result === 'string' ? result : result?.svg;
+                if (!svg) throw new Error('Mermaid render returned no SVG');
+                diagram.innerHTML = this._sanitizeMermaidSvg(svg);
+                diagram.classList.add('is-rendered');
+            } catch (error) {
+                if (renderToken !== this._renderToken || !diagram.isConnected) return;
+                diagram.classList.add('has-error');
+                diagram.innerHTML = `<pre class="file-viewer-mermaid-source"><code>${escapeHtml(source)}</code></pre>`;
+                diagram.setAttribute('title', error?.message || 'Failed to render Mermaid diagram');
+            }
+        }));
+    }
+
+    _sanitizeMermaidSvg(svg) {
+        const purifier = /** @type {any} */ (window).DOMPurify;
+        if (purifier && typeof purifier.sanitize === 'function') {
+            return purifier.sanitize(svg);
+        }
+        return svg;
     }
 
     _buildHtmlPreviewUrl(sessionId, relativePath) {

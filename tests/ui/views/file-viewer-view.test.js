@@ -24,6 +24,8 @@ describe('FileViewerView', () => {
 
         view = new FileViewerView({ fileViewerService });
         appStore.setState({ fileViewer: null });
+        delete window.mermaid;
+        delete window.DOMPurify;
         vi.clearAllMocks();
     });
 
@@ -48,6 +50,38 @@ describe('FileViewerView', () => {
         view.mount(container);
         expect(container.querySelector('.file-viewer-markdown')).toBeTruthy();
         expect(container.querySelector('.file-viewer-markdown').innerHTML).toContain('<h1>Hello</h1>');
+    });
+
+    it('Markdown内のmermaidコードブロックをMermaid図として描画する', async () => {
+        const render = vi.fn(async () => ({
+            svg: '<svg data-testid="mermaid-diagram"><g></g></svg>'
+        }));
+        const initialize = vi.fn();
+        window.mermaid = { initialize, render };
+        window.DOMPurify = { sanitize: vi.fn((value) => value) };
+        appStore.setState({
+            fileViewer: {
+                relativePath: 'diagram.md',
+                fileName: 'diagram.md',
+                content: '```mermaid\ngraph TD\nA-->B\n```',
+                renderedHtml: '<pre><code class="language-mermaid">graph TD\nA--&gt;B</code></pre>',
+                isMarkdown: true,
+                loading: false,
+                error: null
+            }
+        });
+
+        view.mount(container);
+
+        await vi.waitFor(() => {
+            expect(render).toHaveBeenCalledWith(expect.stringMatching(/^file-viewer-mermaid-/), 'graph TD\nA-->B');
+        });
+        expect(initialize).toHaveBeenCalledWith(expect.objectContaining({
+            startOnLoad: false,
+            securityLevel: 'strict'
+        }));
+        expect(container.querySelector('.file-viewer-mermaid.is-rendered svg')).toBeTruthy();
+        expect(container.querySelector('code.language-mermaid')).toBeNull();
     });
 
     it('テキストコンテンツ表示時_preタグで表示される', () => {
