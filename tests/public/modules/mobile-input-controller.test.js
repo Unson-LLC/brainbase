@@ -395,6 +395,21 @@ describe('MobileInputUIController 二重送信防止', () => {
         );
     });
 
+    it('codexセッションではohayo綴り揺れを通常プロンプトへ正規化する', async () => {
+        mockAppState.sessions = [{ id: 'test-session', engine: 'codex' }];
+        vi.spyOn(controller, 'waitForSubmitKeyReady').mockResolvedValue(undefined);
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = '/oyaho';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledWith(
+            'test-session',
+            'Run the project command /ohayo by following .claude/commands/ohayo.md.'
+        );
+        expect(mockTerminalInput.sendKey).toHaveBeenCalledWith('test-session', 'Enter');
+    });
+
     it('claudeセッションでは追加Enterを送らない', async () => {
         mockAppState.sessions = [{ id: 'test-session', engine: 'claude' }];
 

@@ -115,6 +115,22 @@ describe('TerminalInteractionService', () => {
         });
     });
 
+    it('codexセッションのohayo綴り揺れを通常プロンプトへ正規化する', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getSessionEngine: () => 'codex',
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/oyaho');
+
+        expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/input', {
+            input: 'Run the project command /ohayo by following .claude/commands/ohayo.md.\n',
+            type: 'text'
+        });
+    });
+
     it('claudeセッションのproject slash commandは変換しない', async () => {
         const httpClient = { post: vi.fn(async () => {}) };
         const service = new TerminalInteractionService({

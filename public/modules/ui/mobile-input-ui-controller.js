@@ -501,12 +501,25 @@ export class MobileInputUIController {
 
     parseProjectSlashCommand(payload) {
         if (typeof payload !== 'string') return null;
-        const match = payload.match(/^\/(ohayo|oyasumi|retro)(?:\s+(.+))?$/);
+        const match = payload.match(/^\/([A-Za-z][A-Za-z0-9_-]*)(?:\s+(.+))?$/);
         if (!match) return null;
+        const commandName = this.normalizeProjectCommandName(match[1]);
+        if (!commandName) return null;
         return {
-            name: match[1],
+            name: commandName,
             args: match[2]?.trim() || ''
         };
+    }
+
+    normalizeProjectCommandName(name) {
+        const aliases = {
+            ohayo: 'ohayo',
+            ohayou: 'ohayo',
+            oyaho: 'ohayo',
+            oyasumi: 'oyasumi',
+            retro: 'retro'
+        };
+        return aliases[String(name || '').toLowerCase()] || null;
     }
 
     isCodexSession(sessionId) {

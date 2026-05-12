@@ -307,6 +307,32 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(sendNamedKeySpy).toHaveBeenNthCalledWith(2, 'session-1', 'Enter');
     });
 
+    it('codexセッションで1文字ずつ入力されたohayo綴り揺れを通常プロンプトへ正規化する', async () => {
+      sessionManager.stateStore = {
+        get: vi.fn(() => ({
+          sessions: [{ id: 'session-1', engine: 'codex' }]
+        })),
+        update: vi.fn(async (next) => next)
+      };
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+
+      for (const char of '/oyaho') {
+        await sessionManager.sendInput('session-1', char, 'text');
+      }
+      sendNamedKeySpy.mockClear();
+      literalSpy.mockClear();
+
+      await sessionManager.sendInput('session-1', 'Enter', 'key');
+
+      expect(sendNamedKeySpy).toHaveBeenNthCalledWith(1, 'session-1', 'C-u');
+      expect(literalSpy).toHaveBeenCalledWith(
+        'session-1',
+        'Run the project command /ohayo by following .claude/commands/ohayo.md.'
+      );
+      expect(sendNamedKeySpy).toHaveBeenNthCalledWith(2, 'session-1', 'Enter');
+    });
+
     it('claudeセッションで1文字ずつ入力されたproject slash commandは差し替えない', async () => {
       sessionManager.stateStore = {
         get: vi.fn(() => ({

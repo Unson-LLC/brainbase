@@ -269,13 +269,26 @@ export const terminalIoMethods = {
 
     _parseProjectSlashCommand(input) {
         if (typeof input !== 'string') return null;
-        const match = input.trim().match(/^\/(ohayo|oyasumi|retro)(?:\s+(.+))?$/);
+        const match = input.trim().match(/^\/([A-Za-z][A-Za-z0-9_-]*)(?:\s+(.+))?$/);
         if (!match) return null;
+        const commandName = this._normalizeProjectCommandName(match[1]);
+        if (!commandName) return null;
         const argsText = match[2]?.trim() ? ` Arguments: ${match[2].trim()}` : '';
         return {
-            name: match[1],
-            prompt: `Run the project command /${match[1]} by following .claude/commands/${match[1]}.md.${argsText}`
+            name: commandName,
+            prompt: `Run the project command /${commandName} by following .claude/commands/${commandName}.md.${argsText}`
         };
+    },
+
+    _normalizeProjectCommandName(name) {
+        const aliases = {
+            ohayo: 'ohayo',
+            ohayou: 'ohayo',
+            oyaho: 'ohayo',
+            oyasumi: 'oyasumi',
+            retro: 'retro'
+        };
+        return aliases[String(name || '').toLowerCase()] || null;
     },
 
     _stripTerminalFocusEvents(input) {
