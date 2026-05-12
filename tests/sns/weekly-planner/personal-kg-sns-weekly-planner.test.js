@@ -6,7 +6,8 @@ import { PersonalKnowledgeGraphReader } from '../../../server/services/sns/perso
 import {
     PersonalKgSnsWeeklyPlanner,
     DEFAULT_WEEKLY_CONTENT_MIX,
-    classifyPeerSignalBand
+    classifyPeerSignalBand,
+    evaluatePersonaAffect
 } from '../../../server/services/sns/personal-kg-sns-weekly-planner.js';
 
 const viewer = {
@@ -134,6 +135,9 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
             expect(draft.persona_brain.target_person).toBe(viewer.persona);
             expect(Object.values(draft.persona_brain).every((value) => typeof value === 'string' && value.length > 0)).toBe(true);
             expect(draft.safety.requires_human_review).toBe(true);
+            expect(draft.safety.persona_affect.decision).toBe('pass');
+            expect(draft.safety.persona_affect.likely_reader_feeling).toMatch(/自分|現場|未選定/);
+            expect(draft.safety.persona_affect.negative_feeling_risks).toEqual([]);
             expect(draft.body.length).toBeLessThanOrEqual(280);
             expect(draft.body).not.toMatch(/APIで投稿|AIで投稿を書いて|自動投稿/);
         }
@@ -153,7 +157,8 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         expect(peerDrafts).toHaveLength(6);
         expect(peerDrafts.every((draft) => draft.format === 'quote_repost_commentary')).toBe(true);
         expect(peerDrafts.every((draft) => draft.signal?.author_handle === '@near_peer_ai_pm')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.body.includes('相手の読者に向けて言い換えると'))).toBe(true);
+        expect(peerDrafts.every((draft) => draft.body.includes('これめちゃ分かる'))).toBe(true);
+        expect(peerDrafts.every((draft) => !draft.body.includes('相手の読者に向けて'))).toBe(true);
     });
 
     it('can use the PersonalKnowledgeGraphReader as the weekly planner source', async () => {
@@ -257,5 +262,37 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         expect(peerDrafts).toHaveLength(6);
         expect(peerDrafts.every((draft) => draft.format === 'peer_research_prompt')).toBe(true);
         expect(peerDrafts.every((draft) => draft.body === '')).toBe(true);
+    });
+
+    it('blocks copy that would make the persona feel lectured or used as a growth tactic', () => {
+        const personaBrain = {
+            target_person: viewer.persona,
+            current_situation: 'AI導入を任されているが、現場でどこから始めるか迷っている',
+            existing_belief: '良いツールを選べば前に進むと思っている',
+            misunderstanding: 'AI活用はツール選定の問題だと思っている',
+            fear: '責任境界が曖昧なまま事故ることを怖がっている',
+            blocker: '最初の業務とレビュー境界を決めきれていない',
+            resonant_detail: '現場で止まる',
+            avoid_phrasing: '上から正解を言われる',
+            natural_next_action: '自社の最初の1業務を考える',
+            success_signal: 'bookmark'
+        };
+
+        const lecturing = evaluatePersonaAffect({
+            body: 'AI導入で迷うなら、最初に見るべきはツール一覧じゃない',
+            lane: 'soft_cta',
+            personaBrain
+        });
+        expect(lecturing.decision).toBe('blocked');
+        expect(lecturing.negative_feeling_risks).toContain('lecturing_tone');
+
+        const tactic = evaluatePersonaAffect({
+            body: '今日は同じ界隈の少し上の人の投稿を探す。見つけたら引用する',
+            lane: 'peer_circle',
+            personaBrain,
+            signal: { kind: 'peer_post', author_handle: '@near_peer_ai_pm' }
+        });
+        expect(tactic.decision).toBe('blocked');
+        expect(tactic.negative_feeling_risks).toContain('internal_growth_tactic_exposed');
     });
 });

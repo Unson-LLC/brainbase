@@ -124,6 +124,79 @@ function finalizePublicCopy(text) {
         .trim());
 }
 
+function hasReaderWorldAnchor(text) {
+    return /自社|会社|現場|導入|運用|PM|経営|業務|実務|責任|権限|レビュー|学習|迷|詰ま|止ま|怖|不安|事故|信頼/u.test(text);
+}
+
+function personaFeelingFor(risks, body) {
+    if (!body) return '引用元未選定なので、読者に見せる本文はまだない';
+    if (risks.includes('internal_growth_tactic_exposed')) return '自分が成長施策の対象として使われているように感じる';
+    if (risks.includes('lecturing_tone')) return '上から正解を言われ、自分の迷いを責められているように感じる';
+    if (risks.includes('self_first_without_reader_bridge')) return '投稿者の実績や思想だけを見せられ、自分の現場に関係ないように感じる';
+    if (risks.includes('no_reader_world_anchor')) return '自分の現場の不安や迷いが本文に入っていないように感じる';
+    if (risks.includes('peer_quote_takes_without_giving')) return '引用元の話を踏み台にしているように感じる';
+    return '自分の現場の迷いを言語化されたと感じる';
+}
+
+function repairGuidanceFor(risks) {
+    if (risks.length === 0) return 'そのままreview可能';
+    const guidance = [];
+    if (risks.includes('internal_growth_tactic_exposed')) {
+        guidance.push('運用方針や相手選定の都合を消し、実際の会話として書く');
+    }
+    if (risks.includes('lecturing_tone')) {
+        guidance.push('正解を告げる文ではなく、読者の迷いを先に受け止める');
+    }
+    if (risks.includes('self_first_without_reader_bridge')) {
+        guidance.push('実績や思想の前に、読者の現場で起きる詰まりへ接続する');
+    }
+    if (risks.includes('no_reader_world_anchor')) {
+        guidance.push('自社、現場、業務、責任境界、レビューなど読者の脳内語彙を入れる');
+    }
+    if (risks.includes('peer_quote_takes_without_giving')) {
+        guidance.push('相手の論点を補強し、相手が拾いやすい現場知見を足す');
+    }
+    return guidance.join(' / ');
+}
+
+export function evaluatePersonaAffect({ body, lane, personaBrain, signal }) {
+    const text = String(body || '').trim();
+    const risks = [];
+    if (!text) {
+        return {
+            decision: 'pass',
+            likely_reader_feeling: personaFeelingFor([], text),
+            negative_feeling_risks: [],
+            repair_guidance: '引用元が決まるまで本文を作らない'
+        };
+    }
+
+    if (/同じ界隈の少し上の人|少し上の人|絡み|見つけたら|候補|相手の読者に向けて|引用元未選定/u.test(text)) {
+        risks.push('internal_growth_tactic_exposed');
+    }
+    if (/迷うなら|最初に見るべき|ツール一覧じゃない|間違えてる|できてない|正解はこれ/u.test(text)) {
+        risks.push('lecturing_tone');
+    }
+    if (/^(自分の基準はこれ|実装してわかった)/u.test(text) && !hasReaderWorldAnchor(text)) {
+        risks.push('self_first_without_reader_bridge');
+    }
+    if (!hasReaderWorldAnchor(text)) {
+        risks.push('no_reader_world_anchor');
+    }
+    if (lane === 'peer_circle' && signal && !/これ|うちでも|同じ|分かる|実務|現場/u.test(text)) {
+        risks.push('peer_quote_takes_without_giving');
+    }
+
+    const uniqueRisks = [...new Set(risks)];
+    return {
+        decision: uniqueRisks.length > 0 ? 'blocked' : 'pass',
+        likely_reader_feeling: personaFeelingFor(uniqueRisks, text),
+        negative_feeling_risks: uniqueRisks,
+        repair_guidance: repairGuidanceFor(uniqueRisks),
+        persona_assumption: personaBrain?.target_person || 'AI導入を任された事業責任者 / PM / 経営者'
+    };
+}
+
 function sourceMatchesLane(source, lane) {
     const body = source?.body || '';
     return (LANE_KEYWORDS[lane] || []).some((keyword) => body.includes(keyword));
@@ -213,9 +286,9 @@ function composeBody({ lane, source, signal }) {
         }
         const handle = signal?.author_handle || 'この投稿';
         return finalizePublicCopy(
-            `${handle} の話、相手の読者に向けて言い換えると、ここはかなり実務っぽい\n\n` +
-            `${signal?.text || sentence}\n\n` +
-            '小技ではなく、責任・権限・記憶・レビュー境界まで含めて見ると実務に落ちる'
+            `これめちゃ分かる\n\n` +
+            `${handle} の言ってる ${signal?.text || sentence} って、実務だと責任・権限・記憶・レビュー境界まで含めて見る話なんよな\n\n` +
+            'うちでもAIを会社で使える形に近づけるほど、ここを先に決めないと止まる'
         );
     }
     if (signal?.kind === 'news') {
@@ -247,27 +320,28 @@ function composeBody({ lane, source, signal }) {
     }
     if (lane === 'own_proof') {
         return finalizePublicCopy(
-            `実装してわかった。\n\n${sentence}\n\n` +
-            '思想は、動いている運用と証跡まで落ちて初めて信用になる'
+            `AI導入って、思想だけだと現場は動きにくい\n\n` +
+            `${sentence}\n\n` +
+            'ここまで自分で通してみて、動いている運用と証跡まで落ちて初めて会社で信用されると感じた'
         );
     }
     if (lane === 'philosophy') {
         return finalizePublicCopy(
-            `自分の基準はこれ。\n\n${sentence}\n\n` +
+            `AI導入で迷った時、俺はまずここを見る\n\n${sentence}\n\n` +
             'ツール名より、役割・権限・記憶・承認・証跡を先に見る'
         );
     }
     if (lane === 'learn_in_public') {
         return finalizePublicCopy(
             `失敗から学んだのは、${sentence}\n\n` +
-            '事故を隠すより、停止条件・責任境界・再発防止を仕組みに戻す方が強い'
+            '事故が起きた時に信頼を戻すのは、言い訳ではなく停止条件・責任境界・再発防止を仕組みに戻すこと'
         );
     }
     if (lane === 'soft_cta') {
         return finalizePublicCopy(
-            'AI導入で迷うなら、最初に見るべきはツール一覧じゃない。\n\n' +
-            '自社の「最初の1業務」を選んで、どこをAIに渡し、どこで人間が戻るかを書き出す。\n\n' +
-            'そこから始める方が失敗しにくい'
+            'AI導入で詰まる会社ほど、ツール選定の前で迷ってることが多い\n\n' +
+            'まず自社の「最初の1業務」を選んで、どこをAIに渡し、どこで人間が戻るかを書き出す\n\n' +
+            'そこが見えると、次の一手を決めやすい'
         );
     }
     return finalizePublicCopy(sentence);
@@ -351,6 +425,8 @@ export class PersonalKgSnsWeeklyPlanner {
                     ? (signal ? 'quote_repost_commentary' : 'peer_research_prompt')
                     : (signal?.kind === 'news' ? 'news_commentary' : 'standalone');
                 const personaBrain = completePersonaBrain({ source, lane, viewer, signal });
+                const body = composeBody({ lane, source, signal });
+                const personaAffect = evaluatePersonaAffect({ body, lane, personaBrain, signal });
                 drafts.push({
                     id: `week_${date}_${slotIndex + 1}_${lane}`,
                     date,
@@ -360,7 +436,7 @@ export class PersonalKgSnsWeeklyPlanner {
                     lane,
                     lane_intent: LANE_INTENT[lane],
                     format,
-                    body: composeBody({ lane, source, signal }),
+                    body,
                     kg_source_entity_id: source.id,
                     source_candidate_id: source.source_candidate_id || null,
                     derived_from: [source.id, ...source.derived_from],
@@ -379,7 +455,8 @@ export class PersonalKgSnsWeeklyPlanner {
                     safety: {
                         requires_human_review: true,
                         no_post_api: true,
-                        no_auto_posting_language: true
+                        no_auto_posting_language: true,
+                        persona_affect: personaAffect
                     }
                 });
             });
