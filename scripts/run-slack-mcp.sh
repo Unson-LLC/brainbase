@@ -58,7 +58,7 @@ INFISICAL_TOKEN_VALUE="${INFISICAL_TOKEN:-}"
 if [ -z "$INFISICAL_TOKEN_VALUE" ] && [ -f "$SLACK_MCP_INFISICAL_TOKEN_FILE" ]; then
   token_mode="$(stat -f '%OLp' "$SLACK_MCP_INFISICAL_TOKEN_FILE" 2>/dev/null || stat -c '%a' "$SLACK_MCP_INFISICAL_TOKEN_FILE" 2>/dev/null || true)"
   case "$token_mode" in
-    400|600|700) ;;
+    400|600) ;;
     *) die "token file must not be group/world readable: $SLACK_MCP_INFISICAL_TOKEN_FILE" ;;
   esac
   INFISICAL_TOKEN_VALUE="$(sed -n '1p' "$SLACK_MCP_INFISICAL_TOKEN_FILE" | tr -d '\r\n')"
