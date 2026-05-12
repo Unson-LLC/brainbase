@@ -23,11 +23,13 @@ test_files:
 
 ## 目的
 
-SNS Growth Cockpit は予約投稿カレンダーではない。
+SNS Growth Cockpit は予約投稿カレンダーだけではない。
 
 Brainbase が、今日なにを見て、なにを考え、なにを出し、なにを学ぶかを回すための operations cockpit とする。
 
-カレンダーは必要だが主役ではない。Ship Calendar は「いつ何が出るか」「どの状態か」を見る運用地図として常時アクセス可能にし、Direct AI / Research / Review / Learning の判断を押しのけない。
+初期画面の主役は `Today｜今日の運用判断` である。Ship Calendar は「いつ何が出るか」「どの状態か」を見る実務画面として成立させるが、SNS Growth の入口そのものにはしない。
+
+2026-05-13 時点の light admin UI image は、`Ship Calendar` 画面の visual direction として扱う。左 navigation、週カレンダー、右 detail panel、status summary は採用する。ただし `Today` 初期画面の visual direction ではない。
 
 ## Invariants
 
@@ -47,6 +49,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - 検証: UI test で accordion collapsed 初期状態と展開状態を確認する。
 - **INV-7**: raw metrics や投稿状態は Graph へ直接書き込まない。Learning Loop は candidate-store への learning candidate 化を入口にする。
   - 検証: API / repository test で Learning action が Graph writer を呼ばないこと。
+- **INV-8**: Brainbase sidebar は `今日 / 脳 / 作る / 動かす / 学ぶ / システム` の operating loop を表現し、SNS Growth は `作る` に属する。
+  - 検証: E2E で sidebar group labels と `SNS Growth` active state が表示されること。
 
 ## Contracts
 
@@ -57,18 +61,26 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - authenticated actor
   - active tool id `sns-growth`
 - **output**: SNS Growth Cockpit shell
-  - breadcrumb: `Brainbase / Tools / SNS Growth`
+  - breadcrumb: `Brainbase / SNS Growth`
   - back action: Brainbase の直前 context または Home
   - account display: `@AIBizNavigator` など現在の SNS account
+  - sidebar groups:
+    - `今日`: Ohayo / 今日の判断 / Inbox
+    - `脳`: Knowledge Graph / Personal KG / People / Orgs / Philosophy / Memories
+    - `作る`: SNS Growth / Content Studio / Research Board / Drafts
+    - `動かす`: Tasks / Calendar / Automations / Integrations
+    - `学ぶ`: Feedback / Learning Candidates / Reports
+    - `システム`: Settings / Members
 - **preconditions**:
   - actor は SNS Growth tool を閲覧できる
 - **postconditions**:
   - Brainbase global navigation を失わない
   - SNS Growth 内の tab / route 遷移で Brainbase sidebar が消えない
+  - `SNS Growth` は `作る` group の active item として見える
 - **error cases**:
   - account 未接続: account setup empty state を表示し、他画面を壊さない
 
-### Contract-2: Overview Contract
+### Contract-2: Today Overview Contract
 
 - **input**:
   - today date
@@ -88,10 +100,16 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
     - Review Desk
     - Ship Calendar
     - Learning Loop
+  - current review decision:
+    - 今日レビューする 1 件
+    - 読者の気持ち
+    - 引用元 / KG source
+    - status action
 - **preconditions**:
   - `/ohayo` 未実行でも empty state が出る
 - **postconditions**:
-  - calendar は Overview の一部として小さく見えるか、Ship Calendar への entry として見える
+  - calendar は compact week strip または Ship Calendar への entry として見える
+  - full weekly calendar grid は Overview では表示しない
 - **error cases**:
   - data source unavailable: 操作を止めず、該当 panel のみ unavailable 表示にする
 
@@ -163,14 +181,21 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - posted URL
   - learning_ready flag
 - **output**:
-  - week view または calendar strip
+  - full weekly calendar grid
+  - date range controls
+  - account / filter controls
+  - status summary cards
+  - right post detail panel
   - status badge
   - daily post count
   - selected post entry to Review Desk
+  - collapsed evidence rows: Persona Brain / Graph Check / Quality Gate / Reader affect
 - **preconditions**:
   - date range は必ず明示される
 - **postconditions**:
   - scheduled / posted / skipped / learning_ready が一目で分かる
+  - selected post の body / source URL / schedule datetime / status transition controls が右 panel で編集できる
+  - Ship Calendar 上の insight banner は topic balance warning を表示してよい
 - **error cases**:
   - 0件: empty week と action to Direct AI / Review Desk を出す
 
@@ -199,8 +224,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 ### S-1: Brainbase から SNS Growth に入る
 
 - **given**: actor が Brainbase Home を開いている
-- **when**: `Tools > SNS Growth` を選択する
-- **then**: `Overview｜今日の運用判断` が表示され、Brainbase sidebar と `Back to Brainbase` が見える
+- **when**: `作る > SNS Growth` を選択する
+- **then**: `Today｜今日の運用判断` が表示され、Brainbase sidebar と `Back to Brainbase` が見える
 - **検証**: `tests/e2e/sns-growth-cockpit.spec.js`
 
 ### S-2: 今日の AI 指示から調査へ進む
@@ -243,6 +268,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 - **AP-1**: 初期画面を大きな予約投稿カレンダーにする。
   - **理由**: SNS Growth Cockpit が単なる scheduling tool に見え、Direct AI / Research / Learning が埋もれる。
   - **検証**: UI snapshot / accessibility landmark で Overview が primary であることを確認する。
+- **補足**: Ship Calendar route では、大きな週次カレンダーと右 detail panel を表示してよい。禁止対象は初期画面である。
 - **AP-1b**: 初期画面に workflow panel、research list、review list、calendar、learning metrics を同じ重みで並べる。
   - **理由**: 佐藤さんが朝に必要なのは「今日の次の1手」であり、機能一覧ではない。
   - **検証**: initial screen の主領域は current review item 1 件と week strip のみにする。
@@ -262,12 +288,15 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 ## UI Transition Map
 
 ```text
-Brainbase Home / Sessions / Graph / Tasks
-  ├─ Tools > SNS Growth
+Brainbase Home
+  ├─ 今日 > Ohayo
+  ├─ 今日 > 今日の判断
+  ├─ 脳 > Personal KG
+  ├─ 作る > SNS Growth
   └─ /ohayo Report > SNS Growth
 
 SNS Growth
-  └─ Overview｜今日の運用判断
+  └─ Today｜今日の運用判断
       ├─ Direct AI｜AIに指示する
       │   └─ Research Board｜調査結果を見る
       │       └─ Review Desk｜投稿案をレビューする
@@ -287,6 +316,7 @@ Any screen
 
 | Clause | Test | Status |
 |---|---|---|
+| INV-0 | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | INV-1 | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | INV-2 | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | INV-3 | tests/e2e/sns-growth-cockpit.spec.js | planned |
@@ -294,6 +324,7 @@ Any screen
 | INV-5 | tests/sns/cockpit/status-badges.test.js | planned |
 | INV-6 | tests/sns/cockpit/review-desk.test.js | planned |
 | INV-7 | tests/sns/cockpit/learning-loop.test.js | planned |
+| INV-8 | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | S-1 | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | S-2 | tests/sns/cockpit/direct-ai-flow.test.js | planned |
 | S-3 | tests/sns/cockpit/research-to-review.test.js | planned |
@@ -301,6 +332,7 @@ Any screen
 | S-5 | tests/sns/cockpit/learning-loop.test.js | planned |
 | S-6 | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | AP-1 | tests/e2e/sns-growth-cockpit.spec.js | planned |
+| AP-1b | tests/e2e/sns-growth-cockpit.spec.js | planned |
 | AP-2 | tests/sns/cockpit/review-desk.test.js | planned |
 | AP-3 | tests/sns/cockpit/learning-loop.test.js | planned |
 | AP-4 | tests/sns/cockpit/status-transitions.test.js | planned |

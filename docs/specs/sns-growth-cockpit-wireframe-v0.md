@@ -18,6 +18,8 @@ SNS Growth Cockpit は、多機能な投稿管理画面ではなく、佐藤圭�
 
 前回の UI image は、Research / Review / Calendar / Learning を同時に見せすぎていた。v0 wireframe では、初期画面の情報量を落とし、1 つの判断に集中できる形にする。
 
+一方で、2026-05-13 に生成した light admin UI の週次カレンダー画面は、`Ship Calendar` の visual direction として採用する。入口の `Today` ではなく、運用状態を管理する dedicated route として扱う。
+
 ## 佐藤さんの脳での判断順
 
 1. 今日、SNS をやる意味は何か。
@@ -34,9 +36,11 @@ UI はこの順番を崩さない。
 
 - **One decision per screen**: 1 画面で同時に判断させる対象は 1 つにする。
 - **Calendar is a map, not the workbench**: カレンダーは週の見取り図であり、初期画面の主役にしない。
+- **Full calendar is a route**: 週次カレンダーを大きく表示するのは `Ship Calendar` route に限定する。
 - **Evidence is pull, not push**: Persona Brain / Graph Check / Quality Gate は必要なときに開く。常時展開しない。
 - **Research is a drawer**: 調査候補一覧は補助面。初期画面に大量表示しない。
 - **Brainbase shell remains visible**: Brainbase の左 navigation と context bar を維持し、別アプリ感を出さない。
+- **Brainbase loop navigation**: 左 navigation は `今日 / 脳 / 作る / 動かす / 学ぶ / システム` の順で、Brainbase の循環を表す。
 
 ## Jobs To Be Done
 
@@ -88,9 +92,10 @@ SNS Growth Cockpit
   │   ├─ Overseas / News
   │   ├─ Bookmarks
   │   └─ Personal KG
-  ├─ Week Map
-  │   ├─ theme balance
-  │   └─ status strip
+  ├─ Ship Calendar
+  │   ├─ full week grid
+  │   ├─ right post detail panel
+  │   └─ theme balance warning
   └─ Learning
       ├─ reaction note
       ├─ hypothesis result
@@ -103,13 +108,19 @@ Brainbase の shell は固定する。SNS Growth は main workspace の中に入
 
 ```text
 ┌────┬────────────────────────┬──────────────────────────────────────────────┐
-│icon│ Brainbase              │ Brainbase / Tools / SNS Growth     @ksato X │
+│icon│ Brainbase              │ Brainbase / SNS Growth             @ksato X │
 │bar │                        ├──────────────────────────────────────────────┤
-│    │ Sessions               │                                              │
-│    │ Knowledge Graph        │              SNS Growth Cockpit              │
-│    │ SNS Growth  ●          │                                              │
-│    │ Files                  │                                              │
-│    │ Settings               │                                              │
+│    │ 今日                   │                                              │
+│    │ - Ohayo                │              SNS Growth Cockpit              │
+│    │ - 今日の判断           │                                              │
+│    │ - Inbox                │                                              │
+│    │ 脳                     │                                              │
+│    │ - Knowledge Graph      │                                              │
+│    │ - Personal KG          │                                              │
+│    │ 作る                   │                                              │
+│    │ - SNS Growth ●         │                                              │
+│    │ - Research Board       │                                              │
+│    │ 動かす / 学ぶ          │                                              │
 └────┴────────────────────────┴──────────────────────────────────────────────┘
 ```
 
@@ -202,22 +213,44 @@ Research は drawer で開く。Today の主画面を壊さず、材料を選ん
 └────────────────────────────────────────────┴───────────────────────────────┘
 ```
 
-## Wireframe W4: Week Map
+## Wireframe W4: Ship Calendar
 
-Calendar は「週の偏りを見る」ために使う。初期表示では strip。必要なときだけ拡大する。
+Ship Calendar は「いつ何が出るか」と「どの状態か」を管理する dedicated route。ここでは大きな週次カレンダーと右 detail panel を主役にしてよい。
+
+ただし、これは初期画面ではない。`Today` から `Ship Calendar` に入った後の画面である。
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Week Map｜週の見取り図                                      [Todayへ戻る]  │
-├────────────┬────────────┬────────────┬────────────┬────────────┬───────────┤
-│ Mon        │ Tue        │ Wed        │ Thu        │ Fri        │ Sat / Sun │
-│ review 1   │ scheduled  │ posted     │ empty      │ scheduled  │ light     │
-│ AI PM      │ Peer Quote │ KG seed    │            │ News note  │           │
-├────────────┴────────────┴────────────┴────────────┴────────────┴───────────┤
-│ Theme balance: AI PM 2 / Claude Code 2 / 経営OS 1 / Peer Quote 2            │
-│ Warning: Xの話に寄りすぎない。Personal KG source を1件追加する。            │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────┬─────────────────────────────────────────────┐
+│ SNS Growth Cockpit             │ ポストの詳細                                │
+│ [Calendar] Research Review     │ X @brainbase_inc                            │
+│ Learning                       │ status: review_needed                       │
+│                                │ post id: bb_x_20250522_0900                 │
+│ Review Needed 3  Scheduled 8   │                                             │
+│ Posted 12       Learning 2     │ ポスト本文                                  │
+│                                │ ┌─────────────────────────────────────────┐ │
+│ 今週はX運用の話に寄りすぎ。    │ │ チームの生産性を最大化するために...      │ │
+│ Personal KG由来を1件追加候補。 │ └─────────────────────────────────────────┘ │
+│                                │ Source URL                                  │
+│ ┌────┬────┬────┬────┬────┐     │ Schedule: 2025/05/22 09:00 JST             │
+│ │Mon │Tue │Wed │Thu │Fri │     │                                             │
+│ │9:00 posted ...        │     │ [承認する] [スケジュール] [投稿済みにする] │
+│ │12:00 scheduled ...    │     │ [スキップする]                             │
+│ │15:00 review ...       │     │                                             │
+│ │18:00 scheduled ...    │     │ Persona Brain  一致                        │
+│ │21:00 learning ...     │     │ Graph Check    異常なし                    │
+│ └────┴────┴────┴────┴────┘     │ Quality Gate   合格                        │
+└───────────────────────────────┴─────────────────────────────────────────────┘
 ```
+
+### W4 の採用要素
+
+- Brainbase の light admin UI として成立する密度。
+- 左 navigation は Brainbase loop を維持する。
+- status summary cards は Calendar route では表示してよい。
+- full weekly calendar grid は Calendar route では表示してよい。
+- 右 detail panel は selected post の編集・承認・schedule を担う。
+- Persona Brain / Graph Check / Quality Gate / Reader affect は collapsed rows にする。
+- topic balance warning は Calendar route に表示してよい。
 
 ## Wireframe W5: Learning
 
@@ -241,7 +274,7 @@ Calendar は「週の偏りを見る」ために使う。初期表示では stri
 - Overview の中心は `currentReviewItem` 1 件だけ。
 - 複数件は `next queue` として小さく数だけ見せる。
 - Detail evidence は accordion / drawer に閉じる。
-- Calendar は `week strip` を標準表示、full calendar は secondary route。
+- Today では `week strip` を標準表示、full calendar は `Ship Calendar` route。
 - Research Board は right drawer または separate tab。初期画面に常時表示しない。
 - Status は文字より短い chip で表す。
 - CTA は最大 4 つ: `投稿する`, `直す`, `保留`, `予約する`。
@@ -251,6 +284,8 @@ Calendar は「週の偏りを見る」ために使う。初期表示では stri
 
 - [ ] 初期表示で、投稿候補の詳細表示は 1 件だけである。
 - [ ] 初期表示で、週カレンダーは strip または compact map として表示され、画面の主役にならない。
+- [ ] Ship Calendar route では、週次 calendar grid と右 detail panel が主役になる。
+- [ ] 左 navigation は `今日 / 脳 / 作る / 動かす / 学ぶ / システム` の group を持つ。
 - [ ] Persona Brain / Graph Check / Quality Gate は初期状態で畳まれている。
 - [ ] Research candidates は drawer / tab から開き、Today Overview を情報過多にしない。
 - [ ] 投稿本文・引用元・読者の気持ち・主要 action が 1 画面で見える。
@@ -260,6 +295,7 @@ Calendar は「週の偏りを見る」ために使う。初期表示では stri
 ## Anti-patterns
 
 - 大きな月間カレンダーを初期画面に置く。
+- Ship Calendar route の full weekly calendar を、Today 初期画面と混同する。
 - 5 つの workflow panel を同じ強さで並べる。
 - Research candidate を初期画面に 10 件以上並べる。
 - Persona Brain / Graph Check / Quality Gate を常時展開する。
