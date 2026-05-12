@@ -32,6 +32,9 @@ test_files:
 - **INV-8**: 同一日の3 slotでは同じ `kg_source_entity_id` を再利用しない。読者体験上の重複を避け、1日内で信頼・関係・証拠の役割を分ける。
 - **INV-9**: planner は KG memory をそのまま投稿本文にしない。Persona Brainに合わせて誤解、不安、自然な次行動が読める copy へ shaping する。
 - **INV-10**: laneごとのsource選択では、`philosophy` に Own Proof を混ぜず、`soft_cta` は投稿設計ではなく読者の最初の1業務へ接続する。
+- **INV-11**: 公開本文には `Peer Circle`, `Own Proof`, `Learn in Public`, `Soft CTA`, `Graph traversal`, `entity` などの内部運用ラベルを出さない。英語は `Claude Code`, `VibePro`, `AI PM` など必要な固有名詞だけに限定する。
+- **INV-12**: 引用元の投稿がない `peer_research_prompt` は本文を作らない。探索方針を読者に見せず、実際の引用リポスト本文は peer signal がある時だけ生成する。
+- **INV-13**: X本文は句点 `。` を使わない。
 
 ## Contract
 
@@ -104,6 +107,18 @@ type WeeklyDraft = {
 - given: 1日3slotのweekly pattern
 - when: weekly pack を作る
 - then: 同じ日のdraftは異なる `kg_source_entity_id` を使う
+
+### S-6: 内部運用ラベルを読者に見せない
+
+- given: source memory に `Peer Circle候補` や `Own Proof` が含まれる
+- when: weekly pack を作る
+- then: 公開本文には内部ラベル、不要な英語、句点が含まれない
+
+### S-7: 引用元未選定なら本文を作らない
+
+- given: peer signal がない
+- when: peer slot を作る
+- then: `peer_research_prompt` の本文は空で、引用元が決まるまで投稿本文にしない
 
 ## Non-goals
 

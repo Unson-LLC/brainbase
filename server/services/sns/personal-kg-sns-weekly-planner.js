@@ -71,8 +71,57 @@ function cleanMemoryText(text) {
     return String(text || '')
         .replace(/^Own Proof:\s*/u, '')
         .replace(/^気づいた:\s*/u, '')
+        .replace(/Peer Circle候補:\s*[^。！？]+[。！？]?/gu, '')
+        .replace(/knowledge-graph-kernel/giu, 'ナレッジグラフ基盤')
+        .replace(/M1-M4/gu, '最初の4段階')
+        .replace(/\bACL\b/gu, '権限管理')
+        .replace(/Persona Brain/gu, '相手の脳')
+        .replace(/deterministic guard/giu, '機械的なガード')
+        .replace(/silent drop/giu, 'サイレントに消えた')
+        .replace(/Story/gu, 'ストーリー')
+        .replace(/Architecture/gu, '設計')
+        .replace(/Spec/gu, '仕様')
+        .replace(/Graphify/gu, '関係整理')
+        .replace(/Gate/gu, '検証ゲート')
+        .replace(/graph traversal/giu, 'つながり')
+        .replace(/entity/giu, '情報')
+        .replace(/Candidate Store/gu, '記憶の置き場')
+        .replace(/SNS posting engine/gu, '投稿の下書き')
+        .replace(/PR evidence/gu, 'PR証跡')
+        .replace(/Tips/gu, '小技')
+        .replace(/Skills/gu, 'スキル')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function finalizePublicCopy(text) {
+    return truncateText(String(text || '')
+        .replace(/Peer Circle/gu, '近い界隈')
+        .replace(/Own Proof/gu, '実績')
+        .replace(/Learn in Public/gu, '公開学習')
+        .replace(/Soft CTA/gu, '自然な導線')
+        .replace(/knowledge-graph-kernel/giu, 'ナレッジグラフ基盤')
+        .replace(/M1-M4/gu, '最初の4段階')
+        .replace(/\bACL\b/gu, '権限管理')
+        .replace(/Persona Brain/gu, '相手の脳')
+        .replace(/deterministic guard/giu, '機械的なガード')
+        .replace(/silent drop/giu, 'サイレントに消えた')
+        .replace(/Story/gu, 'ストーリー')
+        .replace(/Architecture/gu, '設計')
+        .replace(/Spec/gu, '仕様')
+        .replace(/Graphify/gu, '関係整理')
+        .replace(/Gate/gu, '検証ゲート')
+        .replace(/Graph traversal/giu, 'つながり')
+        .replace(/graph traversal/giu, 'つながり')
+        .replace(/entity/giu, '情報')
+        .replace(/Candidate Store/gu, '記憶の置き場')
+        .replace(/SNS posting engine/gu, '投稿の下書き')
+        .replace(/PR evidence/gu, 'PR証跡')
+        .replace(/Tips/gu, '小技')
+        .replace(/Skills/gu, 'スキル')
+        .replace(/。/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim());
 }
 
 function sourceMatchesLane(source, lane) {
@@ -160,70 +209,68 @@ function composeBody({ lane, source, signal }) {
     const body = cleanMemoryText(source.body);
     if (lane === 'peer_circle') {
         if (!signal) {
-            return truncateText(
-                `今日はこの軸で、同じ界隈の少し上の人の投稿を探す。\n\n${sentence}\n\n` +
-                '見つけたら、相手の読者向けに責任・権限・記憶・レビュー境界の言葉へ翻訳する。'
-            );
+            return '';
         }
         const handle = signal?.author_handle || 'この投稿';
-        return truncateText(
-            `${handle} の話、相手の読者に向けて言い換えると、${sentence}\n\n` +
-            'Tipsではなく、責任・権限・記憶・レビュー境界まで含めて見ると実務に落ちる。'
+        return finalizePublicCopy(
+            `${handle} の話、相手の読者に向けて言い換えると、ここはかなり実務っぽい\n\n` +
+            `${signal?.text || sentence}\n\n` +
+            '小技ではなく、責任・権限・記憶・レビュー境界まで含めて見ると実務に落ちる'
         );
     }
     if (signal?.kind === 'news') {
-        return truncateText(
+        return finalizePublicCopy(
             `今日のニュースをこの観点で見ると、${sentence}\n\n` +
-            '新機能そのものより、どの業務フローに接続して学習へ戻すかが差になる。'
+            '新機能そのものより、どの業務フローに接続して学習へ戻すかが差になる'
         );
     }
 
     if (lane === 'trust_balance' && body.includes('AI PM')) {
-        return truncateText(
+        return finalizePublicCopy(
             'AI PMって「タスク管理をAIにやらせること」だと思われがちだけど、たぶん本体はそこじゃない。\n\n' +
             '本当に設計すべきなのは、責任分界・意思決定ログ・レビュー境界・学習の戻し先。\n\n' +
-            'AIを入れるほど、PMの仕事は“管理”より“境界設計”になる。'
+            'AIを入れるほど、PMの仕事は“管理”より“境界設計”になる'
         );
     }
     if (lane === 'trust_balance' && body.includes('Claude Code')) {
-        return truncateText(
-            'Claude Code法人導入で差がつくのは、Tipsの量ではなく運用設計だと思う。\n\n' +
-            'CLAUDE.md、Skills、権限、レビュー、検収。\n\n' +
-            'ここまで含めて初めて「会社で使えるAI」になる。'
+        return finalizePublicCopy(
+            'Claude Code法人導入で差がつくのは、小技の量ではなく運用設計だと思う\n\n' +
+            'CLAUDE.md、スキル、権限、レビュー、検収\n\n' +
+            'ここまで含めて初めて「会社で使えるAI」になる'
         );
     }
     if (lane === 'trust_balance') {
-        return truncateText(
+        return finalizePublicCopy(
             `${sentence}\n\n` +
-            'ツール名ではなく、業務フロー・責任境界・学習の戻し先まで見ると、AI導入の解像度が上がる。'
+            'ツール名ではなく、業務フロー・責任境界・学習の戻し先まで見ると、AI導入の解像度が上がる'
         );
     }
     if (lane === 'own_proof') {
-        return truncateText(
+        return finalizePublicCopy(
             `実装してわかった。\n\n${sentence}\n\n` +
-            '思想は、動いている運用と証跡まで落ちて初めて信用になる。'
+            '思想は、動いている運用と証跡まで落ちて初めて信用になる'
         );
     }
     if (lane === 'philosophy') {
-        return truncateText(
+        return finalizePublicCopy(
             `自分の基準はこれ。\n\n${sentence}\n\n` +
-            'ツール名より、役割・権限・記憶・承認・証跡を先に見る。'
+            'ツール名より、役割・権限・記憶・承認・証跡を先に見る'
         );
     }
     if (lane === 'learn_in_public') {
-        return truncateText(
+        return finalizePublicCopy(
             `失敗から学んだのは、${sentence}\n\n` +
-            '事故を隠すより、停止条件・責任境界・再発防止を仕組みに戻す方が強い。'
+            '事故を隠すより、停止条件・責任境界・再発防止を仕組みに戻す方が強い'
         );
     }
     if (lane === 'soft_cta') {
-        return truncateText(
+        return finalizePublicCopy(
             'AI導入で迷うなら、最初に見るべきはツール一覧じゃない。\n\n' +
             '自社の「最初の1業務」を選んで、どこをAIに渡し、どこで人間が戻るかを書き出す。\n\n' +
-            'そこから始める方が失敗しにくい。'
+            'そこから始める方が失敗しにくい'
         );
     }
-    return truncateText(sentence);
+    return finalizePublicCopy(sentence);
 }
 
 function sortSignalsByBand(signals) {
