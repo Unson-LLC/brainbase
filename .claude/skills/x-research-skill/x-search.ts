@@ -18,10 +18,11 @@
  *   --min-likes N              Filter by minimum likes
  *   --min-impressions N        Filter by minimum impressions
  *   --pages N                  Number of pages to fetch (default: 1, max 5)
+ *   --max-results N            Tweets to read per page, 10-100 (default: 100)
  *   --no-replies               Exclude replies
  *   --no-retweets              Exclude retweets (added by default)
  *   --limit N                  Max results to display (default: 15)
- *   --quick                    Quick mode: 1 page, noise filter, 1hr cache
+ *   --quick                    Quick mode: 1 page, 10 reads/page, noise filter, 1hr cache
  *   --from <username>          Shorthand for from:username in query
  *   --quality                  Pre-filter low-engagement (min_faves:10)
  *   --save                     Save results to ~/clawd/drafts/
@@ -63,6 +64,12 @@ function getOpt(name: string): string | undefined {
   return undefined;
 }
 
+function parseIntOpt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 // --- Watchlist ---
 
 interface Watchlist {
@@ -88,10 +95,11 @@ async function cmdSearch() {
   const fromUser = getOpt("from");
 
   const sortOpt = getOpt("sort") || "likes";
-  const minLikes = parseInt(getOpt("min-likes") || "0");
-  const minImpressions = parseInt(getOpt("min-impressions") || "0");
-  let pages = Math.min(parseInt(getOpt("pages") || "1"), 5);
-  let limit = parseInt(getOpt("limit") || "15");
+  const minLikes = parseIntOpt(getOpt("min-likes"), 0);
+  const minImpressions = parseIntOpt(getOpt("min-impressions"), 0);
+  let pages = Math.max(Math.min(parseIntOpt(getOpt("pages"), 1), 5), 1);
+  let limit = Math.max(parseIntOpt(getOpt("limit"), 15), 1);
+  let maxResults = Math.max(Math.min(parseIntOpt(getOpt("max-results"), 100), 100), 10);
   const since = getOpt("since");
   const noReplies = getFlag("no-replies");
   const noRetweets = getFlag("no-retweets");
@@ -103,6 +111,7 @@ async function cmdSearch() {
   if (quick) {
     pages = 1;
     limit = Math.min(limit, 10);
+    maxResults = Math.min(maxResults, 10);
   }
 
   // Everything after "search" that isn't a flag is the query
@@ -133,7 +142,7 @@ async function cmdSearch() {
   const cacheTtlMs = quick ? 3_600_000 : 900_000;
 
   // Check cache (cache key does NOT include quick flag — shared between modes)
-  const cacheParams = `sort=${sortOpt}&pages=${pages}&since=${since || "7d"}`;
+  const cacheParams = `sort=${sortOpt}&pages=${pages}&maxResults=${maxResults}&since=${since || "7d"}`;
   const cached = cache.get(query, cacheParams, cacheTtlMs);
   let tweets: api.Tweet[];
 
@@ -143,6 +152,7 @@ async function cmdSearch() {
   } else {
     tweets = await api.search(query, {
       pages,
+      maxResults,
       sortOrder: sortOpt === "recent" ? "recency" : "relevancy",
       since: since || undefined,
     });
@@ -213,7 +223,7 @@ async function cmdSearch() {
   const filtered = rawTweetCount !== tweets.length ? ` → ${tweets.length} after filters` : "";
   const sinceLabel = since ? ` | since ${since}` : "";
   console.error(
-    `${rawTweetCount} tweets${filtered} | sorted by ${sortOpt} | ${pages} page(s)${sinceLabel}`
+    `${rawTweetCount} tweets${filtered} | sorted by ${sortOpt} | ${pages} page(s) | max ${maxResults}/page${sinceLabel}`
   );
 }
 
@@ -396,8 +406,9 @@ Search options:
   --min-likes N              Filter minimum likes
   --min-impressions N        Filter minimum impressions
   --pages N                  Pages to fetch, 1-5 (default: 1)
+  --max-results N            Tweets to read per page, 10-100 (default: 100)
   --limit N                  Results to display (default: 15)
-  --quick                    Quick mode: 1 page, max 10 results, auto noise
+  --quick                    Quick mode: 1 page, max 10 reads, auto noise
                              filter, 1hr cache TTL, cost summary
   --from <username>          Shorthand for from:username in query
   --quality                  Pre-filter low-engagement tweets (min_faves:10)
