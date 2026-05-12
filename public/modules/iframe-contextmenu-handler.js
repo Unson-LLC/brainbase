@@ -14,6 +14,7 @@ import { appStore } from './core/store.js';
 import {
     buildFileLinksForWrappedLine,
     buildAdjacentContinuationSegments,
+    buildSnapshotPrefixFallbackLinks,
     expandWrappedLinkSegments,
     pickBestLinkAtPosition
 } from './xterm-file-links.js';
@@ -271,6 +272,7 @@ function buildLinksForProvider(terminal, bufferLineNumber) {
     const currentLineText = getTerminalLine(terminal, bufferLineNumber)?.translateToString?.(true) || '';
     const previousLineText = getTerminalLine(terminal, bufferLineNumber - 1)?.translateToString?.(true) || '';
     const nextLineText = getTerminalLine(terminal, bufferLineNumber + 1)?.translateToString?.(true) || '';
+    const snapshotText = window.brainbaseApp?.terminalTransportClient?._lastPlainSnapshotText || '';
 
     buildAdjacentContinuationSegments(previousLineText, currentLineText, bufferLineNumber - 1, workspaceRoot, widthProvider)
         .forEach((link) => {
@@ -285,6 +287,9 @@ function buildLinksForProvider(terminal, bufferLineNumber) {
                 pushLink(link);
             }
         });
+
+    buildSnapshotPrefixFallbackLinks(currentLineText, bufferLineNumber, snapshotText, workspaceRoot, widthProvider)
+        .forEach(pushLink);
 
     return links;
 }

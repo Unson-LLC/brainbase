@@ -131,6 +131,7 @@ export class TerminalTransportClient {
         this._pendingSnapshotText = null;
         this._pendingSnapshotOptions = null;
         this._lastSnapshotText = null;
+        this._lastPlainSnapshotText = '';
         this._pendingEchoText = '';
         this._pendingEchoSince = 0;
         this._pendingEchoExpiryTimer = null;
@@ -1528,6 +1529,7 @@ export class TerminalTransportClient {
             return;
         }
 
+        this._lastPlainSnapshotText = String(options.plainText || options.visiblePlainText || text || '');
         const normalizedText = this._buildSnapshotForTerminal(text || '', cursor, options);
         if (this._shouldDeferSnapshotForPendingEcho(normalizedText)) {
             this._deferredSnapshotWhileEchoPending = {

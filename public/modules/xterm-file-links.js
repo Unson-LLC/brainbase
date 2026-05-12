@@ -301,6 +301,56 @@ export function buildAdjacentContinuationSegments(
     ];
 }
 
+export function buildSnapshotPrefixFallbackLinks(
+    currentLineText,
+    bufferLineNumber,
+    snapshotText,
+    workspaceRoot = null,
+    widthProvider = null
+) {
+    if (typeof currentLineText !== 'string' || typeof snapshotText !== 'string') {
+        return [];
+    }
+
+    const prefixMatch = XTERM_HARD_WRAP_PREFIX_REGEX.exec(currentLineText);
+    const visibleFragment = prefixMatch?.[1] || '';
+    if (!visibleFragment || visibleFragment.length < 12 || !visibleFragment.includes('/')) {
+        return [];
+    }
+
+    const normalizedFragment = normalizeFileUriPath(visibleFragment);
+    if (!normalizedFragment || normalizedFragment.length < 12) {
+        return [];
+    }
+
+    const snapshotMatches = extractFileMatches(snapshotText);
+    const fullMatch = snapshotMatches.find((match) => (
+        String(match.path || '').startsWith(normalizedFragment)
+        && String(match.path || '').length > normalizedFragment.length
+    ));
+    if (!fullMatch) return [];
+
+    const prefixStart = prefixMatch.index;
+    const linePrefix = currentLineText.slice(0, prefixStart);
+    const startOffset = getCellWidth(linePrefix, widthProvider);
+    const visibleWidth = Math.max(getCellWidth(visibleFragment, widthProvider), 1);
+    const previewPath = resolvePreviewRelativePath(fullMatch.path, workspaceRoot);
+    const previewTargetPath = previewPath || fullMatch.path;
+
+    return [{
+        rawPath: fullMatch.path,
+        previewPath,
+        previewTargetPath,
+        previewable: isBrowserPreviewablePath(previewTargetPath),
+        line: fullMatch.line,
+        text: visibleFragment,
+        range: {
+            start: { x: startOffset + 1, y: bufferLineNumber },
+            end: { x: startOffset + visibleWidth, y: bufferLineNumber }
+        }
+    }];
+}
+
 export function pickBestLinkAtPosition(links, bufferLineNumber, col) {
     if (!Array.isArray(links) || !Number.isFinite(bufferLineNumber) || !Number.isFinite(col)) {
         return null;

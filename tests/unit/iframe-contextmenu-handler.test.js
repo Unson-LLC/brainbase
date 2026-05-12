@@ -5,6 +5,7 @@ import {
     buildFileLinksForWrappedLine,
     expandWrappedLinkSegments,
     extractFileMatches,
+    buildSnapshotPrefixFallbackLinks,
     pickBestLinkAtPosition
 } from '../../public/modules/xterm-file-links.js';
 
@@ -319,6 +320,30 @@ describe('iframe-contextmenu-handler', () => {
                 rawPath: '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png',
                 previewable: true,
                 text: '04b83456.png'
+            })
+        ]);
+    });
+
+    it('screen snapshotで表示行が途中切れしても完全な画像パスに補完する', () => {
+        const snapshotText = [
+            '  └ Saved to:',
+            'file:///Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb6',
+            '04b83456.png'
+        ].join('\n');
+
+        expect(buildSnapshotPrefixFallbackLinks(
+            'file:///Users/ksato/.codex/generat',
+            2150,
+            snapshotText
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png',
+                previewable: true,
+                text: 'file:///Users/ksato/.codex/generat',
+                range: {
+                    start: { x: 1, y: 2150 },
+                    end: { x: 34, y: 2150 }
+                }
             })
         ]);
     });
