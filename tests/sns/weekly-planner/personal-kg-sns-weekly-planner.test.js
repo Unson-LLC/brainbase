@@ -228,4 +228,34 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         expect(softCta.body).toContain('最初の1業務');
         expect(softCta.body).not.toMatch(/投稿設計|今日の3投稿|1週間単位/);
     });
+
+    it('keeps public copy free from internal labels, needless English, and sentence periods', async () => {
+        const planner = new PersonalKgSnsWeeklyPlanner({
+            graphReader: { listRecentEntities: async () => kgSources }
+        });
+
+        const pack = await planner.buildWeeklyDraftPack(viewer, {
+            startDate: '2026-05-18',
+            peerSignals,
+            newsSignals
+        });
+
+        for (const draft of pack.drafts) {
+            expect(draft.body).not.toMatch(/Peer Circle|Own Proof|Learn in Public|Soft CTA|Graph traversal|graph traversal|entity|Candidate Store|SNS posting engine|PR evidence|Tips|Skills|knowledge-graph-kernel|ACL|M1-M4|Persona Brain|Story|Architecture|Spec|Graphify|Gate/);
+            expect(draft.body).not.toMatch(/候補|同じ界隈の少し上の人の投稿を探す|見つけたら/);
+            expect(draft.body).not.toContain('。');
+        }
+    });
+
+    it('does not invent a quote repost body before the peer post exists', async () => {
+        const planner = new PersonalKgSnsWeeklyPlanner({
+            graphReader: { listRecentEntities: async () => kgSources }
+        });
+
+        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
+        const peerDrafts = pack.drafts.filter((draft) => draft.lane === 'peer_circle');
+        expect(peerDrafts).toHaveLength(6);
+        expect(peerDrafts.every((draft) => draft.format === 'peer_research_prompt')).toBe(true);
+        expect(peerDrafts.every((draft) => draft.body === '')).toBe(true);
+    });
 });
