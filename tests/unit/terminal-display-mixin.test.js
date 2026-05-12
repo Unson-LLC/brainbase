@@ -123,6 +123,57 @@ describe('terminal-display-mixin', () => {
         expect(app.messages).toEqual([]);
     });
 
+    it('ttyd iframeがabout:blankでpendingが長引いても補修リトライを打ち切らない', () => {
+        vi.useFakeTimers();
+        appStore.setState({
+            currentSessionId: 'session-1',
+            sessions: [{ id: 'session-1', intendedState: 'active' }]
+        });
+        const app = new TestApp();
+        app._pendingTerminalSwitch = { sessionId: 'session-1', startedAt: Date.now() };
+        app.switchSession = vi.fn();
+        const frame = document.getElementById('terminal-frame');
+        frame.setAttribute('src', 'about:blank');
+
+        app._restoreTerminalSurfaceAfterReveal('file-viewer-back');
+        vi.advanceTimersByTime(80 + 180 + 360 + 720 + 1200 + 1800 + 1);
+
+        expect(app.switchSession).not.toHaveBeenCalled();
+
+        app._pendingTerminalSwitch = null;
+        vi.advanceTimersByTime(1200);
+
+        expect(app.switchSession).toHaveBeenCalledWith('session-1', {
+            forceTtyd: true,
+            previousSessionId: 'session-1',
+            recoveryReason: expect.stringContaining('pending-wait')
+        });
+        expect(app.messages).toEqual([]);
+    });
+
+    it('ttyd iframeがabout:blankでpendingがstaleなら再接続へ進む', () => {
+        vi.useFakeTimers();
+        appStore.setState({
+            currentSessionId: 'session-1',
+            sessions: [{ id: 'session-1', intendedState: 'active' }]
+        });
+        const app = new TestApp();
+        app._pendingTerminalSwitch = { sessionId: 'session-1', startedAt: Date.now() };
+        app.switchSession = vi.fn();
+        const frame = document.getElementById('terminal-frame');
+        frame.setAttribute('src', 'about:blank');
+
+        app._restoreTerminalSurfaceAfterReveal('file-viewer-back');
+        vi.advanceTimersByTime(80 + 180 + 360 + 720 + 1200 + 1800 + 1200);
+
+        expect(app.switchSession).toHaveBeenCalledWith('session-1', {
+            forceTtyd: true,
+            previousSessionId: 'session-1',
+            recoveryReason: expect.stringContaining('pending-wait')
+        });
+        expect(app.messages).toEqual([]);
+    });
+
     it('ttyd iframeがabout:blankで現在セッション未確定なら確定後に再接続をリトライする', () => {
         vi.useFakeTimers();
         const app = new TestApp();

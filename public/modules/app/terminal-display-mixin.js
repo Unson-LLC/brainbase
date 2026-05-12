@@ -3,6 +3,8 @@ import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 
 const BLANK_TERMINAL_FRAME_REPAIR_DELAYS_MS = [80, 180, 360, 720, 1200, 1800];
+const BLANK_TERMINAL_FRAME_PENDING_RETRY_MS = 1200;
+const BLANK_TERMINAL_FRAME_PENDING_STALE_MS = 5000;
 
 function isVisibleTerminalElement(element) {
     if (!element || element.classList?.contains('hidden')) return false;
@@ -12,6 +14,11 @@ function isVisibleTerminalElement(element) {
 function isBlankTerminalFrame(frame) {
     const src = frame?.getAttribute?.('src') || '';
     return !src || src === 'about:blank';
+}
+
+function isPendingTerminalSwitchStale(pending) {
+    const startedAt = Number(pending?.startedAt || 0);
+    return startedAt > 0 && Date.now() - startedAt >= BLANK_TERMINAL_FRAME_PENDING_STALE_MS;
 }
 
 export function applyTerminalDisplayMixin(AppClass) {
@@ -242,6 +249,20 @@ export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype._scheduleBlankTerminalFrameRepair = function(reason = 'unknown', attempt = 0) {
         if (attempt >= BLANK_TERMINAL_FRAME_REPAIR_DELAYS_MS.length) {
             this._clearScheduledBlankTerminalFrameRepair();
+            if (this._pendingTerminalSwitch) {
+                this._blankTerminalFrameRepairTimer = window.setTimeout(() => {
+                    this._blankTerminalFrameRepairTimer = null;
+                    if (!this._isConsoleVisible()) return;
+
+                    const frame = this._mobileTerminalMode === 'interactive'
+                        ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
+                        : this.terminalFrame || document.getElementById('terminal-frame');
+                    if (!isVisibleTerminalElement(frame)) return;
+
+                    this._repairBlankTerminalFrameAfterReveal(frame, `${reason}:pending-wait`, attempt);
+                }, BLANK_TERMINAL_FRAME_PENDING_RETRY_MS);
+                return true;
+            }
             window.dispatchEvent(new Event('resize'));
             return true;
         }
@@ -269,7 +290,7 @@ export function applyTerminalDisplayMixin(AppClass) {
 
     AppClass.prototype._repairBlankTerminalFrameAfterReveal = function(frame, reason = 'unknown', attempt = 0) {
         if (!isBlankTerminalFrame(frame)) return false;
-        if (this._pendingTerminalSwitch) {
+        if (this._pendingTerminalSwitch && !isPendingTerminalSwitchStale(this._pendingTerminalSwitch)) {
             return this._scheduleBlankTerminalFrameRepair(reason, attempt);
         }
 
