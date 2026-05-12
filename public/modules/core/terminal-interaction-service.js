@@ -32,7 +32,19 @@ export class TerminalInteractionService {
 
     async sendInput(sessionId, payload) {
         if (!payload) return;
+        if (this._looksLikeSlashCommand(payload)) {
+            await this.sendText(sessionId, payload);
+            await this.sendKey(sessionId, 'Enter');
+            return;
+        }
         await this.sendText(sessionId, `${payload}\n`);
+    }
+
+    _looksLikeSlashCommand(payload) {
+        if (typeof payload !== 'string') return false;
+        const trimmed = payload.trim();
+        if (trimmed !== payload) return false;
+        return /^\/[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\r\n]*)?$/.test(trimmed);
     }
 
     async sendText(sessionId, text) {

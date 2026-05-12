@@ -44,6 +44,60 @@ describe('TerminalInteractionService', () => {
         expect(httpClient.post).not.toHaveBeenCalled();
     });
 
+    it('slash commandはpaste経路に落とさずliteral textとEnterに分けて送信する', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/ohayo');
+
+        expect(httpClient.post).toHaveBeenNthCalledWith(1, '/api/sessions/session-1/input', {
+            input: '/ohayo',
+            type: 'text'
+        });
+        expect(httpClient.post).toHaveBeenNthCalledWith(2, '/api/sessions/session-1/input', {
+            input: 'Enter',
+            type: 'key'
+        });
+    });
+
+    it('slash command with optionsもliteral textとEnterに分けて送信する', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/ohayo --include-calendar --include-mail');
+
+        expect(httpClient.post).toHaveBeenNthCalledWith(1, '/api/sessions/session-1/input', {
+            input: '/ohayo --include-calendar --include-mail',
+            type: 'text'
+        });
+        expect(httpClient.post).toHaveBeenNthCalledWith(2, '/api/sessions/session-1/input', {
+            input: 'Enter',
+            type: 'key'
+        });
+    });
+
+    it('ファイルパスはslash command扱いにしない', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/Users/ksato/workspace/code/brainbase/screenshot.png');
+
+        expect(httpClient.post).toHaveBeenCalledTimes(1);
+        expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/input', {
+            input: '/Users/ksato/workspace/code/brainbase/screenshot.png\n',
+            type: 'text'
+        });
+    });
+
     it('xtermがwritableでなければHTTP fallback後にsnapshot同期する', async () => {
         const httpClient = { post: vi.fn(async () => {}) };
         const transport = {
