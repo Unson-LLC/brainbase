@@ -1,6 +1,6 @@
 ---
 adr_id: ADR-011
-title: SNS Posting Ledger boundary
+title: SNS Posting Ledger 境界
 status: accepted
 date: 2026-05-12
 related_stories:
@@ -14,78 +14,82 @@ supersedes: []
 superseded_by: []
 ---
 
-# ADR-011: SNS Posting Ledger boundary
+# ADR-011: SNS Posting Ledger 境界
 
-## Context
+## 文脈
 
-The SNS line can now generate reviewable posts from weekly content design, Personal KG memory, Peer Circle signals, news signals, Persona Brain, Graph Check, and deterministic quality gates.
+SNS line は、週次コンテンツ設計、個人 KG memory、Peer Circle signal、ニュース signal、Persona Brain、Graph Check、決定論的 quality gate から、レビュー可能な投稿案を生成できる状態になった。
 
-Draft creation is no longer the center problem. The next operational problem is that posts need a durable place to move through review, schedule, posting, feedback, and learning states.
+これで「投稿文を作る」問題は中心ではなくなった。次の中心問題は、投稿案が review / schedule / posting / feedback / learning の状態を移動するための durable な置き場を持つこと。
 
-Two architectural boundaries must be fixed before implementation:
+実装前に、次の 2 つの境界を固定する必要がある。
 
-- whether this state belongs in Graph or in a separate operational store
-- whether this store needs separate infrastructure or can run on the existing Lightsail PostgreSQL host
+- この状態を Graph に置くのか、別の運用 store に置くのか
+- その store は別インフラにするのか、既存 Lightsail PostgreSQL に同居させるのか
 
-Graph is the SSOT for durable knowledge: people, organizations, brands, philosophy, decisions, terms, and promoted learnings. A daily SNS posting queue is not durable knowledge by itself. It is operational state. If draft body edits, schedule state, posted URLs, raw metrics, and review notes are stored directly as Graph entities, Graph becomes a task queue and loses its role as promoted knowledge.
+Graph は durable knowledge の SSOT である。対象は person、org、brand、philosophy、decision、glossary term、promote 済み learning など。日々の SNS posting queue は、それ自体では durable knowledge ではなく operational state である。
 
-At the same time, using a separate hosting platform for this first cockpit would add operational overhead before there is a scale reason. The existing Lightsail PostgreSQL host is already the production direction for candidate-store, integration accounts, and Graph-adjacent services.
+draft body の編集、schedule 状態、posted URL、raw metrics、review note を Graph entity として直接持つと、Graph が workflow queue になり、promote 済み knowledge の置き場という役割が崩れる。
 
-## Decision
+一方で、この最初の cockpit のために別ホスティング基盤を増やすと、scale 理由がない段階で運用負荷だけが増える。既存 Lightsail PostgreSQL は candidate-store、integration accounts、Graph 周辺サービスの本番接続先として既に採用方向にある。
 
-SNS posting operations will use a separate **SNS Posting Ledger**.
+## 決定
 
-The SNS Posting Ledger is not Graph SSOT. It is an operational ledger that stores draft, review, schedule, posting, metrics, and learning-candidate linkage state.
+SNS 投稿運用は、Graph とは別の **SNS Posting Ledger** を使う。
 
-The ledger will run on the same Lightsail PostgreSQL infrastructure as brainbase production data, but in tables or schema separated from Graph SSOT tables.
+SNS Posting Ledger は Graph SSOT ではない。draft、review、schedule、posting、metrics、learning candidate linkage を保持する operational ledger とする。
 
-## Boundaries
+Ledger は brainbase production data と同じ Lightsail PostgreSQL infrastructure 上に置く。ただし Graph SSOT tables とは別 table / schema として分離する。
 
-### Graph SSOT owns durable knowledge
+## 境界
 
-Graph remains responsible for:
+### Graph SSOT の責務
 
-- people and organizations
-- brand and account identity
-- philosophy and operating principles
-- glossary terms
-- decisions and accepted architecture
-- promoted learnings after candidate-store approval
+Graph は durable knowledge を保持する。
 
-Graph does not own:
+- person / org
+- brand / account identity
+- philosophy / operating principles
+- glossary term
+- decision / accepted architecture
+- candidate-store approval 後に promote された learning
+
+Graph は次を保持しない。
 
 - draft queue state
 - review status
 - scheduled datetime
-- edited post bodies before promotion
-- raw metrics snapshots
-- temporary source candidates
+- promotion 前の edited post body
+- raw metrics snapshot
+- temporary source candidate
 
-### SNS Posting Ledger owns operational state
+### SNS Posting Ledger の責務
 
-The ledger owns:
+Ledger は operational state を保持する。
 
-- generated date and slot
-- post body and revisions
+- generated date / slot
+- post body / revisions
 - source references
-- Persona Brain / Graph Check / Quality Gate snapshots used at review time
-- review status and reviewer actions
+- review 時点の Persona Brain / Graph Check / Quality Gate snapshot
+- review status / reviewer actions
 - scheduled datetime
 - posted URL
 - metrics snapshots
 - learning candidate references
 
-The ledger may store evidence snapshots from Graph or candidate-store, but those snapshots do not become Graph truth.
+Ledger は Graph や candidate-store 由来の evidence snapshot を保持してよい。ただし、その snapshot は Graph truth にはならない。
 
-### Candidate-store owns promotion
+### Candidate-store の責務
 
-When a posted result produces reusable learning, the feedback flow creates a candidate-store learning candidate. Promotion into Graph happens only through the existing Memory Promotion Kernel boundary from ADR-010.
+投稿結果から再利用可能な learning が生まれた場合、feedback flow は candidate-store learning candidate を作る。
 
-Raw metrics do not write directly into Graph.
+Graph への promotion は ADR-010 の Memory Promotion Kernel 境界を通す。
 
-## Operational Model
+raw metrics は Graph に直接書き込まない。
 
-The default post state flow is:
+## 運用モデル
+
+標準の post state flow は次の通り。
 
 ```text
 /ohayo review pack
@@ -99,70 +103,70 @@ The default post state flow is:
   -> Graph promotion gate
 ```
 
-The MVP may allow manual posting on X with a posted URL pasted back into brainbase. Full X API posting is a later execution layer and must still write through the same ledger.
+MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は後続の execution layer とし、その場合も同じ Ledger を通す。
 
-## Infrastructure Decision
+## インフラ判断
 
-The ledger will use existing Lightsail PostgreSQL infrastructure.
+Ledger は既存 Lightsail PostgreSQL infrastructure を使う。
 
-This is an infrastructure co-location decision, not a data-boundary collapse:
+これは infrastructure co-location の判断であり、data boundary を潰す判断ではない。
 
-- same PostgreSQL host is acceptable
-- separate tables/schema are required
-- Graph table writes remain promotion-only
-- repository boundaries must make accidental Graph writes hard
-- migrations must be idempotent
+- 同じ PostgreSQL host に置いてよい
+- 別 table / schema は必須
+- Graph table write は promotion 経由に限定する
+- repository boundary で accidental Graph write を起きにくくする
+- migration は idempotent にする
 
-## Consequences
+## 影響
 
-- SNS Cockpit implementation can start with a clear DB/API boundary.
-- The UI can show calendar, review, schedule, and posted states without overloading Graph.
-- `/ohayo` can persist review packs idempotently without changing Graph semantics.
-- `/oyasumi` can read posted records and create learning candidates without direct Graph mutation.
-- Future X API posting can be added as an execution adapter over the ledger.
-- Future multi-account / agency workflows can extend the ledger model without changing Graph taxonomy first.
+- SNS Cockpit 実装は明確な DB / API 境界から始められる。
+- UI は Graph を workflow queue 化せず、calendar / review / schedule / posted 状態を表示できる。
+- `/ohayo` は Graph semantics を変えずに review pack を idempotent に保存できる。
+- `/oyasumi` は posted record を読んで learning candidate を作れるが、Graph へ直接 mutation しない。
+- 将来の X API posting は Ledger 上の execution adapter として追加できる。
+- 将来の multi-account / agency workflow は、Graph taxonomy を先に増やさず Ledger model の拡張として扱える。
 
-## Alternatives Considered
+## 代替案
 
-### Store all posts as Graph event entities
+### 投稿をすべて Graph event entity として保存する
 
-Rejected.
+却下。
 
-This would make Graph a workflow queue and force raw metrics, temporary drafts, and edited copy into a promoted-knowledge store. It also makes status churn and edit history look like semantic knowledge.
+Graph が workflow queue になり、raw metrics、temporary draft、edited copy が promote 済み knowledge store に混ざる。status churn や edit history も semantic knowledge のように見えてしまう。
 
-### Keep markdown / JSON files as the durable store
+### markdown / JSON file を durable store とする
 
-Rejected.
+却下。
 
-Markdown and JSON artifacts are useful for review and debugging, but they are not enough for calendar queries, status transitions, idempotency, metrics snapshots, or UI editing.
+markdown / JSON artifact は review や debugging には有用だが、calendar query、status transition、idempotency、metrics snapshot、UI editing の durable store としては不足する。
 
-### Use a separate hosted database
+### 別の hosted database を使う
 
-Rejected for MVP.
+MVP では却下。
 
-The first version does not justify separate operational infrastructure. Lightsail PostgreSQL is enough, as long as schema/table boundaries are explicit.
+最初の version では別 operational infrastructure を正当化する scale 理由がない。schema / table boundary を明示する前提で、Lightsail PostgreSQL で足りる。
 
-### Auto-post directly from generated drafts
+### 生成 draft から直接 auto-post する
 
-Rejected for MVP.
+MVP では却下。
 
-The current operating preference is "AI drafts, human reviews, brainbase manages." Full posting automation can come later, but review and ledger state must exist first.
+現在の運用方針は「AI が draft し、人間が review し、brainbase が管理する」。full posting automation は後続でよいが、その前に review と ledger state が必要。
 
-## Non-Goals
+## 非目標
 
-- This ADR does not define the physical SQL schema.
-- This ADR does not define the calendar UI layout.
-- This ADR does not authorize unattended auto-posting.
-- This ADR does not add a new Graph entity type for draft posts.
-- This ADR does not decide multi-account agency support.
+- この ADR では物理 SQL schema を定義しない。
+- この ADR では calendar UI layout を定義しない。
+- この ADR では unattended auto-posting を許可しない。
+- この ADR では draft post 用の新しい Graph entity type を追加しない。
+- この ADR では multi-account agency support を決めない。
 
-## Verification
+## 検証
 
-Implementation stories must prove:
+実装 story では次を証明する。
 
-- `/ohayo` persistence is idempotent by date and slot.
-- Status transitions are explicit and testable.
-- Ledger writes do not mutate Graph tables.
-- Posted URL and metrics snapshots can be stored without promotion.
-- Learning promotion flows through candidate-store.
-- Existing markdown/signals outputs continue to work during migration.
+- `/ohayo` persistence が date + slot で idempotent である。
+- status transition が明示的で testable である。
+- Ledger write が Graph table を mutate しない。
+- posted URL と metrics snapshot を promotion なしで保存できる。
+- learning promotion が candidate-store を通る。
+- migration 中も既存 markdown / signals output が動き続ける。
