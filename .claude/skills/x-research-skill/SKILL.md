@@ -39,8 +39,9 @@ bun run x-search.ts search "<query>" [options]
 - `--min-likes N` — filter by minimum likes
 - `--min-impressions N` — filter by minimum impressions
 - `--pages N` — pages to fetch, 1-5 (default: 1, 100 tweets/page)
+- `--max-results N` — tweets to read per page, 10-100 (default: 100). This controls API reads and cost; `--limit` only controls display.
 - `--limit N` — max results to display (default: 15)
-- `--quick` — quick mode: 1 page, max 10 results, auto noise filter (`-is:retweet -is:reply`), 1hr cache, cost summary
+- `--quick` — quick mode: 1 page, max 10 reads, auto noise filter (`-is:retweet -is:reply`), 1hr cache, cost summary
 - `--from <username>` — shorthand for `from:username` in query
 - `--quality` — filter low-engagement tweets (≥10 likes, post-hoc)
 - `--no-replies` — exclude replies
@@ -59,6 +60,7 @@ bun run x-search.ts search "$BNKR (revenue OR fees)" --min-likes 5
 bun run x-search.ts search "BNKR" --quick
 bun run x-search.ts search "BNKR" --from voidcider --quick
 bun run x-search.ts search "AI agents" --quality --quick
+bun run x-search.ts search "(Claude Code OR Codex) (company OR workflow)" --since 1d --max-results 10 --limit 5
 ```
 
 ### Profile

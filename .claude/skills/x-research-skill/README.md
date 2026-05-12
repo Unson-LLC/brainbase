@@ -82,6 +82,7 @@ bun run x-search.ts search "query" --save --markdown
 --min-likes N              Filter minimum likes
 --min-impressions N        Filter minimum impressions
 --pages N                  Pages to fetch, 1-5 (default: 1, 100 tweets/page)
+--max-results N            Tweets to read per page, 10-100 (default: 100)
 --limit N                  Results to display (default: 15)
 --quick                    Quick mode (see below)
 --from <username>          Shorthand for from:username in query
@@ -97,7 +98,7 @@ bun run x-search.ts search "query" --save --markdown
 `--quick` is designed for fast, cheap lookups when you just need a pulse check on a topic.
 
 **What it does:**
-- Forces single page (max 10 results) — reduces API reads
+- Forces single page and 10 tweets read per page — reduces API reads
 - Auto-appends `-is:retweet -is:reply` noise filters (unless you explicitly used those operators)
 - Uses 1-hour cache TTL instead of the default 15 minutes
 - Shows cost summary after results
@@ -114,10 +115,18 @@ bun run x-search.ts search "BNKR" --from voidcider --quick
 bun run x-search.ts search "AI agents" --quality --quick
 ```
 
+For low-cost daily SNS briefs, use narrow persona-aware queries with `--max-results 10`:
+
+```bash
+bun run x-search.ts search '(Claude Code OR Codex OR AIエージェント) (会社 OR 業務 OR 現場 OR PM OR 経営 OR 運用) lang:ja -is:reply -is:retweet' --since 1d --sort likes --max-results 10 --limit 5 --json
+bun run x-search.ts search '("Claude Code" OR Codex OR "AI agents") (workflow OR company OR product OR PM OR "long running" OR goal) lang:en -is:reply -is:retweet' --since 1d --sort likes --max-results 10 --limit 5 --json
+```
+
 **Why it's cheaper:**
 - Prevents multi-page fetches (biggest cost saver)
+- Reads 10 tweets instead of the default 100
 - 1hr cache means repeat searches are free
-- Noise filters mean fewer junk results in your 100-tweet page
+- Noise filters mean fewer junk results in your 10-tweet page
 - You see cost after every search — no surprises
 
 ## `--from` Shorthand
