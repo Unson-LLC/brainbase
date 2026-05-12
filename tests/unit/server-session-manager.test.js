@@ -253,6 +253,108 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(pasteSpy).not.toHaveBeenCalled();
     });
 
+    it('codexセッションで1文字ずつ入力されたproject slash commandはEnter時に通常プロンプトへ差し替える', async () => {
+      sessionManager.stateStore = {
+        get: vi.fn(() => ({
+          sessions: [{ id: 'session-1', engine: 'codex' }]
+        })),
+        update: vi.fn(async (next) => next)
+      };
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      for (const char of '/ohayo') {
+        await sessionManager.sendInput('session-1', char, 'text');
+      }
+      sendNamedKeySpy.mockClear();
+      literalSpy.mockClear();
+
+      await sessionManager.sendInput('session-1', 'Enter', 'key');
+
+      expect(sendNamedKeySpy).toHaveBeenNthCalledWith(1, 'session-1', 'C-u');
+      expect(literalSpy).toHaveBeenCalledWith(
+        'session-1',
+        'Run the project command /ohayo by following .claude/commands/ohayo.md.'
+      );
+      expect(sendNamedKeySpy).toHaveBeenNthCalledWith(2, 'session-1', 'Enter');
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
+    it('codexセッションで1文字ずつ入力されたproject slash commandの引数も通常プロンプトへ渡す', async () => {
+      sessionManager.stateStore = {
+        get: vi.fn(() => ({
+          sessions: [{ id: 'session-1', engine: 'codex' }]
+        })),
+        update: vi.fn(async (next) => next)
+      };
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+
+      for (const char of '/ohayo --include-calendar') {
+        await sessionManager.sendInput('session-1', char, 'text');
+      }
+      sendNamedKeySpy.mockClear();
+      literalSpy.mockClear();
+
+      await sessionManager.sendInput('session-1', '\r', 'text');
+
+      expect(sendNamedKeySpy).toHaveBeenNthCalledWith(1, 'session-1', 'C-u');
+      expect(literalSpy).toHaveBeenCalledWith(
+        'session-1',
+        'Run the project command /ohayo by following .claude/commands/ohayo.md. Arguments: --include-calendar'
+      );
+      expect(sendNamedKeySpy).toHaveBeenNthCalledWith(2, 'session-1', 'Enter');
+    });
+
+    it('claudeセッションで1文字ずつ入力されたproject slash commandは差し替えない', async () => {
+      sessionManager.stateStore = {
+        get: vi.fn(() => ({
+          sessions: [{ id: 'session-1', engine: 'claude' }]
+        })),
+        update: vi.fn(async (next) => next)
+      };
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+
+      for (const char of '/ohayo') {
+        await sessionManager.sendInput('session-1', char, 'text');
+      }
+      sendNamedKeySpy.mockClear();
+      literalSpy.mockClear();
+
+      await sessionManager.sendInput('session-1', 'Enter', 'key');
+
+      expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'Enter');
+      expect(sendNamedKeySpy).not.toHaveBeenCalledWith('session-1', 'C-u');
+      expect(literalSpy).not.toHaveBeenCalledWith(
+        'session-1',
+        'Run the project command /ohayo by following .claude/commands/ohayo.md.'
+      );
+    });
+
+    it('codexセッションで改行付き一括入力されたproject slash commandも通常プロンプトへ差し替える', async () => {
+      sessionManager.stateStore = {
+        get: vi.fn(() => ({
+          sessions: [{ id: 'session-1', engine: 'codex' }]
+        })),
+        update: vi.fn(async (next) => next)
+      };
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', '/oyasumi\n', 'text');
+
+      expect(literalSpy).toHaveBeenCalledWith(
+        'session-1',
+        'Run the project command /oyasumi by following .claude/commands/oyasumi.md.'
+      );
+      expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'Enter');
+      expect(sendNamedKeySpy).not.toHaveBeenCalledWith('session-1', 'C-u');
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
     it('フォーカスイベントのみの text 入力はtmuxに送信せず早期returnする', async () => {
       const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
       const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
