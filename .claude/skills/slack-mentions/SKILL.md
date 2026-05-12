@@ -22,6 +22,19 @@ Slack検索APIは DM のスレッドやチャンネル内スレッドを取り�
 | unson | `mcp__slack_unson__` | `U07LNUP582X` | `D07L8FG6L4F` |
 | techknight | `mcp__slack_techknight__` | `U07B19N048G` | `D07ACCJUXK5` |
 
+## 起動前チェック
+
+Slack MCP が起動できない状態を「Slack 0件」と誤報告しない。取得前に必ず3ワークスペースの前提を確認する。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+scripts/check-slack-mcp-health.sh
+```
+
+- `ok: salestailor` / `ok: unson` / `ok: techknight` が揃った場合だけ取得に進む
+- `blocked` / `SLACK_MCP_UNAVAILABLE` の場合は Slack 未確認として報告し、未対応0件とは書かない
+- 失敗理由は workspace 名と前提名だけを残し、token や secret 値は表示しない
+
 ## 主要チャンネル・DM相手（salestailor）
 
 | 名前 | User ID | チャンネル種別 | Channel/DM ID |
