@@ -57,6 +57,7 @@
     "seed:personal-kg:sns-foundation": "node scripts/seed-personal-kg-sns-foundation.js",
     "seed:personal-kg:baao-minutes": "node scripts/seed-personal-kg-baao-minutes.js",
     "seed:personal-kg:cross-project-minutes": "node scripts/seed-personal-kg-cross-project-minutes.js",
+    "sns:ohayo-brief": "node scripts/generate-sns-ohayo-brief.js",
     "sns:weekly-pack": "node scripts/generate-personal-kg-sns-weekly-pack.js",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",

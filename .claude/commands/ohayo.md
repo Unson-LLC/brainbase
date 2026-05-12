@@ -179,6 +179,35 @@ slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
 - 返信や送信が必要な場合は、勝手に送らずドラフトまたはタスク化する
 - Slack検索APIだけを信用せず、主要DMの直接確認で補完する
 
+## SNS Ohayo Brief
+
+SNS運用は `/ohayo` に寄せる。毎朝、週次編集カレンダーを前提に「今日のベースライン2本」と「ニュース/引用差し込み1〜2本」を決める。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+npm run sns:ohayo-brief -- \
+  --date "$(date +%F)" \
+  --since 1d \
+  --max-results 10 \
+  --limit 5
+```
+
+出力:
+
+| 出力 | 場所 |
+|---|---|
+| 人間レビュー用brief | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
+| weekly pack投入用signals | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
+
+扱い:
+
+- X検索は低コスト固定。既定は日本語Peer 10 read + 海外/ニュース 10 read、概算 `$0.10/day`
+- Peer候補は「日本語圏、自分と同格〜少し上、相手が拾いやすい論点」を優先する
+- APIの `quote_tweet_id` は使わず、本物の引用UIまたは通常投稿末尾の元URLで扱う
+- `Persona Affect: blocked` が1件でもあれば、その本文は投稿対象にしない
+- 投稿本文に「少し上の人に絡む」「相手の読者に入る」など運用意図を書かない
+- 投稿は manual review only。`/ohayo` では投稿実行しない
+
 ## HTML Report
 
 Calendar / Mail / Slack / Archive Blocked / 今日の優先タスクを整理したら、日付別HTMLレポートを必ず生成する。
@@ -198,6 +227,6 @@ HTML内のボタンはAIに渡す構造化指示だけを生成する。Slack投
 
 | コマンド | 役割 |
 |---|---|
-| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、blocked 件数を朝に必ず見える化 |
-| `/oyasumi` | 日次整理: 当日分を fix/retry/task 化 |
-| `/retro` | 週次棚卸し: 残った blocked を Block としてエスカレーション |
+| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、blocked 件数、SNS当日briefを朝に必ず見える化 |
+| `/oyasumi` | 日次整理: 当日分を fix/retry/task 化し、SNS反応を学習に戻す |
+| `/retro` | 週次棚卸し: 残った blocked とSNS勝ち筋を Learn/Block としてエスカレーション |
