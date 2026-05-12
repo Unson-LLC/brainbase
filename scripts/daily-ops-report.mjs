@@ -77,7 +77,7 @@ export function normalizeDailyOpsReport(input = {}, options = {}) {
     const sectionsInput = input.sections || {};
     const sectionList = Array.isArray(sectionsInput)
         ? sectionsInput
-        : config.sections.map(([id, title]) => normalizeSection(id, title, sectionsInput[id]));
+        : config.sections.map(([id, title]) => normalizeSection(id, title, sectionsInput[id] ?? input[id]));
 
     return {
         mode,

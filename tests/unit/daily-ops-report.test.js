@@ -29,6 +29,26 @@ describe('daily-ops-report', () => {
         }));
     });
 
+    it('accepts command-collected top-level section arrays', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'ohayo',
+            date: '2026-05-12',
+            calendar: [{ title: 'CxO会議', summary: '12:00-13:00' }],
+            mail: [{ subject: 'Docusign再送のお願い', status: 'needs_reply' }],
+            slack: [{ title: '小数点以下確認', status: 'needs_reply' }],
+            archiveBlocked: [{ title: 'infisical調整', status: 'blocked' }],
+            priorityTasks: [{ title: '請求方針を回答', status: 'urgent' }]
+        });
+
+        expect(Object.fromEntries(report.sections.map((section) => [section.id, section.items.length]))).toEqual({
+            calendar: 1,
+            mail: 1,
+            slack: 1,
+            archiveBlocked: 1,
+            priorityTasks: 1
+        });
+    });
+
     it('escapes report content and script JSON payloads', () => {
         const report = normalizeDailyOpsReport({
             mode: 'oyasumi',
