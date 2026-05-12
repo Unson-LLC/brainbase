@@ -3,7 +3,8 @@ story_id: story-sns-posting-cockpit
 title: SNS Posting Cockpit MVP
 status: draft
 date: 2026-05-12
-related_specs: []
+related_specs:
+  - SPEC-sns-growth-cockpit-ui-transition
 architecture_docs:
   - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
 related_stories:
