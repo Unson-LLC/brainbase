@@ -177,6 +177,33 @@ export const terminalIoMethods = {
             return;
         }
 
+        const projectCommandSubmit = this._resolveCodexProjectSlashSubmit(sessionId, normalizedInput, normalizedType);
+        if (projectCommandSubmit) {
+            this._clearPromptBuffer(sessionId);
+            await this._capturePromptInput(sessionId, `${projectCommandSubmit.prompt}\n`, 'text');
+            await this._enqueueTerminalMutation(sessionId, async () => {
+                const target = sessionId.replace(/"/g, '\\"');
+                await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
+                await this._sendNamedKey(sessionId, 'C-u');
+                await this._sendLiteralText(sessionId, projectCommandSubmit.prompt);
+                await this._sendNamedKey(sessionId, 'Enter');
+            });
+            return;
+        }
+
+        const inlineProjectCommand = this._normalizeInlineCodexProjectSlashCommand(sessionId, normalizedInput, normalizedType);
+        if (inlineProjectCommand) {
+            this._clearPromptBuffer(sessionId);
+            await this._capturePromptInput(sessionId, `${inlineProjectCommand.prompt}\n`, 'text');
+            await this._enqueueTerminalMutation(sessionId, async () => {
+                const target = sessionId.replace(/"/g, '\\"');
+                await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
+                await this._sendLiteralText(sessionId, inlineProjectCommand.prompt);
+                await this._sendNamedKey(sessionId, 'Enter');
+            });
+            return;
+        }
+
         await this._capturePromptInput(sessionId, normalizedInput, normalizedType);
 
         await this._enqueueTerminalMutation(sessionId, async () => {
@@ -215,6 +242,40 @@ export const terminalIoMethods = {
 
             await this._pasteInputFromTempFile(sessionId, normalizedInput);
         });
+    },
+
+    _getSessionEngine(sessionId) {
+        const state = this.stateStore?.get?.() || {};
+        const session = Array.isArray(state.sessions)
+            ? state.sessions.find((item) => item?.id === sessionId)
+            : null;
+        return session?.engine || null;
+    },
+
+    _resolveCodexProjectSlashSubmit(sessionId, input, type) {
+        if (type !== 'key') return null;
+        if (input !== 'Enter') return null;
+        if (this._getSessionEngine(sessionId) !== 'codex') return null;
+        return this._parseProjectSlashCommand(this.promptBuffers.get(sessionId) || '');
+    },
+
+    _normalizeInlineCodexProjectSlashCommand(sessionId, input, type) {
+        if (type !== 'text' || typeof input !== 'string') return null;
+        if (this._getSessionEngine(sessionId) !== 'codex') return null;
+        const normalized = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!normalized.endsWith('\n')) return null;
+        return this._parseProjectSlashCommand(normalized.trim());
+    },
+
+    _parseProjectSlashCommand(input) {
+        if (typeof input !== 'string') return null;
+        const match = input.trim().match(/^\/(ohayo|oyasumi|retro)(?:\s+(.+))?$/);
+        if (!match) return null;
+        const argsText = match[2]?.trim() ? ` Arguments: ${match[2].trim()}` : '';
+        return {
+            name: match[1],
+            prompt: `Run the project command /${match[1]} by following .claude/commands/${match[1]}.md.${argsText}`
+        };
     },
 
     _stripTerminalFocusEvents(input) {
