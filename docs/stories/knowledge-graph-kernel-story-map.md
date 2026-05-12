@@ -275,6 +275,7 @@ non_goal:
   - Graph への raw metrics 直書き
   - multi-account agency cockpit
 story_doc: docs/stories/sns-posting-cockpit-mvp-story.md
+architecture_doc: docs/architecture/ADR-011-sns-posting-ledger-boundary.md
 ```
 
 #### NEW: sns-posting-engine

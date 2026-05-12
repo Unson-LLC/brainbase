@@ -4,6 +4,8 @@ title: SNS Posting Cockpit MVP
 status: draft
 date: 2026-05-12
 related_specs: []
+architecture_docs:
+  - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
 related_stories:
   - str.brainbase.personal-kg-sns-seed-mvp
   - story-sns-persona-brain-gate
