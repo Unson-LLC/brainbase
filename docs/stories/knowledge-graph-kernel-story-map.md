@@ -256,10 +256,31 @@ non_goal:
   - OSS 用 default OAuth app の同梱（個別組織で X Developer Portal 登録前提）
 ```
 
+#### NEW: sns-posting-cockpit-mvp
+```yaml
+priority: 6.65
+prerequisites: [personal-kg-sns-seed-mvp, sns-persona-brain-gate]
+size: L
+target: /ohayo が生成した review pack を durable な SNS Posting Ledger に保存し、brainbase UI からカレンダー・レビュー・予約・投稿済み管理を一目で扱えるようにする。Graph とは別 DB/schema の運用台帳として持ち、学習だけを promotion 経由で Graph に戻す。
+criteria:
+  - /ohayo の review pack を date + slot idempotency で ledger に保存
+  - カレンダー/週ビューで投稿予定と status badge が見える
+  - post detail で本文、引用元、Persona Brain、Graph Check、Quality Gate、編集履歴を確認できる
+  - review_needed / approved / scheduled / posted / skipped / learning_ready の状態遷移
+  - posted URL と metrics snapshot を保存
+  - brainbase navigation から SNS Cockpit に直接アクセスできる
+  - PostgreSQL は既存 Lightsail を利用するが Graph SSOT tables とは分離する
+non_goal:
+  - X API による完全自動投稿
+  - Graph への raw metrics 直書き
+  - multi-account agency cockpit
+story_doc: docs/stories/sns-posting-cockpit-mvp-story.md
+```
+
 #### NEW: sns-posting-engine
 ```yaml
 priority: 6.7
-prerequisites: [sns-account-management, sns-readonly-curator]
+prerequisites: [sns-posting-cockpit-mvp, sns-account-management, sns-readonly-curator]
 size: L
 target: 投稿実行・scheduling・画像生成を brainbase server 内部に実装。
 internalize:
@@ -272,7 +293,7 @@ criteria:
   - 投稿時 account を選択（その user の available accounts から）
   - schedule 指定可能（時刻設定）
   - 画像生成は curator が候補生成、ユーザーが採用判断
-  - 投稿ログを graph 内 event entity として残す（次の story の準備）
+  - 投稿ログは SNS Posting Ledger に残し、Graph へは learning promotion 経由で反映する
   - dry-run mode（テスト投稿）
   - rate limit 対応（X API 上限）
 non_goal:
@@ -282,12 +303,12 @@ non_goal:
 #### NEW: sns-feedback-loop
 ```yaml
 priority: 6.9
-prerequisites: [sns-posting-engine]
+prerequisites: [sns-posting-cockpit-mvp, sns-posting-engine]
 size: M
-target: 投稿後の反応（impressions / likes / replies / engagement）を取得し graph event として記録、curator scoring に反映。
+target: 投稿後の反応（impressions / likes / replies / engagement）を SNS Posting Ledger に蓄積し、learning candidate として candidate-store 経由で curator scoring に反映。
 criteria:
   - 投稿後 N 時間ごとに X API で metrics 取得
-  - graph event entity に accumulate（source=tweet、metric_kind、value、measured_at）
+  - SNS Posting Ledger に metrics snapshot を accumulate（source=tweet、metric_kind、value、measured_at）
   - reply / mention を separate event として ingest（candidate-store 経由で observation に）
   - curator scoring の novelty / engagement weight に反映（次回 draft 推薦改善）
   - impression 異常値（炎上候補）を mana proactive 通知
