@@ -21,7 +21,7 @@ describe('sns ohayo brief', () => {
         expect(classifyAuthorBand({})).toBe('unknown');
     });
 
-    it('builds a low-cost daily brief with persona affect gates and weekly-pack signals', () => {
+    it('builds a low-cost daily brief with persona affect gates, review pack, and weekly-pack signals', () => {
         const jpTweets = JSON.parse(fs.readFileSync(jpFixture, 'utf8'));
         const enTweets = JSON.parse(fs.readFileSync(enFixture, 'utf8'));
 
@@ -44,10 +44,58 @@ describe('sns ohayo brief', () => {
             target_band: 'primary',
             topic: 'Claude Code'
         });
+        expect(brief.signals.reviewPack).toMatchObject({
+            date: '2026-05-12',
+            publish_intent: 'manual_review_only'
+        });
+        expect(brief.signals.reviewPack.posts).toHaveLength(4);
+        expect(brief.signals.reviewPack.posts.map((post) => post.slot)).toEqual([
+            'baseline_1',
+            'baseline_2',
+            'peer_quote_1',
+            'news_commentary_1'
+        ]);
+        expect(brief.signals.reviewPack.posts.every((post) => post.quality_gate.decision === 'pass')).toBe(true);
+        expect(brief.signals.reviewPack.posts.every((post) => post.graph_check?.scope === 'growth')).toBe(true);
+        expect(brief.signals.reviewPack.posts.every((post) => post.persona_brain)).toBe(true);
+        expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'peer_quote_1').peer_circle_brain).toBeTruthy();
+        expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'news_commentary_1').amplifier_brain).toBeTruthy();
+        expect(brief.signals.reviewPack.posts.map((post) => post.body).join('\n')).not.toMatch(/Persona Brain|Brain OS/u);
         expect(brief.markdown).toContain('Estimated X API cost: $0.10');
         expect(brief.markdown).toContain('Persona Affect: pass');
-        expect(brief.markdown).toContain('会社でAIを使う時');
+        expect(brief.markdown).toContain('## 今日のレビュー用投稿パック');
+        expect(brief.markdown).toContain('## Graph Check');
+        expect(brief.markdown).toContain('Baseline 1');
+        expect(brief.markdown).toContain('Peer Quote 1');
+        expect(brief.markdown).toContain('Claude Codeを会社で使う時');
         expect(brief.markdown).not.toMatch(/少し上の人に絡む|相手の読者に入る|APIで投稿/);
+        expect(brief.markdown).not.toMatch(/これめちゃ分かる\s+これめちゃ分かる/u);
+        expect(brief.markdown).not.toMatch(/ルー大柴|manual review only.*本文/u);
+    });
+
+    it('does not promote weak peer/news signals into the review pack', () => {
+        const jpTweets = JSON.parse(fs.readFileSync(jpFixture, 'utf8')).map((tweet) => ({
+            ...tweet,
+            author_followers: 900
+        }));
+        const enTweets = JSON.parse(fs.readFileSync(enFixture, 'utf8')).map((tweet) => ({
+            ...tweet,
+            author_followers: 30
+        }));
+
+        const brief = buildBrief({
+            date: '2026-05-12',
+            jpTweets,
+            enTweets,
+            jpReads: 10,
+            enReads: 10,
+            weeklyPlan: '## Tue 2026-05-12\n\nBaseline:\n1. Own Proof\n2. Claude Code法人導入'
+        });
+
+        const slots = brief.signals.reviewPack.posts.map((post) => post.slot);
+        expect(slots).toEqual(['baseline_1', 'baseline_2']);
+        expect(brief.markdown).toContain('Peer Quote: quality hold');
+        expect(brief.markdown).toContain('News Commentary: quality hold');
     });
 
     it('CLI writes markdown and signals files from fixture inputs without calling X API', () => {
@@ -78,5 +126,7 @@ describe('sns ohayo brief', () => {
         const signals = JSON.parse(fs.readFileSync(signalsOut, 'utf8'));
         expect(signals.peerSignals[0].author_handle).toBe('@near_ai_pm');
         expect(signals.newsSignals[0].author_handle).toBe('@ai_workflows');
+        expect(signals.reviewPack.posts).toHaveLength(4);
+        expect(signals.reviewPack.posts[0].body).not.toContain('APIで投稿');
     });
 });
