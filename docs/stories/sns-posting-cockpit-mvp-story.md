@@ -18,7 +18,7 @@ related_stories:
 ## User Story
 
 As さとけい running SNS from brainbase,
-I want a calendar-based posting cockpit where I can review, edit, schedule, and track posts without opening X,
+I want an SNS growth cockpit where Today, Research, Review, Ship Calendar, and Learning are connected,
 so that my SNS operation is visible, repeatable, and connected back to Personal KG learning.
 
 ## Context
@@ -36,17 +36,19 @@ The goal is not "AI posts to X automatically." The goal is that brainbase become
 This lets SNS operation become a closed loop:
 
 1. `/ohayo` creates reviewable posts.
-2. The cockpit shows today's and this week's posting state.
-3. The operator reviews, edits, and schedules posts.
-4. Posted URLs and metrics are recorded.
-5. `/oyasumi` turns reaction and learning into promotion candidates.
+2. `Today` shows the next decision without turning the first screen into a calendar.
+3. `Ship Calendar` shows this week's posting state with a right detail panel.
+4. The operator reviews, edits, and schedules posts.
+5. Posted URLs and metrics are recorded.
+6. `/oyasumi` turns reaction and learning into promotion candidates.
 
 ## Scope
 
 - Create a durable SNS posting ledger separate from Graph.
 - Store generated review-pack posts from `/ohayo`.
-- Show scheduled posts on a calendar view.
+- Show scheduled posts on a dedicated Ship Calendar view.
 - Keep the first screen focused on one current review decision; calendar and research lists are supporting surfaces, not the primary workbench.
+- Use the Brainbase operating loop in navigation: Today, Brain, Create, Run, Learn, System.
 - Show each post's state: review needed, approved, scheduled, posted, skipped, or learning ready.
 - Let the operator open one post, review the body, inspect source evidence, edit copy, and change state.
 - Preserve source links for Peer Circle quotes, overseas/news posts, Personal KG memories, and quality-gate evidence.
@@ -116,6 +118,7 @@ Graph stores durable knowledge only after promotion:
 | TSK-sns-cockpit-005 | FE | Post detail review panel | Body editing, source links, quality evidence, status controls |
 | TSK-sns-cockpit-006 | BE/OPS | Feedback handoff for `/oyasumi` | Posted records to metrics and learning candidates |
 | TSK-sns-cockpit-007 | QA | Contract and UI tests | Idempotency, status transitions, calendar rendering, edit flow |
+| TSK-sns-cockpit-008 | FE | Today overview entry | Initial screen with one current decision and compact week strip |
 
 ## Verification Plan
 
