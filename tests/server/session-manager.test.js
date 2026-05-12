@@ -1194,7 +1194,7 @@ describe('SessionManager', () => {
     expect(runTmuxSpy).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', '-l', '--', 'hello world']);
   });
 
-  it('sendInput呼び出し時_中長文テキストはtyping simulationで送信する', async () => {
+  it('sendInput呼び出し時_中長文テキストはtyping simulationせず即時literal送信する', async () => {
     const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
@@ -1203,14 +1203,12 @@ describe('SessionManager', () => {
     }).sessionApi;
     const typingSpy = vi.spyOn(manager, '_sendSimulatedTyping').mockResolvedValue();
     const literalSpy = vi.spyOn(manager, '_sendLiteralText').mockResolvedValue();
-    const text = 'Codexに長文を一括投入せず、人間が入力したように少しずつ送信するためのテキストです。';
+    const text = 'CodexやClaude Codeに長文を貼り付けた時も、少しずつではなく即時に送信するためのテキストです。';
 
     await manager.sendInput('session-1', text, 'text');
 
-    expect(typingSpy).toHaveBeenCalledWith('session-1', text, expect.objectContaining({
-      delayMs: undefined
-    }));
-    expect(literalSpy).not.toHaveBeenCalled();
+    expect(typingSpy).not.toHaveBeenCalled();
+    expect(literalSpy).toHaveBeenCalledWith('session-1', text);
   });
 
   it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {

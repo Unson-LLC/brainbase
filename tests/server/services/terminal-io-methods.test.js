@@ -77,11 +77,17 @@ describe('terminalIoMethods input routing', () => {
         expect(terminalIoMethods._isFastStructuredText(command)).toBe(true);
     });
 
-    it('長い自然文はCodex向けtyping simulationを維持する', () => {
+    it('長い自然文もデフォルトではtyping simulationしない', () => {
         const prompt = 'Please analyze the current UI rendering issue and summarize the remaining heavy path before changing code.';
 
-        expect(terminalIoMethods._shouldUseTypingSimulation(prompt, 'text')).toBe(true);
+        expect(terminalIoMethods._shouldUseTypingSimulation(prompt, 'text')).toBe(false);
         expect(terminalIoMethods._isFastStructuredText(prompt)).toBe(false);
+    });
+
+    it('simulateTyping=trueの明示指定時だけtyping simulationする', () => {
+        const prompt = 'Please analyze the current UI rendering issue and summarize the remaining heavy path before changing code.';
+
+        expect(terminalIoMethods._shouldUseTypingSimulation(prompt, 'text', { simulateTyping: true })).toBe(true);
     });
 
     it('長い画像パスのsendInputは1回のliteral送信にする', async () => {

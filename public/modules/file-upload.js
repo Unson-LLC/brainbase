@@ -166,7 +166,7 @@ async function handleFiles(files) {
 
         // 注: forcePaste:true (paste-buffer + bracketed paste markers) は
         //   Codex が \e[200~ の ESC を ESCキーと誤認 → "Conversation interrupted"
-        //   になるため使わない。中長文/path は server 側で typing simulation にする。
+        //   になるため使わない。通常のテキスト入力経路で即時に送る。
         await sendTextToTerminal(currentSessionId, path);
         showSuccess('画像パスをターミナルに挿入したよ');
     } catch (error) {
@@ -376,7 +376,7 @@ async function showPasteConfirmModal(text, sessionId) {
 async function pasteTextToTerminal(sessionId, text) {
     try {
         // 注: forcePaste:true は Codex で会話中断を起こすため使わない。
-        // 中長文は server 側の typing simulation に任せる。
+        // 通常のテキスト入力経路で即時に送る。
         await sendTextToTerminal(sessionId, text);
     } catch (error) {
         console.error('Failed to paste text:', error);

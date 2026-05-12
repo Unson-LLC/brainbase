@@ -23,8 +23,6 @@ const TEXT_CONTROL_KEY_MAP = new Map([
     ['\x1b[C', 'Right'],
     ['\x1b[D', 'Left']
 ]);
-const TYPING_SIMULATION_MIN_CHARS = 40;
-const TYPING_SIMULATION_MAX_CHARS = 500;
 const TYPING_SIMULATION_DELAY_MS = 12;
 const COLLAPSED_PANE_COLS = 20;
 const COLLAPSED_PANE_ROWS = 5;
@@ -289,14 +287,11 @@ export const terminalIoMethods = {
     },
 
     _shouldUseTypingSimulation(input, type, options = {}) {
-        if (options.simulateTyping === false) return false;
-        if (options.simulateTyping === true) return type === 'text' && typeof input === 'string' && input.length > 0;
+        if (options.simulateTyping !== true) return false;
         if (type !== 'text' || typeof input !== 'string' || !input) return false;
         if (input.includes('\n') || input.includes('\r')) return false;
         if (/[\x00-\x1f\x7f]/.test(input)) return false;
-        if (this._isFastStructuredText(input)) return false;
-        const chars = Array.from(input).length;
-        return chars >= TYPING_SIMULATION_MIN_CHARS && chars <= TYPING_SIMULATION_MAX_CHARS;
+        return true;
     },
 
     _isFastStructuredText(input) {

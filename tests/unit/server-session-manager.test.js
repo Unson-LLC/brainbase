@@ -271,18 +271,16 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(literalSpy).toHaveBeenCalledWith('session-1', 'helloworld');
     });
 
-    it('中長文の1行テキストは typing simulation 経路で送信する', async () => {
+    it('中長文の1行テキストは typing simulation せず即時literal送信する', async () => {
       const typingSpy = vi.spyOn(sessionManager, '_sendSimulatedTyping').mockResolvedValue();
       const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
       const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
-      const text = 'Codexに長文を一括投入せず、人間が入力したように少しずつ送信するためのテキストです。';
+      const text = 'CodexやClaude Codeに長文を貼り付けた時も、少しずつではなく即時に送信するためのテキストです。';
 
       await sessionManager.sendInput('session-1', text, 'text');
 
-      expect(typingSpy).toHaveBeenCalledWith('session-1', text, expect.objectContaining({
-        delayMs: undefined
-      }));
-      expect(literalSpy).not.toHaveBeenCalled();
+      expect(typingSpy).not.toHaveBeenCalled();
+      expect(literalSpy).toHaveBeenCalledWith('session-1', text);
       expect(pasteSpy).not.toHaveBeenCalled();
     });
 

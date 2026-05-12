@@ -460,6 +460,38 @@ describe('terminal-transport-client', () => {
     });
   });
 
+  it('長めのpaste chunkも1KBで分割せず短時間で1つのWebSocket text messageにまとめる', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+    const firstChunk = 'a'.repeat(900);
+    const secondChunk = 'b'.repeat(900);
+
+    await client.sendText(firstChunk);
+    await client.sendText(secondChunk);
+
+    expect(send).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(8);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: `${firstChunk}${secondChunk}`
+    });
+  });
+
   it('buffered textはsendKey前にflushされる', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
