@@ -204,11 +204,30 @@ const URL_RE = /https?:\/\/[^\s<>&"']+/g;
 const FILE_EXTS = 'markdown|mdx|tsx|jsx|json|yaml|yml|toml|html|css|txt|svg|png|jpg|jpeg|gif|webp|ico|avif|bmp|xml|ini|cfg|env|sql|bash|md|mjs|cjs|js|ts|py|rb|go|rs|java|kt|swift|php|cpp|hpp|cc|sh|zsh|c|h|log';
 const FILE_PATH_START_CHARS = '[\\p{L}\\p{N}_]';
 const FILE_PATH_SEGMENT_CHARS = '[\\p{L}\\p{N}\\p{M}_/.\\-]';
-// パスに / を含むことを必須にして誤検出を防ぐ（gmail.c 等）
-const FILE_PATH_RE = new RegExp(
-    `((?:~\\/|\\.{1,2}\\/|\\/|\\.)${FILE_PATH_START_CHARS}${FILE_PATH_SEGMENT_CHARS}*\\.(?:${FILE_EXTS})|${FILE_PATH_START_CHARS}[\\p{L}\\p{N}\\p{M}_\\-]*\\/${FILE_PATH_SEGMENT_CHARS}*\\.(?:${FILE_EXTS}))(?::([0-9]+))?`,
+const FILE_PATH_PREFIX = '(?:file:\\/\\/\\/|~\\/|\\.{1,2}\\/|\\/|\\.)';
+const WRAPPED_FILE_PATH_RE = new RegExp(
+    `(${FILE_PATH_PREFIX}${FILE_PATH_START_CHARS}${FILE_PATH_SEGMENT_CHARS}*(?:\\n\\s*${FILE_PATH_SEGMENT_CHARS}+)+\\.(?:${FILE_EXTS}))(?::([0-9]+))?`,
     'gu'
 );
+// パスに / を含むことを必須にして誤検出を防ぐ（gmail.c 等）
+const FILE_PATH_RE = new RegExp(
+    `(${FILE_PATH_PREFIX}${FILE_PATH_START_CHARS}${FILE_PATH_SEGMENT_CHARS}*\\.(?:${FILE_EXTS})|${FILE_PATH_START_CHARS}[\\p{L}\\p{N}\\p{M}_\\-]*\\/${FILE_PATH_SEGMENT_CHARS}*\\.(?:${FILE_EXTS}))(?::([0-9]+))?`,
+    'gu'
+);
+
+function normalizeFileUriPath(filePath) {
+    const raw = String(filePath || '').trim();
+    if (!raw.startsWith('file:///')) return raw;
+    try {
+        return decodeURI(new URL(raw).pathname);
+    } catch {
+        return raw.replace(/^file:\/\//, '');
+    }
+}
+
+function normalizeWrappedPath(filePath) {
+    return normalizeFileUriPath(String(filePath || '').replace(/\n\s*/g, ''));
+}
 
 function linkifyHtml(html) {
     const TAG_RE = /<[^>]+>/g;
@@ -243,9 +262,20 @@ function linkifyText(text) {
         matches.push({ start: m.index, end: m.index + url.length, type: 'url', value: url });
     }
 
+    WRAPPED_FILE_PATH_RE.lastIndex = 0;
+    while ((m = WRAPPED_FILE_PATH_RE.exec(text)) !== null) {
+        const originalPath = m[1];
+        const filePath = normalizeWrappedPath(originalPath);
+        const line = m[2] || '';
+        const start = m.index;
+        const end = m.index + m[0].length;
+        if (matches.some(existing => start >= existing.start && start < existing.end)) continue;
+        matches.push({ start, end, type: 'file', value: filePath, line });
+    }
+
     FILE_PATH_RE.lastIndex = 0;
     while ((m = FILE_PATH_RE.exec(text)) !== null) {
-        const filePath = m[1];
+        const filePath = normalizeFileUriPath(m[1]);
         const line = m[2] || '';
         const start = m.index;
         const end = m.index + m[0].length;

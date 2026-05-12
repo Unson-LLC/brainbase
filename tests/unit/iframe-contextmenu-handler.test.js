@@ -91,6 +91,17 @@ describe('iframe-contextmenu-handler', () => {
         ]);
     });
 
+    it('file URI の画像ファイルリンクを絶対パスとして抽出する', () => {
+        expect(extractFileMatches('file:///Users/ksato/.codex/generated_images/sample.png')).toEqual([
+            {
+                path: '/Users/ksato/.codex/generated_images/sample.png',
+                line: null,
+                start: 0,
+                end: 54
+            }
+        ]);
+    });
+
     it('日本語ファイル名のリンクも抽出する', () => {
         expect(extractFileMatches('docs/日本語レポート.md:12')).toEqual([
             {
@@ -271,6 +282,43 @@ describe('iframe-contextmenu-handler', () => {
                     start: { x: 1, y: 21 },
                     end: { x: 10, y: 21 }
                 }
+            })
+        ]);
+    });
+
+    it('file URI がファイル名途中で hard wrap されても1本の画像パスとして扱う', () => {
+        expect(buildAdjacentContinuationSegments(
+            'file:///Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb6',
+            '04b83456.png',
+            30
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png',
+                previewable: true,
+                text: 'file:///Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb6'
+            }),
+            expect.objectContaining({
+                rawPath: '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png',
+                previewable: true,
+                text: '04b83456.png'
+            })
+        ]);
+    });
+
+    it('絶対パスがファイル名途中で hard wrap されても1本の画像パスとして扱う', () => {
+        expect(buildAdjacentContinuationSegments(
+            '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb6',
+            '04b83456.png',
+            40
+        )).toEqual([
+            expect.objectContaining({
+                rawPath: '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png',
+                previewable: true
+            }),
+            expect.objectContaining({
+                rawPath: '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png',
+                previewable: true,
+                text: '04b83456.png'
             })
         ]);
     });

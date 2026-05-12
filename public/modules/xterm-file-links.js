@@ -3,16 +3,21 @@ import { isBrowserPreviewablePath, resolvePreviewRelativePath } from './file-pre
 const XTERM_FILE_EXTS = 'markdown|mdx|tsx|jsx|json|yaml|yml|toml|html|css|txt|svg|png|jpg|jpeg|gif|webp|ico|avif|bmp|xml|ini|cfg|env|sql|bash|md|mjs|cjs|js|ts|py|rb|go|rs|java|kt|swift|php|cpp|hpp|cc|sh|zsh|c|h|log';
 const XTERM_PATH_START_CHARS = '[\\p{L}\\p{N}_.]';
 const XTERM_PATH_CHARS = '[\\p{L}\\p{N}\\p{M}_/.\\-]';
+const XTERM_PATH_PREFIX = '(?:file:\\/\\/\\/|~\\/|\\.{1,2}\\/|\\/)?';
 const XTERM_FILE_TOKEN_REGEX = new RegExp(
-    `((?:~\\/|\\.{1,2}\\/|\\/)?${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
+    `(${XTERM_PATH_PREFIX}${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
     'gu'
 );
 const XTERM_WRAPPED_ABSOLUTE_FILE_TOKEN_REGEX = new RegExp(
-    `((?:~\\/|\\.{1,2}\\/|\\/)${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*(?:\\s+${XTERM_PATH_CHARS}+)+\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
+    `((?:file:\\/\\/\\/|~\\/|\\.{1,2}\\/|\\/)${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*(?:\\s+${XTERM_PATH_CHARS}+)+\\.(?:${XTERM_FILE_EXTS}))(?::([0-9]+))?`,
     'gu'
 );
 const XTERM_CONTINUATION_PREFIX_REGEX = new RegExp(
-    `((?:(?:~\\/|\\.{1,2}\\/|\\/)?${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\/))$`,
+    `((?:${XTERM_PATH_PREFIX}${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*\\/))$`,
+    'u'
+);
+const XTERM_HARD_WRAP_PREFIX_REGEX = new RegExp(
+    `(${XTERM_PATH_PREFIX}${XTERM_PATH_START_CHARS}${XTERM_PATH_CHARS}*)$`,
     'u'
 );
 const XTERM_CONTINUATION_SUFFIX_REGEX = new RegExp(
@@ -33,6 +38,23 @@ function isValidPathTerminator(text, index) {
     if (!nextChar) return true;
     if (nextChar === '-' && text[index + 1] === '>') return true;
     return !isPathLikeChar(nextChar);
+}
+
+function normalizeFileUriPath(filePath) {
+    const raw = String(filePath || '').trim();
+    if (!raw.startsWith('file:///')) return raw;
+    try {
+        return decodeURI(new URL(raw).pathname);
+    } catch {
+        return raw.replace(/^file:\/\//, '');
+    }
+}
+
+function isContinuationPrefixFragment(fragment) {
+    if (typeof fragment !== 'string' || fragment.length === 0) return false;
+    const normalized = normalizeFileUriPath(fragment);
+    if (!normalized.includes('/')) return false;
+    return /^(?:file:\/\/\/|~\/|\.{1,2}\/|\/|[\p{L}\p{N}_.-]+\/)/u.test(fragment);
 }
 
 function codePointWidth(codePoint) {
@@ -99,7 +121,8 @@ export function extractFileMatches(lineText) {
     const matches = [];
 
     const pushMatch = (match, { normalizeWhitespace = false } = {}) => {
-        const path = normalizeWhitespace ? match[1].replace(/\s+/g, '') : match[1];
+        const rawPath = normalizeWhitespace ? match[1].replace(/\s+/g, '') : match[1];
+        const path = normalizeFileUriPath(rawPath);
         const line = match[2] || null;
         const start = match.index;
         const end = start + match[0].length;
@@ -211,7 +234,8 @@ export function buildAdjacentContinuationSegments(
         return [];
     }
 
-    const prefixMatch = XTERM_CONTINUATION_PREFIX_REGEX.exec(previousLineText);
+    const prefixMatch = XTERM_CONTINUATION_PREFIX_REGEX.exec(previousLineText)
+        || XTERM_HARD_WRAP_PREFIX_REGEX.exec(previousLineText);
     const suffixMatch = XTERM_CONTINUATION_SUFFIX_REGEX.exec(currentLineText);
     if (!prefixMatch || !suffixMatch) {
         return [];
@@ -224,6 +248,9 @@ export function buildAdjacentContinuationSegments(
     if (!previousPathFragment || !currentPathFragment) {
         return [];
     }
+    if (!isContinuationPrefixFragment(previousPathFragment)) {
+        return [];
+    }
 
     const prefixStart = prefixMatch.index;
     const previousChar = prefixStart > 0 ? previousLineText[prefixStart - 1] : '';
@@ -234,7 +261,7 @@ export function buildAdjacentContinuationSegments(
         return [];
     }
 
-    const rawPath = `${previousPathFragment}${currentPathFragment}`;
+    const rawPath = normalizeFileUriPath(`${previousPathFragment}${currentPathFragment}`);
     const previewPath = resolvePreviewRelativePath(rawPath, workspaceRoot);
     const previewTargetPath = previewPath || rawPath;
     const previewable = isBrowserPreviewablePath(previewTargetPath);

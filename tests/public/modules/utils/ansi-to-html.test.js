@@ -136,6 +136,36 @@ describe('ansiToHtml', () => {
         expect(result).toContain('data-path="assets/画像テスト.png"');
     });
 
+    it('file URI の画像ファイルパスを絶対パスとして検出する', () => {
+        const result = ansiToHtml('Saved to file:///Users/ksato/.codex/generated_images/sample.png');
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain('data-path="/Users/ksato/.codex/generated_images/sample.png"');
+        expect(result).toContain('>file:///Users/ksato/.codex/generated_images/sample.png</span>');
+        expect(result).not.toContain('file://<span');
+    });
+
+    it('file URI が右端折り返しで分割されても1つの画像ファイルリンクにする', () => {
+        const result = ansiToHtml(
+            'file:///Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb6\n04b83456.png'
+        );
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain(
+            'data-path="/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png"'
+        );
+        expect(result).not.toContain('data-path="/Users/ksato/.c"');
+    });
+
+    it('絶対パスが右端折り返しで分割されても1つの画像ファイルリンクにする', () => {
+        const result = ansiToHtml(
+            '/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb6\n04b83456.png'
+        );
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain(
+            'data-path="/Users/ksato/.codex/generated_images/019e16a4/ig_0f4e794ee4490801016a0322027ff08191aea63bb604b83456.png"'
+        );
+        expect(result).not.toContain('data-path="/Users/ksato/.c"');
+    });
+
     it('dot directory 配下の日本語HTMLパスを検出する', () => {
         const result = ansiToHtml('open .vibepro/pr/story/日本語レポート.html');
         expect(result).toContain('snapshot-file-link');
