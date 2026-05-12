@@ -6,16 +6,18 @@ date: 2026-05-12
 story_id: story-sns-posting-cockpit
 related_adrs:
   - ADR-011
+  - ADR-012
 related_specs:
   - SPEC-sns-persona-brain-gate
   - SPEC-personal-kg-sns-seed-mvp
   - SPEC-sns-growth-cockpit-wireframe-v0
 implementation_files:
-  - public/modules/domain/sns/
-  - public/modules/views/sns/
-  - server/services/sns/
+  - public/modules/app/plugin-registration-mixin.js
+  - public/modules/pages/sns-growth-page.js
+  - public/modules/ui/views/sns-growth-cockpit-view.js
+  - public/sns-growth.html
 test_files:
-  - tests/sns/cockpit/
+  - tests/ui/views/sns-growth-cockpit-view.test.js
   - tests/e2e/sns-growth-cockpit.spec.js
 ---
 
@@ -77,6 +79,10 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - Brainbase global navigation を失わない
   - SNS Growth 内の tab / route 遷移で Brainbase sidebar が消えない
   - `SNS Growth` は `作る` group の active item として見える
+  - activity bar の `SNS Growth` entry は追加導線であり、既存の Sessions / Portal / Tasks / Terminal / File Viewer の分岐を変更しない
+  - `abSessionsBtn` は既存どおり panel layout の全 panel を閉じ、session list / terminal context を primary surface に戻す
+  - `abPortalBtn`, `workspaceModeTerminalBtn`, `workspaceModePortalBtn`, `portalBackTerminalBtn` は既存どおり Portal overlay と Terminal surface を切り替える
+  - file viewer close flow の `targetSessionId` は既存どおり closed session または current session の active file/root override を消し、必要な場合だけ対象 session に戻す
 - **error cases**:
   - account 未接続: account setup empty state を表示し、他画面を壊さない
 
@@ -198,6 +204,27 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - Ship Calendar 上の insight banner は topic balance warning を表示してよい
 - **error cases**:
   - 0件: empty week と action to Direct AI / Review Desk を出す
+
+### Contract-6a: Ship Calendar Visual Slice Contract
+
+- **input**:
+  - static fixture post records
+  - accepted Ship Calendar visual direction
+  - Brainbase activity bar entry
+- **output**:
+  - `/sns-growth.html` renders a light admin Ship Calendar page
+  - Brainbase loop navigation is visible
+  - selected post detail panel shows body, source URL, schedule datetime, status action controls, and collapsed evidence rows
+- **preconditions**:
+  - ledger API is not required for this slice
+- **postconditions**:
+  - actions are local/no-op and do not mutate Graph or Ledger
+  - the page can be reached from the existing Brainbase activity bar without altering terminal/session navigation
+  - `ab-sns-growth-btn` is the only new activity bar branch in `plugin-registration-mixin.js`
+  - existing `abSessionsBtn` and `targetSessionId` branches keep their previous behavior and are only in scope as regression-sensitive context
+  - final `Today` entry remains a separate later route
+- **error cases**:
+  - fixture data missing: page still renders the Brainbase loop shell and empty calendar state
 
 ### Contract-7: Learning Loop Contract
 
