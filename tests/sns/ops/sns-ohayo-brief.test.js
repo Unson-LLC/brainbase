@@ -60,7 +60,7 @@ describe('sns ohayo brief', () => {
         expect(brief.signals.reviewPack.posts.every((post) => post.persona_brain)).toBe(true);
         expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'peer_quote_1').peer_circle_brain).toBeTruthy();
         expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'news_commentary_1').amplifier_brain).toBeTruthy();
-        expect(brief.signals.reviewPack.posts.map((post) => post.body).join('\n')).not.toMatch(/Persona Brain|Brain OS/u);
+        expect(brief.signals.reviewPack.posts.map((post) => post.body).join('\n')).not.toMatch(/Persona Brain|Brain OS|読者の脳を更新/u);
         expect(brief.markdown).toContain('Estimated X API cost: $0.10');
         expect(brief.markdown).toContain('Persona Affect: pass');
         expect(brief.markdown).toContain('## 今日のレビュー用投稿パック');
