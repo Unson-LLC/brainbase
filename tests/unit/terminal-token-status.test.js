@@ -63,7 +63,7 @@ describe('terminal token status', () => {
     expect(app.terminalTokenStatusEl.textContent).toBe('');
   });
 
-  it('shows Codex context and rate-limit pacing in session, 5h, 7d order', () => {
+  it('shows compact Codex context and rate-limit details inline', () => {
     const app = createApp();
     appStore.setState({
       currentSessionId: 'codex-1',
@@ -85,8 +85,9 @@ describe('terminal token status', () => {
 
     expect(app.terminalTokenStatusEl.classList.contains('hidden')).toBe(false);
     expect(app.terminalTokenStatusEl.textContent).toBe(
-      'context used 70% · 700 / 1K | ⏱ 5h:26% t:60% 📅 7d:63% t:85%'
+      'ctx 70% · 700/1K · ⏱ 5h 26%/60% 📅 7d 63%/85%'
     );
+    expect(app.terminalTokenStatusEl.title).toContain('Context used 70% (700 / 1K, remaining 300)');
   });
 
   it('terminal token status is rendered in the header instead of overlaying terminal input', () => {

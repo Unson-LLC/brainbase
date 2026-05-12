@@ -364,7 +364,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         const usedText = `${Math.round(usedPercent)}%`;
         const elapsedText = `${Math.round(timeElapsedPercent)}%`;
         return {
-            text: `${label}:${usedText} t:${elapsedText}`,
+            text: `${label} ${usedText}/${elapsedText}`,
             title: `${label} usage ${usedText}, elapsed time ${elapsedText}`,
             overPace: usedPercent > timeElapsedPercent
         };
@@ -490,11 +490,11 @@ export function applyTerminalInputUxMixin(AppClass) {
                     : 'is-ok';
             const contextText = this._formatTerminalTokenCount(contextWindow);
             const usedText = this._formatTerminalTokenCount(usedTokens);
-            textParts.push(`context used ${roundedUsed}% · ${usedText} / ${contextText}`);
+            textParts.push(`ctx ${roundedUsed}% · ${usedText}/${contextText}`);
             const remainingText = Number.isFinite(remainingTokens)
                 ? `, remaining ${this._formatTerminalTokenCount(remainingTokens)}`
                 : '';
-            titleParts.push(`Context used ${usedText} / ${contextText}${remainingText}`);
+            titleParts.push(`Context used ${roundedUsed}% (${usedText} / ${contextText}${remainingText})`);
         }
 
         if (codexRateLimitStatus) {
@@ -502,7 +502,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             titleParts.push(`${codexRateLimitStatus.title}; ${this._formatWeeklyTokenTitle(weeklyUsage)}`);
         } else if (hasWeeklyUsage) {
             const weeklyText = this._formatTerminalTokenCount(weeklyTokens);
-            textParts.push(`week ${weeklyText} tok`);
+            textParts.push(`week ${weeklyText}`);
             titleParts.push(this._formatWeeklyTokenTitle(weeklyUsage));
         }
 
@@ -510,7 +510,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             toneClass = 'is-warn';
         }
 
-        const text = textParts.join(' | ');
+        const text = textParts.join(' · ');
         const title = titleParts.filter(Boolean).join(' | ');
         const key = `${toneClass}|${text}|${title}`;
         if (this._lastTerminalTokenStatusKey === key) return;

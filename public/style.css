@@ -2163,7 +2163,7 @@ body::after {
     gap: 8px;
 }
 
-.terminal-more-btn {
+.console-btn.terminal-more-btn {
     display: none;
 }
 
@@ -7431,7 +7431,7 @@ body.resizing iframe {
         padding: 10px;
     }
 
-    .terminal-more-btn {
+    .console-btn.terminal-more-btn {
         display: inline-flex;
     }
 
@@ -17360,12 +17360,99 @@ body.resizing iframe {
 
 .command-center-theme .terminal-header {
     display: grid;
-    grid-template-columns: minmax(500px, 1.15fr) minmax(140px, 0.8fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "nav actions"
+        "status status";
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
+}
+
+.command-center-theme .terminal-header-status-group {
+    grid-area: status;
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+}
+
+.command-center-theme .terminal-header-actions {
+    grid-area: actions;
+    justify-content: flex-end;
+    position: relative;
+}
+
+.command-center-theme .terminal-token-status {
+    flex: 0 1 auto;
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.command-center-theme .console-area {
+    container-name: terminal-area;
+    container-type: inline-size;
+}
+
+@container terminal-area (max-width: 360px) {
+    .command-center-theme .terminal-header {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "actions"
+            "status";
+    }
+
+    .command-center-theme .workspace-nav {
+        display: none;
+    }
+
+    .command-center-theme .terminal-transport-switcher {
+        display: none;
+    }
+
+    .command-center-theme .terminal-header-actions {
+        justify-content: flex-start;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .command-center-theme .terminal-token-status {
+        width: 100%;
+    }
+
+    .command-center-theme .terminal-more-btn {
+        display: inline-flex;
+    }
+
+    .command-center-theme .terminal-more-actions {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 8px);
+        display: none;
+        flex-direction: column;
+        padding: 8px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(2, 6, 23, 0.96);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+        z-index: 30;
+    }
+
+    .command-center-theme .terminal-more-actions.open {
+        display: flex;
+    }
+
+    .command-center-theme .terminal-more-actions .console-btn {
+        width: 44px;
+        height: 44px;
+    }
 }
 
 .command-center-theme .workspace-nav {
+    grid-area: nav;
     display: flex;
     align-items: center;
     gap: 12px;
