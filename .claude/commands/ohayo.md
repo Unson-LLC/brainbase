@@ -125,6 +125,19 @@ gog --account "$ACCOUNT" gmail thread get <threadId> --json --no-input
 
 毎朝必ず `slack-mentions` skill に従って、佐藤圭吾宛のSlackメンション・DMを直近3日分確認する。目的は「今日来たもの」ではなく「直近3日で返信すべきなのに未対応のもの」を拾うこと。Slackは1ワークスペースではなく、少なくとも `salestailor` / `unson` / `techknight` の3ワークスペースを横断する。
 
+取得前に必ず Slack MCP の起動前チェックを実行する。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+scripts/check-slack-mcp-health.sh
+```
+
+扱い:
+
+- 3ワークスペースすべて `ok` の場合だけ、以下のSlack取得に進む
+- `blocked` / `SLACK_MCP_UNAVAILABLE` が出た場合は、Slack未対応件数を 0 件として扱わず「Slack未確認」として HTML レポートとブリーフィングに明記する
+- 失敗理由は secret 値を出さず、workspace名、失敗した前提（token file missing / Infisical access denied / missing key / binary missing など）だけを evidence に残す
+
 ワークスペース別 User ID:
 
 | workspace | MCP namespace | 佐藤圭吾 User ID |
