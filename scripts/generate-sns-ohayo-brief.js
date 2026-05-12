@@ -200,20 +200,20 @@ function pickPeerTweets(tweets, limit = 3) {
 
 function draftHintForPeer(signal) {
     return [
-        'これめちゃ分かる',
+        'これ、Claude Codeを会社で使う時も同じだと思ってる',
         '',
-        `${signal.text} って、会社でAIを使う時は「使う人の努力」じゃなくて、責任・権限・記憶・レビュー境界まで含めて見る話なんよな`,
+        'うちでも便利なコマンドより先に、レビュー境界と権限を決めないと現場で止まる',
         '',
-        'うちでもここを曖昧にしたまま入れると、便利なのに現場で止まる',
+        'AIが賢いほど、人間側の運用が雑だと怖いんよな',
         signal.url
     ].join('\n');
 }
 
 function draftHintForNews(signal) {
     return [
-        '海外でこの手のAI agent事例が伸びるの、単に新機能が面白いからじゃなくて「業務フローの中でAIがどこまで責任を持つか」に関心が移ってるからだと思う',
+        '海外のClaude Code事例って、ツール紹介より「長く走る業務フロー」に話が寄ってきてる',
         '',
-        '日本の会社で見る時も、ツール比較より先に現場の責任境界とレビュー設計を見る方がいい',
+        '日本の会社で見る時も、機能比較より先に、どこまでAIに任せてどこで人間が戻るかを決める方が大事',
         signal.url
     ].join('\n');
 }
@@ -243,6 +243,194 @@ function withAffect(signal, body, lane) {
     };
 }
 
+function parseBaselineItems(weeklyPlan) {
+    const baselineMatch = String(weeklyPlan || '').match(/Baseline:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|\n## |\n# |$)/u);
+    const block = baselineMatch ? baselineMatch[1] : '';
+    const items = block
+        .split('\n')
+        .map((line) => line.match(/^\s*\d+\.\s*(.+?)\s*$/u)?.[1])
+        .filter(Boolean);
+    const fallback = ['Own Proof', 'Claude Code法人導入'];
+    return [...items, ...fallback].slice(0, 2);
+}
+
+function graphCheckFor(topic) {
+    return {
+        scope: 'growth',
+        entities: ['さとけい', 'Unson', 'AI駆動経営', topic],
+        source_of_truth: 'brainbase Graph + shared/_codex/sns',
+        decision: 'checked_for_review',
+        constraints: [
+            '投稿実行は人間レビュー後',
+            '読者に運用都合を見せない',
+            '固有名詞はGraph SSOT優先'
+        ]
+    };
+}
+
+function peerCircleBrain(signal) {
+    return {
+        source: signal.author_handle,
+        relation_mode: '同じ実務界隈の仲間として補強する',
+        give_first: '相手の論点に、会社導入で起きる責任境界の現場知見を足す',
+        avoid: '相手選定や成長施策の都合を本文に出さない'
+    };
+}
+
+function amplifierBrain(signal) {
+    return {
+        source: signal.author_handle,
+        relation_mode: '海外の話題を日本の事業責任者 / PM の業務判断に翻訳する',
+        give_first: '機能紹介ではなく、責任境界とレビュー設計に接続する',
+        avoid: '英語混じりの説明やニュース要約だけで終わらせない'
+    };
+}
+
+function baselineBodyFor(item, index) {
+    if (/Claude Code/u.test(item) || index === 1) {
+        return [
+            'Claude Codeを会社で使う時、小技を増やすより先に決めることがある',
+            '',
+            'CLAUDE.md、スキル、hook、レビュー、権限',
+            '',
+            'ここがないと、個人の便利ツールで止まる',
+            '会社で使うAIは、行動ルールまで含めて設計するものなんよな'
+        ].join('\n');
+    }
+    return [
+        'SNS運用を「投稿を作る仕組み」じゃなくて、読者理解を学習に戻す個人ナレッジグラフとして作ってる',
+        '',
+        'Xで反応を見る',
+        '読者の脳を更新する',
+        '次の仮説に戻す',
+        '',
+        '投稿生成より、こっちが本体なんよな'
+    ].join('\n');
+}
+
+function qualityGate({ body, lane, personaBrain: brain, signal, requireSignal = false }) {
+    const affect = evaluatePersonaAffect({ body, lane, personaBrain: brain, signal });
+    const checks = [];
+    const reasons = [];
+
+    checks.push({ name: 'persona_affect', pass: affect.decision === 'pass' });
+    if (affect.decision !== 'pass') reasons.push(...affect.negative_feeling_risks);
+
+    const text = String(body || '');
+    const forbidden = /少し上の人に絡む|相手の読者に入る|APIで投稿|自動投稿|AI使って書いてます|ルー大柴/u.test(text);
+    checks.push({ name: 'no_internal_or_cold_phrasing', pass: !forbidden });
+    if (forbidden) reasons.push('internal_or_cold_phrasing');
+
+    const hasJapaneseReaderWorld = /会社|現場|業務|運用|責任|権限|レビュー|経営|PM|読者|学習/u.test(text);
+    checks.push({ name: 'reader_world_anchor', pass: hasJapaneseReaderWorld });
+    if (!hasJapaneseReaderWorld) reasons.push('reader_world_anchor_missing');
+
+    const isShortEnough = text.length <= 280;
+    checks.push({ name: 'under_280_chars', pass: isShortEnough });
+    if (!isShortEnough) reasons.push('too_long');
+
+    const noSentencePeriod = !/。/u.test(text);
+    checks.push({ name: 'style_no_sentence_period', pass: noSentencePeriod });
+    if (!noSentencePeriod) reasons.push('style_sentence_period');
+
+    if (requireSignal) {
+        const followers = Number(signal?.author_followers || 0);
+        const passesSignal = signal?.kind === 'peer_post'
+            ? ['primary', 'secondary'].includes(signal.target_band)
+            : followers >= 500;
+        checks.push({ name: 'source_strength', pass: Boolean(passesSignal) });
+        if (!passesSignal) reasons.push('source_strength_insufficient');
+    }
+
+    return {
+        decision: reasons.length === 0 ? 'pass' : 'hold',
+        checks,
+        reasons: [...new Set(reasons)],
+        persona_affect: affect
+    };
+}
+
+function buildPost({ slot, label, lane, topic, body, signal, extra = {}, requireSignal = false }) {
+    const brain = personaBrain(topic);
+    const quality_gate = qualityGate({ body, lane, personaBrain: brain, signal, requireSignal });
+    return {
+        slot,
+        label,
+        lane,
+        topic,
+        body,
+        source_url: signal?.url,
+        persona_brain: brain,
+        graph_check: graphCheckFor(topic),
+        quality_gate,
+        ...extra
+    };
+}
+
+function buildReviewPack({ date, weeklyPlan, peerCards, newsCards }) {
+    const baselinePosts = parseBaselineItems(weeklyPlan).map((item, index) => buildPost({
+        slot: `baseline_${index + 1}`,
+        label: `Baseline ${index + 1}`,
+        lane: index === 0 ? 'own_proof' : 'trust_balance',
+        topic: item,
+        body: baselineBodyFor(item, index)
+    })).filter((post) => post.quality_gate.decision === 'pass');
+
+    const posts = [...baselinePosts];
+    const holds = [];
+
+    const peerPost = peerCards
+        .map((signal) => buildPost({
+            slot: 'peer_quote_1',
+            label: 'Peer Quote 1',
+            lane: 'peer_circle',
+            topic: signal.topic,
+            body: draftHintForPeer(signal),
+            signal,
+            requireSignal: true,
+            extra: { peer_circle_brain: peerCircleBrain(signal) }
+        }))
+        .find((post) => post.quality_gate.decision === 'pass');
+    if (peerPost) {
+        posts.push(peerPost);
+    } else {
+        holds.push({
+            lane: 'Peer Quote',
+            decision: 'quality hold',
+            reasons: ['source_strength_insufficient_or_persona_affect_blocked']
+        });
+    }
+
+    const newsPost = newsCards
+        .map((signal) => buildPost({
+            slot: 'news_commentary_1',
+            label: 'News Commentary 1',
+            lane: 'trust_balance',
+            topic: signal.topic,
+            body: draftHintForNews(signal),
+            signal,
+            requireSignal: true,
+            extra: { amplifier_brain: amplifierBrain(signal) }
+        }))
+        .find((post) => post.quality_gate.decision === 'pass');
+    if (newsPost) {
+        posts.push(newsPost);
+    } else {
+        holds.push({
+            lane: 'News Commentary',
+            decision: 'quality hold',
+            reasons: ['source_strength_insufficient_or_persona_affect_blocked']
+        });
+    }
+
+    return {
+        date,
+        publish_intent: 'manual_review_only',
+        posts,
+        holds
+    };
+}
+
 export function buildBrief({ date, jpTweets, enTweets, jpReads, enReads, weeklyPlan = '' }) {
     const peerSignals = pickPeerTweets(jpTweets).map(toPeerSignal);
     const newsSignals = pickTopTweets(enTweets, 3).map(toNewsSignal);
@@ -250,9 +438,10 @@ export function buildBrief({ date, jpTweets, enTweets, jpReads, enReads, weeklyP
     const newsCards = newsSignals.map((signal) => withAffect(signal, draftHintForNews(signal), 'trust_balance'));
     const totalReads = Number(jpReads ?? jpTweets.length) + Number(enReads ?? enTweets.length);
     const cost = totalReads * COST_PER_TWEET_READ_USD;
-    const signals = { peerSignals, newsSignals };
+    const reviewPack = buildReviewPack({ date, weeklyPlan, peerCards, newsCards });
+    const signals = { peerSignals, newsSignals, reviewPack };
     return {
-        markdown: renderMarkdown({ date, weeklyPlan, peerCards, newsCards, totalReads, cost }),
+        markdown: renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost }),
         signals,
         summary: {
             date,
@@ -260,6 +449,7 @@ export function buildBrief({ date, jpTweets, enTweets, jpReads, enReads, weeklyP
             estimated_cost_usd: Number(cost.toFixed(3)),
             peer_candidates: peerCards.length,
             news_candidates: newsCards.length,
+            review_pack_posts: reviewPack.posts.length,
             blocked_persona_affect: [...peerCards, ...newsCards].filter((card) => card.persona_affect.decision !== 'pass').length
         }
     };
@@ -285,7 +475,37 @@ function renderCard(card, index) {
     ].join('\n');
 }
 
-function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, totalReads, cost }) {
+function renderPost(post) {
+    const graphEntities = post.graph_check.entities.join(', ');
+    const quality = post.quality_gate.decision;
+    const persona = post.persona_brain.target_person;
+    const extras = [];
+    if (post.peer_circle_brain) {
+        extras.push(`Peer Circle Brain: ${post.peer_circle_brain.relation_mode}`);
+    }
+    if (post.amplifier_brain) {
+        extras.push(`Amplifier Brain: ${post.amplifier_brain.relation_mode}`);
+    }
+    return [
+        `### ${post.label} / ${post.topic}`,
+        '',
+        `Quality Gate: ${quality}`,
+        `Graph Check: scope=${post.graph_check.scope}; entities=${graphEntities}`,
+        `Persona Brain: ${persona}`,
+        ...extras,
+        '',
+        '本文:',
+        '',
+        '```text',
+        post.body,
+        '```'
+    ].join('\n');
+}
+
+function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost }) {
+    const holdLines = reviewPack.holds.length > 0
+        ? reviewPack.holds.map((hold) => `- ${hold.lane}: ${hold.decision} - ${hold.reasons.join(', ')}`)
+        : ['- なし'];
     const lines = [
         `# SNS Ohayo Brief ${date}`,
         '',
@@ -300,6 +520,21 @@ function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, totalReads, co
         '## Weekly Plan For Today',
         '',
         weeklyPlan || '週次カレンダーが見つからないため、`/Users/ksato/workspace/shared/_codex/sns/x/ops/weekly_content_calendar_*.md` を確認する。',
+        '',
+        '## 今日のレビュー用投稿パック',
+        '',
+        `Publish intent: ${reviewPack.publish_intent}`,
+        '',
+        '## Graph Check',
+        '',
+        '- scope: growth',
+        '- source: brainbase Graph + shared/_codex/sns',
+        '- rule: No Graph Check, no post',
+        '',
+        reviewPack.posts.length > 0 ? reviewPack.posts.map(renderPost).join('\n\n') : '通過した投稿なし。',
+        '',
+        'Hold:',
+        ...holdLines,
         '',
         '## Peer Quote Candidates',
         '',
