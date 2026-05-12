@@ -130,7 +130,8 @@ export function applyUiSetupMixin(AppClass) {
                 if (appStore.getState().currentSessionId !== sessionId) return null;
                 return this.reconnectManager?.terminalAccess || null;
             },
-            shouldUseXtermTransport: () => this._shouldUseXtermTransport()
+            shouldUseXtermTransport: () => this._shouldUseXtermTransport(),
+            getSessionEngine: (sessionId) => this._getSessionEngine(sessionId)
         }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
@@ -156,6 +157,19 @@ export function applyUiSetupMixin(AppClass) {
         this.portalService = this.container.get('portalService');
         this.nocodbIssueService = this.container.get('nocodbIssueService');
         this.manaChatService = this.container.get('manaChatService');
+    };
+
+    AppClass.prototype._getSessionEngine = function(sessionId) {
+        if (!sessionId) return null;
+        const state = appStore.getState();
+        const currentSession = Array.isArray(state.sessions)
+            ? state.sessions.find((session) => session.id === sessionId)
+            : null;
+        if (currentSession?.engine) return currentSession.engine;
+
+        const escapedSessionId = window.CSS?.escape ? window.CSS.escape(sessionId) : sessionId.replace(/"/g, '\\"');
+        const sessionRow = document.querySelector(`[data-id="${escapedSessionId}"]`);
+        return sessionRow?.dataset?.engine || null;
     };
 
     AppClass.prototype.initViews = function() {

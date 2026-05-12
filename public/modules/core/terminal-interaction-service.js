@@ -4,7 +4,8 @@ export class TerminalInteractionService {
         httpClient,
         getTerminalTransportClient = null,
         getFallbackTerminalAccess = null,
-        shouldUseXtermTransport = null
+        shouldUseXtermTransport = null,
+        getSessionEngine = null
     }) {
         this.httpClient = httpClient;
         this.getTerminalTransportClient = typeof getTerminalTransportClient === 'function'
@@ -16,6 +17,9 @@ export class TerminalInteractionService {
         this.shouldUseXtermTransport = typeof shouldUseXtermTransport === 'function'
             ? shouldUseXtermTransport
             : () => false;
+        this.getSessionEngine = typeof getSessionEngine === 'function'
+            ? getSessionEngine
+            : () => null;
     }
 
     getAvailability(sessionId) {
@@ -32,12 +36,13 @@ export class TerminalInteractionService {
 
     async sendInput(sessionId, payload) {
         if (!payload) return;
-        if (this._looksLikeSlashCommand(payload)) {
-            await this.sendText(sessionId, payload);
+        const normalizedPayload = this._normalizeProjectSlashCommandForSession(sessionId, payload);
+        if (this._looksLikeSlashCommand(normalizedPayload)) {
+            await this.sendText(sessionId, normalizedPayload);
             await this.sendKey(sessionId, 'Enter');
             return;
         }
-        await this.sendText(sessionId, `${payload}\n`);
+        await this.sendText(sessionId, `${normalizedPayload}\n`);
     }
 
     _looksLikeSlashCommand(payload) {
@@ -45,6 +50,24 @@ export class TerminalInteractionService {
         const trimmed = payload.trim();
         if (trimmed !== payload) return false;
         return /^\/[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\r\n]*)?$/.test(trimmed);
+    }
+
+    _normalizeProjectSlashCommandForSession(sessionId, payload) {
+        if (this.getSessionEngine(sessionId) !== 'codex') return payload;
+        const command = this._parseProjectSlashCommand(payload);
+        if (!command) return payload;
+        const argsText = command.args ? ` Arguments: ${command.args}` : '';
+        return `Run the project command /${command.name} by following .claude/commands/${command.name}.md.${argsText}`;
+    }
+
+    _parseProjectSlashCommand(payload) {
+        if (typeof payload !== 'string') return null;
+        const match = payload.match(/^\/(ohayo|oyasumi|retro)(?:\s+(.+))?$/);
+        if (!match) return null;
+        return {
+            name: match[1],
+            args: match[2]?.trim() || ''
+        };
     }
 
     async sendText(sessionId, text) {

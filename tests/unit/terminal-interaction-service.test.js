@@ -82,6 +82,82 @@ describe('TerminalInteractionService', () => {
         });
     });
 
+    it('codexセッションのproject slash commandは通常プロンプトへ変換して送信する', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getSessionEngine: () => 'codex',
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/ohayo');
+
+        expect(httpClient.post).toHaveBeenCalledTimes(1);
+        expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/input', {
+            input: 'Run the project command /ohayo by following .claude/commands/ohayo.md.\n',
+            type: 'text'
+        });
+    });
+
+    it('codexセッションのproject slash command引数も通常プロンプトへ渡す', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getSessionEngine: () => 'codex',
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/ohayo --include-calendar');
+
+        expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/input', {
+            input: 'Run the project command /ohayo by following .claude/commands/ohayo.md. Arguments: --include-calendar\n',
+            type: 'text'
+        });
+    });
+
+    it('claudeセッションのproject slash commandは変換しない', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getSessionEngine: () => 'claude',
+            shouldUseXtermTransport: () => false
+        });
+
+        await service.sendInput('session-1', '/ohayo');
+
+        expect(httpClient.post).toHaveBeenNthCalledWith(1, '/api/sessions/session-1/input', {
+            input: '/ohayo',
+            type: 'text'
+        });
+        expect(httpClient.post).toHaveBeenNthCalledWith(2, '/api/sessions/session-1/input', {
+            input: 'Enter',
+            type: 'key'
+        });
+    });
+
+    it('codexセッションのproject slash commandはxterm経由でも通常プロンプトへ変換する', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const transport = {
+            canSendInput: vi.fn(() => true),
+            sendText: vi.fn(async () => {}),
+            sendKey: vi.fn(async () => {})
+        };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => transport,
+            getSessionEngine: () => 'codex',
+            shouldUseXtermTransport: () => true
+        });
+
+        await service.sendInput('session-1', '/ohayo');
+
+        expect(transport.sendText).toHaveBeenCalledWith(
+            'Run the project command /ohayo by following .claude/commands/ohayo.md.\n'
+        );
+        expect(transport.sendKey).not.toHaveBeenCalled();
+        expect(httpClient.post).not.toHaveBeenCalled();
+    });
+
     it('ファイルパスはslash command扱いにしない', async () => {
         const httpClient = { post: vi.fn(async () => {}) };
         const service = new TerminalInteractionService({
