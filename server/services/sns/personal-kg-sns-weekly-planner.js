@@ -53,7 +53,10 @@ function addDays(date, offset) {
 }
 
 function truncateText(value, max = MAX_POST_CHARS) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    const text = String(value || '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
     if (text.length <= max) return text;
     return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
 }
@@ -64,6 +67,14 @@ function firstSentence(text) {
     return parts[0] || cleaned;
 }
 
+function cleanMemoryText(text) {
+    return String(text || '')
+        .replace(/^Own Proof:\s*/u, '')
+        .replace(/^気づいた:\s*/u, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 function sourceMatchesLane(source, lane) {
     const body = source?.body || '';
     return (LANE_KEYWORDS[lane] || []).some((keyword) => body.includes(keyword));
@@ -71,11 +82,18 @@ function sourceMatchesLane(source, lane) {
 
 function scoreSourceForLane(source, lane, viewer) {
     let score = 0;
-    const isContentMeta = /投稿設計|X運用|投稿生成|APIで投稿/.test(String(source?.body || ''));
-    const isPeerMemory = String(source?.body || '').includes('Peer Circle候補');
+    const body = String(source?.body || '');
+    const isContentMeta = /投稿設計|X運用|投稿生成|APIで投稿/.test(body);
+    const isPeerMemory = body.includes('Peer Circle候補');
+    const isOwnProof = /Own Proof|PR #|M1-M4|実装|通した|実運用|削減|自動化/.test(body);
+    const isPhilosophy = /Persona Brain|相手の脳|AIはツール|組織ユニット|基準|哲学/.test(body);
     if (isPeerMemory && lane !== 'peer_circle') score -= 20;
     if (isPeerMemory && lane === 'peer_circle') score += 12;
     if (isContentMeta && !['peer_circle', 'soft_cta'].includes(lane)) score -= 12;
+    if (isOwnProof && lane === 'own_proof') score += 12;
+    if (isOwnProof && !['own_proof', 'trust_balance'].includes(lane)) score -= 18;
+    if (isPhilosophy && lane === 'philosophy') score += 12;
+    if (isPhilosophy && lane === 'own_proof') score -= 16;
     if (sourceMatchesLane(source, lane)) score += 10;
     const interests = Array.isArray(viewer?.interests) ? viewer.interests : [];
     for (const interest of interests) {
@@ -95,13 +113,15 @@ function normalizeSources(sources) {
         }));
 }
 
-function selectSourceForLane(sources, lane, viewer, cursors) {
+function selectSourceForLane(sources, lane, viewer, cursors, excludedIds = new Set()) {
     if (sources.length === 0) {
         throw new Error('personal KG sources required');
     }
     const ranked = [...sources].sort((a, b) => scoreSourceForLane(b, lane, viewer) - scoreSourceForLane(a, lane, viewer));
     const laneSources = ranked.filter((source) => scoreSourceForLane(source, lane, viewer) > 0);
-    const pool = laneSources.length > 0 ? laneSources : ranked;
+    const basePool = laneSources.length > 0 ? laneSources : ranked;
+    const nonExcluded = basePool.filter((source) => !excludedIds.has(source.id));
+    const pool = nonExcluded.length > 0 ? nonExcluded : basePool;
     const cursor = cursors[lane] || 0;
     const selected = pool[cursor % pool.length];
     cursors[lane] = cursor + 1;
@@ -136,7 +156,8 @@ function completePersonaBrain({ source, lane, viewer, signal }) {
 }
 
 function composeBody({ lane, source, signal }) {
-    const sentence = firstSentence(source.body);
+    const sentence = firstSentence(cleanMemoryText(source.body));
+    const body = cleanMemoryText(source.body);
     if (lane === 'peer_circle') {
         if (!signal) {
             return truncateText(
@@ -157,14 +178,52 @@ function composeBody({ lane, source, signal }) {
         );
     }
 
-    const prefixByLane = {
-        trust_balance: 'Claude Code / AI PM / AI経営で大事なのは、',
-        own_proof: '実装してわかった。',
-        philosophy: '自分の基準はこれ。',
-        learn_in_public: '失敗から学んだのは、',
-        soft_cta: 'AI導入で迷うなら、まず見るべきはここ。'
-    };
-    return truncateText(`${prefixByLane[lane] || ''}${sentence}`);
+    if (lane === 'trust_balance' && body.includes('AI PM')) {
+        return truncateText(
+            'AI PMって「タスク管理をAIにやらせること」だと思われがちだけど、たぶん本体はそこじゃない。\n\n' +
+            '本当に設計すべきなのは、責任分界・意思決定ログ・レビュー境界・学習の戻し先。\n\n' +
+            'AIを入れるほど、PMの仕事は“管理”より“境界設計”になる。'
+        );
+    }
+    if (lane === 'trust_balance' && body.includes('Claude Code')) {
+        return truncateText(
+            'Claude Code法人導入で差がつくのは、Tipsの量ではなく運用設計だと思う。\n\n' +
+            'CLAUDE.md、Skills、権限、レビュー、検収。\n\n' +
+            'ここまで含めて初めて「会社で使えるAI」になる。'
+        );
+    }
+    if (lane === 'trust_balance') {
+        return truncateText(
+            `${sentence}\n\n` +
+            'ツール名ではなく、業務フロー・責任境界・学習の戻し先まで見ると、AI導入の解像度が上がる。'
+        );
+    }
+    if (lane === 'own_proof') {
+        return truncateText(
+            `実装してわかった。\n\n${sentence}\n\n` +
+            '思想は、動いている運用と証跡まで落ちて初めて信用になる。'
+        );
+    }
+    if (lane === 'philosophy') {
+        return truncateText(
+            `自分の基準はこれ。\n\n${sentence}\n\n` +
+            'ツール名より、役割・権限・記憶・承認・証跡を先に見る。'
+        );
+    }
+    if (lane === 'learn_in_public') {
+        return truncateText(
+            `失敗から学んだのは、${sentence}\n\n` +
+            '事故を隠すより、停止条件・責任境界・再発防止を仕組みに戻す方が強い。'
+        );
+    }
+    if (lane === 'soft_cta') {
+        return truncateText(
+            'AI導入で迷うなら、最初に見るべきはツール一覧じゃない。\n\n' +
+            '自社の「最初の1業務」を選んで、どこをAIに渡し、どこで人間が戻るかを書き出す。\n\n' +
+            'そこから始める方が失敗しにくい。'
+        );
+    }
+    return truncateText(sentence);
 }
 
 function sortSignalsByBand(signals) {
@@ -234,8 +293,10 @@ export class PersonalKgSnsWeeklyPlanner {
 
         WEEKLY_PATTERN.forEach((lanes, dayIndex) => {
             const date = addDays(options.startDate, dayIndex);
+            const daySourceIds = new Set();
             lanes.forEach((lane, slotIndex) => {
-                const source = selectSourceForLane(sources, lane, viewer, cursors);
+                const source = selectSourceForLane(sources, lane, viewer, cursors, daySourceIds);
+                daySourceIds.add(source.id);
                 const signal = lane === 'peer_circle'
                     ? pickSignal(peerPool, peerCursor++)
                     : (slotIndex === 0 ? pickSignal(newsPool, newsCursor++) : null);

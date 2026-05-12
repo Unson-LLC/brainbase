@@ -185,4 +185,47 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         expect(classifyPeerSignalBand({ author_followers: 35000 })).toBe('secondary');
         expect(classifyPeerSignalBand({ author_followers: 50001 })).toBe('out_of_band');
     });
+
+    it('shapes KG memory into publishable copy instead of copying the memory fragment', async () => {
+        const planner = new PersonalKgSnsWeeklyPlanner({
+            graphReader: { listRecentEntities: async () => kgSources }
+        });
+
+        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
+        const trustDraft = pack.drafts.find((draft) => draft.lane === 'trust_balance' && draft.body.includes('AI PM'));
+        expect(trustDraft).toBeTruthy();
+        expect(trustDraft.body).toContain('\n');
+        expect(trustDraft.body).toContain('たぶん本体はそこじゃない');
+        expect(trustDraft.body).toContain('境界設計');
+        expect(trustDraft.body).not.toMatch(/^Claude Code \/ AI PM \/ AI経営で大事なのは、/);
+        expect(trustDraft.body).not.toContain('Own Proof:');
+    });
+
+    it('does not reuse the same KG source twice on the same day', async () => {
+        const planner = new PersonalKgSnsWeeklyPlanner({
+            graphReader: { listRecentEntities: async () => kgSources }
+        });
+
+        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
+        for (const day of pack.days) {
+            const ids = day.drafts.map((draft) => draft.kg_source_entity_id);
+            expect(new Set(ids).size).toBe(ids.length);
+        }
+    });
+
+    it('keeps lane-specific source selection clean for philosophy and soft CTA slots', async () => {
+        const planner = new PersonalKgSnsWeeklyPlanner({
+            graphReader: { listRecentEntities: async () => kgSources }
+        });
+
+        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
+        const philosophyDrafts = pack.drafts.filter((draft) => draft.lane === 'philosophy');
+        expect(philosophyDrafts).toHaveLength(3);
+        expect(philosophyDrafts.every((draft) => !draft.body.includes('Own Proof:'))).toBe(true);
+        expect(philosophyDrafts.some((draft) => draft.body.includes('AIはツールではなく'))).toBe(true);
+
+        const softCta = pack.drafts.find((draft) => draft.lane === 'soft_cta');
+        expect(softCta.body).toContain('最初の1業務');
+        expect(softCta.body).not.toMatch(/投稿設計|今日の3投稿|1週間単位/);
+    });
 });
