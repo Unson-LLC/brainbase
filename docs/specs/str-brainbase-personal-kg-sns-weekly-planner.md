@@ -35,6 +35,7 @@ test_files:
 - **INV-11**: 公開本文には `Peer Circle`, `Own Proof`, `Learn in Public`, `Soft CTA`, `Graph traversal`, `entity` などの内部運用ラベルを出さない。英語は `Claude Code`, `VibePro`, `AI PM` など必要な固有名詞だけに限定する。
 - **INV-12**: 引用元の投稿がない `peer_research_prompt` は本文を作らない。探索方針を読者に見せず、実際の引用リポスト本文は peer signal がある時だけ生成する。
 - **INV-13**: X本文は句点 `。` を使わない。
+- **INV-14**: 公開本文は `persona_affect` を持つ。目的はNGワード除去ではなく、Persona Brainの読者が「説教された」「成長施策の道具にされた」「投稿者の自慢だけを見せられた」と感じる本文を止めること。
 
 ## Contract
 
@@ -72,6 +73,13 @@ type WeeklyDraft = {
     requires_human_review: true;
     no_post_api: true;
     no_auto_posting_language: true;
+    persona_affect: {
+      decision: 'pass' | 'blocked';
+      likely_reader_feeling: string;
+      negative_feeling_risks: string[];
+      repair_guidance: string;
+      persona_assumption?: string;
+    };
   };
 }
 ```
@@ -120,6 +128,12 @@ type WeeklyDraft = {
 - when: peer slot を作る
 - then: `peer_research_prompt` の本文は空で、引用元が決まるまで投稿本文にしない
 
+### S-8: Persona Affectで読者の気持ちが下がる本文を止める
+
+- given: 読者がAI導入を任され、不安と迷いを持っている
+- when: 本文が「最初に見るべき」「少し上の人を探す」など、説教や運用都合の露出として読める
+- then: `persona_affect.decision` は `blocked` になり、修正指針は読者の現場・不安・自然な次行動へ戻す
+
 ## Non-goals
 
 - 投稿実行
@@ -133,3 +147,4 @@ type WeeklyDraft = {
 | Clause | Test |
 |---|---|
 | INV-1〜7, S-1〜3 | `tests/sns/weekly-planner/personal-kg-sns-weekly-planner.test.js` |
+| INV-14, S-8 | `tests/sns/weekly-planner/personal-kg-sns-weekly-planner.test.js` |
