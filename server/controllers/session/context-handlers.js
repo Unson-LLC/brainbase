@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { logger } from '../../utils/logger.js';
-import { HTML_EXTENSIONS, MARKDOWN_EXTENSIONS, MAX_FILE_READ_SIZE } from './shared-methods.js';
+import { HTML_EXTENSIONS, MARKDOWN_EXTENSIONS, MAX_FILE_READ_SIZE, MAX_PREVIEW_ASSET_SIZE } from './shared-methods.js';
 
 function isEphemeralCwd(candidate) {
     return typeof candidate === 'string'
@@ -279,9 +279,10 @@ export function installContextHandlers(controller) {
     async function sendHtmlPreviewFile(req, res, { requireHtml }) {
         const { id } = req.params;
         const pathParam = req.params.previewPath;
-        const rawPath = Array.isArray(pathParam)
+        const queryPath = typeof req.query.path === 'string' && req.query.path ? req.query.path : '';
+        const rawPath = queryPath || (Array.isArray(pathParam)
             ? pathParam.join('/')
-            : (typeof pathParam === 'string' && pathParam ? pathParam : req.query.path || '');
+            : (typeof pathParam === 'string' && pathParam ? pathParam : ''));
 
         if (!rawPath) {
             return res.status(400).json({ error: 'path query parameter is required' });
@@ -306,7 +307,8 @@ export function installContextHandlers(controller) {
             if (!stat.isFile()) {
                 return res.status(400).json({ error: 'Target path is not a file' });
             }
-            if (stat.size > MAX_FILE_READ_SIZE) {
+            const maxPreviewSize = HTML_EXTENSIONS.has(ext) ? MAX_FILE_READ_SIZE : MAX_PREVIEW_ASSET_SIZE;
+            if (stat.size > maxPreviewSize) {
                 return res.status(413).json({ error: 'File too large to preview' });
             }
 

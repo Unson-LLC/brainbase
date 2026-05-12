@@ -6,5 +6,6 @@ export const VISIBLE_DOT_DIRS = new Set(['.claude', '.vibepro']);
 export const UI_SUMMARY_TTL_MS = 60_000;
 export const TAKEOVER_COOLDOWN_MS = 5000;
 export const MAX_FILE_READ_SIZE = 512 * 1024;
+export const MAX_PREVIEW_ASSET_SIZE = 25 * 1024 * 1024;
 export const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 export const HTML_EXTENSIONS = new Set(['.html', '.htm']);

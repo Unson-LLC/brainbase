@@ -220,6 +220,86 @@ describe('SessionController.getFileContent', () => {
         expect(res.send).toHaveBeenCalledWith(imageBuffer);
     });
 
+    it('getHtmlPreviewAsset_Codex生成画像の絶対パスを画像MIMEで返す', async () => {
+        const imagePath = '/Users/ksato/.codex/generated_images/run/sample.png';
+        req.params.previewPath = ['__external__', 'sample.png'];
+        req.query.path = imagePath;
+        const imageBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+        mockStat.mockImplementation(async (targetPath) => {
+            if (String(targetPath) === imagePath) {
+                return { size: imageBuffer.length, isFile: () => true };
+            }
+            const err = new Error('ENOENT');
+            err.code = 'ENOENT';
+            throw err;
+        });
+        mockReadFile.mockResolvedValue(imageBuffer);
+
+        await controller.getHtmlPreviewAsset(req, res);
+
+        expect(mockOpen).not.toHaveBeenCalled();
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+        expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+        expect(res.send).toHaveBeenCalledWith(imageBuffer);
+    });
+
+    it('getHtmlPreviewAsset_Codex生成画像のfile URIを画像MIMEで返す', async () => {
+        const imagePath = '/Users/ksato/.codex/generated_images/run/sample.png';
+        req.params.previewPath = ['__external__', 'sample.png'];
+        req.query.path = `file://${imagePath}`;
+        const imageBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+        mockStat.mockImplementation(async (targetPath) => {
+            if (String(targetPath) === imagePath) {
+                return { size: imageBuffer.length, isFile: () => true };
+            }
+            const err = new Error('ENOENT');
+            err.code = 'ENOENT';
+            throw err;
+        });
+        mockReadFile.mockResolvedValue(imageBuffer);
+
+        await controller.getHtmlPreviewAsset(req, res);
+
+        expect(mockOpen).not.toHaveBeenCalled();
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+        expect(res.send).toHaveBeenCalledWith(imageBuffer);
+    });
+
+    it('getHtmlPreviewAsset_512KB超の画像もプレビューできる', async () => {
+        const imagePath = '/Users/ksato/.codex/generated_images/run/large.png';
+        req.params.previewPath = ['__external__', 'large.png'];
+        req.query.path = imagePath;
+        const imageBuffer = Buffer.alloc(1024 * 1024, 0xff);
+        imageBuffer[0] = 0x89;
+        imageBuffer[1] = 0x50;
+        imageBuffer[2] = 0x4e;
+        imageBuffer[3] = 0x47;
+        mockStat.mockImplementation(async (targetPath) => {
+            if (String(targetPath) === imagePath) {
+                return { size: imageBuffer.length, isFile: () => true };
+            }
+            const err = new Error('ENOENT');
+            err.code = 'ENOENT';
+            throw err;
+        });
+        mockReadFile.mockResolvedValue(imageBuffer);
+
+        await controller.getHtmlPreviewAsset(req, res);
+
+        expect(res.status).not.toHaveBeenCalledWith(413);
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+        expect(res.send).toHaveBeenCalledWith(imageBuffer);
+    });
+
+    it('getHtmlPreviewAsset_許可外の絶対パスは400を返す', async () => {
+        req.params.previewPath = ['__external__', 'passwd'];
+        req.query.path = '/etc/passwd';
+
+        await controller.getHtmlPreviewAsset(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+    });
+
     it('パストラバーサル攻撃_400を返す', async () => {
         req.query.path = '../../../etc/passwd';
         await controller.getFileContent(req, res);

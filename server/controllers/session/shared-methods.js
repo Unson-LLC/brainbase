@@ -12,6 +12,7 @@ import {
     HTML_EXTENSIONS,
     MARKDOWN_EXTENSIONS,
     MAX_FILE_READ_SIZE,
+    MAX_PREVIEW_ASSET_SIZE,
     MAX_TREE_DEPTH,
     MAX_TREE_ENTRIES,
     UI_SUMMARY_TTL_MS,
@@ -225,7 +226,14 @@ export function installSharedMethods(controller) {
             throw new Error('Invalid path');
         }
 
-        const trimmed = rawPath.trim();
+        let trimmed = rawPath.trim();
+        if (trimmed.startsWith('file:///')) {
+            try {
+                trimmed = decodeURIComponent(new URL(trimmed).pathname);
+            } catch {
+                trimmed = trimmed.replace(/^file:\/\//, '');
+            }
+        }
         if (!trimmed || trimmed.includes('\0')) {
             throw new Error('Invalid path');
         }
@@ -250,6 +258,43 @@ export function installSharedMethods(controller) {
         };
     };
 
+    controller._resolveExternalPreviewTarget = (rawPath) => {
+        let trimmed = typeof rawPath === 'string' ? rawPath.trim() : '';
+        if (!trimmed || trimmed.includes('\0')) {
+            throw new Error('Invalid path');
+        }
+
+        if (trimmed.startsWith('file:///')) {
+            try {
+                trimmed = decodeURIComponent(new URL(trimmed).pathname);
+            } catch {
+                trimmed = trimmed.replace(/^file:\/\//, '');
+            }
+        } else if (trimmed.startsWith('~/')) {
+            trimmed = path.resolve(os.homedir(), trimmed.slice(2));
+        }
+
+        if (!path.isAbsolute(trimmed)) {
+            throw new Error('Invalid path');
+        }
+
+        const targetPath = path.resolve(trimmed);
+        const previewRoots = [
+            path.join(os.homedir(), '.codex', 'generated_images')
+        ];
+
+        for (const rootPath of previewRoots) {
+            const root = path.resolve(rootPath);
+            if (!controller._isWithinRoot(root, targetPath)) continue;
+            return {
+                targetPath,
+                relativePath: path.relative(root, targetPath).replace(/\\/g, '/')
+            };
+        }
+
+        throw new Error('Invalid path');
+    };
+
     controller._resolveFilePreviewTarget = async (session, rawPath) => {
         const workspaceRoot = session?.worktree?.path || session?.path || session?.cwd || null;
         if (!workspaceRoot) {
@@ -257,7 +302,9 @@ export function installSharedMethods(controller) {
         }
 
         const trimmedRawPath = typeof rawPath === 'string' ? rawPath.trim() : '';
-        const canFallbackOutsidePrimaryRoot = trimmedRawPath.startsWith('/') || trimmedRawPath.startsWith('~/');
+        const canFallbackOutsidePrimaryRoot = trimmedRawPath.startsWith('/')
+            || trimmedRawPath.startsWith('~/')
+            || trimmedRawPath.startsWith('file:///');
 
         try {
             const primaryTarget = controller._resolveWorkspaceFileTarget(workspaceRoot, rawPath);
@@ -294,6 +341,21 @@ export function installSharedMethods(controller) {
                     continue;
                 }
                 throw error;
+            }
+        }
+
+        if (canFallbackOutsidePrimaryRoot) {
+            try {
+                const externalTarget = controller._resolveExternalPreviewTarget(trimmedRawPath);
+                await fs.stat(externalTarget.targetPath);
+                return externalTarget;
+            } catch (error) {
+                if (error?.message === 'Invalid path') {
+                    throw error;
+                }
+                if (error?.code !== 'ENOENT') {
+                    throw error;
+                }
             }
         }
 
@@ -640,5 +702,6 @@ export function installSharedMethods(controller) {
 export {
     HTML_EXTENSIONS,
     MARKDOWN_EXTENSIONS,
-    MAX_FILE_READ_SIZE
+    MAX_FILE_READ_SIZE,
+    MAX_PREVIEW_ASSET_SIZE
 };

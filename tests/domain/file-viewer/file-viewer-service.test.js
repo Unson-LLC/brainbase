@@ -139,6 +139,28 @@ describe('FileViewerService', () => {
         expect(state.imagePreviewUrl).toBe('/api/sessions/session-1/html-preview/assets/%E7%94%BB%E5%83%8F%E3%83%86%E3%82%B9%E3%83%88.png');
     });
 
+    it('workspace外の絶対画像パスの場合_query path付きasset preview URLを設定する', async () => {
+        await service.openFile('session-1', '/Users/ksato/.codex/generated_images/run/sample.png');
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('/Users/ksato/.codex/generated_images/run/sample.png');
+        expect(state.fileName).toBe('sample.png');
+        expect(state.isImage).toBe(true);
+        expect(state.imagePreviewUrl).toBe('/api/sessions/session-1/html-preview/__external__/sample.png?path=%2FUsers%2Fksato%2F.codex%2Fgenerated_images%2Frun%2Fsample.png');
+    });
+
+    it('file URI画像パスの場合_query path付きasset preview URLを設定する', async () => {
+        await service.openFile('session-1', 'file:///Users/ksato/.codex/generated_images/run/sample.png');
+
+        const state = appStore.getState().fileViewer;
+        expect(sessionService.getFileContent).not.toHaveBeenCalled();
+        expect(state.relativePath).toBe('file:///Users/ksato/.codex/generated_images/run/sample.png');
+        expect(state.fileName).toBe('sample.png');
+        expect(state.isImage).toBe(true);
+        expect(state.imagePreviewUrl).toBe('/api/sessions/session-1/html-preview/__external__/sample.png?path=file%3A%2F%2F%2FUsers%2Fksato%2F.codex%2Fgenerated_images%2Frun%2Fsample.png');
+    });
+
     it('画像プレビューURLの場合_ファイル取得せず画像状態へ正規化する', async () => {
         await service.openFile('session-1', '/api/sessions/session-1/html-preview/.vibepro/out/chart.webp');
 

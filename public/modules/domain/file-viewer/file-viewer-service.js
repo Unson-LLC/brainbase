@@ -204,6 +204,12 @@ export class FileViewerService {
     }
 
     _buildAssetPreviewUrl(sessionId, relativePath) {
+        const rawPath = String(relativePath || '');
+        if (rawPath.startsWith('/') || rawPath.startsWith('~/') || rawPath.startsWith('file:///')) {
+            const fileName = rawPath.split('/').filter(Boolean).pop() || 'asset';
+            return `/api/sessions/${encodeURIComponent(sessionId)}/html-preview/__external__/${encodeURIComponent(fileName)}?path=${encodeURIComponent(rawPath)}`;
+        }
+
         const encodedPath = String(relativePath || '')
             .split('/')
             .filter(Boolean)
