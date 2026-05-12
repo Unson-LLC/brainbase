@@ -5,6 +5,7 @@ status: draft
 date: 2026-05-12
 related_specs:
   - SPEC-sns-growth-cockpit-ui-transition
+  - SPEC-sns-growth-cockpit-wireframe-v0
 architecture_docs:
   - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
 related_stories:
@@ -45,6 +46,7 @@ This lets SNS operation become a closed loop:
 - Create a durable SNS posting ledger separate from Graph.
 - Store generated review-pack posts from `/ohayo`.
 - Show scheduled posts on a calendar view.
+- Keep the first screen focused on one current review decision; calendar and research lists are supporting surfaces, not the primary workbench.
 - Show each post's state: review needed, approved, scheduled, posted, skipped, or learning ready.
 - Let the operator open one post, review the body, inspect source evidence, edit copy, and change state.
 - Preserve source links for Peer Circle quotes, overseas/news posts, Personal KG memories, and quality-gate evidence.

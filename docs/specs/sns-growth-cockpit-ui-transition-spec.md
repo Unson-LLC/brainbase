@@ -9,6 +9,7 @@ related_adrs:
 related_specs:
   - SPEC-sns-persona-brain-gate
   - SPEC-personal-kg-sns-seed-mvp
+  - SPEC-sns-growth-cockpit-wireframe-v0
 implementation_files:
   - public/modules/domain/sns/
   - public/modules/views/sns/
@@ -30,6 +31,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 
 ## Invariants
 
+- **INV-0**: 初期表示は 1 つの判断に集中する。`Today｜今日の運用判断` では、詳細表示する投稿候補を 1 件に限定し、複数候補・調査一覧・metrics は drawer / secondary view に逃がす。
+  - 検証: UI test で initial screen の detailed post body が 1 件だけであること。
 - **INV-1**: SNS Growth Cockpit は Brainbase 内の tool として表示され、Brainbase 本体へ戻る導線を常に持つ。
   - 検証: E2E で `Back to Brainbase` または equivalent navigation が全主要画面から利用できること。
 - **INV-2**: 初期表示の中心は `Overview｜今日の運用判断` であり、calendar grid を初期表示の主役にしない。
@@ -240,6 +243,9 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 - **AP-1**: 初期画面を大きな予約投稿カレンダーにする。
   - **理由**: SNS Growth Cockpit が単なる scheduling tool に見え、Direct AI / Research / Learning が埋もれる。
   - **検証**: UI snapshot / accessibility landmark で Overview が primary であることを確認する。
+- **AP-1b**: 初期画面に workflow panel、research list、review list、calendar、learning metrics を同じ重みで並べる。
+  - **理由**: 佐藤さんが朝に必要なのは「今日の次の1手」であり、機能一覧ではない。
+  - **検証**: initial screen の主領域は current review item 1 件と week strip のみにする。
 - **AP-2**: Persona Brain / Graph Check / Quality Gate を常時展開して情報密度を上げる。
   - **理由**: review 時の判断材料だが、一覧画面の主情報ではない。
   - **検証**: Review Desk 初期表示で evidence section が collapsed であること。
