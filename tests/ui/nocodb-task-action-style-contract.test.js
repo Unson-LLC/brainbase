@@ -40,7 +40,15 @@ describe('NocoDB task action style contract', () => {
 
         expect(actionRule).toContain('width: 28px');
         expect(actionRule).toContain('height: 28px');
+        expect(actionRule).toContain('z-index: 111');
         expect(actionsRule).toContain('gap: 4px');
+        expect(actionsRule).toContain('z-index: 110');
         expect(rowRule).toContain('grid-template-columns: 36px minmax(0, 1fr) 72px 94px 96px');
+    });
+
+    it('タスクタイトルtooltipは操作ボタンのクリックを奪わない', () => {
+        const tooltipRule = getLastRule('.command-center-theme #tasks-tab-content .nocodb-task-item .task-title:hover::after,\n.command-center-theme #tasks-tab-content .nocodb-task-item .task-title:focus::after');
+
+        expect(tooltipRule).toContain('pointer-events: none');
     });
 });

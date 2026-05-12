@@ -15871,6 +15871,8 @@ body.resizing iframe {
     justify-self: end;
     align-self: center;
     gap: 4px;
+    position: relative;
+    z-index: 110;
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .nocodb-task-action-btn {
@@ -15878,6 +15880,8 @@ body.resizing iframe {
     height: 28px;
     border-color: transparent;
     color: #dce4ee;
+    position: relative;
+    z-index: 111;
 }
 
 /* Command Center v7: keep rows dense while giving the task title priority. */
@@ -16004,6 +16008,7 @@ body.resizing iframe {
     font-size: 12px;
     font-weight: 520;
     line-height: 1.55;
+    pointer-events: none;
     white-space: normal;
     overflow-wrap: anywhere;
 }

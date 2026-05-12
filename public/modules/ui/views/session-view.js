@@ -134,6 +134,10 @@ export class SessionView {
             });
             if (currentRow.dataset.fingerprint === newFingerprint) continue;
 
+            if (currentRow.querySelector('.session-dropdown-menu:not(.hidden)')) {
+                this._closeAllMenus();
+            }
+
             const nextRow = this._buildSessionRowElement(session, currentSessionId, {
                 project,
                 showProjectEmoji,
@@ -239,6 +243,8 @@ export class SessionView {
      */
     render() {
         if (!this.container) return;
+
+        this._closeAllMenus();
 
         // Clear container
         this.container.innerHTML = '';
@@ -848,6 +854,10 @@ export class SessionView {
         const dropdownMenu = row.querySelector('.session-dropdown-menu');
 
         if (menuToggle && dropdownMenu) {
+            menuToggle.addEventListener('pointerdown', (e) => e.stopPropagation());
+            menuToggle.addEventListener('mousedown', (e) => e.stopPropagation());
+            dropdownMenu.addEventListener('pointerdown', (e) => e.stopPropagation());
+            dropdownMenu.addEventListener('mousedown', (e) => e.stopPropagation());
             menuToggle.addEventListener('click', (e) => {
                 e.stopPropagation();
 

@@ -112,6 +112,62 @@ describe('NocoDBTasksView', () => {
         expect(container.querySelector('.task-status-select').getAttribute('aria-expanded')).toBe('true');
     });
 
+    it('document click handlerは再描画しても重複登録しない', () => {
+        const tasks = [{
+            id: 'nocodb:proj:1',
+            title: 'Stable task',
+            project: 'proj',
+            status: 'pending',
+            assignee: 'ksato'
+        }];
+        const service = buildService({ getFilteredTasks: vi.fn(() => tasks) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+        const addEventListenerSpy = vi.spyOn(document, 'addEventListener');
+
+        view.render();
+        view.render();
+
+        const clickListeners = addEventListenerSpy.mock.calls.filter(([type]) => type === 'click');
+        expect(clickListeners).toHaveLength(1);
+
+        addEventListenerSpy.mockRestore();
+        view.unmount();
+    });
+
+    it('タスク操作ボタンのpointerdownは親要素に伝播しない', () => {
+        const tasks = [{
+            id: 'nocodb:proj:1',
+            title: 'Action task',
+            project: 'proj',
+            status: 'pending',
+            assignee: 'ksato'
+        }];
+        const service = buildService({ getFilteredTasks: vi.fn(() => tasks) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+
+        const wrapper = document.createElement('div');
+        const container = document.createElement('div');
+        wrapper.appendChild(container);
+        document.body.appendChild(wrapper);
+        const parentPointerDown = vi.fn();
+        wrapper.addEventListener('pointerdown', parentPointerDown);
+
+        view.container = container;
+        view.render();
+
+        container.querySelector('.nocodb-task-start-btn').dispatchEvent(new MouseEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true
+        }));
+
+        expect(parentPointerDown).not.toHaveBeenCalled();
+    });
+
     it('ステータスコンボボックスで未着手から完了へ変更できる', async () => {
         const tasks = [{
             id: 'nocodb:proj:1',

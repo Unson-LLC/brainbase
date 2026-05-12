@@ -152,6 +152,24 @@ describe('SessionView', () => {
             expect(container.querySelector('.session-timeline-list')).toBeTruthy();
         });
 
+        it('render時に開いていたセッションメニューと透明overlayを閉じる', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            container.querySelector('[data-id="session-1"] .session-menu-toggle').click();
+
+            expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+            expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
+
+            sessionView.render();
+
+            expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(true);
+            expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(true);
+        });
+
         it('/api/sessions/statusのworking状態をsessionUi経由でtimeline sortへ反映する', async () => {
             const mockSessions = [
                 {

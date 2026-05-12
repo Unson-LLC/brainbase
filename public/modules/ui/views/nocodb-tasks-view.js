@@ -22,6 +22,8 @@ export class NocoDBTasksView extends BaseView {
             hideCompleted: true
         };
         this.openStatusTaskId = null;
+        this._documentClickHandler = null;
+        this._documentClickHandlersInstalled = false;
     }
 
     /**
@@ -242,6 +244,7 @@ export class NocoDBTasksView extends BaseView {
      */
     render() {
         if (!this.container) return;
+        this._ensureDocumentClickHandlers();
 
         if (this.service.isLoading()) {
             this._showLoading();
@@ -301,6 +304,42 @@ export class NocoDBTasksView extends BaseView {
         }
 
         refreshIcons();
+    }
+
+    unmount() {
+        if (this._documentClickHandler) {
+            document.removeEventListener('click', this._documentClickHandler);
+        }
+        this._documentClickHandler = null;
+        this._documentClickHandlersInstalled = false;
+        super.unmount();
+    }
+
+    _ensureDocumentClickHandlers() {
+        if (this._documentClickHandlersInstalled) return;
+
+        this._documentClickHandler = (e) => {
+            const target = e.target;
+
+            if (!target?.closest?.('.task-status-combobox')) {
+                this.openStatusTaskId = null;
+                this.container?.querySelectorAll('.task-status-menu').forEach(menu => {
+                    menu.style.display = 'none';
+                });
+                this.container?.querySelectorAll('.task-status-select').forEach(trigger => {
+                    trigger.setAttribute('aria-expanded', 'false');
+                });
+            }
+
+            if (!target?.closest?.('.assignee-combobox')) {
+                this.container?.querySelectorAll('.assignee-popover').forEach(popover => {
+                    popover.style.display = 'none';
+                });
+            }
+        };
+
+        document.addEventListener('click', this._documentClickHandler);
+        this._documentClickHandlersInstalled = true;
     }
 
     /**
@@ -596,23 +635,15 @@ export class NocoDBTasksView extends BaseView {
             });
         });
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.task-status-combobox')) {
-                this.openStatusTaskId = null;
-                this.container?.querySelectorAll('.task-status-menu').forEach(menu => {
-                    menu.style.display = 'none';
-                });
-                this.container?.querySelectorAll('.task-status-select').forEach(trigger => {
-                    trigger.setAttribute('aria-expanded', 'false');
-                });
-            }
-        });
-
         // 担当者Combobox
         this._attachComboboxHandlers();
 
+        const keepActionLocal = (e) => e.stopPropagation();
+
         // 開始ボタン - セッション作成
         this.container.querySelectorAll('.nocodb-task-start-btn').forEach(btn => {
+            btn.addEventListener('pointerdown', keepActionLocal);
+            btn.addEventListener('mousedown', keepActionLocal);
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.taskId;
@@ -625,6 +656,8 @@ export class NocoDBTasksView extends BaseView {
 
         // 編集ボタン
         this.container.querySelectorAll('.nocodb-task-edit-btn').forEach(btn => {
+            btn.addEventListener('pointerdown', keepActionLocal);
+            btn.addEventListener('mousedown', keepActionLocal);
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.taskId;
@@ -637,6 +670,8 @@ export class NocoDBTasksView extends BaseView {
 
         // 削除ボタン
         this.container.querySelectorAll('.nocodb-task-delete-btn').forEach(btn => {
+            btn.addEventListener('pointerdown', keepActionLocal);
+            btn.addEventListener('mousedown', keepActionLocal);
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.taskId;
@@ -712,14 +747,6 @@ export class NocoDBTasksView extends BaseView {
             });
         });
 
-        // クリックアウトでポップオーバーを閉じる
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.assignee-combobox')) {
-                this.container?.querySelectorAll('.assignee-popover').forEach(p => {
-                    p.style.display = 'none';
-                });
-            }
-        });
     }
 
     /**
