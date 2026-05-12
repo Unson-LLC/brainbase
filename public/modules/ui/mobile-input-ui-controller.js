@@ -462,7 +462,7 @@ export class MobileInputUIController {
                 return;
             }
 
-            const payload = rawValue.replace(/\n+/g, ' ').trim();
+            const payload = this.normalizePayloadForSession(sessionId, rawValue.replace(/\n+/g, ' ').trim());
 
             await this.terminalInput.sendInput(sessionId, payload);
             if (this.shouldSubmitWithEnter(sessionId)) {
@@ -491,13 +491,44 @@ export class MobileInputUIController {
         }
     }
 
-    shouldSubmitWithEnter(sessionId) {
+    normalizePayloadForSession(sessionId, payload) {
+        if (!this.isCodexSession(sessionId)) return payload;
+        const command = this.parseProjectSlashCommand(payload);
+        if (!command) return payload;
+        const argsText = command.args ? ` Arguments: ${command.args}` : '';
+        return `Run the project command /${command.name} by following .claude/commands/${command.name}.md.${argsText}`;
+    }
+
+    parseProjectSlashCommand(payload) {
+        if (typeof payload !== 'string') return null;
+        const match = payload.match(/^\/(ohayo|oyasumi|retro)(?:\s+(.+))?$/);
+        if (!match) return null;
+        return {
+            name: match[1],
+            args: match[2]?.trim() || ''
+        };
+    }
+
+    isCodexSession(sessionId) {
         if (!sessionId) return false;
         const state = appStore.getState();
         const currentSession = Array.isArray(state.sessions)
             ? state.sessions.find((session) => session.id === sessionId)
             : null;
-        if (currentSession?.engine === 'codex') return true;
+        if (currentSession?.engine) return currentSession.engine === 'codex';
+
+        const escapedSessionId = window.CSS?.escape ? window.CSS.escape(sessionId) : sessionId.replace(/"/g, '\\"');
+        const sessionRow = document.querySelector(`[data-id="${escapedSessionId}"]`);
+        return sessionRow?.dataset?.engine === 'codex';
+    }
+
+    shouldSubmitWithEnter(sessionId) {
+        if (!sessionId) return false;
+        if (this.isCodexSession(sessionId)) return true;
+        const state = appStore.getState();
+        const currentSession = Array.isArray(state.sessions)
+            ? state.sessions.find((session) => session.id === sessionId)
+            : null;
         if (currentSession?.engine && currentSession.engine !== 'codex') return false;
 
         const escapedSessionId = window.CSS?.escape ? window.CSS.escape(sessionId) : sessionId.replace(/"/g, '\\"');

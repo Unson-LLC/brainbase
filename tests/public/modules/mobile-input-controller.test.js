@@ -366,6 +366,35 @@ describe('MobileInputUIController 二重送信防止', () => {
         expect(mockTerminalInput.sendKey).toHaveBeenCalledWith('test-session', 'Enter');
     });
 
+    it('codexセッションではproject slash commandを通常プロンプトへ変換する', async () => {
+        mockAppState.sessions = [{ id: 'test-session', engine: 'codex' }];
+        vi.spyOn(controller, 'waitForSubmitKeyReady').mockResolvedValue(undefined);
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = '/ohayo';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledWith(
+            'test-session',
+            'Run the project command /ohayo by following .claude/commands/ohayo.md.'
+        );
+        expect(mockTerminalInput.sendKey).toHaveBeenCalledWith('test-session', 'Enter');
+    });
+
+    it('codexセッションではproject slash commandの引数もプロンプトへ渡す', async () => {
+        mockAppState.sessions = [{ id: 'test-session', engine: 'codex' }];
+        vi.spyOn(controller, 'waitForSubmitKeyReady').mockResolvedValue(undefined);
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = '/ohayo --include-calendar';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledWith(
+            'test-session',
+            'Run the project command /ohayo by following .claude/commands/ohayo.md. Arguments: --include-calendar'
+        );
+    });
+
     it('claudeセッションでは追加Enterを送らない', async () => {
         mockAppState.sessions = [{ id: 'test-session', engine: 'claude' }];
 
@@ -374,6 +403,17 @@ describe('MobileInputUIController 二重送信防止', () => {
         await controller.handleSend('dock');
 
         expect(mockTerminalInput.sendInput).toHaveBeenCalledWith('test-session', 'run claude');
+        expect(mockTerminalInput.sendKey).not.toHaveBeenCalled();
+    });
+
+    it('claudeセッションではproject slash commandを変換しない', async () => {
+        mockAppState.sessions = [{ id: 'test-session', engine: 'claude' }];
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = '/ohayo';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledWith('test-session', '/ohayo');
         expect(mockTerminalInput.sendKey).not.toHaveBeenCalled();
     });
 
