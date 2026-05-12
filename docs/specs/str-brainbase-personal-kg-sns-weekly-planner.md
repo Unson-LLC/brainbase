@@ -29,6 +29,9 @@ test_files:
 - **INV-5**: Peer Circle は自分より少し人気がある近接界隈を優先する。一次 target band は follower 2,000〜20,000、二次 target band は 20,001〜50,000。
 - **INV-6**: draft body は投稿API運用を匂わせる表現を含めない。AIを使う文脈は、投稿生成ではなく読者理解・仮説検証・反応学習・思考資産化に寄せる。
 - **INV-7**: news / peer signal を使う場合も、必ず個人KG source を anchor にする。
+- **INV-8**: 同一日の3 slotでは同じ `kg_source_entity_id` を再利用しない。読者体験上の重複を避け、1日内で信頼・関係・証拠の役割を分ける。
+- **INV-9**: planner は KG memory をそのまま投稿本文にしない。Persona Brainに合わせて誤解、不安、自然な次行動が読める copy へ shaping する。
+- **INV-10**: laneごとのsource選択では、`philosophy` に Own Proof を混ぜず、`soft_cta` は投稿設計ではなく読者の最初の1業務へ接続する。
 
 ## Contract
 
@@ -89,6 +92,18 @@ type WeeklyDraft = {
 - given: candidate-store 上の owner-visible personal KG memory
 - when: reader を planner に渡す
 - then: その memory に紐づく weekly pack が作れる
+
+### S-4: KG memoryを投稿品質へ整える
+
+- given: AI PM memory がある
+- when: trust_balance slot を作る
+- then: memory fragmentのprefix連結ではなく、読者の誤解から境界設計へ橋渡しする複数行copyになる
+
+### S-5: 1日内のsource重複を避ける
+
+- given: 1日3slotのweekly pattern
+- when: weekly pack を作る
+- then: 同じ日のdraftは異なる `kg_source_entity_id` を使う
 
 ## Non-goals
 
