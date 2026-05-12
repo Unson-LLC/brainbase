@@ -35,6 +35,7 @@ INFISICAL_PROJECT="${INFISICAL_PROJECT:-ce20541c-02b9-4523-bbe0-49d50b2fcc19}"
 INFISICAL_ENV="${INFISICAL_ENV:-prod}"
 SLACK_MCP_INFISICAL_PATH="${SLACK_MCP_INFISICAL_PATH:-/}"
 SLACK_MCP_INFISICAL_TOKEN_FILE="${SLACK_MCP_INFISICAL_TOKEN_FILE:-$HOME/.brainbase/runtime-env/slack-mcp.infisical-token}"
+SLACK_MCP_INFISICAL_AUTH_FILE="${SLACK_MCP_INFISICAL_AUTH_FILE:-$HOME/.brainbase/runtime-env/slack-mcp.universal-auth.env}"
 
 case "$WS" in
   salestailor) PORT=13081 ;;
@@ -54,21 +55,76 @@ if ! command -v "$INFISICAL_BIN" >/dev/null 2>&1; then
   die "infisical CLI not found: $INFISICAL_BIN"
 fi
 
+require_private_file() {
+  local file="$1"
+  local mode
+  mode="$(stat -f '%OLp' "$file" 2>/dev/null || stat -c '%a' "$file" 2>/dev/null || true)"
+  case "$mode" in
+    400|600) ;;
+    *) die "credential file must not be group/world readable: $file" ;;
+  esac
+}
+
+read_env_file_value() {
+  local file="$1"
+  local key="$2"
+  awk -v wanted="$key" '
+    $0 ~ "^[[:space:]]*#" || $0 !~ "=" { next }
+    {
+      line=$0
+      sub(/^[[:space:]]*export[[:space:]]+/, "", line)
+      split(line, parts, "=")
+      key=parts[1]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      if (key != wanted) next
+      sub(/^[^=]*=/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line ~ /^".*"$/ || line ~ /^'\''.*'\''$/) {
+        line=substr(line, 2, length(line)-2)
+      }
+      print line
+      exit
+    }
+  ' "$file"
+}
+
 INFISICAL_TOKEN_VALUE="${INFISICAL_TOKEN:-}"
 if [ -z "$INFISICAL_TOKEN_VALUE" ] && [ -f "$SLACK_MCP_INFISICAL_TOKEN_FILE" ]; then
-  token_mode="$(stat -f '%OLp' "$SLACK_MCP_INFISICAL_TOKEN_FILE" 2>/dev/null || stat -c '%a' "$SLACK_MCP_INFISICAL_TOKEN_FILE" 2>/dev/null || true)"
-  case "$token_mode" in
-    400|600) ;;
-    *) die "token file must not be group/world readable: $SLACK_MCP_INFISICAL_TOKEN_FILE" ;;
-  esac
+  require_private_file "$SLACK_MCP_INFISICAL_TOKEN_FILE"
   INFISICAL_TOKEN_VALUE="$(sed -n '1p' "$SLACK_MCP_INFISICAL_TOKEN_FILE" | tr -d '\r\n')"
+fi
+
+INFISICAL_CLIENT_ID_VALUE="${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID:-${INFISICAL_CLIENT_ID:-${SLACK_MCP_INFISICAL_CLIENT_ID:-}}}"
+INFISICAL_CLIENT_SECRET_VALUE="${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET:-${INFISICAL_CLIENT_SECRET:-${SLACK_MCP_INFISICAL_CLIENT_SECRET:-}}}"
+if [ -z "$INFISICAL_TOKEN_VALUE" ] && [ -f "$SLACK_MCP_INFISICAL_AUTH_FILE" ]; then
+  require_private_file "$SLACK_MCP_INFISICAL_AUTH_FILE"
+  if [ -z "$INFISICAL_CLIENT_ID_VALUE" ]; then
+    INFISICAL_CLIENT_ID_VALUE="$(read_env_file_value "$SLACK_MCP_INFISICAL_AUTH_FILE" INFISICAL_UNIVERSAL_AUTH_CLIENT_ID)"
+  fi
+  if [ -z "$INFISICAL_CLIENT_SECRET_VALUE" ]; then
+    INFISICAL_CLIENT_SECRET_VALUE="$(read_env_file_value "$SLACK_MCP_INFISICAL_AUTH_FILE" INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET)"
+  fi
+fi
+
+if [ -z "$INFISICAL_TOKEN_VALUE" ] && [ -n "$INFISICAL_CLIENT_ID_VALUE" ] && [ -n "$INFISICAL_CLIENT_SECRET_VALUE" ]; then
+  login_output="$("$INFISICAL_BIN" login \
+    --silent \
+    --plain \
+    --domain "$INFISICAL_DOMAIN" \
+    --method universal-auth \
+    --client-id "$INFISICAL_CLIENT_ID_VALUE" \
+    --client-secret "$INFISICAL_CLIENT_SECRET_VALUE" 2>&1)" || {
+      login_reason="$(printf '%s\n' "$login_output" | sed -E 's/(client[_ -]?secret|token|secret)[^[:space:]]*/***MASKED***/Ig' | tail -n 1)"
+      die "universal auth login failed: ${login_reason:-unknown error}"
+    }
+  INFISICAL_TOKEN_VALUE="$(printf '%s\n' "$login_output" | awk 'NF { line=$0 } END { print line }' | tr -d '\r\n')"
 fi
 
 if [ -z "$INFISICAL_TOKEN_VALUE" ]; then
   if [ "${SLACK_MCP_ALLOW_USER_INFISICAL:-0}" = "1" ]; then
     echo "SLACK_MCP_WARNING: using logged-in Infisical user because SLACK_MCP_ALLOW_USER_INFISICAL=1" >&2
   else
-    die "missing INFISICAL_TOKEN or token file ($SLACK_MCP_INFISICAL_TOKEN_FILE)"
+    die "missing INFISICAL_TOKEN, token file ($SLACK_MCP_INFISICAL_TOKEN_FILE), or universal auth file ($SLACK_MCP_INFISICAL_AUTH_FILE)"
   fi
 fi
 

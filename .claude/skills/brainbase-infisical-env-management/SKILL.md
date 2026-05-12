@@ -132,12 +132,12 @@ chmod 600 ~/.brainbase/infisical/imports/brainbase-production.env
 
 ### Slack MCP
 
-Slack MCP は人間の Infisical CLI ログイン状態に依存させない。3ワークスペース（`salestailor` / `unson` / `techknight`）の MCP は専用の read-only token を使い、起動前に health check で fail loud する。
+Slack MCP は人間の Infisical CLI ログイン状態に依存させない。3ワークスペース（`salestailor` / `unson` / `techknight`）の MCP は専用の Machine Identity / read-only token を使い、起動前に health check で fail loud する。
 
 ```bash
 install -d -m 700 ~/.brainbase/runtime-env
-# token値は表示しない経路で投入し、ファイル権限は 600 または 400 にする
-chmod 600 ~/.brainbase/runtime-env/slack-mcp.infisical-token
+# Universal Auth の Client ID / Client Secret は表示しない経路で投入する
+chmod 600 ~/.brainbase/runtime-env/slack-mcp.universal-auth.env
 
 cd /Users/ksato/workspace/code/brainbase
 scripts/check-slack-mcp-health.sh
@@ -145,13 +145,21 @@ scripts/check-slack-mcp-health.sh
 
 運用:
 
-- token file: `~/.brainbase/runtime-env/slack-mcp.infisical-token`
+- auth file: `~/.brainbase/runtime-env/slack-mcp.universal-auth.env`
+- token file fallback: `~/.brainbase/runtime-env/slack-mcp.infisical-token`
 - project: `unson`
 - env: `prod`
 - default path: `/`（`/mcp/slack` へ移したら `SLACK_MCP_INFISICAL_PATH=/mcp/slack` を設定する）
 - 必須key名: `SLACK_MCP_XOXC_<WORKSPACE>` / `SLACK_MCP_XOXD_<WORKSPACE>`
 - `SLACK_MCP_UNAVAILABLE` は「Slack 0件」ではなく「Slack未確認」として扱う
 - 人間ログイン fallback は `SLACK_MCP_ALLOW_USER_INFISICAL=1` の明示時だけ許可する
+
+auth file の形式:
+
+```dotenv
+INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=...
+INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=...
+```
 
 ### ローカルbrainbase実行
 
