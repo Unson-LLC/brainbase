@@ -8,6 +8,7 @@ related_specs:
   - SPEC-sns-growth-cockpit-wireframe-v0
 architecture_docs:
   - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
+  - docs/architecture/ADR-012-sns-growth-cockpit-visual-slice.md
 related_stories:
   - str.brainbase.personal-kg-sns-seed-mvp
   - story-sns-persona-brain-gate
@@ -74,6 +75,7 @@ This lets SNS operation become a closed loop:
 - [ ] AC-8: The cockpit is reachable from brainbase UI navigation without using a terminal command.
 - [ ] AC-9: The ledger is stored in PostgreSQL on the existing Lightsail infrastructure, but in tables/schema separate from Graph SSOT.
 - [ ] AC-10: `/oyasumi` or a later feedback flow can read posted records and create learning candidates, without directly mutating Graph from raw metrics.
+- [ ] AC-11: The SNS Growth activity bar entry is additive: `ab-sns-growth-btn` is the only new branch, while existing `abSessionsBtn`, Portal/Terminal controls, and `targetSessionId` file-viewer close behavior remain unchanged.
 
 ## State Model
 
@@ -106,6 +108,33 @@ Graph stores durable knowledge only after promotion:
 - philosophy
 - glossary terms
 - promoted learnings
+
+## Implementation Slice: Ship Calendar Visual Surface
+
+The first UI implementation slice may ship the Ship Calendar visual surface before the durable ledger/API is connected.
+
+This slice is allowed to:
+
+- render a static `/sns-growth.html` page that matches the accepted Ship Calendar visual direction
+- expose it from the Brainbase activity bar as an additive navigation entry
+- show fixture post records for layout, status badges, detail panel, source URL, and evidence rows
+- keep all post actions local/no-op until the ledger API slice exists
+
+This slice must not:
+
+- write to Graph
+- pretend that the SNS Posting Ledger DB/API is complete
+- replace the existing terminal/session/file-viewer navigation behavior
+- remove the `Today` entry requirement for the final SNS Growth cockpit
+
+Architecture decision: ADR-012 records this visual slice. ADR-011 already defines the Graph/Ledger boundary, and this slice does not introduce a new data boundary, persistence mechanism, API contract, auth boundary, or runtime process.
+
+Activity bar requirement scope:
+
+- `ab-sns-growth-btn` is the only new activity bar branch introduced by this slice.
+- Existing `abSessionsBtn` behavior remains unchanged: clicking Sessions closes open panels and returns the existing session/terminal surface to the front.
+- Existing Portal/Terminal behavior remains unchanged: `abPortalBtn`, `workspaceModeTerminalBtn`, `workspaceModePortalBtn`, and `portalBackTerminalBtn` continue to switch only the existing portal overlay and terminal surface.
+- Existing file viewer close behavior remains unchanged: `targetSessionId` continues to mean the closed session or current session whose active file/root override is cleared before returning to terminal context.
 
 ## Task Candidates
 

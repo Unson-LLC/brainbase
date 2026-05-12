@@ -37,6 +37,7 @@ export function applyPluginRegistrationMixin(AppClass) {
                         const abCommitTreeBtn = document.getElementById('ab-commit-tree-btn');
                         const abTasksBtn = document.getElementById('ab-tasks-btn');
                         const abPortalBtn = document.getElementById('ab-portal-btn');
+                        const abSnsGrowthBtn = document.getElementById('ab-sns-growth-btn');
                         const workspaceModeTerminalBtn = document.getElementById('workspace-mode-terminal');
                         const workspaceModePortalBtn = document.getElementById('workspace-mode-portal');
                         const portalBackTerminalBtn = document.getElementById('portal-back-terminal');
@@ -48,6 +49,9 @@ export function applyPluginRegistrationMixin(AppClass) {
                         const onCommitTreeClick = () => panelLayout.toggleInfoDrawer('commit-tree');
                         const onTasksClick = () => panelLayout.toggleInfoDrawer('tasks');
                         const onPortalClick = () => panelLayout.openPortalOverlay();
+                        const onSnsGrowthClick = () => {
+                            window.location.href = '/sns-growth.html';
+                        };
                         const onTerminalModeClick = () => panelLayout.closePortalOverlay();
                         const onPortalModeClick = () => panelLayout.openPortalOverlay();
 
@@ -58,6 +62,7 @@ export function applyPluginRegistrationMixin(AppClass) {
                         if (abCommitTreeBtn) abCommitTreeBtn.addEventListener('click', onCommitTreeClick);
                         if (abTasksBtn) abTasksBtn.addEventListener('click', onTasksClick);
                         if (abPortalBtn) abPortalBtn.addEventListener('click', onPortalClick);
+                        if (abSnsGrowthBtn) abSnsGrowthBtn.addEventListener('click', onSnsGrowthClick);
                         if (workspaceModeTerminalBtn) workspaceModeTerminalBtn.addEventListener('click', onTerminalModeClick);
                         if (workspaceModePortalBtn) workspaceModePortalBtn.addEventListener('click', onPortalModeClick);
                         if (portalBackTerminalBtn) portalBackTerminalBtn.addEventListener('click', onTerminalModeClick);
@@ -78,6 +83,7 @@ export function applyPluginRegistrationMixin(AppClass) {
                             if (abCommitTreeBtn) abCommitTreeBtn.removeEventListener('click', onCommitTreeClick);
                             if (abTasksBtn) abTasksBtn.removeEventListener('click', onTasksClick);
                             if (abPortalBtn) abPortalBtn.removeEventListener('click', onPortalClick);
+                            if (abSnsGrowthBtn) abSnsGrowthBtn.removeEventListener('click', onSnsGrowthClick);
                             if (workspaceModeTerminalBtn) workspaceModeTerminalBtn.removeEventListener('click', onTerminalModeClick);
                             if (workspaceModePortalBtn) workspaceModePortalBtn.removeEventListener('click', onPortalModeClick);
                             if (portalBackTerminalBtn) portalBackTerminalBtn.removeEventListener('click', onTerminalModeClick);
