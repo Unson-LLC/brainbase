@@ -37,6 +37,7 @@ export interface Tweet {
   author_id: string;
   username: string;
   name: string;
+  author_followers: number;
   created_at: string;
   conversation_id: string;
   metrics: {
@@ -79,6 +80,7 @@ function parseTweets(raw: RawResponse): Tweet[] {
       author_id: t.author_id,
       username: u.username || "?",
       name: u.name || "?",
+      author_followers: u.public_metrics?.followers_count || 0,
       created_at: t.created_at,
       conversation_id: t.conversation_id,
       metrics: {

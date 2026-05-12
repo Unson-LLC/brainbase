@@ -43,13 +43,50 @@ blocked がある場合、各項目に対して以下のいずれかを決める
 
 重要: `/oyasumi` では `blocked` を単に報告して終わらない。少なくとも「解消済み / task 化 / 例外化」のどれかに分類する。
 
+## SNS Feedback Triage
+
+SNS運用の夜処理も `/oyasumi` に寄せる。今日投稿したものを「反応の報告」ではなく、翌朝の候補選定と個人KGの学習素材へ戻す。
+
+確認対象:
+
+- 今日出した通常投稿、引用、リプ
+- 引用元本人の like / reply / repost / follow
+- 引用元の読者からの like / reply / repost / bookmark / profile visit
+- LPクリック、診断開始、診断完了、TimeRex予約
+- `impressions > 1000` かつ `replies / impressions > 10%` の anomaly
+
+出力先:
+
+```bash
+mkdir -p /Users/ksato/workspace/shared/_codex/sns/x/ops/feedback
+```
+
+`/Users/ksato/workspace/shared/_codex/sns/x/ops/feedback/YYYY-MM-DD.md` に以下を残す:
+
+- posted_url
+- lane
+- source_peer
+- peer_reaction
+- reader_reaction
+- conversion_signal
+- anomaly
+- learning_candidate
+- next_ohayo_action
+
+扱い:
+
+- 反応取得は確認できた数字だけを書く。不明なものを推測しない
+- anomaly は削除やミュートを自動実行せず、通知/保留/手動対応に分類する
+- 勝ち筋は即正本化せず、`/retro` で再現性があるものだけ `content_pillars.md` / `style_guide.md` / skill 更新候補にする
+- Persona Affect が外れた投稿は、数字が良くても勝ち型にしない
+
 ## 使い分け
 
 | コマンド | 用途 |
 |---|---|
 | `/ohayo` | 朝: インプット整理（カレンダー確認・メール仕分け・今日のフォーカス提案） |
-| `/oyasumi` | 夜: アウトプット整理（今日の会議結果を SSOT に反映し、archive blocked を日次整理して寝る） |
-| `/retro` | 週次: Ship/Learn/Block 集計 |
+| `/oyasumi` | 夜: アウトプット整理（今日の会議結果を SSOT に反映し、archive blocked とSNS反応を日次整理して寝る） |
+| `/retro` | 週次: Ship/Learn/Block とSNS勝ち筋を集計 |
 
 ## 出力先
 

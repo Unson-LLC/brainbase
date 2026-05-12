@@ -43,7 +43,35 @@
 
    レビュー結果を Learn 枠に集計（apply N件 / reject M件 / hold K件）。
 
-4. **振り返りレポート生成**
+4. **SNS週次学習**
+
+   `/ohayo` の daily brief と `/oyasumi` の feedback を7日分集計し、SNS運用の勝ち筋とズレを確認する。
+
+   入力:
+
+   - `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD.md`
+   - `/Users/ksato/workspace/shared/_codex/sns/x/ops/feedback/YYYY-MM-DD.md`
+   - `/Users/ksato/workspace/shared/_codex/sns/content_pillars.md`
+   - `/Users/ksato/workspace/shared/_codex/sns/x/ops/weekly_content_calendar_*.md`
+
+   集計するもの:
+
+   - Peer interaction / 引用・リプ: 7〜9本
+   - Claude Code / AI PM / AI経営の理解: 5〜7本
+   - Own Proof: 4〜6本
+   - AI駆動経営の断定・哲学: 3〜4本
+   - Learn in public: 1〜2本
+   - CTA: 1〜2本
+
+   判断:
+
+   - Peer本人に拾われた投稿はPeer Circle候補を昇格
+   - 読者に保存/プロフィール遷移された投稿は本文型を保留候補
+   - Persona Affectが外れた投稿は数字が良くても勝ち型にしない
+   - 一過性のバズは正本化しない
+   - 再現性があるものだけ `style_guide.md` / `content_pillars.md` / skill / Graph更新候補にする
+
+5. **振り返りレポート生成**
    ```markdown
    # Weekly Retro: YYYY-MM-DD
 
@@ -52,6 +80,7 @@
 
    ## 📚 Learn（学習）
    - [項目]: [学び]
+   - SNS: [勝ち筋 / 弱い型 / 次週の変更]
 
    ## 🔴 Block（ブロッカー）
    - [項目]: [状況と対応方針]
@@ -64,7 +93,7 @@
    - ブロッカー数: X件
    ```
 
-5. **詳細レポートを Wiki SSOT に保存（永続）**
+6. **詳細レポートを Wiki SSOT に保存（永続）**
    ```bash
    # /tmp/retro は中間成果物（揮発OK）
    mkdir -p /tmp/retro
@@ -96,6 +125,7 @@
 - Learn は wiki/skill に **apply 済み** のもののみカウント（pending は count しない）
 - Block は現在進行中のブロッカーのみ
 - Archive blocked は `/ohayo` で検知、`/oyasumi` で日次整理、`/retro` で週次エスカレーションする
+- SNSは `/ohayo` で候補収集、`/oyasumi` で反応学習、`/retro` で勝ち筋だけ正本化する
 
 ## 学習候補の補給ルート
 

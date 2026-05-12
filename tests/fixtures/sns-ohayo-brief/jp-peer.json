@@ -1,0 +1,36 @@
+[
+  {
+    "id": "2050000000000000001",
+    "text": "Claude Codeを会社で使うなら、便利なコマンドよりレビュー境界と権限設計を先に決めるのが大事という話",
+    "username": "near_ai_pm",
+    "name": "Near AI PM",
+    "author_followers": 8200,
+    "created_at": "2026-05-12T00:00:00.000Z",
+    "metrics": {
+      "likes": 88,
+      "retweets": 9,
+      "replies": 6,
+      "quotes": 4,
+      "impressions": 12000,
+      "bookmarks": 17
+    },
+    "tweet_url": "https://x.com/near_ai_pm/status/2050000000000000001"
+  },
+  {
+    "id": "2050000000000000002",
+    "text": "AI PMの話、現場に入れるとタスク管理ではなく責任分界の話になる",
+    "username": "mega_ai",
+    "name": "Mega AI",
+    "author_followers": 220000,
+    "created_at": "2026-05-12T00:10:00.000Z",
+    "metrics": {
+      "likes": 500,
+      "retweets": 20,
+      "replies": 10,
+      "quotes": 8,
+      "impressions": 90000,
+      "bookmarks": 50
+    },
+    "tweet_url": "https://x.com/mega_ai/status/2050000000000000002"
+  }
+]
