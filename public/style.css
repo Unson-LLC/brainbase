@@ -17810,11 +17810,16 @@ body.resizing iframe {
 }
 
 .sns-growth-embedded .sns-growth-content {
+    grid-template-columns: minmax(0, 1fr);
     height: 100%;
 }
 
 .sns-growth-embedded .sns-growth-calendar-pane {
     padding: 20px;
+}
+
+.sns-growth-embedded .sns-growth-detail {
+    display: none;
 }
 
 .sns-growth-app button,
