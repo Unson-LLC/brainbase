@@ -13829,6 +13829,11 @@ body.resizing iframe {
     flex: 1;
     overflow: hidden;
 }
+
+body.sns-growth-mode-active .session-context-bar,
+body.sns-growth-mode-active .terminal-header {
+    display: none !important;
+}
 .portal-story-node[data-depth="1"] { border-left-color: rgba(99,102,241,0.5); }
 .portal-story-horizon { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-secondary); flex-shrink: 0; }
 .portal-story-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -18617,8 +18622,6 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
 }
 
 @media (max-width: 768px) {
-    body.sns-growth-mode-active .session-context-bar,
-    body.sns-growth-mode-active .terminal-header,
     body.sns-growth-mode-active .mobile-tab-bar,
     body.sns-growth-mode-active .mobile-input-dock,
     body.sns-growth-mode-active .terminal-snapshot-panel,
