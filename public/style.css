@@ -1432,6 +1432,11 @@ body::after {
     height: 18px;
 }
 
+.session-menu-toggle svg,
+.session-menu-toggle svg * {
+    pointer-events: none;
+}
+
 /* Dropdown Menu */
 .session-item .session-dropdown-menu,
 .session-dropdown-menu {
@@ -4145,6 +4150,11 @@ body.resizing iframe {
 .nocodb-task-action-btn svg {
     width: 12px;
     height: 12px;
+}
+
+.nocodb-task-action-btn svg,
+.nocodb-task-action-btn svg * {
+    pointer-events: none;
 }
 
 /* Start Button (Play) - Blue */

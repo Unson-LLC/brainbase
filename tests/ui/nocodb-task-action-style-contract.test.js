@@ -51,4 +51,12 @@ describe('NocoDB task action style contract', () => {
 
         expect(tooltipRule).toContain('pointer-events: none');
     });
+
+    it('アイコンSVGは操作ボタンのclick targetを奪わない', () => {
+        const taskIconRules = getRulesContainingSelector('.nocodb-task-action-btn svg');
+        const sessionIconRules = getRulesContainingSelector('.session-menu-toggle svg');
+
+        expect(taskIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
+        expect(sessionIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
+    });
 });
