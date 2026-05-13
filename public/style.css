@@ -17472,6 +17472,14 @@ body.sns-growth-mode-active .terminal-header {
 
     .command-center-theme .terminal-token-status {
         width: 100%;
+        font-size: 0;
+        gap: 0;
+    }
+
+    .command-center-theme .terminal-token-status::before {
+        content: attr(data-micro-text);
+        font-size: 12px;
+        line-height: 1.2;
     }
 
     .command-center-theme .terminal-more-btn {

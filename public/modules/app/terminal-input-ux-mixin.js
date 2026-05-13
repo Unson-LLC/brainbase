@@ -444,6 +444,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             el.classList.add('hidden');
             el.textContent = '';
             el.title = '';
+            delete el.dataset.microText;
             this._lastTerminalTokenStatusKey = 'hidden';
             return;
         }
@@ -473,13 +474,15 @@ export function applyTerminalInputUxMixin(AppClass) {
             el.classList.add('hidden');
             el.textContent = '';
             el.title = '';
+            delete el.dataset.microText;
             this._lastTerminalTokenStatusKey = 'hidden';
             return;
         }
 
         let toneClass = 'is-ok';
-        const textParts = [];
+        const visibleParts = [];
         const titleParts = [];
+        let microText = '';
 
         if (hasContextUsage) {
             const roundedUsed = Math.min(100, Math.max(0, Math.round(usedPercent)));
@@ -490,7 +493,8 @@ export function applyTerminalInputUxMixin(AppClass) {
                     : 'is-ok';
             const contextText = this._formatTerminalTokenCount(contextWindow);
             const usedText = this._formatTerminalTokenCount(usedTokens);
-            textParts.push(`ctx ${roundedUsed}% · ${usedText}/${contextText}`);
+            visibleParts.push(`context ${roundedUsed}%`);
+            microText = `${roundedUsed}%`;
             const remainingText = Number.isFinite(remainingTokens)
                 ? `, remaining ${this._formatTerminalTokenCount(remainingTokens)}`
                 : '';
@@ -498,11 +502,15 @@ export function applyTerminalInputUxMixin(AppClass) {
         }
 
         if (codexRateLimitStatus) {
-            textParts.push(codexRateLimitStatus.text);
+            if (!hasContextUsage) {
+                visibleParts.push('limits');
+            }
             titleParts.push(`${codexRateLimitStatus.title}; ${this._formatWeeklyTokenTitle(weeklyUsage)}`);
         } else if (hasWeeklyUsage) {
             const weeklyText = this._formatTerminalTokenCount(weeklyTokens);
-            textParts.push(`week ${weeklyText}`);
+            if (!hasContextUsage) {
+                visibleParts.push(`week ${weeklyText}`);
+            }
             titleParts.push(this._formatWeeklyTokenTitle(weeklyUsage));
         }
 
@@ -510,7 +518,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             toneClass = 'is-warn';
         }
 
-        const text = textParts.join(' · ');
+        const text = visibleParts.join(' · ');
         const title = titleParts.filter(Boolean).join(' | ');
         const key = `${toneClass}|${text}|${title}`;
         if (this._lastTerminalTokenStatusKey === key) return;
@@ -520,6 +528,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         el.classList.add(toneClass);
         el.textContent = text;
         el.title = title;
+        el.dataset.microText = microText || text;
     };
 
     AppClass.prototype._setTerminalHeaderAction = function(button, visible) {
