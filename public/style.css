@@ -17810,7 +17810,6 @@ body.resizing iframe {
 }
 
 .sns-growth-embedded .sns-growth-content {
-    grid-template-columns: minmax(0, 1fr);
     height: 100%;
 }
 
@@ -17818,8 +17817,19 @@ body.resizing iframe {
     padding: 20px;
 }
 
-.sns-growth-embedded .sns-growth-detail {
-    display: none;
+body.sns-growth-mode-active #info-drawer,
+body.sns-growth-mode-active .info-drawer {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    border-left: 0 !important;
+    overflow: hidden !important;
+}
+
+body.sns-growth-mode-active #info-drawer-resize-handle,
+body.sns-growth-mode-active .panel-resize-handle-info-drawer {
+    display: none !important;
 }
 
 .sns-growth-app button,
