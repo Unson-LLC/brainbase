@@ -231,6 +231,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - `PATCH /api/sns-growth/posts/:id` stores body edits, memo, status transitions, posted URL, metrics snapshot
 - **preconditions**:
   - production durable store uses PostgreSQL when `SNS_POSTING_LEDGER_DATABASE_URL` is configured
+  - if the dedicated SNS URL is not configured, production runtime uses `INFO_SSOT_DATABASE_URL` / `INFO_SSOT_DB_URL` for the shared Lightsail PostgreSQL database
+  - generic `DATABASE_URL` must not override the dedicated SNS URL or Info SSOT URL for this ledger
   - local fallback may use JSON file persistence for UI/runtime verification
 - **postconditions**:
   - Peer Circle and News posts preserve source type and source URL

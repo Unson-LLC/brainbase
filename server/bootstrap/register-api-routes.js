@@ -22,8 +22,12 @@ import {
     PgSnsPostingLedgerRepository
 } from '../services/sns/posting-ledger-repository.js';
 
+export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
+    return env.SNS_POSTING_LEDGER_DATABASE_URL || env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
+}
+
 function createSnsPostingLedgerRepository(runtimePaths) {
-    const databaseUrl = process.env.SNS_POSTING_LEDGER_DATABASE_URL;
+    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
     if (databaseUrl) {
         return new PgSnsPostingLedgerRepository({
             pool: new Pool({ connectionString: databaseUrl })
