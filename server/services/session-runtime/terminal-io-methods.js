@@ -406,6 +406,9 @@ export const terminalIoMethods = {
     },
 
     _getBrainbaseCommandSubmit(sessionId, input, type) {
+        const engine = this._getSessionEngine?.(sessionId);
+        if (engine && engine !== 'codex') return null;
+
         if (type === 'key' && input === 'Enter') {
             const prompt = (this.promptBuffers?.get(sessionId) || '').trim();
             const expanded = this._expandBrainbaseCommandPrompt(sessionId, prompt);
