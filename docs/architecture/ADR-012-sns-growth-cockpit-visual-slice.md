@@ -26,9 +26,9 @@ SNS Posting Cockpit MVP は、Ledger/API 接続より前に、人間が投稿運
 
 ## 決定
 
-この slice では `/sns-growth.html` に static fixture ベースの SNS Growth Cockpit visual surface を追加する。
+この slice では Brainbase Home の workspace panel と `/sns-growth.html` に static fixture ベースの SNS Growth Cockpit visual surface を追加する。
 
-Brainbase の既存 activity bar には `SNS Growth` entry を追加する。ただし、既存の Sessions / Portal / Terminal / File Viewer の分岐は変更しない。
+Brainbase の既存 activity bar には `SNS Growth` entry を追加する。ただし、既存の Sessions / Portal / Terminal / File Viewer の分岐は変更しない。Brainbase Home では `window.location.href` で standalone page に飛ばさず、`panel-layout-manager` が `sns-growth-overlay` を開閉する。
 
 投稿 action は local/no-op とし、Graph、SNS Posting Ledger、X API には書き込まない。
 
@@ -36,7 +36,8 @@ Brainbase の既存 activity bar には `SNS Growth` entry を追加する。た
 
 ### 追加するもの
 
-- Brainbase activity bar から `/sns-growth.html` へ遷移する導線
+- Brainbase activity bar から in-shell `sns-growth-overlay` を開く導線
+- `/sns-growth.html` による standalone review/development surface
 - Brainbase loop navigation を持つ dark command UI
 - 週次 Ship Calendar
 - status summary
@@ -66,6 +67,7 @@ Brainbase の既存 activity bar には `SNS Growth` entry を追加する。た
 - UI の視覚方向を Ledger/API より先に検証できる。
 - 既存 Brainbase shell から SNS Growth へ到達できる。
 - SNS Growth が別プロダクトの admin UI に見えず、Brainbase 内 tool として認知される。
+- SNS Growth から Sessions / Terminal / Portal へ同じ activity bar 操作で戻れる。
 - Graph/Ledger 境界は ADR-011 のまま維持される。
 - 後続 slice で Ledger/API を接続する時は、この visual surface の fixture を repository/API response に置き換える。
 

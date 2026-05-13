@@ -11,6 +11,7 @@ import { setupViewNavigation } from '../ui/view-navigation.js';
 import { renderPanelToggles } from '../ui/view-toggle.js';
 import { setupPanelLayout } from '../ui/panel-layout-manager.js';
 import { initTimelineResize } from '../ui/timeline-resize.js';
+import { SnsGrowthCockpitView } from '../ui/views/sns-growth-cockpit-view.js';
 
 export function applyPluginRegistrationMixin(AppClass) {
     AppClass.prototype._registerUIPlugins = function() {
@@ -41,6 +42,12 @@ export function applyPluginRegistrationMixin(AppClass) {
                         const workspaceModeTerminalBtn = document.getElementById('workspace-mode-terminal');
                         const workspaceModePortalBtn = document.getElementById('workspace-mode-portal');
                         const portalBackTerminalBtn = document.getElementById('portal-back-terminal');
+                        const snsGrowthBackTerminalBtn = document.getElementById('sns-growth-back-terminal');
+                        const snsGrowthPanel = document.getElementById('sns-growth-overlay-panel');
+                        const snsGrowthView = snsGrowthPanel ? new SnsGrowthCockpitView() : null;
+                        if (snsGrowthPanel && snsGrowthView) {
+                            snsGrowthView.mount(snsGrowthPanel);
+                        }
 
                         const onSessionsClick = () => panelLayout.closeAllPanels();
                         const onDashboardClick = () => panelLayout.toggleDashboard();
@@ -49,10 +56,11 @@ export function applyPluginRegistrationMixin(AppClass) {
                         const onCommitTreeClick = () => panelLayout.toggleInfoDrawer('commit-tree');
                         const onTasksClick = () => panelLayout.toggleInfoDrawer('tasks');
                         const onPortalClick = () => panelLayout.openPortalOverlay();
-                        const onSnsGrowthClick = () => {
-                            window.location.href = '/sns-growth.html';
+                        const onSnsGrowthClick = () => panelLayout.openSnsGrowthOverlay();
+                        const onTerminalModeClick = () => {
+                            panelLayout.closePortalOverlay();
+                            panelLayout.closeSnsGrowthOverlay();
                         };
-                        const onTerminalModeClick = () => panelLayout.closePortalOverlay();
                         const onPortalModeClick = () => panelLayout.openPortalOverlay();
 
                         if (abSessionsBtn) abSessionsBtn.addEventListener('click', onSessionsClick);
@@ -66,6 +74,7 @@ export function applyPluginRegistrationMixin(AppClass) {
                         if (workspaceModeTerminalBtn) workspaceModeTerminalBtn.addEventListener('click', onTerminalModeClick);
                         if (workspaceModePortalBtn) workspaceModePortalBtn.addEventListener('click', onPortalModeClick);
                         if (portalBackTerminalBtn) portalBackTerminalBtn.addEventListener('click', onTerminalModeClick);
+                        if (snsGrowthBackTerminalBtn) snsGrowthBackTerminalBtn.addEventListener('click', onTerminalModeClick);
 
                         // Wire close buttons inside drawer/overlay
                         const infoCloseBtn = document.getElementById('info-drawer-close');
@@ -87,8 +96,10 @@ export function applyPluginRegistrationMixin(AppClass) {
                             if (workspaceModeTerminalBtn) workspaceModeTerminalBtn.removeEventListener('click', onTerminalModeClick);
                             if (workspaceModePortalBtn) workspaceModePortalBtn.removeEventListener('click', onPortalModeClick);
                             if (portalBackTerminalBtn) portalBackTerminalBtn.removeEventListener('click', onTerminalModeClick);
+                            if (snsGrowthBackTerminalBtn) snsGrowthBackTerminalBtn.removeEventListener('click', onTerminalModeClick);
                             if (infoCloseBtn) infoCloseBtn.removeEventListener('click', panelLayout.closeAllPanels);
                             if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
+                            snsGrowthView?.unmount();
                         };
                     }
                 },
