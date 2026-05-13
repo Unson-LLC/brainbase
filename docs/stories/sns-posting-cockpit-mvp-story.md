@@ -118,6 +118,7 @@ This slice is allowed to:
 - render a static `/sns-growth.html` page that matches the accepted Ship Calendar visual direction
 - expose it from the Brainbase activity bar as an additive navigation entry
 - show fixture post records for layout, status badges, detail panel, source URL, and evidence rows
+- use Brainbase design tokens and dark command surface treatment instead of a standalone light admin palette
 - keep all post actions local/no-op until the ledger API slice exists
 
 This slice must not:

@@ -20,7 +20,9 @@ superseded_by: []
 
 SNS Posting Cockpit MVP は、Ledger/API 接続より前に、人間が投稿運用の全体像を一目で見られる UI surface を必要としている。
 
-直近の実装対象は、最終形の `Today` 初期画面ではなく、画像で確認した `Ship Calendar` visual direction である。週カレンダー、右 detail panel、status summary、Brainbase loop navigation を先に固めることで、後続の Ledger/API 接続時に画面密度と遷移の前提を崩さずに済む。
+直近の実装対象は、最終形の `Today` 初期画面ではなく、画像で確認した `Ship Calendar` layout direction である。週カレンダー、右 detail panel、status summary、Brainbase loop navigation を先に固めることで、後続の Ledger/API 接続時に画面密度と遷移の前提を崩さずに済む。
+
+ただし visual treatment は Brainbase 本体と一貫させる。白い standalone admin app ではなく、Brainbase の dark command surface、細い border、控えめな blue accent、Geist / Noto Sans JP typography を使う。
 
 ## 決定
 
@@ -35,7 +37,7 @@ Brainbase の既存 activity bar には `SNS Growth` entry を追加する。た
 ### 追加するもの
 
 - Brainbase activity bar から `/sns-growth.html` へ遷移する導線
-- Brainbase loop navigation を持つ light admin UI
+- Brainbase loop navigation を持つ dark command UI
 - 週次 Ship Calendar
 - status summary
 - 選択投稿の detail panel
@@ -63,6 +65,7 @@ Brainbase の既存 activity bar には `SNS Growth` entry を追加する。た
 
 - UI の視覚方向を Ledger/API より先に検証できる。
 - 既存 Brainbase shell から SNS Growth へ到達できる。
+- SNS Growth が別プロダクトの admin UI に見えず、Brainbase 内 tool として認知される。
 - Graph/Ledger 境界は ADR-011 のまま維持される。
 - 後続 slice で Ledger/API を接続する時は、この visual surface の fixture を repository/API response に置き換える。
 
