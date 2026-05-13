@@ -217,7 +217,9 @@ export const appStore = new Store({
             infoDrawerOpen: true,
             infoDrawerTab: 'tasks',
             contextSidebarCollapsed: false,
-            dashboardOpen: false
+            dashboardOpen: false,
+            portalOverlayOpen: false,
+            snsGrowthOverlayOpen: false
         }
     },
     folderTree: {

@@ -7,6 +7,7 @@ const STORAGE_KEY = 'bb-panel-state';
  * - Info Drawer (Commit Tree / Tasks / Wiki / LiveFeed tabs): right slide-in panel
  * - Dashboard: fullscreen overlay
  * - Portal Overlay: fullscreen framework-driven portal
+ * - SNS Growth Overlay: Brainbase workspace mode for SNS operations
  */
 export function setupPanelLayout({ store, eventBus }) {
     _restoreState(store);
@@ -55,11 +56,12 @@ export function setupPanelLayout({ store, eventBus }) {
         const panels = store.getState().ui.panels;
         const next = !panels.dashboardOpen;
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, dashboardOpen: next, infoDrawerOpen: false, portalOverlayOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, dashboardOpen: next, infoDrawerOpen: false, portalOverlayOpen: false, snsGrowthOverlayOpen: false } }
         });
         _applyDashboard(next);
         _applyInfoDrawer(false, panels.infoDrawerTab);
         _applyPortalOverlay(false);
+        _applySnsGrowthOverlay(false);
         _persistState(store);
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'dashboard', open: next });
     };
@@ -73,9 +75,10 @@ export function setupPanelLayout({ store, eventBus }) {
         }
 
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, portalOverlayOpen: next, dashboardOpen: false, infoDrawerOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, portalOverlayOpen: next, snsGrowthOverlayOpen: false, dashboardOpen: false, infoDrawerOpen: false } }
         });
         _applyPortalOverlay(next);
+        _applySnsGrowthOverlay(false);
         _applyDashboard(false);
         _applyInfoDrawer(false, panels.infoDrawerTab);
         _persistState(store);
@@ -97,14 +100,41 @@ export function setupPanelLayout({ store, eventBus }) {
         setPortalOverlay(!panels.portalOverlayOpen);
     };
 
+    const setSnsGrowthOverlay = (open) => {
+        const panels = store.getState().ui.panels;
+        const next = Boolean(open);
+        if (panels.snsGrowthOverlayOpen === next) {
+            _applySnsGrowthOverlay(next);
+            return;
+        }
+
+        store.setState({
+            ui: { ...store.getState().ui, panels: { ...panels, snsGrowthOverlayOpen: next, portalOverlayOpen: false, dashboardOpen: false, infoDrawerOpen: false } }
+        });
+        _applySnsGrowthOverlay(next);
+        _applyPortalOverlay(false);
+        _applyDashboard(false);
+        _applyInfoDrawer(false, panels.infoDrawerTab);
+        _persistState(store);
+        eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'sns-growth-overlay', open: next });
+    };
+
+    const openSnsGrowthOverlay = () => setSnsGrowthOverlay(true);
+    const closeSnsGrowthOverlay = () => setSnsGrowthOverlay(false);
+    const toggleSnsGrowthOverlay = () => {
+        const panels = store.getState().ui.panels;
+        setSnsGrowthOverlay(!panels.snsGrowthOverlayOpen);
+    };
+
     const closeAllPanels = () => {
         const panels = store.getState().ui.panels;
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, infoDrawerOpen: false, dashboardOpen: false, portalOverlayOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, infoDrawerOpen: false, dashboardOpen: false, portalOverlayOpen: false, snsGrowthOverlayOpen: false } }
         });
         _applyInfoDrawer(false, panels.infoDrawerTab);
         _applyDashboard(false);
         _applyPortalOverlay(false);
+        _applySnsGrowthOverlay(false);
         _persistState(store);
     };
 
@@ -136,6 +166,7 @@ export function setupPanelLayout({ store, eventBus }) {
         const abCommitTree = getEl('ab-commit-tree-btn');
         const abTasks = getEl('ab-tasks-btn');
         const abPortal = getEl('ab-portal-btn');
+        const abSnsGrowth = getEl('ab-sns-growth-btn');
         const abSessions = getEl('ab-sessions-btn');
 
         if (abWiki) abWiki.classList.toggle('active', open && activeTab === 'wiki');
@@ -143,11 +174,13 @@ export function setupPanelLayout({ store, eventBus }) {
         if (abCommitTree) abCommitTree.classList.toggle('active', open && activeTab === 'commit-tree');
         if (abTasks) abTasks.classList.toggle('active', open && activeTab === 'tasks');
         const portalOvOpen = store.getState().ui.panels.portalOverlayOpen;
+        const snsGrowthOpen = store.getState().ui.panels.snsGrowthOverlayOpen;
         if (abPortal) abPortal.classList.toggle('active', portalOvOpen || (open && activeTab === 'portal'));
+        if (abSnsGrowth) abSnsGrowth.classList.toggle('active', Boolean(snsGrowthOpen));
 
         // Sessions button is active only when no panel is open
         const dashOpen = store.getState().ui.panels.dashboardOpen;
-        if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen && !portalOvOpen);
+        if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen && !portalOvOpen && !snsGrowthOpen);
         window.dispatchEvent(new Event('resize'));
     }
 
@@ -158,8 +191,9 @@ export function setupPanelLayout({ store, eventBus }) {
         // Portal is a workspace mode: keep the shared header visible and swap the stage.
         const consoleArea = getEl('console-area');
         if (consoleArea) consoleArea.style.display = 'flex';
+        const snsGrowthOpen = store.getState().ui.panels.snsGrowthOverlayOpen;
         const terminalStage = getEl('terminal-stage');
-        if (terminalStage) terminalStage.style.display = open ? 'none' : '';
+        if (terminalStage) terminalStage.style.display = (open || snsGrowthOpen) ? 'none' : '';
 
         const abPortal = getEl('ab-portal-btn');
         if (abPortal) abPortal.classList.toggle('active', open);
@@ -167,8 +201,8 @@ export function setupPanelLayout({ store, eventBus }) {
         const terminalMode = getEl('workspace-mode-terminal');
         const portalMode = getEl('workspace-mode-portal');
         if (terminalMode) {
-            terminalMode.classList.toggle('active', !open);
-            terminalMode.setAttribute('aria-selected', open ? 'false' : 'true');
+            terminalMode.classList.toggle('active', !open && !snsGrowthOpen);
+            terminalMode.setAttribute('aria-selected', (open || snsGrowthOpen) ? 'false' : 'true');
         }
         if (portalMode) {
             portalMode.classList.toggle('active', open);
@@ -179,7 +213,38 @@ export function setupPanelLayout({ store, eventBus }) {
         const abSessions = getEl('ab-sessions-btn');
         const infoOpen = store.getState().ui.panels.infoDrawerOpen;
         const dashOpen = store.getState().ui.panels.dashboardOpen;
-        if (abSessions) abSessions.classList.toggle('active', !open && !infoOpen && !dashOpen);
+        if (abSessions) abSessions.classList.toggle('active', !open && !infoOpen && !dashOpen && !snsGrowthOpen);
+    }
+
+    function _applySnsGrowthOverlay(open) {
+        const overlay = getEl('sns-growth-overlay');
+        if (overlay) overlay.classList.toggle('open', open);
+
+        const consoleArea = getEl('console-area');
+        if (consoleArea) consoleArea.style.display = 'flex';
+        const terminalStage = getEl('terminal-stage');
+        const portalOpen = store.getState().ui.panels.portalOverlayOpen;
+        if (terminalStage) terminalStage.style.display = (open || portalOpen) ? 'none' : '';
+
+        const abSnsGrowth = getEl('ab-sns-growth-btn');
+        if (abSnsGrowth) abSnsGrowth.classList.toggle('active', open);
+
+        const terminalMode = getEl('workspace-mode-terminal');
+        const portalMode = getEl('workspace-mode-portal');
+        if (terminalMode) {
+            terminalMode.classList.toggle('active', !open && !portalOpen);
+            terminalMode.setAttribute('aria-selected', (open || portalOpen) ? 'false' : 'true');
+        }
+        if (portalMode) {
+            portalMode.classList.toggle('active', portalOpen);
+            portalMode.setAttribute('aria-selected', portalOpen ? 'true' : 'false');
+        }
+        document.body.classList.toggle('sns-growth-mode-active', open);
+
+        const abSessions = getEl('ab-sessions-btn');
+        const infoOpen = store.getState().ui.panels.infoDrawerOpen;
+        const dashOpen = store.getState().ui.panels.dashboardOpen;
+        if (abSessions) abSessions.classList.toggle('active', !open && !portalOpen && !infoOpen && !dashOpen);
     }
 
     function _applyDashboard(open) {
@@ -193,7 +258,9 @@ export function setupPanelLayout({ store, eventBus }) {
 
         // Sessions button is active only when no panel is open
         const infoOpen = store.getState().ui.panels.infoDrawerOpen;
-        if (abSessions) abSessions.classList.toggle('active', !open && !infoOpen);
+        const portalOpen = store.getState().ui.panels.portalOverlayOpen;
+        const snsGrowthOpen = store.getState().ui.panels.snsGrowthOverlayOpen;
+        if (abSessions) abSessions.classList.toggle('active', !open && !infoOpen && !portalOpen && !snsGrowthOpen);
     }
 
     // --- Info drawer tab clicks ---
@@ -264,9 +331,10 @@ export function setupPanelLayout({ store, eventBus }) {
     _applyInfoDrawer(initialPanels.infoDrawerOpen, initialPanels.infoDrawerTab);
     _applyDashboard(initialPanels.dashboardOpen);
     _applyPortalOverlay(initialPanels.portalOverlayOpen || false);
+    _applySnsGrowthOverlay(initialPanels.snsGrowthOverlayOpen || false);
 
     const consoleArea = getEl('console-area');
-    if (consoleArea && !initialPanels.portalOverlayOpen) consoleArea.style.display = 'flex';
+    if (consoleArea && !initialPanels.portalOverlayOpen && !initialPanels.snsGrowthOverlayOpen) consoleArea.style.display = 'flex';
 
     // --- Cleanup ---
 
@@ -285,6 +353,9 @@ export function setupPanelLayout({ store, eventBus }) {
         openPortalOverlay,
         closePortalOverlay,
         togglePortalOverlay,
+        openSnsGrowthOverlay,
+        closeSnsGrowthOverlay,
+        toggleSnsGrowthOverlay,
         toggleContextSidebar,
         toggleDashboard,
         closeAllPanels

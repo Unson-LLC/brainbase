@@ -82,6 +82,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - SNS Growth 内の tab / route 遷移で Brainbase sidebar が消えない
   - `SNS Growth` は `作る` group の active item として見える
   - activity bar の `SNS Growth` entry は追加導線であり、既存の Sessions / Portal / Tasks / Terminal / File Viewer の分岐を変更しない
+  - Brainbase Home の `SNS Growth` entry は `window.location.href` ではなく `panel-layout-manager` の workspace overlay を開く
+  - `abSessionsBtn` または `Back to Terminal` で SNS Growth overlay を閉じ、Terminal / Sessions context に戻れる
   - `abSessionsBtn` は既存どおり panel layout の全 panel を閉じ、session list / terminal context を primary surface に戻す
   - `abPortalBtn`, `workspaceModeTerminalBtn`, `workspaceModePortalBtn`, `portalBackTerminalBtn` は既存どおり Portal overlay と Terminal surface を切り替える
   - file viewer close flow の `targetSessionId` は既存どおり closed session または current session の active file/root override を消し、必要な場合だけ対象 session に戻す
@@ -214,15 +216,18 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - accepted Ship Calendar visual direction
   - Brainbase activity bar entry
 - **output**:
-  - `/sns-growth.html` renders a Brainbase-aligned dark Ship Calendar page
+  - Brainbase Home renders SNS Growth as an in-shell workspace overlay
+  - `/sns-growth.html` remains available as a standalone development/review page
   - Brainbase loop navigation is visible
   - selected post detail panel shows body, source URL, schedule datetime, status action controls, and collapsed evidence rows
 - **preconditions**:
   - ledger API is not required for this slice
 - **postconditions**:
   - actions are local/no-op and do not mutate Graph or Ledger
-  - the page can be reached from the existing Brainbase activity bar without altering terminal/session navigation
+  - the panel can be reached from the existing Brainbase activity bar without altering terminal/session navigation
   - `ab-sns-growth-btn` is the only new activity bar branch in `plugin-registration-mixin.js`
+  - clicking `ab-sns-growth-btn` keeps the browser URL on Brainbase Home
+  - clicking `ab-sessions-btn` closes `sns-growth-overlay` and restores terminal stage display
   - existing `abSessionsBtn` and `targetSessionId` branches keep their previous behavior and are only in scope as regression-sensitive context
   - final `Today` entry remains a separate later route
 - **error cases**:

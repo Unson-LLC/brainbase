@@ -117,6 +117,7 @@ This slice is allowed to:
 
 - render a static `/sns-growth.html` page that matches the accepted Ship Calendar visual direction
 - expose it from the Brainbase activity bar as an additive navigation entry
+- open from the Brainbase activity bar as an in-shell workspace panel, not as a one-way page navigation
 - show fixture post records for layout, status badges, detail panel, source URL, and evidence rows
 - use Brainbase design tokens and dark command surface treatment instead of a standalone light admin palette
 - keep all post actions local/no-op until the ledger API slice exists
@@ -127,12 +128,14 @@ This slice must not:
 - pretend that the SNS Posting Ledger DB/API is complete
 - replace the existing terminal/session/file-viewer navigation behavior
 - remove the `Today` entry requirement for the final SNS Growth cockpit
+- strand the operator on `/sns-growth.html` without a Brainbase panel path back to Sessions / Terminal
 
 Architecture decision: ADR-012 records this visual slice. ADR-011 already defines the Graph/Ledger boundary, and this slice does not introduce a new data boundary, persistence mechanism, API contract, auth boundary, or runtime process.
 
 Activity bar requirement scope:
 
 - `ab-sns-growth-btn` is the only new activity bar branch introduced by this slice.
+- `ab-sns-growth-btn` opens `sns-growth-overlay` through `panel-layout-manager`, and must not use `window.location.href` from Brainbase Home.
 - Existing `abSessionsBtn` behavior remains unchanged: clicking Sessions closes open panels and returns the existing session/terminal surface to the front.
 - Existing Portal/Terminal behavior remains unchanged: `abPortalBtn`, `workspaceModeTerminalBtn`, `workspaceModePortalBtn`, and `portalBackTerminalBtn` continue to switch only the existing portal overlay and terminal surface.
 - Existing file viewer close behavior remains unchanged: `targetSessionId` continues to mean the closed session or current session whose active file/root override is cleared before returning to terminal context.

@@ -13788,6 +13788,47 @@ body.resizing iframe {
 .portal-story-tree { padding: 4px 0; }
 .portal-story-node { display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 12px; font-size: 13px; color: var(--text-primary); border-left: 2px solid rgba(255,255,255,0.06); margin-left: 8px; }
 .portal-story-node[data-depth="0"] { border-left-color: var(--primary-color, #3b82f6); }
+
+/* SNS Growth Overlay (Brainbase workspace mode) */
+.sns-growth-overlay {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    background-color: var(--bg-primary, #0f172a);
+    overflow: hidden;
+}
+
+.sns-growth-overlay.open {
+    display: flex;
+}
+
+.sns-growth-overlay-header {
+    display: flex;
+    min-height: 60px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(191, 201, 214, 0.14);
+    background: rgba(8, 10, 13, 0.94);
+}
+
+.sns-growth-overlay-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 760;
+}
+
+#sns-growth-overlay-panel {
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+}
 .portal-story-node[data-depth="1"] { border-left-color: rgba(99,102,241,0.5); }
 .portal-story-horizon { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-secondary); flex-shrink: 0; }
 .portal-story-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -17757,6 +17798,23 @@ body.resizing iframe {
     font-family: var(--font-sans);
     font-size: 13px;
     letter-spacing: 0;
+}
+
+.sns-growth-embedded .sns-growth-app {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.sns-growth-embedded .sns-growth-sidebar,
+.sns-growth-embedded .sns-growth-topbar {
+    display: none;
+}
+
+.sns-growth-embedded .sns-growth-content {
+    height: 100%;
+}
+
+.sns-growth-embedded .sns-growth-calendar-pane {
+    padding: 20px;
 }
 
 .sns-growth-app button,
