@@ -228,6 +228,8 @@ export function setupPanelLayout({ store, eventBus }) {
 
         const abSnsGrowth = getEl('ab-sns-growth-btn');
         if (abSnsGrowth) abSnsGrowth.classList.toggle('active', open);
+        const mobileSnsGrowth = getEl('mobile-sns-growth-btn');
+        if (mobileSnsGrowth) mobileSnsGrowth.classList.toggle('active', open);
 
         const terminalMode = getEl('workspace-mode-terminal');
         const portalMode = getEl('workspace-mode-portal');

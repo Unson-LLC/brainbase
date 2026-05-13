@@ -6,12 +6,15 @@ date: 2026-05-12
 related_specs:
   - SPEC-sns-growth-cockpit-ui-transition
   - SPEC-sns-growth-cockpit-wireframe-v0
+  - SPEC-sns-mobile-review-flow
 architecture_docs:
   - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
   - docs/architecture/ADR-012-sns-growth-cockpit-visual-slice.md
+  - docs/architecture/ADR-013-sns-mobile-review-flow.md
 related_stories:
   - str.brainbase.personal-kg-sns-seed-mvp
   - story-sns-persona-brain-gate
+  - story-sns-mobile-review-flow
 ---
 
 # Story: SNS Posting Cockpit MVP
@@ -137,6 +140,8 @@ Activity bar requirement scope:
 - `ab-sns-growth-btn` is the only new activity bar branch introduced by this slice.
 - `ab-sns-growth-btn` opens `sns-growth-overlay` through `panel-layout-manager`, and must not use `window.location.href` from Brainbase Home.
 - Existing `abSessionsBtn` behavior remains unchanged: clicking Sessions closes open panels and returns the existing session/terminal surface to the front.
+- Mobile bottom navigation may expose an `SNS` entry, but it must open the same in-shell `sns-growth-overlay` and must not navigate to `/sns-growth.html`.
+- Mobile SNS Growth starts from today's decision inbox; the full weekly Ship Calendar remains a supporting view on small screens.
 - Existing Portal/Terminal behavior remains unchanged: `abPortalBtn`, `workspaceModeTerminalBtn`, `workspaceModePortalBtn`, and `portalBackTerminalBtn` continue to switch only the existing portal overlay and terminal surface.
 - Existing file viewer close behavior remains unchanged: `targetSessionId` continues to mean the closed session or current session whose active file/root override is cleared before returning to terminal context.
 
