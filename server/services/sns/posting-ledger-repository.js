@@ -1,0 +1,542 @@
+// @ts-check
+import fs from 'node:fs';
+import path from 'node:path';
+/**
+ * SNS Posting Ledger repository.
+ *
+ * ADR-011: this is operational state, not Graph SSOT.
+ * The in-memory implementation backs local/tests; the contract is kept narrow
+ * so a Pg repository can replace it without changing routes or UI.
+ */
+
+const STATUSES = new Set(['review_needed', 'approved', 'scheduled', 'posted', 'skipped', 'learning_ready']);
+
+const ALLOWED_TRANSITIONS = {
+    review_needed: new Set(['approved', 'scheduled', 'skipped']),
+    approved: new Set(['review_needed', 'scheduled', 'skipped']),
+    scheduled: new Set(['review_needed', 'approved', 'posted', 'skipped']),
+    posted: new Set(['learning_ready']),
+    skipped: new Set(['review_needed']),
+    learning_ready: new Set(['posted'])
+};
+
+const DEFAULT_TIMES_BY_SLOT = ['09:00', '12:00', '15:00', '18:00', '21:00'];
+
+export class InvalidSnsPostTransitionError extends Error {
+    constructor(from, to) {
+        super(`Invalid SNS post status transition: ${from} -> ${to}`);
+        this.name = 'InvalidSnsPostTransitionError';
+        this.from = from;
+        this.to = to;
+    }
+}
+
+export class SnsPostValidationError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'SnsPostValidationError';
+    }
+}
+
+function nowIso() {
+    return new Date().toISOString();
+}
+
+function toIso(value) {
+    if (!value) return null;
+    if (value instanceof Date) return value.toISOString();
+    return String(value);
+}
+
+function dateOnly(value) {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    const raw = String(value || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(raw)) {
+        throw new SnsPostValidationError('date must be YYYY-MM-DD');
+    }
+    return raw;
+}
+
+function titleFromBody(body) {
+    const firstLine = String(body || '').split('\n').find((line) => line.trim()) || 'SNS draft';
+    const trimmed = firstLine.trim();
+    if (trimmed.length <= 28) return trimmed;
+    return `${trimmed.slice(0, 27).trim()}…`;
+}
+
+function timeFromDraft(draft) {
+    if (draft.time) return String(draft.time);
+    const slot = Number(draft.slot_index || draft.slot || 1);
+    return DEFAULT_TIMES_BY_SLOT[Math.max(0, slot - 1)] || '09:00';
+}
+
+function sourceTypeFromDraft(draft) {
+    if (draft.signal?.kind === 'peer_post') return 'Peer Circle';
+    if (draft.signal?.kind === 'news') return 'News';
+    if (draft.source_type) return draft.source_type;
+    if (draft.source_url && draft.lane === 'peer_circle') return 'Peer Circle';
+    if (draft.source_url) return 'News';
+    return 'Personal KG';
+}
+
+function sourceFromDraft(draft) {
+    return {
+        type: sourceTypeFromDraft(draft),
+        url: draft.signal?.url || draft.source_url || null,
+        title: draft.signal?.title || draft.signal?.text || draft.lane_intent || null,
+        author_handle: draft.signal?.author_handle || null,
+        source_candidate_id: draft.source_candidate_id || null,
+        kg_source_entity_id: draft.kg_source_entity_id || null,
+        derived_from: Array.isArray(draft.derived_from) ? draft.derived_from : [],
+        evidence_ids: Array.isArray(draft.evidence_ids) ? draft.evidence_ids : []
+    };
+}
+
+function evidenceFromDraft(draft) {
+    return {
+        persona_brain: draft.persona_brain || {},
+        graph_check: draft.graph_check || {
+            status: 'ok',
+            source_entity_id: draft.kg_source_entity_id || null,
+            derived_from: Array.isArray(draft.derived_from) ? draft.derived_from : []
+        },
+        quality_gate: draft.quality_gate || {
+            status: draft.safety?.persona_affect?.decision === 'blocked' ? 'blocked' : 'pass',
+            persona_affect: draft.safety?.persona_affect || null,
+            requires_human_review: draft.safety?.requires_human_review !== false
+        },
+        reader_affect: draft.safety?.persona_affect?.likely_reader_feeling || draft.reader_affect || ''
+    };
+}
+
+function idempotencyKey(record) {
+    return `${record.account_id || 'default'}|${record.date}|${record.slot_index}`;
+}
+
+function normalizeRecord(record) {
+    return {
+        ...record,
+        date: dateOnly(record.date),
+        scheduled_at: toIso(record.scheduled_at),
+        posted_at: toIso(record.posted_at),
+        created_at: toIso(record.created_at),
+        updated_at: toIso(record.updated_at),
+        revisions: Array.isArray(record.revisions) ? record.revisions : [],
+        metrics_snapshots: Array.isArray(record.metrics_snapshots) ? record.metrics_snapshots : [],
+        source: record.source || {},
+        evidence: record.evidence || {}
+    };
+}
+
+function draftToRecord(draft, defaults = {}) {
+    if (!draft || typeof draft !== 'object') throw new SnsPostValidationError('draft required');
+    const date = dateOnly(draft.date || defaults.date);
+    const slotIndex = Number(draft.slot_index || draft.slot || 1);
+    if (!Number.isInteger(slotIndex) || slotIndex < 1) throw new SnsPostValidationError('slot_index must be positive integer');
+    const body = String(draft.body || '').trim();
+    if (!body && draft.format !== 'peer_research_prompt') throw new SnsPostValidationError('body required');
+    const accountId = defaults.account_id || draft.account_id || 'acc_x_sato';
+    const time = timeFromDraft(draft);
+    const now = nowIso();
+    return {
+        id: draft.ledger_id || `sns_${date.replaceAll('-', '')}_${slotIndex}_${String(draft.lane || 'draft').replace(/[^a-z0-9_]/giu, '_')}`,
+        account_id: accountId,
+        account_handle: defaults.account_handle || draft.account_handle || '@AIBizNavigator',
+        platform: draft.platform || 'x',
+        date,
+        slot_index: slotIndex,
+        time,
+        title: draft.title || titleFromBody(body || draft.lane_intent),
+        status: draft.status === 'draft_review' ? 'review_needed' : (draft.status || 'review_needed'),
+        lane: draft.lane || null,
+        format: draft.format || 'standalone',
+        body,
+        scheduled_at: draft.scheduled_at || `${date}T${time}:00.000Z`,
+        posted_at: draft.posted_at || null,
+        posted_url: draft.posted_url || null,
+        source: sourceFromDraft(draft),
+        evidence: evidenceFromDraft(draft),
+        memo: draft.memo || '',
+        learning_candidate_id: draft.learning_candidate_id || null,
+        revisions: [],
+        metrics_snapshots: [],
+        created_at: now,
+        updated_at: now
+    };
+}
+
+function assertValidStatus(status) {
+    if (!STATUSES.has(status)) {
+        throw new SnsPostValidationError(`invalid SNS post status: ${status}`);
+    }
+}
+
+function assertTransition(from, to) {
+    assertValidStatus(to);
+    if (from === to) return;
+    const allowed = ALLOWED_TRANSITIONS[from];
+    if (!allowed?.has(to)) {
+        throw new InvalidSnsPostTransitionError(from, to);
+    }
+}
+
+export class InMemorySnsPostingLedgerRepository {
+    constructor({ initialPosts = [] } = {}) {
+        /** @type {Map<string, any>} */
+        this.posts = new Map();
+        /** @type {Map<string, string>} */
+        this.keys = new Map();
+        for (const post of initialPosts) {
+            const normalized = normalizeRecord({ ...post });
+            this.posts.set(normalized.id, normalized);
+            this.keys.set(idempotencyKey(normalized), normalized.id);
+        }
+    }
+
+    upsertReviewPack({ account_id, account_handle, drafts = [] }) {
+        if (!Array.isArray(drafts)) throw new SnsPostValidationError('drafts must be array');
+        const created = [];
+        const updated = [];
+        for (const draft of drafts) {
+            const next = draftToRecord(draft, { account_id, account_handle });
+            assertValidStatus(next.status);
+            const key = idempotencyKey(next);
+            const existingId = this.keys.get(key);
+            if (!existingId) {
+                this.posts.set(next.id, next);
+                this.keys.set(key, next.id);
+                created.push(normalizeRecord(next));
+                continue;
+            }
+            const existing = this.posts.get(existingId);
+            const merged = {
+                ...existing,
+                title: next.title,
+                body: next.body,
+                lane: next.lane,
+                format: next.format,
+                account_handle: next.account_handle,
+                source: next.source,
+                evidence: next.evidence,
+                updated_at: nowIso()
+            };
+            this.posts.set(existingId, merged);
+            updated.push(normalizeRecord(merged));
+        }
+        return { created, updated };
+    }
+
+    listPosts({ startDate = null, endDate = null, status = null } = {}) {
+        return Array.from(this.posts.values())
+            .filter((post) => !startDate || post.date >= startDate)
+            .filter((post) => !endDate || post.date <= endDate)
+            .filter((post) => !status || post.status === status)
+            .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+            .map(normalizeRecord);
+    }
+
+    findById(id) {
+        const record = this.posts.get(id);
+        return record ? normalizeRecord(record) : null;
+    }
+
+    updatePost(id, patch = {}, actor = {}) {
+        const existing = this.posts.get(id);
+        if (!existing) return null;
+        const nextStatus = patch.status || existing.status;
+        assertTransition(existing.status, nextStatus);
+        const now = nowIso();
+        const revisions = [...existing.revisions];
+        if (typeof patch.body === 'string' && patch.body !== existing.body) {
+            revisions.push({
+                id: `rev_${revisions.length + 1}`,
+                actor_person_id: actor.actor_person_id || actor.sub || 'system',
+                previous_body: existing.body,
+                next_body: patch.body,
+                changed_at: now
+            });
+        }
+        const metricsSnapshots = [...existing.metrics_snapshots];
+        if (patch.metrics_snapshot) {
+            metricsSnapshots.push({
+                ...patch.metrics_snapshot,
+                captured_at: patch.metrics_snapshot.captured_at || now
+            });
+        }
+        const updated = {
+            ...existing,
+            body: typeof patch.body === 'string' ? patch.body : existing.body,
+            title: typeof patch.title === 'string' ? patch.title : (typeof patch.body === 'string' ? titleFromBody(patch.body) : existing.title),
+            status: nextStatus,
+            scheduled_at: Object.prototype.hasOwnProperty.call(patch, 'scheduled_at') ? toIso(patch.scheduled_at) : existing.scheduled_at,
+            posted_url: Object.prototype.hasOwnProperty.call(patch, 'posted_url') ? patch.posted_url : existing.posted_url,
+            posted_at: Object.prototype.hasOwnProperty.call(patch, 'posted_at') ? toIso(patch.posted_at) : existing.posted_at,
+            memo: typeof patch.memo === 'string' ? patch.memo : existing.memo,
+            learning_candidate_id: patch.learning_candidate_id || existing.learning_candidate_id,
+            revisions,
+            metrics_snapshots: metricsSnapshots,
+            updated_at: now
+        };
+        this.posts.set(id, updated);
+        return normalizeRecord(updated);
+    }
+}
+
+export class JsonFileSnsPostingLedgerRepository extends InMemorySnsPostingLedgerRepository {
+    constructor({ filePath }) {
+        if (!filePath) throw new Error('JsonFileSnsPostingLedgerRepository requires filePath');
+        const initialPosts = readLedgerFile(filePath);
+        super({ initialPosts });
+        this.filePath = filePath;
+    }
+
+    upsertReviewPack(input) {
+        const result = super.upsertReviewPack(input);
+        this._persist();
+        return result;
+    }
+
+    updatePost(id, patch = {}, actor = {}) {
+        const result = super.updatePost(id, patch, actor);
+        if (result) this._persist();
+        return result;
+    }
+
+    _persist() {
+        const dir = path.dirname(this.filePath);
+        fs.mkdirSync(dir, { recursive: true });
+        const posts = this.listPosts({});
+        const payload = {
+            schema_version: '0.1.0',
+            updated_at: nowIso(),
+            posts
+        };
+        fs.writeFileSync(this.filePath, `${JSON.stringify(payload, null, 2)}\n`);
+    }
+}
+
+export class PgSnsPostingLedgerRepository {
+    constructor({ pool }) {
+        if (!pool || typeof pool.query !== 'function') {
+            throw new Error('PgSnsPostingLedgerRepository requires a pg pool/client with query(sql, params)');
+        }
+        this.pool = pool;
+    }
+
+    async upsertReviewPack({ account_id, account_handle, drafts = [] }) {
+        if (!Array.isArray(drafts)) throw new SnsPostValidationError('drafts must be array');
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        const created = [];
+        const updated = [];
+        try {
+            for (const draft of drafts) {
+                const next = draftToRecord(draft, { account_id, account_handle });
+                assertValidStatus(next.status);
+                const existing = await client.query(
+                    `SELECT id FROM sns_posting_ledger_posts
+                     WHERE account_id = $1 AND date = $2 AND slot_index = $3
+                     FOR UPDATE`,
+                    [next.account_id, next.date, next.slot_index]
+                );
+                if (!existing.rows[0]) {
+                    const inserted = await client.query(
+                        `INSERT INTO sns_posting_ledger_posts (
+                            id, account_id, account_handle, platform, date, slot_index, time,
+                            title, status, lane, format, body, scheduled_at, posted_at, posted_url,
+                            source, evidence, memo, learning_candidate_id, revisions, metrics_snapshots,
+                            created_at, updated_at
+                        ) VALUES (
+                            $1, $2, $3, $4, $5, $6, $7,
+                            $8, $9, $10, $11, $12, $13, $14, $15,
+                            $16::jsonb, $17::jsonb, $18, $19, $20::jsonb, $21::jsonb,
+                            $22, $23
+                        )
+                        RETURNING *`,
+                        postParams(next)
+                    );
+                    created.push(normalizeRecord(inserted.rows[0]));
+                    continue;
+                }
+                const updatedRow = await client.query(
+                    `UPDATE sns_posting_ledger_posts
+                     SET title = $2,
+                         body = $3,
+                         lane = $4,
+                         format = $5,
+                         account_handle = $6,
+                         source = $7::jsonb,
+                         evidence = $8::jsonb,
+                         updated_at = NOW()
+                     WHERE id = $1
+                     RETURNING *`,
+                    [
+                        existing.rows[0].id,
+                        next.title,
+                        next.body,
+                        next.lane,
+                        next.format,
+                        next.account_handle,
+                        JSON.stringify(next.source),
+                        JSON.stringify(next.evidence)
+                    ]
+                );
+                updated.push(normalizeRecord(updatedRow.rows[0]));
+            }
+            await client.query('COMMIT');
+            return { created, updated };
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
+
+    async listPosts({ startDate = null, endDate = null, status = null } = {}) {
+        const clauses = [];
+        const params = [];
+        const add = (sql, value) => {
+            params.push(value);
+            clauses.push(sql.replace('?', `$${params.length}`));
+        };
+        if (startDate) add('date >= ?', startDate);
+        if (endDate) add('date <= ?', endDate);
+        if (status) add('status = ?', status);
+        const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+        const { rows } = await this.pool.query(
+            `SELECT * FROM sns_posting_ledger_posts${where} ORDER BY date ASC, time ASC, slot_index ASC`,
+            params
+        );
+        return rows.map(normalizeRecord);
+    }
+
+    async findById(id) {
+        const { rows } = await this.pool.query('SELECT * FROM sns_posting_ledger_posts WHERE id = $1', [id]);
+        return rows[0] ? normalizeRecord(rows[0]) : null;
+    }
+
+    async updatePost(id, patch = {}, actor = {}) {
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            const { rows } = await client.query('SELECT * FROM sns_posting_ledger_posts WHERE id = $1 FOR UPDATE', [id]);
+            const existing = rows[0] ? normalizeRecord(rows[0]) : null;
+            if (!existing) {
+                await client.query('ROLLBACK');
+                return null;
+            }
+            const nextStatus = patch.status || existing.status;
+            assertTransition(existing.status, nextStatus);
+            const now = nowIso();
+            const revisions = [...existing.revisions];
+            const nextBody = typeof patch.body === 'string' ? patch.body : existing.body;
+            if (typeof patch.body === 'string' && patch.body !== existing.body) {
+                revisions.push({
+                    id: `rev_${revisions.length + 1}`,
+                    actor_person_id: actor.actor_person_id || actor.sub || 'system',
+                    previous_body: existing.body,
+                    next_body: patch.body,
+                    changed_at: now
+                });
+            }
+            const metricsSnapshots = [...existing.metrics_snapshots];
+            if (patch.metrics_snapshot) {
+                metricsSnapshots.push({
+                    ...patch.metrics_snapshot,
+                    captured_at: patch.metrics_snapshot.captured_at || now
+                });
+            }
+            const updated = await client.query(
+                `UPDATE sns_posting_ledger_posts
+                 SET body = $2,
+                     title = $3,
+                     status = $4,
+                     scheduled_at = $5,
+                     posted_url = $6,
+                     posted_at = $7,
+                     memo = $8,
+                     learning_candidate_id = $9,
+                     revisions = $10::jsonb,
+                     metrics_snapshots = $11::jsonb,
+                     updated_at = NOW()
+                 WHERE id = $1
+                 RETURNING *`,
+                [
+                    id,
+                    nextBody,
+                    typeof patch.title === 'string' ? patch.title : (typeof patch.body === 'string' ? titleFromBody(patch.body) : existing.title),
+                    nextStatus,
+                    Object.prototype.hasOwnProperty.call(patch, 'scheduled_at') ? toIso(patch.scheduled_at) : existing.scheduled_at,
+                    Object.prototype.hasOwnProperty.call(patch, 'posted_url') ? patch.posted_url : existing.posted_url,
+                    Object.prototype.hasOwnProperty.call(patch, 'posted_at') ? toIso(patch.posted_at) : existing.posted_at,
+                    typeof patch.memo === 'string' ? patch.memo : existing.memo,
+                    patch.learning_candidate_id || existing.learning_candidate_id,
+                    JSON.stringify(revisions),
+                    JSON.stringify(metricsSnapshots)
+                ]
+            );
+            await client.query('COMMIT');
+            return normalizeRecord(updated.rows[0]);
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
+}
+
+function postParams(post) {
+    return [
+        post.id,
+        post.account_id,
+        post.account_handle,
+        post.platform,
+        post.date,
+        post.slot_index,
+        post.time,
+        post.title,
+        post.status,
+        post.lane,
+        post.format,
+        post.body,
+        post.scheduled_at,
+        post.posted_at,
+        post.posted_url,
+        JSON.stringify(post.source),
+        JSON.stringify(post.evidence),
+        post.memo,
+        post.learning_candidate_id,
+        JSON.stringify(post.revisions),
+        JSON.stringify(post.metrics_snapshots),
+        post.created_at,
+        post.updated_at
+    ];
+}
+
+function readLedgerFile(filePath) {
+    if (!fs.existsSync(filePath)) return [];
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed.posts)) return parsed.posts;
+    return [];
+}
+
+export function summarizeSnsPosts(posts) {
+    const byStatus = {};
+    for (const status of STATUSES) byStatus[status] = 0;
+    for (const post of posts) {
+        byStatus[post.status] = (byStatus[post.status] || 0) + 1;
+    }
+    return {
+        total: posts.length,
+        by_status: byStatus,
+        review_needed: byStatus.review_needed,
+        scheduled: byStatus.scheduled,
+        posted: byStatus.posted,
+        learning_ready: byStatus.learning_ready
+    };
+}
+
+export { STATUSES as SNS_POST_STATUSES };

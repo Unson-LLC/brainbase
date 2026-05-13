@@ -18,8 +18,15 @@ implementation_files:
   - public/modules/pages/sns-growth-page.js
   - public/modules/ui/views/sns-growth-cockpit-view.js
   - public/sns-growth.html
+  - server/routes/sns-growth.js
+  - server/services/sns/posting-ledger-repository.js
+  - server/sql/sns-posting-ledger-schema.sql
+  - scripts/import-sns-review-pack-to-ledger.js
 test_files:
   - tests/ui/views/sns-growth-cockpit-view.test.js
+  - tests/server/routes/sns-growth.test.js
+  - tests/sns/ops/import-sns-review-pack-to-ledger.test.js
+  - tests/sns/posting-ledger/posting-ledger-repository.test.js
   - tests/e2e/sns-growth-cockpit.spec.js
 ---
 
@@ -212,6 +219,27 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - Ship Calendar 上の insight banner は topic balance warning を表示してよい
 - **error cases**:
   - 0件: empty week と action to Direct AI / Review Desk を出す
+
+### Contract-6b: SNS Posting Ledger Live Backend Contract
+
+- **input**:
+  - `/ohayo` review pack JSON
+  - `date`, `slot_index`, `lane`, `body`, `source_url`, `persona_brain`, `graph_check`, `quality_gate`
+- **output**:
+  - `GET /api/sns-growth/posts` returns posts and status summary for a date range
+  - `POST /api/sns-growth/review-pack` idempotently creates or updates posts by account/date/slot
+  - `PATCH /api/sns-growth/posts/:id` stores body edits, memo, status transitions, posted URL, metrics snapshot
+- **preconditions**:
+  - production durable store uses PostgreSQL when `SNS_POSTING_LEDGER_DATABASE_URL` is configured
+  - local fallback may use JSON file persistence for UI/runtime verification
+- **postconditions**:
+  - Peer Circle and News posts preserve source type and source URL
+  - invalid status transitions return an error before mutation
+  - Graph SSOT is not mutated by Ledger writes
+- **error cases**:
+  - invalid draft payload returns 400
+  - invalid status transition returns 409
+  - missing post id returns 404
 
 ### Contract-6a: Ship Calendar Visual Slice Contract
 

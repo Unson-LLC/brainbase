@@ -13,7 +13,8 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const MIGRATIONS = [
     'server/sql/candidate-store-schema.sql',
-    'server/sql/integration-accounts-schema.sql'
+    'server/sql/integration-accounts-schema.sql',
+    'server/sql/sns-posting-ledger-schema.sql'
 ];
 
 function databaseConfig() {

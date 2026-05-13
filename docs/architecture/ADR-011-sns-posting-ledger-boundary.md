@@ -105,6 +105,14 @@ raw metrics は Graph に直接書き込まない。
 
 MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は後続の execution layer とし、その場合も同じ Ledger を通す。
 
+## 実装フェーズ
+
+2026-05-13 の実装では、production path として `SNS_POSTING_LEDGER_DATABASE_URL` による PostgreSQL repository を用意する。
+
+ローカル検証や tunnel / DB 未設定時の UI 動作確認では、同じ repository contract の JSON file fallback を許容する。これは operational fallback であり、Graph SSOT への保存や本番 durable store の代替ではない。
+
+schema migration は `server/sql/sns-posting-ledger-schema.sql` を通す。既存 M5-A migration runner は candidate-store / integration accounts / SNS Posting Ledger schema を同一 transaction で適用する。
+
 ## インフラ判断
 
 Ledger は既存 Lightsail PostgreSQL infrastructure を使う。

@@ -1,4 +1,5 @@
 import path from 'path';
+import { Pool } from 'pg';
 import { createTaskRouter } from '../routes/tasks.js';
 import { createStateRouter } from '../routes/state.js';
 import { createConfigRouter } from '../routes/config.js';
@@ -15,6 +16,23 @@ import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
+import { createSnsGrowthRouter } from '../routes/sns-growth.js';
+import {
+    JsonFileSnsPostingLedgerRepository,
+    PgSnsPostingLedgerRepository
+} from '../services/sns/posting-ledger-repository.js';
+
+function createSnsPostingLedgerRepository(runtimePaths) {
+    const databaseUrl = process.env.SNS_POSTING_LEDGER_DATABASE_URL;
+    if (databaseUrl) {
+        return new PgSnsPostingLedgerRepository({
+            pool: new Pool({ connectionString: databaseUrl })
+        });
+    }
+    return new JsonFileSnsPostingLedgerRepository({
+        filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
+    });
+}
 
 export function registerApiRoutes(app, {
     taskParser,
@@ -84,6 +102,9 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+    app.use('/api/sns-growth', createSnsGrowthRouter({
+        repository: createSnsPostingLedgerRepository(runtimePaths)
+    }));
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
