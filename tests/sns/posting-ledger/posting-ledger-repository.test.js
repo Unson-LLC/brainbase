@@ -138,7 +138,7 @@ describe('PgSnsPostingLedgerRepository', () => {
                             account_id: params[1],
                             account_handle: params[2],
                             platform: params[3],
-                            date: params[4],
+                            date: new Date(2026, 4, 18),
                             slot_index: params[5],
                             time: params[6],
                             title: params[7],
@@ -177,6 +177,7 @@ describe('PgSnsPostingLedgerRepository', () => {
         });
 
         expect(result.created).toHaveLength(1);
+        expect(result.created[0].date).toBe('2026-05-18');
         expect(result.created[0].source.type).toBe('Peer Circle');
         expect(result.created[0].source.url).toBe('https://x.com/near/status/1');
         expect(result.created[0].evidence.persona_brain.target_person).toContain('AI導入');

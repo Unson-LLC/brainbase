@@ -109,9 +109,13 @@ MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す�
 
 2026-05-13 の実装では、production path として `SNS_POSTING_LEDGER_DATABASE_URL` による PostgreSQL repository を用意する。
 
+`SNS_POSTING_LEDGER_DATABASE_URL` が未設定の場合、同じ Lightsail PostgreSQL infrastructure を指す `INFO_SSOT_DATABASE_URL` / `INFO_SSOT_DB_URL` を使う。generic `DATABASE_URL` は他ツール・別DBを指す可能性があるため、SNS Ledger / M5 migration の接続先としては dedicated URL と Info SSOT URL より低い優先度に置く。
+
 ローカル検証や tunnel / DB 未設定時の UI 動作確認では、同じ repository contract の JSON file fallback を許容する。これは operational fallback であり、Graph SSOT への保存や本番 durable store の代替ではない。
 
 schema migration は `server/sql/sns-posting-ledger-schema.sql` を通す。既存 M5-A migration runner は candidate-store / integration accounts / SNS Posting Ledger schema を同一 transaction で適用する。
+
+既存 production DB の一部 schema が先行導入済みで全体 migration が止まる場合は、`--only sns-posting-ledger` で SNS Posting Ledger schema だけを idempotent に適用してよい。
 
 ## インフラ判断
 
