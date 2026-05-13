@@ -18411,6 +18411,11 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     color: var(--sns-blue);
 }
 
+.status-approved {
+    background: rgba(47, 128, 255, 0.14);
+    color: var(--accent-color);
+}
+
 .status-posted {
     background: var(--sns-green-soft);
     color: var(--sns-green);
@@ -18419,6 +18424,11 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
 .status-learning-ready {
     background: var(--sns-learn-soft);
     color: var(--sns-learn);
+}
+
+.status-muted {
+    background: var(--surface-secondary);
+    color: var(--text-muted);
 }
 
 .sns-growth-detail {

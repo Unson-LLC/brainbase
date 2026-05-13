@@ -4,6 +4,98 @@ import { SnsGrowthCockpitView } from '../../../public/modules/ui/views/sns-growt
 
 describe('SnsGrowthCockpitView', () => {
     let container;
+    const posts = [
+        {
+            id: 'sns_20260513_1_trust_balance',
+            date: '2026-05-13',
+            time: '09:00',
+            title: '生産性を最大化する情報の流れ設計',
+            status: 'review_needed',
+            account_handle: '@AIBizNavigator',
+            lane: 'trust_balance',
+            body: 'チームの生産性を最大化するために、最も重要なのは情報の流れを整えること',
+            source: { type: 'Personal KG', url: 'https://brainbase.io/blog/information-flow' },
+            evidence: {
+                persona_brain: { target_person: 'AI導入を任されたPM' },
+                graph_check: { status: 'ok' },
+                quality_gate: { status: 'pass' },
+                reader_affect: '実務に置き換えやすい'
+            },
+            revisions: []
+        },
+        {
+            id: 'sns_20260513_2_peer',
+            date: '2026-05-13',
+            time: '15:00',
+            title: 'プロジェクトの成功率を上げる',
+            status: 'review_needed',
+            account_handle: '@AIBizNavigator',
+            lane: 'peer_circle',
+            body: 'これ、Claude Codeを会社で使う時も同じだと思ってる',
+            source: { type: 'Peer Circle', url: 'https://x.com/near/status/1' },
+            evidence: {
+                persona_brain: { target_person: 'AI導入を任されたPM' },
+                graph_check: { status: 'ok' },
+                quality_gate: { status: 'pass' },
+                reader_affect: '現場に接続しやすい'
+            },
+            revisions: []
+        },
+        {
+            id: 'sns_20260514_1_scheduled',
+            date: '2026-05-14',
+            time: '18:00',
+            title: '良い情報設計とは',
+            status: 'scheduled',
+            account_handle: '@AIBizNavigator',
+            lane: 'philosophy',
+            body: '良い情報設計とは、次の判断を速くするための文脈づくり',
+            source: { type: 'Personal KG' },
+            evidence: {
+                persona_brain: { target_person: 'AI導入を任されたPM' },
+                graph_check: { status: 'ok' },
+                quality_gate: { status: 'pass' },
+                reader_affect: '保存しやすい'
+            },
+            revisions: []
+        },
+        {
+            id: 'sns_20260514_2_posted',
+            date: '2026-05-14',
+            time: '21:00',
+            title: '投稿済みの学習候補',
+            status: 'posted',
+            account_handle: '@AIBizNavigator',
+            lane: 'learn_in_public',
+            body: '投稿済みの反応を学習に戻す',
+            source: { type: 'News' },
+            evidence: {
+                persona_brain: { target_person: 'AI導入を任されたPM' },
+                graph_check: { status: 'ok' },
+                quality_gate: { status: 'pass' },
+                reader_affect: '次の仮説につながる'
+            },
+            revisions: []
+        },
+        {
+            id: 'sns_20260515_1_learning',
+            date: '2026-05-15',
+            time: '09:00',
+            title: 'Learning Readyの投稿',
+            status: 'learning_ready',
+            account_handle: '@AIBizNavigator',
+            lane: 'learn_in_public',
+            body: '学習候補化する投稿',
+            source: { type: 'Personal KG' },
+            evidence: {
+                persona_brain: { target_person: 'AI導入を任されたPM' },
+                graph_check: { status: 'ok' },
+                quality_gate: { status: 'pass' },
+                reader_affect: '学習に戻せる'
+            },
+            revisions: []
+        }
+    ];
 
     beforeEach(() => {
         document.body.innerHTML = '<main id="root"></main>';
@@ -11,7 +103,7 @@ describe('SnsGrowthCockpitView', () => {
     });
 
     it('Brainbase loop navigation and Ship Calendar surface are rendered', () => {
-        const view = new SnsGrowthCockpitView();
+        const view = new SnsGrowthCockpitView({ posts, today: '2026-05-13' });
         view.mount(container);
 
         expect(container.textContent).toContain('今日');
@@ -22,11 +114,11 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.querySelector('.sns-growth-brand')?.getAttribute('href')).toBe('/');
         expect(container.querySelector('[data-nav-item="sns-growth"]')?.classList.contains('active')).toBe(true);
         expect(container.querySelector('.sns-growth-calendar-grid')).toBeTruthy();
-        expect(container.textContent).toContain('今週はX運用の話に寄りすぎ');
+        expect(container.textContent).toContain('SNS Posting Ledgerから');
     });
 
     it('INV-1: mobile decision inbox renders before the weekly calendar surface', () => {
-        const view = new SnsGrowthCockpitView();
+        const view = new SnsGrowthCockpitView({ posts, today: '2026-05-13' });
         view.mount(container);
 
         const inbox = container.querySelector('.sns-mobile-review-flow');
@@ -42,13 +134,13 @@ describe('SnsGrowthCockpitView', () => {
     });
 
     it('status summary cards and post status badges match the Ship Calendar contract', () => {
-        const view = new SnsGrowthCockpitView();
+        const view = new SnsGrowthCockpitView({ posts, today: '2026-05-13' });
         view.mount(container);
 
-        expect(container.querySelector('[data-summary-status="review_needed"]')?.textContent).toContain('3');
-        expect(container.querySelector('[data-summary-status="scheduled"]')?.textContent).toContain('8');
-        expect(container.querySelector('[data-summary-status="posted"]')?.textContent).toContain('12');
-        expect(container.querySelector('[data-summary-status="learning_ready"]')?.textContent).toContain('2');
+        expect(container.querySelector('[data-summary-status="review_needed"]')?.textContent).toContain('2');
+        expect(container.querySelector('[data-summary-status="scheduled"]')?.textContent).toContain('1');
+        expect(container.querySelector('[data-summary-status="posted"]')?.textContent).toContain('1');
+        expect(container.querySelector('[data-summary-status="learning_ready"]')?.textContent).toContain('1');
         expect(container.querySelector('.sns-status-chip.status-review-needed')).toBeTruthy();
         expect(container.querySelector('.sns-status-chip.status-scheduled')).toBeTruthy();
         expect(container.querySelector('.sns-status-chip.status-posted')).toBeTruthy();
@@ -56,11 +148,11 @@ describe('SnsGrowthCockpitView', () => {
     });
 
     it('selected post detail panel shows editable operational fields and collapsed evidence rows', () => {
-        const view = new SnsGrowthCockpitView();
+        const view = new SnsGrowthCockpitView({ posts, today: '2026-05-13' });
         view.mount(container);
 
         expect(container.textContent).toContain('ポストの詳細');
-        expect(container.textContent).toContain('bb_x_20250522_0900');
+        expect(container.textContent).toContain('sns_20260513_1_trust_balance');
         expect(container.querySelector('[data-detail-field="body"]')?.textContent).toContain('情報の流れ');
         expect(container.textContent).toContain('スケジュール日時');
         expect(container.textContent).toContain('承認する');
@@ -72,25 +164,66 @@ describe('SnsGrowthCockpitView', () => {
     });
 
     it('clicking a calendar post updates the selected detail panel', () => {
-        const view = new SnsGrowthCockpitView();
+        const view = new SnsGrowthCockpitView({ posts, today: '2026-05-13' });
         view.mount(container);
 
-        container.querySelector('[data-post-id="bb_x_20250521_1200"]')?.click();
+        container.querySelector('[data-post-id="sns_20260514_1_scheduled"]')?.click();
 
-        expect(container.querySelector('.sns-calendar-post.selected')?.getAttribute('data-post-id')).toBe('bb_x_20250521_1200');
-        expect(container.textContent).toContain('Personal KGの活用事例');
-        expect(container.textContent).toContain('bb_x_20250521_1200');
+        expect(container.querySelector('.sns-calendar-post.selected')?.getAttribute('data-post-id')).toBe('sns_20260514_1_scheduled');
+        expect(container.textContent).toContain('良い情報設計とは');
+        expect(container.textContent).toContain('sns_20260514_1_scheduled');
     });
 
     it('S-2: clicking a mobile decision card updates the selected detail panel', () => {
-        const view = new SnsGrowthCockpitView();
+        const view = new SnsGrowthCockpitView({ posts, today: '2026-05-13' });
         view.mount(container);
 
-        container.querySelector('[data-post-id="bb_x_20250522_1500"]')?.click();
+        container.querySelector('[data-post-id="sns_20260513_2_peer"]')?.click();
 
-        expect(container.querySelector('.sns-mobile-decision-card.selected')?.getAttribute('data-post-id')).toBe('bb_x_20250522_1500');
-        expect(container.querySelector('.sns-calendar-post.selected')?.getAttribute('data-post-id')).toBe('bb_x_20250522_1500');
+        expect(container.querySelector('.sns-mobile-decision-card.selected')?.getAttribute('data-post-id')).toBe('sns_20260513_2_peer');
+        expect(container.querySelector('.sns-calendar-post.selected')?.getAttribute('data-post-id')).toBe('sns_20260513_2_peer');
         expect(container.textContent).toContain('プロジェクトの成功率を上げる');
-        expect(container.textContent).toContain('bb_x_20250522_1500');
+        expect(container.textContent).toContain('sns_20260513_2_peer');
+    });
+
+    it('loads posts from the SNS Posting Ledger API when no fixture is injected', async () => {
+        const apiClient = {
+            listPosts: async ({ startDate, endDate }) => ({
+                range: { startDate, endDate },
+                posts: [posts[0]],
+                summary: { by_status: { review_needed: 1 } }
+            }),
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13' });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(container.textContent).toContain('生産性を最大化する情報の流れ設計');
+        expect(container.textContent).toContain('SNS Posting Ledgerから1件を表示中');
+    });
+
+    it('updates the selected post through the SNS Posting Ledger API', async () => {
+        const calls = [];
+        const apiClient = {
+            listPosts: async () => ({ posts }),
+            updatePost: async (id, patch) => {
+                calls.push({ id, patch });
+                return { post: { ...posts[0], ...patch, status: 'approved', revisions: [{ id: 'rev_1' }] } };
+            }
+        };
+        const view = new SnsGrowthCockpitView({ posts: [posts[0]], apiClient, today: '2026-05-13' });
+        view.mount(container);
+
+        container.querySelector('[data-detail-field="body"]').value = '会社で使うAIは、レビュー境界まで含めて設計する';
+        container.querySelector('[data-sns-action="approve"]')?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(calls[0].id).toBe('sns_20260513_1_trust_balance');
+        expect(calls[0].patch.status).toBe('approved');
+        expect(calls[0].patch.body).toContain('レビュー境界');
+        expect(container.textContent).toContain('approved');
     });
 });
