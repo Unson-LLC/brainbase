@@ -286,19 +286,53 @@ export class TimelineView extends BaseView {
         return `
             <span class="timeline-meta">
                 ${durationHtml}
-                ${this._renderAvatarStack(index, kind.className === 'review' ? 2 : 3)}
+                ${this._renderAvatarStack(event.attendees, index)}
             </span>
         `;
     }
 
-    _renderAvatarStack(seed = 0, count = 3) {
-        const names = ['佐', '田', '鈴', '山', '伊'];
-        const visible = names.slice(seed % names.length).concat(names).slice(0, Math.min(count, 3));
-        const avatars = visible.map((name, index) => (
-            `<span class="timeline-avatar avatar-tone-${(seed + index) % 5}" aria-hidden="true">${name}</span>`
-        )).join('');
-        const extra = count > 2 ? '<span class="timeline-extra">+2</span>' : '';
+    _renderAvatarStack(attendees = [], seed = 0) {
+        if (!Array.isArray(attendees) || attendees.length === 0) {
+            return '';
+        }
+
+        const participants = attendees
+            .filter(attendee => attendee?.responseStatus !== 'declined')
+            .filter(attendee => this._formatAttendeeLabel(attendee));
+        if (participants.length === 0) {
+            return '';
+        }
+
+        const visible = participants.slice(0, 3);
+        const avatars = visible.map((attendee, index) => {
+            const label = this._formatAttendeeLabel(attendee);
+            const initial = this._formatAttendeeInitial(label);
+            const tone = (seed + index) % 5;
+            return `<span class="timeline-avatar avatar-tone-${tone}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${escapeHtml(initial)}</span>`;
+        }).join('');
+        const extraCount = participants.length - visible.length;
+        const extra = extraCount > 0 ? `<span class="timeline-extra" aria-label="他${extraCount}人">+${extraCount}</span>` : '';
         return `<span class="timeline-avatar-stack" aria-label="参加者">${avatars}${extra}</span>`;
+    }
+
+    _formatAttendeeLabel(attendee) {
+        if (!attendee || typeof attendee !== 'object') {
+            return '';
+        }
+        const displayName = typeof attendee.displayName === 'string' ? attendee.displayName.trim() : '';
+        if (displayName) {
+            return displayName;
+        }
+        const email = typeof attendee.email === 'string' ? attendee.email.trim() : '';
+        if (!email) {
+            return '';
+        }
+        return email.split('@')[0] || email;
+    }
+
+    _formatAttendeeInitial(label) {
+        const first = Array.from(String(label || '').trim())[0];
+        return first ? first.toUpperCase() : '?';
     }
 
     _formatEventDuration(start, end) {

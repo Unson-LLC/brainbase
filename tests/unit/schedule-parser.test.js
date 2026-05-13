@@ -31,7 +31,10 @@ describe('ScheduleParser', () => {
                         title: '朝会',
                         source: 'google-calendar',
                         calendarId: 'primary',
-                        completed: false
+                        completed: false,
+                        attendees: [
+                            { email: 'sato@example.com', responseStatus: 'accepted' }
+                        ]
                     }
                 ])
             }
@@ -44,7 +47,10 @@ describe('ScheduleParser', () => {
         expect(schedule.items).toHaveLength(2);
         expect(schedule.items[0]).toEqual(expect.objectContaining({
             task: '朝会',
-            source: 'google-calendar'
+            source: 'google-calendar',
+            attendees: [
+                { email: 'sato@example.com', responseStatus: 'accepted' }
+            ]
         }));
         expect(schedule.items[1]).toEqual(expect.objectContaining({
             task: '開発'

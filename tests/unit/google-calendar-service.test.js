@@ -89,7 +89,22 @@ describe('GoogleCalendarService', () => {
                         id: 'evt-1',
                         summary: '定例MTG',
                         start: { dateTime: '2026-03-21T10:00:00+09:00' },
-                        end: { dateTime: '2026-03-21T11:00:00+09:00' }
+                        end: { dateTime: '2026-03-21T11:00:00+09:00' },
+                        attendees: [
+                            {
+                                email: 'sato@example.com',
+                                responseStatus: 'accepted',
+                                organizer: true
+                            },
+                            {
+                                displayName: '田中',
+                                email: 'tanaka@example.com',
+                                responseStatus: 'needsAction'
+                            },
+                            {
+                                responseStatus: 'accepted'
+                            }
+                        ]
                     },
                     {
                         id: 'evt-2',
@@ -114,7 +129,19 @@ describe('GoogleCalendarService', () => {
             title: '定例MTG',
             start: '10:00',
             end: '11:00',
-            calendarId: 'primary'
+            calendarId: 'primary',
+            attendees: [
+                {
+                    email: 'sato@example.com',
+                    responseStatus: 'accepted',
+                    organizer: true
+                },
+                {
+                    displayName: '田中',
+                    email: 'tanaka@example.com',
+                    responseStatus: 'needsAction'
+                }
+            ]
         }));
     });
 });

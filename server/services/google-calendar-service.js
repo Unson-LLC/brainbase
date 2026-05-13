@@ -28,6 +28,32 @@ function isDateOnly(value) {
     return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function cleanString(value) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeAttendee(rawAttendee) {
+    if (!rawAttendee || typeof rawAttendee !== 'object') {
+        return null;
+    }
+
+    const email = cleanString(rawAttendee.email);
+    const displayName = cleanString(rawAttendee.displayName);
+    if (!email && !displayName) {
+        return null;
+    }
+
+    const attendee = {};
+    if (email) attendee.email = email;
+    if (displayName) attendee.displayName = displayName;
+    if (cleanString(rawAttendee.responseStatus)) attendee.responseStatus = rawAttendee.responseStatus.trim();
+    if (rawAttendee.self) attendee.self = true;
+    if (rawAttendee.organizer) attendee.organizer = true;
+    if (rawAttendee.optional) attendee.optional = true;
+    if (rawAttendee.resource) attendee.resource = true;
+    return attendee;
+}
+
 function getNextDate(date) {
     const next = new Date(`${date}T00:00:00+09:00`);
     next.setDate(next.getDate() + 1);
@@ -220,8 +246,11 @@ export class GoogleCalendarService {
         const startValue = rawEvent?.start?.dateTime || rawEvent?.start?.date || rawEvent.startTime || rawEvent.start || null;
         const endValue = rawEvent?.end?.dateTime || rawEvent?.end?.date || rawEvent.endTime || rawEvent.end || null;
         const allDay = Boolean(rawEvent.allDay || isDateOnly(startValue));
+        const attendees = Array.isArray(rawEvent.attendees)
+            ? rawEvent.attendees.map(normalizeAttendee).filter(Boolean)
+            : [];
 
-        return {
+        const event = {
             id: `gcal:${calendarId}:${id || `${title}:${startValue || 'all-day'}`}`,
             title,
             start: allDay ? null : formatTimeFromRfc3339(startValue, this.timeZone),
@@ -231,6 +260,12 @@ export class GoogleCalendarService {
             calendarId,
             completed: false
         };
+
+        if (attendees.length > 0) {
+            event.attendees = attendees;
+        }
+
+        return event;
     }
 
     _getSetupCommands() {

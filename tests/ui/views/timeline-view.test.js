@@ -184,8 +184,38 @@ describe('TimelineView', () => {
             expect(container.innerHTML).toContain('timeline-source-badge');
             expect(container.querySelector('.timeline-kind-badge')?.textContent).toBe('会議');
             expect(container.querySelector('.timeline-meta')).toBeTruthy();
-            expect(container.querySelectorAll('.timeline-avatar').length).toBeGreaterThan(0);
+            expect(container.querySelectorAll('.timeline-avatar')).toHaveLength(0);
             expect(container.querySelector('.is-google-calendar')).toBeTruthy();
+        });
+
+        it('should render attendee avatars from google calendar attendees', () => {
+            const mockEvents = [
+                {
+                    id: 'gcal:primary:1',
+                    start: '10:00',
+                    end: '11:00',
+                    title: 'Google Meeting',
+                    source: 'google-calendar',
+                    attendees: [
+                        { displayName: '佐藤', email: 'sato@example.com', responseStatus: 'accepted' },
+                        { email: 'tanaka@example.com', responseStatus: 'needsAction' },
+                        { displayName: '山田', email: 'yamada@example.com', responseStatus: 'accepted' },
+                        { displayName: '辞退者', email: 'declined@example.com', responseStatus: 'declined' },
+                        { email: 'ito@example.com', responseStatus: 'accepted' }
+                    ]
+                }
+            ];
+            mockScheduleService.getEvents.mockReturnValue(mockEvents);
+
+            timelineView.render();
+
+            const avatars = container.querySelectorAll('.timeline-avatar');
+            expect(avatars).toHaveLength(3);
+            expect(avatars[0].textContent).toBe('佐');
+            expect(avatars[0].getAttribute('title')).toBe('佐藤');
+            expect(avatars[1].textContent).toBe('T');
+            expect(container.querySelector('.timeline-extra')?.textContent).toBe('+1');
+            expect(container.textContent).not.toContain('辞');
         });
     });
 
