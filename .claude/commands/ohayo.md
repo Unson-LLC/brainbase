@@ -185,11 +185,14 @@ SNS運用は `/ohayo` に寄せる。毎朝、週次編集カレンダーを前�
 
 ```bash
 cd /Users/ksato/workspace/code/brainbase
+TODAY=$(date +%F)
 npm run sns:ohayo-brief -- \
-  --date "$(date +%F)" \
+  --date "$TODAY" \
   --since 1d \
   --max-results 10 \
   --limit 5
+
+npm run sns:import-review-pack -- --date "$TODAY"
 ```
 
 出力:
@@ -198,6 +201,7 @@ npm run sns:ohayo-brief -- \
 |---|---|
 | 人間レビュー用brief | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
 | weekly pack投入用signals | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
+| UI用SNS Posting Ledger | `POST /api/sns-growth/review-pack` 経由で `GET /api/sns-growth/posts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` に反映 |
 
 扱い:
 
@@ -206,6 +210,9 @@ npm run sns:ohayo-brief -- \
 - APIの `quote_tweet_id` は使わず、本物の引用UIまたは通常投稿末尾の元URLで扱う
 - `Persona Affect: blocked` が1件でもあれば、その本文は投稿対象にしない
 - 投稿本文に「少し上の人に絡む」「相手の読者に入る」など運用意図を書かない
+- `sns:import-review-pack` は生成済み review pack を SNS Posting Ledger へ取り込むだけで、X/Slack等への投稿は行わない
+- Ledger import 後、可能なら `GET /api/sns-growth/posts?startDate=$TODAY&endDate=$TODAY` で件数を確認し、HTMLレポートの SNS item に `created` / `updated` / UI表示件数を載せる
+- Ledger import が失敗した場合は、SNS投稿候補を 0 件として扱わず「SNS Ledger未投入」として HTML レポートとブリーフィングに明記する
 - 投稿は manual review only。`/ohayo` では投稿実行しない
 
 ## HTML Report
@@ -227,6 +234,6 @@ HTML内のボタンはAIに渡す構造化指示だけを生成する。Slack投
 
 | コマンド | 役割 |
 |---|---|
-| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、blocked 件数、SNS当日briefを朝に必ず見える化 |
+| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、blocked 件数、SNS当日briefとPosting Ledger取り込みを朝に必ず見える化 |
 | `/oyasumi` | 日次整理: 当日分を fix/retry/task 化し、SNS反応を学習に戻す |
 | `/retro` | 週次棚卸し: 残った blocked とSNS勝ち筋を Learn/Block としてエスカレーション |
