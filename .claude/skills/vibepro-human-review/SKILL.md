@@ -7,23 +7,24 @@ description: Use when reviewing VibePro PR preparation artifacts, deciding wheth
 
 ## Purpose
 
-Use this Skill when a human or AI reviewer needs to interpret VibePro PR artifacts. The review cockpit is the first screen; JSON remains the source of truth.
+Use this Skill when a human or AI reviewer needs to interpret VibePro PR artifacts. `pr-prepare.json` is the readiness source of truth; the review cockpit is the human control plane.
 
 ## Review Order
 
-1. Open `.vibepro/pr/<story-id>/review-cockpit.html`.
-2. Read the recommended decision and reason.
-3. Check unresolved Gates and required evidence.
-4. Check split lanes and Graphify investigation scope.
-5. Review next commands and confirm they use `vibepro pr create`.
-6. Copy `human-review.json`, fill the review record, and keep it as the human decision artifact.
+1. Read `.vibepro/pr/<story-id>/pr-prepare.json` `gate_status`.
+2. Confirm `gate_status.overall_status`, `ready_for_pr_create`, unresolved Gates, and critical unresolved Gates.
+3. Open `.vibepro/pr/<story-id>/review-cockpit.html`.
+4. Read the recommended decision and reason.
+5. Check split lanes and Graphify investigation scope.
+6. Review next commands and confirm they use `vibepro pr create`.
+7. Copy `human-review.json`, fill the review record, and keep it as the human decision artifact.
 
 ## Decision Rules
 
-- `proceed`: Use only when required Gates are complete and the split-plan does not require separation.
+- `proceed`: Use only when `gate_status.ready_for_pr_create=true`, `gate_status.overall_status=ready_for_review`, and the split-plan does not require separation.
 - `split_pr`: Use when scope is broad, repo-control files are mixed in, or split-plan recommends lanes.
 - `add_evidence`: Use when required Gates need test, typecheck, integration, E2E, or requirement evidence.
-- `waive_with_reason`: Use only with a specific reason. The reason must explain why unresolved Gates are acceptable.
+- `waive_with_reason`: Use only with a specific reason for non-critical unresolved Gates. Critical unresolved Gates cannot be approved by reason alone.
 - `block`: Use when Story, Architecture, Spec, security, or Gate evidence is contradictory or insufficient.
 
 ## Required Record
@@ -39,6 +40,7 @@ Fill these fields in `human-review.json`:
 ## Guardrails
 
 - Do not treat `review-cockpit.html` as machine-readable truth; use the JSON sidecar.
+- Do not treat `scope.status=reviewable` as completion approval. It is PR size/scope guidance only.
 - Do not approve a PR only from the PR body. The cockpit and Gate DAG are the review control plane.
 - Do not use raw `gh pr create`; it bypasses VibePro Gate enforcement and waiver recording.
 - If a waiver is chosen, include the exact waiver reason in `vibepro pr create --allow-needs-verification --verification-waiver <reason>`.

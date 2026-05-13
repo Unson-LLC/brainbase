@@ -20,7 +20,8 @@ Use this Skill when VibePro is driving a refactor. The goal is to find and fix c
    - `vibepro task brief|plan|handoff <repo> --task <task-id> --id <story-id>`
 5. Implement with focused tests. Prefer small changes tied to the task target files.
 6. Run project verification and then `vibepro pr prepare`.
-7. Use the review cockpit to decide whether to proceed, split, add evidence, waive with reason, or block.
+7. Read `pr-prepare.json` `gate_status` before treating the work as PR-ready.
+8. Use the review cockpit to decide whether to proceed, split, add evidence, waive with reason, or block.
 
 ## Refactor Target Criteria
 
@@ -38,7 +39,9 @@ Prioritize candidates that VibePro surfaces as:
 - Do not refactor only because code looks untidy. Tie the work to Story value and evidence.
 - Do not widen scope after `task handoff` unless `pr prepare` confirms the scope remains reviewable.
 - Do not mix repo-control changes, requirement SSOT recovery, runtime behavior, and E2E gate fixes unless the split-plan allows it.
-- Do not merge or create a PR while required Gates are unresolved unless `waive_with_reason` is explicitly recorded.
+- Do not treat `scope.status=reviewable` as completion approval. It is PR size/scope guidance only.
+- Do not merge or create a PR unless `gate_status.ready_for_pr_create=true` and `gate_status.overall_status=ready_for_review`.
+- Do not waive critical unresolved Gates with a reason alone. Critical Gates require evidence closure or a split/block decision.
 
 ## Completion Check
 
@@ -46,6 +49,7 @@ Before calling the work done:
 
 - Story / Architecture / Spec relationship is clear.
 - Tests or verification evidence exists for changed behavior.
+- `pr-prepare.json` `gate_status.ready_for_pr_create` is true.
 - `review-cockpit.html` has a clear recommended decision.
 - `human-review.json` can record the human decision.
 - `vibepro pr create` is the PR creation path.
