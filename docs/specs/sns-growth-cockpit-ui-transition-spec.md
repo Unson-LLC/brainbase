@@ -31,7 +31,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 
 初期画面の主役は `Today｜今日の運用判断` である。Ship Calendar は「いつ何が出るか」「どの状態か」を見る実務画面として成立させるが、SNS Growth の入口そのものにはしない。
 
-2026-05-13 時点の light admin UI image は、`Ship Calendar` 画面の visual direction として扱う。左 navigation、週カレンダー、右 detail panel、status summary は採用する。ただし `Today` 初期画面の visual direction ではない。
+2026-05-13 時点の Ship Calendar image は、`Ship Calendar` 画面の layout direction として扱う。左 navigation、週カレンダー、右 detail panel、status summary は採用する。ただし visual treatment は Brainbase 本体の dark command surface に合わせる。`Today` 初期画面の visual direction ではない。
 
 ## Invariants
 
@@ -53,6 +53,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - 検証: API / repository test で Learning action が Graph writer を呼ばないこと。
 - **INV-8**: Brainbase sidebar は `今日 / 脳 / 作る / 動かす / 学ぶ / システム` の operating loop を表現し、SNS Growth は `作る` に属する。
   - 検証: E2E で sidebar group labels と `SNS Growth` active state が表示されること。
+- **INV-9**: SNS Growth の色・タイポ・border・surface density は Brainbase 本体の design tokens (`--bg-*`, `--surface-*`, `--text-*`, `--accent-color`, `--font-sans`) を使い、白い standalone admin app に見せない。
+  - 検証: CSS review で SNS Growth 固有 palette が Brainbase token を参照し、body が dark command surface と同じ背景/文字体系を使うこと。
 
 ## Contracts
 
@@ -212,7 +214,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - accepted Ship Calendar visual direction
   - Brainbase activity bar entry
 - **output**:
-  - `/sns-growth.html` renders a light admin Ship Calendar page
+  - `/sns-growth.html` renders a Brainbase-aligned dark Ship Calendar page
   - Brainbase loop navigation is visible
   - selected post detail panel shows body, source URL, schedule datetime, status action controls, and collapsed evidence rows
 - **preconditions**:
