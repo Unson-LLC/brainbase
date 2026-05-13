@@ -284,8 +284,11 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - learning_ready post または posted post がある
 - **postconditions**:
   - learning は Graph へ直書きされず candidate-store に送られる
+  - SNS Posting Ledger の `learning_candidate_id` に作成済み candidate id が戻される
+  - candidate-store draft の `source_system` は `sns-feedback`、`source_event_ids` は `sns-post:<ledger_post_id>` で重複防止される
 - **error cases**:
   - metrics unavailable: manual observation note で candidate 化できる
+  - posted URL または metrics snapshot がない投稿は candidate-store handoff しない
 
 ## Scenarios
 

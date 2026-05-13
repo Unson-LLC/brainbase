@@ -105,6 +105,8 @@ raw metrics は Graph に直接書き込まない。
 
 MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は後続の execution layer とし、その場合も同じ Ledger を通す。
 
+`/oyasumi` の SNS feedback handoff は、`learning_ready` の Ledger record から candidate-store に `source_system=sns-feedback` の `observation` candidate を作る。raw metrics や reader reaction は `permission_snapshot.sns` に snapshot として保持し、Graph へは直接書き込まない。作成した candidate id は Ledger の `learning_candidate_id` に戻す。
+
 ## 実装フェーズ
 
 2026-05-13 の実装では、production path として `SNS_POSTING_LEDGER_DATABASE_URL` による PostgreSQL repository を用意する。

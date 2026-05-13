@@ -61,6 +61,23 @@ SNS運用の夜処理も `/oyasumi` に寄せる。今日投稿したものを�
 mkdir -p /Users/ksato/workspace/shared/_codex/sns/x/ops/feedback
 ```
 
+SNS Posting Ledger に投稿済みURLと反応数値を戻せる場合は、feedback markdown だけで終わらせず、次の script で Ledger → candidate-store の handoff まで進める。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+npm run sns:feedback-learning -- \
+  --post-id <sns_posting_ledger_post_id> \
+  --posted-url <https://x.com/.../status/...> \
+  --metrics-json '{"impressions":0,"likes":0,"replies":0,"reposts":0,"bookmarks":0}' \
+  --learning-ready
+```
+
+複数投稿をまとめて candidate 化する場合:
+
+```bash
+npm run sns:feedback-learning -- --date YYYY-MM-DD
+```
+
 `/Users/ksato/workspace/shared/_codex/sns/x/ops/feedback/YYYY-MM-DD.md` に以下を残す:
 
 - posted_url

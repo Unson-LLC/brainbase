@@ -45,6 +45,76 @@ CREATE TABLE IF NOT EXISTS memory_candidates (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 2026-05 compatibility upgrade:
+-- Early production deployments used subject_type/subject_id/memory columns.
+-- Keep those columns if present, but add the candidate-store-mvp contract columns
+-- required by PgCandidateRepository without rewriting existing records.
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS cognitive_type TEXT;
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS org_ids TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS project_ids TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS team_id TEXT;
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS agency_level TEXT NOT NULL DEFAULT 'synthesize';
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS recommended_subject_type TEXT;
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS promoted_graph_entity_id TEXT;
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS body TEXT;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'memory_candidates'
+      AND column_name = 'subject_type'
+  ) THEN
+    UPDATE memory_candidates
+    SET cognitive_type = CASE
+      WHEN subject_type IN ('observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result') THEN subject_type
+      ELSE 'observation'
+    END
+    WHERE cognitive_type IS NULL;
+  ELSE
+    UPDATE memory_candidates
+    SET cognitive_type = 'observation'
+    WHERE cognitive_type IS NULL;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'memory_candidates'
+      AND column_name = 'memory'
+  ) THEN
+    UPDATE memory_candidates
+    SET body = COALESCE(
+      body,
+      memory->>'body',
+      memory->>'text',
+      memory::text
+    )
+    WHERE body IS NULL;
+  ELSE
+    UPDATE memory_candidates
+    SET body = COALESCE(body, '[legacy candidate body missing]')
+    WHERE body IS NULL;
+  END IF;
+END $$;
+
+ALTER TABLE memory_candidates ALTER COLUMN cognitive_type SET NOT NULL;
+ALTER TABLE memory_candidates ALTER COLUMN body SET NOT NULL;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'memory_candidates'
+      AND column_name = 'subject_type'
+      AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE memory_candidates ALTER COLUMN subject_type DROP NOT NULL;
+  END IF;
+END $$;
+
 -- INV-10: 同一 source_event の重複 candidate を防ぐ
 CREATE UNIQUE INDEX IF NOT EXISTS memory_candidates_unique_source
   ON memory_candidates (source_system, owner_person_id, (source_event_ids::text));
