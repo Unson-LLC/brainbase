@@ -28,6 +28,7 @@ describe('setupPanelLayout', () => {
             <button id="ab-sessions-btn"></button>
             <button id="ab-portal-btn"></button>
             <button id="ab-sns-growth-btn"></button>
+            <button id="mobile-sns-growth-btn"></button>
             <button id="ab-tasks-btn"></button>
             <aside id="info-drawer"></aside>
             <button class="info-drawer-tab" data-tab="tasks"></button>
@@ -129,6 +130,7 @@ describe('setupPanelLayout', () => {
         expect(document.getElementById('sns-growth-overlay')?.classList.contains('open')).toBe(true);
         expect(document.getElementById('portal-overlay')?.classList.contains('open')).toBe(false);
         expect(document.getElementById('ab-sns-growth-btn')?.classList.contains('active')).toBe(true);
+        expect(document.getElementById('mobile-sns-growth-btn')?.classList.contains('active')).toBe(true);
         expect(document.getElementById('ab-sessions-btn')?.classList.contains('active')).toBe(false);
         expect(document.body.classList.contains('sns-growth-mode-active')).toBe(true);
 
@@ -137,6 +139,7 @@ describe('setupPanelLayout', () => {
         expect(document.getElementById('terminal-stage')?.style.display).toBe('');
         expect(document.getElementById('sns-growth-overlay')?.classList.contains('open')).toBe(false);
         expect(document.getElementById('ab-sns-growth-btn')?.classList.contains('active')).toBe(false);
+        expect(document.getElementById('mobile-sns-growth-btn')?.classList.contains('active')).toBe(false);
         expect(document.getElementById('ab-sessions-btn')?.classList.contains('active')).toBe(true);
         expect(document.body.classList.contains('sns-growth-mode-active')).toBe(false);
 

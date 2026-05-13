@@ -107,8 +107,13 @@ export class SnsGrowthCockpitView extends BaseView {
         this._clickHandler = (event) => {
             const postButton = event.target.closest?.('[data-post-id]');
             if (!postButton) return;
+            const shouldRevealMobileDetail = postButton.classList.contains('sns-mobile-decision-card')
+                && window.matchMedia?.('(max-width: 768px)').matches;
             this.selectedPostId = postButton.getAttribute('data-post-id');
             this.render();
+            if (shouldRevealMobileDetail) {
+                this.container?.querySelector('.sns-growth-detail')?.scrollIntoView({ block: 'start' });
+            }
         };
     }
 
@@ -122,6 +127,7 @@ export class SnsGrowthCockpitView extends BaseView {
                     ${this._renderTopbar()}
                     <div class="sns-growth-content">
                         <div class="sns-growth-calendar-pane">
+                            ${this._renderMobileDecisionInbox()}
                             ${this._renderHeader()}
                             ${this._renderSummary()}
                             ${this._renderInsight()}
@@ -256,6 +262,77 @@ export class SnsGrowthCockpitView extends BaseView {
                 <button type="button">詳細を確認</button>
             </section>
         `;
+    }
+
+    _renderMobileDecisionInbox() {
+        const todayPosts = this.posts.filter(post => post.day === 'thu');
+        const statusCounts = {
+            review_needed: todayPosts.filter(post => post.status === 'review_needed').length,
+            scheduled: todayPosts.filter(post => post.status === 'scheduled').length,
+            posted: todayPosts.filter(post => post.status === 'posted').length
+        };
+
+        return `
+            <section class="sns-mobile-review-flow" aria-label="今日のSNS判断Inbox">
+                <header class="sns-mobile-review-header">
+                    <div>
+                        <span class="sns-mobile-kicker">Today</span>
+                        <h1>今日のSNS判断</h1>
+                        <p>止まっている投稿だけを確認して、承認・修正指示・スキップまで流す。</p>
+                    </div>
+                    <button class="sns-mobile-filter-btn" type="button" aria-label="フィルター">
+                        <i data-lucide="sliders-horizontal"></i>
+                    </button>
+                </header>
+                <div class="sns-mobile-status-strip" aria-label="today status summary">
+                    <span><b>${statusCounts.review_needed}</b>レビュー</span>
+                    <span><b>${statusCounts.scheduled}</b>予約済み</span>
+                    <span><b>${statusCounts.posted}</b>投稿済み</span>
+                </div>
+                <div class="sns-mobile-decision-list">
+                    ${todayPosts.map(post => this._renderMobileDecisionCard(post)).join('')}
+                </div>
+                <div class="sns-mobile-calendar-entry">
+                    <span>カレンダーは補助ビュー</span>
+                    <button type="button">今週を見る <i data-lucide="chevron-right"></i></button>
+                </div>
+            </section>
+        `;
+    }
+
+    _renderMobileDecisionCard(post) {
+        const selected = post.id === this.selectedPostId;
+        const sourceType = this._sourceLabel(post.sourceIcon);
+        const rationale = post.rationale || this._defaultRationale(post);
+        return `
+            <button class="sns-mobile-decision-card ${selected ? 'selected' : ''}" data-post-id="${escapeHtml(post.id)}" type="button">
+                <span class="sns-mobile-decision-topline">
+                    <strong>${escapeHtml(post.time)}</strong>
+                    ${this._renderStatus(post.status)}
+                </span>
+                <span class="sns-mobile-decision-title">${escapeHtml(post.title)}</span>
+                <span class="sns-mobile-decision-rationale">${escapeHtml(rationale)}</span>
+                <span class="sns-mobile-decision-meta">
+                    <em>${escapeHtml(sourceType)}</em>
+                    <em>Persona OK</em>
+                    <em>Graph OK</em>
+                </span>
+            </button>
+        `;
+    }
+
+    _sourceLabel(icon) {
+        if (icon === 'x') return 'Quote RP';
+        if (icon === 'linkedin') return 'Peer Circle';
+        if (icon === 'doc') return 'Personal KG';
+        return 'Source';
+    }
+
+    _defaultRationale(post) {
+        if (post.status === 'review_needed') return '読者の気持ちに合うかだけ確認する';
+        if (post.status === 'scheduled') return '予約済み。文脈だけ最終確認する';
+        if (post.status === 'posted') return '投稿済み。学習候補にするか見る';
+        return '今日の運用判断に接続する';
     }
 
     _renderCalendar() {

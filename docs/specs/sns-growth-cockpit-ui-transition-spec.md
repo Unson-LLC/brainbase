@@ -7,10 +7,12 @@ story_id: story-sns-posting-cockpit
 related_adrs:
   - ADR-011
   - ADR-012
+  - ADR-013
 related_specs:
   - SPEC-sns-persona-brain-gate
   - SPEC-personal-kg-sns-seed-mvp
   - SPEC-sns-growth-cockpit-wireframe-v0
+  - SPEC-sns-mobile-review-flow
 implementation_files:
   - public/modules/app/plugin-registration-mixin.js
   - public/modules/pages/sns-growth-page.js
@@ -85,6 +87,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - Brainbase Home の `SNS Growth` entry は `window.location.href` ではなく `panel-layout-manager` の workspace overlay を開く
   - `abSessionsBtn` または `Back to Terminal` で SNS Growth overlay を閉じ、Terminal / Sessions context に戻れる
   - `abSessionsBtn` は既存どおり panel layout の全 panel を閉じ、session list / terminal context を primary surface に戻す
+  - mobile bottom navigation の `SNS` entry は `panel-layout-manager` 経由で同じ `sns-growth-overlay` を開き、`/sns-growth.html` へ遷移しない
+  - mobile viewport では初期surfaceを `今日のSNS判断` inbox とし、weekly calendar grid は主表示にしない
   - `abPortalBtn`, `workspaceModeTerminalBtn`, `workspaceModePortalBtn`, `portalBackTerminalBtn` は既存どおり Portal overlay と Terminal surface を切り替える
   - file viewer close flow の `targetSessionId` は既存どおり closed session または current session の active file/root override を消し、必要な場合だけ対象 session に戻す
 - **error cases**:

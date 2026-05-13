@@ -25,6 +25,22 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.textContent).toContain('今週はX運用の話に寄りすぎ');
     });
 
+    it('INV-1: mobile decision inbox renders before the weekly calendar surface', () => {
+        const view = new SnsGrowthCockpitView();
+        view.mount(container);
+
+        const inbox = container.querySelector('.sns-mobile-review-flow');
+        const calendar = container.querySelector('.sns-growth-calendar-grid');
+
+        expect(inbox).toBeTruthy();
+        expect(inbox.compareDocumentPosition(calendar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(inbox?.textContent).toContain('今日のSNS判断');
+        expect(inbox?.textContent).toContain('レビュー');
+        expect(inbox?.textContent).toContain('予約済み');
+        expect(inbox?.textContent).toContain('投稿済み');
+        expect(container.querySelectorAll('.sns-mobile-decision-card').length).toBeGreaterThan(0);
+    });
+
     it('status summary cards and post status badges match the Ship Calendar contract', () => {
         const view = new SnsGrowthCockpitView();
         view.mount(container);
@@ -64,5 +80,17 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.querySelector('.sns-calendar-post.selected')?.getAttribute('data-post-id')).toBe('bb_x_20250521_1200');
         expect(container.textContent).toContain('Personal KGの活用事例');
         expect(container.textContent).toContain('bb_x_20250521_1200');
+    });
+
+    it('S-2: clicking a mobile decision card updates the selected detail panel', () => {
+        const view = new SnsGrowthCockpitView();
+        view.mount(container);
+
+        container.querySelector('[data-post-id="bb_x_20250522_1500"]')?.click();
+
+        expect(container.querySelector('.sns-mobile-decision-card.selected')?.getAttribute('data-post-id')).toBe('bb_x_20250522_1500');
+        expect(container.querySelector('.sns-calendar-post.selected')?.getAttribute('data-post-id')).toBe('bb_x_20250522_1500');
+        expect(container.textContent).toContain('プロジェクトの成功率を上げる');
+        expect(container.textContent).toContain('bb_x_20250522_1500');
     });
 });
