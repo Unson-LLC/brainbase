@@ -233,8 +233,8 @@ Ship Calendar は「いつ何が出るか」と「どの状態か」を管理す
 │                                │ Source URL                                  │
 │ ┌────┬────┬────┬────┬────┐     │ Schedule: 2025/05/22 09:00 JST             │
 │ │Mon │Tue │Wed │Thu │Fri │     │                                             │
-│ │9:00 posted ...        │     │ [承認する] [スケジュール] [投稿済みにする] │
-│ │12:00 scheduled ...    │     │ [スキップする]                             │
+│ │9:00 posted ...        │     │ [承認する] [スケジュール] [投稿確認]       │
+│ │12:00 scheduled ...    │     │ [Xに投稿] [スキップする]                   │
 │ │15:00 review ...       │     │                                             │
 │ │18:00 scheduled ...    │     │ Persona Brain  一致                        │
 │ │21:00 learning ...     │     │ Graph Check    異常なし                    │

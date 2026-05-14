@@ -14,6 +14,35 @@ function makeApp() {
     return { app, repository };
 }
 
+function makePublishingApp({ publishResult = { success: true, url: 'https://x.com/i/web/status/2055000000000000001' } } = {}) {
+    const repository = new InMemorySnsPostingLedgerRepository();
+    const app = express();
+    app.use(express.json());
+    const calls = [];
+    const publishService = {
+        async publishPost(postId, options) {
+            calls.push({ postId, options });
+            if (options.dry_run) {
+                const post = repository.findById(postId);
+                return { post, dry_run: true, publish_result: { dry_run: true, text: post.body } };
+            }
+            const current = repository.findById(postId);
+            let post = current;
+            if (post.status === 'approved') {
+                post = repository.updatePost(post.id, { status: 'scheduled' }, options.actor);
+            }
+            post = repository.updatePost(post.id, {
+                status: 'posted',
+                posted_url: publishResult.url,
+                posted_at: '2026-05-14T03:00:00.000Z'
+            }, options.actor);
+            return { post, publish_result: publishResult };
+        }
+    };
+    app.use('/api/sns-growth', createSnsGrowthRouter({ repository, publishService }));
+    return { app, repository, calls };
+}
+
 describe('sns-growth routes', () => {
     it('persists an ohayo review pack and lists it for the calendar range', async () => {
         const { app } = makeApp();
@@ -79,5 +108,52 @@ describe('sns-growth routes', () => {
         expect(res.body.post.status).toBe('approved');
         expect(res.body.post.body).toContain('レビュー境界');
         expect(res.body.post.revisions).toHaveLength(1);
+    });
+
+    it('dry-runs publishing without mutating the approved Ledger post', async () => {
+        const { app, repository, calls } = makePublishingApp();
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                date: '2026-05-14',
+                slot_index: 1,
+                lane: 'trust_balance',
+                body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める'
+            }]
+        });
+        const post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+
+        const res = await request(app)
+            .post(`/api/sns-growth/posts/${post.id}/publish`)
+            .send({ dry_run: true })
+            .expect(200);
+
+        expect(calls[0]).toMatchObject({ postId: post.id, options: { dry_run: true } });
+        expect(res.body.dry_run).toBe(true);
+        expect(res.body.post.status).toBe('approved');
+        expect(repository.findById(post.id).status).toBe('approved');
+    });
+
+    it('publishes a confirmed approved Ledger post and returns the posted URL', async () => {
+        const { app, repository, calls } = makePublishingApp();
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                date: '2026-05-14',
+                slot_index: 1,
+                lane: 'trust_balance',
+                body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める'
+            }]
+        });
+        const post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+
+        const res = await request(app)
+            .post(`/api/sns-growth/posts/${post.id}/publish`)
+            .send({ confirm_public_post: true })
+            .expect(200);
+
+        expect(calls[0].options.confirm_public_post).toBe(true);
+        expect(res.body.post.status).toBe('posted');
+        expect(res.body.post.posted_url).toBe('https://x.com/i/web/status/2055000000000000001');
     });
 });

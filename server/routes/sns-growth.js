@@ -38,7 +38,7 @@ function sendRouteError(res, error) {
     return res.status(500).json({ error: 'sns_growth_route_failed' });
 }
 
-export function createSnsGrowthRouter({ repository = null } = {}) {
+export function createSnsGrowthRouter({ repository = null, publishService = null } = {}) {
     const router = express.Router();
     const ledger = repository || new InMemorySnsPostingLedgerRepository();
 
@@ -71,6 +71,25 @@ export function createSnsGrowthRouter({ repository = null } = {}) {
                 ...result,
                 summary: summarizeSnsPosts(posts)
             });
+        } catch (error) {
+            sendRouteError(res, error);
+        }
+    });
+
+    router.post('/posts/:id/publish', async (req, res) => {
+        try {
+            if (!publishService) {
+                return res.status(503).json({
+                    error: 'SNS publish service unavailable',
+                    code: 'sns_publish_service_unavailable'
+                });
+            }
+            const result = await publishService.publishPost(req.params.id, {
+                actor: defaultActor(),
+                dry_run: req.body?.dry_run === true,
+                confirm_public_post: req.body?.confirm_public_post === true
+            });
+            res.json(result);
         } catch (error) {
             sendRouteError(res, error);
         }

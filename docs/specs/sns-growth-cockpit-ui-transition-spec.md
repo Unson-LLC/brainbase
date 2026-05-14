@@ -19,12 +19,14 @@ implementation_files:
   - public/modules/ui/views/sns-growth-cockpit-view.js
   - public/sns-growth.html
   - server/routes/sns-growth.js
+  - server/services/sns/sns-ledger-publish-service.js
   - server/services/sns/posting-ledger-repository.js
   - server/sql/sns-posting-ledger-schema.sql
   - scripts/import-sns-review-pack-to-ledger.js
 test_files:
   - tests/ui/views/sns-growth-cockpit-view.test.js
   - tests/server/routes/sns-growth.test.js
+  - tests/sns/publishing/sns-ledger-publish-service.test.js
   - tests/sns/ops/import-sns-review-pack-to-ledger.test.js
   - tests/sns/posting-ledger/posting-ledger-repository.test.js
   - tests/e2e/sns-growth-cockpit.spec.js
@@ -242,6 +244,33 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - invalid draft payload returns 400
   - invalid status transition returns 409
   - missing post id returns 404
+
+### Contract-6c: SNS Publish Execution Bridge Contract
+
+- **input**:
+  - SNS Posting Ledger post id
+  - publish mode: `dry_run=true` or `confirm_public_post=true`
+  - reviewed Ledger body and title
+- **output**:
+  - `POST /api/sns-growth/posts/:id/publish`
+  - dry-run result from the SNS post executor
+  - actual publish result with `posted_url`, `posted_at`, and `status=posted`
+- **preconditions**:
+  - public posting is an external side effect and must require `confirm_public_post=true`
+  - publishable statuses are `approved` and `scheduled`
+  - `review_needed`, `skipped`, `learning_ready`, and already `posted` records are not publishable
+  - dry-run may execute against the same body/title but must not mutate the Ledger
+  - the runtime executor may call `/Users/ksato/workspace/common/ops/scripts/sns_post.py`; UI/tests must inject a fake executor
+- **postconditions**:
+  - approved posts move through the allowed `approved -> scheduled -> posted` transition
+  - scheduled posts move through `scheduled -> posted`
+  - posted records preserve the returned X URL in `posted_url`
+  - Ledger write remains operational state; Graph SSOT is not mutated by publish execution
+- **error cases**:
+  - missing publish service returns 503
+  - missing explicit public confirmation returns 400
+  - invalid status returns 400
+  - executor result without posted URL returns 400
 
 ### Contract-6a: Ship Calendar Visual Slice Contract
 
