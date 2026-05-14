@@ -118,6 +118,23 @@ describe('SnsGrowthCockpitView', () => {
             revisions: []
         }
     ];
+    const accounts = [
+        {
+            id: 'acc_x_sato',
+            service: 'x',
+            display_name: 'Keigo Sato X',
+            external_handle: '@AIBizNavigator',
+            status: 'connected',
+            capabilities: ['post', 'read'],
+            credential_ref: {
+                provider: 'env',
+                path: 'SNS_X_ACCESS_TOKEN',
+                env: 'SNS_X_ACCESS_TOKEN',
+                env_present: true
+            },
+            defaults: { sns_posting: true, sns_metrics: true }
+        }
+    ];
 
     beforeEach(() => {
         document.body.innerHTML = '<main id="root"></main>';
@@ -218,6 +235,7 @@ describe('SnsGrowthCockpitView', () => {
                 posts: [posts[0]],
                 summary: { by_status: { review_needed: 1 } }
             }),
+            listAccounts: async () => ({ accounts }),
             updatePost: async () => ({ post: posts[0] })
         };
         const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13' });
@@ -227,6 +245,70 @@ describe('SnsGrowthCockpitView', () => {
 
         expect(container.textContent).toContain('生産性を最大化する情報の流れ設計');
         expect(container.textContent).toContain('SNS Posting Ledgerから1件を表示中');
+        expect(container.textContent).toContain('@AIBizNavigator');
+        expect(container.textContent).toContain('env ready');
+    });
+
+    it('renders account management status without leaking credential secrets', async () => {
+        const apiClient = {
+            listPosts: async () => ({ posts: [posts[0]] }),
+            listAccounts: async () => ({
+                accounts: [{
+                    ...accounts[0],
+                    credential_ref: {
+                        provider: 'env',
+                        path: 'SNS_X_ACCESS_TOKEN',
+                        env: 'SNS_X_ACCESS_TOKEN',
+                        env_present: true
+                    }
+                }]
+            }),
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13' });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(container.querySelector('.sns-account-strip')).toBeTruthy();
+        expect(container.textContent).toContain('X Account');
+        expect(container.textContent).toContain('connected');
+        expect(container.textContent).toContain('Posting default');
+        expect(container.textContent).toContain('Metrics default');
+        expect(container.textContent).toContain('SNS_X_ACCESS_TOKEN');
+        expect(container.textContent).not.toContain('secret-token');
+    });
+
+    it('runs an X account health check from the account strip', async () => {
+        const calls = [];
+        const apiClient = {
+            listPosts: async () => ({ posts: [posts[0]] }),
+            listAccounts: async () => ({ accounts }),
+            healthCheckAccount: async (id) => {
+                calls.push(id);
+                return {
+                    account: accounts[0],
+                    health: {
+                        ok: true,
+                        reason: null,
+                        rate_limit: { remaining: 299, resetAt: '2026-05-15T12:15:00.000Z' }
+                    }
+                };
+            },
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13' });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        container.querySelector('[data-account-action="health-check"]')?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(calls).toEqual(['acc_x_sato']);
+        expect(container.textContent).toContain('Health OK');
+        expect(container.textContent).toContain('299 left');
     });
 
     it('updates the selected post through the SNS Posting Ledger API', async () => {

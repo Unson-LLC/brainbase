@@ -117,6 +117,21 @@ function normalizePosts(posts) {
     })).filter((post) => post.id && post.date);
 }
 
+function normalizeAccounts(accounts) {
+    return (Array.isArray(accounts) ? accounts : []).map((account) => ({
+        id: account.id,
+        service: account.service || 'x',
+        display_name: account.display_name || account.external_handle || 'X Account',
+        external_handle: account.external_handle || '',
+        status: account.status || 'unknown',
+        capabilities: Array.isArray(account.capabilities) ? account.capabilities : [],
+        credential_ref: account.credential_ref || null,
+        defaults: account.defaults || {},
+        last_verified_at: account.last_verified_at || null,
+        updated_at: account.updated_at || null
+    })).filter((account) => account.id);
+}
+
 function summarize(posts) {
     const byStatus = {
         review_needed: 0,
@@ -149,31 +164,49 @@ function createDefaultApiClient() {
         },
         async recordFeedback(id, input) {
             return httpClient.post(`/api/sns-growth/posts/${encodeURIComponent(id)}/feedback`, input || {});
+        },
+        async listAccounts() {
+            return httpClient.get('/api/sns-growth/accounts');
+        },
+        async setDefaultAccount(id, input) {
+            return httpClient.post(`/api/sns-growth/accounts/${encodeURIComponent(id)}/default`, input || {});
+        },
+        async healthCheckAccount(id) {
+            return httpClient.post(`/api/sns-growth/accounts/${encodeURIComponent(id)}/health-check`, {});
         }
     };
 }
 
 export class SnsGrowthCockpitView extends BaseView {
-    constructor({ posts = null, apiClient = null, today = todayJst(), startDate = null, endDate = null } = {}) {
+    constructor({ posts = null, accounts = null, apiClient = null, today = todayJst(), startDate = null, endDate = null } = {}) {
         super();
         this.today = today;
         this.startDate = startDate || weekStart(today);
         this.endDate = endDate || addDays(this.startDate, 6);
         this.posts = normalizePosts(posts || []);
+        this.accounts = normalizeAccounts(accounts || []);
         this.selectedPostId = this.posts[0]?.id || null;
         this.apiClient = apiClient || createDefaultApiClient();
         this._autoLoad = posts == null;
+        this._autoLoadAccounts = accounts == null;
         this._clickHandler = null;
         this._changeHandler = null;
         this.isLoading = false;
+        this.isAccountLoading = false;
         this.errorMessage = '';
+        this.accountErrorMessage = '';
         this.noticeMessage = '';
+        this.accountNoticeMessage = '';
+        this.accountHealth = {};
     }
 
     mount(container) {
         super.mount(container);
         if (this._autoLoad) {
             this.loadPosts();
+        }
+        if (this._autoLoadAccounts) {
+            this.loadAccounts();
         }
     }
 
@@ -190,6 +223,22 @@ export class SnsGrowthCockpitView extends BaseView {
             this.errorMessage = error?.message || 'SNS posting ledgerを読み込めません';
         } finally {
             this.isLoading = false;
+            this.render();
+        }
+    }
+
+    async loadAccounts() {
+        if (!this.apiClient?.listAccounts) return;
+        this.isAccountLoading = true;
+        this.accountErrorMessage = '';
+        this.render();
+        try {
+            const result = await this.apiClient.listAccounts();
+            this.accounts = normalizeAccounts(result.accounts || []);
+        } catch (error) {
+            this.accountErrorMessage = error?.message || 'X accountを読み込めません';
+        } finally {
+            this.isAccountLoading = false;
             this.render();
         }
     }
@@ -211,8 +260,42 @@ export class SnsGrowthCockpitView extends BaseView {
             const actionButton = event.target.closest?.('[data-sns-action]');
             if (actionButton) {
                 this._handleAction(actionButton.getAttribute('data-sns-action'));
+                return;
+            }
+
+            const accountButton = event.target.closest?.('[data-account-action]');
+            if (accountButton) {
+                this._handleAccountAction(accountButton.getAttribute('data-account-action'), accountButton.getAttribute('data-account-id'));
             }
         };
+    }
+
+    async _handleAccountAction(action, accountId) {
+        if (!action || !accountId) return;
+        this.accountErrorMessage = '';
+        this.accountNoticeMessage = '';
+        try {
+            if (action === 'health-check') {
+                const result = await this.apiClient.healthCheckAccount(accountId);
+                this.accountHealth[accountId] = result.health || null;
+                this.accountNoticeMessage = result.health?.ok ? 'Health OK' : `Health NG: ${result.health?.reason || 'unknown'}`;
+            }
+            if (action === 'set-posting-default' || action === 'set-metrics-default') {
+                const purpose = action === 'set-posting-default' ? 'sns_posting' : 'sns_metrics';
+                const result = await this.apiClient.setDefaultAccount(accountId, { purpose });
+                const account = normalizeAccounts([result.account])[0];
+                if (account) {
+                    this.accounts = this.accounts.map((item) => item.id === account.id ? account : item);
+                    this.accountNoticeMessage = purpose === 'sns_posting'
+                        ? 'Posting defaultを更新しました。'
+                        : 'Metrics defaultを更新しました。';
+                }
+            }
+        } catch (error) {
+            this.accountErrorMessage = error?.message || 'X account operation failed';
+        } finally {
+            this.render();
+        }
     }
 
     async _handleAction(action) {
@@ -389,6 +472,7 @@ export class SnsGrowthCockpitView extends BaseView {
                             ${this._renderHeader()}
                             ${this._renderSummary()}
                             ${this._renderInsight()}
+                            ${this._renderAccountStrip()}
                             ${this._renderCalendar()}
                         </div>
                         ${this._renderDetail(selectedPost)}
@@ -558,6 +642,69 @@ export class SnsGrowthCockpitView extends BaseView {
             <section class="sns-growth-insight" role="status">
                 <i data-lucide="sparkles"></i>
                 <span>SNS Posting Ledgerから${this.posts.length}件を表示中。レビュー、予約、投稿済み、学習準備をここで更新できます。</span>
+            </section>
+        `;
+    }
+
+    _primaryAccount() {
+        return this.accounts.find((account) => account.defaults?.sns_posting)
+            || this.accounts.find((account) => account.status === 'connected')
+            || this.accounts[0]
+            || null;
+    }
+
+    _credentialLabel(account) {
+        const ref = account?.credential_ref;
+        if (!ref) return 'credential refなし';
+        const provider = ref.provider || 'provider';
+        const path = ref.path || 'pathなし';
+        const envState = ref.env ? (ref.env_present ? 'env ready' : 'env missing') : provider;
+        return `${envState} / ${path}`;
+    }
+
+    _renderAccountStrip() {
+        const account = this._primaryAccount();
+        if (this.isAccountLoading) {
+            return `
+                <section class="sns-account-strip" aria-label="X account management">
+                    <span class="sns-account-icon"><i data-lucide="plug"></i></span>
+                    <div><strong>X Account</strong><small>アカウント状態を読み込み中</small></div>
+                </section>
+            `;
+        }
+        if (!account) {
+            return `
+                <section class="sns-account-strip warning" aria-label="X account management">
+                    <span class="sns-account-icon"><i data-lucide="plug-zap"></i></span>
+                    <div><strong>X Account</strong><small>投稿・metrics取得に使うXアカウントが未接続です</small></div>
+                    ${this.accountErrorMessage ? `<em>${escapeHtml(this.accountErrorMessage)}</em>` : ''}
+                </section>
+            `;
+        }
+        const health = this.accountHealth[account.id];
+        const healthLabel = health ? (health.ok ? 'Health OK' : `Health NG: ${health.reason || 'unknown'}`) : 'Health未確認';
+        const remaining = health?.rate_limit?.remaining;
+        return `
+            <section class="sns-account-strip" aria-label="X account management">
+                <span class="sns-account-icon"><i data-lucide="plug"></i></span>
+                <div class="sns-account-main">
+                    <strong>X Account</strong>
+                    <small>${escapeHtml(account.external_handle || account.display_name)} · ${escapeHtml(this._credentialLabel(account))}</small>
+                </div>
+                <div class="sns-account-badges">
+                    <span class="sns-status-chip ${account.status === 'connected' ? 'status-posted' : 'status-muted'}">${escapeHtml(account.status)}</span>
+                    ${account.defaults?.sns_posting ? '<span>Posting default</span>' : ''}
+                    ${account.defaults?.sns_metrics ? '<span>Metrics default</span>' : ''}
+                    <span>${escapeHtml(healthLabel)}</span>
+                    ${Number.isFinite(Number(remaining)) ? `<span>${escapeHtml(String(remaining))} left</span>` : ''}
+                </div>
+                <div class="sns-account-actions">
+                    <button type="button" data-account-action="health-check" data-account-id="${escapeHtml(account.id)}"><i data-lucide="activity"></i> Health</button>
+                    ${account.defaults?.sns_posting ? '' : `<button type="button" data-account-action="set-posting-default" data-account-id="${escapeHtml(account.id)}">投稿既定</button>`}
+                    ${account.defaults?.sns_metrics ? '' : `<button type="button" data-account-action="set-metrics-default" data-account-id="${escapeHtml(account.id)}">metrics既定</button>`}
+                </div>
+                ${this.accountErrorMessage ? `<em class="sns-account-message error">${escapeHtml(this.accountErrorMessage)}</em>` : ''}
+                ${this.accountNoticeMessage ? `<em class="sns-account-message">${escapeHtml(this.accountNoticeMessage)}</em>` : ''}
             </section>
         `;
     }

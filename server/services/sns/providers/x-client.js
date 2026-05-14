@@ -96,6 +96,46 @@ export class XApiClient {
         }
         return normalizeTweetMetrics(payload.data);
     }
+
+    async healthCheck(credential_ref) {
+        const token = await this.accessTokenResolver(credential_ref);
+        if (!token) return { ok: false, reason: 'missing_x_access_token' };
+        const url = new URL('/2/users/me', this.baseUrl);
+        try {
+            const response = await this.fetchImpl(url.toString(), {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) return { ok: false, reason: 'auth_failed' };
+                if (response.status === 429) return { ok: false, reason: 'rate_limited' };
+                return { ok: false, reason: `x_api_${response.status}` };
+            }
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, reason: error?.code || error?.message || 'x_api_unreachable' };
+        }
+    }
+
+    async getRateLimitStatus(credential_ref) {
+        const token = await this.accessTokenResolver(credential_ref);
+        if (!token) return null;
+        const url = new URL('/2/users/me', this.baseUrl);
+        const response = await this.fetchImpl(url.toString(), {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/json'
+            }
+        });
+        const remaining = Number(response.headers?.get?.('x-rate-limit-remaining'));
+        const reset = Number(response.headers?.get?.('x-rate-limit-reset'));
+        return {
+            remaining: Number.isFinite(remaining) ? remaining : null,
+            resetAt: Number.isFinite(reset) ? new Date(reset * 1000).toISOString() : null
+        };
+    }
 }
 
 /**
