@@ -239,6 +239,83 @@ describe('SessionView', () => {
             expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
         });
 
+        it('座標上はメニューボタンだがevent.targetが行になったpointerdownでもセッションメニューを開く', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const row = container.querySelector('[data-id="session-1"]');
+            const toggle = row.querySelector('.session-menu-toggle');
+            const originalElementFromPoint = document.elementFromPoint;
+            document.elementFromPoint = vi.fn(() => toggle);
+
+            try {
+                row.dispatchEvent(new MouseEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 0,
+                    buttons: 1,
+                    clientX: 10,
+                    clientY: 10
+                }));
+                row.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 0,
+                    buttons: 1,
+                    clientX: 10,
+                    clientY: 10
+                }));
+
+                expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+                expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
+                expect(mockSessionService.switchSession).not.toHaveBeenCalled();
+                expect(window.__brainbaseSessionMenuDebug.map(entry => entry.phase)).toContain('document-capture:hit-toggle-retarget');
+            } finally {
+                document.elementFromPoint = originalElementFromPoint;
+            }
+        });
+
+        it('pointerdownで開いた後のclickが行targetにずれても行選択として閉じない', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const row = container.querySelector('[data-id="session-1"]');
+            const toggle = row.querySelector('.session-menu-toggle');
+            const originalElementFromPoint = document.elementFromPoint;
+            document.elementFromPoint = vi.fn(() => toggle);
+
+            try {
+                toggle.dispatchEvent(new MouseEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 0,
+                    buttons: 1,
+                    clientX: 10,
+                    clientY: 10
+                }));
+                row.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 0,
+                    buttons: 0,
+                    clientX: 10,
+                    clientY: 10
+                }));
+
+                expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+                expect(mockSessionService.switchSession).not.toHaveBeenCalled();
+                expect(window.__brainbaseSessionMenuDebug.map(entry => entry.reason)).not.toContain('row-select');
+            } finally {
+                document.elementFromPoint = originalElementFromPoint;
+            }
+        });
+
         it('/api/sessions/statusのworking状態をsessionUi経由でtimeline sortへ反映する', async () => {
             const mockSessions = [
                 {

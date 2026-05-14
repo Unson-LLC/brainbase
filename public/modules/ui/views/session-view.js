@@ -50,6 +50,7 @@ export class SessionView {
         this._timelineAttentionSortBySessionId = new Map();
         this._sessionMenuDebugSeq = 0;
         this._sessionMenuCaptureHandler = null;
+        this._sessionMenuRetargetedClick = null;
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
@@ -184,6 +185,50 @@ export class SessionView {
         return snapshot;
     }
 
+    _getElementAtEventPoint(event) {
+        if (!event || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return null;
+        if (typeof document.elementFromPoint !== 'function') return null;
+        return document.elementFromPoint(event.clientX, event.clientY);
+    }
+
+    _shouldSuppressSessionMenuRetargetClick(event) {
+        const retarget = this._sessionMenuRetargetedClick;
+        if (!retarget || Date.now() > retarget.until) {
+            this._sessionMenuRetargetedClick = null;
+            return false;
+        }
+
+        const target = event?.target;
+        const hitElement = this._getElementAtEventPoint(event);
+        const targetRow = target?.closest?.('.session-child-row') || null;
+        const hitRow = hitElement?.closest?.('.session-child-row') || null;
+        const targetToggle = target?.closest?.('.session-menu-toggle') || null;
+        const hitToggle = hitElement?.closest?.('.session-menu-toggle') || null;
+
+        return Boolean(
+            retarget.row?.isConnected &&
+            (
+                targetRow === retarget.row ||
+                hitRow === retarget.row ||
+                targetToggle === retarget.menuToggle ||
+                hitToggle === retarget.menuToggle
+            )
+        );
+    }
+
+    _isSessionRowActionEvent(event) {
+        const target = event?.target;
+        const hitElement = this._getElementAtEventPoint(event);
+        return Boolean(
+            target?.closest?.('button') ||
+            target?.closest?.('.drag-handle') ||
+            target?.closest?.('.session-dropdown-menu') ||
+            hitElement?.closest?.('button') ||
+            hitElement?.closest?.('.drag-handle') ||
+            hitElement?.closest?.('.session-dropdown-menu')
+        );
+    }
+
     /**
      * DOMコンテナにマウント
      * @param {HTMLElement} container - マウント先のコンテナ
@@ -241,10 +286,10 @@ export class SessionView {
         childRow.dataset.fingerprint = this._computeRowFingerprint(session, currentSessionId, { project, isFavorite });
 
         childRow.addEventListener('click', async (e) => {
-            if (!e.target.closest('button') && !e.target.closest('.drag-handle')) {
+            if (!this._isSessionRowActionEvent(e)) {
                 const sessionId = childRow.dataset.id;
                 if (sessionId) {
-                    this._closeAllMenus();
+                    this._closeAllMenus('row-select');
                     await this.sessionService.switchSession(sessionId);
                 } else {
                     console.error('Session ID not found in row:', childRow);
@@ -348,9 +393,26 @@ export class SessionView {
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
+            if (this._shouldSuppressSessionMenuRetargetClick(e)) {
+                const row = this._sessionMenuRetargetedClick?.row || null;
+                const menuToggle = this._sessionMenuRetargetedClick?.menuToggle || null;
+                const dropdownMenu = row?.querySelector?.('.session-dropdown-menu') || null;
+                this._logSessionMenuDebug('outside-click-ignored-after-retarget', {
+                    event: e,
+                    row,
+                    menuToggle,
+                    dropdownMenu
+                });
+                e.preventDefault();
+                e.stopPropagation();
+                this._sessionMenuRetargetedClick = null;
+                return;
+            }
+
             // クリックされた要素がメニュートグルまたはドロップダウン内かチェック
-            const isMenuToggle = e.target.closest('.session-menu-toggle');
-            const isDropdownMenu = e.target.closest('.session-dropdown-menu');
+            const hitElement = this._getElementAtEventPoint(e);
+            const isMenuToggle = e.target.closest('.session-menu-toggle') || hitElement?.closest?.('.session-menu-toggle');
+            const isDropdownMenu = e.target.closest('.session-dropdown-menu') || hitElement?.closest?.('.session-dropdown-menu');
 
             // どちらでもない場合、すべてのメニューを閉じる
             if (!isMenuToggle && !isDropdownMenu) {
@@ -361,9 +423,11 @@ export class SessionView {
 
         this._sessionMenuCaptureHandler = (e) => {
             const target = e.target;
-            let menuToggle = target?.closest?.('.session-menu-toggle') || null;
+            const hitElement = this._getElementAtEventPoint(e);
+            const hitMenuToggle = hitElement?.closest?.('.session-menu-toggle') || null;
+            let menuToggle = target?.closest?.('.session-menu-toggle') || hitMenuToggle || null;
             let dropdownMenu = target?.closest?.('.session-dropdown-menu') || menuToggle?.closest?.('.session-actions-container')?.querySelector?.('.session-dropdown-menu') || null;
-            const row = target?.closest?.('.session-child-row') || menuToggle?.closest?.('.session-child-row') || dropdownMenu?.closest?.('.session-child-row') || null;
+            const row = target?.closest?.('.session-child-row') || hitMenuToggle?.closest?.('.session-child-row') || menuToggle?.closest?.('.session-child-row') || dropdownMenu?.closest?.('.session-child-row') || null;
             if (row && !menuToggle) {
                 menuToggle = row.querySelector('.session-menu-toggle');
             }
@@ -379,6 +443,56 @@ export class SessionView {
                 dropdownMenu,
                 reason: overlay ? 'overlay-target' : null
             });
+
+            if (e.type === 'click' && this._shouldSuppressSessionMenuRetargetClick(e)) {
+                this._logSessionMenuDebug('document-capture:click-ignored-after-retarget', {
+                    event: e,
+                    row,
+                    menuToggle,
+                    dropdownMenu
+                });
+                e.preventDefault();
+                e.stopPropagation();
+                this._sessionMenuRetargetedClick = null;
+                return;
+            }
+
+            if (
+                e.type === 'pointerdown' &&
+                hitMenuToggle &&
+                target?.closest?.('.session-menu-toggle') !== hitMenuToggle
+            ) {
+                if (typeof e.button === 'number' && e.button !== 0) {
+                    e.stopPropagation();
+                    return;
+                }
+
+                this._sessionMenuRetargetedClick = {
+                    row,
+                    menuToggle: hitMenuToggle,
+                    until: Date.now() + 800
+                };
+                this._logSessionMenuDebug('document-capture:hit-toggle-retarget', {
+                    event: e,
+                    row,
+                    menuToggle: hitMenuToggle,
+                    dropdownMenu
+                });
+                e.preventDefault();
+                e.stopPropagation();
+
+                const EventCtor = window.PointerEvent || window.MouseEvent;
+                const syntheticPointerDown = new EventCtor('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    button: e.button,
+                    buttons: e.buttons,
+                    clientX: e.clientX,
+                    clientY: e.clientY,
+                    pointerType: e.pointerType || 'mouse'
+                });
+                hitMenuToggle.dispatchEvent(syntheticPointerDown);
+            }
         };
         document.addEventListener('pointerdown', this._sessionMenuCaptureHandler, true);
         document.addEventListener('click', this._sessionMenuCaptureHandler, true);
