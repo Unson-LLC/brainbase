@@ -111,6 +111,8 @@ full posting execution は `POST /api/sns-growth/posts/:id/publish` を入口に
 
 `/oyasumi` の SNS feedback handoff は、`learning_ready` の Ledger record から candidate-store に `source_system=sns-feedback` の `observation` candidate を作る。raw metrics や reader reaction は `permission_snapshot.sns` に snapshot として保持し、Graph へは直接書き込まない。作成した candidate id は Ledger の `learning_candidate_id` に戻す。
 
+SNS Cockpit から投稿後の反応を手動または将来の polling で取り込む入口は `POST /api/sns-growth/posts/:id/feedback` とする。この endpoint は Ledger の `metrics_snapshots` に append し、metrics evidence がある場合だけ `posted -> learning_ready` を許可する。これにより、日次運用の PDCA は cockpit で見えるが、Graph への反映は candidate-store / promotion gate の後に限定される。
+
 ## 実装フェーズ
 
 2026-05-13 の実装では、production path として `SNS_POSTING_LEDGER_DATABASE_URL` による PostgreSQL repository を用意する。

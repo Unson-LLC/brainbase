@@ -105,6 +105,57 @@ test.describe('SNS Growth Cockpit', () => {
         await expect(page.locator('.sns-growth-detail')).toContainText('https://x.com/AIBizNavigator/status/2055000000000000001');
     });
 
+    test('records posted metrics and moves the record to learning ready', async ({ page, request }) => {
+        const lane = `learning_e2e_${Date.now()}`;
+        const accountId = `acc_x_sato_${lane}`;
+        const headers = await csrfHeaders(request, lane);
+        const pack = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
+            headers,
+            data: {
+                account_id: accountId,
+                account_handle: '@AIBizNavigator',
+                drafts: [{
+                    date: '2026-05-14',
+                    slot_index: 3,
+                    lane,
+                    body: '投稿後の反応をLedgerから学習候補に戻す',
+                    source_url: 'https://x.com/example/status/learning',
+                    persona_brain: { target_person: 'AI導入を任されたPM' },
+                    quality_gate: { status: 'pass' }
+                }]
+            }
+        });
+        expect(pack.ok()).toBe(true);
+        const packJson = await pack.json();
+        const post = (packJson.created || [])[0] || (packJson.updated || [])[0];
+        expect(post).toBeTruthy();
+
+        await request.patch(`${BASE_URL}/api/sns-growth/posts/${post.id}`, { headers, data: { status: 'approved' } });
+        await request.patch(`${BASE_URL}/api/sns-growth/posts/${post.id}`, { headers, data: { status: 'scheduled' } });
+        await request.patch(`${BASE_URL}/api/sns-growth/posts/${post.id}`, {
+            headers,
+            data: {
+                status: 'posted',
+                posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000002',
+                posted_at: '2026-05-14T03:00:00.000Z'
+            }
+        });
+
+        await page.goto(`${BASE_URL}/sns-growth.html`);
+        await page.waitForLoadState('domcontentloaded');
+        await page.locator(`.sns-calendar-post[data-post-id="${post.id}"]`).click();
+        await page.locator('[data-detail-field="metric-impressions"]').fill('1280');
+        await page.locator('[data-detail-field="metric-likes"]').fill('84');
+        await page.locator('[data-detail-field="metric-reposts"]').fill('9');
+        await page.locator('[data-detail-field="metric-replies"]').fill('18');
+        await page.locator('[data-detail-field="metric-bookmarks"]').fill('21');
+        await page.locator('[data-sns-action="mark-learning-ready"]').click();
+
+        await expect(page.locator('.sns-growth-insight')).toContainText('学習準備にしました');
+        await expect(page.locator('.sns-growth-detail')).toContainText('learning_ready');
+        await expect(page.locator('.sns-growth-detail')).toContainText('1,280 impressions');
+    });
+
     test('shows visible feedback after approving a review-needed post', async ({ page, request }) => {
         const lane = `approve_e2e_${Date.now()}`;
         const accountId = `acc_x_sato_${lane}`;
