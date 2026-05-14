@@ -10,6 +10,27 @@ import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 const SESSION_FAVORITES_STORAGE_KEY = 'brainbase.sessionFavorites.v1';
+const SESSION_MENU_DEBUG_MAX_ENTRIES = 120;
+const SESSION_MENU_DEBUG_ENDPOINT = '/api/client-diagnostics/session-menu';
+
+function describeSessionMenuElement(element) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
+    const rect = element.getBoundingClientRect?.();
+    return {
+        tag: element.tagName,
+        id: element.id || null,
+        className: String(element.className || ''),
+        dataId: element.dataset?.id || null,
+        title: element.getAttribute?.('title') || null,
+        text: (element.textContent || '').trim().slice(0, 80),
+        rect: rect ? {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+        } : null
+    };
+}
 
 /**
  * セッション表示のUIコンポーネント
@@ -27,6 +48,8 @@ export class SessionView {
         this.sessionSearchQuery = '';
         this.showFavoriteSessionsOnly = false;
         this._timelineAttentionSortBySessionId = new Map();
+        this._sessionMenuDebugSeq = 0;
+        this._sessionMenuCaptureHandler = null;
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
@@ -38,6 +61,127 @@ export class SessionView {
             this._renderRafId = null;
             this.render();
         });
+    }
+
+    _buildSessionMenuDebugSnapshot(phase, { event = null, row = null, menuToggle = null, dropdownMenu = null, session = null, reason = null } = {}) {
+        const state = appStore.getState();
+        const eventPoint = event && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
+            ? { x: Math.round(event.clientX), y: Math.round(event.clientY) }
+            : null;
+        const hitElement = eventPoint && typeof document.elementFromPoint === 'function'
+            ? document.elementFromPoint(event.clientX, event.clientY)
+            : null;
+        const overlay = document.getElementById('menu-overlay');
+        const fileViewerPanel = document.getElementById('file-viewer-panel');
+        const activeElement = document.activeElement;
+        const path = typeof event?.composedPath === 'function'
+            ? event.composedPath().slice(0, 8).map(describeSessionMenuElement)
+            : [];
+        const openMenus = Array.from(document.querySelectorAll('.session-dropdown-menu'))
+            .filter(menu => !menu.classList.contains('hidden'))
+            .map(menu => {
+                const menuRow = menu.closest('.session-child-row');
+                return {
+                    sessionId: menuRow?.dataset?.id || null,
+                    connected: menu.isConnected,
+                    hidden: menu.classList.contains('hidden'),
+                    element: describeSessionMenuElement(menu)
+                };
+            });
+
+        return {
+            seq: ++this._sessionMenuDebugSeq,
+            phase,
+            reason,
+            timestamp: new Date().toISOString(),
+            sessionId: session?.id || row?.dataset?.id || null,
+            currentSessionId: state.currentSessionId || null,
+            sessionListView: state.ui?.sessionListView || null,
+            sidebarPrimaryView: state.ui?.sidebarPrimaryView || null,
+            fileViewerActive: document.body.classList.contains('file-viewer-active'),
+            renderScheduled: Boolean(this._renderRafId),
+            event: event ? {
+                type: event.type,
+                button: event.button,
+                buttons: event.buttons,
+                isTrusted: event.isTrusted,
+                defaultPrevented: event.defaultPrevented,
+                eventPhase: event.eventPhase,
+                pointerType: event.pointerType || null,
+                point: eventPoint
+            } : null,
+            target: describeSessionMenuElement(event?.target),
+            currentTarget: describeSessionMenuElement(event?.currentTarget),
+            hitElement: describeSessionMenuElement(hitElement),
+            hitClosestMenuToggle: Boolean(hitElement?.closest?.('.session-menu-toggle')),
+            hitClosestRow: hitElement?.closest?.('.session-child-row')?.dataset?.id || null,
+            path,
+            row: {
+                connected: Boolean(row?.isConnected),
+                element: describeSessionMenuElement(row)
+            },
+            menuToggle: {
+                connected: Boolean(menuToggle?.isConnected),
+                disabled: Boolean(menuToggle?.disabled),
+                element: describeSessionMenuElement(menuToggle),
+                computed: menuToggle ? {
+                    display: getComputedStyle(menuToggle).display,
+                    visibility: getComputedStyle(menuToggle).visibility,
+                    opacity: getComputedStyle(menuToggle).opacity,
+                    pointerEvents: getComputedStyle(menuToggle).pointerEvents
+                } : null
+            },
+            dropdownMenu: {
+                connected: Boolean(dropdownMenu?.isConnected),
+                hidden: dropdownMenu ? dropdownMenu.classList.contains('hidden') : null,
+                element: describeSessionMenuElement(dropdownMenu),
+                computed: dropdownMenu ? {
+                    display: getComputedStyle(dropdownMenu).display,
+                    visibility: getComputedStyle(dropdownMenu).visibility,
+                    opacity: getComputedStyle(dropdownMenu).opacity,
+                    pointerEvents: getComputedStyle(dropdownMenu).pointerEvents,
+                    zIndex: getComputedStyle(dropdownMenu).zIndex
+                } : null
+            },
+            overlay: {
+                exists: Boolean(overlay),
+                hidden: overlay ? overlay.classList.contains('hidden') : null,
+                element: describeSessionMenuElement(overlay)
+            },
+            fileViewerPanel: {
+                display: fileViewerPanel ? getComputedStyle(fileViewerPanel).display : null,
+                element: describeSessionMenuElement(fileViewerPanel)
+            },
+            activeElement: describeSessionMenuElement(activeElement),
+            openMenus
+        };
+    }
+
+    _logSessionMenuDebug(phase, details = {}) {
+        const snapshot = this._buildSessionMenuDebugSnapshot(phase, details);
+        try {
+            const key = '__brainbaseSessionMenuDebug';
+            const entries = Array.isArray(window[key]) ? window[key] : [];
+            entries.push(snapshot);
+            window[key] = entries.slice(-SESSION_MENU_DEBUG_MAX_ENTRIES);
+        } catch {
+            // Diagnostics must never break the menu itself.
+        }
+
+        console.info('[session-menu-debug]', snapshot);
+
+        try {
+            fetch(SESSION_MENU_DEBUG_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                keepalive: true,
+                body: JSON.stringify(snapshot)
+            }).catch(() => {});
+        } catch {
+            // Ignore transport failures; the in-browser ring buffer still remains.
+        }
+
+        return snapshot;
     }
 
     /**
@@ -210,16 +354,40 @@ export class SessionView {
 
             // どちらでもない場合、すべてのメニューを閉じる
             if (!isMenuToggle && !isDropdownMenu) {
-                this._closeAllMenus();
+                this._closeAllMenus('outside-click');
             }
         };
         document.addEventListener('click', this._outsideClickHandler);
+
+        this._sessionMenuCaptureHandler = (e) => {
+            const target = e.target;
+            let menuToggle = target?.closest?.('.session-menu-toggle') || null;
+            let dropdownMenu = target?.closest?.('.session-dropdown-menu') || menuToggle?.closest?.('.session-actions-container')?.querySelector?.('.session-dropdown-menu') || null;
+            const row = target?.closest?.('.session-child-row') || menuToggle?.closest?.('.session-child-row') || dropdownMenu?.closest?.('.session-child-row') || null;
+            if (row && !menuToggle) {
+                menuToggle = row.querySelector('.session-menu-toggle');
+            }
+            if (row && !dropdownMenu) {
+                dropdownMenu = row.querySelector('.session-dropdown-menu');
+            }
+            const overlay = target?.closest?.('#menu-overlay') || null;
+            if (!row && !menuToggle && !dropdownMenu && !overlay) return;
+            this._logSessionMenuDebug(`document-capture:${e.type}`, {
+                event: e,
+                row,
+                menuToggle,
+                dropdownMenu,
+                reason: overlay ? 'overlay-target' : null
+            });
+        };
+        document.addEventListener('pointerdown', this._sessionMenuCaptureHandler, true);
+        document.addEventListener('click', this._sessionMenuCaptureHandler, true);
 
         // iframe上のオーバーレイクリックでメニューを閉じる
         const menuOverlay = document.getElementById('menu-overlay');
         if (menuOverlay) {
             menuOverlay.addEventListener('click', () => {
-                this._closeAllMenus();
+                this._closeAllMenus('overlay-click');
             });
         }
     }
@@ -227,7 +395,17 @@ export class SessionView {
     /**
      * すべてのドロップダウンメニューを閉じる
      */
-    _closeAllMenus() {
+    _closeAllMenus(reason = 'unknown') {
+        const openMenus = Array.from(document.querySelectorAll('.session-dropdown-menu'))
+            .filter(menu => !menu.classList.contains('hidden'));
+        if (openMenus.length > 0) {
+            this._logSessionMenuDebug('close-all-before', {
+                row: openMenus[0].closest('.session-child-row'),
+                dropdownMenu: openMenus[0],
+                menuToggle: openMenus[0].closest('.session-actions-container')?.querySelector('.session-menu-toggle') || null,
+                reason
+            });
+        }
         document.querySelectorAll('.session-dropdown-menu').forEach(menu => {
             menu.classList.add('hidden');
         });
@@ -244,7 +422,7 @@ export class SessionView {
     render() {
         if (!this.container) return;
 
-        this._closeAllMenus();
+        this._closeAllMenus('render-start');
 
         // Clear container
         this.container.innerHTML = '';
@@ -854,11 +1032,18 @@ export class SessionView {
         const dropdownMenu = row.querySelector('.session-dropdown-menu');
 
         if (menuToggle && dropdownMenu) {
-            menuToggle.addEventListener('pointerdown', (e) => e.stopPropagation());
-            menuToggle.addEventListener('mousedown', (e) => e.stopPropagation());
+            menuToggle.addEventListener('pointerdown', (e) => {
+                this._logSessionMenuDebug('toggle-pointerdown', { event: e, row, menuToggle, dropdownMenu, session });
+                e.stopPropagation();
+            });
+            menuToggle.addEventListener('mousedown', (e) => {
+                this._logSessionMenuDebug('toggle-mousedown', { event: e, row, menuToggle, dropdownMenu, session });
+                e.stopPropagation();
+            });
             dropdownMenu.addEventListener('pointerdown', (e) => e.stopPropagation());
             dropdownMenu.addEventListener('mousedown', (e) => e.stopPropagation());
             menuToggle.addEventListener('click', (e) => {
+                this._logSessionMenuDebug('toggle-click-before', { event: e, row, menuToggle, dropdownMenu, session });
                 e.stopPropagation();
 
                 // Close all other open menus
@@ -871,6 +1056,13 @@ export class SessionView {
                 // Toggle this menu
                 const isOpening = dropdownMenu.classList.contains('hidden');
                 dropdownMenu.classList.toggle('hidden');
+                this._logSessionMenuDebug(isOpening ? 'toggle-click-opened-sync' : 'toggle-click-closed-sync', {
+                    event: e,
+                    row,
+                    menuToggle,
+                    dropdownMenu,
+                    session
+                });
 
                 // Viewport boundary detection — flip menu above if it overflows
                 if (isOpening) {
@@ -918,6 +1110,13 @@ export class SessionView {
                             dropdownMenu.style.marginTop = '';
                             dropdownMenu.style.marginBottom = '';
                         }
+                        this._logSessionMenuDebug('toggle-click-opened-after-layout', {
+                            event: e,
+                            row,
+                            menuToggle,
+                            dropdownMenu,
+                            session
+                        });
                     });
                 }
 
@@ -936,6 +1135,7 @@ export class SessionView {
                         }
                     }
                 }
+                this._logSessionMenuDebug('toggle-click-after-overlay', { event: e, row, menuToggle, dropdownMenu, session });
             });
         }
 
@@ -1353,6 +1553,11 @@ export class SessionView {
         if (this._outsideClickHandler) {
             document.removeEventListener('click', this._outsideClickHandler);
             this._outsideClickHandler = null;
+        }
+        if (this._sessionMenuCaptureHandler) {
+            document.removeEventListener('pointerdown', this._sessionMenuCaptureHandler, true);
+            document.removeEventListener('click', this._sessionMenuCaptureHandler, true);
+            this._sessionMenuCaptureHandler = null;
         }
 
         if (this.container) {

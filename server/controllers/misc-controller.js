@@ -366,4 +366,45 @@ export class MiscController {
             res.status(500).json({ error: 'Failed to open file' });
         }
     };
+
+    /**
+     * POST /api/client-diagnostics/session-menu
+     * セッションリストの3点メニュー操作をサーバーログへ残す。
+     */
+    /** @param {Request} req @param {Response} res */
+    recordSessionMenuDiagnostic = (req, res) => {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const safeBody = {
+            seq: body.seq || null,
+            phase: typeof body.phase === 'string' ? body.phase : null,
+            reason: typeof body.reason === 'string' ? body.reason : null,
+            timestamp: typeof body.timestamp === 'string' ? body.timestamp : null,
+            sid: typeof body.sessionId === 'string' ? body.sessionId : null,
+            currentSid: typeof body.currentSessionId === 'string' ? body.currentSessionId : null,
+            viewMode: typeof body.sessionListView === 'string' ? body.sessionListView : null,
+            sideView: typeof body.sidebarPrimaryView === 'string' ? body.sidebarPrimaryView : null,
+            hitRow: typeof body.hitClosestRow === 'string' ? body.hitClosestRow : null,
+            sessionId: typeof body.sessionId === 'string' ? body.sessionId : null,
+            currentSessionId: typeof body.currentSessionId === 'string' ? body.currentSessionId : null,
+            sessionListView: typeof body.sessionListView === 'string' ? body.sessionListView : null,
+            sidebarPrimaryView: typeof body.sidebarPrimaryView === 'string' ? body.sidebarPrimaryView : null,
+            fileViewerActive: body.fileViewerActive === true,
+            renderScheduled: body.renderScheduled === true,
+            event: body.event || null,
+            target: body.target || null,
+            hitElement: body.hitElement || null,
+            hitClosestMenuToggle: body.hitClosestMenuToggle === true,
+            hitClosestRow: body.hitClosestRow || null,
+            row: body.row || null,
+            menuToggle: body.menuToggle || null,
+            dropdownMenu: body.dropdownMenu || null,
+            overlay: body.overlay || null,
+            fileViewerPanel: body.fileViewerPanel || null,
+            activeElement: body.activeElement || null,
+            openMenus: Array.isArray(body.openMenus) ? body.openMenus.slice(0, 5) : []
+        };
+
+        logger.info('[client-diagnostics][session-menu]', safeBody);
+        res.json({ ok: true });
+    };
 }

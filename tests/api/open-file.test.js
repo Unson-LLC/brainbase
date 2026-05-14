@@ -63,6 +63,7 @@ describe('POST /api/open-file', () => {
         app = express();
         app.use(express.json());
         app.post('/api/open-file', controller.openFile);
+        app.post('/api/client-diagnostics/session-menu', controller.recordSessionMenuDiagnostic);
     });
 
     beforeEach(() => {
@@ -127,5 +128,20 @@ describe('POST /api/open-file', () => {
         expect(response.status).toBe(400);
         expect(response.body.success).toBe(false);
         expect(response.body.error).toContain('contains null byte');
+    });
+
+    it('session menu diagnostic log を受け付ける', async () => {
+        const response = await request(app)
+            .post('/api/client-diagnostics/session-menu')
+            .send({
+                seq: 1,
+                phase: 'toggle-click-opened-sync',
+                sessionId: 'session-123',
+                dropdownMenu: { hidden: false },
+                overlay: { hidden: false }
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ ok: true });
     });
 });

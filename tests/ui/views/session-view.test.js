@@ -100,6 +100,8 @@ describe('SessionView', () => {
     });
 
     afterEach(() => {
+        sessionView?.unmount?.();
+        delete window.__brainbaseSessionMenuDebug;
         vi.unstubAllGlobals();
     });
 
@@ -168,6 +170,45 @@ describe('SessionView', () => {
 
             expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(true);
             expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(true);
+        });
+
+        it('セッションメニュー操作は開閉判定に必要な診断ログを残す', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }
+            ];
+            const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+            global.fetch = vi.fn(async () => ({ ok: true }));
+            window.__brainbaseSessionMenuDebug = [];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const toggle = container.querySelector('[data-id="session-1"] .session-menu-toggle');
+            toggle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));
+            toggle.click();
+
+            const phases = window.__brainbaseSessionMenuDebug.map(entry => entry.phase);
+            expect(phases).toContain('document-capture:pointerdown');
+            expect(phases).toContain('toggle-pointerdown');
+            expect(phases).toContain('document-capture:click');
+            expect(phases).toContain('toggle-click-before');
+            expect(phases).toContain('toggle-click-opened-sync');
+            expect(window.__brainbaseSessionMenuDebug.at(-1)).toMatchObject({
+                sessionId: 'session-1',
+                dropdownMenu: { hidden: false },
+                overlay: { hidden: false }
+            });
+            expect(consoleInfoSpy).toHaveBeenCalledWith(
+                '[session-menu-debug]',
+                expect.objectContaining({ phase: 'toggle-click-opened-sync', sessionId: 'session-1' })
+            );
+            expect(global.fetch).toHaveBeenCalledWith(
+                '/api/client-diagnostics/session-menu',
+                expect.objectContaining({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true
+                })
+            );
         });
 
         it('/api/sessions/statusのworking状態をsessionUi経由でtimeline sortへ反映する', async () => {

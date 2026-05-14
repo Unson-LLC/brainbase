@@ -21,5 +21,8 @@ export function createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, up
     // POST /api/open-file - エディタでファイルを開く
     router.post('/open-file', controller.openFile);
 
+    // POST /api/client-diagnostics/session-menu - セッションメニュー操作診断ログ
+    router.post('/client-diagnostics/session-menu', controller.recordSessionMenuDiagnostic);
+
     return router;
 }
