@@ -12,6 +12,7 @@ import { createTerminalRouter } from '../routes/terminal.js';
 import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
+import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
@@ -62,6 +63,7 @@ export function registerApiRoutes(app, {
     infoSSOTService,
     learningService,
     learningHealthService,
+    candidateRepository,
     wikiService,
     tokenUsageService,
     uploadMiddleware,
@@ -112,6 +114,17 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+    if (candidateRepository) {
+        // cross-repo source (mana / salestailor / zeims / SNS) からの
+        // Raw Ledger envelope 受信。 STR-006 / ADR-010 で確定した
+        // canonical Memory Promotion Kernel の外部受け口。
+        app.use('/api/candidate-store', createCandidateStoreRouter({
+            candidateRepository,
+            allowedSources: process.env.CANDIDATE_STORE_ALLOWED_SOURCES
+                ? process.env.CANDIDATE_STORE_ALLOWED_SOURCES.split(',').map((s) => s.trim()).filter(Boolean)
+                : null
+        }));
+    }
     const snsPostingLedgerRepository = createSnsPostingLedgerRepository(runtimePaths);
     app.use('/api/sns-growth', createSnsGrowthRouter({
         repository: snsPostingLedgerRepository,

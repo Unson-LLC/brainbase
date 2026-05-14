@@ -23,6 +23,7 @@ import { ConfigService } from '../services/config-service.js';
 import { GoogleCalendarService } from '../services/google-calendar-service.js';
 import { LearningService } from '../services/learning-service.js';
 import { LearningHealthService } from '../services/learning-health-service.js';
+import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 
@@ -66,6 +67,13 @@ export function createCoreServices({
     const learningHealthService = new LearningHealthService({
         stateDir: path.join(varDir, 'learning')
     });
+
+    // candidate-store: cross-repo source からの Raw Ledger envelope 受信用。
+    // INFO_SSOT_DATABASE_URL 経由の pool があれば PgCandidateRepository、
+    // 無ければ null (= 受け口 endpoint を露出しない、 既存挙動と完全互換)。
+    const candidateRepository = infoSSOTService.pool
+        ? new PgCandidateRepository({ pool: infoSSOTService.pool })
+        : null;
 
     const worktreeService = new WorktreeService(
         worktreesDir,
@@ -164,6 +172,7 @@ export function createCoreServices({
         wikiService,
         learningService,
         learningHealthService,
+        candidateRepository,
         worktreeService,
         archiveFinalizer,
         sessionServices,
