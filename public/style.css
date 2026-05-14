@@ -18426,6 +18426,11 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     color: var(--sns-learn);
 }
 
+.status-deleted {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+}
+
 .status-muted {
     background: var(--surface-secondary);
     color: var(--text-muted);

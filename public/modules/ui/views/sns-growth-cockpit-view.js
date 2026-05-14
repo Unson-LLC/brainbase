@@ -1,4 +1,5 @@
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { httpClient } from '../../core/http-client.js';
 import { BaseView } from './base-view.js';
 
 const NAV_GROUPS = [
@@ -16,7 +17,8 @@ const STATUS_LABELS = {
     scheduled: 'scheduled',
     posted: 'posted',
     skipped: 'skipped',
-    learning_ready: 'learning_ready'
+    learning_ready: 'learning_ready',
+    deleted: 'deleted'
 };
 
 const STATUS_CLASSES = {
@@ -25,14 +27,16 @@ const STATUS_CLASSES = {
     scheduled: 'status-scheduled',
     posted: 'status-posted',
     skipped: 'status-muted',
-    learning_ready: 'status-learning-ready'
+    learning_ready: 'status-learning-ready',
+    deleted: 'status-deleted'
 };
 
 const SUMMARY_ITEMS = [
     { status: 'review_needed', label: 'Review Needed', note: '承認が必要な投稿', icon: 'file-warning' },
     { status: 'scheduled', label: 'Scheduled', note: 'スケジュール済み', icon: 'calendar-days' },
     { status: 'posted', label: 'Posted', note: '投稿済み', icon: 'circle-check' },
-    { status: 'learning_ready', label: 'Learning Ready', note: '学習準備完了', icon: 'graduation-cap' }
+    { status: 'learning_ready', label: 'Learning Ready', note: '学習準備完了', icon: 'graduation-cap' },
+    { status: 'deleted', label: 'Deleted', note: 'X上で削除済み', icon: 'trash-2' }
 ];
 
 const TIMES = ['09:00', '12:00', '15:00', '18:00', '21:00'];
@@ -96,6 +100,10 @@ function normalizePosts(posts) {
         evidence: post.evidence || {},
         scheduled_at: post.scheduled_at || null,
         posted_url: post.posted_url || null,
+        posted_at: post.posted_at || null,
+        deleted_at: post.deleted_at || null,
+        deletion_source: post.deletion_source || null,
+        deletion_reason: post.deletion_reason || null,
         memo: post.memo || '',
         revisions: Array.isArray(post.revisions) ? post.revisions : [],
         metrics_snapshots: Array.isArray(post.metrics_snapshots) ? post.metrics_snapshots : [],
@@ -111,7 +119,8 @@ function summarize(posts) {
         scheduled: 0,
         posted: 0,
         skipped: 0,
-        learning_ready: 0
+        learning_ready: 0,
+        deleted: 0
     };
     for (const post of posts) {
         byStatus[post.status] = (byStatus[post.status] || 0) + 1;
@@ -123,27 +132,13 @@ function createDefaultApiClient() {
     return {
         async listPosts({ startDate, endDate }) {
             const params = new URLSearchParams({ startDate, endDate });
-            const response = await fetch(`/api/sns-growth/posts?${params.toString()}`);
-            if (!response.ok) throw new Error(`SNS posts request failed: ${response.status}`);
-            return response.json();
+            return httpClient.get(`/api/sns-growth/posts?${params.toString()}`);
         },
         async updatePost(id, patch) {
-            const response = await fetch(`/api/sns-growth/posts/${encodeURIComponent(id)}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(patch)
-            });
-            if (!response.ok) throw new Error(`SNS post update failed: ${response.status}`);
-            return response.json();
+            return httpClient.patch(`/api/sns-growth/posts/${encodeURIComponent(id)}`, patch);
         },
         async publishPost(id, input) {
-            const response = await fetch(`/api/sns-growth/posts/${encodeURIComponent(id)}/publish`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(input || {})
-            });
-            if (!response.ok) throw new Error(`SNS publish failed: ${response.status}`);
-            return response.json();
+            return httpClient.post(`/api/sns-growth/posts/${encodeURIComponent(id)}/publish`, input || {});
         }
     };
 }
@@ -221,6 +216,10 @@ export class SnsGrowthCockpitView extends BaseView {
             await this._handlePublishAction(post, action);
             return;
         }
+        if (action === 'mark-deleted') {
+            await this._handleMarkDeletedAction(post);
+            return;
+        }
         const body = this.container?.querySelector('[data-detail-field="body"]')?.value;
         const memo = this.container?.querySelector('[data-detail-field="memo"]')?.value;
         const patch = {
@@ -273,6 +272,36 @@ export class SnsGrowthCockpitView extends BaseView {
             this.render();
         } catch (error) {
             this.errorMessage = error?.message || 'SNS publish failed';
+            this.noticeMessage = '';
+            this.render();
+        }
+    }
+
+    async _handleMarkDeletedAction(post) {
+        if (!['posted', 'learning_ready'].includes(post.status)) {
+            this.errorMessage = '投稿済みのLedger recordだけ削除済みにできます';
+            this.noticeMessage = '';
+            this.render();
+            return;
+        }
+        const confirmed = window.confirm?.('X上で削除済みとしてLedgerに記録します。投稿URLは履歴として残します。');
+        if (!confirmed) return;
+        const memo = this.container?.querySelector('[data-detail-field="memo"]')?.value;
+        try {
+            const result = await this.apiClient.updatePost(post.id, {
+                status: 'deleted',
+                deleted_at: new Date().toISOString(),
+                deletion_source: 'manual_x_delete',
+                deletion_reason: memo?.trim() || 'X上で削除した'
+            });
+            const updated = normalizePosts([result.post])[0];
+            this.posts = this.posts.map((item) => item.id === updated.id ? updated : item);
+            this.selectedPostId = updated.id;
+            this.errorMessage = '';
+            this.noticeMessage = 'X上で削除済みとしてLedgerに記録しました。投稿URLは履歴として残しています。';
+            this.render();
+        } catch (error) {
+            this.errorMessage = error?.message || 'SNS post deletion update failed';
             this.noticeMessage = '';
             this.render();
         }
@@ -486,6 +515,7 @@ export class SnsGrowthCockpitView extends BaseView {
                     <span><b>${statusCounts.review_needed || 0}</b>レビュー</span>
                     <span><b>${statusCounts.scheduled || 0}</b>予約済み</span>
                     <span><b>${statusCounts.posted || 0}</b>投稿済み</span>
+                    <span><b>${statusCounts.deleted || 0}</b>削除済み</span>
                 </div>
                 <div class="sns-mobile-decision-list">
                     ${activePosts.length > 0
@@ -530,6 +560,7 @@ export class SnsGrowthCockpitView extends BaseView {
         if (post.status === 'approved') return '承認済み。予約時刻だけ決める';
         if (post.status === 'scheduled') return '予約済み。文脈だけ最終確認する';
         if (post.status === 'posted') return '投稿済み。学習候補にするか見る';
+        if (post.status === 'deleted') return 'X上で削除済み。学習対象から外す';
         if (post.status === 'skipped') return '今回は使わない判断';
         return '今日の運用判断に接続する';
     }
@@ -563,6 +594,28 @@ export class SnsGrowthCockpitView extends BaseView {
                     <span class="sns-source-icon">${escapeHtml(this._sourceGlyph(post))}</span>
                 </span>
             </button>
+        `;
+    }
+
+    _renderDetailActions(post) {
+        if (post.status === 'deleted') {
+            return '';
+        }
+        if (['posted', 'learning_ready'].includes(post.status)) {
+            return `
+                <div class="sns-detail-actions">
+                    <button type="button" data-sns-action="mark-deleted">Xで削除済みにする</button>
+                </div>
+            `;
+        }
+        return `
+            <div class="sns-detail-actions">
+                <button type="button" class="primary" data-sns-action="approve">承認する</button>
+                <button type="button" data-sns-action="schedule">スケジュール</button>
+                <button type="button" data-sns-action="publish-dry-run">投稿確認</button>
+                <button type="button" class="success" data-sns-action="publish">Xに投稿</button>
+                <button type="button" data-sns-action="skip">スキップする</button>
+            </div>
         `;
     }
 
@@ -607,6 +660,12 @@ export class SnsGrowthCockpitView extends BaseView {
                         <a href="${escapeHtml(post.posted_url)}" target="_blank" rel="noreferrer">${escapeHtml(post.posted_url)}<i data-lucide="external-link"></i></a>
                     </label>
                 ` : ''}
+                ${post.status === 'deleted' ? `
+                    <label class="sns-detail-label">
+                        <span>削除記録</span>
+                        <em>${escapeHtml(post.deletion_reason || '削除理由なし')} ${post.deleted_at ? ` / ${escapeHtml(post.deleted_at)}` : ''}</em>
+                    </label>
+                ` : ''}
                 <div class="sns-detail-schedule">
                     <span>スケジュール日時</span>
                     <button type="button"><i data-lucide="calendar"></i> ${escapeHtml(formatDisplayDate(post.date))}</button>
@@ -617,13 +676,7 @@ export class SnsGrowthCockpitView extends BaseView {
                     <span>メモ</span>
                     <input data-detail-field="memo" type="text" placeholder="メモを入力（任意）" value="${escapeHtml(post.memo)}" />
                 </label>
-                <div class="sns-detail-actions">
-                    <button type="button" class="primary" data-sns-action="approve">承認する</button>
-                    <button type="button" data-sns-action="schedule">スケジュール</button>
-                    <button type="button" data-sns-action="publish-dry-run">投稿確認</button>
-                    <button type="button" class="success" data-sns-action="publish">Xに投稿</button>
-                    <button type="button" data-sns-action="skip">スキップする</button>
-                </div>
+                ${this._renderDetailActions(post)}
                 <div class="sns-evidence-list">
                     ${this._renderEvidence('Persona Brain', post.evidence?.persona_brain?.target_person || '未設定')}
                     ${this._renderEvidence('Graph Check', post.evidence?.graph_check?.status || post.evidence?.graph_check?.decision || '未確認')}

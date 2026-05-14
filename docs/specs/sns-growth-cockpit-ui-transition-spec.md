@@ -56,7 +56,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - 検証: E2E で各画面 / tab / route へ順に遷移できること。
 - **INV-4**: Ship Calendar は `Review Desk` と `Overview` の両方から到達できる。
   - 検証: E2E で Review 中の投稿を schedule した後、Ship Calendar で同じ投稿が status badge 付きで確認できること。
-- **INV-5**: 投稿状態は `review_needed`, `approved`, `scheduled`, `posted`, `skipped`, `learning_ready` のいずれかとして表示される。
+- **INV-5**: 投稿状態は `review_needed`, `approved`, `scheduled`, `posted`, `skipped`, `learning_ready`, `deleted` のいずれかとして表示される。
   - 検証: Unit / UI test で全 status が badge としてレンダリングされること。
 - **INV-6**: Persona Brain / Graph Check / Quality Gate は投稿レビュー時に見えるが、初期表示では詳細を畳む。
   - 検証: UI test で accordion collapsed 初期状態と展開状態を確認する。
@@ -203,6 +203,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - scheduled datetime
   - posted URL
   - learning_ready flag
+  - deleted timestamp/source/reason
 - **output**:
   - full weekly calendar grid
   - date range controls
@@ -216,8 +217,9 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 - **preconditions**:
   - date range は必ず明示される
 - **postconditions**:
-  - scheduled / posted / skipped / learning_ready が一目で分かる
+  - scheduled / posted / skipped / learning_ready / deleted が一目で分かる
   - selected post の body / source URL / schedule datetime / status transition controls が右 panel で編集できる
+  - deleted record は投稿URLを履歴として表示し、削除理由を確認できる
   - Ship Calendar 上の insight banner は topic balance warning を表示してよい
 - **error cases**:
   - 0件: empty week と action to Direct AI / Review Desk を出す
@@ -230,7 +232,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 - **output**:
   - `GET /api/sns-growth/posts` returns posts and status summary for a date range
   - `POST /api/sns-growth/review-pack` idempotently creates or updates posts by account/date/slot
-  - `PATCH /api/sns-growth/posts/:id` stores body edits, memo, status transitions, posted URL, metrics snapshot
+  - `PATCH /api/sns-growth/posts/:id` stores body edits, memo, status transitions, posted URL, metrics snapshot, deletion metadata
 - **preconditions**:
   - production durable store uses PostgreSQL when `SNS_POSTING_LEDGER_DATABASE_URL` is configured
   - if the dedicated SNS URL is not configured, production runtime uses `INFO_SSOT_DATABASE_URL` / `INFO_SSOT_DB_URL` for the shared Lightsail PostgreSQL database
@@ -238,6 +240,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - local fallback may use JSON file persistence for UI/runtime verification
 - **postconditions**:
   - Peer Circle and News posts preserve source type and source URL
+  - `posted -> deleted` preserves `posted_url` and records `deleted_at`, `deletion_source`, `deletion_reason`
+  - `deleted` records are operational history and are not candidates for feedback learning handoff
   - invalid status transitions return an error before mutation
   - Graph SSOT is not mutated by Ledger writes
 - **error cases**:
@@ -271,6 +275,29 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - missing explicit public confirmation returns 400
   - invalid status returns 400
   - executor result without posted URL returns 400
+
+### Contract-6d: Deleted X Post Contract
+
+- **input**:
+  - posted SNS Posting Ledger record
+  - operator confirmation that the X post was deleted outside Brainbase
+  - optional deletion reason from the detail memo
+- **output**:
+  - `PATCH /api/sns-growth/posts/:id`
+  - status `deleted`
+  - `deleted_at`
+  - `deletion_source=manual_x_delete`
+  - `deletion_reason`
+- **preconditions**:
+  - only `posted` and `learning_ready` records can be marked deleted
+  - `posted_url` must not be cleared by deletion marking
+- **postconditions**:
+  - Ship Calendar shows a deleted badge and the historical X URL
+  - feedback / learning handoff does not treat `deleted` records as `learning_ready`
+  - Graph SSOT is not mutated by deletion marking
+- **error cases**:
+  - invalid status transition returns 409
+  - missing post id returns 404
 
 ### Contract-6a: Ship Calendar Visual Slice Contract
 
