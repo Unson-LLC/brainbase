@@ -15,15 +15,27 @@ function normalizeAbsoluteFilePathForSessionMatch(filePath) {
     return filePath.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
+function isGenericSessionRootForFileMatch(workspaceRoot) {
+    const normalizedRoot = String(workspaceRoot || '').replace(/\\/g, '/').replace(/\/+$/, '');
+    return /^\/Users\/[^/]+$/u.test(normalizedRoot)
+        || /^\/Users\/[^/]+\/workspace$/u.test(normalizedRoot)
+        || /^\/home\/[^/]+$/u.test(normalizedRoot)
+        || /^\/home\/[^/]+\/workspace$/u.test(normalizedRoot);
+}
+
 function resolveSessionForAbsoluteFilePath(filePath, sessions = []) {
     const normalizedFilePath = normalizeAbsoluteFilePathForSessionMatch(filePath);
     if (!normalizedFilePath) return null;
 
     let bestMatch = null;
     for (const session of sessions || []) {
+        if (!session?.id || session.intendedState === 'archived') {
+            continue;
+        }
         const candidates = [session?.worktree?.path, session?.path]
             .filter(Boolean)
-            .map((root) => String(root).replace(/\\/g, '/').replace(/\/+$/, ''));
+            .map((root) => String(root).replace(/\\/g, '/').replace(/\/+$/, ''))
+            .filter((root) => !isGenericSessionRootForFileMatch(root));
 
         for (const workspaceRoot of candidates) {
             if (!workspaceRoot || normalizedFilePath === workspaceRoot || !normalizedFilePath.startsWith(`${workspaceRoot}/`)) {
@@ -1306,9 +1318,19 @@ export function applyTerminalInputUxMixin(AppClass) {
             });
 
             const state = appStore.getState();
-            const ownerMatch = resolveSessionForAbsoluteFilePath(filePath, state.sessions || []);
-            const currentSessionId = ownerMatch?.sessionId || msgSessionId || state.currentSessionId;
-            const session = (state.sessions || []).find(s => s.id === currentSessionId);
+            const sessions = state.sessions || [];
+            const ownerMatch = resolveSessionForAbsoluteFilePath(filePath, sessions);
+            const messageSession = msgSessionId
+                ? sessions.find(s => s.id === msgSessionId && s.intendedState !== 'archived')
+                : null;
+            const currentSession = state.currentSessionId
+                ? sessions.find(s => s.id === state.currentSessionId && s.intendedState !== 'archived')
+                : null;
+            const currentSessionId = ownerMatch?.sessionId
+                || messageSession?.id
+                || currentSession?.id
+                || state.currentSessionId;
+            const session = sessions.find(s => s.id === currentSessionId);
             const workspaceRoot = ownerMatch?.workspaceRoot || session?.worktree?.path || session?.path || null;
             const previewRelativePath = ownerMatch?.relativePath
                 || previewPath

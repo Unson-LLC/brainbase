@@ -114,6 +114,49 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(app.reconnectManager.setCurrentSession).toHaveBeenCalledWith('session-1');
   });
 
+  it('archived sessionへswitchSessionしても現在のterminal frameを破壊しない', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    const patchSpy = vi.spyOn(httpClient, 'patch').mockResolvedValue({});
+
+    appStore.setState({
+      currentSessionId: 'session-current',
+      sessions: [
+        {
+          id: 'session-current',
+          name: 'Current Session',
+          path: '/tmp/current',
+          engine: 'codex',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-archived',
+          name: 'Archived Session',
+          path: '/Users/ksato/workspace',
+          engine: 'codex',
+          intendedState: 'archived'
+        },
+        {
+          id: 'session-generic-home',
+          name: 'Generic Home Session',
+          path: '/Users/ksato',
+          engine: 'codex',
+          intendedState: 'active'
+        }
+      ]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    terminalFrame.src = 'http://localhost:31013/console/session-current/?viewerId=viewer-test';
+
+    const result = await app.switchSession('session-archived');
+
+    expect(result).toMatchObject({ ok: true, archived: true });
+    expect(appStore.getState().currentSessionId).toBe('session-current');
+    expect(terminalFrame.src).toBe('http://localhost:31013/console/session-current/?viewerId=viewer-test');
+    expect(patchSpy).not.toHaveBeenCalledWith('/api/state/sessions/session-archived', expect.anything());
+  });
+
   it('xterm takeover成功後に現在の表示幅でviewportを強制同期する', async () => {
     app._shouldUseXtermTransport = vi.fn(() => true);
     app._connectXtermTransport = vi.fn(async () => ({ ok: true }));
@@ -329,6 +372,46 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
       '[file-viewer-close] Session restore failed after console reveal:',
       expect.any(Error)
     );
+  });
+
+  it('file viewerから戻る時にclosed sessionがarchivedなら現在セッションを維持する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.showConsole = vi.fn(() => {
+      document.body.classList.remove('file-viewer-active');
+      document.getElementById('console-area').style.display = 'flex';
+      document.getElementById('file-viewer-panel').style.display = 'none';
+    });
+    app.switchSession = vi.fn(async () => ({ ok: true }));
+    app.terminalTransportClient = {
+      getStatus: vi.fn(() => ({
+        mode: 'live',
+        connected: true,
+        terminalAccess: { state: 'owner', canTakeover: false }
+      })),
+      isActiveForSession: vi.fn((sessionId) => sessionId === 'session-current'),
+      restoreAfterReveal: vi.fn(async () => {}),
+      destroy: vi.fn()
+    };
+
+    document.body.classList.add('file-viewer-active');
+    document.getElementById('console-area').style.display = 'none';
+    document.getElementById('file-viewer-panel').style.display = 'flex';
+    appStore.setState({
+      currentSessionId: 'session-current',
+      sessions: [
+        { id: 'session-current', intendedState: 'active' },
+        { id: 'session-archived', intendedState: 'archived' }
+      ]
+    });
+
+    await app._restoreTerminalAfterFileViewerClose('session-archived');
+
+    await vi.waitFor(() => {
+      expect(app.terminalTransportClient.restoreAfterReveal).toHaveBeenCalledTimes(1);
+    });
+    expect(app.terminalTransportClient.isActiveForSession).toHaveBeenCalledWith('session-current');
+    expect(app.switchSession).not.toHaveBeenCalled();
+    expect(appStore.getState().currentSessionId).toBe('session-current');
   });
 
   it('forces ttyd startup when ttyd frame needs a runtime', async () => {
@@ -1084,6 +1167,65 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
       expect(app.fileViewerService.openFile).toHaveBeenCalledWith(
         'session-1778299307006',
         '.vibepro/pr/story-shadow-gpt-realtime-2-architecture/pr-prepare.html'
+      );
+    });
+    expect(app.showFileViewer).toHaveBeenCalled();
+  });
+
+  it('OPEN_FILEはarchivedやhome root sessionの広いpathに絶対画像パスを紐づけない', async () => {
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app.fileViewerService = {
+      openFile: vi.fn(async () => {})
+    };
+    app.showFileViewer = vi.fn();
+
+    appStore.setState({
+      currentSessionId: 'session-current',
+      sessions: [
+        {
+          id: 'session-current',
+          name: 'Current Session',
+          path: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-current-brainbase',
+          worktree: {
+            path: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-current-brainbase'
+          },
+          engine: 'codex',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-archived',
+          name: 'Archived Session',
+          path: '/Users/ksato/workspace',
+          engine: 'codex',
+          intendedState: 'archived'
+        },
+        {
+          id: 'session-generic-home',
+          name: 'Generic Home Session',
+          path: '/Users/ksato',
+          engine: 'codex',
+          intendedState: 'active'
+        }
+      ]
+    });
+
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: window.location.origin,
+      data: {
+        type: 'OPEN_FILE',
+        filePath: '/Users/ksato/workspace/var/sns-growth-live-backend.png',
+        previewPath: null,
+        previewable: true,
+        sessionId: null,
+        source: 'xterm'
+      }
+    }));
+
+    await vi.waitFor(() => {
+      expect(app.fileViewerService.openFile).toHaveBeenCalledWith(
+        'session-current',
+        '/Users/ksato/workspace/var/sns-growth-live-backend.png'
       );
     });
     expect(app.showFileViewer).toHaveBeenCalled();

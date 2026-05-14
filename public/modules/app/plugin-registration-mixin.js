@@ -165,7 +165,13 @@ export function applyPluginRegistrationMixin(AppClass) {
                             const state = appStore.getState();
                             const currentSessionId = state.currentSessionId || null;
                             const closedSessionId = event.detail?.sessionId || null;
-                            const targetSessionId = closedSessionId || currentSessionId;
+                            const closedSession = closedSessionId
+                                ? (state.sessions || []).find(session => session?.id === closedSessionId)
+                                : null;
+                            const targetSessionId = closedSessionId && closedSession?.intendedState !== 'archived'
+                                ? closedSessionId
+                                : currentSessionId;
+                            const cleanupSessionId = closedSessionId || targetSessionId;
                             const folderTree = state.folderTree || {};
                             const activeFileBySessionId = {
                                 ...(folderTree.activeFileBySessionId || {})
@@ -173,9 +179,9 @@ export function applyPluginRegistrationMixin(AppClass) {
                             const rootOverrideBySessionId = {
                                 ...(folderTree.rootOverrideBySessionId || {})
                             };
-                            if (targetSessionId) {
-                                delete activeFileBySessionId[targetSessionId];
-                                delete rootOverrideBySessionId[targetSessionId];
+                            if (cleanupSessionId) {
+                                delete activeFileBySessionId[cleanupSessionId];
+                                delete rootOverrideBySessionId[cleanupSessionId];
                             }
                             appStore.setState({
                                 ui: {

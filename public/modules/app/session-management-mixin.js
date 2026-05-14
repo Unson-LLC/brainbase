@@ -159,6 +159,11 @@ export function applySessionManagementMixin(AppClass) {
                     return { ok: false, reason: 'missing-session' };
                 }
 
+                if (session.intendedState === 'archived') {
+                    console.log(`[switchSession] Skipping archived session ${sessionId}`);
+                    return { ok: true, archived: true };
+                }
+
                 if (appStore.getState().currentSessionId !== sessionId) {
                     appStore.setState({ currentSessionId: sessionId });
                 }
@@ -172,18 +177,6 @@ export function applySessionManagementMixin(AppClass) {
                     switchToken,
                     surface: this.isMobile() ? 'mobile' : 'desktop'
                 });
-
-                if (session.intendedState === 'archived') {
-                    console.log(`[switchSession] Skipping archived session ${sessionId}`);
-                    this.closeMobileLiveTerminal();
-                    this._stopMobileSnapshotPolling();
-                    this.terminalTransportClient?.disconnect({ preserveView: false });
-                    this.terminalTransportClient?.hide();
-                    this._showTtydIframe();
-                    this._clearTerminalFrame(terminalFrame);
-                    this._finishTerminalSwitch?.(null, switchToken, { state: 'idle' });
-                    return { ok: true, archived: true };
-                }
 
                 if (this.isMobile()) {
                     const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);

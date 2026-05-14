@@ -232,7 +232,12 @@ export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype._restoreTerminalAfterFileViewerClose = async function(targetSessionId = null) {
         const initialState = appStore.getState();
         const currentSessionId = initialState.currentSessionId || null;
-        const sessionId = targetSessionId || currentSessionId;
+        const targetSession = targetSessionId
+            ? (initialState.sessions || []).find(session => session?.id === targetSessionId)
+            : null;
+        const sessionId = targetSessionId && targetSession?.intendedState === 'archived'
+            ? currentSessionId
+            : (targetSessionId || currentSessionId);
         const restoreToken = (this._fileViewerCloseRestoreToken || 0) + 1;
         this._fileViewerCloseRestoreToken = restoreToken;
 
