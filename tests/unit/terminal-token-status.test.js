@@ -63,7 +63,7 @@ describe('terminal token status', () => {
     expect(app.terminalTokenStatusEl.textContent).toBe('');
   });
 
-  it('shows compact Codex context while keeping rate-limit details in the title', () => {
+  it('shows compact Codex context and rate-limit details inline', () => {
     const app = createApp();
     appStore.setState({
       currentSessionId: 'codex-1',
@@ -84,8 +84,8 @@ describe('terminal token status', () => {
     app._updateTerminalTokenStatus('codex-1');
 
     expect(app.terminalTokenStatusEl.classList.contains('hidden')).toBe(false);
-    expect(app.terminalTokenStatusEl.textContent).toBe('context 70%');
-    expect(app.terminalTokenStatusEl.dataset.microText).toBe('70%');
+    expect(app.terminalTokenStatusEl.textContent).toBe('ctx 70% · 5h 26/60% · 7d 63/85%');
+    expect(app.terminalTokenStatusEl.dataset.microText).toBe('ctx 70% · 5h 26/60% · 7d 63/85%');
     expect(app.terminalTokenStatusEl.title).toContain('Context used 70% (700 / 1K, remaining 300)');
     expect(app.terminalTokenStatusEl.title).toContain('Codex token limits: 5h usage 26%, elapsed time 60%, 7d usage 63%, elapsed time 85%');
   });

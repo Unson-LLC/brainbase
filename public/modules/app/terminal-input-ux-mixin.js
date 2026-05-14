@@ -364,7 +364,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         const usedText = `${Math.round(usedPercent)}%`;
         const elapsedText = `${Math.round(timeElapsedPercent)}%`;
         return {
-            text: `${label} ${usedText}/${elapsedText}`,
+            text: `${label} ${Math.round(usedPercent)}/${elapsedText}`,
             title: `${label} usage ${usedText}, elapsed time ${elapsedText}`,
             overPace: usedPercent > timeElapsedPercent
         };
@@ -381,19 +381,19 @@ export function applyTerminalInputUxMixin(AppClass) {
         let overPace = false;
 
         if (fiveHourStatus) {
-            textParts.push(`⏱ ${fiveHourStatus.text}`);
+            textParts.push(fiveHourStatus.text);
             titleParts.push(fiveHourStatus.title);
             overPace = overPace || fiveHourStatus.overPace;
         }
         if (weeklyStatus) {
-            textParts.push(`📅 ${weeklyStatus.text}`);
+            textParts.push(weeklyStatus.text);
             titleParts.push(weeklyStatus.title);
             overPace = overPace || weeklyStatus.overPace;
         }
         if (textParts.length === 0) return null;
 
         return {
-            text: textParts.join(' '),
+            text: textParts.join(' · '),
             title: `Codex token limits: ${titleParts.join(', ')}`,
             overPace
         };
@@ -482,7 +482,6 @@ export function applyTerminalInputUxMixin(AppClass) {
         let toneClass = 'is-ok';
         const visibleParts = [];
         const titleParts = [];
-        let microText = '';
 
         if (hasContextUsage) {
             const roundedUsed = Math.min(100, Math.max(0, Math.round(usedPercent)));
@@ -493,8 +492,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                     : 'is-ok';
             const contextText = this._formatTerminalTokenCount(contextWindow);
             const usedText = this._formatTerminalTokenCount(usedTokens);
-            visibleParts.push(`context ${roundedUsed}%`);
-            microText = `${roundedUsed}%`;
+            visibleParts.push(`ctx ${roundedUsed}%`);
             const remainingText = Number.isFinite(remainingTokens)
                 ? `, remaining ${this._formatTerminalTokenCount(remainingTokens)}`
                 : '';
@@ -502,9 +500,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         }
 
         if (codexRateLimitStatus) {
-            if (!hasContextUsage) {
-                visibleParts.push('limits');
-            }
+            visibleParts.push(codexRateLimitStatus.text);
             titleParts.push(`${codexRateLimitStatus.title}; ${this._formatWeeklyTokenTitle(weeklyUsage)}`);
         } else if (hasWeeklyUsage) {
             const weeklyText = this._formatTerminalTokenCount(weeklyTokens);
@@ -528,7 +524,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         el.classList.add(toneClass);
         el.textContent = text;
         el.title = title;
-        el.dataset.microText = microText || text;
+        el.dataset.microText = text;
     };
 
     AppClass.prototype._setTerminalHeaderAction = function(button, visible) {
