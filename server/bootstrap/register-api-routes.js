@@ -27,7 +27,9 @@ import {
 } from '../services/sns/sns-ledger-publish-service.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
-    return env.SNS_POSTING_LEDGER_DATABASE_URL || env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
+    if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
+    if (env.BRAINBASE_TEST_MODE === 'true') return '';
+    return env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
 }
 
 function createSnsPostingLedgerRepository(runtimePaths) {

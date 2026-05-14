@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS sns_posting_ledger_posts (
         'scheduled',
         'posted',
         'skipped',
-        'learning_ready'
+        'learning_ready',
+        'deleted'
     )),
     lane TEXT,
     format TEXT,
@@ -21,6 +22,9 @@ CREATE TABLE IF NOT EXISTS sns_posting_ledger_posts (
     scheduled_at TIMESTAMPTZ,
     posted_at TIMESTAMPTZ,
     posted_url TEXT,
+    deleted_at TIMESTAMPTZ,
+    deletion_source TEXT,
+    deletion_reason TEXT,
     source JSONB NOT NULL DEFAULT '{}'::jsonb,
     evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
     memo TEXT NOT NULL DEFAULT '',
@@ -37,3 +41,27 @@ CREATE INDEX IF NOT EXISTS idx_sns_posting_ledger_posts_date_status
 
 CREATE INDEX IF NOT EXISTS idx_sns_posting_ledger_posts_account_date
     ON sns_posting_ledger_posts (account_id, date);
+
+ALTER TABLE sns_posting_ledger_posts
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+ALTER TABLE sns_posting_ledger_posts
+    ADD COLUMN IF NOT EXISTS deletion_source TEXT;
+
+ALTER TABLE sns_posting_ledger_posts
+    ADD COLUMN IF NOT EXISTS deletion_reason TEXT;
+
+ALTER TABLE sns_posting_ledger_posts
+    DROP CONSTRAINT IF EXISTS sns_posting_ledger_posts_status_check;
+
+ALTER TABLE sns_posting_ledger_posts
+    ADD CONSTRAINT sns_posting_ledger_posts_status_check
+    CHECK (status IN (
+        'review_needed',
+        'approved',
+        'scheduled',
+        'posted',
+        'skipped',
+        'learning_ready',
+        'deleted'
+    ));

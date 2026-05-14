@@ -71,7 +71,7 @@ This lets SNS operation become a closed loop:
 - [ ] AC-1: `/ohayo` can persist the daily review pack into the SNS posting ledger without duplicating the same generated post for the same date and slot.
 - [ ] AC-2: The cockpit has a calendar or week view where each date shows planned posts and status badges at a glance.
 - [ ] AC-3: Opening a post shows body, scheduled time, status, source URL, source type, Graph Check, Persona Brain, Quality Gate, and edit history.
-- [ ] AC-4: The operator can edit post body and change status between review needed, approved, scheduled, posted, skipped, and learning ready.
+- [ ] AC-4: The operator can edit post body and change status between review needed, approved, scheduled, posted, skipped, deleted, and learning ready.
 - [ ] AC-5: A scheduled post has a scheduled datetime and remains visible in the calendar before posting.
 - [ ] AC-6: A posted post can store the posted X URL and metrics snapshot.
 - [ ] AC-7: Posts with Peer Circle or news sources preserve the source URL and make it easy to open the source while reviewing.
@@ -80,6 +80,7 @@ This lets SNS operation become a closed loop:
 - [ ] AC-10: `/oyasumi` or a later feedback flow can read posted records and create learning candidates, without directly mutating Graph from raw metrics.
 - [ ] AC-11: The SNS Growth activity bar entry is additive: `ab-sns-growth-btn` is the only new branch, while existing `abSessionsBtn`, Portal/Terminal controls, and `targetSessionId` file-viewer close behavior remain unchanged.
 - [ ] AC-12: A reviewed Ledger post can be dry-run checked without mutation, and can be publicly posted only after explicit confirmation; successful posting stores the X URL back into the Ledger.
+- [ ] AC-13: If a posted X post is later deleted on X, the operator can mark the Ledger record as deleted without clearing the posted URL; deleted records are excluded from learning handoff.
 
 ## State Model
 
@@ -91,6 +92,7 @@ The MVP status model is:
 - `posted`: posted URL has been recorded.
 - `skipped`: intentionally not used.
 - `learning_ready`: metrics or reaction notes are ready to become learning candidates.
+- `deleted`: the post existed on X but was later deleted; `posted_url` remains as history, and `deleted_at`, `deletion_source`, `deletion_reason` capture the operational reason.
 
 ## Data Boundary
 
@@ -101,6 +103,7 @@ SNS Posting Ledger stores operational state:
 - source references
 - review and schedule state
 - posted URL
+- deletion timestamp/source/reason for posts removed on X
 - metrics snapshots
 - learning candidate linkage
 
@@ -159,12 +162,14 @@ Activity bar requirement scope:
 | TSK-sns-cockpit-007 | QA | Contract and UI tests | Idempotency, status transitions, calendar rendering, edit flow |
 | TSK-sns-cockpit-008 | FE | Today overview entry | Initial screen with one current decision and compact week strip |
 | TSK-sns-cockpit-009 | BE/FE/OPS | SNS publish bridge | UI calls Ledger publish endpoint; dry-run is non-mutating; public post requires confirmation and records posted URL |
+| TSK-sns-cockpit-010 | BE/FE | Deleted post state | Add `deleted` Ledger status, preserve posted URL, and expose a confirmation action in the review panel |
 
 ## Verification Plan
 
 - Unit: status transition rules, idempotent upsert, quality evidence persistence.
 - API: create/list/update posts, schedule state, posted URL and metrics updates.
 - API: publish bridge dry-run does not mutate Ledger; public publish requires explicit confirmation and stores posted URL.
+- API/UI: posted records can be marked deleted while preserving posted URL and deletion metadata.
 - Integration: `/ohayo` generated review pack becomes ledger records.
 - UI: calendar shows planned posts and status badges; detail panel can edit, save, dry-run, and confirm publish.
 - Regression: existing `/ohayo` markdown/signals output still works.

@@ -156,4 +156,42 @@ describe('sns-growth routes', () => {
         expect(res.body.post.status).toBe('posted');
         expect(res.body.post.posted_url).toBe('https://x.com/i/web/status/2055000000000000001');
     });
+
+    it('marks a posted Ledger record as deleted without clearing the posted URL', async () => {
+        const { app, repository } = makeApp();
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                date: '2026-05-14',
+                slot_index: 1,
+                lane: 'trust_balance',
+                body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める'
+            }]
+        });
+        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, {
+            status: 'posted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const res = await request(app)
+            .patch(`/api/sns-growth/posts/${post.id}`)
+            .send({
+                status: 'deleted',
+                deleted_at: '2026-05-14T04:00:00.000Z',
+                deletion_source: 'manual_x_delete',
+                deletion_reason: 'X上で削除した'
+            })
+            .expect(200);
+
+        expect(res.body.post).toMatchObject({
+            status: 'deleted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            deleted_at: '2026-05-14T04:00:00.000Z',
+            deletion_source: 'manual_x_delete',
+            deletion_reason: 'X上で削除した'
+        });
+    });
 });

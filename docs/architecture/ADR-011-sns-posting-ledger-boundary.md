@@ -74,6 +74,7 @@ Ledger は operational state を保持する。
 - review status / reviewer actions
 - scheduled datetime
 - posted URL
+- deletion timestamp/source/reason when a post was removed on X
 - metrics snapshots
 - learning candidate references
 
@@ -98,10 +99,11 @@ raw metrics は Graph に直接書き込まない。
   -> approved
   -> scheduled
   -> posted
-  -> learning_ready
-  -> candidate-store learning candidate
-  -> Graph promotion gate
+      -> learning_ready -> candidate-store learning candidate -> Graph promotion gate
+      -> deleted        (if the X post is removed)
 ```
+
+`deleted` is a terminal operational state for posts that existed on X and were later removed. It preserves `posted_url` as history and records `deleted_at`, `deletion_source`, and `deletion_reason`. Deleted records are not promoted into candidate-store by the feedback handoff.
 
 MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は execution layer として追加してよいが、その場合も同じ Ledger を通す。
 
@@ -137,6 +139,7 @@ Ledger は既存 Lightsail PostgreSQL infrastructure を使う。
 
 - SNS Cockpit 実装は明確な DB / API 境界から始められる。
 - UI は Graph を workflow queue 化せず、calendar / review / schedule / posted 状態を表示できる。
+- X上で削除された投稿は posted URL を履歴として残したまま `deleted` として扱える。
 - `/ohayo` は Graph semantics を変えずに review pack を idempotent に保存できる。
 - `/oyasumi` は posted record を読んで learning candidate を作れるが、Graph へ直接 mutation しない。
 - 将来の X API posting は Ledger 上の execution adapter として追加できる。

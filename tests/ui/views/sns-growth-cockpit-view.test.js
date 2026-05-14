@@ -94,6 +94,28 @@ describe('SnsGrowthCockpitView', () => {
                 reader_affect: '学習に戻せる'
             },
             revisions: []
+        },
+        {
+            id: 'sns_20260515_2_deleted',
+            date: '2026-05-15',
+            time: '12:00',
+            title: '削除済みの投稿',
+            status: 'deleted',
+            account_handle: '@AIBizNavigator',
+            lane: 'learn_in_public',
+            body: '削除済みの投稿を学習対象から外す',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            deleted_at: '2026-05-15T03:00:00.000Z',
+            deletion_source: 'manual_x_delete',
+            deletion_reason: 'X上で削除した',
+            source: { type: 'Personal KG' },
+            evidence: {
+                persona_brain: { target_person: 'AI導入を任されたPM' },
+                graph_check: { status: 'ok' },
+                quality_gate: { status: 'pass' },
+                reader_affect: '削除判断を次に活かせる'
+            },
+            revisions: []
         }
     ];
 
@@ -142,10 +164,12 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.querySelector('[data-summary-status="scheduled"]')?.textContent).toContain('1');
         expect(container.querySelector('[data-summary-status="posted"]')?.textContent).toContain('1');
         expect(container.querySelector('[data-summary-status="learning_ready"]')?.textContent).toContain('1');
+        expect(container.querySelector('[data-summary-status="deleted"]')?.textContent).toContain('1');
         expect(container.querySelector('.sns-status-chip.status-review-needed')).toBeTruthy();
         expect(container.querySelector('.sns-status-chip.status-scheduled')).toBeTruthy();
         expect(container.querySelector('.sns-status-chip.status-posted')).toBeTruthy();
         expect(container.querySelector('.sns-status-chip.status-learning-ready')).toBeTruthy();
+        expect(container.querySelector('.sns-status-chip.status-deleted')).toBeTruthy();
     });
 
     it('selected post detail panel shows editable operational fields and collapsed evidence rows', () => {
@@ -261,5 +285,63 @@ describe('SnsGrowthCockpitView', () => {
         });
         expect(container.textContent).toContain('posted');
         expect(container.textContent).toContain('https://x.com/i/web/status/2055000000000000001');
+    });
+
+    it('marks a posted post as deleted only after confirmation and keeps the X URL visible', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const calls = [];
+        const postedPost = {
+            ...posts[3],
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z'
+        };
+        const apiClient = {
+            listPosts: async () => ({ posts: [postedPost] }),
+            updatePost: async (id, patch) => {
+                calls.push({ id, patch });
+                return {
+                    post: {
+                        ...postedPost,
+                        ...patch,
+                        status: 'deleted',
+                        deletion_source: 'manual_x_delete',
+                        deletion_reason: patch.deletion_reason
+                    }
+                };
+            },
+            publishPost: async () => ({ post: postedPost })
+        };
+        const view = new SnsGrowthCockpitView({ posts: [postedPost], apiClient, today: '2026-05-14' });
+        view.mount(container);
+
+        container.querySelector('[data-detail-field="memo"]').value = 'X上で削除した';
+        container.querySelector('[data-sns-action="mark-deleted"]')?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(window.confirm).toHaveBeenCalled();
+        expect(calls[0].id).toBe(postedPost.id);
+        expect(calls[0].patch).toMatchObject({
+            status: 'deleted',
+            deletion_source: 'manual_x_delete',
+            deletion_reason: 'X上で削除した'
+        });
+        expect(calls[0].patch.deleted_at).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
+        expect(container.textContent).toContain('deleted');
+        expect(container.textContent).toContain('https://x.com/AIBizNavigator/status/2055000000000000001');
+        expect(container.textContent).toContain('X上で削除した');
+    });
+
+    it('does not render mutation actions for a terminal deleted post', () => {
+        const deletedPost = posts.find((post) => post.status === 'deleted');
+        const view = new SnsGrowthCockpitView({ posts: [deletedPost], today: '2026-05-15' });
+        view.mount(container);
+
+        expect(container.textContent).toContain('削除記録');
+        expect(container.querySelector('[data-sns-action="approve"]')).toBeNull();
+        expect(container.querySelector('[data-sns-action="schedule"]')).toBeNull();
+        expect(container.querySelector('[data-sns-action="publish"]')).toBeNull();
+        expect(container.querySelector('[data-sns-action="mark-deleted"]')).toBeNull();
+        expect(container.querySelector('[data-sns-action="skip"]')).toBeNull();
     });
 });

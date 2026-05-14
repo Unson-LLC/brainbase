@@ -9,15 +9,16 @@ import path from 'node:path';
  * so a Pg repository can replace it without changing routes or UI.
  */
 
-const STATUSES = new Set(['review_needed', 'approved', 'scheduled', 'posted', 'skipped', 'learning_ready']);
+const STATUSES = new Set(['review_needed', 'approved', 'scheduled', 'posted', 'skipped', 'learning_ready', 'deleted']);
 
 const ALLOWED_TRANSITIONS = {
     review_needed: new Set(['approved', 'scheduled', 'skipped']),
     approved: new Set(['review_needed', 'scheduled', 'skipped']),
     scheduled: new Set(['review_needed', 'approved', 'posted', 'skipped']),
-    posted: new Set(['learning_ready']),
+    posted: new Set(['learning_ready', 'deleted']),
     skipped: new Set(['review_needed']),
-    learning_ready: new Set(['posted'])
+    learning_ready: new Set(['posted', 'deleted']),
+    deleted: new Set([])
 };
 
 const DEFAULT_TIMES_BY_SLOT = ['09:00', '12:00', '15:00', '18:00', '21:00'];
@@ -124,6 +125,7 @@ function normalizeRecord(record) {
         date: dateOnly(record.date),
         scheduled_at: toIso(record.scheduled_at),
         posted_at: toIso(record.posted_at),
+        deleted_at: toIso(record.deleted_at),
         created_at: toIso(record.created_at),
         updated_at: toIso(record.updated_at),
         revisions: Array.isArray(record.revisions) ? record.revisions : [],
@@ -159,6 +161,9 @@ function draftToRecord(draft, defaults = {}) {
         scheduled_at: draft.scheduled_at || `${date}T${time}:00.000Z`,
         posted_at: draft.posted_at || null,
         posted_url: draft.posted_url || null,
+        deleted_at: draft.deleted_at || null,
+        deletion_source: draft.deletion_source || null,
+        deletion_reason: draft.deletion_reason || null,
         source: sourceFromDraft(draft),
         evidence: evidenceFromDraft(draft),
         memo: draft.memo || '',
@@ -276,6 +281,9 @@ export class InMemorySnsPostingLedgerRepository {
             scheduled_at: Object.prototype.hasOwnProperty.call(patch, 'scheduled_at') ? toIso(patch.scheduled_at) : existing.scheduled_at,
             posted_url: Object.prototype.hasOwnProperty.call(patch, 'posted_url') ? patch.posted_url : existing.posted_url,
             posted_at: Object.prototype.hasOwnProperty.call(patch, 'posted_at') ? toIso(patch.posted_at) : existing.posted_at,
+            deleted_at: Object.prototype.hasOwnProperty.call(patch, 'deleted_at') ? toIso(patch.deleted_at) : existing.deleted_at,
+            deletion_source: Object.prototype.hasOwnProperty.call(patch, 'deletion_source') ? patch.deletion_source : existing.deletion_source,
+            deletion_reason: Object.prototype.hasOwnProperty.call(patch, 'deletion_reason') ? patch.deletion_reason : existing.deletion_reason,
             memo: typeof patch.memo === 'string' ? patch.memo : existing.memo,
             learning_candidate_id: patch.learning_candidate_id || existing.learning_candidate_id,
             revisions,
@@ -349,13 +357,15 @@ export class PgSnsPostingLedgerRepository {
                         `INSERT INTO sns_posting_ledger_posts (
                             id, account_id, account_handle, platform, date, slot_index, time,
                             title, status, lane, format, body, scheduled_at, posted_at, posted_url,
+                            deleted_at, deletion_source, deletion_reason,
                             source, evidence, memo, learning_candidate_id, revisions, metrics_snapshots,
                             created_at, updated_at
                         ) VALUES (
                             $1, $2, $3, $4, $5, $6, $7,
                             $8, $9, $10, $11, $12, $13, $14, $15,
-                            $16::jsonb, $17::jsonb, $18, $19, $20::jsonb, $21::jsonb,
-                            $22, $23
+                            $16, $17, $18,
+                            $19::jsonb, $20::jsonb, $21, $22, $23::jsonb, $24::jsonb,
+                            $25, $26
                         )
                         RETURNING *`,
                         postParams(next)
@@ -460,10 +470,13 @@ export class PgSnsPostingLedgerRepository {
                      scheduled_at = $5,
                      posted_url = $6,
                      posted_at = $7,
-                     memo = $8,
-                     learning_candidate_id = $9,
-                     revisions = $10::jsonb,
-                     metrics_snapshots = $11::jsonb,
+                     deleted_at = $8,
+                     deletion_source = $9,
+                     deletion_reason = $10,
+                     memo = $11,
+                     learning_candidate_id = $12,
+                     revisions = $13::jsonb,
+                     metrics_snapshots = $14::jsonb,
                      updated_at = NOW()
                  WHERE id = $1
                  RETURNING *`,
@@ -475,6 +488,9 @@ export class PgSnsPostingLedgerRepository {
                     Object.prototype.hasOwnProperty.call(patch, 'scheduled_at') ? toIso(patch.scheduled_at) : existing.scheduled_at,
                     Object.prototype.hasOwnProperty.call(patch, 'posted_url') ? patch.posted_url : existing.posted_url,
                     Object.prototype.hasOwnProperty.call(patch, 'posted_at') ? toIso(patch.posted_at) : existing.posted_at,
+                    Object.prototype.hasOwnProperty.call(patch, 'deleted_at') ? toIso(patch.deleted_at) : existing.deleted_at,
+                    Object.prototype.hasOwnProperty.call(patch, 'deletion_source') ? patch.deletion_source : existing.deletion_source,
+                    Object.prototype.hasOwnProperty.call(patch, 'deletion_reason') ? patch.deletion_reason : existing.deletion_reason,
                     typeof patch.memo === 'string' ? patch.memo : existing.memo,
                     patch.learning_candidate_id || existing.learning_candidate_id,
                     JSON.stringify(revisions),
@@ -509,6 +525,9 @@ function postParams(post) {
         post.scheduled_at,
         post.posted_at,
         post.posted_url,
+        post.deleted_at,
+        post.deletion_source,
+        post.deletion_reason,
         JSON.stringify(post.source),
         JSON.stringify(post.evidence),
         post.memo,
@@ -540,7 +559,8 @@ export function summarizeSnsPosts(posts) {
         review_needed: byStatus.review_needed,
         scheduled: byStatus.scheduled,
         posted: byStatus.posted,
-        learning_ready: byStatus.learning_ready
+        learning_ready: byStatus.learning_ready,
+        deleted: byStatus.deleted
     };
 }
 

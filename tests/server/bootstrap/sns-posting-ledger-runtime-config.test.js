@@ -27,6 +27,18 @@ describe('SNS posting ledger runtime database config', () => {
         })).toEqual({ connectionString: 'postgres://info-ssot' });
     });
 
+    it('keeps test server runs on the JSON ledger unless a dedicated SNS URL is configured', () => {
+        expect(resolveSnsPostingLedgerDatabaseUrl({
+            BRAINBASE_TEST_MODE: 'true',
+            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
+        })).toBe('');
+        expect(resolveSnsPostingLedgerDatabaseUrl({
+            BRAINBASE_TEST_MODE: 'true',
+            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',
+            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
+        })).toBe('postgres://sns-ledger');
+    });
+
     it('can scope M5 migration to the SNS posting ledger schema', () => {
         expect(selectedMigrations(['--only', 'sns-posting-ledger']).map((migration) => migration.path))
             .toEqual(['server/sql/sns-posting-ledger-schema.sql']);

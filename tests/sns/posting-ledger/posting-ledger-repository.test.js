@@ -103,6 +103,35 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(repository.findById(post.id)?.status).toBe('review_needed');
     });
 
+    it('marks a posted record as deleted while preserving the posted URL and deletion metadata', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
+        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, {
+            status: 'posted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const deleted = repository.updatePost(post.id, {
+            status: 'deleted',
+            deleted_at: '2026-05-14T04:00:00.000Z',
+            deletion_source: 'manual_x_delete',
+            deletion_reason: 'X上で削除した'
+        }, { actor_person_id: 'sato_keigo' });
+
+        expect(deleted).toMatchObject({
+            status: 'deleted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z',
+            deleted_at: '2026-05-14T04:00:00.000Z',
+            deletion_source: 'manual_x_delete',
+            deletion_reason: 'X上で削除した'
+        });
+        expect(repository.findById(post.id)?.status).toBe('deleted');
+    });
+
     it('persists the ledger to a JSON file across repository instances', () => {
         const dir = mkdtempSync(path.join(tmpdir(), 'sns-ledger-'));
         const filePath = path.join(dir, 'ledger.json');
@@ -149,14 +178,17 @@ describe('PgSnsPostingLedgerRepository', () => {
                             scheduled_at: params[12],
                             posted_at: params[13],
                             posted_url: params[14],
-                            source: JSON.parse(params[15]),
-                            evidence: JSON.parse(params[16]),
-                            memo: params[17],
-                            learning_candidate_id: params[18],
-                            revisions: JSON.parse(params[19]),
-                            metrics_snapshots: JSON.parse(params[20]),
-                            created_at: params[21],
-                            updated_at: params[22]
+                            deleted_at: params[15],
+                            deletion_source: params[16],
+                            deletion_reason: params[17],
+                            source: JSON.parse(params[18]),
+                            evidence: JSON.parse(params[19]),
+                            memo: params[20],
+                            learning_candidate_id: params[21],
+                            revisions: JSON.parse(params[22]),
+                            metrics_snapshots: JSON.parse(params[23]),
+                            created_at: params[24],
+                            updated_at: params[25]
                         }]
                     };
                 }
