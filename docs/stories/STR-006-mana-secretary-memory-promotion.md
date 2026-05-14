@@ -62,12 +62,39 @@ Brainbase の terminal/session activity と、mana が Slack / workflow / messag
 - [ ] Brainbase terminal と Slack mana で同じ質問をしても、person / role / project / workspace / channel / sensitivity に応じたmemory差分が再現できる。
 - [ ] Raw Ledger evidence から promoted memory まで `evidence_ref` と `source_event_ids` を追跡できる。
 
-## First Slice
+## First Slice (Phase 1: Brainbase + mana)
 
 - Brainbase: Raw Ledger adapter、Memory Candidate Store、Promotion Gate、approved-only Graph writer、terminal scoped retrieval のcontract testを通す。
 - mana: Slack / workflow history をRaw Ledger-compatible envelopeへ変換し、Brainbase Promotion Gateへcandidate draftを送れるところまでを対象にする。
 - cross-repo: 同じfixtureでBrainbase/mana双方のcontract testを通し、両repoのVibePro/Graphify runを同じ `story_key` に紐づける。
 - 2026-W19では「全Slack履歴の投入」や「全種類のGraph昇格」ではなく、private preference 1件と project-visible memory 1件の昇格を完了境界にする。
+
+## Silo dissolution scope (Phase 2 以降の前提)
+
+ADR-010 で `candidate-store` を canonical Memory Promotion Kernel と確定した以上、 **mana 以外のソースも別 promotion 系を持ってはならない**。 現存する silo 系 (= repo 内 JSON / 別 DB に学習履歴を閉じている系) は順次 kernel adapter へ移行する。
+
+直近で表面化した silo (= ADR-010 違反) と移行 phase:
+
+| Silo 系 | 種別 | repo / 場所 | 移行 sub-story |
+|---|---|---|---|
+| `Unson-LLC/salestailor` の `ops-department-auto-refactoring` | code refactor 学習 (3h cron) | `scripts/ops-team-review.cjs` + `refactoring-history.json` | [story-salestailor-ops-refactor-kernel-adapter](./story-salestailor-ops-refactor-kernel-adapter.md) |
+| (将来) zeims / techknight の独自学習 / SNS feedback ledger 等 | TBD | TBD | TBD (発見次第 sub-story 起票) |
+
+silo dissolution の前提として、 brainbase 側に **cross-repo write API** が無いと外部 repo から envelope を投げられない。 これは [story-candidate-store-cross-repo-write](./story-candidate-store-cross-repo-write.md) で先行確立する。
+
+## サブストーリーと依存関係
+
+```
+STR-006 (umbrella)
+├─ Phase 1 First Slice (本 story 内): brainbase Raw Ledger + Promotion Gate + mana cross-repo emit
+├─ story-candidate-store-cross-repo-write  ← brainbase kernel の外部受信 API 露出 (P1 前提)
+└─ story-salestailor-ops-refactor-kernel-adapter
+    ├─ P0: 即時 silo 停止 (cron disable、 workflow_dispatch のみ)
+    ├─ P1 依存: cross-repo write endpoint 公開後
+    └─ P2: salestailor → candidate-store envelope 移行
+```
+
+各 sub-story は同じ `story_key`/`source_story` で結ぶ。 全 silo の kernel 統合が完了したら 「組織学習が単一経路に統一された」 という STR-006 の真の完了境界に到達する。
 
 ## 受け入れ基準
 
