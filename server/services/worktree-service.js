@@ -149,6 +149,173 @@ export class WorktreeService {
             .filter((value, index, list) => value && list.indexOf(value) === index);
     }
 
+    async _realpathOrResolve(targetPath) {
+        try {
+            return await fs.realpath(targetPath);
+        } catch {
+            return path.resolve(targetPath);
+        }
+    }
+
+    async _isCanonicalRepo(repoPath) {
+        const [repoRealpath, canonicalRealpath] = await Promise.all([
+            this._realpathOrResolve(repoPath),
+            this._realpathOrResolve(this.canonicalRoot)
+        ]);
+        return repoRealpath === canonicalRealpath;
+    }
+
+    async _getJjCommitId(repoPath, revset) {
+        const { stdout } = await this._execJujutsuWithStaleRetry(
+            repoPath,
+            `--ignore-working-copy log -r "${revset}" -T 'commit_id ++ "\\n"' --no-pager --no-graph`,
+            { retryStale: false }
+        );
+        return stdout
+            .split('\n')
+            .map((line) => line.trim())
+            .find(Boolean) || null;
+    }
+
+    async getMergeDeploymentGuardStatus(repoPath, options = {}) {
+        const { mainBranchName = null, fetchRemote = false } = options;
+        const resolvedMainBranchName = mainBranchName || await this._getMainBranchName(repoPath);
+        const canonical = await this._isCanonicalRepo(repoPath);
+
+        const baseStatus = {
+            ready: true,
+            canonical,
+            repoPath,
+            mainBranchName: resolvedMainBranchName,
+            reason: 'ok'
+        };
+
+        if (process.env.BRAINBASE_DISABLE_MERGE_DEPLOY_GUARD === '1') {
+            return { ...baseStatus, disabled: true, reason: 'disabled' };
+        }
+
+        if (!canonical) {
+            return { ...baseStatus, skipped: true, reason: 'non_canonical_repo' };
+        }
+
+        try {
+            await this.execPromise(`git -C "${repoPath}" rev-parse --verify HEAD`);
+        } catch (error) {
+            return {
+                ...baseStatus,
+                ready: false,
+                reason: 'missing_git_head',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+
+        if (!await this._isJujutsuRepo(repoPath)) {
+            return {
+                ...baseStatus,
+                ready: false,
+                reason: 'not_jj_repo',
+                error: 'Canonical Brainbase repo must be a Jujutsu repo for merge deployment guard'
+            };
+        }
+
+        try {
+            if (fetchRemote) {
+                await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
+            }
+
+            const [defaultCommit, mainCommit, statusResult] = await Promise.all([
+                this._getJjCommitId(repoPath, 'default@'),
+                this._getJjCommitId(repoPath, resolvedMainBranchName),
+                this._execJujutsuWithStaleRetry(repoPath, 'status --no-pager')
+            ]);
+            const hasRelevantWorkingCopyChanges = this._statusHasRelevantWorkingCopyChanges(statusResult.stdout);
+
+            if (hasRelevantWorkingCopyChanges) {
+                return {
+                    ...baseStatus,
+                    ready: false,
+                    reason: 'canonical_workspace_dirty',
+                    defaultCommit,
+                    mainCommit
+                };
+            }
+
+            if (!defaultCommit || !mainCommit) {
+                return {
+                    ...baseStatus,
+                    ready: false,
+                    reason: 'unresolved_jj_revision',
+                    defaultCommit,
+                    mainCommit
+                };
+            }
+
+            if (defaultCommit !== mainCommit) {
+                const { stdout: diffPaths } = await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `diff -r "${resolvedMainBranchName}..default@" --name-only`
+                );
+                if (!this._diffOutputHasRelevantPaths(diffPaths)) {
+                    return {
+                        ...baseStatus,
+                        reason: 'ok_ignored_artifact_delta',
+                        defaultCommit,
+                        mainCommit
+                    };
+                }
+
+                return {
+                    ...baseStatus,
+                    ready: false,
+                    reason: 'canonical_workspace_not_deployed',
+                    defaultCommit,
+                    mainCommit
+                };
+            }
+
+            return { ...baseStatus, defaultCommit, mainCommit };
+        } catch (error) {
+            return {
+                ...baseStatus,
+                ready: false,
+                reason: 'guard_check_failed',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    async syncCanonicalWorkspaceAfterMerge(repoPath, mainBranchName) {
+        if (process.env.BRAINBASE_DISABLE_MERGE_DEPLOY_GUARD === '1') {
+            return { success: true, skipped: true, reason: 'disabled' };
+        }
+
+        if (!await this._isCanonicalRepo(repoPath)) {
+            return { success: true, skipped: true, reason: 'non_canonical_repo' };
+        }
+
+        try {
+            await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
+            await this._execJujutsuWithStaleRetry(repoPath, `rebase -b default@ -d "${mainBranchName}"`);
+        } catch (error) {
+            return {
+                success: false,
+                reason: 'deploy_sync_failed',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+
+        const status = await this.getMergeDeploymentGuardStatus(repoPath, { mainBranchName, fetchRemote: false });
+        if (!status.ready) {
+            return {
+                success: false,
+                reason: status.reason,
+                status
+            };
+        }
+
+        return { success: true, status };
+    }
+
     _isStaleWorkingCopyError(error) {
         const message = [
             error?.message,
@@ -503,6 +670,17 @@ export class WorktreeService {
                 const match = line.match(/^\s*[A-Z?][A-Z? ]*\s+(.+)$/);
                 if (!match) return false;
                 return !this._isWorkspaceArtifactStatusPath(match[1]);
+            });
+    }
+
+    _diffOutputHasRelevantPaths(diffOutput) {
+        return String(diffOutput || '')
+            .split('\n')
+            .some((line) => {
+                const statMatch = line.match(/^\s*(.+?)\s+\|\s+/);
+                const filePath = (statMatch ? statMatch[1] : line).trim();
+                if (!filePath || /^[0-9]+ files? changed/.test(filePath)) return false;
+                return !this._isWorkspaceArtifactStatusPath(filePath);
             });
     }
 
@@ -1094,6 +1272,16 @@ EOF
             logger.info(`[merge] Merging PR`);
             await this.execPromise(`gh pr merge "${prUrl.trim()}" --repo "${ghRepoSpec}" --merge --delete-branch`);
 
+            const deployGuard = await this.syncCanonicalWorkspaceAfterMerge(repoPath, mainBranchName);
+            if (!deployGuard.success) {
+                return {
+                    success: false,
+                    error: `Merged PR but canonical workspace deploy guard failed: ${deployGuard.reason || 'unknown'}`,
+                    prUrl: prUrl.trim(),
+                    deployGuard
+                };
+            }
+
             // Cleanup workspace
             const workspaceName = `${sessionId}-${path.basename(repoPath)}`;
             const workspacePath = path.join(this.worktreesDir, workspaceName);
@@ -1142,7 +1330,7 @@ EOF
             }
 
             logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
-            return { success: true, message: 'Merged via PR', prUrl: prUrl.trim(), mergedAt: new Date().toISOString() };
+            return { success: true, message: 'Merged via PR', prUrl: prUrl.trim(), mergedAt: new Date().toISOString(), deployGuard };
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             logger.error(`Failed to merge workspace for ${sessionId}:`, message);

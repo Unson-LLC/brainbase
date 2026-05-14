@@ -57,6 +57,15 @@ export function installWorktreeHandlers(controller) {
                 logger.warn(`[createWithWorktree] Repo path fallback for ${sessionId}: ${repoPath} -> ${resolvedRepoPath}`);
             }
 
+            const deployGuard = await controller.worktreeService.getMergeDeploymentGuardStatus(resolvedRepoPath, { fetchRemote: true });
+            if (!deployGuard.ready) {
+                controller._updateProgress(sessionId, 'error', 0, '正本ワークスペースが未反映です');
+                return res.status(409).json({
+                    error: 'Canonical Brainbase workspace is not deployed to the latest merged base. Deploy merged changes before starting another Brainbase worktree.',
+                    guard: deployGuard
+                });
+            }
+
             const worktreeResult = await controller.worktreeService.create(sessionId, resolvedRepoPath, { skipFetch });
             if (!worktreeResult) {
                 controller._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
