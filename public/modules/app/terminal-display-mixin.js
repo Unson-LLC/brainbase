@@ -236,23 +236,45 @@ export function applyTerminalDisplayMixin(AppClass) {
         const restoreToken = (this._fileViewerCloseRestoreToken || 0) + 1;
         this._fileViewerCloseRestoreToken = restoreToken;
 
+        const revealConsole = () => {
+            if (this.isMobile() && this.mobileTabController) {
+                this.mobileTabController.switchTab('terminal');
+                return;
+            }
+            if (typeof this.showConsole === 'function') {
+                this.showConsole();
+                return;
+            }
+            document.body?.classList?.remove('file-viewer-active');
+            const consoleArea = document.getElementById('console-area');
+            const fileViewerPanel = document.getElementById('file-viewer-panel');
+            if (consoleArea) consoleArea.style.display = 'flex';
+            if (fileViewerPanel) fileViewerPanel.style.display = 'none';
+        };
+
+        revealConsole();
+
         let switchedOnClose = false;
         if (sessionId && sessionId !== currentSessionId) {
             switchedOnClose = true;
-            await this.switchSession?.(sessionId, {
-                previousSessionId: currentSessionId,
-                recoveryReason: 'file-viewer-close'
-            });
-        }
-
-        if (this.isMobile() && this.mobileTabController) {
-            this.mobileTabController.switchTab('terminal');
-        } else {
-            this.showConsole?.();
+            try {
+                await this.switchSession?.(sessionId, {
+                    previousSessionId: currentSessionId,
+                    recoveryReason: 'file-viewer-close'
+                });
+            } catch (error) {
+                console.warn('[file-viewer-close] Session restore failed after console reveal:', error);
+            }
+            if (!this._isConsoleVisible()) {
+                revealConsole();
+            }
         }
 
         scheduleAfterNextPaint(() => {
             if (this._fileViewerCloseRestoreToken !== restoreToken) return;
+            if (!this._isConsoleVisible()) {
+                revealConsole();
+            }
             if (!this._isConsoleVisible()) return;
 
             const activeSessionId = appStore.getState().currentSessionId || sessionId;

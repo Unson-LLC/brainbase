@@ -238,6 +238,99 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(app.terminalTransportClient.restoreAfterReveal).not.toHaveBeenCalled();
   });
 
+  it('file viewerから別セッションへ戻る時はsession切替完了を待たずにconsoleを先に表示する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.showConsole = vi.fn(() => {
+      document.body.classList.remove('file-viewer-active');
+      document.getElementById('console-area').style.display = 'flex';
+      document.getElementById('file-viewer-panel').style.display = 'none';
+    });
+    let resolveSwitch;
+    app.switchSession = vi.fn(() => new Promise(resolve => {
+      resolveSwitch = resolve;
+    }));
+    app.terminalTransportClient = {
+      getStatus: vi.fn(() => ({
+        mode: 'live',
+        connected: true,
+        terminalAccess: { state: 'owner', canTakeover: false }
+      })),
+      isActiveForSession: vi.fn(() => true),
+      restoreAfterReveal: vi.fn(async () => {}),
+      destroy: vi.fn()
+    };
+
+    document.body.classList.add('file-viewer-active');
+    document.getElementById('console-area').style.display = 'none';
+    document.getElementById('file-viewer-panel').style.display = 'flex';
+    appStore.setState({
+      currentSessionId: 'session-current',
+      sessions: [
+        { id: 'session-current', intendedState: 'active' },
+        { id: 'session-file', intendedState: 'active' }
+      ]
+    });
+
+    const restorePromise = app._restoreTerminalAfterFileViewerClose('session-file');
+
+    expect(app.showConsole).toHaveBeenCalledTimes(1);
+    expect(document.body.classList.contains('file-viewer-active')).toBe(false);
+    expect(document.getElementById('console-area').style.display).toBe('flex');
+    expect(document.getElementById('file-viewer-panel').style.display).toBe('none');
+    expect(app.switchSession).toHaveBeenCalledWith('session-file', {
+      previousSessionId: 'session-current',
+      recoveryReason: 'file-viewer-close'
+    });
+
+    resolveSwitch({ ok: true });
+    await restorePromise;
+  });
+
+  it('file viewer復帰時のsession切替が失敗しても白いviewer状態を残さない', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.showConsole = vi.fn(() => {
+      document.body.classList.remove('file-viewer-active');
+      document.getElementById('console-area').style.display = 'flex';
+      document.getElementById('file-viewer-panel').style.display = 'none';
+    });
+    app.switchSession = vi.fn(async () => {
+      throw new Error('switch failed');
+    });
+    app.terminalTransportClient = {
+      getStatus: vi.fn(() => ({
+        mode: 'live',
+        connected: true,
+        terminalAccess: { state: 'owner', canTakeover: false }
+      })),
+      isActiveForSession: vi.fn(() => true),
+      restoreAfterReveal: vi.fn(async () => {}),
+      destroy: vi.fn()
+    };
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    document.body.classList.add('file-viewer-active');
+    document.getElementById('console-area').style.display = 'none';
+    document.getElementById('file-viewer-panel').style.display = 'flex';
+    appStore.setState({
+      currentSessionId: 'session-current',
+      sessions: [
+        { id: 'session-current', intendedState: 'active' },
+        { id: 'session-file', intendedState: 'active' }
+      ]
+    });
+
+    await app._restoreTerminalAfterFileViewerClose('session-file');
+
+    expect(app.showConsole).toHaveBeenCalled();
+    expect(document.body.classList.contains('file-viewer-active')).toBe(false);
+    expect(document.getElementById('console-area').style.display).toBe('flex');
+    expect(document.getElementById('file-viewer-panel').style.display).toBe('none');
+    expect(console.warn).toHaveBeenCalledWith(
+      '[file-viewer-close] Session restore failed after console reveal:',
+      expect.any(Error)
+    );
+  });
+
   it('forces ttyd startup when ttyd frame needs a runtime', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
 
