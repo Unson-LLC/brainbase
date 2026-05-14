@@ -9,13 +9,25 @@ import path from 'node:path';
  * so a Pg repository can replace it without changing routes or UI.
  */
 
-const STATUSES = new Set(['review_needed', 'approved', 'scheduled', 'posted', 'skipped', 'learning_ready', 'deleted']);
+const STATUSES = new Set([
+    'review_needed',
+    'approved',
+    'scheduled',
+    'publishing',
+    'posted',
+    'publish_failed',
+    'skipped',
+    'learning_ready',
+    'deleted'
+]);
 
 const ALLOWED_TRANSITIONS = {
     review_needed: new Set(['approved', 'scheduled', 'skipped']),
     approved: new Set(['review_needed', 'scheduled', 'skipped']),
-    scheduled: new Set(['review_needed', 'approved', 'posted', 'skipped']),
+    scheduled: new Set(['review_needed', 'approved', 'publishing', 'posted', 'skipped']),
+    publishing: new Set(['posted', 'publish_failed']),
     posted: new Set(['learning_ready', 'deleted']),
+    publish_failed: new Set(['review_needed', 'scheduled', 'skipped']),
     skipped: new Set(['review_needed']),
     learning_ready: new Set(['posted', 'deleted']),
     deleted: new Set([])
@@ -293,6 +305,14 @@ export class InMemorySnsPostingLedgerRepository {
         this.posts.set(id, updated);
         return normalizeRecord(updated);
     }
+
+    claimScheduledPost(id, { now = new Date() } = {}, actor = {}) {
+        const existing = this.posts.get(id);
+        if (!existing || existing.status !== 'scheduled') return null;
+        const scheduledAt = existing.scheduled_at ? new Date(existing.scheduled_at) : null;
+        if (!scheduledAt || Number.isNaN(scheduledAt.getTime()) || scheduledAt > now) return null;
+        return this.updatePost(id, { status: 'publishing' }, actor);
+    }
 }
 
 export class JsonFileSnsPostingLedgerRepository extends InMemorySnsPostingLedgerRepository {
@@ -311,6 +331,12 @@ export class JsonFileSnsPostingLedgerRepository extends InMemorySnsPostingLedger
 
     updatePost(id, patch = {}, actor = {}) {
         const result = super.updatePost(id, patch, actor);
+        if (result) this._persist();
+        return result;
+    }
+
+    claimScheduledPost(id, options = {}, actor = {}) {
+        const result = super.claimScheduledPost(id, options, actor);
         if (result) this._persist();
         return result;
     }
@@ -506,6 +532,42 @@ export class PgSnsPostingLedgerRepository {
             if (typeof client.release === 'function') client.release();
         }
     }
+
+    async claimScheduledPost(id, { now = new Date() } = {}, actor = {}) {
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            const { rows } = await client.query(
+                `SELECT * FROM sns_posting_ledger_posts
+                 WHERE id = $1
+                   AND status = 'scheduled'
+                   AND scheduled_at <= $2
+                 FOR UPDATE`,
+                [id, now instanceof Date ? now.toISOString() : String(now)]
+            );
+            if (!rows[0]) {
+                await client.query('ROLLBACK');
+                return null;
+            }
+            const existing = normalizeRecord(rows[0]);
+            assertTransition(existing.status, 'publishing');
+            const claimedResult = await client.query(
+                `UPDATE sns_posting_ledger_posts
+                 SET status = 'publishing',
+                     updated_at = NOW()
+                 WHERE id = $1
+                 RETURNING *`,
+                [id]
+            );
+            await client.query('COMMIT');
+            return normalizeRecord(claimedResult.rows[0]);
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
 }
 
 function postParams(post) {
@@ -558,7 +620,9 @@ export function summarizeSnsPosts(posts) {
         by_status: byStatus,
         review_needed: byStatus.review_needed,
         scheduled: byStatus.scheduled,
+        publishing: byStatus.publishing,
         posted: byStatus.posted,
+        publish_failed: byStatus.publish_failed,
         learning_ready: byStatus.learning_ready,
         deleted: byStatus.deleted
     };

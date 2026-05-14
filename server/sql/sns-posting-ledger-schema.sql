@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS sns_posting_ledger_posts (
         'review_needed',
         'approved',
         'scheduled',
+        'publishing',
         'posted',
+        'publish_failed',
         'skipped',
         'learning_ready',
         'deleted'
@@ -60,7 +62,9 @@ ALTER TABLE sns_posting_ledger_posts
         'review_needed',
         'approved',
         'scheduled',
+        'publishing',
         'posted',
+        'publish_failed',
         'skipped',
         'learning_ready',
         'deleted'

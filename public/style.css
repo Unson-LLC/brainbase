@@ -18424,9 +18424,19 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     color: var(--accent-color);
 }
 
+.status-publishing {
+    background: rgba(99, 102, 241, 0.14);
+    color: #818cf8;
+}
+
 .status-posted {
     background: var(--sns-green-soft);
     color: var(--sns-green);
+}
+
+.status-publish-failed {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
 }
 
 .status-learning-ready {

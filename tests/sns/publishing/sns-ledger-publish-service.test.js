@@ -102,6 +102,6 @@ describe('SnsLedgerPublishService', () => {
         });
 
         await expect(service.publishPost(post.id, { actor: actor(), confirm_public_post: true }))
-            .rejects.toThrow('approved or scheduled');
+            .rejects.toThrow('approved, scheduled, or publishing');
     });
 });

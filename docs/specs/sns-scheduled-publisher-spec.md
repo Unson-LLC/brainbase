@@ -1,7 +1,7 @@
 ---
 spec_id: SPEC-sns-scheduled-publisher
 title: SNS予約投稿の実行者 Specification
-status: draft
+status: implemented
 date: 2026-05-14
 story_id: str.brainbase.sns-scheduled-publisher
 related_specs:
@@ -9,6 +9,8 @@ related_specs:
 implementation_files:
   - server/services/sns/sns-scheduled-publisher.js
   - scripts/run-sns-scheduled-posts.js
+  - config/com.brainbase.sns-scheduled-publisher.plist
+  - docs/runbooks/sns-scheduled-publisher.md
 test_files:
   - tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js
   - tests/sns/ops/run-sns-scheduled-posts.test.js
@@ -42,6 +44,13 @@ test_files:
 - **output**: 実行サマリーとログ。
 - **preconditions**: 本番公開投稿には明示設定が必要である。
 - **postconditions**: due postの結果がLedgerとログに残る。
+
+初回実装の実行コマンド:
+
+```bash
+npm run sns:scheduled-publish -- --dry-run --json
+SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
+```
 
 ## Scenarios
 
@@ -87,10 +96,10 @@ test_files:
 
 | Clause | Test | Status |
 |---|---|---|
-| INV-1, S-1 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | Planned |
-| INV-2, S-2, AP-3 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | Planned |
-| INV-3, AP-1 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | Planned |
-| INV-4, S-3 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | Planned |
-| INV-5, AP-5 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | Planned |
-| INV-6, S-5, AP-4 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | Planned |
-| INV-7, S-4 | tests/sns/ops/run-sns-scheduled-posts.test.js | Planned |
+| INV-1, S-1 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
+| INV-2, S-2, AP-3 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
+| INV-3, AP-1 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
+| INV-4, S-3 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
+| INV-5, AP-5 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
+| INV-6, S-5, AP-4 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
+| INV-7, S-4 | tests/sns/ops/run-sns-scheduled-posts.test.js | ✅ |

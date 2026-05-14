@@ -60,6 +60,7 @@
     "sns:ohayo-brief": "node scripts/generate-sns-ohayo-brief.js",
     "sns:weekly-pack": "node scripts/generate-personal-kg-sns-weekly-pack.js",
     "sns:import-review-pack": "node scripts/import-sns-review-pack-to-ledger.js",
+    "sns:scheduled-publish": "node scripts/run-sns-scheduled-posts.js",
     "sns:feedback-learning": "node scripts/process-sns-feedback-to-learning.js",
     "lint": "npx eslint public/**/*.js server/**/*.js",
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
