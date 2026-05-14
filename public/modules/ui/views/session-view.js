@@ -1032,18 +1032,10 @@ export class SessionView {
         const dropdownMenu = row.querySelector('.session-dropdown-menu');
 
         if (menuToggle && dropdownMenu) {
-            menuToggle.addEventListener('pointerdown', (e) => {
-                this._logSessionMenuDebug('toggle-pointerdown', { event: e, row, menuToggle, dropdownMenu, session });
-                e.stopPropagation();
-            });
-            menuToggle.addEventListener('mousedown', (e) => {
-                this._logSessionMenuDebug('toggle-mousedown', { event: e, row, menuToggle, dropdownMenu, session });
-                e.stopPropagation();
-            });
-            dropdownMenu.addEventListener('pointerdown', (e) => e.stopPropagation());
-            dropdownMenu.addEventListener('mousedown', (e) => e.stopPropagation());
-            menuToggle.addEventListener('click', (e) => {
-                this._logSessionMenuDebug('toggle-click-before', { event: e, row, menuToggle, dropdownMenu, session });
+            let lastPointerToggleAt = 0;
+            const toggleDropdown = (e, triggerPhase) => {
+                this._logSessionMenuDebug(`${triggerPhase}-before`, { event: e, row, menuToggle, dropdownMenu, session });
+                e.preventDefault();
                 e.stopPropagation();
 
                 // Close all other open menus
@@ -1056,7 +1048,7 @@ export class SessionView {
                 // Toggle this menu
                 const isOpening = dropdownMenu.classList.contains('hidden');
                 dropdownMenu.classList.toggle('hidden');
-                this._logSessionMenuDebug(isOpening ? 'toggle-click-opened-sync' : 'toggle-click-closed-sync', {
+                this._logSessionMenuDebug(isOpening ? `${triggerPhase}-opened-sync` : `${triggerPhase}-closed-sync`, {
                     event: e,
                     row,
                     menuToggle,
@@ -1095,6 +1087,13 @@ export class SessionView {
                                 dropdownMenu.style.maxHeight = `${Math.max(96, availableSpace)}px`;
                                 dropdownMenu.style.overflowY = 'auto';
                             }
+                            this._logSessionMenuDebug(`${triggerPhase}-opened-after-layout`, {
+                                event: e,
+                                row,
+                                menuToggle,
+                                dropdownMenu,
+                                session
+                            });
                             return;
                         }
 
@@ -1110,7 +1109,7 @@ export class SessionView {
                             dropdownMenu.style.marginTop = '';
                             dropdownMenu.style.marginBottom = '';
                         }
-                        this._logSessionMenuDebug('toggle-click-opened-after-layout', {
+                        this._logSessionMenuDebug(`${triggerPhase}-opened-after-layout`, {
                             event: e,
                             row,
                             menuToggle,
@@ -1135,7 +1134,44 @@ export class SessionView {
                         }
                     }
                 }
-                this._logSessionMenuDebug('toggle-click-after-overlay', { event: e, row, menuToggle, dropdownMenu, session });
+                this._logSessionMenuDebug(`${triggerPhase}-after-overlay`, { event: e, row, menuToggle, dropdownMenu, session });
+            };
+
+            menuToggle.addEventListener('pointerdown', (e) => {
+                this._logSessionMenuDebug('toggle-pointerdown', { event: e, row, menuToggle, dropdownMenu, session });
+                if (typeof e.button === 'number' && e.button !== 0) {
+                    e.stopPropagation();
+                    return;
+                }
+                lastPointerToggleAt = Date.now();
+                toggleDropdown(e, 'toggle-pointerdown');
+            });
+            menuToggle.addEventListener('mousedown', (e) => {
+                this._logSessionMenuDebug('toggle-mousedown', { event: e, row, menuToggle, dropdownMenu, session });
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            dropdownMenu.addEventListener('pointerdown', (e) => e.stopPropagation());
+            dropdownMenu.addEventListener('mousedown', (e) => e.stopPropagation());
+            menuToggle.addEventListener('click', (e) => {
+                const isDuplicatePointerClick = Date.now() - lastPointerToggleAt < 800;
+                if (isDuplicatePointerClick) {
+                    this._logSessionMenuDebug('toggle-click-ignored-after-pointerdown', {
+                        event: e,
+                        row,
+                        menuToggle,
+                        dropdownMenu,
+                        session
+                    });
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+                toggleDropdown(e, 'toggle-click');
+            });
+            menuToggle.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                toggleDropdown(e, 'toggle-keydown');
             });
         }
 

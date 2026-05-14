@@ -189,9 +189,10 @@ describe('SessionView', () => {
             const phases = window.__brainbaseSessionMenuDebug.map(entry => entry.phase);
             expect(phases).toContain('document-capture:pointerdown');
             expect(phases).toContain('toggle-pointerdown');
+            expect(phases).toContain('toggle-pointerdown-before');
+            expect(phases).toContain('toggle-pointerdown-opened-sync');
             expect(phases).toContain('document-capture:click');
-            expect(phases).toContain('toggle-click-before');
-            expect(phases).toContain('toggle-click-opened-sync');
+            expect(phases).toContain('toggle-click-ignored-after-pointerdown');
             expect(window.__brainbaseSessionMenuDebug.at(-1)).toMatchObject({
                 sessionId: 'session-1',
                 dropdownMenu: { hidden: false },
@@ -199,7 +200,7 @@ describe('SessionView', () => {
             });
             expect(consoleInfoSpy).toHaveBeenCalledWith(
                 '[session-menu-debug]',
-                expect.objectContaining({ phase: 'toggle-click-opened-sync', sessionId: 'session-1' })
+                expect.objectContaining({ phase: 'toggle-pointerdown-opened-sync', sessionId: 'session-1' })
             );
             expect(global.fetch).toHaveBeenCalledWith(
                 '/api/client-diagnostics/session-menu',
@@ -209,6 +210,33 @@ describe('SessionView', () => {
                     keepalive: true
                 })
             );
+        });
+
+        it('clickが発火しないpointerdown/mousedownだけでもセッションメニューを開く', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const toggle = container.querySelector('[data-id="session-1"] .session-menu-toggle');
+            toggle.dispatchEvent(new MouseEvent('pointerdown', {
+                bubbles: true,
+                button: 0,
+                buttons: 1,
+                clientX: 10,
+                clientY: 10
+            }));
+            toggle.dispatchEvent(new MouseEvent('mousedown', {
+                bubbles: true,
+                button: 0,
+                buttons: 1,
+                clientX: 10,
+                clientY: 10
+            }));
+
+            expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+            expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
         });
 
         it('/api/sessions/statusのworking状態をsessionUi経由でtimeline sortへ反映する', async () => {
