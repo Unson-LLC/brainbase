@@ -164,11 +164,13 @@ describe('SessionView', () => {
             container.querySelector('[data-id="session-1"] .session-menu-toggle').click();
 
             expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+            expect(container.querySelector('[data-id="session-1"]').classList.contains('session-menu-open')).toBe(true);
             expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
 
             sessionView.render();
 
             expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(true);
+            expect(container.querySelector('[data-id="session-1"]').classList.contains('session-menu-open')).toBe(false);
             expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(true);
         });
 
@@ -236,6 +238,7 @@ describe('SessionView', () => {
             }));
 
             expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+            expect(container.querySelector('[data-id="session-1"]').classList.contains('session-menu-open')).toBe(true);
             expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
         });
 

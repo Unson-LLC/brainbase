@@ -1403,7 +1403,8 @@ body::after {
 }
 
 .session-child-row:hover .session-actions-container,
-.session-child-row:focus-within .session-actions-container {
+.session-child-row:focus-within .session-actions-container,
+.session-child-row.session-menu-open .session-actions-container {
     display: flex;
 }
 
@@ -10180,6 +10181,11 @@ body.resizing iframe {
     transform: none;
 }
 
+.session-child-row.session-menu-open {
+    position: relative;
+    z-index: 1200;
+}
+
 .session-child-row.active {
     background: linear-gradient(90deg, rgba(47, 128, 255, 0.2), rgba(47, 128, 255, 0.055));
     border-color: rgba(47, 128, 255, 0.36);
@@ -15343,6 +15349,11 @@ body.sns-growth-mode-active .terminal-header {
 .command-center-theme .session-child-row:hover {
     border-left-color: rgba(47, 128, 255, 0.45);
     background: rgba(47, 128, 255, 0.05);
+}
+
+.command-center-theme .session-child-row.session-menu-open {
+    position: relative;
+    z-index: 1200;
 }
 
 .command-center-theme .session-child-row.active {

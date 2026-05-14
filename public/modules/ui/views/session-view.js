@@ -523,6 +523,9 @@ export class SessionView {
         document.querySelectorAll('.session-dropdown-menu').forEach(menu => {
             menu.classList.add('hidden');
         });
+        document.querySelectorAll('.session-child-row.session-menu-open').forEach(row => {
+            row.classList.remove('session-menu-open');
+        });
         // オーバーレイを非表示
         const menuOverlay = document.getElementById('menu-overlay');
         if (menuOverlay) {
@@ -1156,12 +1159,14 @@ export class SessionView {
                 document.querySelectorAll('.session-dropdown-menu').forEach(menu => {
                     if (menu !== dropdownMenu) {
                         menu.classList.add('hidden');
+                        menu.closest('.session-child-row')?.classList.remove('session-menu-open');
                     }
                 });
 
                 // Toggle this menu
                 const isOpening = dropdownMenu.classList.contains('hidden');
                 dropdownMenu.classList.toggle('hidden');
+                row.classList.toggle('session-menu-open', isOpening);
                 this._logSessionMenuDebug(isOpening ? `${triggerPhase}-opened-sync` : `${triggerPhase}-closed-sync`, {
                     event: e,
                     row,
@@ -1293,6 +1298,7 @@ export class SessionView {
         const closeDropdown = () => {
             if (dropdownMenu) {
                 dropdownMenu.classList.add('hidden');
+                row.classList.remove('session-menu-open');
             }
             const hasOpenMenu = Array.from(document.querySelectorAll('.session-dropdown-menu'))
                 .some(menu => !menu.classList.contains('hidden'));
