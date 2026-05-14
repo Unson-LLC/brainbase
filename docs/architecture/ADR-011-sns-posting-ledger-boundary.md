@@ -103,7 +103,9 @@ raw metrics は Graph に直接書き込まない。
   -> Graph promotion gate
 ```
 
-MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は後続の execution layer とし、その場合も同じ Ledger を通す。
+MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は execution layer として追加してよいが、その場合も同じ Ledger を通す。
+
+full posting execution は `POST /api/sns-growth/posts/:id/publish` を入口にする。公開投稿は外部副作用なので `confirm_public_post=true` を必須とし、dry-run は Ledger を更新しない。実投稿が成功した場合だけ、Ledger に `posted_url`, `posted_at`, `status=posted` を戻す。
 
 `/oyasumi` の SNS feedback handoff は、`learning_ready` の Ledger record から candidate-store に `source_system=sns-feedback` の `observation` candidate を作る。raw metrics や reader reaction は `permission_snapshot.sns` に snapshot として保持し、Graph へは直接書き込まない。作成した candidate id は Ledger の `learning_candidate_id` に戻す。
 

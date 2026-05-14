@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SnsGrowthCockpitView } from '../../../public/modules/ui/views/sns-growth-cockpit-view.js';
 
@@ -100,6 +100,7 @@ describe('SnsGrowthCockpitView', () => {
     beforeEach(() => {
         document.body.innerHTML = '<main id="root"></main>';
         container = document.getElementById('root');
+        vi.restoreAllMocks();
     });
 
     it('Brainbase loop navigation and Ship Calendar surface are rendered', () => {
@@ -225,5 +226,40 @@ describe('SnsGrowthCockpitView', () => {
         expect(calls[0].patch.status).toBe('approved');
         expect(calls[0].patch.body).toContain('レビュー境界');
         expect(container.textContent).toContain('approved');
+    });
+
+    it('publishes an approved post through the SNS publish bridge only after browser confirmation', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const calls = [];
+        const approvedPost = { ...posts[0], status: 'approved' };
+        const apiClient = {
+            listPosts: async () => ({ posts: [approvedPost] }),
+            updatePost: async () => ({ post: approvedPost }),
+            publishPost: async (id, input) => {
+                calls.push({ id, input });
+                return {
+                    post: {
+                        ...approvedPost,
+                        status: 'posted',
+                        posted_url: 'https://x.com/i/web/status/2055000000000000001'
+                    },
+                    publish_result: { url: 'https://x.com/i/web/status/2055000000000000001' }
+                };
+            }
+        };
+        const view = new SnsGrowthCockpitView({ posts: [approvedPost], apiClient, today: '2026-05-13' });
+        view.mount(container);
+
+        container.querySelector('[data-sns-action="publish"]')?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(window.confirm).toHaveBeenCalled();
+        expect(calls[0]).toEqual({
+            id: approvedPost.id,
+            input: { dry_run: false, confirm_public_post: true }
+        });
+        expect(container.textContent).toContain('posted');
+        expect(container.textContent).toContain('https://x.com/i/web/status/2055000000000000001');
     });
 });

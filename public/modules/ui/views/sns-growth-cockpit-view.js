@@ -135,6 +135,15 @@ function createDefaultApiClient() {
             });
             if (!response.ok) throw new Error(`SNS post update failed: ${response.status}`);
             return response.json();
+        },
+        async publishPost(id, input) {
+            const response = await fetch(`/api/sns-growth/posts/${encodeURIComponent(id)}/publish`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(input || {})
+            });
+            if (!response.ok) throw new Error(`SNS publish failed: ${response.status}`);
+            return response.json();
         }
     };
 }
@@ -153,6 +162,7 @@ export class SnsGrowthCockpitView extends BaseView {
         this._changeHandler = null;
         this.isLoading = false;
         this.errorMessage = '';
+        this.noticeMessage = '';
     }
 
     mount(container) {
@@ -207,6 +217,10 @@ export class SnsGrowthCockpitView extends BaseView {
         }
         const post = this._selectedPost();
         if (!post || !action) return;
+        if (action === 'publish-dry-run' || action === 'publish') {
+            await this._handlePublishAction(post, action);
+            return;
+        }
         const body = this.container?.querySelector('[data-detail-field="body"]')?.value;
         const memo = this.container?.querySelector('[data-detail-field="memo"]')?.value;
         const patch = {
@@ -215,7 +229,6 @@ export class SnsGrowthCockpitView extends BaseView {
         };
         if (action === 'approve') patch.status = 'approved';
         if (action === 'schedule') patch.status = 'scheduled';
-        if (action === 'posted') patch.status = 'posted';
         if (action === 'skip') patch.status = 'skipped';
         try {
             const result = await this.apiClient.updatePost(post.id, patch);
@@ -223,9 +236,44 @@ export class SnsGrowthCockpitView extends BaseView {
             this.posts = this.posts.map((item) => item.id === updated.id ? updated : item);
             this.selectedPostId = updated.id;
             this.errorMessage = '';
+            this.noticeMessage = '';
             this.render();
         } catch (error) {
             this.errorMessage = error?.message || 'SNS post update failed';
+            this.noticeMessage = '';
+            this.render();
+        }
+    }
+
+    async _handlePublishAction(post, action) {
+        if (!this.apiClient?.publishPost) {
+            this.errorMessage = 'SNS publish bridgeが利用できません';
+            this.noticeMessage = '';
+            this.render();
+            return;
+        }
+        if (action === 'publish') {
+            const confirmed = window.confirm?.('Xに公開投稿します。投稿後はLedgerに投稿URLを記録します。');
+            if (!confirmed) return;
+        }
+        try {
+            const input = action === 'publish-dry-run'
+                ? { dry_run: true }
+                : { dry_run: false, confirm_public_post: true };
+            const result = await this.apiClient.publishPost(post.id, input);
+            if (result.post) {
+                const updated = normalizePosts([result.post])[0];
+                this.posts = this.posts.map((item) => item.id === updated.id ? updated : item);
+                this.selectedPostId = updated.id;
+            }
+            this.errorMessage = '';
+            this.noticeMessage = action === 'publish-dry-run'
+                ? '投稿確認が完了しました。Ledgerは更新していません。'
+                : 'Xへの投稿が完了し、Ledgerに投稿URLを記録しました。';
+            this.render();
+        } catch (error) {
+            this.errorMessage = error?.message || 'SNS publish failed';
+            this.noticeMessage = '';
             this.render();
         }
     }
@@ -393,6 +441,14 @@ export class SnsGrowthCockpitView extends BaseView {
                 </section>
             `;
         }
+        if (this.noticeMessage) {
+            return `
+                <section class="sns-growth-insight success" role="status">
+                    <i data-lucide="circle-check"></i>
+                    <span>${escapeHtml(this.noticeMessage)}</span>
+                </section>
+            `;
+        }
         if (this.posts.length === 0) {
             return `
                 <section class="sns-growth-insight" role="status">
@@ -545,6 +601,12 @@ export class SnsGrowthCockpitView extends BaseView {
                         ? `<a href="${escapeHtml(post.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(post.source.url)}<i data-lucide="external-link"></i></a>`
                         : '<em>ソースURLなし</em>'}
                 </label>
+                ${post.posted_url ? `
+                    <label class="sns-detail-label">
+                        <span>投稿URL</span>
+                        <a href="${escapeHtml(post.posted_url)}" target="_blank" rel="noreferrer">${escapeHtml(post.posted_url)}<i data-lucide="external-link"></i></a>
+                    </label>
+                ` : ''}
                 <div class="sns-detail-schedule">
                     <span>スケジュール日時</span>
                     <button type="button"><i data-lucide="calendar"></i> ${escapeHtml(formatDisplayDate(post.date))}</button>
@@ -558,7 +620,8 @@ export class SnsGrowthCockpitView extends BaseView {
                 <div class="sns-detail-actions">
                     <button type="button" class="primary" data-sns-action="approve">承認する</button>
                     <button type="button" data-sns-action="schedule">スケジュール</button>
-                    <button type="button" class="success" data-sns-action="posted">投稿済みにする</button>
+                    <button type="button" data-sns-action="publish-dry-run">投稿確認</button>
+                    <button type="button" class="success" data-sns-action="publish">Xに投稿</button>
                     <button type="button" data-sns-action="skip">スキップする</button>
                 </div>
                 <div class="sns-evidence-list">

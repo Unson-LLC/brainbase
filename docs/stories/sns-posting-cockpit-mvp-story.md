@@ -79,6 +79,7 @@ This lets SNS operation become a closed loop:
 - [ ] AC-9: The ledger is stored in PostgreSQL on the existing Lightsail infrastructure, but in tables/schema separate from Graph SSOT.
 - [ ] AC-10: `/oyasumi` or a later feedback flow can read posted records and create learning candidates, without directly mutating Graph from raw metrics.
 - [ ] AC-11: The SNS Growth activity bar entry is additive: `ab-sns-growth-btn` is the only new branch, while existing `abSessionsBtn`, Portal/Terminal controls, and `targetSessionId` file-viewer close behavior remain unchanged.
+- [ ] AC-12: A reviewed Ledger post can be dry-run checked without mutation, and can be publicly posted only after explicit confirmation; successful posting stores the X URL back into the Ledger.
 
 ## State Model
 
@@ -157,12 +158,14 @@ Activity bar requirement scope:
 | TSK-sns-cockpit-006 | BE/OPS | Feedback handoff for `/oyasumi` | Posted records to metrics and learning candidates |
 | TSK-sns-cockpit-007 | QA | Contract and UI tests | Idempotency, status transitions, calendar rendering, edit flow |
 | TSK-sns-cockpit-008 | FE | Today overview entry | Initial screen with one current decision and compact week strip |
+| TSK-sns-cockpit-009 | BE/FE/OPS | SNS publish bridge | UI calls Ledger publish endpoint; dry-run is non-mutating; public post requires confirmation and records posted URL |
 
 ## Verification Plan
 
 - Unit: status transition rules, idempotent upsert, quality evidence persistence.
 - API: create/list/update posts, schedule state, posted URL and metrics updates.
+- API: publish bridge dry-run does not mutate Ledger; public publish requires explicit confirmation and stores posted URL.
 - Integration: `/ohayo` generated review pack becomes ledger records.
-- UI: calendar shows planned posts and status badges; detail panel can edit and save.
+- UI: calendar shows planned posts and status badges; detail panel can edit, save, dry-run, and confirm publish.
 - Regression: existing `/ohayo` markdown/signals output still works.
 - Security: operator-only access for さとけい account data in MVP.

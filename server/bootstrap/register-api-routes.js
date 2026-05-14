@@ -21,6 +21,10 @@ import {
     JsonFileSnsPostingLedgerRepository,
     PgSnsPostingLedgerRepository
 } from '../services/sns/posting-ledger-repository.js';
+import {
+    createSnsPostScriptExecutor,
+    SnsLedgerPublishService
+} from '../services/sns/sns-ledger-publish-service.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     return env.SNS_POSTING_LEDGER_DATABASE_URL || env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
@@ -106,8 +110,13 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+    const snsPostingLedgerRepository = createSnsPostingLedgerRepository(runtimePaths);
     app.use('/api/sns-growth', createSnsGrowthRouter({
-        repository: createSnsPostingLedgerRepository(runtimePaths)
+        repository: snsPostingLedgerRepository,
+        publishService: new SnsLedgerPublishService({
+            ledgerRepository: snsPostingLedgerRepository,
+            postExecutor: createSnsPostScriptExecutor()
+        })
     }));
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
