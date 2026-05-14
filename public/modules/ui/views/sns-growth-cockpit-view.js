@@ -235,13 +235,20 @@ export class SnsGrowthCockpitView extends BaseView {
             this.posts = this.posts.map((item) => item.id === updated.id ? updated : item);
             this.selectedPostId = updated.id;
             this.errorMessage = '';
-            this.noticeMessage = '';
+            this.noticeMessage = this._noticeForAction(action);
             this.render();
         } catch (error) {
             this.errorMessage = error?.message || 'SNS post update failed';
             this.noticeMessage = '';
             this.render();
         }
+    }
+
+    _noticeForAction(action) {
+        if (action === 'approve') return '承認しました。次はスケジュールまたは投稿確認に進めます。';
+        if (action === 'schedule') return 'スケジュール済みにしました。';
+        if (action === 'skip') return 'スキップしました。';
+        return '';
     }
 
     async _handlePublishAction(post, action) {
@@ -608,12 +615,29 @@ export class SnsGrowthCockpitView extends BaseView {
                 </div>
             `;
         }
+        if (post.status === 'approved') {
+            return `
+                <div class="sns-detail-actions">
+                    <button type="button" class="primary" data-sns-action="schedule">スケジュール</button>
+                    <button type="button" data-sns-action="publish-dry-run">投稿確認</button>
+                    <button type="button" class="success" data-sns-action="publish">Xに投稿</button>
+                    <button type="button" data-sns-action="skip">スキップする</button>
+                </div>
+            `;
+        }
+        if (post.status === 'scheduled') {
+            return `
+                <div class="sns-detail-actions">
+                    <button type="button" data-sns-action="publish-dry-run">投稿確認</button>
+                    <button type="button" class="success" data-sns-action="publish">Xに投稿</button>
+                    <button type="button" data-sns-action="skip">スキップする</button>
+                </div>
+            `;
+        }
         return `
             <div class="sns-detail-actions">
                 <button type="button" class="primary" data-sns-action="approve">承認する</button>
                 <button type="button" data-sns-action="schedule">スケジュール</button>
-                <button type="button" data-sns-action="publish-dry-run">投稿確認</button>
-                <button type="button" class="success" data-sns-action="publish">Xに投稿</button>
                 <button type="button" data-sns-action="skip">スキップする</button>
             </div>
         `;

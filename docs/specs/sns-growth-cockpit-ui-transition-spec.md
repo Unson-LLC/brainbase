@@ -192,6 +192,8 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 - **postconditions**:
   - body edit は revision として保存される
   - approve / schedule / skip は status transition として保存される
+  - successful status transition は `SNS Growth Cockpit` 内の success feedback として見える
+  - `approved` になった投稿では `approve` action を残さず、次に実行できる `schedule` / `publish dry-run` / `publish` を表示する
 - **error cases**:
   - invalid status transition: UI で不可操作にするか API が 409 を返す
 
