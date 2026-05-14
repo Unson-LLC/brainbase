@@ -1,9 +1,11 @@
 // @ts-check
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createSnsGrowthRouter } from '../../../server/routes/sns-growth.js';
+import { AccountService } from '../../../server/services/account/account-service.js';
+import { InMemoryAccountRepository } from '../../../server/services/account/account-repository.js';
 import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
 
 function makeApp() {
@@ -266,5 +268,229 @@ describe('sns-growth routes', () => {
 
         expect(res.body.code).toBe('sns_feedback_metrics_required');
         expect(repository.findById(post.id).status).toBe('posted');
+    });
+
+    it('lists visible X accounts with redacted credential refs and default-purpose flags', async () => {
+        const accountRepository = new InMemoryAccountRepository();
+        const accountService = new AccountService({ repository: accountRepository });
+        const actor = { sub: 'sato_keigo', actor_person_id: 'sato_keigo', role: 'ceo', org_ids: ['unson'] };
+        const account = await accountService.create({
+            id: 'acc_x_sato',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'sato_keigo',
+            display_name: 'Keigo Sato X',
+            external_account_id: 'x-user-1',
+            external_handle: '@AIBizNavigator',
+            credential_ref: { provider: 'env', path: 'SNS_X_ACCESS_TOKEN', env: 'SNS_X_ACCESS_TOKEN' },
+            capabilities: ['post', 'read']
+        }, actor);
+        await accountService.setDefault({
+            subject_type: 'person',
+            subject_id: 'sato_keigo',
+            service: 'x',
+            purpose: 'sns_posting',
+            account_id: account.id
+        }, actor);
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService,
+            env: { SNS_X_ACCESS_TOKEN: 'present-but-never-returned' }
+        }));
+
+        const res = await request(app)
+            .get('/api/sns-growth/accounts')
+            .expect(200);
+
+        expect(res.body.accounts).toHaveLength(1);
+        expect(res.body.accounts[0]).toMatchObject({
+            id: 'acc_x_sato',
+            service: 'x',
+            display_name: 'Keigo Sato X',
+            external_handle: '@AIBizNavigator',
+            status: 'connected',
+            capabilities: ['post', 'read'],
+            defaults: { sns_posting: true, sns_metrics: false }
+        });
+        expect(res.body.accounts[0].credential_ref).toEqual({
+            provider: 'env',
+            path: 'SNS_X_ACCESS_TOKEN',
+            env: 'SNS_X_ACCESS_TOKEN',
+            env_present: true
+        });
+        expect(JSON.stringify(res.body)).not.toContain('present-but-never-returned');
+    });
+
+    it('sets the default account for SNS posting through the account management API', async () => {
+        const accountService = new AccountService({ repository: new InMemoryAccountRepository() });
+        const actor = { sub: 'sato_keigo', actor_person_id: 'sato_keigo', role: 'ceo', org_ids: ['unson'] };
+        await accountService.create({
+            id: 'acc_x_sato',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'sato_keigo',
+            display_name: 'Keigo Sato X',
+            credential_ref: { provider: 'infisical', path: '/brainbase/x/sato', version: 'v1' },
+            capabilities: ['post', 'read']
+        }, actor);
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService
+        }));
+
+        const res = await request(app)
+            .post('/api/sns-growth/accounts/acc_x_sato/default')
+            .send({ purpose: 'sns_metrics' })
+            .expect(200);
+
+        expect(res.body.account.defaults).toMatchObject({ sns_posting: false, sns_metrics: true });
+        const audit = await accountService.listAudit('acc_x_sato');
+        expect(audit.map((entry) => entry.action)).toContain('DEFAULT_CHANGED');
+    });
+
+    it('does not set defaults for an account outside the actor visible scope', async () => {
+        const accountService = new AccountService({ repository: new InMemoryAccountRepository() });
+        await accountService.create({
+            id: 'acc_x_other',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'other_person',
+            display_name: 'Other X',
+            credential_ref: { provider: 'infisical', path: '/brainbase/x/other', version: 'v1' },
+            capabilities: ['post', 'read']
+        }, { sub: 'other_person', actor_person_id: 'other_person', role: 'ceo', org_ids: [] });
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService
+        }));
+
+        await request(app)
+            .post('/api/sns-growth/accounts/acc_x_other/default')
+            .send({ purpose: 'sns_posting' })
+            .expect(404);
+
+        const audit = await accountService.listAudit('acc_x_other');
+        expect(audit.map((entry) => entry.action)).not.toContain('DEFAULT_CHANGED');
+    });
+
+    it('does not health-check an account outside the actor visible scope', async () => {
+        const accountService = new AccountService({ repository: new InMemoryAccountRepository() });
+        await accountService.create({
+            id: 'acc_x_other',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'other_person',
+            display_name: 'Other X',
+            credential_ref: { provider: 'env', path: 'SNS_X_OTHER_TOKEN', env: 'SNS_X_OTHER_TOKEN' },
+            capabilities: ['post', 'read']
+        }, { sub: 'other_person', actor_person_id: 'other_person', role: 'ceo', org_ids: [] });
+        const accountProvider = {
+            healthCheck: vi.fn(async () => ({ ok: true })),
+            getRateLimitStatus: vi.fn(async () => ({ remaining: 300, resetAt: '2026-05-15T12:15:00.000Z' }))
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService,
+            accountProvider
+        }));
+
+        await request(app)
+            .post('/api/sns-growth/accounts/acc_x_other/health-check')
+            .expect(404);
+
+        expect(accountProvider.healthCheck).not.toHaveBeenCalled();
+    });
+
+    it('runs health check through the provider without exposing credential values', async () => {
+        const accountService = new AccountService({ repository: new InMemoryAccountRepository() });
+        const actor = { sub: 'sato_keigo', actor_person_id: 'sato_keigo', role: 'ceo', org_ids: ['unson'] };
+        await accountService.create({
+            id: 'acc_x_sato',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'sato_keigo',
+            display_name: 'Keigo Sato X',
+            external_handle: '@AIBizNavigator',
+            credential_ref: { provider: 'env', path: 'SNS_X_ACCESS_TOKEN', env: 'SNS_X_ACCESS_TOKEN' },
+            capabilities: ['post', 'read']
+        }, actor);
+        const calls = [];
+        const accountProvider = {
+            async healthCheck(credentialRef) {
+                calls.push(credentialRef);
+                return { ok: true };
+            },
+            async getRateLimitStatus() {
+                return { remaining: 299, resetAt: '2026-05-15T12:15:00.000Z' };
+            }
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService,
+            accountProvider,
+            env: { SNS_X_ACCESS_TOKEN: 'secret-token' }
+        }));
+
+        const res = await request(app)
+            .post('/api/sns-growth/accounts/acc_x_sato/health-check')
+            .expect(200);
+
+        expect(calls[0]).toEqual({ provider: 'env', path: 'SNS_X_ACCESS_TOKEN', env: 'SNS_X_ACCESS_TOKEN' });
+        expect(res.body.health).toEqual({
+            ok: true,
+            reason: null,
+            rate_limit: { remaining: 299, resetAt: '2026-05-15T12:15:00.000Z' }
+        });
+        expect(JSON.stringify(res.body)).not.toContain('secret-token');
+    });
+
+    it('keeps account health visible when rate-limit lookup is unavailable', async () => {
+        const accountService = new AccountService({ repository: new InMemoryAccountRepository() });
+        const actor = { sub: 'sato_keigo', actor_person_id: 'sato_keigo', role: 'ceo', org_ids: ['unson'] };
+        await accountService.create({
+            id: 'acc_x_sato',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'sato_keigo',
+            display_name: 'Keigo Sato X',
+            credential_ref: { provider: 'env', path: 'SNS_X_ACCESS_TOKEN', env: 'SNS_X_ACCESS_TOKEN' },
+            capabilities: ['post', 'read']
+        }, actor);
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService,
+            accountProvider: {
+                async healthCheck() {
+                    return { ok: true };
+                },
+                async getRateLimitStatus() {
+                    const error = new Error('X rate headers unavailable');
+                    error.code = 'rate_headers_missing';
+                    throw error;
+                }
+            }
+        }));
+
+        const res = await request(app)
+            .post('/api/sns-growth/accounts/acc_x_sato/health-check')
+            .expect(200);
+
+        expect(res.body.health).toMatchObject({
+            ok: true,
+            reason: null,
+            rate_limit: { remaining: null, resetAt: null, reason: 'rate_headers_missing' }
+        });
     });
 });

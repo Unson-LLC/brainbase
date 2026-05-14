@@ -18,6 +18,8 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
+import { AccountService } from '../services/account/account-service.js';
+import { PgAccountRepository } from '../services/account/account-repository.js';
 import {
     JsonFileSnsPostingLedgerRepository,
     PgSnsPostingLedgerRepository
@@ -26,6 +28,8 @@ import {
     createSnsPostScriptExecutor,
     SnsLedgerPublishService
 } from '../services/sns/sns-ledger-publish-service.js';
+import { XApiClient } from '../services/sns/providers/x-client.js';
+import { buildXProvider } from '../services/sns/providers/x-provider.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
@@ -42,6 +46,27 @@ function createSnsPostingLedgerRepository(runtimePaths) {
     }
     return new JsonFileSnsPostingLedgerRepository({
         filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
+    });
+}
+
+function createSnsAccountService() {
+    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
+    if (databaseUrl) {
+        return new AccountService({
+            repository: new PgAccountRepository({
+                pool: new Pool({ connectionString: databaseUrl })
+            })
+        });
+    }
+    return new AccountService();
+}
+
+function createSnsAccountProvider() {
+    return buildXProvider({
+        xClient: new XApiClient(),
+        oauthSecret: process.env.INTEGRATION_OAUTH_STATE_SECRET
+            || process.env.AUTH_SESSION_SECRET
+            || 'local-dev-oauth-state-secret'
     });
 }
 
@@ -131,7 +156,9 @@ export function registerApiRoutes(app, {
         publishService: new SnsLedgerPublishService({
             ledgerRepository: snsPostingLedgerRepository,
             postExecutor: createSnsPostScriptExecutor()
-        })
+        }),
+        accountService: createSnsAccountService(),
+        accountProvider: createSnsAccountProvider()
     }));
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));

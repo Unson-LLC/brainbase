@@ -63,4 +63,28 @@ describe('XApiClient metrics lookup', () => {
             code: 'rate_limited'
         });
     });
+
+    it('checks user-context token health and reads rate limit headers without exposing the token', async () => {
+        const headers = new Map([
+            ['x-rate-limit-remaining', '299'],
+            ['x-rate-limit-reset', '1778847300']
+        ]);
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: (key) => headers.get(key) }
+        }));
+        const client = new XApiClient({
+            fetchImpl,
+            accessTokenResolver: async () => 'user-context-token'
+        });
+
+        await expect(client.healthCheck({ env: 'SNS_X_ACCESS_TOKEN' })).resolves.toEqual({ ok: true });
+        await expect(client.getRateLimitStatus({ env: 'SNS_X_ACCESS_TOKEN' })).resolves.toEqual({
+            remaining: 299,
+            resetAt: '2026-05-15T12:15:00.000Z'
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBe('Bearer user-context-token');
+    });
 });

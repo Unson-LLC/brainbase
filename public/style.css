@@ -18325,6 +18325,103 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     cursor: pointer;
 }
 
+.sns-account-strip {
+    display: grid;
+    grid-template-columns: 40px minmax(160px, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    margin-bottom: 18px;
+    padding: 10px 12px;
+    border: 1px solid var(--sns-border);
+    border-radius: 10px;
+    background: rgba(18, 23, 31, 0.86);
+    color: var(--sns-muted);
+}
+
+.sns-account-strip.warning {
+    border-color: rgba(245, 158, 11, 0.42);
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.sns-account-icon {
+    display: inline-grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--sns-blue-soft);
+    color: var(--sns-blue-strong);
+}
+
+.sns-account-main {
+    min-width: 0;
+}
+
+.sns-account-main strong,
+.sns-account-main small {
+    display: block;
+}
+
+.sns-account-main strong {
+    color: var(--sns-text);
+    font-size: 13px;
+}
+
+.sns-account-main small {
+    overflow: hidden;
+    color: var(--sns-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sns-account-badges,
+.sns-account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.sns-account-badges span {
+    display: inline-flex;
+    min-height: 24px;
+    align-items: center;
+    padding: 0 8px;
+    border: 1px solid var(--sns-border);
+    border-radius: 999px;
+    color: var(--sns-muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.sns-account-actions button {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid rgba(90, 155, 255, 0.34);
+    border-radius: 8px;
+    background: rgba(47, 128, 255, 0.10);
+    color: var(--sns-blue-strong);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.sns-account-message {
+    grid-column: 2 / -1;
+    color: var(--sns-blue-strong);
+    font-size: 12px;
+    font-style: normal;
+}
+
+.sns-account-message.error {
+    color: #fca5a5;
+}
+
 .sns-growth-calendar-grid {
     display: grid;
     grid-template-columns: 54px repeat(7, minmax(112px, 1fr));
@@ -18859,6 +18956,28 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
         flex: 0 0 auto;
         padding: 12px;
         overflow: visible;
+    }
+
+    body.sns-growth-mode-active .sns-account-strip {
+        grid-template-columns: 34px minmax(0, 1fr);
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 10px;
+        border-radius: 8px;
+        background: var(--surface-panel);
+    }
+
+    body.sns-growth-mode-active .sns-account-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+    }
+
+    body.sns-growth-mode-active .sns-account-badges,
+    body.sns-growth-mode-active .sns-account-actions,
+    body.sns-growth-mode-active .sns-account-message {
+        grid-column: 1 / -1;
     }
 
     body.sns-growth-mode-active .sns-mobile-review-flow {
