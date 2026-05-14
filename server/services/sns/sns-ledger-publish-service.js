@@ -11,8 +11,8 @@ const DEFAULT_SNS_POST_SCRIPT = '/Users/ksato/workspace/common/ops/scripts/sns_p
 function assertPublishable(post) {
     if (!post) throw new SnsPostValidationError('SNS post not found');
     if (post.status === 'posted') throw new SnsPostValidationError('SNS post is already posted');
-    if (!['approved', 'scheduled'].includes(post.status)) {
-        throw new SnsPostValidationError(`SNS post must be approved or scheduled before publish: ${post.status}`);
+    if (!['approved', 'scheduled', 'publishing'].includes(post.status)) {
+        throw new SnsPostValidationError(`SNS post must be approved, scheduled, or publishing before publish: ${post.status}`);
     }
     if (!String(post.body || '').trim()) throw new SnsPostValidationError('SNS post body required before publish');
 }

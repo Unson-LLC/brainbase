@@ -1,0 +1,114 @@
+#!/usr/bin/env node
+// @ts-check
+import process from 'node:process';
+import path from 'node:path';
+import pg from 'pg';
+
+import { databaseConfig } from './migrate-m5a-production-schema.js';
+import {
+    JsonFileSnsPostingLedgerRepository,
+    PgSnsPostingLedgerRepository
+} from '../server/services/sns/posting-ledger-repository.js';
+import {
+    createSnsPostScriptExecutor,
+    SnsLedgerPublishService
+} from '../server/services/sns/sns-ledger-publish-service.js';
+import { SnsScheduledPublisher } from '../server/services/sns/sns-scheduled-publisher.js';
+
+const { Pool } = pg;
+
+export function parseArgs(argv) {
+    const args = {
+        now: null,
+        limit: 20,
+        dryRun: false,
+        json: false
+    };
+    for (let i = 0; i < argv.length; i += 1) {
+        const arg = argv[i];
+        if (arg === '--now') args.now = argv[++i];
+        if (arg === '--limit') args.limit = Number(argv[++i]);
+        if (arg === '--dry-run') args.dryRun = true;
+        if (arg === '--json') args.json = true;
+    }
+    return args;
+}
+
+export function validateArgs(args) {
+    if (args.now && Number.isNaN(new Date(args.now).getTime())) {
+        throw new Error('--now must be an ISO datetime');
+    }
+    if (!Number.isInteger(args.limit) || args.limit < 1) {
+        throw new Error('--limit must be a positive integer');
+    }
+}
+
+export function resolveAutoPublishEnabled(env = process.env) {
+    return ['true', '1', 'yes'].includes(String(env.SNS_AUTO_PUBLISH_ENABLED || '').toLowerCase());
+}
+
+export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
+    if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
+    if (env.BRAINBASE_TEST_MODE === 'true') return '';
+    return env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || env.DATABASE_URL || '';
+}
+
+export function resolveSnsPostingLedgerFile(env = process.env, cwd = process.cwd()) {
+    return env.SNS_POSTING_LEDGER_FILE || path.join(cwd, 'var', 'sns-posting-ledger.json');
+}
+
+function actor() {
+    return {
+        sub: 'sato_keigo',
+        actor_person_id: 'sato_keigo',
+        role: 'ceo',
+        org_ids: ['unson', 'salestailor', 'techknight', 'baao']
+    };
+}
+
+async function main() {
+    const args = parseArgs(process.argv.slice(2));
+    validateArgs(args);
+    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
+    const pool = databaseUrl ? new Pool(databaseConfig({
+        ...process.env,
+        SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
+    })) : null;
+    try {
+        const ledgerRepository = pool
+            ? new PgSnsPostingLedgerRepository({ pool })
+            : new JsonFileSnsPostingLedgerRepository({ filePath: resolveSnsPostingLedgerFile() });
+        const publishService = new SnsLedgerPublishService({
+            ledgerRepository,
+            postExecutor: createSnsPostScriptExecutor()
+        });
+        const publisher = new SnsScheduledPublisher({
+            ledgerRepository,
+            publishService,
+            now: () => args.now ? new Date(args.now) : new Date()
+        });
+        const result = await publisher.run({
+            actor: actor(),
+            dry_run: args.dryRun,
+            auto_publish_enabled: resolveAutoPublishEnabled(),
+            limit: args.limit
+        });
+        const output = JSON.stringify(result, null, 2);
+        if (args.json) {
+            console.log(output);
+        } else {
+            console.log(`SNS scheduled publisher: due=${result.due} posted=${result.posted} failed=${result.failed} skipped=${result.skipped} dry_run=${result.dry_run}`);
+            console.log(output);
+        }
+        if (result.failed > 0) process.exitCode = 1;
+    } finally {
+        await pool?.end();
+    }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
