@@ -187,7 +187,7 @@ export const runtimeLifecycleMethods = {
 
         args.push(
             '-I', customIndexPath,
-            '-m', '1',
+            '-m', '4',
             '-t', 'disableReconnect=true',
             '-t', 'disableLeaveAlert=true',
             '-t', 'enableClipboard=true',

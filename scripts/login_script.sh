@@ -59,6 +59,12 @@ fi
 if [ -z "$WORKTREE_PATH" ] && [ -n "$BRAINBASE_RUNTIME_CWD" ]; then
     WORKTREE_PATH="$BRAINBASE_RUNTIME_CWD"
 fi
+if [ -z "$WORKTREE_PATH" ] && command -v tmux >/dev/null 2>&1 && tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    EXISTING_TMUX_CWD="$(tmux display-message -p -t "$SESSION_NAME" '#{pane_current_path}' 2>/dev/null || true)"
+    if [ -n "$EXISTING_TMUX_CWD" ] && [ -d "$EXISTING_TMUX_CWD" ]; then
+        WORKTREE_PATH="$EXISTING_TMUX_CWD"
+    fi
+fi
 if [ -z "$WORKTREE_PATH" ]; then
     echo "[login_script] Refusing to start $SESSION_NAME: session state missing worktree.path/path and no BRAINBASE_RUNTIME_CWD was provided" >&2
     exit 74

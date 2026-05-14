@@ -97,11 +97,7 @@ export class TerminalReconnectManager {
             }
             return absoluteUrl.toString();
         } catch {
-            // Relative path: fall through and optionally rewrite to loopback ttyd.
-        }
-
-        if (port && isLoopbackHost(window.location.hostname)) {
-            return `http://127.0.0.1:${port}${nextProxyPath}`;
+            // Relative path: keep same-origin so the console proxy can enforce viewer ownership.
         }
 
         return nextProxyPath;

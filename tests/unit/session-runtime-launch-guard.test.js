@@ -20,6 +20,8 @@ describe('session runtime launch guard', () => {
   it('login_scriptもworkspace pathなしでtmuxを作らない', () => {
     const script = readFileSync(path.join(repoRoot, 'scripts/login_script.sh'), 'utf8');
 
+    expect(script).toContain('tmux has-session -t "$SESSION_NAME"');
+    expect(script).toContain("EXISTING_TMUX_CWD=\"$(tmux display-message -p -t \"$SESSION_NAME\" '#{pane_current_path}'");
     expect(script).toContain('session state missing worktree.path/path');
     expect(script).toContain('exit 74');
     expect(script).toContain('tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_PATH"');
@@ -31,5 +33,6 @@ describe('session runtime launch guard', () => {
     const matches = source.match(/spawnOptions\.env\.BRAINBASE_RUNTIME_CWD = cwd/g) || [];
 
     expect(matches).toHaveLength(2);
+    expect(source).toContain("'-m', '4'");
   });
 });

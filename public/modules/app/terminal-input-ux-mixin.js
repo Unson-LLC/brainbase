@@ -6,7 +6,7 @@ import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
 import { updateSessionIndicators } from '../session-indicators.js';
 import { isBrowserPreviewablePath, resolvePreviewRelativePath } from '../file-preview-config.js';
 import { showInfo, showError } from '../toast.js';
-import { buildTerminalBlockedText, formatTerminalTimestamp, isLoopbackHost } from '../terminal/terminal-reconnect-manager.js';
+import { buildTerminalBlockedText, formatTerminalTimestamp } from '../terminal/terminal-reconnect-manager.js';
 import { ansiToHtml } from '../utils/ansi-to-html.js';
 import { getSessionStatus, getSessionUiEntry, mergeSessionUiEntry } from '../session-ui-state.js';
 
@@ -118,11 +118,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             }
             return absoluteUrl.toString();
         } catch {
-            // Relative path: fall through and optionally rewrite to loopback ttyd.
-        }
-
-        if (port && isLoopbackHost(window.location.hostname)) {
-            return `http://127.0.0.1:${port}${nextProxyPath}`;
+            // Relative path: keep same-origin so the console proxy can enforce viewer ownership.
         }
 
         return nextProxyPath;
