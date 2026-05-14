@@ -54,6 +54,7 @@ description: brainbaseで環境変数・secret・.env・本番設定を扱う時
 | `aitle` | `dev` / `staging` / `prod` | `/` | Aitle product secrets。2026-04-28作成、値は未登録。Graph project entity は未作成だが app/brand から参照あり |
 | `smartfront` | `dev` / `staging` / `prod` | `/` | SmartFront product secrets。TechKnight配下。2026-04-28作成、値は未登録 |
 | `baao-app` | `dev` / `staging` / `prod` | `/` | BAAO company-wide shared secrets。2026-04-28作成、値は未登録 |
+| `senpainurse` | `dev` / `staging` / `prod` | `/web` | センパイナース product secrets。TechKnight配下。2026-04-28作成、値は未登録 |
 
 ## 現在のruntime投影
 

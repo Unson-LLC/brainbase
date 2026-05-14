@@ -3,7 +3,7 @@
  * PreToolUseフック自動テストスクリプト
  */
 
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import * as fs from "fs";
 
 interface TestResult {
@@ -15,6 +15,18 @@ interface TestResult {
 }
 
 const results: TestResult[] = [];
+
+function runPreToolUseHook(input: unknown): string {
+  return execFileSync(
+    "npx",
+    [
+      "tsx",
+      ".claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts",
+      JSON.stringify(input),
+    ],
+    { encoding: "utf8", timeout: 10000 },
+  );
+}
 
 console.log("🧪 PreToolUseフック自動テスト開始\n");
 
@@ -46,6 +58,152 @@ try {
     error: error.stderr || error.message,
   });
   console.log("❌ forbidden-commands-wrapper.ts: 失敗");
+}
+
+// 1.1. Graph API direct curl guard: required headers missing
+console.log("\n1.1️⃣ Graph APIヘッダー不足ブロックテスト実行中...");
+try {
+  const output = runPreToolUseHook({
+    tool: "Bash",
+    parameters: {
+      command:
+        "curl -sS -H 'Authorization: Bearer token' 'https://bb.unson.jp/api/info/graph/entities?type=decision&limit=500'",
+    },
+  });
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API headers missing)",
+    success: false,
+    output: output.trim(),
+    error: "Graph APIヘッダー不足のcurlが許可されました",
+  });
+  console.log("❌ Graph APIヘッダー不足ブロック: 失敗");
+} catch (error: any) {
+  const output = `${error.stdout || ""}\n${error.stderr || ""}`;
+  const blocked =
+    error.status !== 0 &&
+    output.includes("Graph API") &&
+    output.includes("x-brainbase-role");
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API headers missing)",
+    success: blocked,
+    output: output.trim(),
+    error: blocked ? undefined : error.stderr || error.message,
+  });
+  console.log(
+    blocked
+      ? "✅ Graph APIヘッダー不足ブロック: 成功"
+      : "❌ Graph APIヘッダー不足ブロック: 失敗",
+  );
+}
+
+// 1.2. Graph API direct curl guard: required headers present
+console.log("\n1.2️⃣ Graph APIヘッダー付き許可テスト実行中...");
+try {
+  const output = runPreToolUseHook({
+    tool: "Bash",
+    parameters: {
+      command:
+        'TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token); curl -sS -H "Authorization: Bearer $TOKEN" -H "x-brainbase-role: gm" -H "x-brainbase-projects: brainbase,unson,salestailor" -H "x-brainbase-clearance: internal,restricted,finance,hr,contract" "https://bb.unson.jp/api/info/graph/entities?type=decision&limit=500"',
+    },
+  });
+  const allowed = output.includes('"permissionDecision": "allow"');
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API headers present)",
+    success: allowed,
+    output: output.trim(),
+    error: allowed ? undefined : "Graph APIヘッダー付きcurlが許可されませんでした",
+  });
+  console.log(
+    allowed
+      ? "✅ Graph APIヘッダー付き許可: 成功"
+      : "❌ Graph APIヘッダー付き許可: 失敗",
+  );
+} catch (error: any) {
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API headers present)",
+    success: false,
+    output: error.stdout || "",
+    error: error.stderr || error.message,
+  });
+  console.log("❌ Graph APIヘッダー付き許可: 失敗");
+}
+
+// 1.3. Graph API direct curl guard: jq without .error check
+console.log("\n1.3️⃣ Graph API jqエラー未検査ブロックテスト実行中...");
+try {
+  const output = runPreToolUseHook({
+    tool: "Bash",
+    parameters: {
+      command:
+        'TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token); curl -sS -H "Authorization: Bearer $TOKEN" -H "x-brainbase-role: gm" -H "x-brainbase-projects: brainbase,unson,salestailor" -H "x-brainbase-clearance: internal,restricted,finance,hr,contract" "https://bb.unson.jp/api/info/graph/entities?type=decision&limit=500" | jq -r \'.records[] | .payload.title\'',
+    },
+  });
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API jq without error check)",
+    success: false,
+    output: output.trim(),
+    error: "Graph APIのjqエラー未検査curlが許可されました",
+  });
+  console.log("❌ Graph API jqエラー未検査ブロック: 失敗");
+} catch (error: any) {
+  const output = `${error.stdout || ""}\n${error.stderr || ""}`;
+  const blocked =
+    error.status !== 0 &&
+    output.includes("Graph API") &&
+    output.includes(".error");
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API jq without error check)",
+    success: blocked,
+    output: output.trim(),
+    error: blocked ? undefined : error.stderr || error.message,
+  });
+  console.log(
+    blocked
+      ? "✅ Graph API jqエラー未検査ブロック: 成功"
+      : "❌ Graph API jqエラー未検査ブロック: 失敗",
+  );
+}
+
+// 1.4. Graph API direct curl guard: jq with .error check
+console.log("\n1.4️⃣ Graph API jqエラー検査付き許可テスト実行中...");
+try {
+  const output = runPreToolUseHook({
+    tool: "Bash",
+    parameters: {
+      command:
+        'TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token); curl -sS -H "Authorization: Bearer $TOKEN" -H "x-brainbase-role: gm" -H "x-brainbase-projects: brainbase,unson,salestailor" -H "x-brainbase-clearance: internal,restricted,finance,hr,contract" "https://bb.unson.jp/api/info/graph/entities?type=decision&limit=500" | jq \'if .error then error(.error) else .records[] | .payload.title end\'',
+    },
+  });
+  const allowed = output.includes('"permissionDecision": "allow"');
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API jq with error check)",
+    success: allowed,
+    output: output.trim(),
+    error: allowed
+      ? undefined
+      : "Graph APIのjqエラー検査付きcurlが許可されませんでした",
+  });
+  console.log(
+    allowed
+      ? "✅ Graph API jqエラー検査付き許可: 成功"
+      : "❌ Graph API jqエラー検査付き許可: 失敗",
+  );
+} catch (error: any) {
+  results.push({
+    hook: "forbidden-commands-wrapper.ts",
+    tool: "Bash(Graph API jq with error check)",
+    success: false,
+    output: error.stdout || "",
+    error: error.stderr || error.message,
+  });
+  console.log("❌ Graph API jqエラー検査付き許可: 失敗");
 }
 
 // 2. serena-enforcement-wrapper.ts のテスト (Read)

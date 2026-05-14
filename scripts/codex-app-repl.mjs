@@ -20,7 +20,7 @@ const approvalPolicy = getArgValue('--approval') || process.env.CODEX_APPROVAL_P
 const sandboxMode = getArgValue('--sandbox') || process.env.CODEX_SANDBOX_MODE || 'danger-full-access';
 const networkAccess = (process.env.CODEX_NETWORK_ACCESS || 'enabled') === 'enabled';
 
-const server = spawn('codex', ['app-server'], {
+const server = spawn('codex', ['app-server', '-c', 'features.codex_hooks=true'], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: {
     ...process.env,

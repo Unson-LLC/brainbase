@@ -258,7 +258,7 @@ fi
 
 sync_codex_project_commands() {
     local codex_dir="$HOME/.codex"
-    local prompts_link="$codex_dir/prompts"
+    local prompts_dir="$codex_dir/prompts"
     local commands_dir="$codex_dir/commands"
     local project_prompts_dir="$PWD/.claude/commands"
 
@@ -268,12 +268,15 @@ sync_codex_project_commands() {
 
     mkdir -p "$codex_dir" "$commands_dir" 2>/dev/null || true
 
-    # Legacy Codex builds used ~/.codex/prompts. Keep the symlink for older
-    # sessions, but current Codex reads ~/.codex/commands for slash commands.
-    if [ -L "$prompts_link" ] || [ -e "$prompts_link" ]; then
-        rm -rf "$prompts_link" 2>/dev/null || true
+    # Legacy Codex builds used ~/.codex/prompts; current Codex reads
+    # ~/.codex/commands for slash commands. Materialize both so runtimes that
+    # do not discover symlinked prompts still see the project commands.
+    if [ -L "$prompts_dir" ] || [ -f "$prompts_dir" ]; then
+        rm -f "$prompts_dir" 2>/dev/null || true
     fi
-    ln -s "$project_prompts_dir" "$prompts_link" 2>/dev/null || true
+    mkdir -p "$prompts_dir" 2>/dev/null || true
+    find "$prompts_dir" -maxdepth 1 -type f -name '*.md' -delete 2>/dev/null || true
+    find "$project_prompts_dir" -maxdepth 1 -type f -name '*.md' -exec cp {} "$prompts_dir/" \; 2>/dev/null || true
 
     local command_file
     for command_file in "$project_prompts_dir"/*.md; do

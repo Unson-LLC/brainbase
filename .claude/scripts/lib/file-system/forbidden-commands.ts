@@ -89,6 +89,18 @@ const warningCommands: CommandPattern[] = [
   },
 ];
 
+const graphApiDirectAccessPatterns = [
+  "bb.unson.jp/api/info/graph",
+  "bb.unson.jp/api/info/context",
+];
+
+const graphApiRequiredHeaders = [
+  "authorization:",
+  "x-brainbase-role:",
+  "x-brainbase-projects:",
+  "x-brainbase-clearance:",
+];
+
 export class CommandChecker {
   /**
    * システム通知を表示
@@ -192,6 +204,53 @@ export class CommandChecker {
     return { allowed: true };
   }
 
+  private checkGraphApiDirectAccess(command: string): CheckResult {
+    const normalizedCommand = this.normalizeCommand(command);
+    const graphApiStartIndexes = graphApiDirectAccessPatterns
+      .map((pattern) => normalizedCommand.indexOf(pattern))
+      .filter((index) => index >= 0);
+    const graphApiStartIndex =
+      graphApiStartIndexes.length > 0 ? Math.min(...graphApiStartIndexes) : -1;
+    const isDirectGraphApiCurl =
+      normalizedCommand.includes("curl") &&
+      graphApiStartIndex >= 0;
+
+    if (!isDirectGraphApiCurl) {
+      return { allowed: true };
+    }
+
+    const missingHeaders = graphApiRequiredHeaders.filter(
+      (header) => !normalizedCommand.includes(header),
+    );
+
+    if (missingHeaders.length === 0) {
+      const graphApiResponsePipeline =
+        graphApiStartIndex >= 0
+          ? normalizedCommand.slice(graphApiStartIndex)
+          : normalizedCommand;
+      const pipesToJq = graphApiResponsePipeline.includes("| jq");
+      const checksErrorResponse = graphApiResponsePipeline.includes(".error");
+
+      if (pipesToJq && !checksErrorResponse) {
+        return {
+          allowed: false,
+          message:
+            "Graph APIのcurl結果をjqで絞る場合は .error を先に検査してください。" +
+            " Graph APIのエラー応答を空結果・未登録として誤判定しないためブロックします。",
+        };
+      }
+
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      message:
+        "Graph APIをcurlで直接読む場合は Authorization / x-brainbase-role / x-brainbase-projects / x-brainbase-clearance が必須です。" +
+        ` 不足: ${missingHeaders.join(", ")}。ヘッダー不足のエラー応答を未登録・空結果と誤判定しないためブロックします。`,
+    };
+  }
+
   public checkCommand(command: string): CheckResult {
     // 保護ブランチへの直 push / force / branch -f を最優先で block
     const protectedResult = this.checkProtectedPush(command);
@@ -209,6 +268,12 @@ export class CommandChecker {
     const specialResult = this.checkSpecialCases(command);
     if (!specialResult.allowed) {
       return specialResult;
+    }
+
+    // Graph SSOTの誤読防止
+    const graphApiResult = this.checkGraphApiDirectAccess(command);
+    if (!graphApiResult.allowed) {
+      return graphApiResult;
     }
 
     // 警告コマンドチェック
