@@ -9,11 +9,16 @@ related_specs: [SPEC-sns-posting-engine, SPEC-sns-readonly-curator]
 implementation_files:
   - server/services/sns/feedback-service.js
   - server/services/sns/feedback-learning-service.js
+  - server/services/sns/sns-metrics-poller.js
+  - server/services/sns/providers/x-client.js
   - server/routes/sns-growth.js
   - public/modules/ui/views/sns-growth-cockpit-view.js
+  - scripts/poll-sns-feedback-metrics.js
 test_files:
   - tests/sns/feedback/**/*.test.js
   - tests/sns/feedback-learning/feedback-learning-service.test.js
+  - tests/sns/providers/x-api-client.test.js
+  - tests/sns/ops/poll-sns-feedback-metrics.test.js
   - tests/server/routes/sns-growth.test.js
   - tests/ui/views/sns-growth-cockpit-view.test.js
 ---
@@ -56,6 +61,19 @@ body: {
   mark_learning_ready?: boolean;
 }
 returns: { post }
+
+class SnsMetricsPoller {
+  constructor({ ledgerRepository, accountRepository, xClient, anomalyNotifier })
+  async run({ limit, dry_run }): Promise<{
+    scanned: number;
+    polled: number;
+    failed: number;
+    anomalies: Array<{post_id:string; tweet_id:string; reason:string}>;
+  }>
+}
+
+X API metrics lookup:
+GET https://api.x.com/2/tweets/:id?tweet.fields=public_metrics,organic_metrics,non_public_metrics
 ```
 
 ## Scenarios
@@ -64,6 +82,8 @@ returns: { post }
 - S-2: 二度目の metrics 記録でも snapshot を append（既存 snapshot を mutation せず）
 - S-3: 炎上 threshold 超過で anomalyNotifier 呼ばれる
 - S-4: learning_ready record から candidate-store に observation candidate を作成する
+- S-5: metrics poller が posted / learning_ready record の `posted_url` から tweet id を抽出し、X API metrics を Ledger に append する
+- S-6: deleted record は metrics polling 対象から除外する
 
 ## Anti-patterns
 
@@ -75,7 +95,7 @@ returns: { post }
 
 | Clause | Test | Status |
 |---|---|---|
-| INV-1〜5, S-2〜4, AP-1〜3 | tests/sns/feedback/**/*.test.js, tests/sns/feedback-learning/feedback-learning-service.test.js | ✅ |
+| INV-1〜5, S-2〜6, AP-1〜3 | tests/sns/feedback/**/*.test.js, tests/sns/feedback-learning/feedback-learning-service.test.js, tests/sns/providers/x-api-client.test.js, tests/sns/ops/poll-sns-feedback-metrics.test.js | ✅ |
 | S-1 | tests/server/routes/sns-growth.test.js, tests/ui/views/sns-growth-cockpit-view.test.js | ✅ |
 
-次に残る実運用タスクは、X API polling と anomaly notifier の production wiring。
+次に残る実運用タスクは、launchd 等の定期実行 wiring と anomaly notifier のSlack/Brainbase通知先の確定。

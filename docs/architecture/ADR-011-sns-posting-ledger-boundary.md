@@ -113,6 +113,8 @@ full posting execution は `POST /api/sns-growth/posts/:id/publish` を入口に
 
 SNS Cockpit から投稿後の反応を手動または将来の polling で取り込む入口は `POST /api/sns-growth/posts/:id/feedback` とする。この endpoint は Ledger の `metrics_snapshots` に append し、metrics evidence がある場合だけ `posted -> learning_ready` を許可する。これにより、日次運用の PDCA は cockpit で見えるが、Graph への反映は candidate-store / promotion gate の後に限定される。
 
+自動取得は `SnsMetricsPoller` が行う。対象は `posted` / `learning_ready` かつ `posted_url` を持つ Ledger record に限定し、`deleted` は除外する。poller は `posted_url` から tweet id を抽出し、X API v2 の tweet lookup metrics を取得して `metrics_snapshots` に append する。異常候補は snapshot に `anomaly` として残し、通知 callback に渡す。通知先の最終決定は運用設定の責務であり、Graph への直接書き込みではない。
+
 ## 実装フェーズ
 
 2026-05-13 の実装では、production path として `SNS_POSTING_LEDGER_DATABASE_URL` による PostgreSQL repository を用意する。

@@ -15,8 +15,88 @@ import { randomBytes } from 'crypto';
  * @property {(credential_ref:any) => Promise<{ok:boolean, reason?:string}>} healthCheck
  * @property {(credential_ref:any) => Promise<{remaining:number, resetAt:string}>} getRateLimitStatus
  * @property {(credential_ref:any, payload:{text:string}) => Promise<{tweet_id:string}>} postTweet
- * @property {(credential_ref:any, tweet_id:string) => Promise<{impressions:number, likes:number, replies:number, retweets:number}>} fetchTweetMetrics
+ * @property {(credential_ref:any, tweet_id:string) => Promise<{impressions:number, likes:number, replies:number, reposts:number, bookmarks?:number}>} fetchTweetMetrics
  */
+
+function defaultAccessTokenResolver(credentialRef) {
+    if (credentialRef?.env && process.env[credentialRef.env]) return process.env[credentialRef.env];
+    return process.env.SNS_X_ACCESS_TOKEN
+        || process.env.X_ACCESS_TOKEN
+        || process.env.TWITTER_ACCESS_TOKEN
+        || process.env.X_BEARER_TOKEN
+        || process.env.TWITTER_BEARER_TOKEN
+        || '';
+}
+
+function xApiError(status, body) {
+    const error = new Error(`X API request failed: ${status} ${String(body || '').slice(0, 200)}`);
+    if (status === 429) error.code = 'rate_limited';
+    if (status === 401 || status === 403) error.code = 'auth_failed';
+    return error;
+}
+
+function pickMetric(primary, fallback, key) {
+    const value = primary?.[key] ?? fallback?.[key];
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function normalizeTweetMetrics(data) {
+    const publicMetrics = data?.public_metrics || {};
+    const organicMetrics = data?.organic_metrics || {};
+    const nonPublicMetrics = data?.non_public_metrics || {};
+    return {
+        impressions: pickMetric(organicMetrics, nonPublicMetrics, 'impression_count') || pickMetric(publicMetrics, null, 'impression_count'),
+        likes: pickMetric(publicMetrics, organicMetrics, 'like_count'),
+        reposts: pickMetric(publicMetrics, organicMetrics, 'retweet_count'),
+        replies: pickMetric(publicMetrics, organicMetrics, 'reply_count'),
+        bookmarks: pickMetric(publicMetrics, organicMetrics, 'bookmark_count')
+    };
+}
+
+/**
+ * X API v2 client for production metrics lookup.
+ * Uses OAuth 2.0 user context when SNS_X_ACCESS_TOKEN/X_ACCESS_TOKEN is supplied.
+ */
+export class XApiClient {
+    constructor({
+        baseUrl = 'https://api.x.com',
+        fetchImpl = globalThis.fetch,
+        accessTokenResolver = defaultAccessTokenResolver
+    } = {}) {
+        if (typeof fetchImpl !== 'function') throw new Error('fetch implementation required');
+        this.baseUrl = baseUrl.replace(/\/$/u, '');
+        this.fetchImpl = fetchImpl;
+        this.accessTokenResolver = accessTokenResolver;
+    }
+
+    async fetchTweetMetrics(credential_ref, tweet_id) {
+        const token = await this.accessTokenResolver(credential_ref);
+        if (!token) {
+            const error = new Error('X access token required for metrics polling');
+            error.code = 'missing_x_access_token';
+            throw error;
+        }
+        const url = new URL(`/2/tweets/${encodeURIComponent(tweet_id)}`, this.baseUrl);
+        url.searchParams.set('tweet.fields', 'public_metrics,organic_metrics,non_public_metrics');
+        const response = await this.fetchImpl(url.toString(), {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/json'
+            }
+        });
+        if (!response.ok) {
+            const body = typeof response.text === 'function' ? await response.text() : '';
+            throw xApiError(response.status, body);
+        }
+        const payload = await response.json();
+        if (!payload?.data) {
+            const error = new Error('X API response missing tweet data');
+            error.code = 'missing_tweet_data';
+            throw error;
+        }
+        return normalizeTweetMetrics(payload.data);
+    }
+}
 
 /**
  * テスト用 in-memory client。本番では別実装に差し替え。

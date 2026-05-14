@@ -401,4 +401,31 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.textContent).toContain('1,280 impressions');
         expect(container.textContent).toContain('学習準備にしました');
     });
+
+    it('shows latest polled metrics timestamp and anomaly warning in the detail panel', () => {
+        const learningPost = {
+            ...posts[3],
+            status: 'learning_ready',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            metrics_snapshots: [{
+                impressions: 2000,
+                likes: 40,
+                reposts: 3,
+                replies: 260,
+                bookmarks: 5,
+                captured_at: '2026-05-15T12:00:00.000Z',
+                anomaly: {
+                    kind: 'reply_impression_ratio',
+                    reason: 'reply-impression-ratio:0.130'
+                }
+            }]
+        };
+        const view = new SnsGrowthCockpitView({ posts: [learningPost], today: '2026-05-15' });
+        view.mount(container);
+
+        expect(container.textContent).toContain('2,000 impressions');
+        expect(container.textContent).toContain('最終取得 2026-05-15T12:00:00.000Z');
+        expect(container.textContent).toContain('炎上候補');
+        expect(container.textContent).toContain('reply-impression-ratio:0.130');
+    });
 });
