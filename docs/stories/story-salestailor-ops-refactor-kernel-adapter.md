@@ -8,10 +8,20 @@ architecture_docs:
     status: accepted
 depends_on:
   - story-candidate-store-cross-repo-write
-status: draft
+status: superseded
+superseded_at: 2026-05-14
+superseded_by: salestailor PR #1766 (silo full delete)
 created_at: 2026-05-14
 updated_at: 2026-05-14
 ---
+
+> **status: superseded (2026-05-14)** — 本 story の前提 (= salestailor ops-refactor が動いている silo) が
+> 失効した。 P0 (salestailor PR #1764、 3-hourly cron disable) 後、 daily-medium も含めて関連 workflow /
+> script / 履歴ファイルを完全削除 (salestailor PR #1766)。 P2 として計画していた adapter 化は **対象不在のため取り下げ**。
+>
+> ADR-010 vision の「最初の cross-repo 実装事例」 は ops-refactor ではなく、 実際に動いている source
+> (AI セッションログ / brainbase session activity / mana legacy learning_episodes) で実現する方針に転換する。
+> 当該 forcing function は別途 story 起票予定。
 
 # story-salestailor-ops-refactor-kernel-adapter: salestailor ops-department-auto-refactoring を kernel adapter 化する
 

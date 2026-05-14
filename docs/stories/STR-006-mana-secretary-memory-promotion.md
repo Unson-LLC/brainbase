@@ -73,25 +73,23 @@ Brainbase の terminal/session activity と、mana が Slack / workflow / messag
 
 ADR-010 で `candidate-store` を canonical Memory Promotion Kernel と確定した以上、 **mana 以外のソースも別 promotion 系を持ってはならない**。 現存する silo 系 (= repo 内 JSON / 別 DB に学習履歴を閉じている系) は順次 kernel adapter へ移行する。
 
-直近で表面化した silo (= ADR-010 違反) と移行 phase:
+| Silo 系 | 状態 | 備考 |
+|---|---|---|
+| `Unson-LLC/salestailor` の `ops-department-auto-refactoring` (3-hourly + daily-medium) | ✅ **retired 2026-05-14** | salestailor PR #1764 (cron stop) + PR #1766 (silo 全削除)。 関連 sub-story `story-salestailor-ops-refactor-kernel-adapter` は **superseded** 扱い。 「使っていない silo は adapter 化せず削除」 の判断 |
+| (今後の候補) **AI セッションログ (codex + claude)** | TBD | `~/.codex/sessions/*.jsonl` + `~/.claude/projects/*.jsonl` = 毎日生成される最も濃密な活動文脈。 真の forcing function 候補。 別 story 起票予定 |
+| (今後の候補) mana legacy `learning_episodes` / `m9-weekly-milestone` | TBD | 既に毎日動いている silo。 STR-006 First Slice の延長で吸収予定 |
+| (今後の候補) zeims / techknight / SNS feedback ledger | TBD | 発見次第 sub-story 起票 |
 
-| Silo 系 | 種別 | repo / 場所 | 移行 sub-story |
-|---|---|---|---|
-| `Unson-LLC/salestailor` の `ops-department-auto-refactoring` | code refactor 学習 (3h cron) | `scripts/ops-team-review.cjs` + `refactoring-history.json` | [story-salestailor-ops-refactor-kernel-adapter](./story-salestailor-ops-refactor-kernel-adapter.md) |
-| (将来) zeims / techknight の独自学習 / SNS feedback ledger 等 | TBD | TBD | TBD (発見次第 sub-story 起票) |
-
-silo dissolution の前提として、 brainbase 側に **cross-repo write API** が無いと外部 repo から envelope を投げられない。 これは [story-candidate-store-cross-repo-write](./story-candidate-store-cross-repo-write.md) で先行確立する。
+silo dissolution の前提として、 brainbase 側に **cross-repo write API** が必要。 これは [story-candidate-store-cross-repo-write](./story-candidate-store-cross-repo-write.md) で **2026-05-14 に確立済** (PR #726、 `POST /api/candidate-store/raw-ledger`)。
 
 ## サブストーリーと依存関係
 
 ```
 STR-006 (umbrella)
 ├─ Phase 1 First Slice (本 story 内): brainbase Raw Ledger + Promotion Gate + mana cross-repo emit
-├─ story-candidate-store-cross-repo-write  ← brainbase kernel の外部受信 API 露出 (P1 前提)
-└─ story-salestailor-ops-refactor-kernel-adapter
-    ├─ P0: 即時 silo 停止 (cron disable、 workflow_dispatch のみ)
-    ├─ P1 依存: cross-repo write endpoint 公開後
-    └─ P2: salestailor → candidate-store envelope 移行
+├─ story-candidate-store-cross-repo-write  ✅ closed 2026-05-14 (PR #726)
+└─ (新規候補) AI セッションログ adapter / mana legacy / 他 silo 統合
+   ↑ ops-refactor adapter story は superseded (対象不在)
 ```
 
 各 sub-story は同じ `story_key`/`source_story` で結ぶ。 全 silo の kernel 統合が完了したら 「組織学習が単一経路に統一された」 という STR-006 の真の完了境界に到達する。
