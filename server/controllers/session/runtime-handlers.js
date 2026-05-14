@@ -642,7 +642,9 @@ ${jjBookmarks}
 - プロジェクト: ${session.name || 'unson'}
 - パス: ${workspacePath}
 
-この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
+この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。
+Brainbaseセッションのマージが必要な場合は、raw gh/jj を組み合わせず、まず次のAPIを使ってください：
+POST http://localhost:31013/api/sessions/${id}/merge`;
 
             const clipboardResult = await controller._copyToSystemClipboard(message);
             const copiedByServer = clipboardResult.success;

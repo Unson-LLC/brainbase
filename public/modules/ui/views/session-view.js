@@ -5,7 +5,7 @@ import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { deriveSessionUiState } from '../../session-ui-state.js';
 import { FolderTreeView } from './folder-tree-view.js';
-import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
+import { showConfirm } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
@@ -1349,105 +1349,12 @@ export class SessionView {
                     }
 
                     const result = await this.sessionService.archiveSession(session.id);
-                    if (result?.needsConfirmation) {
-                        const status = result.status || {};
-                        const criticalDetails = [];
-                        const infoDetails = [];
-
-                        // Jujutsu概念でステータス表示（重要な警告のみ）
-                        if (status.changesNotPushed > 0) {
-                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
-                        }
-                        if (status.hasWorkingCopyChanges) {
-                            criticalDetails.push('working copyに未完了のchangeがあります');
-                        }
-                        if (status.needsMerge) {
-                            const baseBranch = status.mainBranch || 'base branch';
-                            const mergeCount = status.commitsAheadOfBase || 0;
-                            criticalDetails.push(
-                                mergeCount > 0
-                                    ? `${baseBranch} に未マージのcommitが${mergeCount}件あります`
-                                    : `${baseBranch} に未マージのchangeがあります`
-                            );
-                        }
-
-                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
-                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges || status.needsMerge)) {
-                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
-                        }
-
-                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
-                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
-                        const detailText = criticalText + infoText;
-                        const investigationPrompt = this._generateInvestigationPrompt(status, session.id);
-                        const confirmResult = await showConfirmWithAction(
-                            `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
-                            {
-                                title: 'アーカイブ確認',
-                                okText: 'そのままアーカイブ',
-                                cancelText: 'キャンセル',
-                                actionText: 'pushして統合',
-                                aiActionText: '🤖 AIに確認して対処',
-                                aiClipboardText: investigationPrompt,
-                                danger: true
-                            }
-                        );
-                        const selectedAction = typeof confirmResult === 'object' && confirmResult !== null
-                            ? confirmResult.action
-                            : (confirmResult ? 'ok' : 'cancel');
-
-                        if (selectedAction === 'ai') {
-                            console.info('[ArchiveAI] SessionView received AI action for session:', session.id, 'delivery:', confirmResult?.delivery?.mode || 'none');
-                            const aiActionResult = await this._handleArchiveAiAction(
-                                session.id,
-                                status,
-                                typeof confirmResult === 'object' && confirmResult !== null ? confirmResult.delivery || null : null
-                            );
-                            console.info('[ArchiveAI] SessionView AI action result:', {
-                                sessionId: session.id,
-                                deliveryMode: aiActionResult.delivery?.mode,
-                                aiSuccess: Boolean(aiActionResult.aiResult?.success)
-                            });
-                            if (aiActionResult.aiResult?.success) {
-                                showSuccess(aiActionResult.aiResult.message || 'AI向けの調査プロンプトを準備しました');
-                            } else if (aiActionResult.delivery.mode === 'clipboard') {
-                                showInfo('AI依頼は失敗しましたが、調査プロンプトをクリップボードにコピーしました');
-                            } else if (aiActionResult.delivery.mode === 'manual') {
-                                showInfo('自動コピーに失敗したため、調査プロンプトを画面上に表示しています');
-                            } else if (aiActionResult.delivery.mode === 'inserted') {
-                                showInfo('AI依頼は失敗しましたが、調査プロンプトを入力欄に挿入しました');
-                            } else {
-                                showError(aiActionResult.aiResult?.error || 'AI依頼に失敗しました');
-                            }
-                            return;
-                        }
-
-                        if (selectedAction === 'action') {
-                            // pushして統合
-                            try {
-                                const mergeResult = await this.sessionService.mergeSession(session.id);
-                                if (mergeResult?.success) {
-                                    showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
-                                } else {
-                                    showError(mergeResult?.error || 'pushに失敗しました');
-                                }
-                            } catch (mergeErr) {
-                                console.error('Failed to push session:', mergeErr);
-                                showError('pushに失敗しました');
-                            }
-                            return;
-                        }
-
-                        if (selectedAction !== 'ok') {
-                            showInfo('アーカイブをキャンセルしました');
-                            return;
-                        }
-                        await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
-                        showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                        return;
-                    }
-
-                    showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                    const archiveStatus = result?.archive?.status;
+                    showSuccess(
+                        archiveStatus === 'queued'
+                            ? `セッション「${displayName}」のアーカイブ処理を開始しました`
+                            : `セッション「${displayName}」をアーカイブしました`
+                    );
                 } catch (error) {
                     console.error('Failed to archive session:', error);
                     showError('アーカイブに失敗しました');
@@ -1597,104 +1504,6 @@ export class SessionView {
     }
 
     /**
-     * 調査プロンプトを利用可能な入力先に配信
-     * @param {string} prompt
-     * @returns {Promise<{mode: 'inserted'|'clipboard'|'console'}>}
-     */
-    async _deliverInvestigationPrompt(prompt) {
-        try {
-            if (navigator?.clipboard?.writeText) {
-                await navigator.clipboard.writeText(prompt);
-                return { mode: 'clipboard' };
-            }
-        } catch (error) {
-            console.warn('Failed to copy investigation prompt to clipboard:', error);
-        }
-
-        const controller = window.mobileInputController || window.brainbaseApp?.mobileInputController;
-        if (controller && typeof controller.insertTextAtCursor === 'function') {
-            const inserted = controller.insertTextAtCursor(prompt);
-            if (inserted !== false) {
-                return { mode: 'inserted' };
-            }
-        }
-
-        if (this._insertTextIntoActiveEditable(prompt)) {
-            return { mode: 'inserted' };
-        }
-
-        console.log('[Archive Investigation Prompt]');
-        console.log(prompt);
-        return { mode: 'console' };
-    }
-
-    /**
-     * アーカイブ前の統合調査プロンプトを配信し、可能ならAI依頼も実行
-     * localhostサーバーのpbcopy成功を最優先し、失敗時のみブラウザ側へフォールバックする
-     * @param {string} sessionId
-     * @param {Object} status
-     * @param {{mode: 'inserted'|'clipboard'|'console'|'manual'|'server-clipboard', prompt?: string}|null} initialDelivery
-     * @returns {Promise<{delivery: {mode: 'inserted'|'clipboard'|'console'|'manual'|'server-clipboard'}, aiResult: Object|null}>}
-     */
-    async _handleArchiveAiAction(sessionId, status, initialDelivery = null) {
-        const prompt = this._generateInvestigationPrompt(status, sessionId);
-
-        try {
-            const aiResult = await this.sessionService.askAiToResolveIntegration(sessionId, status);
-            if (aiResult?.copiedByServer) {
-                console.info('[ArchiveAI] Server-side pbcopy succeeded for session:', sessionId);
-                return {
-                    delivery: { mode: 'server-clipboard' },
-                    aiResult
-                };
-            }
-
-            const fallbackPrompt = aiResult?.clipboardContent || prompt;
-            const delivery = initialDelivery || await this._deliverInvestigationPrompt(fallbackPrompt);
-            console.info('[ArchiveAI] Server-side pbcopy unavailable; used browser fallback:', delivery.mode);
-            return { delivery, aiResult };
-        } catch (error) {
-            console.error('Failed to ask AI:', error);
-            const delivery = initialDelivery || await this._deliverInvestigationPrompt(prompt);
-            return {
-                delivery,
-                aiResult: {
-                    success: false,
-                    error: 'AI依頼に失敗しました'
-                }
-            };
-        }
-    }
-
-    /**
-     * 現在フォーカス中の入力欄にテキスト挿入
-     * @param {string} text
-     * @returns {boolean}
-     */
-    _insertTextIntoActiveEditable(text) {
-        const active = document.activeElement;
-        const isTextarea = active instanceof HTMLTextAreaElement;
-        const isTextInput = active instanceof HTMLInputElement
-            && ['text', 'search', 'url', 'email', 'tel'].includes((active.type || 'text').toLowerCase());
-
-        if (!isTextarea && !isTextInput) {
-            return false;
-        }
-
-        const inputEl = active;
-        const start = inputEl.selectionStart ?? inputEl.value.length;
-        const end = inputEl.selectionEnd ?? inputEl.value.length;
-        inputEl.value = inputEl.value.slice(0, start) + text + inputEl.value.slice(end);
-        const nextPos = start + text.length;
-        if (typeof inputEl.setSelectionRange === 'function') {
-            inputEl.setSelectionRange(nextPos, nextPos);
-        }
-        inputEl.focus();
-        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-        return true;
-    }
-
-    /**
      * クリーンアップ
      */
     unmount() {
@@ -1722,37 +1531,4 @@ export class SessionView {
         }
     }
 
-    /**
-     * 診断プロンプトを生成（Jujutsu概念）
-     * @param {Object} status - { changesNotPushed, hasWorkingCopyChanges, bookmarkPushed, bookmarkName }
-     * @param {string} sessionId
-     * @returns {string} - フォーマット済みプロンプト
-     */
-    _generateInvestigationPrompt(status, sessionId = null) {
-        const issues = [];
-
-        if (status.changesNotPushed > 0) {
-            issues.push(`- remoteにpushされてないchange: ${status.changesNotPushed}件`);
-        }
-        if (status.needsMerge) {
-            issues.push(`- ${status.mainBranch || 'base branch'} に未マージのcommit: ${status.commitsAheadOfBase || 0}件`);
-        }
-        if (!status.bookmarkPushed && status.bookmarkName) {
-            issues.push(`- bookmark '${status.bookmarkName}' がremoteにない`);
-        }
-        if (status.hasWorkingCopyChanges) {
-            issues.push('- working copyに未完了のchangeあり');
-        }
-
-        const issueList = issues.length > 0 ? issues.join('\n') : '- 不明な問題';
-
-        return `このセッションをアーカイブしようとしたところ、以下の問題が検出されました：
-
-${issueList}
-
-これらの問題を解決してアーカイブ可能な状態にする方法を教えてください。
-Jujutsuコマンド（jj）を使用してください。
-
-セッションID: ${sessionId || window.location.hash.slice(1) || '不明'}`;
-    }
 }

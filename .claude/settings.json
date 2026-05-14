@@ -53,6 +53,16 @@
             "timeout": 120000
           }
         ]
+      },
+      {
+        "matcher": "(マージして|mergeして|merge\\b|/merge\\b)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/merge-api-reminder.ts",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "Stop": [

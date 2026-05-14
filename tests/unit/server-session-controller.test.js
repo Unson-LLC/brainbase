@@ -131,6 +131,7 @@ describe('SessionController (Server)', () => {
       create: vi.fn(),
       remove: vi.fn(),
       getStatus: vi.fn(),
+      getMergeDeploymentGuardStatus: vi.fn(async () => ({ ready: true })),
       autoHealArchiveState: vi.fn(),
       _isJujutsuRepo: vi.fn()
     };
@@ -1629,6 +1630,12 @@ describe('SessionController (Server)', () => {
         clipboardMethod: 'osascript',
         clipboardContent: expect.stringContaining('session-id: session-ai')
       }));
+      expect(mockRes.json.mock.calls[0][0].clipboardContent).toContain(
+        'POST http://localhost:31013/api/sessions/session-ai/merge'
+      );
+      expect(mockRes.json.mock.calls[0][0].clipboardContent).toContain(
+        'raw gh/jj を組み合わせず'
+      );
     });
 
     it('server側clipboard失敗時_browser fallback用メッセージを返す', async () => {

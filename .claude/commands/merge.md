@@ -1,6 +1,20 @@
-# セッションマージ（jj + PRモード）
+# セッションマージ（Brainbase API 経由）
 
-セッションのworkspaceをmainへマージします（GitHub PR経由）。
+セッションのworkspaceをbase branchへマージします。Brainbase セッションのマージは、原則として Brainbase API を正本の実行経路にします。
+
+## 最重要ルール
+
+`マージして` と依頼された対象が Brainbase のセッション / worktree の場合、AI は `gh pr merge` や `jj git push` を直接組み合わせず、まず Brainbase API を使う。
+
+```bash
+curl -s -X POST http://localhost:31013/api/sessions/<session-id>/merge
+```
+
+理由:
+
+- server側の `worktreeService.merge()` が PR作成、マージ、workspace cleanup を一括で実行する
+- Brainbase 正本 repo の場合は merge 後に canonical workspace deploy guard も通る
+- raw `gh` / `jj` 経路を使うと、PR merge 済みなのに 31013 が読んでいる `default@` に反映されない事故が再発する
 
 ---
 
@@ -16,90 +30,46 @@
 
 ## 手順
 
-### 1. 前提確認
+### 1. session-id を特定
 
 ```bash
-# workspaceとworking copy確認
-jj workspace list
-jj log -r @ --no-pager
-
-# 未説明のコミットがないか確認
-jj log -r "::@" --no-pager -n 10
-
-# gh CLI確認
-gh auth status
+curl -s http://localhost:31013/api/state | jq '.sessions[] | {id, name, path, worktree}'
 ```
 
-### 2. bookmarkをpush
+現在の cwd が session worktree の場合は、path / worktree.path と照合して該当 session-id を決める。
+
+### 2. APIでマージ
 
 ```bash
-# セッションIDをbookmark名として使用
-# bookmark が @ の親（describe済みコミット）を指していることを確認
-jj log -r "bookmarks()" --no-pager
-
-# リモートへpush
-jj git push --bookmark <session-id>
+curl -s -X POST http://localhost:31013/api/sessions/<session-id>/merge | jq
 ```
 
-### 3. PR作成
+成功条件:
+
+- `success: true`
+- `prUrl` が返る
+- Brainbase 正本 repo の場合、`deployGuard.success` が true
+
+### 3. 完了確認
 
 ```bash
-# mainとの差分確認
-jj log -r "main..@-" --no-pager
-
-# PR作成
-gh pr create \
-  --title "<type>: <summary>" \
-  --body "$(cat <<'EOF'
-## Summary
-
-- 主な変更点
-
-## Test plan
-
-- [ ] 変更が意図通りに動作することを確認
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
+curl -s http://localhost:31013/api/sessions/<session-id>/archive-status | jq
+curl -s http://localhost:31013/api/health | jq
 ```
 
-### 4. GitHub経由マージ
+必要なら `git ls-remote origin refs/heads/develop` と `jj log -r develop@origin` で origin/develop も確認する。
 
-```bash
-gh pr merge --merge --delete-branch
-```
+## 直接 gh / jj を使ってよい例外
 
-### 5. ローカル同期 + ワークスペースクリーンアップ
+- Brainbase API が停止している
+- `/api/sessions/<id>/merge` が 5xx / 409 を返し、API経由では復旧できない
+- ユーザーが明示的に GitHub CLI 直操作を指定している
 
-```bash
-# リモートの変更を取り込み
-jj git fetch
+例外経路を使った場合でも、最後に `/deploy-merged-pr` 相当の確認を行い、31013 の起動元と health を確認する。
 
-# ワークスペースを忘れる（物理ディレクトリは残る）
-jj workspace forget <workspace-name>
+## 旧手順の扱い
 
-# bookmarkを削除
-jj bookmark delete <session-id>
-```
-
-### 6. 完了確認
-
-```bash
-jj log -r "main" --no-pager -n 3
-```
-
----
-
-## API経由マージ（推奨）
-
-上記手順はbrainbaseサーバーのAPIでも実行可能：
-
-```bash
-curl -X POST http://localhost:31013/api/sessions/<session-id>/merge
-```
-
-サーバー側の `worktreeService.merge()` が上記手順を一括実行する。
+過去の `jj git push -> gh pr create -> gh pr merge -> workspace forget` は、Brainbase API の内部実装として扱う。AI が手作業で再現する標準手順にはしない。
 
 ---
 

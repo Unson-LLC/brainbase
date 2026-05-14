@@ -4,12 +4,12 @@ import { SessionService } from '../../../public/modules/domain/session/session-s
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { __resetSessionIndicatorStateForTests, pollSessionStatus } from '../../../public/modules/session-indicators.js';
+import { showSuccess } from '../../../public/modules/toast.js';
 
 const mockSetSessionFavorite = vi.hoisted(() => vi.fn());
 
 vi.mock('../../../public/modules/confirm-modal.js', () => ({
-    showConfirm: vi.fn(async () => true),
-    showConfirmWithAction: vi.fn(async () => true)
+    showConfirm: vi.fn(async () => true)
 }));
 
 vi.mock('../../../public/modules/toast.js', () => ({
@@ -317,6 +317,22 @@ describe('SessionView', () => {
             } finally {
                 document.elementFromPoint = originalElementFromPoint;
             }
+        });
+
+        it('アーカイブクリック時_即時統合分岐ではなくfinalizer queuedとして処理開始を表示する', async () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }
+            ];
+            mockSessionService.archiveSession.mockResolvedValue({ success: true, archive: { status: 'queued' } });
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            container.querySelector('[data-id="session-1"] .archive-session-btn').click();
+            await Promise.resolve();
+
+            expect(mockSessionService.archiveSession).toHaveBeenCalledWith('session-1');
+            expect(mockSessionService.mergeSession).not.toHaveBeenCalled();
+            expect(showSuccess).toHaveBeenCalledWith('セッション「Session 1」のアーカイブ処理を開始しました');
         });
 
         it('/api/sessions/statusのworking状態をsessionUi経由でtimeline sortへ反映する', async () => {
