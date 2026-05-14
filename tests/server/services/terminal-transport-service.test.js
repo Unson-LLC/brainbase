@@ -396,11 +396,11 @@ describe('TerminalTransportService', () => {
         expect(msg).toHaveProperty('colorText');
     });
 
-    it('snapshot-polling transportではcursor座標と同じvisible pane本文だけを送る', async () => {
+    it('snapshot-polling transportではscrollback混在を避けるためfull history snapshotを送る', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({
-            text: 'visible-next',
-            colorText: '\x1b[36mvisible-next\x1b[0m',
+            text: 'history-prev\nhistory-next',
+            colorText: '\x1b[36mhistory-prev\x1b[0m\n\x1b[36mhistory-next\x1b[0m',
             copyMode: false,
             cursor: { x: 3, y: 12 },
             capturedAt: '2026-03-23T00:00:00.000Z'
@@ -422,10 +422,10 @@ describe('TerminalTransportService', () => {
         await service._pollConnection(connection);
 
         expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
-            lines: 400,
+            lines: 5000,
             includeColors: true,
             includeCopyMode: true,
-            visibleOnly: true
+            visibleOnly: false
         });
         const snapshotCall = ws.send.mock.calls.find(call => {
             const msg = JSON.parse(call[0]);
@@ -434,11 +434,47 @@ describe('TerminalTransportService', () => {
         expect(snapshotCall).toBeTruthy();
         expect(JSON.parse(snapshotCall[0])).toMatchObject({
             type: 'snapshot',
-            text: 'visible-next',
-            colorText: '\x1b[36mvisible-next\x1b[0m',
+            text: 'history-prev\nhistory-next',
+            colorText: '\x1b[36mhistory-prev\x1b[0m\n\x1b[36mhistory-next\x1b[0m',
             cursor: { x: 3, y: 12 },
-            screenOnly: true
+            screenOnly: false
         });
+    });
+
+    it('ready直後の同一full history snapshotはpollingで二重送信しない', async () => {
+        const { service, captureCache } = buildService();
+        captureCache.getSnapshot.mockResolvedValue({
+            text: 'same-history',
+            colorText: '\x1b[32msame-history\x1b[0m',
+            copyMode: false,
+            cursor: { x: 1, y: 2 },
+            capturedAt: '2026-03-23T00:00:00.000Z'
+        });
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            closed: false,
+            lastSnapshot: null,
+            lastCopyMode: null,
+            lastCliState: null,
+            transport: 'snapshot-polling'
+        };
+
+        await service._sendReady(connection);
+        ws.send.mockClear();
+
+        await service._pollConnection(connection);
+
+        const snapshotCall = ws.send.mock.calls.find(call => {
+            const msg = JSON.parse(call[0]);
+            return msg.type === 'snapshot';
+        });
+        expect(snapshotCall).toBeFalsy();
     });
 
     it('connection開始時_control-mode streamingではなくsnapshot pollingを使う', async () => {

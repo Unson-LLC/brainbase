@@ -27,6 +27,14 @@ function safeJsonParse(raw) {
     }
 }
 
+function buildSnapshotKey(snapshot = {}) {
+    return JSON.stringify({
+        text: snapshot.text || '',
+        colorText: snapshot.colorText || null,
+        cursor: snapshot.cursor || null
+    });
+}
+
 function buildTerminalWsMatch(urlString = '') {
     try {
         const parsed = new URL(urlString, 'http://localhost');
@@ -222,8 +230,8 @@ export class TerminalTransportService {
                 await this.terminalIo.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
             // ready は先に返すが、初回描画が来ないと session switch が完了したように見えない。
-            // 以降も tmux の可視 pane を正として polling し、control-mode の差分適用で
-            // cursor/status 行が drift する経路を使わない。
+            // 以降も tmux の履歴込み snapshot を正として polling し、control-mode の差分適用で
+            // cursor/status 行が drift する経路や、可視paneだけ更新してscrollbackが古く残る経路を使わない。
             await this._sendReady(connection);
             this._startSnapshotPolling(connection);
         } catch (err) {
@@ -265,7 +273,7 @@ export class TerminalTransportService {
                 visibleOnly: false
             });
             if (ws.readyState !== 1) return;
-            connection.lastSnapshot = historySnapshot.text;
+            connection.lastSnapshot = buildSnapshotKey(historySnapshot);
             connection.lastCopyMode = historySnapshot.copyMode;
             connection.initialFrameDelivered = true;
             const snapshotMsg = {
@@ -478,19 +486,21 @@ export class TerminalTransportService {
             return;
         }
 
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true, visibleOnly: true });
-        const snapshotKey = JSON.stringify({
-            text: snapshot.text,
-            colorText: snapshot.colorText || null,
-            cursor: snapshot.cursor || null
+        // visible pane だけを screenOnly で重ねると、現在画面だけ新しくなり、
+        // scrollback が接続時点の古い履歴として残る。polling中も履歴込みで再構成する。
+        const snapshot = await this._getSnapshotPayload(sessionId, {
+            lines: HISTORY_SNAPSHOT_LINES,
+            includeColors: true,
+            visibleOnly: false
         });
+        const snapshotKey = buildSnapshotKey(snapshot);
         if (snapshotKey !== connection.lastSnapshot) {
             connection.lastSnapshot = snapshotKey;
             const pollSnapshotMsg = {
                 type: 'snapshot',
                 text: snapshot.text,
                 capturedAt: snapshot.capturedAt,
-                screenOnly: true
+                screenOnly: false
             };
             if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
             if (snapshot.cursor) pollSnapshotMsg.cursor = snapshot.cursor;
