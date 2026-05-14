@@ -16,4 +16,18 @@ describe('terminal IME cursor CSS', () => {
         expect(terminalCss).not.toContain('translateY(calc(-1 * var(--bb-terminal-row-height');
         expect(terminalCss).not.toContain('top: calc(-1 * var(--bb-terminal-row-height');
     });
+
+    it('settled IME cursor is rendered without moving xterm input geometry', () => {
+        const css = fs.readFileSync(stylePath, 'utf8');
+        const terminalCss = css.slice(
+            css.indexOf('.terminal-xterm-host'),
+            css.indexOf('/* Disable iframe pointer events during drag */')
+        );
+
+        expect(terminalCss).toContain('.terminal-xterm-host.bb-ime-cursor-settling .composition-view');
+        expect(terminalCss).toContain('.terminal-xterm-host.bb-ime-cursor-settling .composition-view::after');
+        expect(terminalCss).toContain('animation: terminal-cursor-blink 1s steps(1, end) infinite;');
+        expect(terminalCss).toContain('.terminal-xterm-host.bb-ime-cursor-settling .xterm-cursor,');
+        expect(terminalCss).toContain('opacity: 0 !important;');
+    });
 });
