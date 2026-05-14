@@ -371,14 +371,13 @@ export class AuthService {
 
             if (rows[0]) {
                 const user = rows[0];
-                // Enrich users record with auth_grants fields (clearance, project_codes, role)
+                // auth_grants is the access SSOT. A users row can contain stale or empty
+                // arrays, so grant fields must override rather than act as fallbacks.
                 if (grantRows[0]) {
                     const grant = grantRows[0];
-                    user.clearance = user.clearance || grant.clearance;
-                    user.project_codes = user.project_codes || grant.project_codes;
-                    if (!user.role || user.role === 'member') {
-                        user.role = grant.role || user.role;
-                    }
+                    if (Array.isArray(grant.clearance)) user.clearance = grant.clearance;
+                    if (Array.isArray(grant.project_codes)) user.project_codes = grant.project_codes;
+                    if (grant.role) user.role = grant.role;
                 }
                 return user;
             }
