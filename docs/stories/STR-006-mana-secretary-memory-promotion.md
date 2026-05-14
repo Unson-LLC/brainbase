@@ -76,7 +76,7 @@ ADR-010 で `candidate-store` を canonical Memory Promotion Kernel と確定し
 | Silo 系 | 状態 | 備考 |
 |---|---|---|
 | `Unson-LLC/salestailor` の `ops-department-auto-refactoring` (3-hourly + daily-medium) | ✅ **retired 2026-05-14** | salestailor PR #1764 (cron stop) + PR #1766 (silo 全削除)。 関連 sub-story `story-salestailor-ops-refactor-kernel-adapter` は **superseded** 扱い。 「使っていない silo は adapter 化せず削除」 の判断 |
-| (今後の候補) **AI セッションログ (codex + claude)** | TBD | `~/.codex/sessions/*.jsonl` + `~/.claude/projects/*.jsonl` = 毎日生成される最も濃密な活動文脈。 真の forcing function 候補。 別 story 起票予定 |
+| **AI セッションログ (codex + claude)** | 🛠 **active** (2026-05-15 起票) | `~/.codex/sessions/*.jsonl` + `~/.claude/projects/*.jsonl` = 毎日生成される最も濃密な活動文脈。 真の forcing function。 sub-story: [story-ai-session-log-kernel-adapter](./story-ai-session-log-kernel-adapter.md) |
 | (今後の候補) mana legacy `learning_episodes` / `m9-weekly-milestone` | TBD | 既に毎日動いている silo。 STR-006 First Slice の延長で吸収予定 |
 | (今後の候補) zeims / techknight / SNS feedback ledger | TBD | 発見次第 sub-story 起票 |
 
@@ -87,9 +87,10 @@ silo dissolution の前提として、 brainbase 側に **cross-repo write API**
 ```
 STR-006 (umbrella)
 ├─ Phase 1 First Slice (本 story 内): brainbase Raw Ledger + Promotion Gate + mana cross-repo emit
-├─ story-candidate-store-cross-repo-write  ✅ closed 2026-05-14 (PR #726)
-└─ (新規候補) AI セッションログ adapter / mana legacy / 他 silo 統合
-   ↑ ops-refactor adapter story は superseded (対象不在)
+├─ story-candidate-store-cross-repo-write     ✅ closed 2026-05-14 (PR #726)
+├─ story-ai-session-log-kernel-adapter        🛠 active (2026-05-15、 真の forcing function)
+└─ (今後) mana legacy / zeims / SNS feedback の adapter 化
+   ↑ story-salestailor-ops-refactor-kernel-adapter は superseded (対象不在)
 ```
 
 各 sub-story は同じ `story_key`/`source_story` で結ぶ。 全 silo の kernel 統合が完了したら 「組織学習が単一経路に統一された」 という STR-006 の真の完了境界に到達する。
