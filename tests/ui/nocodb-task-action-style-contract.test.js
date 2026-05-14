@@ -55,8 +55,21 @@ describe('NocoDB task action style contract', () => {
     it('アイコンSVGは操作ボタンのclick targetを奪わない', () => {
         const taskIconRules = getRulesContainingSelector('.nocodb-task-action-btn svg');
         const sessionIconRules = getRulesContainingSelector('.session-menu-toggle svg');
+        const allButtonIconRules = getRulesContainingSelector('button svg');
+        const roleButtonIconRules = getRulesContainingSelector('[role="button"] svg');
 
         expect(taskIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
         expect(sessionIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
+        expect(allButtonIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
+        expect(roleButtonIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
+    });
+
+    it('右パネルの別系統タスク操作も共通SVG click hardeningで守られる', () => {
+        const sharedIconRules = getRulesContainingSelector('button svg');
+
+        expect(sharedIconRules.some(({ body }) => body.includes('pointer-events: none'))).toBe(true);
+        expect(css).toContain('.next-task-action');
+        expect(css).toContain('.task-action-btn');
+        expect(css).toContain('.start-task-btn');
     });
 });

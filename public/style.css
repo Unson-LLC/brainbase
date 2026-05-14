@@ -1437,6 +1437,14 @@ body::after {
     pointer-events: none;
 }
 
+/* Interactive icon hardening: SVG glyphs must not steal physical click targets. */
+button svg,
+button svg *,
+[role="button"] svg,
+[role="button"] svg * {
+    pointer-events: none;
+}
+
 /* Dropdown Menu */
 .session-item .session-dropdown-menu,
 .session-dropdown-menu {
