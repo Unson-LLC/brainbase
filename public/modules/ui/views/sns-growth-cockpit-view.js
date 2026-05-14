@@ -792,6 +792,13 @@ export class SnsGrowthCockpitView extends BaseView {
                     <span>投稿後の反応</span>
                     <em>${escapeHtml(this._formatMetricSummary(latest))}</em>
                 </header>
+                ${latest?.captured_at ? `<p class="sns-detail-feedback-meta">最終取得 ${escapeHtml(latest.captured_at)}</p>` : ''}
+                ${latest?.anomaly ? `
+                    <p class="sns-detail-feedback-alert">
+                        <i data-lucide="triangle-alert"></i>
+                        <span>炎上候補 ${escapeHtml(latest.anomaly.reason || latest.anomaly.kind || 'anomaly')}</span>
+                    </p>
+                ` : ''}
                 <div class="sns-detail-metrics-grid">
                     ${this._renderMetricInput('impressions', 'Impressions', latest)}
                     ${this._renderMetricInput('likes', 'Likes', latest)}

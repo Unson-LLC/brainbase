@@ -18675,6 +18675,29 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     white-space: nowrap;
 }
 
+.sns-detail-feedback-meta,
+.sns-detail-feedback-alert {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.sns-detail-feedback-meta {
+    color: var(--sns-muted);
+}
+
+.sns-detail-feedback-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: fit-content;
+    padding: 6px 8px;
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.10);
+    color: #ef4444;
+}
+
 .sns-detail-metrics-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
