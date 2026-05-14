@@ -32,6 +32,8 @@ Brainbase の既存 activity bar には `SNS Growth` entry を追加する。た
 
 投稿 action は local/no-op とし、Graph、SNS Posting Ledger、X API には書き込まない。
 
+Ledger/API 接続後の action は、同じ visual surface 上で成功したことが分かる必要がある。たとえば `review_needed -> approved` の遷移後は success feedback を出し、同じ detail panel に `approve` action を残さず、次に実行できる `schedule` / publish bridge actions を表示する。
+
 ## 境界
 
 ### 追加するもの

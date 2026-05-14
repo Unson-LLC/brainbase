@@ -250,6 +250,9 @@ describe('SnsGrowthCockpitView', () => {
         expect(calls[0].patch.status).toBe('approved');
         expect(calls[0].patch.body).toContain('レビュー境界');
         expect(container.textContent).toContain('approved');
+        expect(container.textContent).toContain('承認しました');
+        expect(container.querySelector('[data-sns-action="approve"]')).toBeNull();
+        expect(container.querySelector('[data-sns-action="schedule"]')).toBeTruthy();
     });
 
     it('publishes an approved post through the SNS publish bridge only after browser confirmation', async () => {
