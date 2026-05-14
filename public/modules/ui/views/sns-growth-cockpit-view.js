@@ -146,6 +146,9 @@ function createDefaultApiClient() {
         },
         async publishPost(id, input) {
             return httpClient.post(`/api/sns-growth/posts/${encodeURIComponent(id)}/publish`, input || {});
+        },
+        async recordFeedback(id, input) {
+            return httpClient.post(`/api/sns-growth/posts/${encodeURIComponent(id)}/feedback`, input || {});
         }
     };
 }
@@ -225,6 +228,10 @@ export class SnsGrowthCockpitView extends BaseView {
         }
         if (action === 'mark-deleted') {
             await this._handleMarkDeletedAction(post);
+            return;
+        }
+        if (action === 'mark-learning-ready') {
+            await this._handleMarkLearningReadyAction(post);
             return;
         }
         const body = this.container?.querySelector('[data-detail-field="body"]')?.value;
@@ -316,6 +323,53 @@ export class SnsGrowthCockpitView extends BaseView {
             this.render();
         } catch (error) {
             this.errorMessage = error?.message || 'SNS post deletion update failed';
+            this.noticeMessage = '';
+            this.render();
+        }
+    }
+
+    _metricsSnapshotFromDetail() {
+        const keys = ['impressions', 'likes', 'reposts', 'replies', 'bookmarks'];
+        const snapshot = {};
+        for (const key of keys) {
+            const raw = this.container?.querySelector(`[data-detail-field="metric-${key}"]`)?.value;
+            if (raw === undefined || raw === null || raw === '') continue;
+            const value = Number(raw);
+            if (!Number.isFinite(value) || value < 0) {
+                throw new Error(`${key} は0以上の数値で入力してください`);
+            }
+            snapshot[key] = value;
+        }
+        return Object.keys(snapshot).length > 0 ? snapshot : null;
+    }
+
+    async _handleMarkLearningReadyAction(post) {
+        if (!this.apiClient?.recordFeedback) {
+            this.errorMessage = 'SNS feedback APIが利用できません';
+            this.noticeMessage = '';
+            this.render();
+            return;
+        }
+        try {
+            const metricsSnapshot = this._metricsSnapshotFromDetail();
+            if (!metricsSnapshot && !this._latestMetrics(post)) {
+                this.errorMessage = '学習準備にする前に反応metricsを入力してください';
+                this.noticeMessage = '';
+                this.render();
+                return;
+            }
+            const result = await this.apiClient.recordFeedback(post.id, {
+                metrics_snapshot: metricsSnapshot,
+                mark_learning_ready: true
+            });
+            const updated = normalizePosts([result.post])[0];
+            this.posts = this.posts.map((item) => item.id === updated.id ? updated : item);
+            this.selectedPostId = updated.id;
+            this.errorMessage = '';
+            this.noticeMessage = '反応metricsを記録し、学習準備にしました。';
+            this.render();
+        } catch (error) {
+            this.errorMessage = error?.message || 'SNS feedback update failed';
             this.noticeMessage = '';
             this.render();
         }
@@ -620,6 +674,7 @@ export class SnsGrowthCockpitView extends BaseView {
         if (['posted', 'learning_ready'].includes(post.status)) {
             return `
                 <div class="sns-detail-actions">
+                    ${post.status === 'posted' ? '<button type="button" class="primary" data-sns-action="mark-learning-ready">学習準備にする</button>' : ''}
                     <button type="button" data-sns-action="mark-deleted">Xで削除済みにする</button>
                 </div>
             `;
@@ -706,6 +761,7 @@ export class SnsGrowthCockpitView extends BaseView {
                         <em>${escapeHtml(post.deletion_reason || '削除理由なし')} ${post.deleted_at ? ` / ${escapeHtml(post.deleted_at)}` : ''}</em>
                     </label>
                 ` : ''}
+                ${this._renderFeedbackPanel(post)}
                 <div class="sns-detail-schedule">
                     <span>スケジュール日時</span>
                     <button type="button"><i data-lucide="calendar"></i> ${escapeHtml(formatDisplayDate(post.date))}</button>
@@ -725,6 +781,53 @@ export class SnsGrowthCockpitView extends BaseView {
                 </div>
             </aside>
         `;
+    }
+
+    _renderFeedbackPanel(post) {
+        if (!['posted', 'learning_ready'].includes(post.status)) return '';
+        const latest = this._latestMetrics(post);
+        return `
+            <section class="sns-detail-feedback" aria-label="投稿後の反応">
+                <header>
+                    <span>投稿後の反応</span>
+                    <em>${escapeHtml(this._formatMetricSummary(latest))}</em>
+                </header>
+                <div class="sns-detail-metrics-grid">
+                    ${this._renderMetricInput('impressions', 'Impressions', latest)}
+                    ${this._renderMetricInput('likes', 'Likes', latest)}
+                    ${this._renderMetricInput('reposts', 'Reposts', latest)}
+                    ${this._renderMetricInput('replies', 'Replies', latest)}
+                    ${this._renderMetricInput('bookmarks', 'Bookmarks', latest)}
+                </div>
+            </section>
+        `;
+    }
+
+    _renderMetricInput(key, label, latest) {
+        const value = latest?.[key] ?? '';
+        return `
+            <label>
+                <span>${escapeHtml(label)}</span>
+                <input data-detail-field="metric-${escapeHtml(key)}" type="number" min="0" inputmode="numeric" value="${escapeHtml(value)}" />
+            </label>
+        `;
+    }
+
+    _latestMetrics(post) {
+        const snapshots = Array.isArray(post.metrics_snapshots) ? post.metrics_snapshots : [];
+        return snapshots[snapshots.length - 1] || null;
+    }
+
+    _formatMetricSummary(metrics) {
+        if (!metrics) return 'metrics未記録';
+        const impressions = Number(metrics.impressions || 0);
+        const replies = Number(metrics.replies || 0);
+        const likes = Number(metrics.likes || 0);
+        const parts = [];
+        if (impressions) parts.push(`${impressions.toLocaleString('en-US')} impressions`);
+        if (likes) parts.push(`${likes.toLocaleString('en-US')} likes`);
+        if (replies) parts.push(`${replies.toLocaleString('en-US')} replies`);
+        return parts.length > 0 ? parts.join(' / ') : 'metrics記録済み';
     }
 
     _renderEvidence(label, value) {

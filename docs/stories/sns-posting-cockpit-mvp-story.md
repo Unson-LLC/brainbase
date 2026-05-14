@@ -1,7 +1,7 @@
 ---
 story_id: story-sns-posting-cockpit
 title: SNS Posting Cockpit MVP
-status: draft
+status: active
 date: 2026-05-12
 related_specs:
   - SPEC-sns-growth-cockpit-ui-transition
@@ -138,6 +138,24 @@ This slice must not:
 - strand the operator on `/sns-growth.html` without a Brainbase panel path back to Sessions / Terminal
 
 Architecture decision: ADR-012 records this visual slice. ADR-011 already defines the Graph/Ledger boundary, and this slice does not introduce a new data boundary, persistence mechanism, API contract, auth boundary, or runtime process.
+
+## Implementation Slice: Feedback To Learning Surface
+
+This slice connects posted Ledger records to the learning loop without writing raw metrics into Graph.
+
+This slice is allowed to:
+
+- record a metrics snapshot on a posted SNS Ledger record
+- move an explicitly reviewed posted record to `learning_ready`
+- show the latest metrics in the post detail panel
+- keep deleted records out of learning handoff
+- leave X API polling and anomaly notifier wiring for a later production slice
+
+This slice must not:
+
+- auto-promote metrics into Graph
+- create a learning candidate from a deleted post
+- mark a post `learning_ready` from the UI without feedback evidence
 
 Activity bar requirement scope:
 

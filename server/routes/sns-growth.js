@@ -38,6 +38,21 @@ function sendRouteError(res, error) {
     return res.status(500).json({ error: 'sns_growth_route_failed' });
 }
 
+function normalizeMetricsSnapshot(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+    const keys = ['impressions', 'likes', 'reposts', 'replies', 'bookmarks', 'profile_visits'];
+    const snapshot = {};
+    for (const key of keys) {
+        if (input[key] === undefined || input[key] === null || input[key] === '') continue;
+        const value = Number(input[key]);
+        if (!Number.isFinite(value) || value < 0) {
+            throw new SnsPostValidationError(`invalid metric value: ${key}`);
+        }
+        snapshot[key] = value;
+    }
+    return Object.keys(snapshot).length > 0 ? snapshot : null;
+}
+
 export function createSnsGrowthRouter({ repository = null, publishService = null } = {}) {
     const router = express.Router();
     const ledger = repository || new InMemorySnsPostingLedgerRepository();
@@ -90,6 +105,35 @@ export function createSnsGrowthRouter({ repository = null, publishService = null
                 confirm_public_post: req.body?.confirm_public_post === true
             });
             res.json(result);
+        } catch (error) {
+            sendRouteError(res, error);
+        }
+    });
+
+    router.post('/posts/:id/feedback', async (req, res) => {
+        try {
+            const existing = await ledger.findById(req.params.id);
+            if (!existing) return res.status(404).json({ error: 'sns post not found' });
+            const metricsSnapshot = normalizeMetricsSnapshot(req.body?.metrics_snapshot || req.body?.metrics);
+            const markLearningReady = req.body?.mark_learning_ready === true;
+            if (!metricsSnapshot && !markLearningReady) {
+                return res.status(400).json({
+                    error: 'metrics_snapshot or mark_learning_ready required',
+                    code: 'sns_feedback_required'
+                });
+            }
+            const hasMetricsEvidence = metricsSnapshot || (Array.isArray(existing.metrics_snapshots) && existing.metrics_snapshots.length > 0);
+            if (markLearningReady && !hasMetricsEvidence) {
+                return res.status(400).json({
+                    error: 'metrics_snapshot required before learning_ready',
+                    code: 'sns_feedback_metrics_required'
+                });
+            }
+            const patch = {};
+            if (metricsSnapshot) patch.metrics_snapshot = metricsSnapshot;
+            if (markLearningReady && existing.status === 'posted') patch.status = 'learning_ready';
+            const post = await ledger.updatePost(req.params.id, patch, defaultActor());
+            res.json({ post });
         } catch (error) {
             sendRouteError(res, error);
         }

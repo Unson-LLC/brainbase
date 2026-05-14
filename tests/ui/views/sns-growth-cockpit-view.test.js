@@ -347,4 +347,58 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.querySelector('[data-sns-action="mark-deleted"]')).toBeNull();
         expect(container.querySelector('[data-sns-action="skip"]')).toBeNull();
     });
+
+    it('records posted metrics and marks the selected post learning_ready from the detail panel', async () => {
+        const calls = [];
+        const postedPost = {
+            ...posts[3],
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z'
+        };
+        const apiClient = {
+            listPosts: async () => ({ posts: [postedPost] }),
+            updatePost: async () => ({ post: postedPost }),
+            recordFeedback: async (id, input) => {
+                calls.push({ id, input });
+                return {
+                    post: {
+                        ...postedPost,
+                        status: 'learning_ready',
+                        metrics_snapshots: [{
+                            ...input.metrics_snapshot,
+                            captured_at: '2026-05-14T12:00:00.000Z'
+                        }]
+                    }
+                };
+            }
+        };
+        const view = new SnsGrowthCockpitView({ posts: [postedPost], apiClient, today: '2026-05-14' });
+        view.mount(container);
+
+        container.querySelector('[data-detail-field="metric-impressions"]').value = '1280';
+        container.querySelector('[data-detail-field="metric-likes"]').value = '84';
+        container.querySelector('[data-detail-field="metric-reposts"]').value = '9';
+        container.querySelector('[data-detail-field="metric-replies"]').value = '18';
+        container.querySelector('[data-detail-field="metric-bookmarks"]').value = '21';
+        container.querySelector('[data-sns-action="mark-learning-ready"]')?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(calls[0]).toEqual({
+            id: postedPost.id,
+            input: {
+                metrics_snapshot: {
+                    impressions: 1280,
+                    likes: 84,
+                    reposts: 9,
+                    replies: 18,
+                    bookmarks: 21
+                },
+                mark_learning_ready: true
+            }
+        });
+        expect(container.textContent).toContain('learning_ready');
+        expect(container.textContent).toContain('1,280 impressions');
+        expect(container.textContent).toContain('学習準備にしました');
+    });
 });

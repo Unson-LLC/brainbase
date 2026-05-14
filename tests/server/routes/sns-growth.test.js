@@ -194,4 +194,77 @@ describe('sns-growth routes', () => {
             deletion_reason: 'X上で削除した'
         });
     });
+
+    it('records feedback metrics and advances a posted Ledger record to learning_ready', async () => {
+        const { app, repository } = makeApp();
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                date: '2026-05-14',
+                slot_index: 1,
+                lane: 'learn_in_public',
+                body: '投稿後の反応を学習候補に戻す'
+            }]
+        });
+        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, {
+            status: 'posted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const res = await request(app)
+            .post(`/api/sns-growth/posts/${post.id}/feedback`)
+            .send({
+                metrics_snapshot: {
+                    impressions: 1280,
+                    likes: 84,
+                    reposts: 9,
+                    replies: 18,
+                    bookmarks: 21
+                },
+                mark_learning_ready: true
+            })
+            .expect(200);
+
+        expect(res.body.post.status).toBe('learning_ready');
+        expect(res.body.post.metrics_snapshots).toHaveLength(1);
+        expect(res.body.post.metrics_snapshots[0]).toMatchObject({
+            impressions: 1280,
+            likes: 84,
+            reposts: 9,
+            replies: 18,
+            bookmarks: 21
+        });
+        expect(repository.findById(post.id).status).toBe('learning_ready');
+    });
+
+    it('rejects learning_ready transition without metrics evidence', async () => {
+        const { app, repository } = makeApp();
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                date: '2026-05-14',
+                slot_index: 1,
+                lane: 'learn_in_public',
+                body: 'metricsなしで学習候補にしない'
+            }]
+        });
+        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, {
+            status: 'posted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
+            posted_at: '2026-05-14T03:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const res = await request(app)
+            .post(`/api/sns-growth/posts/${post.id}/feedback`)
+            .send({ mark_learning_ready: true })
+            .expect(400);
+
+        expect(res.body.code).toBe('sns_feedback_metrics_required');
+        expect(repository.findById(post.id).status).toBe('posted');
+    });
 });
