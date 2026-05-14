@@ -159,13 +159,15 @@ export class TestEnforcementManager {
    * メイン実行
    */
   public async enforce(userPrompt: string = ""): Promise<void> {
-    console.log("🔒 テスト検証強制実行中...");
-    console.log("この処理は自動化されており、スキップできません。");
-
     // ユーザーのプロンプトからテストファイルパスを抽出
     const testFileMatch = userPrompt.match(
       /tests?\/[^\s"']+\.test\.(ts|tsx|js|jsx)/gi,
     );
+
+    // 明示的なテスト実行コマンドを検出
+    const explicitRunPattern =
+      /(^|\s)(\/test\b|npm (run )?test\b|pnpm (run )?test\b|yarn test\b|pytest\b|vitest\b|playwright test\b)|テストを?(実行|走らせ|流し|回し)/i;
+    const hasExplicitRunIntent = explicitRunPattern.test(userPrompt);
 
     // テスト実行対象を決定
     let testsToRun: string[] = [];
@@ -178,10 +180,17 @@ export class TestEnforcementManager {
       testsToRun = this.getModifiedTestFiles();
 
       if (testsToRun.length === 0) {
+        // 変更テストも明示意図もなければサイレント終了（ノイズ抑制）
+        if (!hasExplicitRunIntent) {
+          return;
+        }
         console.log("⚠️  変更されたテストファイルが見つかりません。");
         return;
       }
     }
+
+    console.log("🔒 テスト検証強制実行中...");
+    console.log("この処理は自動化されており、スキップできません。");
 
     console.log(`\n🎯 検証対象テストファイル:`);
     testsToRun.forEach((file) => console.log(`  - ${file}`));

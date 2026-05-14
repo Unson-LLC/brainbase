@@ -59,6 +59,12 @@ DEBUG_LOG = '/tmp/codex-pty-shim-debug.log'
 
 SPINNER_CHARS = set('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿')
 REPORT_THROTTLE_SECONDS = 2.0
+TYPEAHEAD_DELAY_SECONDS = 0.03
+BRAINBASE_COMMAND_ALIASES = {
+    'ohayo': '.claude/commands/ohayo.md',
+    'oyasumi': '.claude/commands/oyasumi.md',
+    'retro': '.claude/commands/retro.md',
+}
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -89,6 +95,46 @@ def set_winsize(fd, rows, cols):
         fcntl.ioctl(fd, termios.TIOCSWINSZ, buf)
     except OSError:
         pass
+
+
+def rewrite_brainbase_command_line(line):
+    """Return a normal prompt for brainbase command aliases, or None."""
+    try:
+        text = line.decode('utf-8').strip()
+    except UnicodeDecodeError:
+        return None
+
+    if not text.startswith('/'):
+        return None
+
+    parts = text[1:].split(maxsplit=1)
+    if not parts:
+        return None
+
+    command = parts[0]
+    command_path = BRAINBASE_COMMAND_ALIASES.get(command)
+    if not command_path:
+        return None
+
+    args = parts[1] if len(parts) > 1 else ''
+    return (
+        f'Brainbase command `/{command}` was invoked. '
+        f'Read `{command_path}` and execute it as the active user request. '
+        f'Command arguments: {args or "(none)"}.'
+    ).encode('utf-8')
+
+
+def write_as_typeahead(fd, data, after_key=None):
+    """Write generated input like typed keys so Codex submits it, not as paste."""
+    for byte in data:
+        os.write(fd, bytes([byte]))
+        if after_key is None:
+            time.sleep(TYPEAHEAD_DELAY_SECONDS)
+        else:
+            after_key(TYPEAHEAD_DELAY_SECONDS)
+    os.write(fd, b'\r')
+    if after_key is not None:
+        after_key(TYPEAHEAD_DELAY_SECONDS)
 
 
 def detect_codex_activity(data):
@@ -364,6 +410,32 @@ def main():
 
     interceptor = QueryInterceptor(inner_master)
     activity_reporter = ActivityReporter()
+    input_line = bytearray()
+
+    def drain_inner_output(timeout_seconds):
+        deadline = time.time() + timeout_seconds
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return
+            try:
+                ready, _, _ = select.select([inner_master], [], [], min(remaining, 0.01))
+            except (OSError, ValueError):
+                return
+            if inner_master not in ready:
+                continue
+            try:
+                data = os.read(inner_master, 4096)
+            except OSError:
+                return
+            dbg(f'inner→outer {len(data)}b', data[:80])
+            interceptor.feed(data)
+            activity_reporter.observe(detect_codex_activity(data))
+            try:
+                os.write(outer_stdout, data)
+            except OSError:
+                return
+
     dbg('shim started', {
         'inner_master': inner_master,
         'outer_stdin': outer_stdin,
@@ -402,11 +474,35 @@ def main():
                         dbg('outer_stdin closed', e)
                         return
                     dbg(f'outer→inner {len(data)}b', data[:80])
-                    try:
-                        os.write(inner_master, data)
-                    except OSError as e:
-                        dbg('ERROR writing inner_master', e)
-                        return
+                    for byte in data:
+                        if byte in (10, 13):
+                            rewritten = rewrite_brainbase_command_line(input_line)
+                            input_line.clear()
+                            try:
+                                if rewritten is not None:
+                                    dbg('rewriting brainbase command', rewritten)
+                                    os.write(inner_master, b'\x15')
+                                    write_as_typeahead(inner_master, rewritten, drain_inner_output)
+                                else:
+                                    os.write(inner_master, bytes([byte]))
+                            except OSError as e:
+                                dbg('ERROR writing inner_master', e)
+                                return
+                            continue
+
+                        if byte in (3, 4, 21):  # Ctrl-C, Ctrl-D, Ctrl-U
+                            input_line.clear()
+                        elif byte in (8, 127):
+                            if input_line:
+                                input_line.pop()
+                        elif 32 <= byte or byte == 9:
+                            input_line.append(byte)
+
+                        try:
+                            os.write(inner_master, bytes([byte]))
+                        except OSError as e:
+                            dbg('ERROR writing inner_master', e)
+                            return
 
             try:
                 wpid, _ = os.waitpid(child_pid, os.WNOHANG)
