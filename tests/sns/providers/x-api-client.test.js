@@ -87,4 +87,20 @@ describe('XApiClient metrics lookup', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(2);
         expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBe('Bearer user-context-token');
     });
+
+    it('returns null rate-limit fields when X omits rate-limit headers', async () => {
+        const client = new XApiClient({
+            fetchImpl: vi.fn(async () => ({
+                ok: false,
+                status: 401,
+                headers: { get: () => null }
+            })),
+            accessTokenResolver: async () => 'user-context-token'
+        });
+
+        await expect(client.getRateLimitStatus({ env: 'SNS_X_ACCESS_TOKEN' })).resolves.toEqual({
+            remaining: null,
+            resetAt: null
+        });
+    });
 });

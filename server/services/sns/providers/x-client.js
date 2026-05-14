@@ -129,8 +129,10 @@ export class XApiClient {
                 Accept: 'application/json'
             }
         });
-        const remaining = Number(response.headers?.get?.('x-rate-limit-remaining'));
-        const reset = Number(response.headers?.get?.('x-rate-limit-reset'));
+        const remainingRaw = response.headers?.get?.('x-rate-limit-remaining');
+        const resetRaw = response.headers?.get?.('x-rate-limit-reset');
+        const remaining = remainingRaw === undefined || remainingRaw === null ? NaN : Number(remainingRaw);
+        const reset = resetRaw === undefined || resetRaw === null ? NaN : Number(resetRaw);
         return {
             remaining: Number.isFinite(remaining) ? remaining : null,
             resetAt: Number.isFinite(reset) ? new Date(reset * 1000).toISOString() : null
