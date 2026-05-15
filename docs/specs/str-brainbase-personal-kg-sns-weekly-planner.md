@@ -8,6 +8,7 @@ related_specs:
   - SPEC-personal-kg-sns-seed-mvp
   - SPEC-sns-readonly-curator
   - SPEC-sns-persona-brain-gate
+  - SPEC-sns-x-algorithm-quality
 implementation_files:
   - server/services/sns/personal-kg-sns-weekly-planner.js
 test_files:
@@ -36,6 +37,7 @@ test_files:
 - **INV-12**: 引用元の投稿がない `peer_research_prompt` は本文を作らない。探索方針を読者に見せず、実際の引用リポスト本文は peer signal がある時だけ生成する。
 - **INV-13**: X本文は句点 `。` を使わない。
 - **INV-14**: 公開本文は `persona_affect` を持つ。目的はNGワード除去ではなく、Persona Brainの読者が「説教された」「成長施策の道具にされた」「投稿者の自慢だけを見せられた」と感じる本文を止めること。
+- **INV-15**: すべての draft は `algorithm_fit` を持つ。X For Youの推薦構造を踏まえ、candidate source、positive action、negative feedback risk、author diversity policy、graph edge goalをreview時に見えるようにする。
 
 ## Contract
 
@@ -68,6 +70,19 @@ type WeeklyDraft = {
   derived_from: string[];
   evidence_ids: any[];
   persona_brain: PersonaBrain;
+  algorithm_fit: {
+    decision: 'reviewable' | 'needs_peer_signal' | 'blocked';
+    candidate_source: string;
+    predicted_positive_actions: string[];
+    predicted_negative_actions: string[];
+    negative_feedback_risks: string[];
+    author_diversity: {
+      scope: 'weekly_pack';
+      repeated_author_handle: string | null;
+      policy: string;
+    };
+    graph_edge_goal: string;
+  };
   signal: PeerSignal | NewsSignal | null;
   safety: {
     requires_human_review: true;
@@ -134,6 +149,12 @@ type WeeklyDraft = {
 - when: 本文が「最初に見るべき」「少し上の人を探す」など、説教や運用都合の露出として読める
 - then: `persona_affect.decision` は `blocked` になり、修正指針は読者の現場・不安・自然な次行動へ戻す
 
+### S-9: X algorithm fitでpositive actionとnegative feedback riskをレビュー可能にする
+
+- given: Peer Circle / Personal KG / news 由来のdraft
+- when: weekly packを作る
+- then: すべてのdraftに `algorithm_fit` が入り、reply / quote / repost / profile_click / dwell / bookmark の狙いと、not_interested / mute につながるriskが見える
+
 ## Non-goals
 
 - 投稿実行
@@ -148,3 +169,4 @@ type WeeklyDraft = {
 |---|---|
 | INV-1〜7, S-1〜3 | `tests/sns/weekly-planner/personal-kg-sns-weekly-planner.test.js` |
 | INV-14, S-8 | `tests/sns/weekly-planner/personal-kg-sns-weekly-planner.test.js` |
+| INV-15, S-9 | `tests/sns/weekly-planner/personal-kg-sns-weekly-planner.test.js` |
