@@ -7,7 +7,8 @@ import {
     PersonalKgSnsWeeklyPlanner,
     DEFAULT_WEEKLY_CONTENT_MIX,
     classifyPeerSignalBand,
-    evaluatePersonaAffect
+    evaluatePersonaAffect,
+    evaluateXAlgorithmFit
 } from '../../../server/services/sns/personal-kg-sns-weekly-planner.js';
 
 const viewer = {
@@ -138,6 +139,13 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
             expect(draft.safety.persona_affect.decision).toBe('pass');
             expect(draft.safety.persona_affect.likely_reader_feeling).toMatch(/自分|現場|未選定/);
             expect(draft.safety.persona_affect.negative_feeling_risks).toEqual([]);
+            expect(draft.algorithm_fit).toMatchObject({
+                decision: 'reviewable',
+                candidate_source: expect.any(String),
+                graph_edge_goal: expect.any(String),
+                negative_feedback_risks: []
+            });
+            expect(draft.algorithm_fit.predicted_positive_actions.length).toBeGreaterThan(0);
             expect(draft.body.length).toBeLessThanOrEqual(280);
             expect(draft.body).not.toMatch(/APIで投稿|AIで投稿を書いて|自動投稿/);
         }
@@ -159,6 +167,9 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         expect(peerDrafts.every((draft) => draft.signal?.author_handle === '@near_peer_ai_pm')).toBe(true);
         expect(peerDrafts.every((draft) => draft.body.includes('これめちゃ分かる'))).toBe(true);
         expect(peerDrafts.every((draft) => !draft.body.includes('相手の読者に向けて'))).toBe(true);
+        expect(peerDrafts.every((draft) => draft.algorithm_fit.candidate_source === 'near_peer_quote')).toBe(true);
+        expect(peerDrafts.every((draft) => draft.algorithm_fit.predicted_positive_actions.includes('quote'))).toBe(true);
+        expect(peerDrafts.every((draft) => draft.algorithm_fit.graph_edge_goal.includes('@near_peer_ai_pm'))).toBe(true);
     });
 
     it('can use the PersonalKnowledgeGraphReader as the weekly planner source', async () => {
@@ -262,6 +273,8 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         expect(peerDrafts).toHaveLength(6);
         expect(peerDrafts.every((draft) => draft.format === 'peer_research_prompt')).toBe(true);
         expect(peerDrafts.every((draft) => draft.body === '')).toBe(true);
+        expect(peerDrafts.every((draft) => draft.algorithm_fit.decision === 'needs_peer_signal')).toBe(true);
+        expect(peerDrafts.every((draft) => draft.algorithm_fit.negative_feedback_risks.includes('missing_peer_signal'))).toBe(true);
     });
 
     it('blocks copy that would make the persona feel lectured or used as a growth tactic', () => {
@@ -294,5 +307,35 @@ describe('PersonalKgSnsWeeklyPlanner', () => {
         });
         expect(tactic.decision).toBe('blocked');
         expect(tactic.negative_feeling_risks).toContain('internal_growth_tactic_exposed');
+    });
+
+    it('scores X algorithm fit around positive actions, negative feedback risk, and graph edge goal', () => {
+        const fit = evaluateXAlgorithmFit({
+            body: 'これめちゃ分かる\n\n@near_peer_ai_pm の話、現場だと責任境界とレビュー境界まで含めて見る話なんよな',
+            lane: 'peer_circle',
+            signal: peerSignals[1],
+            personaAffect: { decision: 'pass', negative_feeling_risks: [] }
+        });
+
+        expect(fit).toMatchObject({
+            decision: 'reviewable',
+            candidate_source: 'near_peer_quote',
+            graph_edge_goal: 'peer_reply_or_repost:@near_peer_ai_pm',
+            negative_feedback_risks: []
+        });
+        expect(fit.predicted_positive_actions).toEqual(expect.arrayContaining(['quote', 'reply', 'profile_click', 'dwell']));
+
+        const risky = evaluateXAlgorithmFit({
+            body: 'AI導入で迷うなら、最初に見るべきはツール一覧じゃない',
+            lane: 'soft_cta',
+            personaAffect: {
+                decision: 'blocked',
+                negative_feeling_risks: ['lecturing_tone']
+            }
+        });
+
+        expect(risky.decision).toBe('blocked');
+        expect(risky.negative_feedback_risks).toEqual(expect.arrayContaining(['negative_persona_affect', 'not_interested_risk']));
+        expect(risky.predicted_negative_actions).toEqual(expect.arrayContaining(['not_interested']));
     });
 });

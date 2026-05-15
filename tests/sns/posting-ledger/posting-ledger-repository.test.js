@@ -34,6 +34,19 @@ const baseDraft = {
         natural_next_action: '自社の最初の1業務を考える',
         success_signal: 'bookmark_or_profile_visit'
     },
+    algorithm_fit: {
+        decision: 'reviewable',
+        candidate_source: 'personal_kg_semantic_anchor',
+        predicted_positive_actions: ['bookmark', 'profile_click', 'dwell'],
+        predicted_negative_actions: [],
+        negative_feedback_risks: [],
+        author_diversity: {
+            scope: 'weekly_pack',
+            repeated_author_handle: null,
+            policy: 'avoid same-day KG source reuse'
+        },
+        graph_edge_goal: 'bookmark_or_profile_visit:trust_balance'
+    },
     safety: {
         persona_affect: {
             likely_reader_feeling: '自分の現場の迷いを言語化されたと感じる',
@@ -68,6 +81,11 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(posts[0].status).toBe('review_needed');
         expect(posts[0].source.type).toBe('Personal KG');
         expect(posts[0].evidence.persona_brain.target_person).toContain('AI導入');
+        expect(posts[0].evidence.algorithm_fit).toMatchObject({
+            decision: 'reviewable',
+            candidate_source: 'personal_kg_semantic_anchor',
+            graph_edge_goal: 'bookmark_or_profile_visit:trust_balance'
+        });
     });
 
     it('stores body revisions and explicit operational status transitions', () => {

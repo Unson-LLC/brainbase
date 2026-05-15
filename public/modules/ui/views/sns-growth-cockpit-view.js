@@ -925,9 +925,19 @@ export class SnsGrowthCockpitView extends BaseView {
                     ${this._renderEvidence('Graph Check', post.evidence?.graph_check?.status || post.evidence?.graph_check?.decision || '未確認')}
                     ${this._renderEvidence('Quality Gate', post.evidence?.quality_gate?.status || post.evidence?.quality_gate?.decision || '未確認')}
                     ${this._renderEvidence('Reader affect', post.evidence?.reader_affect || '未設定')}
+                    ${post.evidence?.algorithm_fit ? this._renderEvidence('Algorithm Fit', this._algorithmFitLabel(post.evidence.algorithm_fit)) : ''}
                 </div>
             </aside>
         `;
+    }
+
+    _algorithmFitLabel(algorithmFit) {
+        const decision = algorithmFit?.decision || '未確認';
+        const actions = Array.isArray(algorithmFit?.predicted_positive_actions)
+            ? algorithmFit.predicted_positive_actions.join(', ')
+            : '';
+        const goal = algorithmFit?.graph_edge_goal || '';
+        return [decision, actions, goal].filter(Boolean).join(' / ');
     }
 
     _renderFeedbackPanel(post) {

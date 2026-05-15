@@ -19,7 +19,14 @@ describe('SnsGrowthCockpitView', () => {
                 persona_brain: { target_person: 'AI導入を任されたPM' },
                 graph_check: { status: 'ok' },
                 quality_gate: { status: 'pass' },
-                reader_affect: '実務に置き換えやすい'
+                reader_affect: '実務に置き換えやすい',
+                algorithm_fit: {
+                    decision: 'reviewable',
+                    candidate_source: 'personal_kg_semantic_anchor',
+                    predicted_positive_actions: ['bookmark', 'profile_click', 'dwell'],
+                    negative_feedback_risks: [],
+                    graph_edge_goal: 'bookmark_or_profile_visit:trust_balance'
+                }
             },
             revisions: []
         },
@@ -202,7 +209,9 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.textContent).toContain('Graph Check');
         expect(container.textContent).toContain('Quality Gate');
         expect(container.textContent).toContain('Reader affect');
-        expect(container.querySelectorAll('.sns-evidence-row')).toHaveLength(4);
+        expect(container.textContent).toContain('Algorithm Fit');
+        expect(container.textContent).toContain('bookmark, profile_click, dwell');
+        expect(container.querySelectorAll('.sns-evidence-row')).toHaveLength(5);
     });
 
     it('clicking a calendar post updates the selected detail panel', () => {

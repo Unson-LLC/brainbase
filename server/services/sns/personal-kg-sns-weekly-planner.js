@@ -197,6 +197,83 @@ export function evaluatePersonaAffect({ body, lane, personaBrain, signal }) {
     };
 }
 
+function positiveActionsFor({ lane, signal }) {
+    if (lane === 'peer_circle' && signal) return ['quote', 'reply', 'repost', 'profile_click', 'dwell'];
+    if (signal?.kind === 'news') return ['reply', 'repost', 'profile_click', 'dwell'];
+    if (lane === 'trust_balance') return ['bookmark', 'profile_click', 'dwell'];
+    if (lane === 'own_proof') return ['profile_click', 'dwell', 'bookmark'];
+    if (lane === 'philosophy') return ['reply', 'bookmark', 'dwell'];
+    if (lane === 'learn_in_public') return ['reply', 'bookmark', 'profile_click'];
+    return ['profile_click', 'bookmark'];
+}
+
+function candidateSourceFor({ lane, signal }) {
+    if (lane === 'peer_circle' && signal?.kind === 'peer_post') return 'near_peer_quote';
+    if (lane === 'peer_circle') return 'near_peer_research';
+    if (signal?.kind === 'news') return 'news_context';
+    return 'personal_kg_semantic_anchor';
+}
+
+function graphEdgeGoalFor({ lane, signal }) {
+    if (lane === 'peer_circle' && signal?.author_handle) return `peer_reply_or_repost:${signal.author_handle}`;
+    if (lane === 'peer_circle') return 'find_peer_signal:near_peer_quote';
+    if (signal?.kind === 'news') return 'news_reply_or_repost:ai_ops_context';
+    if (lane === 'trust_balance') return 'bookmark_or_profile_visit:trust_balance';
+    if (lane === 'own_proof') return 'profile_click:own_proof';
+    if (lane === 'philosophy') return 'reply_or_bookmark:philosophy';
+    if (lane === 'learn_in_public') return 'reply_or_bookmark:learning_loop';
+    return 'profile_click:soft_cta';
+}
+
+function negativeActionsFor(risks) {
+    const actions = [];
+    if (risks.includes('not_interested_risk') || risks.includes('low_relevance_risk')) actions.push('not_interested');
+    if (risks.includes('mute_risk')) actions.push('mute_author');
+    if (risks.includes('report_risk')) actions.push('report');
+    return [...new Set(actions)];
+}
+
+export function evaluateXAlgorithmFit({ body, lane, signal, personaAffect }) {
+    const text = String(body || '').trim();
+    const personaRisks = Array.isArray(personaAffect?.negative_feeling_risks)
+        ? personaAffect.negative_feeling_risks
+        : [];
+    const risks = [];
+
+    if (lane === 'peer_circle' && !signal) risks.push('missing_peer_signal');
+    if (personaAffect?.decision === 'blocked') risks.push('negative_persona_affect');
+    if (personaRisks.includes('lecturing_tone') || personaRisks.includes('no_reader_world_anchor')) {
+        risks.push('not_interested_risk');
+    }
+    if (personaRisks.includes('internal_growth_tactic_exposed') || personaRisks.includes('peer_quote_takes_without_giving')) {
+        risks.push('mute_risk');
+    }
+    if (text && text.length < 40) risks.push('low_dwell_context');
+    if (text && !hasReaderWorldAnchor(text)) risks.push('low_relevance_risk');
+
+    const uniqueRisks = [...new Set(risks)];
+    const blockingRisks = uniqueRisks.filter((risk) => risk !== 'missing_peer_signal');
+    const decision = blockingRisks.length > 0
+        ? 'blocked'
+        : (uniqueRisks.includes('missing_peer_signal') ? 'needs_peer_signal' : 'reviewable');
+
+    return {
+        decision,
+        candidate_source: candidateSourceFor({ lane, signal }),
+        predicted_positive_actions: positiveActionsFor({ lane, signal }),
+        predicted_negative_actions: negativeActionsFor(uniqueRisks),
+        negative_feedback_risks: uniqueRisks,
+        author_diversity: {
+            scope: 'weekly_pack',
+            repeated_author_handle: signal?.author_handle || null,
+            policy: lane === 'peer_circle'
+                ? 'prefer near-peer variety when multiple primary-band signals exist'
+                : 'avoid same-day KG source reuse'
+        },
+        graph_edge_goal: graphEdgeGoalFor({ lane, signal })
+    };
+}
+
 function sourceMatchesLane(source, lane) {
     const body = source?.body || '';
     return (LANE_KEYWORDS[lane] || []).some((keyword) => body.includes(keyword));
@@ -427,6 +504,7 @@ export class PersonalKgSnsWeeklyPlanner {
                 const personaBrain = completePersonaBrain({ source, lane, viewer, signal });
                 const body = composeBody({ lane, source, signal });
                 const personaAffect = evaluatePersonaAffect({ body, lane, personaBrain, signal });
+                const algorithmFit = evaluateXAlgorithmFit({ body, lane, signal, personaAffect });
                 drafts.push({
                     id: `week_${date}_${slotIndex + 1}_${lane}`,
                     date,
@@ -442,6 +520,7 @@ export class PersonalKgSnsWeeklyPlanner {
                     derived_from: [source.id, ...source.derived_from],
                     evidence_ids: source.evidence_ids,
                     persona_brain: personaBrain,
+                    algorithm_fit: algorithmFit,
                     signal: signal ? {
                         id: signal.id,
                         kind: signal.kind,
