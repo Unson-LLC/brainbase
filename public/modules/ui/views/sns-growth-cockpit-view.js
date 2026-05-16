@@ -394,7 +394,7 @@ export class SnsGrowthCockpitView extends BaseView {
             body,
             memo
         };
-        if (action === 'approve') patch.status = 'approved';
+        if (action === 'approve') patch.status = this._hasSchedule(post) ? 'scheduled' : 'approved';
         if (action === 'schedule') patch.status = 'scheduled';
         if (action === 'skip') patch.status = 'skipped';
         try {
@@ -413,10 +413,14 @@ export class SnsGrowthCockpitView extends BaseView {
     }
 
     _noticeForAction(action) {
-        if (action === 'approve') return '承認しました。次はスケジュールまたは投稿確認に進めます。';
+        if (action === 'approve') return '承認して予約済みにしました。';
         if (action === 'schedule') return 'スケジュール済みにしました。';
         if (action === 'skip') return 'スキップしました。';
         return '';
+    }
+
+    _hasSchedule(post) {
+        return Boolean(post?.scheduled_at || (post?.date && post?.time));
     }
 
     async _handlePublishAction(post, action) {

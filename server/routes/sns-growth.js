@@ -97,6 +97,22 @@ function normalizeMetricsSnapshot(input) {
     return Object.keys(snapshot).length > 0 ? snapshot : null;
 }
 
+function hasSchedule(post) {
+    if (!post) return false;
+    if (post.scheduled_at) return true;
+    return Boolean(post.date && post.time);
+}
+
+function normalizeOperationalPatch(existing, patch = {}) {
+    if (!patch || typeof patch !== 'object') return {};
+    if (patch.status !== 'approved') return patch;
+    if (!hasSchedule(existing)) return patch;
+    return {
+        ...patch,
+        status: 'scheduled'
+    };
+}
+
 export function createSnsGrowthRouter({
     repository = null,
     publishService = null,
@@ -255,7 +271,10 @@ export function createSnsGrowthRouter({
 
     router.patch('/posts/:id', async (req, res) => {
         try {
-            const post = await ledger.updatePost(req.params.id, req.body || {}, defaultActor());
+            const existing = await ledger.findById(req.params.id);
+            if (!existing) return res.status(404).json({ error: 'sns post not found' });
+            const patch = normalizeOperationalPatch(existing, req.body || {});
+            const post = await ledger.updatePost(req.params.id, patch, defaultActor());
             if (!post) return res.status(404).json({ error: 'sns post not found' });
             res.json({ post });
         } catch (error) {

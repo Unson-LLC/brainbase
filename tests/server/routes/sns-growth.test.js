@@ -107,7 +107,7 @@ describe('sns-growth routes', () => {
             })
             .expect(200);
 
-        expect(res.body.post.status).toBe('approved');
+        expect(res.body.post.status).toBe('scheduled');
         expect(res.body.post.body).toContain('レビュー境界');
         expect(res.body.post.revisions).toHaveLength(1);
     });
