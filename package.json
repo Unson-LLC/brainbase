@@ -58,6 +58,7 @@
     "seed:personal-kg:baao-minutes": "node scripts/seed-personal-kg-baao-minutes.js",
     "seed:personal-kg:cross-project-minutes": "node scripts/seed-personal-kg-cross-project-minutes.js",
     "sns:generation-context": "node scripts/build-sns-generation-context.js",
+    "oyasumi:meeting-personal-kg": "node scripts/oyasumi-meeting-personal-kg.js",
     "sns:ohayo-brief": "node scripts/generate-sns-ohayo-brief.js",
     "sns:weekly-pack": "node scripts/generate-personal-kg-sns-weekly-pack.js",
     "sns:import-review-pack": "node scripts/import-sns-review-pack-to-ledger.js",

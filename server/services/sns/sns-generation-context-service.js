@@ -175,7 +175,9 @@ function candidateToLearning(candidate) {
 }
 
 function seedCategory(candidate) {
-    return candidate.permission_snapshot?.seed?.category || null;
+    return candidate.permission_snapshot?.seed?.category
+        || candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.category
+        || null;
 }
 
 function compactBody(candidate, max = 180) {
@@ -195,12 +197,22 @@ function sourceSummary(candidates) {
         .sort((a, b) => b.count - a.count || a.source_system.localeCompare(b.source_system));
 }
 
+function personalKgPriority(candidate) {
+    if (candidate.source_system === 'oyasumi-meeting-personal-kg') return 2;
+    if (candidate.source_system === 'sns-feedback') return 1;
+    return 0;
+}
+
 function personalKgAnchorCandidates(candidates) {
     const categories = new Set(['philosophy', 'operating_principle', 'content_design', 'sales_philosophy']);
     return candidates
         .filter((candidate) => categories.has(seedCategory(candidate)))
         .filter((candidate) => ['claim', 'insight', 'preference', 'hypothesis'].includes(candidate.cognitive_type))
-        .sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))
+        .sort((a, b) => {
+            const priorityDelta = personalKgPriority(b) - personalKgPriority(a);
+            if (priorityDelta !== 0) return priorityDelta;
+            return Number(b.confidence || 0) - Number(a.confidence || 0);
+        })
         .map((candidate) => compactBody(candidate));
 }
 
