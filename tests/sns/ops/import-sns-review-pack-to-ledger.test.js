@@ -15,6 +15,8 @@ describe('import-sns-review-pack-to-ledger', () => {
                     body: 'これ、Claude Codeを会社で使う時も同じだと思ってる',
                     source_url: 'https://x.com/near/status/1',
                     persona_brain: { target_person: 'AI導入を任されたPM' },
+                    algorithm_fit: { candidate_source: 'peer_circle_quote' },
+                    generation_context_evidence: { policy_ref: 'generation_policy', recommended_lanes: ['peer_circle'] },
                     graph_check: { decision: 'checked_for_review' },
                     quality_gate: { decision: 'pass', persona_affect: { likely_reader_feeling: '現場に接続できる' } }
                 }]
@@ -33,6 +35,8 @@ describe('import-sns-review-pack-to-ledger', () => {
             source_url: 'https://x.com/near/status/1'
         });
         expect(payload.drafts[0].quality_gate.decision).toBe('pass');
+        expect(payload.drafts[0].algorithm_fit.candidate_source).toBe('peer_circle_quote');
+        expect(payload.drafts[0].generation_context_evidence.policy_ref).toBe('generation_policy');
     });
 
     it('parses base-url and dry-run arguments', () => {

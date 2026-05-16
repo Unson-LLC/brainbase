@@ -33,6 +33,7 @@ function parseArgs(argv) {
         limit: 5,
         jpJson: null,
         enJson: null,
+        generationContext: null,
         out: null,
         signalsOut: null,
         dryRun: false
@@ -45,6 +46,7 @@ function parseArgs(argv) {
         if (arg === '--limit') args.limit = Number(argv[++i]);
         if (arg === '--jp-json') args.jpJson = argv[++i];
         if (arg === '--en-json') args.enJson = argv[++i];
+        if (arg === '--generation-context') args.generationContext = argv[++i];
         if (arg === '--out') args.out = argv[++i];
         if (arg === '--signals-out') args.signalsOut = argv[++i];
         if (arg === '--dry-run') args.dryRun = true;
@@ -67,6 +69,11 @@ function readJsonArray(filePath) {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     if (!Array.isArray(parsed)) throw new Error(`${filePath} must contain a JSON array`);
     return parsed;
+}
+
+function readGenerationContext(filePath) {
+    if (!filePath) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
 function runXSearch(query, { since, maxResults, limit }) {
@@ -254,7 +261,28 @@ function parseBaselineItems(weeklyPlan) {
     return [...items, ...fallback].slice(0, 2);
 }
 
-function graphCheckFor(topic) {
+function contextEvidence(generationContext) {
+    if (!generationContext) return null;
+    return {
+        policy_ref: 'generation_policy',
+        date: generationContext.date || null,
+        recommended_lanes: generationContext.generation_policy?.recommended_lanes || [],
+        avoid_patterns: generationContext.generation_policy?.avoid_patterns || [],
+        winning_angles: generationContext.generation_policy?.winning_angles || [],
+        evidence: generationContext.evidence || []
+    };
+}
+
+function generationConstraints(generationContext) {
+    const avoid = generationContext?.generation_policy?.avoid_patterns || [];
+    if (!avoid.length) return [];
+    return [
+        'SNS Generation Contextのavoid_patternsを本文に露出せず生成前制約として扱う',
+        ...avoid.slice(0, 4).map((pattern) => `avoid:${pattern}`)
+    ];
+}
+
+function graphCheckFor(topic, generationContext = null) {
     return {
         scope: 'growth',
         entities: ['さとけい', 'Unson', 'AI駆動経営', topic],
@@ -263,7 +291,8 @@ function graphCheckFor(topic) {
         constraints: [
             '投稿実行は人間レビュー後',
             '読者に運用都合を見せない',
-            '固有名詞はGraph SSOT優先'
+            '固有名詞はGraph SSOT優先',
+            ...generationConstraints(generationContext)
         ]
     };
 }
@@ -350,7 +379,7 @@ function qualityGate({ body, lane, personaBrain: brain, signal, requireSignal = 
     };
 }
 
-function buildPost({ slot, label, lane, topic, body, signal, extra = {}, requireSignal = false }) {
+function buildPost({ slot, label, lane, topic, body, signal, extra = {}, requireSignal = false, generationContext = null }) {
     const brain = personaBrain(topic);
     const quality_gate = qualityGate({ body, lane, personaBrain: brain, signal, requireSignal });
     return {
@@ -361,19 +390,21 @@ function buildPost({ slot, label, lane, topic, body, signal, extra = {}, require
         body,
         source_url: signal?.url,
         persona_brain: brain,
-        graph_check: graphCheckFor(topic),
+        graph_check: graphCheckFor(topic, generationContext),
+        generation_context_evidence: contextEvidence(generationContext),
         quality_gate,
         ...extra
     };
 }
 
-function buildReviewPack({ date, weeklyPlan, peerCards, newsCards }) {
+function buildReviewPack({ date, weeklyPlan, peerCards, newsCards, generationContext = null }) {
     const baselinePosts = parseBaselineItems(weeklyPlan).map((item, index) => buildPost({
         slot: `baseline_${index + 1}`,
         label: `Baseline ${index + 1}`,
         lane: index === 0 ? 'own_proof' : 'trust_balance',
         topic: item,
-        body: baselineBodyFor(item, index)
+        body: baselineBodyFor(item, index),
+        generationContext
     })).filter((post) => post.quality_gate.decision === 'pass');
 
     const posts = [...baselinePosts];
@@ -388,6 +419,7 @@ function buildReviewPack({ date, weeklyPlan, peerCards, newsCards }) {
             body: draftHintForPeer(signal),
             signal,
             requireSignal: true,
+            generationContext,
             extra: { peer_circle_brain: peerCircleBrain(signal) }
         }))
         .find((post) => post.quality_gate.decision === 'pass');
@@ -410,6 +442,7 @@ function buildReviewPack({ date, weeklyPlan, peerCards, newsCards }) {
             body: draftHintForNews(signal),
             signal,
             requireSignal: true,
+            generationContext,
             extra: { amplifier_brain: amplifierBrain(signal) }
         }))
         .find((post) => post.quality_gate.decision === 'pass');
@@ -431,22 +464,43 @@ function buildReviewPack({ date, weeklyPlan, peerCards, newsCards }) {
     };
 }
 
-export function buildBrief({ date, jpTweets, enTweets, jpReads, enReads, weeklyPlan = '' }) {
+function generationContextSummary(generationContext) {
+    if (!generationContext) return null;
+    return {
+        date: generationContext.date || null,
+        generation_policy: generationContext.generation_policy || {
+            recommended_lanes: [],
+            avoid_patterns: [],
+            winning_angles: [],
+            needs_more_data: [],
+            quote_target_policy: []
+        },
+        evidence: generationContext.evidence || []
+    };
+}
+
+export function buildBrief({ date, jpTweets, enTweets, jpReads, enReads, weeklyPlan = '', generationContext = null }) {
     const peerSignals = pickPeerTweets(jpTweets).map(toPeerSignal);
     const newsSignals = pickTopTweets(enTweets, 3).map(toNewsSignal);
     const peerCards = peerSignals.map((signal) => withAffect(signal, draftHintForPeer(signal), 'peer_circle'));
     const newsCards = newsSignals.map((signal) => withAffect(signal, draftHintForNews(signal), 'trust_balance'));
     const totalReads = Number(jpReads ?? jpTweets.length) + Number(enReads ?? enTweets.length);
     const cost = totalReads * COST_PER_TWEET_READ_USD;
-    const reviewPack = buildReviewPack({ date, weeklyPlan, peerCards, newsCards });
-    const signals = { peerSignals, newsSignals, reviewPack };
+    const reviewPack = buildReviewPack({ date, weeklyPlan, peerCards, newsCards, generationContext });
+    const signals = {
+        peerSignals,
+        newsSignals,
+        generationContext: generationContextSummary(generationContext),
+        reviewPack
+    };
     return {
-        markdown: renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost }),
+        markdown: renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost, generationContext }),
         signals,
         summary: {
             date,
             total_reads: totalReads,
             estimated_cost_usd: Number(cost.toFixed(3)),
+            generation_context_used: Boolean(generationContext),
             peer_candidates: peerCards.length,
             news_candidates: newsCards.length,
             review_pack_posts: reviewPack.posts.length,
@@ -502,7 +556,29 @@ function renderPost(post) {
     ].join('\n');
 }
 
-function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost }) {
+function renderGenerationContext(generationContext) {
+    if (!generationContext) {
+        return [
+            '## Generation Context',
+            '',
+            '- status: not provided',
+            '- fallback: weekly plan + today signals only'
+        ].join('\n');
+    }
+    const policy = generationContext.generation_policy || {};
+    return [
+        '## Generation Context',
+        '',
+        `- Context date: ${generationContext.date || 'unknown'}`,
+        `- Recommended lanes: ${(policy.recommended_lanes || []).join(', ') || '-'}`,
+        `- Avoid patterns: ${(policy.avoid_patterns || []).join(', ') || '-'}`,
+        `- Winning angles: ${(policy.winning_angles || []).slice(0, 3).join(' / ') || '-'}`,
+        `- Needs more data: ${(policy.needs_more_data || []).slice(0, 3).join(' / ') || '-'}`,
+        `- Quote target policy: ${(policy.quote_target_policy || []).slice(0, 2).join(' / ') || '-'}`
+    ].join('\n');
+}
+
+function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost, generationContext = null }) {
     const holdLines = reviewPack.holds.length > 0
         ? reviewPack.holds.map((hold) => `- ${hold.lane}: ${hold.decision} - ${hold.reasons.join(', ')}`)
         : ['- なし'];
@@ -530,6 +606,8 @@ function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, to
         '- scope: growth',
         '- source: brainbase Graph + shared/_codex/sns',
         '- rule: No Graph Check, no post',
+        '',
+        renderGenerationContext(generationContext),
         '',
         reviewPack.posts.length > 0 ? reviewPack.posts.map(renderPost).join('\n\n') : '通過した投稿なし。',
         '',
@@ -563,13 +641,15 @@ async function main() {
     const en = args.enJson
         ? { tweets: readJsonArray(args.enJson), reads: undefined }
         : (args.dryRun ? { tweets: [], reads: 0 } : runXSearch(SEARCH_SPECS.enNews.query, args));
+    const generationContext = readGenerationContext(args.generationContext);
     const brief = buildBrief({
         date: args.date,
         jpTweets: jp.tweets,
         enTweets: en.tweets,
         jpReads: jp.reads,
         enReads: en.reads,
-        weeklyPlan: loadWeeklyPlan(args.date)
+        weeklyPlan: loadWeeklyPlan(args.date),
+        generationContext
     });
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.mkdirSync(path.dirname(signalsOut), { recursive: true });

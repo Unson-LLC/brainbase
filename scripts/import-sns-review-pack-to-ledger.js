@@ -64,6 +64,8 @@ export function reviewPackToLedgerPayload(input) {
             source_type: sourceTypeForPost(post),
             source_url: post.source_url || null,
             persona_brain: post.persona_brain || {},
+            algorithm_fit: post.algorithm_fit || null,
+            generation_context_evidence: post.generation_context_evidence || null,
             graph_check: post.graph_check || {},
             quality_gate: post.quality_gate || {},
             safety: {

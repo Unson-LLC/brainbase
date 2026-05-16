@@ -186,11 +186,17 @@ SNS運用は `/ohayo` に寄せる。毎朝、週次編集カレンダーを前�
 ```bash
 cd /Users/ksato/workspace/code/brainbase
 TODAY=$(date +%F)
+CONTEXT_FILE="/Users/ksato/workspace/shared/_codex/sns/x/ops/generation-contexts/${TODAY}.json"
+npm run sns:generation-context -- \
+  --date "$TODAY" \
+  --out "$CONTEXT_FILE"
+
 npm run sns:ohayo-brief -- \
   --date "$TODAY" \
   --since 1d \
   --max-results 10 \
-  --limit 5
+  --limit 5 \
+  --generation-context "$CONTEXT_FILE"
 
 npm run sns:import-review-pack -- --date "$TODAY"
 ```
@@ -201,12 +207,14 @@ npm run sns:import-review-pack -- --date "$TODAY"
 |---|---|
 | 人間レビュー用brief | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
 | weekly pack投入用signals | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
+| AI生成用context | `/Users/ksato/workspace/shared/_codex/sns/x/ops/generation-contexts/YYYY-MM-DD.json` |
 | UI用SNS Posting Ledger | `POST /api/sns-growth/review-pack` 経由で `GET /api/sns-growth/posts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` に反映 |
 
 扱い:
 
 - X検索は低コスト固定。既定は日本語Peer 10 read + 海外/ニュース 10 read、概算 `$0.10/day`
 - Peer候補は「日本語圏、自分と同格〜少し上、相手が拾いやすい論点」を優先する
+- 投稿生成前にSNS Generation Contextを作り、個人KG / SNS Posting Ledger統計 / feedback learning / SNS Strategy OSを生成方針へ反映する
 - APIの `quote_tweet_id` は使わず、本物の引用UIまたは通常投稿末尾の元URLで扱う
 - `Persona Affect: blocked` が1件でもあれば、その本文は投稿対象にしない
 - 投稿本文に「少し上の人に絡む」「相手の読者に入る」など運用意図を書かない
