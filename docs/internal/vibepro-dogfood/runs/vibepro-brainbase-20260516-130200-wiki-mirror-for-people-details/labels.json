@@ -1,0 +1,27 @@
+{
+  "run_id": "vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details",
+  "status": "generated",
+  "generated_from": [
+    "diagnosis.json",
+    "outcome.json"
+  ],
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.behind_origin",
+      "matched_detected_gap_id": "gap.repo.behind-origin",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.repo.unrelated_dirty_files",
+      "matched_detected_gap_id": "gap.repo.unrelated-dirty-files",
+      "judgment": "true_positive"
+    },
+    {
+      "actual_gap_id": "actual.gap.vibepro.incomplete_run_outputs",
+      "matched_detected_gap_id": "gap.vibepro.incomplete-run-outputs",
+      "judgment": "true_positive"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

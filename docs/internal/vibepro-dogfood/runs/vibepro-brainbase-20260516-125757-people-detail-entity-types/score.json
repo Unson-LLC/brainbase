@@ -1,0 +1,24 @@
+{
+  "run_id": "vibepro-brainbase-20260516-125757-people-detail-entity-types",
+  "status": "scored",
+  "metrics": {
+    "本番化ギャップ捕捉率": 1,
+    "本番化ギャップ的中率": 1,
+    "ゲート違反流出率": 0
+  },
+  "feedback": {
+    "detected_correctly": [
+      "gap.repo.behind-origin",
+      "gap.repo.unrelated-dirty-files",
+      "gap.vibepro.incomplete-run-outputs"
+    ],
+    "missed_gaps": [],
+    "over_detected_gaps": [],
+    "escaped_gate_violations": [],
+    "effective_interventions": [],
+    "weak_interventions": [],
+    "next_rule_updates": [
+      "現在の診断ルールを維持し、次runで再測定する"
+    ]
+  }
+}

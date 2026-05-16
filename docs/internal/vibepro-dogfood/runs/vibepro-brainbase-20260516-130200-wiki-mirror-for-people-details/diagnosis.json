@@ -1,0 +1,39 @@
+{
+  "run_id": "vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "diagnosed_at": "2026-05-16T14:44:58.183Z",
+  "scope": [
+    "operational_freshness",
+    "change_control",
+    "evaluation_unavailable"
+  ],
+  "detected_gaps": [
+    {
+      "gap_id": "gap.repo.behind-origin",
+      "evidence_fact_ids": [
+        "fact.repo.behind_origin"
+      ],
+      "severity": "medium",
+      "reason": "story/workspace-generation-rotation is behind origin/develop by 7 commits"
+    },
+    {
+      "gap_id": "gap.repo.unrelated-dirty-files",
+      "evidence_fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    },
+    {
+      "gap_id": "gap.vibepro.incomplete-run-outputs",
+      "evidence_fact_ids": [
+        "fact.vibepro.incomplete_run_outputs"
+      ],
+      "severity": "medium",
+      "reason": "1 previous VibePro dogfood runs are missing required outputs"
+    }
+  ]
+}
