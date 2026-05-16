@@ -114,6 +114,7 @@ function evidenceFromDraft(draft) {
     return {
         persona_brain: draft.persona_brain || {},
         algorithm_fit: draft.algorithm_fit || null,
+        generation_context_evidence: draft.generation_context_evidence || null,
         graph_check: draft.graph_check || {
             status: 'ok',
             source_entity_id: draft.kg_source_entity_id || null,

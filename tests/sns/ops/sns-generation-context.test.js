@@ -1,0 +1,174 @@
+// @ts-check
+import { describe, expect, it } from 'vitest';
+
+import { InMemoryCandidateRepository } from '../../../server/services/candidate-store/candidate-repository.js';
+import { SnsGenerationContextService } from '../../../server/services/sns/sns-generation-context-service.js';
+import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
+
+function post(overrides = {}) {
+    return {
+        id: overrides.id || 'post_default',
+        account_id: 'acc_x_sato',
+        account_handle: '@AIBizNavigator',
+        platform: 'x',
+        date: overrides.date || '2026-05-15',
+        slot_index: overrides.slot_index || 1,
+        time: overrides.time || '09:00',
+        title: overrides.title || 'Claude Code法人導入',
+        status: overrides.status || 'posted',
+        lane: overrides.lane || 'trust_balance',
+        format: overrides.format || 'standalone',
+        body: overrides.body || 'Claude Codeを会社で使う時、権限とレビュー境界を先に決める',
+        scheduled_at: null,
+        posted_at: overrides.posted_at || `${overrides.date || '2026-05-15'}T09:00:00.000Z`,
+        posted_url: overrides.posted_url || `https://x.com/a/status/${overrides.id || 'post_default'}`,
+        deleted_at: overrides.deleted_at || null,
+        deletion_source: overrides.deletion_source || null,
+        deletion_reason: overrides.deletion_reason || null,
+        source: overrides.source || { type: 'Personal KG', url: null },
+        evidence: overrides.evidence || {
+            persona_brain: { target_person: 'AI導入を任された事業責任者 / PM / 経営者' },
+            quality_gate: {
+                persona_affect: { decision: 'pass', likely_reader_feeling: '自社導入の順番が見える' }
+            },
+            algorithm_fit: {
+                candidate_source: 'personal_kg_semantic_anchor',
+                positive_action: 'bookmark'
+            },
+            reader_affect: '自社導入の順番が見える'
+        },
+        memo: '',
+        learning_candidate_id: overrides.learning_candidate_id || null,
+        revisions: [],
+        metrics_snapshots: overrides.metrics_snapshots || [{
+            impressions: 900,
+            likes: 24,
+            reposts: 3,
+            replies: 2,
+            bookmarks: 12,
+            profile_visits: 4,
+            captured_at: '2026-05-15T22:00:00.000Z'
+        }],
+        created_at: '2026-05-15T00:00:00.000Z',
+        updated_at: '2026-05-15T00:00:00.000Z',
+        ...overrides
+    };
+}
+
+function candidateRepositoryWithFeedback() {
+    const repo = new InMemoryCandidateRepository();
+    repo.create({
+        id: 'cand_sns_feedback_post_trust',
+        cognitive_type: 'observation',
+        owner_person_id: 'sato_keigo',
+        actor_person_id: 'sato_keigo',
+        source_system: 'sns-feedback',
+        source_event_ids: ['sns-post:post_trust'],
+        workspace: 'unson',
+        project_code: 'brainbase',
+        org_ids: ['unson'],
+        visibility: 'owner',
+        sensitivity: 'internal',
+        body: 'SNS feedback observation: 権限とレビュー境界の投稿は保存されやすい',
+        permission_snapshot: {
+            sns: {
+                post_id: 'post_trust',
+                lane: 'trust_balance',
+                engagement_rate: 0.045,
+                metrics_snapshot: { impressions: 900, likes: 24, reposts: 3, replies: 2, bookmarks: 12 }
+            }
+        }
+    });
+    return repo;
+}
+
+describe('SNS Generation Context', () => {
+    it('builds generation policy from strategy, posting stats, and feedback learning candidates', async () => {
+        const ledgerRepository = new InMemorySnsPostingLedgerRepository({
+            initialPosts: [
+                post({ id: 'post_trust', lane: 'trust_balance', source: { type: 'Personal KG' } }),
+                post({
+                    id: 'post_peer',
+                    lane: 'peer_circle',
+                    format: 'quote_repost_commentary',
+                    source: { type: 'Peer Circle', url: 'https://x.com/peer/status/1', author_handle: '@near_peer' },
+                    evidence: {
+                        persona_brain: { target_person: 'AI導入を任された事業責任者 / PM / 経営者' },
+                        quality_gate: {
+                            persona_affect: { decision: 'pass', likely_reader_feeling: '近い実務者の論点として読める' }
+                        },
+                        algorithm_fit: {
+                            candidate_source: 'peer_circle_quote',
+                            positive_action: 'reply_or_repost'
+                        },
+                        reader_affect: '近い実務者の論点として読める'
+                    },
+                    metrics_snapshots: [{ impressions: 1800, likes: 40, reposts: 9, replies: 6, bookmarks: 11, profile_visits: 10 }]
+                }),
+                post({ id: 'post_old', date: '2026-04-01', lane: 'own_proof' }),
+                post({ id: 'post_failed', status: 'publish_failed', lane: 'trust_balance', metrics_snapshots: [] }),
+                post({ id: 'post_skipped', status: 'skipped', lane: 'peer_circle', metrics_snapshots: [] }),
+                post({ id: 'post_deleted', status: 'deleted', lane: 'trust_balance', deleted_at: '2026-05-15T12:00:00.000Z' })
+            ]
+        });
+        const service = new SnsGenerationContextService({
+            ledgerRepository,
+            candidateRepository: candidateRepositoryWithFeedback(),
+            strategyText: [
+                '# SNS Strategy OS',
+                '## Tone Guard',
+                '- 読者に運用都合を見せない',
+                '- AI投稿自動化感を出さない',
+                '## Distribution Layers',
+                '- Peer Circle',
+                '- Own Proof'
+            ].join('\n'),
+            contentPillarsText: [
+                '# Content Pillars',
+                '- Trust Balance',
+                '- Own Proof',
+                '- Philosophy'
+            ].join('\n')
+        });
+
+        const context = await service.buildContext({
+            date: '2026-05-16',
+            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+        });
+
+        expect(context).toMatchObject({
+            date: '2026-05-16',
+            strategy: {
+                distribution_layers: expect.arrayContaining(['Peer Circle', 'Own Proof'])
+            },
+            generation_policy: {
+                recommended_lanes: expect.arrayContaining(['peer_circle', 'trust_balance']),
+                avoid_patterns: expect.arrayContaining([
+                    'internal_growth_tactic_exposed',
+                    'ai_auto_posting_smell',
+                    'reader_negative_persona_affect'
+                ]),
+                quote_target_policy: expect.arrayContaining([
+                    '日本語圏の同格〜少し上の実務者を優先する'
+                ])
+            }
+        });
+        expect(context.lookback.days_7.start_date).toBe('2026-05-10');
+        expect(context.posting_stats.days_30.by_lane.trust_balance.posts).toBe(1);
+        expect(context.posting_stats.days_30.by_lane.peer_circle.posts).toBe(1);
+        expect(context.posting_stats.days_30.by_lane.trust_balance.engagement_rate).toBeGreaterThan(0);
+        expect(context.posting_stats.days_30.by_source_type['Peer Circle'].posts).toBe(1);
+        expect(context.posting_stats.days_30.by_algorithm_fit.personal_kg_semantic_anchor.posts).toBe(1);
+        expect(context.learning.created_candidates).toEqual([
+            expect.objectContaining({ id: 'cand_sns_feedback_post_trust', source_system: 'sns-feedback' })
+        ]);
+        expect(context.learning.publish_failed.map((item) => item.id)).toEqual(['post_failed']);
+        expect(context.learning.skipped.map((item) => item.id)).toEqual(['post_skipped']);
+        expect(context.learning.deleted.map((item) => item.id)).toEqual(['post_deleted']);
+        expect(context.learning.publish_failed.every((item) => item.id !== 'post_trust')).toBe(true);
+        expect(context.evidence).toEqual(expect.arrayContaining([
+            { kind: 'sns_posting_ledger', ref: 'sns_posting_ledger_posts:2026-04-17..2026-05-16' },
+            { kind: 'candidate_store', ref: 'source_system:sns-feedback owner:sato_keigo' }
+        ]));
+    });
+});

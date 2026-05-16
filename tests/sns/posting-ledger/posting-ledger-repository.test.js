@@ -47,6 +47,10 @@ const baseDraft = {
         },
         graph_edge_goal: 'bookmark_or_profile_visit:trust_balance'
     },
+    generation_context_evidence: {
+        policy_ref: 'generation_policy',
+        recommended_lanes: ['trust_balance', 'peer_circle']
+    },
     safety: {
         persona_affect: {
             likely_reader_feeling: '自分の現場の迷いを言語化されたと感じる',
@@ -86,6 +90,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             candidate_source: 'personal_kg_semantic_anchor',
             graph_edge_goal: 'bookmark_or_profile_visit:trust_balance'
         });
+        expect(posts[0].evidence.generation_context_evidence.policy_ref).toBe('generation_policy');
     });
 
     it('stores body revisions and explicit operational status transitions', () => {
@@ -231,6 +236,7 @@ describe('PgSnsPostingLedgerRepository', () => {
         expect(result.created[0].source.type).toBe('Peer Circle');
         expect(result.created[0].source.url).toBe('https://x.com/near/status/1');
         expect(result.created[0].evidence.persona_brain.target_person).toContain('AI導入');
+        expect(result.created[0].evidence.generation_context_evidence.recommended_lanes).toContain('trust_balance');
         expect(calls.some((call) => call.sql.includes('sns_posting_ledger_posts'))).toBe(true);
     });
 });
