@@ -18,6 +18,7 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
 import {
@@ -105,7 +106,9 @@ export function registerApiRoutes(app, {
         sessionServices.runtime.query,
         testMode
     ));
-    app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths));
+    app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths, {
+        authGuard: requireAuth(authService)
+    }));
     app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
     app.use('/api/sessions', createSessionRouter(
         sessionServices,

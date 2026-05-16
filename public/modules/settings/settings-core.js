@@ -8,6 +8,7 @@ import { refreshIcons } from '../ui-helpers.js';
  */
 
 import { eventBus } from '../core/event-bus.js';
+import { httpClient } from '../core/http-client.js';
 import { appStore } from '../core/store.js';
 import { fetchPreferences, updatePreferences } from '../state-api.js';
 import { escapeHtml } from '../ui-helpers.js';
@@ -2060,168 +2061,71 @@ docs/**/*"></textarea>
  * 簡易APIクライアント（Core Settings用）
  */
 export class CoreApiClient {
+  constructor(client = httpClient) {
+    this.client = client;
+  }
+
   async getConfig() {
-    const response = await fetch('/api/config');
-    if (!response.ok) {
-      throw new Error('Failed to fetch config');
-    }
-    return response.json();
+    return this.client.get('/api/config');
   }
 
   async getIntegrity() {
-    const response = await fetch('/api/config/integrity');
-    if (!response.ok) {
-      throw new Error('Failed to fetch integrity');
-    }
-    return response.json();
+    return this.client.get('/api/config/integrity');
   }
 
   async getUnified() {
-    const response = await fetch('/api/config/unified');
-    if (!response.ok) {
-      throw new Error('Failed to fetch unified view');
-    }
-    return response.json();
+    return this.client.get('/api/config/unified');
   }
 
   async getHealth() {
-    const response = await fetch('/api/health');
-    if (!response.ok) {
-      throw new Error('Failed to fetch health');
-    }
-    return response.json();
+    return this.client.get('/api/health');
   }
 
   async getOrganizations() {
-    const response = await fetch('/api/config/organizations');
-    if (!response.ok) {
-      throw new Error('Failed to fetch organizations');
-    }
-    return response.json();
+    return this.client.get('/api/config/organizations');
   }
 
   async getDependencies() {
-    const response = await fetch('/api/config/dependencies');
-    if (!response.ok) {
-      throw new Error('Failed to fetch dependencies');
-    }
-    return response.json();
+    return this.client.get('/api/config/dependencies');
   }
 
   async getNotifications() {
-    const response = await fetch('/api/config/notifications');
-    if (!response.ok) {
-      throw new Error('Failed to fetch notifications');
-    }
-    return response.json();
+    return this.client.get('/api/config/notifications');
   }
 
   async upsertProject(payload) {
-    const response = await fetch('/api/config/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to update project');
-    }
-    return response.json();
+    return this.client.post('/api/config/projects', payload);
   }
 
   async deleteProject(projectId) {
-    const response = await fetch(`/api/config/projects/${encodeURIComponent(projectId)}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to delete project');
-    }
-    return response.json();
+    return this.client.delete(`/api/config/projects/${encodeURIComponent(projectId)}`);
   }
 
   async upsertOrganization(payload) {
-    const response = await fetch('/api/config/organizations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to update organization');
-    }
-    return response.json();
+    return this.client.post('/api/config/organizations', payload);
   }
 
   async deleteOrganization(orgId) {
-    const response = await fetch(`/api/config/organizations/${encodeURIComponent(orgId)}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to delete organization');
-    }
-    return response.json();
+    return this.client.delete(`/api/config/organizations/${encodeURIComponent(orgId)}`);
   }
 
   async updateNotifications(payload) {
-    const response = await fetch('/api/config/notifications', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to update notifications');
-    }
-    return response.json();
+    return this.client.put('/api/config/notifications', payload);
   }
 
   async upsertGitHubMapping(payload) {
-    const response = await fetch('/api/config/github', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to update GitHub mapping');
-    }
-    return response.json();
+    return this.client.post('/api/config/github', payload);
   }
 
   async deleteGitHubMapping(projectId) {
-    const response = await fetch(`/api/config/github/${encodeURIComponent(projectId)}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to delete GitHub mapping');
-    }
-    return response.json();
+    return this.client.delete(`/api/config/github/${encodeURIComponent(projectId)}`);
   }
 
   async upsertNocoDBMapping(payload) {
-    const response = await fetch('/api/config/nocodb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to update NocoDB mapping');
-    }
-    return response.json();
+    return this.client.post('/api/config/nocodb', payload);
   }
 
   async deleteNocoDBMapping(projectId) {
-    const response = await fetch(`/api/config/nocodb/${encodeURIComponent(projectId)}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to delete NocoDB mapping');
-    }
-    return response.json();
+    return this.client.delete(`/api/config/nocodb/${encodeURIComponent(projectId)}`);
   }
 }

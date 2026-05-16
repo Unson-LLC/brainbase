@@ -11,7 +11,8 @@ import { ConfigController } from '../controllers/config-controller.js';
  */
 export function requireConfigAuth(req, res, next) {
     const actor = req.actor || req.user || req.auth;
-    if (!actor || !actor.sub) {
+    const access = req.access;
+    if (!actor?.sub && !access?.personId && !access?.role) {
         return res.status(401).json({ error: 'authentication required' });
     }
     return next();
@@ -19,7 +20,8 @@ export function requireConfigAuth(req, res, next) {
 
 export function requireConfigWriteRole(req, res, next) {
     const actor = req.actor || req.user || req.auth || {};
-    const role = actor.role || 'member';
+    const access = req.access || {};
+    const role = actor.role || access.role || 'member';
     if (!['gm', 'ceo'].includes(role)) {
         return res.status(403).json({ error: 'role required: gm or ceo', actual: role });
     }
@@ -86,22 +88,22 @@ export function createConfigRouter(configParser, configService, runtimePaths = n
     router.get('/notifications', controller.getNotifications);
 
     // Organizations CRUD
-    router.post('/organizations', controller.upsertOrganization);
-    router.put('/organizations/:orgId', controller.upsertOrganization);
-    router.delete('/organizations/:orgId', controller.deleteOrganization);
+    router.post('/organizations', authGuard, writeGuard, controller.upsertOrganization);
+    router.put('/organizations/:orgId', authGuard, writeGuard, controller.upsertOrganization);
+    router.delete('/organizations/:orgId', authGuard, writeGuard, controller.deleteOrganization);
 
     // Notifications update
-    router.put('/notifications', controller.updateNotifications);
+    router.put('/notifications', authGuard, writeGuard, controller.updateNotifications);
 
     // GitHub mappings CRUD
-    router.post('/github', controller.upsertGitHub);
-    router.put('/github/:projectId', controller.upsertGitHub);
-    router.delete('/github/:projectId', controller.deleteGitHub);
+    router.post('/github', authGuard, writeGuard, controller.upsertGitHub);
+    router.put('/github/:projectId', authGuard, writeGuard, controller.upsertGitHub);
+    router.delete('/github/:projectId', authGuard, writeGuard, controller.deleteGitHub);
 
     // NocoDB mappings CRUD
-    router.post('/nocodb', controller.upsertNocoDB);
-    router.put('/nocodb/:projectId', controller.upsertNocoDB);
-    router.delete('/nocodb/:projectId', controller.deleteNocoDB);
+    router.post('/nocodb', authGuard, writeGuard, controller.upsertNocoDB);
+    router.put('/nocodb/:projectId', authGuard, writeGuard, controller.upsertNocoDB);
+    router.delete('/nocodb/:projectId', authGuard, writeGuard, controller.deleteNocoDB);
 
     return router;
 }

@@ -55,7 +55,7 @@ export function createCoreServices({
         : StateStore;
     const stateStore = new StateStoreClass(stateFile, brainbaseRoot);
     const configParser = new ConfigParser(codexPath, configPath, brainbaseRoot, projectsRoot);
-    const configService = new ConfigService(configPath, projectsRoot);
+    const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });

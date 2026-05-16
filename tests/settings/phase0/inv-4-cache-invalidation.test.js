@@ -5,6 +5,7 @@ import path from 'path';
 
 const CONFIG_PARSER_PATH = path.resolve('lib/config-parser.js');
 const CONFIG_SERVICE_PATH = path.resolve('server/services/config-service.js');
+const CORE_SERVICES_PATH = path.resolve('server/bootstrap/core-services.js');
 
 describe('phase0 INV-4: ConfigParser cache invalidation', () => {
     it('INV-4: ConfigParser has invalidateCache method', () => {
@@ -15,5 +16,10 @@ describe('phase0 INV-4: ConfigParser cache invalidation', () => {
     it('INV-4: ConfigService._saveConfig calls configParser.invalidateCache', () => {
         const source = fs.readFileSync(CONFIG_SERVICE_PATH, 'utf8');
         expect(source).toMatch(/this\.configParser\.invalidateCache/);
+    });
+
+    it('INV-4: runtime wires ConfigParser into ConfigService', () => {
+        const source = fs.readFileSync(CORE_SERVICES_PATH, 'utf8');
+        expect(source).toMatch(/new ConfigService\([^)]*configParser[^)]*\)/s);
     });
 });

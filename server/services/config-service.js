@@ -43,10 +43,12 @@ export class ConfigService {
     /**
      * @param {string} configPath
      * @param {string|null} [projectsRoot]
+     * @param {{ invalidateCache?: () => void }|null} [configParser]
      */
-    constructor(configPath, projectsRoot = null) {
+    constructor(configPath, projectsRoot = null, configParser = null) {
         this.configPath = configPath;
         this.projectsRoot = projectsRoot;
+        this.configParser = configParser;
     }
 
     /**
