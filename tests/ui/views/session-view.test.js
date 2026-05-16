@@ -319,6 +319,46 @@ describe('SessionView', () => {
             }
         });
 
+        it('開いたセッションメニューは差分row更新で即閉じしない', async () => {
+            const baseSession = {
+                id: 'session-1',
+                name: 'Session 1',
+                project: 'project-a',
+                intendedState: 'active',
+                summary: { dirty: false, changesNotPushed: 0 }
+            };
+            appStore.setState({ sessions: [baseSession], ui: { sessionListView: 'timeline' } });
+            sessionView.render();
+
+            const toggle = container.querySelector('[data-id="session-1"] .session-menu-toggle');
+            toggle.dispatchEvent(new MouseEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                button: 0,
+                buttons: 1,
+                clientX: 10,
+                clientY: 10
+            }));
+
+            expect(container.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+
+            appStore.setState({
+                sessions: [{
+                    ...baseSession,
+                    summary: { dirty: true, changesNotPushed: 1 }
+                }]
+            });
+            sessionView._refreshSessionRows(['session-1']);
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            const refreshedRow = container.querySelector('[data-id="session-1"]');
+            expect(refreshedRow.classList.contains('session-menu-open')).toBe(true);
+            expect(refreshedRow.querySelector('.session-dropdown-menu').classList.contains('hidden')).toBe(false);
+            expect(document.getElementById('menu-overlay').classList.contains('hidden')).toBe(false);
+            expect(window.__brainbaseSessionMenuDebug.map(entry => entry.phase))
+                .toContain('refresh-row-preserved-open-menu');
+        });
+
         it('アーカイブクリック時_即時統合分岐ではなくfinalizer queuedとして処理開始を表示する', async () => {
             const mockSessions = [
                 { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' }

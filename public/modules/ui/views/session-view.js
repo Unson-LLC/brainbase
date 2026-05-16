@@ -323,9 +323,7 @@ export class SessionView {
             });
             if (currentRow.dataset.fingerprint === newFingerprint) continue;
 
-            if (currentRow.querySelector('.session-dropdown-menu:not(.hidden)')) {
-                this._closeAllMenus();
-            }
+            const wasMenuOpen = Boolean(currentRow.querySelector('.session-dropdown-menu:not(.hidden)'));
 
             const nextRow = this._buildSessionRowElement(session, currentSessionId, {
                 project,
@@ -335,7 +333,88 @@ export class SessionView {
             });
             currentRow.replaceWith(nextRow);
             refreshIcons({ root: nextRow });
+
+            if (wasMenuOpen) {
+                const nextDropdownMenu = nextRow.querySelector('.session-dropdown-menu');
+                const nextMenuToggle = nextRow.querySelector('.session-menu-toggle');
+                if (nextDropdownMenu) {
+                    nextDropdownMenu.classList.remove('hidden');
+                    nextRow.classList.add('session-menu-open');
+                    document.getElementById('menu-overlay')?.classList.remove('hidden');
+                    this._logSessionMenuDebug('refresh-row-preserved-open-menu', {
+                        row: nextRow,
+                        menuToggle: nextMenuToggle,
+                        dropdownMenu: nextDropdownMenu,
+                        session,
+                        reason: 'row-refresh'
+                    });
+                    this._scheduleSessionDropdownLayout(nextRow, nextDropdownMenu, nextMenuToggle, session, 'refresh-row-preserved-open-menu');
+                }
+            }
         }
+    }
+
+    _scheduleSessionDropdownLayout(row, dropdownMenu, menuToggle, session, phase, event = null) {
+        if (!row || !dropdownMenu) return;
+        requestAnimationFrame(() => {
+            dropdownMenu.style.top = '';
+            dropdownMenu.style.bottom = '';
+            dropdownMenu.style.marginTop = '';
+            dropdownMenu.style.marginBottom = '';
+            dropdownMenu.style.maxHeight = '';
+            dropdownMenu.style.overflowY = '';
+
+            const mobileSessionList = row.closest('#mobile-session-list');
+            const mobileBoundary = mobileSessionList || row.closest('.bottom-sheet-content');
+            if (mobileBoundary) {
+                const rowRect = row.getBoundingClientRect();
+                const boundaryRect = mobileBoundary.getBoundingClientRect();
+                const menuHeight = dropdownMenu.scrollHeight;
+                const gap = 4;
+                const spaceBelow = Math.max(0, boundaryRect.bottom - rowRect.bottom - gap);
+                const spaceAbove = Math.max(0, rowRect.top - boundaryRect.top - gap);
+                const openBelow = spaceBelow >= Math.min(menuHeight, 180) || spaceBelow >= spaceAbove;
+                const availableSpace = openBelow ? spaceBelow : spaceAbove;
+
+                dropdownMenu.style.top = openBelow ? '100%' : 'auto';
+                dropdownMenu.style.bottom = openBelow ? 'auto' : '100%';
+                dropdownMenu.style.marginTop = openBelow ? `${gap}px` : '0';
+                dropdownMenu.style.marginBottom = openBelow ? '0' : `${gap}px`;
+
+                if (availableSpace > 0 && menuHeight > availableSpace) {
+                    dropdownMenu.style.maxHeight = `${Math.max(96, availableSpace)}px`;
+                    dropdownMenu.style.overflowY = 'auto';
+                }
+                this._logSessionMenuDebug(`${phase}-opened-after-layout`, {
+                    event,
+                    row,
+                    menuToggle,
+                    dropdownMenu,
+                    session
+                });
+                return;
+            }
+
+            const menuRect = dropdownMenu.getBoundingClientRect();
+            if (menuRect.bottom > window.innerHeight) {
+                dropdownMenu.style.top = 'auto';
+                dropdownMenu.style.bottom = '100%';
+                dropdownMenu.style.marginTop = '0';
+                dropdownMenu.style.marginBottom = '4px';
+            } else {
+                dropdownMenu.style.top = '';
+                dropdownMenu.style.bottom = '';
+                dropdownMenu.style.marginTop = '';
+                dropdownMenu.style.marginBottom = '';
+            }
+            this._logSessionMenuDebug(`${phase}-opened-after-layout`, {
+                event,
+                row,
+                menuToggle,
+                dropdownMenu,
+                session
+            });
+        });
     }
 
     /**
@@ -1177,65 +1256,7 @@ export class SessionView {
 
                 // Viewport boundary detection — flip menu above if it overflows
                 if (isOpening) {
-                    requestAnimationFrame(() => {
-                        dropdownMenu.style.top = '';
-                        dropdownMenu.style.bottom = '';
-                        dropdownMenu.style.marginTop = '';
-                        dropdownMenu.style.marginBottom = '';
-                        dropdownMenu.style.maxHeight = '';
-                        dropdownMenu.style.overflowY = '';
-
-                        const mobileSessionList = row.closest('#mobile-session-list');
-                        const mobileBoundary = mobileSessionList || row.closest('.bottom-sheet-content');
-                        if (mobileBoundary) {
-                            const rowRect = row.getBoundingClientRect();
-                            const boundaryRect = mobileBoundary.getBoundingClientRect();
-                            const menuHeight = dropdownMenu.scrollHeight;
-                            const gap = 4;
-                            const spaceBelow = Math.max(0, boundaryRect.bottom - rowRect.bottom - gap);
-                            const spaceAbove = Math.max(0, rowRect.top - boundaryRect.top - gap);
-                            const openBelow = spaceBelow >= Math.min(menuHeight, 180) || spaceBelow >= spaceAbove;
-                            const availableSpace = openBelow ? spaceBelow : spaceAbove;
-
-                            dropdownMenu.style.top = openBelow ? '100%' : 'auto';
-                            dropdownMenu.style.bottom = openBelow ? 'auto' : '100%';
-                            dropdownMenu.style.marginTop = openBelow ? `${gap}px` : '0';
-                            dropdownMenu.style.marginBottom = openBelow ? '0' : `${gap}px`;
-
-                            if (availableSpace > 0 && menuHeight > availableSpace) {
-                                dropdownMenu.style.maxHeight = `${Math.max(96, availableSpace)}px`;
-                                dropdownMenu.style.overflowY = 'auto';
-                            }
-                            this._logSessionMenuDebug(`${triggerPhase}-opened-after-layout`, {
-                                event: e,
-                                row,
-                                menuToggle,
-                                dropdownMenu,
-                                session
-                            });
-                            return;
-                        }
-
-                        const menuRect = dropdownMenu.getBoundingClientRect();
-                        if (menuRect.bottom > window.innerHeight) {
-                            dropdownMenu.style.top = 'auto';
-                            dropdownMenu.style.bottom = '100%';
-                            dropdownMenu.style.marginTop = '0';
-                            dropdownMenu.style.marginBottom = '4px';
-                        } else {
-                            dropdownMenu.style.top = '';
-                            dropdownMenu.style.bottom = '';
-                            dropdownMenu.style.marginTop = '';
-                            dropdownMenu.style.marginBottom = '';
-                        }
-                        this._logSessionMenuDebug(`${triggerPhase}-opened-after-layout`, {
-                            event: e,
-                            row,
-                            menuToggle,
-                            dropdownMenu,
-                            session
-                        });
-                    });
+                    this._scheduleSessionDropdownLayout(row, dropdownMenu, menuToggle, session, triggerPhase, e);
                 }
 
                 // オーバーレイの表示/非表示
