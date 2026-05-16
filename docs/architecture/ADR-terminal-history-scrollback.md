@@ -19,6 +19,8 @@ Brainbase desktop terminal uses xterm.js through the Terminal Gateway. The gatew
 
 The previous steady-state polling path sent only the visible tmux pane with `screenOnly: true`. That kept the current screen fresh, but it intentionally preserved xterm scrollback. As a result, users could see correct current output, then scroll upward and cross into stale scrollback captured at connection time.
 
+The scroll input path also has two different owners. Normal buffer history belongs to xterm/ttyd native scrollback. Alternate buffer content belongs to tmux/TUI state, so wheel/touch must be translated into tmux copy-mode scroll.
+
 ## Decision
 
 Steady-state snapshot polling sends a history snapshot, not a visible-pane-only snapshot.
@@ -30,11 +32,17 @@ Steady-state snapshot polling sends a history snapshot, not a visible-pane-only 
 
 `screenOnly: true` remains available for explicit screen-only updates, but it is not the desktop steady-state polling contract.
 
+Wheel/touch routing follows the active terminal buffer:
+
+- normal buffer: do not intercept; native xterm/ttyd scrollback handles history.
+- alternate buffer: intercept and send tmux scroll through the terminal transport.
+
 ## Consequences
 
 - Current screen and scrollback come from the same capture boundary.
 - The user should not see older terminal content suddenly appear while scrolling upward after new output has arrived.
 - Capture payloads are larger than visible-pane polling. Existing `TmuxCaptureCache` TTL and de-duplication reduce repeated captures and duplicate WebSocket sends.
+- TUI sessions regain scroll behavior without breaking normal scrollback sessions.
 
 ## Alternatives Considered
 

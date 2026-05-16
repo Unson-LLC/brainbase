@@ -115,6 +115,72 @@ describe('terminal-transport-client', () => {
     expect(client.canSendInput('session-1')).toBe(false);
   });
 
+  it('INV-4/S-3 alternate bufferではwheelをtmux scroll messageへ変換する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+    const host = document.createElement('div');
+    const send = vi.fn();
+    const alternate = {};
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = host;
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.terminal = {
+      buffer: {
+        active: alternate,
+        alternate
+      }
+    };
+    client._attachScrollHandlers();
+
+    const event = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
+    host.dispatchEvent(event);
+    await vi.advanceTimersByTimeAsync(16);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(send).toHaveBeenCalledWith(JSON.stringify({
+      type: 'scroll',
+      direction: 'down',
+      steps: 3
+    }));
+    expect(client.status.copyMode).toBe(true);
+  });
+
+  it('INV-5/AP-2 通常bufferではwheelを奪わずnative scrollbackへ任せる', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+    const host = document.createElement('div');
+    const send = vi.fn();
+    const alternate = {};
+    const normal = {};
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = host;
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.terminal = {
+      buffer: {
+        active: normal,
+        alternate
+      }
+    };
+    client._attachScrollHandlers();
+
+    const event = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
+    host.dispatchEvent(event);
+    await vi.advanceTimersByTimeAsync(16);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('blocked sessionを判定できる', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

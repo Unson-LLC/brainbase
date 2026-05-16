@@ -27,6 +27,7 @@ function buildService() {
     const sessionManager = {
         sendInput: vi.fn(async () => {}),
         resizeSessionWindow: vi.fn(async () => {}),
+        scrollSession: vi.fn(async () => {}),
         exitCopyMode: vi.fn(async () => {}),
         touchTerminalOwnership: vi.fn(),
         releaseTerminalOwnership: vi.fn(() => true),
@@ -663,6 +664,36 @@ describe('TerminalTransportService', () => {
 
         expect(sessionManager.exitCopyMode).toHaveBeenCalledWith('session-1');
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+    });
+
+    it('INV-4/S-3 alternate buffer scroll message はtmux scrollSessionへ送る', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws,
+            transport: 'streaming',
+            inputReady: true
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'scroll',
+            direction: 'up',
+            steps: 20
+        }));
+
+        expect(sessionManager.scrollSession).toHaveBeenCalledWith('session-1', 'up', 8);
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+        expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+        const statusCall = ws.send.mock.calls.find((call) => JSON.parse(call[0]).type === 'status');
+        expect(JSON.parse(statusCall[0])).toMatchObject({
+            type: 'status',
+            mode: 'live',
+            copyMode: true,
+            transport: 'streaming'
+        });
     });
 
     it('streaming resize message で tmux pane をリサイズしてから control client をrefreshする', async () => {
