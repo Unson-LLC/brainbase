@@ -197,6 +197,18 @@ export class InfoSSOTService {
                 return payload.metric_name || record.id;
             case 'initiative':
                 return payload.title || record.id;
+            case 'speaking':
+                return payload.session_title || payload.event || record.id;
+            case 'media_appearance':
+                return payload.program || payload.medium || record.id;
+            case 'role_assignment':
+                return `${payload.role || ''}@${payload.org || ''}`.replace(/^@|@$/g, '') || record.id;
+            case 'product':
+                return payload.name || record.id;
+            case 'publication':
+                return payload.title || record.id;
+            case 'press_mention':
+                return `${payload.medium || ''}: ${payload.content || ''}`.replace(/^:\s*|\s*:$/g, '') || record.id;
             default:
                 return payload.title || payload.name || record.id;
         }
@@ -224,6 +236,18 @@ export class InfoSSOTService {
                     return `KPI: ${payload.metric_name || record.id} (target: ${payload.target_value || 'N/A'}, current: ${payload.current_value || 'N/A'})`;
                 case 'initiative':
                     return `Initiative: ${payload.title || record.id} (${payload.status || 'planned'})`;
+                case 'speaking':
+                    return `Speaking: ${payload.date || ''} ${payload.event || ''} - 「${payload.session_title || ''}」`;
+                case 'media_appearance':
+                    return `Media: ${payload.medium || ''} / ${payload.program || ''}`;
+                case 'role_assignment':
+                    return `Role: ${payload.role || ''}@${payload.org || ''} (${payload.period || ''})`;
+                case 'product':
+                    return `Product: ${payload.name || ''} [${payload.status || ''}]`;
+                case 'publication':
+                    return `Publication: 『${payload.title || ''}』 ${(payload.authors || []).join('/')}`;
+                case 'press_mention':
+                    return `Press: ${payload.date || ''} ${payload.medium || ''} - ${payload.content || ''}`;
                 default:
                     return `${record.entity_type || 'entity'}: ${payload.title || payload.name || record.id}`;
             }
@@ -323,6 +347,53 @@ export class InfoSSOTService {
             start_date: node.payload?.start_date || null,
             end_date: node.payload?.end_date || null
         }));
+        const speakingItems = (byType.speaking || []).map(node => ({
+            id: node.id,
+            date: node.payload?.date || null,
+            event: node.payload?.event || null,
+            session_title: node.payload?.session_title || null,
+            venue: node.payload?.venue || null,
+            attendance: node.payload?.attendance || null,
+            slides_url: node.payload?.slides_url || null
+        }));
+        const mediaItems = (byType.media_appearance || []).map(node => ({
+            id: node.id,
+            date: node.payload?.date || null,
+            medium: node.payload?.medium || null,
+            program: node.payload?.program || null,
+            format: node.payload?.format || null,
+            url: node.payload?.url || null
+        }));
+        const roleAssignmentItems = (byType.role_assignment || []).map(node => ({
+            id: node.id,
+            org: node.payload?.org || null,
+            role: node.payload?.role || null,
+            period: node.payload?.period || null,
+            start_date: node.payload?.start_date || null
+        }));
+        const productItems = (byType.product || []).map(node => ({
+            id: node.id,
+            name: node.payload?.name || null,
+            status: node.payload?.status || null,
+            role: node.payload?.role || null,
+            url: node.payload?.url || null,
+            summary: node.payload?.summary || null
+        }));
+        const publicationItems = (byType.publication || []).map(node => ({
+            id: node.id,
+            title: node.payload?.title || null,
+            authors: node.payload?.authors || null,
+            format: node.payload?.format || null,
+            achievement: node.payload?.achievement || null,
+            url: node.payload?.url || null
+        }));
+        const pressItems = (byType.press_mention || []).map(node => ({
+            id: node.id,
+            date: node.payload?.date || null,
+            medium: node.payload?.medium || null,
+            section: node.payload?.section || null,
+            content: node.payload?.content || null
+        }));
 
         return {
             header: {
@@ -344,7 +415,13 @@ export class InfoSSOTService {
                 { title: 'Projects', items: projectItems },
                 { title: 'Glossary', items: glossaryItems },
                 { title: 'KPIs', items: kpiItems },
-                { title: 'Initiatives', items: initiativeItems }
+                { title: 'Initiatives', items: initiativeItems },
+                { title: 'Speaking', items: speakingItems },
+                { title: 'Media', items: mediaItems },
+                { title: 'Role Assignments', items: roleAssignmentItems },
+                { title: 'Products', items: productItems },
+                { title: 'Publications', items: publicationItems },
+                { title: 'Press', items: pressItems }
             ],
             relations: summaryLines || []
         };

@@ -150,6 +150,112 @@ function glossaryTermToMarkdown(entity) {
     return lines.join('\n');
 }
 
+function speakingToMarkdown(entity) {
+    const p = entity.payload;
+    const lines = [];
+    lines.push(`# ${p.session_title || p.event || entity.id}`);
+    lines.push('');
+    if (p.date) lines.push(`**日付**: ${p.date}`);
+    if (p.event) lines.push(`**イベント**: ${p.event}`);
+    if (p.organizer) lines.push(`**主催**: ${p.organizer}`);
+    if (p.role) lines.push(`**役割**: ${p.role}`);
+    if (p.duration_min) lines.push(`**時間**: ${p.duration_min}分`);
+    if (p.venue) lines.push(`**会場**: ${p.venue}`);
+    if (p.format) lines.push(`**形式**: ${p.format}`);
+    if (p.attendance) lines.push(`**参加者**: ${p.attendance}`);
+    if (p.slides_url) lines.push(`**資料**: [${p.slides_url}](${p.slides_url})`);
+    if (p.hashtag) lines.push(`**ハッシュタグ**: ${p.hashtag}`);
+    return lines.join('\n');
+}
+
+function mediaAppearanceToMarkdown(entity) {
+    const p = entity.payload;
+    const lines = [];
+    lines.push(`# ${p.program || p.medium || entity.id}`);
+    lines.push('');
+    if (p.medium) lines.push(`**媒体**: ${p.medium}`);
+    if (p.program) lines.push(`**番組/枠**: ${p.program}`);
+    if (p.role) lines.push(`**役割**: ${p.role}`);
+    if (p.format) lines.push(`**形式**: ${p.format}`);
+    if (p.date) lines.push(`**日付**: ${p.date}${p.date_note ? ` (${p.date_note})` : ''}`);
+    if (p.url) lines.push(`**URL**: [${p.url_label || p.url}](${p.url})`);
+    return lines.join('\n');
+}
+
+function roleAssignmentToMarkdown(entity) {
+    const p = entity.payload;
+    const lines = [];
+    lines.push(`# ${p.role || ''}@${p.org || entity.id}`);
+    lines.push('');
+    if (p.org) lines.push(`**組織**: ${p.org}`);
+    if (p.org_tag) lines.push(`**組織タグ**: ${p.org_tag}`);
+    if (p.role) lines.push(`**役職**: ${p.role}`);
+    if (p.period) lines.push(`**期間**: ${p.period}`);
+    if (p.start_date) lines.push(`**開始**: ${p.start_date}`);
+    if (p.via) lines.push(`**経由**: ${p.via}`);
+    if (p.description) {
+        lines.push('');
+        lines.push('## 内容');
+        lines.push('');
+        lines.push(p.description);
+    }
+    return lines.join('\n');
+}
+
+function productToMarkdown(entity) {
+    const p = entity.payload;
+    const lines = [];
+    lines.push(`# ${p.name || entity.id}`);
+    lines.push('');
+    if (p.status) lines.push(`**ステータス**: ${p.status}`);
+    if (p.role) lines.push(`**役割**: ${p.role}`);
+    if (p.url) lines.push(`**URL**: [${p.url}](${p.url})`);
+    if (p.summary) {
+        lines.push('');
+        lines.push('## 概要');
+        lines.push('');
+        lines.push(p.summary);
+    }
+    return lines.join('\n');
+}
+
+function publicationToMarkdown(entity) {
+    const p = entity.payload;
+    const lines = [];
+    lines.push(`# 『${p.title || entity.id}』`);
+    lines.push('');
+    if (p.format) lines.push(`**形態**: ${p.format}`);
+    if (p.authors?.length) lines.push(`**著者**: ${p.authors.join(' / ')}`);
+    if (p.achievement) lines.push(`**実績**: ${p.achievement}`);
+    if (p.url) lines.push(`**リンク**: [${p.url}](${p.url})`);
+    if (p.note) {
+        lines.push('');
+        lines.push(`**備考**: ${p.note}`);
+    }
+    return lines.join('\n');
+}
+
+function pressMentionToMarkdown(entity) {
+    const p = entity.payload;
+    const lines = [];
+    lines.push(`# ${p.medium || entity.id}`);
+    lines.push('');
+    if (p.date) lines.push(`**日付**: ${p.date}${p.date_note ? ` (${p.date_note})` : ''}`);
+    if (p.medium) lines.push(`**媒体**: ${p.medium}`);
+    if (p.section) lines.push(`**枠**: ${p.section}`);
+    if (p.content) {
+        lines.push('');
+        lines.push('## 内容');
+        lines.push('');
+        lines.push(p.content);
+    }
+    if (p.note) {
+        lines.push('');
+        lines.push(`**備考**: ${p.note}`);
+    }
+    return lines.join('\n');
+}
+
 function genericToMarkdown(entity) {
     const p = entity.payload;
     const lines = [];
@@ -176,6 +282,7 @@ function genericToMarkdown(entity) {
 
 function entityToWikiPath(entity) {
     const id = entity.id || entity.entity_id;
+    const personSourceId = entity.payload?.person_id;
     switch (entity.entity_type) {
         case 'person':
             return `people/${id}`;
@@ -191,6 +298,18 @@ function entityToWikiPath(entity) {
         }
         case 'glossary_term':
             return `glossary/${id}`;
+        case 'speaking':
+            return personSourceId ? `people/${personSourceId}/speaking/${id}` : `other/speaking/${id}`;
+        case 'media_appearance':
+            return personSourceId ? `people/${personSourceId}/media/${id}` : `other/media/${id}`;
+        case 'role_assignment':
+            return personSourceId ? `people/${personSourceId}/roles/${id}` : `other/roles/${id}`;
+        case 'product':
+            return personSourceId ? `people/${personSourceId}/products/${id}` : `other/products/${id}`;
+        case 'publication':
+            return personSourceId ? `people/${personSourceId}/publications/${id}` : `other/publications/${id}`;
+        case 'press_mention':
+            return personSourceId ? `people/${personSourceId}/press/${id}` : `other/press/${id}`;
         default:
             return `other/${entity.entity_type}/${id}`;
     }
@@ -203,6 +322,12 @@ function entityToMarkdown(entity) {
         case 'org': return orgToMarkdown(entity);
         case 'decision': return decisionToMarkdown(entity);
         case 'glossary_term': return glossaryTermToMarkdown(entity);
+        case 'speaking': return speakingToMarkdown(entity);
+        case 'media_appearance': return mediaAppearanceToMarkdown(entity);
+        case 'role_assignment': return roleAssignmentToMarkdown(entity);
+        case 'product': return productToMarkdown(entity);
+        case 'publication': return publicationToMarkdown(entity);
+        case 'press_mention': return pressMentionToMarkdown(entity);
         default: return genericToMarkdown(entity);
     }
 }
@@ -215,7 +340,9 @@ async function main() {
     const { rows: entities } = await pool.query(
         `SELECT id AS entity_id, entity_type, project_id, payload, role_min, sensitivity, updated_at
          FROM graph_entities
-         WHERE entity_type IN ('person', 'project', 'org', 'decision', 'glossary_term')
+         WHERE entity_type IN ('person', 'project', 'org', 'decision', 'glossary_term',
+                                'speaking', 'media_appearance', 'role_assignment',
+                                'product', 'publication', 'press_mention')
            AND id NOT LIKE 'simproj_%'
            AND id NOT LIKE '%_simproj_%'
            AND COALESCE(payload->>'code', '') NOT LIKE 'simproj_%'

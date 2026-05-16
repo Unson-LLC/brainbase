@@ -1,0 +1,36 @@
+{
+  "run_id": "vibepro-brainbase-20260516-125757-people-detail-entity-types",
+  "status": "generated",
+  "generated_from": "observation.json",
+  "actual_gaps": [
+    {
+      "actual_gap_id": "actual.gap.repo.behind_origin",
+      "fact_ids": [
+        "fact.repo.behind_origin"
+      ],
+      "severity": "medium",
+      "category": "operational_freshness",
+      "reason": "story/workspace-generation-rotation is behind origin/develop by 7 commits"
+    },
+    {
+      "actual_gap_id": "actual.gap.repo.unrelated_dirty_files",
+      "fact_ids": [
+        "fact.repo.unrelated_dirty_files"
+      ],
+      "severity": "medium",
+      "category": "change_control",
+      "reason": "There are dirty files outside the VibePro dogfood scope"
+    },
+    {
+      "actual_gap_id": "actual.gap.vibepro.incomplete_run_outputs",
+      "fact_ids": [
+        "fact.vibepro.incomplete_run_outputs"
+      ],
+      "severity": "medium",
+      "category": "evaluation_unavailable",
+      "reason": "2 previous VibePro dogfood runs are missing required outputs"
+    }
+  ],
+  "gate_violations": [],
+  "intervention_outcomes": []
+}

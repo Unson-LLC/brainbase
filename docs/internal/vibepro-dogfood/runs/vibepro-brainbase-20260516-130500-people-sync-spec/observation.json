@@ -1,0 +1,159 @@
+{
+  "run_id": "vibepro-brainbase-20260516-130500-people-sync-spec",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "observed_at": "2026-05-16T14:44:58.396Z",
+  "repo": {
+    "branch": "story/workspace-generation-rotation",
+    "upstream": "origin/develop",
+    "ahead": 5,
+    "behind": 7,
+    "changed_files": [
+      {
+        "path": ".claude/skills/brainbase-\\350\\254\\233\\345\\270\\253\\343\\203\\227\\343\\203\\255\\343\\203\\225\\343\\202\\243\\343\\203\\274\\343\\203\\253\\344\\275\\234\\346\\210\\220\\343\\201\\257\\350\\244\\207\\346\\225\\260\\343\\201\\256\\346\\255\\243\\346\\234\\254\\343\\202\\275\\343\\203\\274\\343\\202\\271\\343\\202\\222\\346\\235\\237\\343\\201\\255\\343\\201\\246\\347\\224\\250\\351\\200\\224\\345\\210\\245\\343\\201\\256\\351\\225\\267\\343\\201\\225\\343\\201\\247\\345\\207\\272\\343\\201\\231\\343\\201\\250\\345\\206\\215\\345\\210\\251\\347\\224\\250\\343\\201\\227\\343\\202\\204\\343\\201\\231\\343\\201\\204/SKILL.md",
+        "status": "M",
+        "category": "skill"
+      },
+      {
+        "path": "server/sql/learning-schema.sql",
+        "status": "M",
+        "category": "other"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/diagnosis.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/feedback.md",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/labels.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/observation.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/outcome.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/report.md",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-125757-people-detail-entity-types/score.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/diagnosis.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/feedback.md",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/labels.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/observation.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/outcome.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/report.md",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      },
+      {
+        "path": "docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details/score.json",
+        "status": "??",
+        "category": "vibepro_dogfood"
+      }
+    ],
+    "run_count_before_current": 21,
+    "scorer_exists": true,
+    "scorer_workflow_exists": true
+  },
+  "dogfood": {
+    "previous_run_count": 21,
+    "incomplete_previous_runs": []
+  },
+  "workflows": {
+    "workflow_count": 7,
+    "missing_workflows": []
+  },
+  "story_to_ship": {
+    "vibepro_story_status": "shipped",
+    "has_ship_evidence": true,
+    "dogfood_story_unshipped": false
+  },
+  "coverage": {
+    "coverage_includes": [
+      "tests/unit/**/*.test.js",
+      "tests/core/**/*.test.js",
+      "tests/domain/**/*.test.js",
+      "tests/ui/**/*.test.js",
+      "tests/api/**/*.test.js",
+      "tests/integration/**/*.test.js",
+      "tests/server/**/*.test.js",
+      "tests/public/**/*.test.js",
+      "tests/mesh/**/*.test.js",
+      "tests/security/**/*.test.js",
+      "tests/access-contracts/**/*.test.js",
+      "tests/candidate-store/**/*.test.js",
+      "tests/account/**/*.test.js",
+      "tests/sns/**/*.test.js",
+      "tests/settings/phase0/**/*.test.js",
+      "tests/settings/provider-contract/**/*.test.js",
+      "tests/ai-session-adapter/**/*.test.js",
+      "tests/setup/test-setup.js",
+      "tests/unit/config-parser.test.js",
+      "tests/settings/**/*.test.js",
+      "public/modules/**/*.js",
+      "lib/**/*.js",
+      "scripts/vibepro-score-run.mjs"
+    ],
+    "scorer_path": "scripts/vibepro-score-run.mjs",
+    "scorer_in_coverage_scope": true
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact.repo.behind_origin",
+      "kind": "operational_freshness",
+      "severity": "medium",
+      "summary": "story/workspace-generation-rotation is behind origin/develop by 7 commits",
+      "evidence": [
+        "behind = 7"
+      ]
+    },
+    {
+      "fact_id": "fact.repo.unrelated_dirty_files",
+      "kind": "change_control",
+      "severity": "medium",
+      "summary": "There are dirty files outside the VibePro dogfood scope",
+      "evidence": [
+        "server/sql/learning-schema.sql"
+      ]
+    }
+  ]
+}
