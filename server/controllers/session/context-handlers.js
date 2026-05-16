@@ -3,7 +3,13 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { logger } from '../../utils/logger.js';
-import { HTML_EXTENSIONS, MARKDOWN_EXTENSIONS, MAX_FILE_READ_SIZE, MAX_PREVIEW_ASSET_SIZE } from './shared-methods.js';
+import {
+    HTML_EXTENSIONS,
+    MARKDOWN_EXTENSIONS,
+    MAX_FILE_READ_SIZE,
+    MAX_PREVIEW_ASSET_SIZE,
+    buildSessionWorktreeStatusSummary
+} from './shared-methods.js';
 
 function isEphemeralCwd(candidate) {
     return typeof candidate === 'string'
@@ -96,8 +102,11 @@ export function installContextHandlers(controller) {
             currentDirectory,
             bookmark: session.id,
             dirty: false,
+            unpushed: false,
+            unmerged: false,
             changesNotPushed: 0,
             hasWorkingCopyChanges: false,
+            needsMerge: false,
             bookmarkPushed: false,
             prStatus: session.merged ? 'merged' : 'none',
             prUrl: session.mergedPrUrl || null,
@@ -123,9 +132,8 @@ export function installContextHandlers(controller) {
                 }
             );
 
-            const changesNotPushed = status.changesNotPushed || 0;
-            const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
-            const dirty = hasWorkingCopyChanges || changesNotPushed > 0;
+            const statusSummary = buildSessionWorktreeStatusSummary(status);
+            const { changesNotPushed } = statusSummary;
             const prStatus = session.merged
                 ? 'merged'
                 : (changesNotPushed > 0 || status.bookmarkPushed ? 'open_or_pending' : 'none');
@@ -134,9 +142,12 @@ export function installContextHandlers(controller) {
                 ...context,
                 repo: status.repoName || context.repo,
                 bookmark: status.bookmarkName || context.bookmark,
-                dirty,
+                dirty: statusSummary.dirty,
+                unpushed: statusSummary.unpushed,
+                unmerged: statusSummary.unmerged,
                 changesNotPushed,
-                hasWorkingCopyChanges,
+                hasWorkingCopyChanges: statusSummary.hasWorkingCopyChanges,
+                needsMerge: statusSummary.needsMerge,
                 bookmarkPushed: Boolean(status.bookmarkPushed),
                 prStatus,
                 baseBranch: status.mainBranch || null,

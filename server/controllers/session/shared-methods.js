@@ -34,6 +34,21 @@ function isEphemeralCwd(candidate) {
             || candidate === '/private/tmp/');
 }
 
+export function buildSessionWorktreeStatusSummary(status = {}) {
+    const changesNotPushed = Number.parseInt(String(status.changesNotPushed || 0), 10) || 0;
+    const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
+    const needsMerge = Boolean(status.needsMerge);
+
+    return {
+        dirty: hasWorkingCopyChanges,
+        unpushed: changesNotPushed > 0,
+        unmerged: needsMerge,
+        changesNotPushed,
+        hasWorkingCopyChanges,
+        needsMerge
+    };
+}
+
 export function installSharedMethods(controller) {
     controller._respondError = (res, context, error) => {
         logger.error(`${context}:`, error);
@@ -616,13 +631,17 @@ export function installSharedMethods(controller) {
                     generation: session.worktree?.generation
                 }
             );
-            const changesNotPushed = status.changesNotPushed || 0;
-            const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
+            const statusSummary = buildSessionWorktreeStatusSummary(status);
+            const { changesNotPushed } = statusSummary;
 
             return {
                 repo: status.repoName || baseSummary.repo,
                 baseBranch: status.mainBranch || null,
-                dirty: hasWorkingCopyChanges || changesNotPushed > 0,
+                dirty: statusSummary.dirty,
+                unpushed: statusSummary.unpushed,
+                unmerged: statusSummary.unmerged,
+                hasWorkingCopyChanges: statusSummary.hasWorkingCopyChanges,
+                needsMerge: statusSummary.needsMerge,
                 changesNotPushed,
                 prStatus: session.merged
                     ? 'merged'
