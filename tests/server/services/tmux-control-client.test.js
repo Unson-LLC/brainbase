@@ -39,6 +39,23 @@ function createClient() {
     return { client, outputs };
 }
 
+function createStartedClient() {
+    const process = {
+        stdout: { on: vi.fn() },
+        stderr: { setEncoding: vi.fn(), on: vi.fn() },
+        on: vi.fn(),
+        stdin: { write: vi.fn(), end: vi.fn(), destroyed: false },
+        kill: vi.fn()
+    };
+    const client = new TmuxControlClient({
+        sessionId: 'test session',
+        idleTimeoutMs: 999_999,
+        spawnFn: () => process
+    });
+    client.start();
+    return { client, process };
+}
+
 // ---------------------------------------------------------------------------
 // decodeTmuxEscapes tests (via _handleLine)
 // ---------------------------------------------------------------------------
@@ -331,5 +348,47 @@ describe('non-output lines', () => {
         client._handleLine('   ');
         // "   " doesn't start with %output, so no output emitted
         expect(outputs).toEqual([]);
+    });
+});
+
+describe('input commands', () => {
+    it('sendLiteralText呼び出し時_control-modeへliteral send-keysを送る', () => {
+        const { client, process } = createStartedClient();
+
+        expect(client.sendLiteralText('hello world')).toBe(true);
+
+        expect(process.stdin.write).toHaveBeenCalledWith(
+            'send-keys -t "test session" -l -- "hello world"\n'
+        );
+    });
+
+    it('sendLiteralText呼び出し時_quoteとbackslashをescapeする', () => {
+        const { client, process } = createStartedClient();
+
+        expect(client.sendLiteralText('say "hi" \\ ok')).toBe(true);
+
+        expect(process.stdin.write).toHaveBeenCalledWith(
+            'send-keys -t "test session" -l -- "say \\"hi\\" \\\\ ok"\n'
+        );
+    });
+
+    it('sendLiteralText呼び出し時_control文字は送らずfalseを返す', () => {
+        const { client, process } = createStartedClient();
+
+        expect(client.sendLiteralText('hello\nworld')).toBe(false);
+
+        expect(process.stdin.write).not.toHaveBeenCalled();
+    });
+
+    it('sendKey呼び出し時_allowlistされたkeyだけをcontrol-modeへ送る', () => {
+        const { client, process } = createStartedClient();
+
+        expect(client.sendKey('BSpace')).toBe(true);
+        expect(client.sendKey('NotAKey')).toBe(false);
+
+        expect(process.stdin.write).toHaveBeenCalledTimes(1);
+        expect(process.stdin.write).toHaveBeenCalledWith(
+            'send-keys -t "test session" BSpace\n'
+        );
     });
 });

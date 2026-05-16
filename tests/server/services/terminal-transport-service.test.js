@@ -16,7 +16,9 @@ function buildService() {
         on: vi.fn(),
         off: vi.fn(),
         resize: vi.fn(),
-        touch: vi.fn()
+        touch: vi.fn(),
+        sendLiteralText: vi.fn(() => true),
+        sendKey: vi.fn(() => true)
     };
     const controlRegistry = {
         acquire: vi.fn(() => controlClient),
@@ -173,7 +175,7 @@ describe('TerminalTransportService', () => {
     });
 
     it('inputProbe failedでもShift+EnterのM-Enter keyはdropせず送る', async () => {
-        const { service, sessionManager, captureCache } = buildService();
+        const { service, sessionManager, captureCache, controlClient } = buildService();
         sessionManager.getSession.mockReturnValue({
             runtimeState: 'degraded',
             observed: {
@@ -189,7 +191,8 @@ describe('TerminalTransportService', () => {
             viewerId: 'viewer-1',
             viewerLabel: 'Local / Mac',
             ws: { readyState: 1, send: vi.fn() },
-            transport: 'streaming'
+            transport: 'streaming',
+            controlClient
         };
 
         await service._handleMessage(connection, JSON.stringify({
@@ -199,7 +202,8 @@ describe('TerminalTransportService', () => {
         }));
 
         expect(captureCache.getSnapshot).not.toHaveBeenCalled();
-        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'M-Enter', 'key');
+        expect(controlClient.sendKey).toHaveBeenCalledWith('M-Enter');
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
         expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
     });
 
@@ -224,7 +228,7 @@ describe('TerminalTransportService', () => {
     });
 
     it('inputReady が false でも snapshot が ready なら probe を回復して送信する', async () => {
-        const { service, sessionManager, captureCache } = buildService();
+        const { service, sessionManager, captureCache, controlClient } = buildService();
         sessionManager.getSession.mockReturnValue({
             runtimeState: 'transport_connected',
             observed: {
@@ -246,7 +250,8 @@ describe('TerminalTransportService', () => {
             viewerId: 'viewer-1',
             viewerLabel: 'Local / Mac',
             ws: { readyState: 1, send: vi.fn() },
-            transport: 'streaming'
+            transport: 'streaming',
+            controlClient
         };
 
         await service._handleMessage(connection, JSON.stringify({
@@ -264,7 +269,8 @@ describe('TerminalTransportService', () => {
             mode: 'snapshot_recovery',
             cliReason: 'codex_prompt'
         }));
-        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
+        expect(controlClient.sendLiteralText).toHaveBeenCalledWith('hello');
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
     });
 
     it('snapshot-polling input は同期pollせず短時間でまとめてrefreshする', async () => {
@@ -477,7 +483,7 @@ describe('TerminalTransportService', () => {
         expect(snapshotCall).toBeFalsy();
     });
 
-    it('connection開始時_control-mode streamingではなくsnapshot pollingを使う', async () => {
+    it('connection開始時_control-mode streamingを使い初回snapshot fallbackを予約する', async () => {
         vi.useFakeTimers();
 
         const { service, controlRegistry } = buildService();
@@ -490,8 +496,38 @@ describe('TerminalTransportService', () => {
         });
 
         const sent = ws.send.mock.calls.map(call => JSON.parse(call[0]));
-        expect(sent.some(message => message.type === 'status' && message.transport === 'snapshot-polling')).toBe(true);
-        expect(controlRegistry.acquire).not.toHaveBeenCalled();
+        expect(sent.some(message => message.type === 'ready')).toBe(true);
+        expect(sent.some(message => message.type === 'status' && message.transport === 'snapshot-polling')).toBe(false);
+        expect(controlRegistry.acquire).toHaveBeenCalledWith('session-1');
+        expect(service.activeConnections.get('session-1').connection.transport).toBe('streaming');
+        expect(service.activeConnections.get('session-1').connection.initialSnapshotTimer).toBeTruthy();
+
+        ws._listeners.close();
+        vi.useRealTimers();
+    });
+
+    it('connection開始時_control-mode取得に失敗したらsnapshot pollingへfallbackする', async () => {
+        vi.useFakeTimers();
+
+        const { service, controlRegistry } = buildService();
+        service._pollConnection = vi.fn(async () => {});
+        controlRegistry.acquire.mockImplementation(() => {
+            throw new Error('control unavailable');
+        });
+        const ws = buildMockWs();
+
+        await service._handleConnection(ws, {}, {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Mac'
+        });
+
+        const connection = service.activeConnections.get('session-1').connection;
+        const sent = ws.send.mock.calls.map(call => JSON.parse(call[0]));
+        expect(sent.some(message => message.type === 'status' && message.transport === 'snapshot')).toBe(true);
+        expect(connection.transport).toBe('snapshot');
+        expect(connection.pollTimer).toBeTruthy();
+        expect(service._pollConnection).toHaveBeenCalledWith(connection);
 
         ws._listeners.close();
         vi.useRealTimers();
@@ -685,9 +721,76 @@ describe('TerminalTransportService', () => {
         expect(connection.rows).toBe(12);
     });
 
+    it('streaming input はcontrol-mode literal送信を使いspawn-per-input経路を避ける', async () => {
+        const { service, sessionManager, controlClient, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello'
+        }));
+
+        expect(controlClient.sendLiteralText).toHaveBeenCalledWith('hello');
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+        expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+    });
+
+    it('streaming Backspace text はcontrol-mode key送信を使う', async () => {
+        const { service, sessionManager, controlClient } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\x7f'
+        }));
+
+        expect(controlClient.sendKey).toHaveBeenCalledWith('BSpace');
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('streaming multiline paste は既存のterminalIo経路にfallbackする', async () => {
+        const { service, sessionManager, controlClient } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello\nworld'
+        }));
+
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(controlClient.sendKey).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello\nworld', 'text');
+    });
+
     it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {
-        const { service, sessionManager } = buildService();
+        const { service, sessionManager, controlClient } = buildService();
         sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });
+        controlClient.sendLiteralText.mockReturnValue(false);
         sessionManager.sendInput.mockRejectedValue(new Error('tmux send failed'));
 
         const ws = buildMockWs();

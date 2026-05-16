@@ -3,6 +3,28 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
+const CONTROL_KEY_ALLOWLIST = new Set([
+    'Enter',
+    'Tab',
+    'BTab',
+    'Escape',
+    'BSpace',
+    'Delete',
+    'Up',
+    'Down',
+    'Left',
+    'Right',
+    'Home',
+    'End',
+    'PageUp',
+    'PageDown',
+    'C-c',
+    'C-d',
+    'C-l',
+    'C-u',
+    'M-Enter'
+]);
+const CONTROL_TEXT_PATTERN = /[\x00-\x1f\x7f]/;
 
 /**
  * @typedef {import('child_process').ChildProcessWithoutNullStreams} TmuxChildProcess
@@ -64,6 +86,10 @@ function _findTrailingIncompleteUtf8(buf) {
         if (len - i < needed) return i; // incomplete
     }
     return len; // all complete
+}
+
+function quoteTmuxCommandArg(value = '') {
+    return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 /**
@@ -269,6 +295,30 @@ export class TmuxControlClient extends EventEmitter {
         const safeRows = Math.max(12, Math.min(120, Number(rows) || 0));
         if (!Number.isFinite(safeCols) || !Number.isFinite(safeRows)) return;
         this.sendCommand(`refresh-client -C ${safeCols}x${safeRows}`);
+    }
+
+    /**
+     * Send one literal text chunk through the existing tmux control client.
+     * Returns false for control characters so callers can fall back to the
+     * full terminal input path that handles paste buffers and special keys.
+     * @param {string} input
+     * @returns {boolean}
+     */
+    sendLiteralText(input) {
+        if (typeof input !== 'string' || !input) return false;
+        if (CONTROL_TEXT_PATTERN.test(input)) return false;
+        this.sendCommand(`send-keys -t ${quoteTmuxCommandArg(this.sessionId)} -l -- ${quoteTmuxCommandArg(input)}`);
+        return true;
+    }
+
+    /**
+     * @param {string} key
+     * @returns {boolean}
+     */
+    sendKey(key) {
+        if (!CONTROL_KEY_ALLOWLIST.has(key)) return false;
+        this.sendCommand(`send-keys -t ${quoteTmuxCommandArg(this.sessionId)} ${key}`);
+        return true;
     }
 
     /**

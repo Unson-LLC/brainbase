@@ -11,6 +11,7 @@ const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
+const STREAMING_INLINE_TEXT_MAX_BYTES = 1024;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const MIN_TERMINAL_COLS = 40;
 const MIN_TERMINAL_ROWS = 12;
@@ -18,6 +19,23 @@ const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'E
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
 const FOCUS_EVENT_PATTERN = /\x1B\[(?:I|O)/g;
+const STREAMING_TEXT_CONTROL_KEY_MAP = new Map([
+    ['\r', 'Enter'],
+    ['\n', 'Enter'],
+    ['\r\n', 'Enter'],
+    ['\x7f', 'BSpace'],
+    ['\x08', 'BSpace'],
+    ['\x03', 'C-c'],
+    ['\x04', 'C-d'],
+    ['\x0c', 'C-l'],
+    ['\x15', 'C-u'],
+    ['\x1b', 'Escape'],
+    ['\t', 'Tab'],
+    ['\x1b[A', 'Up'],
+    ['\x1b[B', 'Down'],
+    ['\x1b[C', 'Right'],
+    ['\x1b[D', 'Left']
+]);
 
 function safeJsonParse(raw) {
     try {
@@ -229,11 +247,9 @@ export class TerminalTransportService {
             if (cols && rows) {
                 await this.terminalIo.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
-            // ready は先に返すが、初回描画が来ないと session switch が完了したように見えない。
-            // 以降も tmux の履歴込み snapshot を正として polling し、control-mode の差分適用で
-            // cursor/status 行が drift する経路や、可視paneだけ更新してscrollbackが古く残る経路を使わない。
             await this._sendReady(connection);
-            this._startSnapshotPolling(connection);
+            await this._startStreaming(connection);
+            this._scheduleInitialSnapshotFallback(connection);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, message);
@@ -438,7 +454,8 @@ export class TerminalTransportService {
     }
 
     async _fallbackToPolling(connection) {
-        if (connection.closed || connection.transport === 'snapshot') return;
+        if (connection.closed) return;
+        if (connection.transport === 'snapshot' && connection.pollTimer) return;
 
         if (typeof connection.streamCleanup === 'function') {
             connection.streamCleanup();
@@ -591,9 +608,13 @@ export class TerminalTransportService {
                     }));
                     return;
                 }
+                let sentViaStreaming = false;
                 try {
-                    await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
-                    logger.info(`[INPUT-TELEMETRY] sentOk session=${sessionId} len=${valueLen} type=${inputType}`);
+                    sentViaStreaming = this._sendStreamingInput(connection, normalizedValue, inputType);
+                    if (!sentViaStreaming) {
+                        await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
+                    }
+                    logger.info(`[INPUT-TELEMETRY] sentOk session=${sessionId} len=${valueLen} type=${inputType} route=${sentViaStreaming ? 'control-mode' : 'terminal-io'}`);
                 } catch (err) {
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=MUTATION_TIMEOUT_OR_FAILED session=${sessionId} len=${valueLen} err=${err?.message || err}`);
                     throw err;
@@ -651,6 +672,32 @@ export class TerminalTransportService {
             }
             default:
                 return;
+        }
+    }
+
+    _sendStreamingInput(connection, value, inputType) {
+        if (connection.transport !== 'streaming' || !connection.controlClient) return false;
+
+        try {
+            if (inputType === 'key') {
+                return connection.controlClient.sendKey?.(value) === true;
+            }
+
+            if (inputType !== 'text' || typeof value !== 'string' || !value) return false;
+
+            const mappedKey = STREAMING_TEXT_CONTROL_KEY_MAP.get(value);
+            if (mappedKey) {
+                return connection.controlClient.sendKey?.(mappedKey) === true;
+            }
+
+            if (value.includes('\n') || value.includes('\r')) return false;
+            if (/[\x00-\x1f\x7f]/.test(value)) return false;
+            if (Buffer.byteLength(value, 'utf8') > STREAMING_INLINE_TEXT_MAX_BYTES) return false;
+
+            return connection.controlClient.sendLiteralText?.(value) === true;
+        } catch (err) {
+            logger.warn(`[TerminalTransport] streaming input fallback for ${connection.sessionId}: ${err?.message || err}`);
+            return false;
         }
     }
 
