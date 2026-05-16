@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
-    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js', 'tests/candidate-store/**/*.test.js', 'tests/account/**/*.test.js', 'tests/sns/**/*.test.js', 'tests/settings/phase0/**/*.test.js', 'tests/ai-session-adapter/**/*.test.js'],
+    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js', 'tests/candidate-store/**/*.test.js', 'tests/account/**/*.test.js', 'tests/sns/**/*.test.js', 'tests/settings/phase0/**/*.test.js', 'tests/settings/provider-contract/**/*.test.js', 'tests/ai-session-adapter/**/*.test.js'],
     setupFiles: ['tests/setup/test-setup.js'],
     environmentMatchGlobs: [
       // config-parser等のサーバーサイドテストのみnode環境
