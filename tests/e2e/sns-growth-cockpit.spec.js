@@ -5,6 +5,17 @@ const DEFAULT_PORT = isWorktree ? 31014 : 31013;
 const BASE_URL = process.env.BRAINBASE_BASE_URL
     || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
 
+function todayJst() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(new Date());
+    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
 async function csrfHeaders(request, sessionId) {
     const response = await request.get(`${BASE_URL}/api/csrf-token`, {
         headers: { 'X-Session-Id': sessionId }
@@ -18,6 +29,42 @@ async function csrfHeaders(request, sessionId) {
 }
 
 test.describe('SNS Growth Cockpit', () => {
+    test('refreshes the open SNS screen after an external ohayo ledger import', async ({ page, request }) => {
+        const lane = `live_refresh_e2e_${Date.now()}`;
+        const accountId = `acc_x_sato_${lane}`;
+        const headers = await csrfHeaders(request, lane);
+        const date = todayJst();
+        const visibleTitle = `ohayo-${Date.now()}`;
+        const body = `${visibleTitle} live refresh`;
+
+        await page.goto(`${BASE_URL}/sns-growth.html`);
+        await page.waitForLoadState('domcontentloaded');
+        await expect(page.locator('.sns-growth-app')).toBeVisible();
+        await expect(page.getByText(visibleTitle)).toHaveCount(0);
+
+        const pack = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
+            headers,
+            data: {
+                account_id: accountId,
+                account_handle: '@AIBizNavigator',
+                drafts: [{
+                    date,
+                    slot_index: 4,
+                    lane,
+                    body,
+                    source_url: 'https://x.com/example/status/live-refresh',
+                    persona_brain: { target_person: 'AI導入を任されたPM' },
+                    quality_gate: { status: 'pass' }
+                }]
+            }
+        });
+        expect(pack.ok()).toBe(true);
+
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+        await expect(page.locator('.sns-calendar-post').filter({ hasText: visibleTitle }).first()).toBeVisible();
+    });
+
     test('renders the ledger review surface with publish bridge actions', async ({ page, request }) => {
         const lane = `render_e2e_${Date.now()}`;
         const accountId = `acc_x_sato_${lane}`;
