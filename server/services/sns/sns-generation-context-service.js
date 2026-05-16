@@ -174,17 +174,69 @@ function candidateToLearning(candidate) {
     };
 }
 
+function seedCategory(candidate) {
+    return candidate.permission_snapshot?.seed?.category || null;
+}
+
+function compactBody(candidate, max = 180) {
+    const body = String(candidate.body || '').replace(/\s+/gu, ' ').trim();
+    if (body.length <= max) return body;
+    return `${body.slice(0, max - 1).trim()}…`;
+}
+
+function sourceSummary(candidates) {
+    const counts = new Map();
+    for (const candidate of candidates) {
+        const source = candidate.source_system || 'unknown';
+        counts.set(source, (counts.get(source) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+        .map(([source_system, count]) => ({ source_system, count }))
+        .sort((a, b) => b.count - a.count || a.source_system.localeCompare(b.source_system));
+}
+
+function personalKgAnchorCandidates(candidates) {
+    const categories = new Set(['philosophy', 'operating_principle', 'content_design', 'sales_philosophy']);
+    return candidates
+        .filter((candidate) => categories.has(seedCategory(candidate)))
+        .filter((candidate) => ['claim', 'insight', 'preference', 'hypothesis'].includes(candidate.cognitive_type))
+        .sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))
+        .map((candidate) => compactBody(candidate));
+}
+
+function personalKgProofCandidates(candidates) {
+    return candidates
+        .filter((candidate) => {
+            const category = seedCategory(candidate);
+            const body = String(candidate.body || '');
+            return category === 'proof'
+                || candidate.cognitive_type === 'result'
+                || /^Own Proof:/u.test(body)
+                || /実績|会議時間|受注|PR #/u.test(body);
+        })
+        .sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))
+        .map((candidate) => compactBody(candidate, 220));
+}
+
 function buildPersonalKgContext(candidates = []) {
     const snsCandidates = candidates.filter((candidate) => candidate.source_system === 'sns-feedback');
-    const bodies = snsCandidates.map((candidate) => String(candidate.body || ''));
+    const ownerVisibleCandidates = candidates.filter((candidate) => candidate.visibility === 'owner');
+    const anchorCandidates = personalKgAnchorCandidates(ownerVisibleCandidates);
+    const proofCandidates = personalKgProofCandidates(ownerVisibleCandidates);
     return {
-        anchors: [
+        memory_count: ownerVisibleCandidates.length,
+        candidate_sources: sourceSummary(ownerVisibleCandidates),
+        anchors: [...new Set([
+            ...anchorCandidates,
             'Claude Code / Codexは小技ではなく、権限・レビュー境界・記憶の設計で会社導入する',
             'SNS投稿生成より、読者理解を個人KGへ戻して次の仮説に使うことが本体'
-        ],
-        proof_points: bodies
-            .filter((body) => /保存|bookmark|反応|engagement|権限|レビュー/u.test(body))
-            .slice(0, 5),
+        ])].slice(0, 10),
+        proof_points: [...new Set([
+            ...proofCandidates,
+            ...snsCandidates
+                .map((candidate) => compactBody(candidate, 220))
+                .filter((body) => /保存|bookmark|反応|engagement|権限|レビュー/u.test(body))
+        ])].slice(0, 8),
         persona_misunderstandings: [
             '良いAIツールを選べば導入が進むと思っている',
             'AI活用を個人スキルや投稿生成の問題として捉えている'
@@ -318,7 +370,7 @@ export class SnsGenerationContextService {
             generation_policy: generationPolicy,
             evidence: [
                 { kind: 'sns_posting_ledger', ref: `sns_posting_ledger_posts:${startDate}..${targetDate}` },
-                { kind: 'candidate_store', ref: `source_system:sns-feedback owner:${viewer.actor_person_id || DEFAULT_OWNER_PERSON_ID}` },
+                { kind: 'candidate_store', ref: `memory_candidates owner:${viewer.actor_person_id || DEFAULT_OWNER_PERSON_ID}` },
                 { kind: 'sns_strategy_os', ref: 'shared/_codex/sns/sns_strategy_os.md' },
                 { kind: 'content_pillars', ref: 'shared/_codex/sns/content_pillars.md' }
             ]

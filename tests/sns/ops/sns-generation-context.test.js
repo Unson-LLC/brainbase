@@ -79,6 +79,52 @@ function candidateRepositoryWithFeedback() {
             }
         }
     });
+    for (const candidate of [
+        {
+            id: 'seed_sns_foundation_persona-brain-first',
+            source_system: 'brainbase-personal-kg-seed',
+            cognitive_type: 'claim',
+            project_code: 'brainbase',
+            body: 'Persona Brainで考える。SNSでも営業でも、こちらの正しさや分類から始めず、相手が今何を見て、何を誤解し、何を怖がり、何なら自然に動けるかを先に立ち上げる。',
+            category: 'philosophy'
+        },
+        {
+            id: 'seed_baao_minutes_ai-pm-mana-proof',
+            source_system: 'baao-minutes-personal-kg-seed',
+            cognitive_type: 'result',
+            project_code: 'baao',
+            body: 'Own Proof: MANAによるAI駆動PMは、実運用4ヶ月で会議時間90%削減、PM工数75%削減、タスク登録80%自動化の実績として説明されている。',
+            category: 'proof'
+        },
+        {
+            id: 'seed_cross_minutes_high-ticket-sales-human-fear-reduction',
+            source_system: 'cross-project-minutes-personal-kg-seed',
+            cognitive_type: 'claim',
+            project_code: 'salestailor',
+            body: 'AI時代の高額商材営業で人間に残る仕事は、相手の決断の恐怖を減らし、納得と責任を支えること。',
+            category: 'sales_philosophy'
+        }
+    ]) {
+        repo.create({
+            ...candidate,
+            owner_person_id: 'sato_keigo',
+            actor_person_id: 'sato_keigo',
+            source_event_ids: [`${candidate.source_system}:${candidate.id}`],
+            workspace: 'unson',
+            org_ids: ['unson'],
+            project_ids: ['brainbase', candidate.project_code],
+            visibility: 'owner',
+            sensitivity: 'internal',
+            permission_snapshot: {
+                seed: {
+                    category: candidate.category,
+                    item_id: candidate.id,
+                    source_project_code: candidate.project_code
+                }
+            },
+            evidence_ids: [{ uri: `seed:${candidate.id}` }]
+        });
+    }
     return repo;
 }
 
@@ -159,6 +205,21 @@ describe('SNS Generation Context', () => {
         expect(context.posting_stats.days_30.by_lane.trust_balance.engagement_rate).toBeGreaterThan(0);
         expect(context.posting_stats.days_30.by_source_type['Peer Circle'].posts).toBe(1);
         expect(context.posting_stats.days_30.by_algorithm_fit.personal_kg_semantic_anchor.posts).toBe(1);
+        expect(context.personal_kg.anchors).toEqual(expect.arrayContaining([
+            expect.stringContaining('Persona Brainで考える')
+        ]));
+        expect(context.personal_kg.proof_points).toEqual(expect.arrayContaining([
+            expect.stringContaining('MANAによるAI駆動PM')
+        ]));
+        expect(context.personal_kg.proof_points.join('\n')).not.toContain('Persona Brain / Peer Circle / Own Proof');
+        expect(context.personal_kg.candidate_sources).toEqual(expect.arrayContaining([
+            expect.objectContaining({ source_system: 'brainbase-personal-kg-seed', count: 1 }),
+            expect.objectContaining({ source_system: 'baao-minutes-personal-kg-seed', count: 1 }),
+            expect.objectContaining({ source_system: 'cross-project-minutes-personal-kg-seed', count: 1 })
+        ]));
+        expect(context.generation_policy.winning_angles).toEqual(expect.arrayContaining([
+            expect.stringContaining('MANAによるAI駆動PM')
+        ]));
         expect(context.learning.created_candidates).toEqual([
             expect.objectContaining({ id: 'cand_sns_feedback_post_trust', source_system: 'sns-feedback' })
         ]);
@@ -168,7 +229,7 @@ describe('SNS Generation Context', () => {
         expect(context.learning.publish_failed.every((item) => item.id !== 'post_trust')).toBe(true);
         expect(context.evidence).toEqual(expect.arrayContaining([
             { kind: 'sns_posting_ledger', ref: 'sns_posting_ledger_posts:2026-04-17..2026-05-16' },
-            { kind: 'candidate_store', ref: 'source_system:sns-feedback owner:sato_keigo' }
+            { kind: 'candidate_store', ref: 'memory_candidates owner:sato_keigo' }
         ]));
     });
 });
