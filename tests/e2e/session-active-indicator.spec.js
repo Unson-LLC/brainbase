@@ -9,9 +9,11 @@ import { test, expect } from '@playwright/test';
  * dev server が起動していない場合は skip。
  */
 
-const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
+const DEFAULT_PORT = isWorktree ? 31014 : 31013;
+const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT));
 const BASE_URL = process.env.BRAINBASE_BASE_URL
-  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+  || `http://localhost:${PORT}`;
 
 async function isServerLive(request) {
     try {

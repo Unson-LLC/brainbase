@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test';
 
 const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
 const DEFAULT_PORT = isWorktree ? 31014 : 31013;
+const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT));
 const BASE_URL = process.env.BRAINBASE_BASE_URL
-    || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+    || `http://localhost:${PORT}`;
 
 function todayJst() {
     const parts = new Intl.DateTimeFormat('en-CA', {

@@ -225,7 +225,7 @@ if (TEST_MODE) {
 }
 
 const app = express();
-const PORT = process.env.PORT || DEFAULT_PORT;
+const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT));
 try {
     assertAllowedServerEntrypoint({
         port: PORT,

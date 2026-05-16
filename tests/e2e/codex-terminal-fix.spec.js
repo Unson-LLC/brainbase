@@ -1,30 +1,37 @@
 /**
  * E2E test: codex セッションのターミナル初期化ハング修正の検証
  *
- * 修正内容: custom_ttyd_index.html の _reportFocus() override
- * 根本原因: codex が ESC[?1004h でフォーカスイベントを有効化すると
- *           xterm.js が即座に ESC[I を PTY へ送り込み、codex の
- *           ターミナル機能クエリ初期化を妨害してハングする
+ * 現行方針: custom_ttyd_index.html では _reportFocus() override を使わない。
+ * codex 起動時のブロックする端末クエリは scripts/codex-pty-shim.py で処理し、
+ * ttyd HTML 側は通常の focus reporting を維持する。
  */
 
+import { existsSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
-const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
+const DEFAULT_PORT = isWorktree ? 31014 : 31013;
+const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT));
 const BASE_URL = process.env.BRAINBASE_BASE_URL
-    || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+    || `http://localhost:${PORT}`;
 
-test.describe('codex terminal focus-event fix', () => {
+function getSessionWorkspacePath(session) {
+    return session?.worktree?.path || session?.path || session?.cwd || null;
+}
 
-    test('custom_ttyd_index.html に _reportFocus 無効化スクリプトが含まれている', async ({ page }) => {
+test.describe('codex terminal startup compatibility', () => {
+
+    test('custom_ttyd_index.html documents that browser-side _reportFocus override is disabled', async ({ page }) => {
         const res = await page.goto(`${BASE_URL}/ttyd/custom_ttyd_index.html`);
         expect(res.status()).toBe(200);
 
         const html = await page.content();
-        expect(html).toContain('disableFocusReporting');
-        expect(html).toContain('_reportFocus = function() {}');
+        expect(html).toContain('focus reporting disable was a workaround');
+        expect(html).toContain('codex-pty-shim.py handles');
+        expect(html).not.toContain('disableFocusReporting');
     });
 
-    test('ttyd HTML ロード時に window.term._reportFocus が no-op に上書きされる', async ({ page }) => {
+    test('ttyd HTML does not install a browser-side focus override hook', async ({ page }) => {
         // ttyd HTML を直接開く（standalone モード）
         const res = await page.goto(`${BASE_URL}/ttyd/custom_ttyd_index.html`);
         expect(res.status()).toBe(200);
@@ -36,40 +43,25 @@ test.describe('codex terminal focus-event fix', () => {
             { timeout: 5000 }
         ).catch(() => null); // standalone では term が未定義の場合もある
 
-        // waitAndDisableFocus スクリプトが実行されたことを確認
-        // (term が存在する場合は override 済み、存在しない場合は50回リトライ中)
-        const scriptLoaded = await page.evaluate(() => {
-            // スクリプトタグが存在することを確認
-            return Array.from(document.querySelectorAll('script')).some(s =>
-                s.textContent.includes('disableFocusReporting')
+        const overrideHookLoaded = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('script')).some((script) =>
+                script.textContent.includes('disableFocusReporting')
+                    || script.textContent.includes('_testDisableFocus')
             );
         });
-        expect(scriptLoaded).toBe(true);
+        expect(overrideHookLoaded).toBe(false);
 
-        // term が存在する場合は _reportFocus が no-op であることを確認
-        // xterm.js v5+ では window.term._core に実装がある
         const termExists = await page.evaluate(() => typeof window.term !== 'undefined');
         if (termExists) {
-            // waitAndDisableFocus の完了を最大5秒待つ
-            await page.waitForFunction(() => {
+            const focusReporterIsNotNoOp = await page.evaluate(() => {
                 const term = window.term;
                 if (!term) return false;
-                // _core に override が適用されたか確認
-                const target = term._core || term;
-                return typeof target._reportFocus === 'function' &&
-                    target._reportFocus.toString().replace(/\s/g, '') === 'function(){}';
-            }, { timeout: 5000 }).catch(() => null);
-
-            const isFocusDisabled = await page.evaluate(() => {
-                const term = window.term;
-                if (!term) return false;
-                // xterm.js v5+: 実装は _core に、公開APIは term に
                 const target = term._core || term;
                 if (typeof target._reportFocus !== 'function') return false;
                 const src = target._reportFocus.toString().replace(/\s/g, '');
-                return src === 'function(){}';
+                return src !== 'function(){}';
             });
-            expect(isFocusDisabled).toBe(true);
+            expect(focusReporterIsNotNoOp).toBe(true);
         }
     });
 
@@ -114,16 +106,20 @@ test.describe('codex terminal focus-event fix', () => {
         // active な codex セッションを取得（IDの降順＝最近作成順で試す）
         await page.goto(BASE_URL);
         await page.waitForLoadState('domcontentloaded');
-        const sessions = await page.evaluate(async (base) => {
+        const allSessions = await page.evaluate(async (base) => {
             const r = await fetch(`${base}/api/state`);
             const d = await r.json();
             const codexSessions = (d.sessions || []).filter(s => s.engine === 'codex' && s.intendedState === 'active');
             // IDが大きい（＝最近作成）順にソート
             return codexSessions.sort((a, b) => b.id.localeCompare(a.id));
         }, BASE_URL);
+        const sessions = allSessions.filter((session) => {
+            const workspacePath = getSessionWorkspacePath(session);
+            return workspacePath && existsSync(workspacePath);
+        });
 
         if (!sessions.length) {
-            test.skip('アクティブな codex セッションが存在しない');
+            test.skip('実在するworkspaceを持つアクティブな codex セッションが存在しない');
             return;
         }
 
@@ -131,6 +127,7 @@ test.describe('codex terminal focus-event fix', () => {
         let tuiRendered = false;
         let terminalContent = '';
         let testedSessionId = '';
+        let runnableSessionFound = false;
 
         for (const session of sessions) {
             const sessionId = session.id;
@@ -149,6 +146,7 @@ test.describe('codex terminal focus-event fix', () => {
                 console.log(`Session ${sessionId}: ttyd not running, skipping`);
                 continue;
             }
+            runnableSessionFound = true;
 
             const ttydPort = ensureData.runtimeStatus.port;
             const ttydUrl = `http://127.0.0.1:${ttydPort}/console/${sessionId}/`;
@@ -213,10 +211,15 @@ test.describe('codex terminal focus-event fix', () => {
             console.log(`Terminal content preview: ${terminalContent.replace(/\n/g, '|').substring(0, 200)}`);
         }
 
+        if (!runnableSessionFound) {
+            test.skip('実行可能な codex ttyd runtime が存在しない');
+            return;
+        }
+
         expect(tuiRendered, 'codex TUIがブラウザで描画されているべき（ハングしていない）').toBe(true);
     });
 
-    test('codex セッションの ttyd URL に直接アクセスすると _reportFocus が no-op になる', async ({ page, context }) => {
+    test('codex セッションの ttyd URL に直接アクセスしても browser-side focus override は入らない', async ({ page, context }) => {
         // terminal/ensure API から ttyd URL を取得（UIクリック不要）
         await page.goto(BASE_URL);
         await page.waitForLoadState('domcontentloaded');
@@ -260,15 +263,15 @@ test.describe('codex terminal focus-event fix', () => {
         await ttydPage.waitForLoadState('domcontentloaded');
         await ttydPage.waitForTimeout(3000); // xterm.js 初期化待ち
 
-        // スクリプト存在確認
-        const scriptPresent = await ttydPage.evaluate(() =>
-            Array.from(document.querySelectorAll('script')).some(s =>
-                s.textContent.includes('disableFocusReporting')
+        const overrideHookLoaded = await ttydPage.evaluate(() =>
+            Array.from(document.querySelectorAll('script')).some((script) =>
+                script.textContent.includes('disableFocusReporting')
+                    || script.textContent.includes('_testDisableFocus')
             )
         );
-        expect(scriptPresent).toBe(true);
+        expect(overrideHookLoaded).toBe(false);
 
-        // window.term._core._reportFocus が no-op か確認
+        // window.term._core._reportFocus is not forcibly no-op at the browser layer.
         const termState = await ttydPage.evaluate(() => {
             const t = window.term;
             if (!t) return { termExists: false };
@@ -284,45 +287,33 @@ test.describe('codex terminal focus-event fix', () => {
         console.log('Term state:', JSON.stringify(termState));
 
         if (termState.termExists && termState.hasFn) {
-            expect(termState.isNoOp).toBe(true);
+            expect(termState.isNoOp).toBe(false);
         } else {
-            // window.term が存在しない場合はスクリプト確認のみ（WebSocket未接続時）
-            expect(scriptPresent).toBe(true);
+            // window.term が存在しない場合はscript確認のみ（WebSocket未接続時）
+            expect(overrideHookLoaded).toBe(false);
         }
 
         await ttydPage.close();
     });
 
-    test('ttyd HTML に ESC[I が PTY に送られないことを単体確認', async ({ page }) => {
-        // ttyd HTML をスタンドアロンで開き、mock terminal を注入して
-        // フォーカスイベントが送信されないことを確認する
+    test('ttyd HTML does not expose the old _testDisableFocus hook', async ({ page }) => {
         await page.goto(`${BASE_URL}/ttyd/custom_ttyd_index.html`);
 
-        // fake window.term を注入して _reportFocus の動作を確認
-        const focusEventFired = await page.evaluate(async () => {
-            // fake terminal object を作成
+        const hookState = await page.evaluate(() => {
             let called = false;
-            window.term = {
-                _reportFocus: function() { called = true; }
-            };
-
-            // disableFocusReporting スクリプトが再実行されるのを待つ
-            // (既に実行済みの場合は即座に上書きされる)
-            // 手動で呼び出し
+            window.term = { _reportFocus: function() { called = true; } };
             if (typeof window._testDisableFocus === 'function') {
                 window._testDisableFocus(window.term);
-            } else {
-                // スクリプトを直接評価
-                window.term._reportFocus = function() {};
             }
-
-            // _reportFocus を呼び出してもイベントが発火しないことを確認
             window.term._reportFocus();
-            return called;
+            return {
+                hasTestHook: typeof window._testDisableFocus === 'function',
+                focusEventFired: called
+            };
         });
 
-        // no-op なので called は false のまま
-        expect(focusEventFired).toBe(false);
+        expect(hookState.hasTestHook).toBe(false);
+        expect(hookState.focusEventFired).toBe(true);
     });
 
 });
