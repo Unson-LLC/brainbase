@@ -1,0 +1,41 @@
+{
+  "run_id": "vibepro-brainbase-20260516-125757-people-detail-entity-types",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed",
+  "created_at": "2026-05-16T12:57:57+09:00",
+  "request": {
+    "raw": "未実装のものもVibeProで実装して",
+    "interpreted_goal": "人物詳細データ (speaking/media_appearance/role_assignment/product/publication/press_mention) を InfoSSOTService の formatEntityLabel / summarizeEntities / buildHumanReport で扱える状態にする"
+  },
+  "story": {
+    "namespace": "people/graph-ssot/detail-entities",
+    "story_key": "people/graph-ssot/detail-entities/20260516-info-ssot-service",
+    "acceptance_criteria": [
+      "graph_entities.entity_type が新型6種のとき formatEntityLabel が人物可読ラベルを返す",
+      "summarizeEntities が `Type: ...` 形式のサマリ文字列を返す",
+      "buildHumanReport.sections に Speaking / Media / Role Assignments / Products / Publications / Press の6セクションが含まれる"
+    ]
+  },
+  "plan": {
+    "used_skills": [],
+    "approach": [
+      "既存型 (decision/raci_assignment/person/project等) の switch ケースを参照して同パターンで6型を追加",
+      "buildHumanReport の items 構造は payload の主要フィールドを抜粋する形で統一",
+      "スモークテストで6型のラベル/サマリが想定通りであることを確認"
+    ]
+  },
+  "implementation": {
+    "commit_id": "11da3c00",
+    "description": "feat(graph-ssot): info-ssot-service.js に新型6種対応を追加",
+    "changed_files": [
+      "server/services/info-ssot-service.js"
+    ],
+    "behavior_changes": [
+      "formatEntityLabel が speaking/media_appearance/role_assignment/product/publication/press_mention の6型に対応",
+      "summarizeEntities が同6型の `Type: 詳細` 形式を生成",
+      "buildHumanReport.sections が 9 セクション → 15 セクションに拡張 (Speaking/Media/Role Assignments/Products/Publications/Press 追加)"
+    ]
+  }
+}

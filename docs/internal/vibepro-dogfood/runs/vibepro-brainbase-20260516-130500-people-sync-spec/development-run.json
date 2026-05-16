@@ -1,0 +1,42 @@
+{
+  "run_id": "vibepro-brainbase-20260516-130500-people-sync-spec",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed",
+  "created_at": "2026-05-16T13:05:00+09:00",
+  "request": {
+    "raw": "未実装のものもVibeProで実装して",
+    "interpreted_goal": "_codex/common/meta/people_sync.md に人物詳細6型 (speaking/media_appearance/role_assignment/product/publication/press_mention) の SSOT 仕様を追記し、SKILL.md / people.md / sato_keigo/index.md と整合した参照ネットワークを完成させる"
+  },
+  "story": {
+    "namespace": "people/graph-ssot/detail-entities",
+    "story_key": "people/graph-ssot/detail-entities/20260516-people-sync-spec",
+    "acceptance_criteria": [
+      "people_sync.md にセクション10 (人物詳細データ) が追加されている",
+      "セクション10 が entity_type / rel_type / payload / project_id / 同期スクリプト / 運用フロー / 既知制約 を網羅している",
+      "既存セクション1〜9 (People本体の同期仕様) は無改変"
+    ]
+  },
+  "plan": {
+    "used_skills": [
+      "people-meta"
+    ],
+    "approach": [
+      "既存ファイルを破壊しないよう、本文末尾にセクション10として追記する",
+      "8つのサブセクション (10.1〜10.8) で entity_type 一覧 / rel_type 一覧 / payload 共通 / project_id / 派生階層図 / スクリプト一覧 / 運用フロー / 制約 を網羅",
+      "sato_keigo を参考実装として明記し、他人物への展開時のテンプレート性を確保"
+    ]
+  },
+  "implementation": {
+    "commit_id": "11da3c00",
+    "description": "docs(people): people_sync.md に人物詳細6型のSSOT仕様を追記 (workspace側で実施、本runは記録のみ)",
+    "changed_files": [
+      "common/meta/people_sync.md (別repo)"
+    ],
+    "behavior_changes": [
+      "people_sync.md が 68行 → 156行に拡張 (セクション10追加)",
+      "SKILL.md (Run 0 で更新済み) / people.md (Run 0 で更新済み) / sato_keigo/index.md と参照整合"
+    ]
+  }
+}

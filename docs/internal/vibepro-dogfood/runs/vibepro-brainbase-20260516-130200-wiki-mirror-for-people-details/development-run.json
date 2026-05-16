@@ -1,0 +1,41 @@
+{
+  "run_id": "vibepro-brainbase-20260516-130200-wiki-mirror-for-people-details",
+  "target_project": "brainbase",
+  "frame_id": "frm_vibepro",
+  "run_type": "autonomous_development_loop",
+  "status": "completed",
+  "created_at": "2026-05-16T13:02:00+09:00",
+  "request": {
+    "raw": "未実装のものもVibeProで実装して",
+    "interpreted_goal": "GraphDB に投入した人物詳細データが migrate-graphdb-to-wiki.js 実行で wiki/people/<person>/<type>/<entity_id>.md として可読Markdownミラーになること"
+  },
+  "story": {
+    "namespace": "people/graph-ssot/detail-entities",
+    "story_key": "people/graph-ssot/detail-entities/20260516-wiki-mirror",
+    "acceptance_criteria": [
+      "新型6種それぞれに Markdown 変換関数 (speakingToMarkdown 等) が存在し、payload を見出し付き md に整形する",
+      "entityToWikiPath が payload.person_id を使って人物別ディレクトリ階層を生成する",
+      "main クエリの SELECT 句が新型6種を含む"
+    ]
+  },
+  "plan": {
+    "used_skills": [],
+    "approach": [
+      "既存 personToMarkdown / projectToMarkdown / orgToMarkdown / decisionToMarkdown / glossaryTermToMarkdown のパターンに沿って6つの変換関数を実装",
+      "entityToWikiPath は payload.person_id があれば people/<person>/<type>/<id>、なければ other/<type>/<id>",
+      "dry-run で27ファイル全てが想定パス・想定サイズで生成されることを確認"
+    ]
+  },
+  "implementation": {
+    "commit_id": "11da3c00",
+    "description": "feat(graph-ssot): migrate-graphdb-to-wiki.js を新型6種に拡張",
+    "changed_files": [
+      "scripts/migrate-graphdb-to-wiki.js"
+    ],
+    "behavior_changes": [
+      "speakingToMarkdown / mediaAppearanceToMarkdown / roleAssignmentToMarkdown / productToMarkdown / publicationToMarkdown / pressMentionToMarkdown を新規追加",
+      "entityToWikiPath が新型6種を人物別階層パス (people/<person>/<type>/<id>) にマッピング",
+      "main の SELECT 句が新型6種を含むようになり、ミラー生成対象に追加"
+    ]
+  }
+}
