@@ -26,6 +26,7 @@ NocoDB BUG/Story
   -> clean worktree / branch
   -> Story文書
   -> ADR要否判断
+  -> VibePro診断パッケージ / performance metric定義
   -> TDD / 実装
   -> 検証
   -> vibepro pr prepare
@@ -127,6 +128,57 @@ npm test -- --runTestsByPath <target-test-file> --runInBand
 npm run typecheck
 ```
 
+目的別に品質を確認したい場合は、場当たり的に個別scannerを推測せず診断パッケージを使う。
+
+```bash
+vibepro check list
+vibepro check ui . --story-id <story-id>
+vibepro check security . --story-id <story-id>
+vibepro check performance . --story-id <story-id>
+vibepro check architecture . --story-id <story-id>
+vibepro check launch-readiness . --story-id <story-id>
+```
+
+PR差分の準備状態だけを見たい場合は、明示base/headを使う。
+
+```bash
+vibepro check pr-readiness . --story-id <story-id> --base origin/develop --head HEAD
+```
+
+性能改善を扱うStoryでは、改善前後を同じ定義で比較できるように先にmetricを定義する。DB改善も含められるが、DB内部時間とユーザー体感時間は別metricにする。
+
+```bash
+vibepro performance define . \
+  --id <story-id> \
+  --metric-id search.db-query-readiness \
+  --user-story "検索APIのDB queryが完了するまで" \
+  --start-condition "API handler received search request" \
+  --completion-condition "primary DB query completed" \
+  --evidence-source server_log \
+  --readiness-kind server_side
+
+vibepro performance define . \
+  --id <story-id> \
+  --metric-id search.user-results-visible \
+  --user-story "検索して結果が操作可能になるまで" \
+  --start-condition "search button click" \
+  --completion-condition "results DOM visible and clickable" \
+  --evidence-source browser_e2e \
+  --readiness-kind user_perceived
+```
+
+before/afterのrunは `.vibepro/pr/<story-id>/performance-runs/*.json` に残す。
+
+```bash
+vibepro performance record . --id <story-id> --metric-id search.db-query-readiness \
+  --label before --status completed --duration-ms 1200 --evidence-source server_log:server.log:"query completed"
+
+vibepro performance record . --id <story-id> --metric-id search.db-query-readiness \
+  --label after --status completed --duration-ms 650 --evidence-source server_log:server.log:"query completed"
+
+vibepro performance compare . --id <story-id>
+```
+
 node_modulesがないclean worktreeでは、既存の同一リポジトリworktreeからsymlinkしてよい。
 
 ```bash
@@ -214,6 +266,9 @@ PR作成後、NocoDBバグを更新する。
 - `pr prepare` のPR本文が薄い
 - テスト差分があるのに `file_groups.tests` に入っていない
 - NocoDBのステータスやPR URLが戻っていない
+- 「速くなった」の定義がStory内に `performanceMetrics` として残っていない
+- server logだけでユーザー体感改善を断定している
+- before/afterのcompletion conditionが揃っていない
 
 ## SalesTailor実例
 
