@@ -12,6 +12,7 @@ const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
 const STREAMING_INLINE_TEXT_MAX_BYTES = 1024;
+const MAX_SCROLL_STEPS = 8;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const MIN_TERMINAL_COLS = 40;
 const MIN_TERMINAL_ROWS = 12;
@@ -278,32 +279,8 @@ export class TerminalTransportService {
             ...this._buildRuntimeStatusPayload(connection)
         }));
 
-        // Eager snapshot: セッション切り替え直後の黒画面を防ぐため、
-        // readyと同時にスナップショットを送る。
-        // ストリーミング出力は8msバッチで送られるため、snapshot+streamingの
-        // 重なり描画（ghosting）は発生しない。
-        try {
-            const historySnapshot = await this._getSnapshotPayload(sessionId, {
-                lines: HISTORY_SNAPSHOT_LINES,
-                includeColors: true,
-                visibleOnly: false
-            });
-            if (ws.readyState !== 1) return;
-            connection.lastSnapshot = buildSnapshotKey(historySnapshot);
-            connection.lastCopyMode = historySnapshot.copyMode;
-            connection.initialFrameDelivered = true;
-            const snapshotMsg = {
-                type: 'snapshot',
-                text: historySnapshot.text,
-                capturedAt: historySnapshot.capturedAt,
-                screenOnly: false
-            };
-            if (historySnapshot.colorText) snapshotMsg.colorText = historySnapshot.colorText;
-            if (historySnapshot.cursor) snapshotMsg.cursor = historySnapshot.cursor;
-            ws.send(JSON.stringify(snapshotMsg));
-        } catch {
-            // スナップショット失敗時はストリーミングかフォールバックに任せる
-        }
+        // Do not block ready on a full-history snapshot. Streaming output should paint
+        // immediately; the initial visible snapshot fallback handles quiet terminals.
     }
 
     _startSnapshotPolling(connection) {
@@ -651,6 +628,32 @@ export class TerminalTransportService {
                 } else {
                     await this.terminalIo.resizeSessionWindow(sessionId, cols, rows);
                     await this._pollConnection(connection);
+                }
+                return;
+            }
+            case 'scroll': {
+                const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+                connection.terminalAccess = terminalAccess;
+                if (terminalAccess?.state !== 'owner') {
+                    ws.send(JSON.stringify({ type: 'blocked', terminalAccess }));
+                    return;
+                }
+
+                const safeDirection = message.direction === 'down' ? 'down' : message.direction === 'up' ? 'up' : null;
+                if (!safeDirection) return;
+                const safeSteps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Number(message.steps) || 1));
+                await this.terminalIo.scrollSession(sessionId, safeDirection, safeSteps);
+                this.captureCache.invalidate(sessionId);
+                this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
+                connection.lastCopyMode = true;
+                if (ws.readyState === 1) {
+                    ws.send(JSON.stringify({
+                        type: 'status',
+                        mode: connection.transport === 'streaming' || connection.transport === 'snapshot-polling' ? 'live' : 'snapshot',
+                        copyMode: true,
+                        transport: connection.transport,
+                        ...this._buildRuntimeStatusPayload(connection)
+                    }));
                 }
                 return;
             }

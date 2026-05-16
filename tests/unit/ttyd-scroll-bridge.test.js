@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = process.cwd();
 
 describe('ttyd scroll bridge', () => {
-    it('ttyd wheel handler delegates scroll to the parent UI', () => {
+    it('INV-5/AP-2 ttyd wheel handler delegates scroll only in alternate buffer', () => {
         const html = readFileSync(
             path.join(repoRoot, 'public/ttyd/custom_ttyd_index.html'),
             'utf8'
@@ -13,8 +13,8 @@ describe('ttyd scroll bridge', () => {
 
         expect(html).toContain('handledByIframe: handledByIframe');
         expect(html).toContain('sessionId: getSessionIdFromPath()');
-        expect(html).toContain('return notifyParentScroll(direction, steps, false);');
-        expect(html).not.toContain('if (!isAlternateBuffer(term)) return;');
+        expect(html).toContain('function isAlternateBuffer(term)');
+        expect(html).toContain('if (!isAlternateBuffer(term)) return;');
         expect(html).not.toContain("fetch('/api/sessions/' + encodeURIComponent(sessionId) + '/scroll'");
     });
 

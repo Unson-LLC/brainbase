@@ -32,6 +32,25 @@ describe('WorktreeService.remove', () => {
 
         expect(removed).toBe(true);
     });
+
+    it('INV-2: workspaceId指定時はそのgenerationの物理ディレクトリとbookmarkを掃除する', async () => {
+        const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
+        const service = new WorktreeService('/tmp/worktrees', '/tmp/repo', execPromise);
+        vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockRejectedValue(new Error('ENOENT'));
+
+        const removed = await service.remove('session-1', '/tmp/repo', {
+            workspaceId: 'session-1-g2',
+            generation: 2
+        });
+
+        expect(removed).toBe(true);
+        expect(fs.rm).toHaveBeenCalledWith(
+            '/tmp/worktrees/session-1-g2-repo',
+            { recursive: true, force: true }
+        );
+        expect(execPromise).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark delete "session/session-1-g2"');
+    });
 });
 
 describe('WorktreeService.merge cleanup', () => {
@@ -58,10 +77,19 @@ describe('WorktreeService.merge cleanup', () => {
 
         const result = await service.merge('session-1', '/tmp/repo', 'Archive flow');
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
             success: false,
+            merged: true,
             error: 'Worktree cleanup failed after merge',
-            prUrl: 'https://github.com/Unson-LLC/brainbase/pull/123'
+            prUrl: 'https://github.com/Unson-LLC/brainbase/pull/123',
+            rotation: {
+                active: null,
+                retired: {
+                    workspaceId: 'session-1',
+                    workspaceName: 'session-1-repo',
+                    path: '/tmp/worktrees/session-1-repo'
+                }
+            }
         });
     });
 });

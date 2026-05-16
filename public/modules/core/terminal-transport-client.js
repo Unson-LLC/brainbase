@@ -16,6 +16,12 @@ const KEEPALIVE_INTERVAL_MS = 30000;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 64 * 1024;
 const LOCAL_ECHO_SNAPSHOT_DEFER_MS = 1200;
+const SCROLL_MIN_DELTA_PX = 12;
+const SCROLL_STEP_PX = 40;
+const MAX_SCROLL_STEPS = 8;
+const SCROLL_FLUSH_MS = 16;
+const TOUCH_STEP_PX = 18;
+const TOUCH_FLUSH_MS = 30;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
 
 // Expected close codes that should NOT trigger reconnection
@@ -148,6 +154,15 @@ export class TerminalTransportClient {
         this._hostResizeRaf = null;
         this._lastObservedHostWidth = 0;
         this._lastObservedHostHeight = 0;
+        this._wheelDelta = 0;
+        this._touchDelta = 0;
+        this._wheelFlushTimer = null;
+        this._touchFlushTimer = null;
+        this._lastTouchY = null;
+        this._boundWheelHandler = null;
+        this._boundTouchStartHandler = null;
+        this._boundTouchMoveHandler = null;
+        this._boundTouchEndHandler = null;
         // xterm.js 5.x: short IME commit後にbare EnterでonData('\r')が発火しない場合がある。
         // IME確定Enter(isComposing=true)でフラグを立て、直後のbare Enter(isComposing=false)を
         // xtermが握り潰したと判断できるタイマーで\rを補完する。IME確定Enter自体は\rを送らない。
@@ -353,6 +368,7 @@ export class TerminalTransportClient {
         };
         this.hostEl.addEventListener('pointerdown', this._hostPointerFocusHandler, true);
         this.hostEl.addEventListener('click', this._hostPointerFocusHandler);
+        this._attachScrollHandlers();
 
         this._resizeHandler = () => {
             // Skip fit when host element has no usable height (e.g. panel is hidden during file viewer)
@@ -408,6 +424,7 @@ export class TerminalTransportClient {
             this.hostEl?.removeEventListener('click', this._hostPointerFocusHandler);
             this._hostPointerFocusHandler = null;
         }
+        this._detachScrollHandlers();
         this._removeCursorDebugPanel();
         this.terminal?.dispose();
         this.terminal = null;
@@ -939,6 +956,156 @@ export class TerminalTransportClient {
         }));
     }
 
+    async scroll(direction, steps = 1) {
+        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        if (this.status.terminalAccess?.state !== 'owner') return;
+        const safeDirection = direction === 'down' ? 'down' : direction === 'up' ? 'up' : null;
+        if (!safeDirection) return;
+        const safeSteps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Number(steps) || 1));
+        this.ws.send(JSON.stringify({
+            type: 'scroll',
+            direction: safeDirection,
+            steps: safeSteps
+        }));
+        this.status.copyMode = true;
+        this._emitStatus();
+    }
+
+    _attachScrollHandlers() {
+        if (!this.hostEl || this._boundWheelHandler) return;
+
+        this._boundWheelHandler = (event) => {
+            if (!this._shouldInterceptTmuxScroll(event.target)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            this._queueWheelDelta(event.deltaY || 0);
+        };
+        this._boundTouchStartHandler = (event) => {
+            if (!event.touches || event.touches.length !== 1) return;
+            this._lastTouchY = event.touches[0].clientY;
+            this._touchDelta = 0;
+        };
+        this._boundTouchMoveHandler = (event) => {
+            if (!this._shouldInterceptTmuxScroll(event.target)) return;
+            if (!event.touches || event.touches.length !== 1) return;
+            const currentY = event.touches[0].clientY;
+            const previousY = this._lastTouchY;
+            this._lastTouchY = currentY;
+            if (!Number.isFinite(previousY)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            this._queueTouchDelta(currentY - previousY);
+        };
+        this._boundTouchEndHandler = () => {
+            this._lastTouchY = null;
+            this._touchDelta = 0;
+            if (this._touchFlushTimer) {
+                clearTimeout(this._touchFlushTimer);
+                this._touchFlushTimer = null;
+            }
+        };
+
+        this.hostEl.addEventListener('wheel', this._boundWheelHandler, { passive: false, capture: true });
+        this.hostEl.addEventListener('touchstart', this._boundTouchStartHandler, { passive: true, capture: true });
+        this.hostEl.addEventListener('touchmove', this._boundTouchMoveHandler, { passive: false, capture: true });
+        this.hostEl.addEventListener('touchend', this._boundTouchEndHandler, { passive: true, capture: true });
+        this.hostEl.addEventListener('touchcancel', this._boundTouchEndHandler, { passive: true, capture: true });
+    }
+
+    _detachScrollHandlers() {
+        if (!this.hostEl) return;
+        if (this._boundWheelHandler) {
+            this.hostEl.removeEventListener('wheel', this._boundWheelHandler, true);
+            this._boundWheelHandler = null;
+        }
+        if (this._boundTouchStartHandler) {
+            this.hostEl.removeEventListener('touchstart', this._boundTouchStartHandler, true);
+            this._boundTouchStartHandler = null;
+        }
+        if (this._boundTouchMoveHandler) {
+            this.hostEl.removeEventListener('touchmove', this._boundTouchMoveHandler, true);
+            this._boundTouchMoveHandler = null;
+        }
+        if (this._boundTouchEndHandler) {
+            this.hostEl.removeEventListener('touchend', this._boundTouchEndHandler, true);
+            this.hostEl.removeEventListener('touchcancel', this._boundTouchEndHandler, true);
+            this._boundTouchEndHandler = null;
+        }
+        if (this._wheelFlushTimer) {
+            clearTimeout(this._wheelFlushTimer);
+            this._wheelFlushTimer = null;
+        }
+        if (this._touchFlushTimer) {
+            clearTimeout(this._touchFlushTimer);
+            this._touchFlushTimer = null;
+        }
+        this._wheelDelta = 0;
+        this._touchDelta = 0;
+        this._lastTouchY = null;
+    }
+
+    _shouldInterceptTmuxScroll(target) {
+        if (this.status.mode !== 'live') return false;
+        if (this.status.terminalAccess?.state !== 'owner') return false;
+        if (!this._isAlternateBufferActive()) return false;
+        return !target || !this.hostEl || this.hostEl.contains(target);
+    }
+
+    _isAlternateBufferActive() {
+        const terminal = this.terminal;
+        try {
+            return Boolean(
+                terminal
+                && terminal.buffer
+                && terminal.buffer.alternate
+                && terminal.buffer.active === terminal.buffer.alternate
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    _queueWheelDelta(delta) {
+        if (!Number.isFinite(delta) || delta === 0) return;
+        this._wheelDelta += delta;
+        if (Math.abs(this._wheelDelta) < SCROLL_MIN_DELTA_PX) return;
+        if (this._wheelFlushTimer) return;
+        this._wheelFlushTimer = setTimeout(() => {
+            this._wheelFlushTimer = null;
+            const pendingDelta = this._wheelDelta;
+            this._wheelDelta = 0;
+            void this._flushScrollDelta(pendingDelta, {
+                thresholdPx: SCROLL_STEP_PX,
+                positiveDirection: 'down'
+            });
+        }, SCROLL_FLUSH_MS);
+    }
+
+    _queueTouchDelta(delta) {
+        if (!Number.isFinite(delta) || delta === 0) return;
+        this._touchDelta += delta;
+        if (Math.abs(this._touchDelta) < TOUCH_STEP_PX) return;
+        if (this._touchFlushTimer) return;
+        this._touchFlushTimer = setTimeout(() => {
+            this._touchFlushTimer = null;
+            const pendingDelta = this._touchDelta;
+            this._touchDelta = 0;
+            void this._flushScrollDelta(pendingDelta, {
+                thresholdPx: TOUCH_STEP_PX,
+                positiveDirection: 'up'
+            });
+        }, TOUCH_FLUSH_MS);
+    }
+
+    async _flushScrollDelta(delta, { thresholdPx, positiveDirection }) {
+        if (!Number.isFinite(delta) || delta === 0) return;
+        const steps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Math.round(Math.abs(delta) / thresholdPx)));
+        const direction = delta > 0 ? positiveDirection : (positiveDirection === 'down' ? 'up' : 'down');
+        await this.scroll(direction, steps);
+    }
+
     async resize(cols, rows) {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
         if (cols === this._lastSentCols && rows === this._lastSentRows) return;
@@ -1000,11 +1167,14 @@ export class TerminalTransportClient {
 
     async verifyInputReady() {
         if (!this.sessionId || this.status.terminalAccess?.state !== 'owner') return false;
+        if (this.status.connected && this.status.inputReady === true) {
+            return true;
+        }
         try {
             const res = await httpClient.post(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/probe-input`, {
                 viewerId: this.viewerId,
                 viewerLabel: this.viewerLabel
-            }, { suppressAuthError: true });
+            }, { suppressAuthError: true, timeout: 5000 });
             this.status.inputReady = Boolean(res?.inputReady);
             this.status.runtimeState = this.status.inputReady ? 'interactive_ready' : (res?.code ? 'degraded' : this.status.runtimeState);
             this._emitStatus();
@@ -1452,6 +1622,10 @@ export class TerminalTransportClient {
             return this._textEncoder.encode(value).length;
         }
         return value.length;
+    }
+
+    async exitCopyMode() {
+        await this._ensureInteractiveMode();
     }
 
     async _ensureInteractiveMode() {

@@ -310,6 +310,17 @@ export function installRuntimeHandlers(controller) {
             logger.info(`[start] Rejected: session ${sessionId} is archived`);
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
+        if (targetSession?.workspaceRotationStatus === 'rotating') {
+            logger.info(`[start] Rejected: session ${sessionId} is rotating workspace generation`);
+            return res.status(409).json({ error: 'Session workspace generation is rotating', rotating: true });
+        }
+        if (targetSession?.workspaceRotationStatus === 'blocked') {
+            logger.info(`[start] Rejected: session ${sessionId} workspace rotation is blocked`);
+            return res.status(409).json({
+                error: targetSession.workspaceRotationError || 'Session workspace generation rotation is blocked',
+                rotationBlocked: true
+            });
+        }
 
         try {
             controller.activity.clearDoneStatus(sessionId);

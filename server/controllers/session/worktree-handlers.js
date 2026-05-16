@@ -66,7 +66,14 @@ export function installWorktreeHandlers(controller) {
                 });
             }
 
-            const worktreeResult = await controller.worktreeService.create(sessionId, resolvedRepoPath, { skipFetch });
+            const initialWorkspace = {
+                workspaceId: `${sessionId}-g1`,
+                generation: 1
+            };
+            const worktreeResult = await controller.worktreeService.create(sessionId, resolvedRepoPath, {
+                ...initialWorkspace,
+                skipFetch
+            });
             if (!worktreeResult) {
                 controller._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
                 return res.status(500).json({ error: 'Failed to create worktree' });
@@ -84,12 +91,17 @@ export function installWorktreeHandlers(controller) {
                 name: name || sessionId,
                 path: worktreePath,
                 project,
+                activeWorkspaceId: worktreeResult.workspaceId || initialWorkspace.workspaceId,
                 worktree: {
+                    workspaceId: worktreeResult.workspaceId || initialWorkspace.workspaceId,
+                    generation: worktreeResult.generation || initialWorkspace.generation,
                     repo: resolvedRepoPath,
                     path: worktreePath,
                     branch: branchName,
                     startCommit: worktreeResult.startCommit
                 },
+                workspaceHistory: [],
+                workspaceRotationStatus: 'ready',
                 initialCommand,
                 engine,
                 intendedState: 'active',
@@ -180,7 +192,11 @@ export function installWorktreeHandlers(controller) {
             const status = await controller.worktreeService.getStatus(
                 id,
                 session.worktree.repo,
-                session.worktree.startCommit || null
+                session.worktree.startCommit || null,
+                {
+                    workspaceId: session.activeWorkspaceId || session.worktree?.workspaceId || id,
+                    generation: session.worktree?.generation
+                }
             );
             res.json(status);
         } catch (error) {
@@ -217,10 +233,28 @@ export function installWorktreeHandlers(controller) {
         }
 
         try {
-            const result = await controller.worktreeService.merge(id, session.worktree.repo, session.name);
+            await controller._updateStateWithRetry((state) => ({
+                ...state,
+                sessions: (state.sessions || []).map((entry) =>
+                    entry.id === id
+                        ? { ...entry, workspaceRotationStatus: 'rotating', workspaceRotationError: null }
+                        : entry
+                )
+            }));
+
+            const activeWorkspaceId = session.activeWorkspaceId || session.worktree?.workspaceId || id;
+            const activeGeneration = Number.isFinite(session.worktree?.generation) ? session.worktree.generation : undefined;
+            const result = await controller.worktreeService.merge(id, session.worktree.repo, session.name, {
+                workspaceId: activeWorkspaceId,
+                generation: activeGeneration,
+                workspacePath: session.worktree?.path || session.path || null,
+                rotateAfterMerge: true
+            });
 
             if (result.success) {
                 const mergedAt = result.mergedAt || new Date().toISOString();
+                const active = result.rotation?.active || null;
+                const retired = result.rotation?.retired || null;
                 await controller._updateStateWithRetry((state) => {
                     const updatedSessions = (state.sessions || []).map((entry) =>
                         entry.id === id
@@ -228,16 +262,84 @@ export function installWorktreeHandlers(controller) {
                                 ...entry,
                                 merged: true,
                                 mergedAt,
-                                mergedPrUrl: result.prUrl || null
+                                mergedPrUrl: result.prUrl || null,
+                                activeWorkspaceId: active?.workspaceId || entry.activeWorkspaceId || null,
+                                path: active?.path || entry.path,
+                                worktree: active
+                                    ? {
+                                        ...(entry.worktree || {}),
+                                        repo: active.repo || entry.worktree?.repo || session.worktree.repo,
+                                        path: active.path,
+                                        branch: active.branch,
+                                        startCommit: active.startCommit || null,
+                                        workspaceId: active.workspaceId,
+                                        generation: active.generation
+                                    }
+                                    : entry.worktree,
+                                workspaceHistory: retired
+                                    ? [...(entry.workspaceHistory || []), retired]
+                                    : (entry.workspaceHistory || []),
+                                workspaceRotationStatus: 'ready',
+                                workspaceRotationError: null,
+                                intendedState: entry.intendedState === 'archived' ? 'archived' : 'active'
                             }
                             : entry
                     );
                     return { ...state, sessions: updatedSessions };
                 });
+
+                if (active?.path && typeof controller.runtimeLifecycle?.startTtyd === 'function') {
+                    try {
+                        await controller.runtimeLifecycle.stopTtyd?.(id, { preserveTmux: false });
+                    } catch (stopError) {
+                        logger.info(`[merge] Runtime stop before workspace rotation restart skipped: ${stopError instanceof Error ? stopError.message : String(stopError)}`);
+                    }
+                    const runtime = await controller.runtimeLifecycle.startTtyd({
+                        sessionId: id,
+                        cwd: active.path,
+                        initialCommand: session.initialCommand,
+                        engine: session.engine || 'claude'
+                    });
+                    result.port = runtime?.port;
+                    result.proxyPath = runtime?.proxyPath;
+                }
+            } else {
+                const rotationStatus = result.merged || result.rotationBlocked ? 'blocked' : 'ready';
+                await controller._updateStateWithRetry((state) => ({
+                    ...state,
+                    sessions: (state.sessions || []).map((entry) =>
+                        entry.id === id
+                            ? {
+                                ...entry,
+                                workspaceRotationStatus: rotationStatus,
+                                workspaceRotationError: rotationStatus === 'blocked' ? (result.error || 'Workspace rotation failed') : null,
+                                merged: result.merged ? true : entry.merged,
+                                mergedAt: result.mergedAt || entry.mergedAt,
+                                mergedPrUrl: result.prUrl || entry.mergedPrUrl,
+                                workspaceHistory: result.rotation?.retired
+                                    ? [...(entry.workspaceHistory || []), result.rotation.retired]
+                                    : (entry.workspaceHistory || [])
+                            }
+                            : entry
+                    )
+                }));
             }
 
             res.json(result);
         } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            try {
+                await controller._updateStateWithRetry((state) => ({
+                    ...state,
+                    sessions: (state.sessions || []).map((entry) =>
+                        entry.id === id && entry.workspaceRotationStatus === 'rotating'
+                            ? { ...entry, workspaceRotationStatus: 'ready', workspaceRotationError: message }
+                            : entry
+                    )
+                }));
+            } catch (stateError) {
+                logger.info(`[merge] Failed to clear rotating state after controller error: ${stateError instanceof Error ? stateError.message : String(stateError)}`);
+            }
             controller._respondError(res, 'Failed to merge worktree:', error);
         }
     };

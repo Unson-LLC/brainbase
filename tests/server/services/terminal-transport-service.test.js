@@ -27,6 +27,7 @@ function buildService() {
     const sessionManager = {
         sendInput: vi.fn(async () => {}),
         resizeSessionWindow: vi.fn(async () => {}),
+        scrollSession: vi.fn(async () => {}),
         exitCopyMode: vi.fn(async () => {}),
         touchTerminalOwnership: vi.fn(),
         releaseTerminalOwnership: vi.fn(() => true),
@@ -324,7 +325,7 @@ describe('TerminalTransportService', () => {
         expect(service._shouldCheckPastedTextOverlay('line one\nline two\n')).toBe(true);
     });
 
-    it('ready送信時_履歴付きeager snapshotを送る', async () => {
+    it('ready送信時_履歴付きeager snapshotを送らずstreaming開始をブロックしない', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({
             text: 'history\nsnapshot',
@@ -352,20 +353,8 @@ describe('TerminalTransportService', () => {
 
         const sent = ws.send.mock.calls.map(call => JSON.parse(call[0]));
         const sentTypes = sent.map(message => message.type);
-        expect(sentTypes).toEqual(['ready', 'snapshot']);
-        expect(sent[1]).toMatchObject({
-            type: 'snapshot',
-            text: 'history\nsnapshot',
-            colorText: '\x1b[32mhistory\x1b[0m\n\x1b[32msnapshot\x1b[0m',
-            cursor: { x: 2, y: 12 }
-        });
-        expect(sent[1].screenOnly).toBe(false);
-        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
-            lines: 5000,
-            includeColors: true,
-            includeCopyMode: true,
-            visibleOnly: false
-        });
+        expect(sentTypes).toEqual(['ready']);
+        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
@@ -447,7 +436,7 @@ describe('TerminalTransportService', () => {
         });
     });
 
-    it('ready直後の同一full history snapshotはpollingで二重送信しない', async () => {
+    it('ready直後のsnapshot-pollingでは初回full history snapshotを送る', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValue({
             text: 'same-history',
@@ -480,7 +469,13 @@ describe('TerminalTransportService', () => {
             const msg = JSON.parse(call[0]);
             return msg.type === 'snapshot';
         });
-        expect(snapshotCall).toBeFalsy();
+        expect(snapshotCall).toBeTruthy();
+        expect(JSON.parse(snapshotCall[0])).toMatchObject({
+            type: 'snapshot',
+            text: 'same-history',
+            colorText: '\x1b[32msame-history\x1b[0m',
+            screenOnly: false
+        });
     });
 
     it('connection開始時_control-mode streamingを使い初回snapshot fallbackを予約する', async () => {
@@ -669,6 +664,36 @@ describe('TerminalTransportService', () => {
 
         expect(sessionManager.exitCopyMode).toHaveBeenCalledWith('session-1');
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+    });
+
+    it('INV-4/S-3 alternate buffer scroll message はtmux scrollSessionへ送る', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws,
+            transport: 'streaming',
+            inputReady: true
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'scroll',
+            direction: 'up',
+            steps: 20
+        }));
+
+        expect(sessionManager.scrollSession).toHaveBeenCalledWith('session-1', 'up', 8);
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+        expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+        const statusCall = ws.send.mock.calls.find((call) => JSON.parse(call[0]).type === 'status');
+        expect(JSON.parse(statusCall[0])).toMatchObject({
+            type: 'status',
+            mode: 'live',
+            copyMode: true,
+            transport: 'streaming'
+        });
     });
 
     it('streaming resize message で tmux pane をリサイズしてから control client をrefreshする', async () => {

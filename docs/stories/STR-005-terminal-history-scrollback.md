@@ -30,6 +30,7 @@ updated_at: 2026-05-09
 - steady-state polling は引き続き可視paneだけを送る。
 - 可視pane更新は xterm の scrollback を消さない。
 - 履歴ロード用 snapshot は tmux `history-limit` と揃う 5000 行まで取得できるようにする。
+- alternate buffer の wheel/touch は tmux scroll に委譲し、通常 buffer は native xterm/ttyd scrollback を奪わない。
 
 ## 受け入れ基準
 
@@ -38,6 +39,7 @@ updated_at: 2026-05-09
 - [x] client は履歴付き snapshot で scrollback を初期化し、以後の `screenOnly` snapshot で scrollback を消さない
 - [x] snapshot API/cache は履歴ロード用途で最大5000行を扱える
 - [x] `グローウィン` のように tmux履歴があるセッションで、Playwright上の xterm `baseY` が現在画面数行ではなく履歴分に増える
+- [x] alternate buffer セッションだけ tmux scroll を使い、通常 buffer セッションでは wheel/touch が native scrollback を動かせる
 
 ## 検証
 

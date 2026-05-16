@@ -116,7 +116,11 @@ export function installContextHandlers(controller) {
                 id,
                 repoPath,
                 session.worktree?.startCommit || null,
-                { fetchRemote: false }
+                {
+                    fetchRemote: false,
+                    workspaceId: session.activeWorkspaceId || session.worktree?.workspaceId || id,
+                    generation: session.worktree?.generation
+                }
             );
 
             const changesNotPushed = status.changesNotPushed || 0;

@@ -742,21 +742,22 @@ export class SessionService {
      * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
      */
     async mergeSession(sessionId) {
-        // マージ前に現在表示中のセッションかチェック
-        const { currentSessionId } = this.store.getState();
-        const wasCurrentSession = currentSessionId === sessionId;
-
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/merge`
         );
 
         if (result.success) {
             await this.loadSessions();
-            await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
-
-            if (wasCurrentSession) {
-                await this._switchToNextActive(sessionId);
-            }
+            await this.eventBus.emit(EVENTS.SESSION_UPDATED, {
+                sessionId,
+                updates: {
+                    merged: true,
+                    mergedAt: result.mergedAt || null,
+                    mergedPrUrl: result.prUrl || null,
+                    activeWorkspaceId: result.rotation?.active?.workspaceId || null,
+                    workspaceRotationStatus: 'ready'
+                }
+            });
         }
 
         return result;

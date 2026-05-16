@@ -293,8 +293,9 @@
         if (!term) return;
 
         if (!isTerminalTarget(e.target)) return;
+        if (!isAlternateBuffer(term)) return;
 
-        // Prevent page scroll / default behavior and block xterm wheel handling
+        // In alternate buffer, native xterm scrollback cannot move. Delegate to tmux copy-mode.
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -318,8 +319,10 @@
             const term = window.term;
             if (!term) return;
             if (!e.touches || e.touches.length !== 1) return;
+            if (!isTerminalTarget(e.target)) return;
+            if (!isAlternateBuffer(term)) return;
 
-            // Prevent xterm from interpreting scroll as history navigation
+            // In alternate buffer, native xterm scrollback cannot move. Delegate to tmux copy-mode.
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
