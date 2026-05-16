@@ -223,14 +223,18 @@ test.describe('codex terminal startup compatibility', () => {
         // terminal/ensure API から ttyd URL を取得（UIクリック不要）
         await page.goto(BASE_URL);
         await page.waitForLoadState('domcontentloaded');
-        const sessions = await page.evaluate(async (base) => {
+        const allSessions = await page.evaluate(async (base) => {
             const r = await fetch(`${base}/api/state`);
             const d = await r.json();
             return (d.sessions || []).filter(s => s.engine === 'codex' && s.intendedState === 'active');
         }, BASE_URL);
+        const sessions = allSessions.filter((session) => {
+            const workspacePath = getSessionWorkspacePath(session);
+            return workspacePath && existsSync(workspacePath);
+        });
 
         if (!sessions.length) {
-            test.skip('アクティブな codex セッションが存在しない');
+            test.skip('実在するworkspaceを持つアクティブな codex セッションが存在しない');
             return;
         }
 

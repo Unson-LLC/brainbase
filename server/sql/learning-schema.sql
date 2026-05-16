@@ -243,7 +243,7 @@ ALTER TABLE memory_candidates
 
 ALTER TABLE memory_candidates
     ADD CONSTRAINT memory_candidates_visibility_check
-    CHECK (visibility IN ('private', 'role', 'project', 'org'));
+    CHECK (visibility IN ('private', 'role', 'project', 'owner', 'team', 'org', 'public'));
 
 ALTER TABLE memory_candidates
     DROP CONSTRAINT IF EXISTS memory_candidates_role_min_check;
@@ -257,7 +257,7 @@ ALTER TABLE memory_candidates
 
 ALTER TABLE memory_candidates
     ADD CONSTRAINT memory_candidates_sensitivity_check
-    CHECK (sensitivity IN ('internal', 'restricted', 'hr', 'finance', 'contract'));
+    CHECK (sensitivity IN ('internal', 'restricted', 'confidential', 'top-secret', 'hr', 'finance', 'contract'));
 
 ALTER TABLE memory_candidates
     DROP CONSTRAINT IF EXISTS memory_candidates_promotion_status_check;
