@@ -147,6 +147,8 @@ describe('SnsGrowthCockpitView', () => {
         document.body.innerHTML = '<main id="root"></main>';
         container = document.getElementById('root');
         vi.restoreAllMocks();
+        vi.useRealTimers();
+        Object.defineProperty(document, 'hidden', { configurable: true, value: false });
     });
 
     it('Brainbase loop navigation and Ship Calendar surface are rendered', () => {
@@ -256,6 +258,94 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.textContent).toContain('SNS Posting Ledgerから1件を表示中');
         expect(container.textContent).toContain('@AIBizNavigator');
         expect(container.textContent).toContain('env ready');
+    });
+
+    it('auto-refreshes posts from the SNS Posting Ledger while the page stays mounted', async () => {
+        vi.useFakeTimers();
+        const refreshedPost = {
+            ...posts[1],
+            id: 'sns_20260513_3_ohayo_imported',
+            title: 'ohayoで追加された投稿',
+            body: 'ohayoで作った投稿候補をハードリフレッシュなしで表示する'
+        };
+        let calls = 0;
+        const apiClient = {
+            listPosts: async () => {
+                calls += 1;
+                return { posts: calls === 1 ? [posts[0]] : [posts[0], refreshedPost] };
+            },
+            listAccounts: async () => ({ accounts }),
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13', autoRefreshIntervalMs: 50 });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(container.textContent).toContain('生産性を最大化する情報の流れ設計');
+        expect(container.textContent).not.toContain('ohayoで追加された投稿');
+
+        await vi.advanceTimersByTimeAsync(50);
+        await Promise.resolve();
+
+        expect(calls).toBeGreaterThanOrEqual(2);
+        expect(container.textContent).toContain('ohayoで追加された投稿');
+        expect(container.textContent).toContain('SNS Posting Ledgerから2件を表示中');
+        view.unmount();
+    });
+
+    it('skips auto-refresh while a detail field is being edited', async () => {
+        const refreshedPost = {
+            ...posts[0],
+            body: 'サーバー側で更新された本文'
+        };
+        let calls = 0;
+        const apiClient = {
+            listPosts: async () => {
+                calls += 1;
+                return { posts: calls === 1 ? [posts[0]] : [refreshedPost] };
+            },
+            listAccounts: async () => ({ accounts }),
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13', autoRefreshIntervalMs: 0 });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const bodyField = container.querySelector('[data-detail-field="body"]');
+        bodyField.focus();
+        bodyField.value = '編集中の未保存本文';
+        await view._refreshFromExternalChange('test');
+
+        expect(calls).toBe(1);
+        expect(container.querySelector('[data-detail-field="body"]').value).toBe('編集中の未保存本文');
+        expect(container.textContent).not.toContain('サーバー側で更新された本文');
+    });
+
+    it('cleans up SNS Ledger auto-refresh listeners on unmount', async () => {
+        vi.useFakeTimers();
+        let calls = 0;
+        const apiClient = {
+            listPosts: async () => {
+                calls += 1;
+                return { posts: [posts[0]] };
+            },
+            listAccounts: async () => ({ accounts }),
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13', autoRefreshIntervalMs: 50 });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(calls).toBe(1);
+
+        view.unmount();
+        await vi.advanceTimersByTimeAsync(100);
+        window.dispatchEvent(new Event('focus'));
+        await Promise.resolve();
+
+        expect(calls).toBe(1);
     });
 
     it('renders account management status without leaking credential secrets', async () => {

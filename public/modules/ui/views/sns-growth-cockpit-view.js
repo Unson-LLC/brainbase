@@ -45,6 +45,12 @@ const SUMMARY_ITEMS = [
 ];
 
 const TIMES = ['09:00', '12:00', '15:00', '18:00', '21:00'];
+const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 15000;
+
+function defaultAutoRefreshIntervalMs() {
+    const isTestRuntime = typeof process !== 'undefined' && process.env?.VITEST;
+    return isTestRuntime ? 0 : DEFAULT_AUTO_REFRESH_INTERVAL_MS;
+}
 
 function pad2(value) {
     return String(value).padStart(2, '0');
@@ -178,7 +184,15 @@ function createDefaultApiClient() {
 }
 
 export class SnsGrowthCockpitView extends BaseView {
-    constructor({ posts = null, accounts = null, apiClient = null, today = todayJst(), startDate = null, endDate = null } = {}) {
+    constructor({
+        posts = null,
+        accounts = null,
+        apiClient = null,
+        today = todayJst(),
+        startDate = null,
+        endDate = null,
+        autoRefreshIntervalMs = defaultAutoRefreshIntervalMs()
+    } = {}) {
         super();
         this.today = today;
         this.startDate = startDate || weekStart(today);
@@ -198,6 +212,10 @@ export class SnsGrowthCockpitView extends BaseView {
         this.noticeMessage = '';
         this.accountNoticeMessage = '';
         this.accountHealth = {};
+        this.autoRefreshIntervalMs = Number(autoRefreshIntervalMs) || 0;
+        this._autoRefreshTimer = null;
+        this._focusRefreshHandler = null;
+        this._visibilityRefreshHandler = null;
     }
 
     mount(container) {
@@ -208,23 +226,76 @@ export class SnsGrowthCockpitView extends BaseView {
         if (this._autoLoadAccounts) {
             this.loadAccounts();
         }
+        this._startAutoRefresh();
     }
 
-    async loadPosts() {
+    async loadPosts({ silent = false } = {}) {
         if (!this.apiClient?.listPosts) return;
-        this.isLoading = true;
-        this.errorMessage = '';
-        this.render();
+        if (!silent) {
+            this.isLoading = true;
+            this.errorMessage = '';
+            this.render();
+        }
         try {
             const result = await this.apiClient.listPosts({ startDate: this.startDate, endDate: this.endDate });
             this.posts = normalizePosts(result.posts || []);
             this.selectedPostId = this._selectedPost()?.id || null;
         } catch (error) {
-            this.errorMessage = error?.message || 'SNS posting ledgerを読み込めません';
+            if (!silent) {
+                this.errorMessage = error?.message || 'SNS posting ledgerを読み込めません';
+            } else {
+                console.warn('SNS posting ledger auto refresh failed:', error?.message || error);
+            }
         } finally {
-            this.isLoading = false;
+            if (!silent) {
+                this.isLoading = false;
+            }
             this.render();
         }
+    }
+
+    _startAutoRefresh() {
+        if (!this._autoLoad || this.autoRefreshIntervalMs <= 0 || typeof window === 'undefined') return;
+        this._stopAutoRefresh();
+        this._autoRefreshTimer = window.setInterval(() => {
+            void this._refreshFromExternalChange('interval');
+        }, this.autoRefreshIntervalMs);
+        this._focusRefreshHandler = () => {
+            void this._refreshFromExternalChange('focus');
+        };
+        this._visibilityRefreshHandler = () => {
+            if (!document.hidden) {
+                void this._refreshFromExternalChange('visibilitychange');
+            }
+        };
+        window.addEventListener('focus', this._focusRefreshHandler);
+        document.addEventListener('visibilitychange', this._visibilityRefreshHandler);
+    }
+
+    _stopAutoRefresh() {
+        if (this._autoRefreshTimer && typeof window !== 'undefined') {
+            window.clearInterval(this._autoRefreshTimer);
+        }
+        this._autoRefreshTimer = null;
+        if (this._focusRefreshHandler && typeof window !== 'undefined') {
+            window.removeEventListener('focus', this._focusRefreshHandler);
+        }
+        if (this._visibilityRefreshHandler && typeof document !== 'undefined') {
+            document.removeEventListener('visibilitychange', this._visibilityRefreshHandler);
+        }
+        this._focusRefreshHandler = null;
+        this._visibilityRefreshHandler = null;
+    }
+
+    _hasActiveDetailEdit() {
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        return Boolean(active && this.container?.contains(active) && active.matches?.('[data-detail-field]'));
+    }
+
+    async _refreshFromExternalChange(_reason = 'auto') {
+        if (!this._autoLoad || this.isLoading || this._hasActiveDetailEdit()) return;
+        if (_reason === 'interval' && typeof document !== 'undefined' && document.hidden) return;
+        await this.loadPosts({ silent: true });
     }
 
     async loadAccounts() {
@@ -486,6 +557,7 @@ export class SnsGrowthCockpitView extends BaseView {
     }
 
     unmount() {
+        this._stopAutoRefresh();
         if (this.container && this._clickHandler) {
             this.container.removeEventListener('click', this._clickHandler);
         }
