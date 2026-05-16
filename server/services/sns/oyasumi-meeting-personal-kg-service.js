@@ -15,6 +15,8 @@ const PROJECT_ORGS = {
 };
 
 const SOURCE_SYSTEM = 'oyasumi-meeting-personal-kg';
+const MEMORY_LAYER_CORE = 'personal_kg_core';
+const MEMORY_LAYER_SNS_READY = 'sns_ready';
 
 function normalizeSpaces(value) {
     return String(value || '').replace(/\s+/gu, ' ').trim();
@@ -52,15 +54,44 @@ function orgsFor(projectCode) {
     return PROJECT_ORGS[projectCode] || ['unson', projectCode].filter(Boolean);
 }
 
-function githubRef(meeting, suffix) {
-    return `github:${meeting.repo}:${meeting.path}#${suffix}`;
+function sourcePathFor(meeting, sourceKind = 'minutes') {
+    if (sourceKind === 'transcript' && meeting.transcript_path) return meeting.transcript_path;
+    return meeting.path;
 }
 
-function buildCandidate({ meeting, date, key, category, cognitiveType, body, confidence = 0.78 }) {
+function sourceUrlFor(meeting, sourceKind = 'minutes') {
+    if (sourceKind === 'transcript' && meeting.transcript_html_url) {
+        return meeting.transcript_html_url;
+    }
+    if (sourceKind !== 'transcript' || !meeting.transcript_path || !meeting.html_url) {
+        return meeting.html_url || null;
+    }
+    return String(meeting.html_url).replace(/\/meetings\/minutes\//u, '/meetings/transcripts/').replace(/\.md$/u, '.txt');
+}
+
+function githubRef(meeting, suffix, sourceKind = 'minutes') {
+    return `github:${meeting.repo}:${sourcePathFor(meeting, sourceKind)}#${suffix}`;
+}
+
+function buildCandidate({
+    meeting,
+    date,
+    key,
+    category,
+    cognitiveType,
+    body,
+    confidence = 0.78,
+    memoryLayer = MEMORY_LAYER_SNS_READY,
+    agentRole = 'sns_projection',
+    sourceKind = 'minutes',
+    projectionOf = null
+}) {
     const projectCode = projectOrDefault(meeting);
-    const sourceEventId = githubRef(meeting, `${category}:${key}`);
-    const meetingSlug = idPart(String(meeting.path || 'meeting').split('/').pop()?.replace(/\.[^.]+$/u, '') || 'meeting');
-    const stableId = `oyasumi_${date.replace(/-/gu, '')}_${idPart(projectCode)}_${meetingSlug}_${idPart(key)}`.slice(0, 180);
+    const sourceEventId = githubRef(meeting, `${memoryLayer}:${category}:${key}`, sourceKind);
+    const sourcePath = sourcePathFor(meeting, sourceKind);
+    const sourceUrl = sourceUrlFor(meeting, sourceKind);
+    const meetingSlug = idPart(String(sourcePath || 'meeting').split('/').pop()?.replace(/\.[^.]+$/u, '') || 'meeting');
+    const stableId = `oyasumi_${date.replace(/-/gu, '')}_${idPart(projectCode)}_${meetingSlug}_${idPart(memoryLayer)}_${idPart(key)}`.slice(0, 180);
     return {
         id: stableId,
         cognitive_type: cognitiveType,
@@ -83,10 +114,16 @@ function buildCandidate({ meeting, date, key, category, cognitiveType, body, con
         permission_snapshot: {
             oyasumi_meeting_personal_kg: {
                 category,
+                memory_layer: memoryLayer,
+                agent_role: agentRole,
+                source_kind: sourceKind,
+                projection_of: projectionOf,
                 meeting_date: date,
                 repo: meeting.repo,
-                path: meeting.path,
-                html_url: meeting.html_url || null,
+                path: sourcePath,
+                minutes_path: meeting.path,
+                transcript_path: meeting.transcript_path || null,
+                html_url: sourceUrl,
                 sha: meeting.sha || null,
                 extraction_decision: 'adopted',
                 rule_id: key,
@@ -94,7 +131,7 @@ function buildCandidate({ meeting, date, key, category, cognitiveType, body, con
             }
         },
         evidence_ids: [{
-            uri: meeting.html_url || sourceEventId,
+            uri: sourceUrl || sourceEventId,
             source_ref: sourceEventId,
             sha: meeting.sha || null
         }]
@@ -136,6 +173,41 @@ const ADOPTION_RULES = [
         cognitiveType: 'preference',
         matches: (content) => /AIプロンプト.*Slack.*DM/u.test(content) || /生意気なChatGPTプロンプト/u.test(content),
         body: 'AI活用の学習は、抽象論ではなく現場で使えるプロンプトや判断基準を共有し、相手の業務文脈に合わせて使える状態にすることが重要である。'
+    }
+];
+
+const PERSONAL_KG_CORE_RULES = [
+    {
+        key: 'brainbase-thinks-as-my-brain',
+        category: 'philosophy',
+        cognitiveType: 'claim',
+        sourceKind: 'transcript',
+        matches: (content) => /俺の脳で考えて|哲学.*データベース|関連する思想/u.test(content),
+        body: 'Brainbaseは、自分の哲学や判断基準をデータベース化し、「俺の脳で考えて」と言える状態を作るための個人脳である。'
+    },
+    {
+        key: 'ai-non-submissive-dialogue',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'transcript',
+        matches: (content) => /媚び|生意気なChatGPT|議論させる/u.test(content),
+        body: 'AIに媚びさせるのではなく、生意気に議論させることで、人間側の審美眼と判断基準を鍛える。'
+    },
+    {
+        key: 'claude-codex-task-fit',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'transcript',
+        matches: (content) => /Claude Code.*Codex|Codex.*Claude Code|トークン.*向き不向き/u.test(content),
+        body: 'Claude CodeとCodexは優劣ではなく、タスクとトークンの向き不向きで使い分ける実務ツールである。'
+    },
+    {
+        key: 'ai-democratizes-like-excel',
+        category: 'philosophy',
+        cognitiveType: 'hypothesis',
+        sourceKind: 'transcript',
+        matches: (content) => /Excel|民主化/u.test(content) && /AI/u.test(content),
+        body: 'AIはExcelのように民主化する。差が出るのはツールを触れることではなく、会社で使える形に落とす設計である。'
     }
 ];
 
@@ -219,7 +291,31 @@ function sanitizeAdopted(candidates) {
     });
 }
 
-function extractFromMeeting({ meeting, date }) {
+function extractCoreFromMeeting({ meeting, date }) {
+    const transcript = normalizeSpaces(meeting.transcript_content || '');
+    const minutes = normalizeSpaces(meeting.content || '');
+    const adopted = [];
+    for (const rule of PERSONAL_KG_CORE_RULES) {
+        const sourceKind = rule.sourceKind === 'transcript' && transcript ? 'transcript' : 'minutes';
+        const content = sourceKind === 'transcript' ? transcript : `${minutes} ${transcript}`;
+        if (!rule.matches(content)) continue;
+        adopted.push(buildCandidate({
+            meeting,
+            date,
+            key: rule.key,
+            category: rule.category,
+            cognitiveType: rule.cognitiveType,
+            body: rule.body,
+            confidence: 0.82,
+            memoryLayer: MEMORY_LAYER_CORE,
+            agentRole: 'personal_kg_extractor',
+            sourceKind
+        }));
+    }
+    return sanitizeAdopted(adopted);
+}
+
+function projectSnsReadyFromMeeting({ meeting, date }) {
     const content = normalizeSpaces(meeting.content || '');
     const adopted = [];
     for (const rule of ADOPTION_RULES) {
@@ -231,11 +327,21 @@ function extractFromMeeting({ meeting, date }) {
             category: rule.category,
             cognitiveType: rule.cognitiveType,
             body: rule.body,
-            confidence: rule.category === 'proof' ? 0.88 : 0.8
+            confidence: rule.category === 'proof' ? 0.88 : 0.8,
+            memoryLayer: MEMORY_LAYER_SNS_READY,
+            agentRole: 'sns_projection',
+            sourceKind: 'minutes',
+            projectionOf: rule.key
         }));
     }
+    return sanitizeAdopted(adopted);
+}
+
+function extractFromMeeting({ meeting, date }) {
+    const core = extractCoreFromMeeting({ meeting, date });
+    const snsReady = projectSnsReadyFromMeeting({ meeting, date });
     return {
-        adopted: sanitizeAdopted(adopted),
+        adopted: [...core, ...snsReady],
         rejected: rejectSensitiveSections(meeting, date),
         needs_review: needsHumanReview(meeting, date)
     };
@@ -264,8 +370,44 @@ function extractMeetingPersonalKgCandidates({ date, meetings = [] }) {
         needsReview.push(...result.needs_review);
     }
     const finalAdopted = dedupeBySourceEvent(adopted);
+    const transcriptSourceCount = meetings.filter((meeting) => meeting.transcript_content).length;
+    const coreCount = finalAdopted.filter((candidate) => candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.memory_layer === MEMORY_LAYER_CORE).length;
+    const snsReadyCount = finalAdopted.filter((candidate) => candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.memory_layer === MEMORY_LAYER_SNS_READY).length;
+    const reports = [
+        {
+            role: 'meeting_harvester',
+            status: 'completed',
+            input_count: meetings.length,
+            output_count: meetings.length,
+            notes: [`transcript_sources=${transcriptSourceCount}`]
+        },
+        {
+            role: 'personal_kg_extractor',
+            status: transcriptSourceCount > 0 && coreCount === 0 ? 'needs_review' : 'completed',
+            input_count: meetings.length,
+            output_count: coreCount,
+            notes: transcriptSourceCount > 0 && coreCount === 0
+                ? ['transcript was present but no personal_kg_core candidate was extracted']
+                : []
+        },
+        {
+            role: 'sensitivity_reviewer',
+            status: 'completed',
+            input_count: meetings.length,
+            output_count: rejected.length + needsReview.length,
+            notes: []
+        },
+        {
+            role: 'sns_projection',
+            status: 'completed',
+            input_count: coreCount,
+            output_count: snsReadyCount,
+            notes: []
+        }
+    ];
     return {
         ...summarizeExtraction({ date, adopted: finalAdopted, rejected, needsReview }),
+        agent_reports: reports,
         adopted: finalAdopted,
         rejected,
         needs_review: needsReview

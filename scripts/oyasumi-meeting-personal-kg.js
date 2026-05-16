@@ -94,14 +94,51 @@ async function listMinutePaths({ repo, date }) {
 async function fetchMeeting({ repo, path, projectCode }) {
     const metadata = await ghJson(`repos/${repo}/contents/${path}`);
     const content = await ghRaw(`repos/${repo}/contents/${path}`);
+    const transcript = await fetchCompanionTranscript({ repo, minutesPath: path });
     return {
         repo,
         path,
         html_url: metadata.html_url,
         sha: metadata.sha,
         project_code: projectCode,
-        content
+        content,
+        transcript_path: transcript?.path || null,
+        transcript_html_url: transcript?.html_url || null,
+        transcript_sha: transcript?.sha || null,
+        transcript_content: transcript?.content || ''
     };
+}
+
+function companionTranscriptPath(minutesPath) {
+    const path = String(minutesPath || '');
+    if (!path.includes('/minutes/')) return null;
+    return path.replace('/minutes/', '/transcripts/').replace(/\.md$/u, '.txt');
+}
+
+async function fetchCompanionTranscript({ repo, minutesPath }) {
+    const transcriptPath = companionTranscriptPath(minutesPath);
+    if (!transcriptPath) return null;
+    try {
+        const metadata = await ghJson(`repos/${repo}/contents/${transcriptPath}`);
+        const content = await ghRaw(`repos/${repo}/contents/${transcriptPath}`);
+        return {
+            path: transcriptPath,
+            html_url: metadata.html_url,
+            sha: metadata.sha,
+            content
+        };
+    } catch (error) {
+        const errorText = [
+            error?.stderr,
+            error?.stdout,
+            error?.message,
+            String(error)
+        ].filter(Boolean).join('\n');
+        if (/Not Found|HTTP 404|404/u.test(errorText)) {
+            return null;
+        }
+        throw error;
+    }
 }
 
 async function loadMeetings({ repo, date, paths, project }) {
@@ -125,6 +162,13 @@ function outputText({ extracted, writeSummary, write }) {
         lines.push(`inserted: ${writeSummary.inserted}`);
         lines.push(`skipped: ${writeSummary.skipped}`);
         lines.push(`blocked: ${writeSummary.blocked}`);
+    }
+    if (Array.isArray(extracted.agent_reports) && extracted.agent_reports.length > 0) {
+        lines.push('');
+        lines.push('agent reports:');
+        for (const report of extracted.agent_reports) {
+            lines.push(`- ${report.role}: ${report.status} input=${report.input_count} output=${report.output_count}`);
+        }
     }
     if (extracted.adopted.length > 0) {
         lines.push('');
@@ -184,7 +228,10 @@ async function main() {
             path: meeting.path,
             html_url: meeting.html_url,
             sha: meeting.sha,
-            project_code: meeting.project_code
+            project_code: meeting.project_code,
+            transcript_path: meeting.transcript_path,
+            transcript_html_url: meeting.transcript_html_url,
+            transcript_sha: meeting.transcript_sha
         })),
         extracted,
         write_summary: writeSummary
@@ -192,12 +239,15 @@ async function main() {
     console.log(args.json ? JSON.stringify(payload, null, 2) : outputText({ extracted, writeSummary, write: args.write }));
 }
 
-main().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
 
 export {
     parseArgs,
-    loadMeetings
+    loadMeetings,
+    companionTranscriptPath
 };

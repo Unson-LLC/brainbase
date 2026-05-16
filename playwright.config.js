@@ -1,8 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
+const DEFAULT_PORT = isWorktree ? 31014 : 31013;
+const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT));
 const BASE_URL = process.env.BRAINBASE_BASE_URL
-    || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+    || `http://localhost:${PORT}`;
 
 export default defineConfig({
     testDir: './tests/e2e',
@@ -10,7 +12,7 @@ export default defineConfig({
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
-    workers: process.env.CI ? 1 : undefined,
+    workers: 1,
     reporter: [
         ['html', { outputFolder: 'var/playwright-report' }],
         ['list']

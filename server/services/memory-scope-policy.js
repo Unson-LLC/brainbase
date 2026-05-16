@@ -128,7 +128,7 @@ export function evaluateMemoryScope(record, rawContext = {}) {
         return { ...resultBase, allowed: false, reason: 'role_denied' };
     }
 
-    if (memory.visibility === 'private') {
+    if (memory.visibility === 'private' || memory.visibility === 'owner') {
         const elevatedContext = context.roles.includes('gm') || context.roles.includes('ceo');
         if (memory.owner_person_id !== context.person_id || elevatedContext) {
             return { ...resultBase, allowed: false, reason: 'private_scope_denied' };
@@ -136,7 +136,7 @@ export function evaluateMemoryScope(record, rawContext = {}) {
         return { ...resultBase, allowed: true };
     }
 
-    if (memory.visibility === 'project' || memory.visibility === 'role' || memory.visibility === 'org') {
+    if (memory.visibility === 'project' || memory.visibility === 'role' || memory.visibility === 'team' || memory.visibility === 'org' || memory.visibility === 'public') {
         return { ...resultBase, allowed: true };
     }
 

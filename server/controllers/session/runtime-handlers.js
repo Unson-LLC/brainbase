@@ -7,6 +7,11 @@ import { TAKEOVER_COOLDOWN_MS } from './constants.js';
 
 const execAsync = promisify(exec);
 
+function isMissingTmuxPaneError(error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    return message.includes("can't find pane") || message.includes('no server running on');
+}
+
 async function repairCollapsedTerminalGeometry(controller, sessionId, reason) {
     if (typeof controller.terminalIo?.repairCollapsedSessionWindow !== 'function') {
         return null;
@@ -254,6 +259,20 @@ export function installRuntimeHandlers(controller) {
             if (payload.colorText) response.colorText = payload.colorText;
             res.json(response);
         } catch (error) {
+            if (isMissingTmuxPaneError(error)) {
+                logger.debug?.('[terminal snapshot] stale tmux pane', { sessionId: id });
+                return res.json({
+                    sessionId: id,
+                    text: '',
+                    colorText: null,
+                    copyMode: false,
+                    cursor: null,
+                    capturedAt: new Date().toISOString(),
+                    terminalAccess: terminalAccess || null,
+                    source: 'stale_tmux_pane',
+                    stale: true
+                });
+            }
             controller._respondError(res, `Failed to get terminal snapshot for ${id}:`, error);
         }
     };

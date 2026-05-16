@@ -50,6 +50,13 @@ const DINNER_MINUTES = [
     '- 佐藤さんから堀さんへ「生意気なChatGPTプロンプト」をDMで共有済み'
 ].join('\n');
 
+const DINNER_TRANSCRIPT = [
+    '佐藤: Claude CodeとCodexはどちらか一方ではなく、タスクとトークンの向き不向きで使い分けている。',
+    '佐藤: AIを使う上で重要なのは審美眼。AIに媚びさせるのではなく、生意気なChatGPTとして議論させる。',
+    '佐藤: 自分の哲学をデータベースやルールに入れておく。俺の脳で考えて、と言えば関連する思想を取り出してAIが判断できるようにする。',
+    '佐藤: AIはExcelのように民主化する。差が出るのはツールを触れるかではなく、会社で使える形に落とす設計である。'
+].join('\n');
+
 function sampleMeetings() {
     return [
         {
@@ -66,7 +73,9 @@ function sampleMeetings() {
             html_url: 'https://github.com/Unson-LLC/salestailor-project/blob/main/meetings/minutes/2026-05-15_business-ai-future-dinner-meeting.md',
             sha: '69a8001f8fc6e69c98c2c231efcf5aa200bfe2c8',
             project_code: 'salestailor',
-            content: DINNER_MINUTES
+            content: DINNER_MINUTES,
+            transcript_path: 'meetings/transcripts/2026-05-15_business-ai-future-dinner-meeting.txt',
+            transcript_content: DINNER_TRANSCRIPT
         }
     ];
 }
@@ -79,6 +88,12 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         });
 
         expect(result.source_system).toBe(SOURCE_SYSTEM);
+        expect(result.agent_reports).toEqual(expect.arrayContaining([
+            expect.objectContaining({ role: 'meeting_harvester', status: 'completed' }),
+            expect.objectContaining({ role: 'personal_kg_extractor', status: 'completed' }),
+            expect.objectContaining({ role: 'sensitivity_reviewer', status: 'completed' }),
+            expect.objectContaining({ role: 'sns_projection', status: 'completed' })
+        ]));
         expect(result.adopted).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 source_system: SOURCE_SYSTEM,
@@ -99,6 +114,60 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(result.adopted.map((candidate) => candidate.body).join('\n')).not.toMatch(/娘|心臓|手術|医師|家族|懇親会|飲み会/u);
         expect(result.rejected).toEqual(expect.arrayContaining([
             expect.objectContaining({ reason: 'medical_or_health' })
+        ]));
+    });
+
+    it('S-1/INV-2 extracts transcript-derived personal_kg_core before SNS projection', () => {
+        const result = extractMeetingPersonalKgCandidates({
+            date: '2026-05-15',
+            meetings: sampleMeetings()
+        });
+
+        const coreCandidates = result.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
+        ));
+        const snsReadyCandidates = result.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'sns_ready'
+        ));
+
+        expect(coreCandidates).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                cognitive_type: 'claim',
+                body: expect.stringContaining('俺の脳で考えて')
+            }),
+            expect.objectContaining({
+                cognitive_type: 'preference',
+                body: expect.stringContaining('AIに媚びさせるのではなく')
+            })
+        ]));
+        expect(coreCandidates.map((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.source_kind
+        ))).toContain('transcript');
+        expect(snsReadyCandidates.length).toBeGreaterThan(0);
+        expect(snsReadyCandidates.every((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.projection_of
+        ))).toBe(true);
+    });
+
+    it('INV-1 does not mark transcript aggregation as fully completed when core extraction finds nothing', () => {
+        const result = extractMeetingPersonalKgCandidates({
+            date: '2026-05-15',
+            meetings: [{
+                repo: 'Unson-LLC/salestailor-project',
+                path: 'meetings/minutes/2026-05-15_empty.md',
+                project_code: 'salestailor',
+                content: '# empty',
+                transcript_path: 'meetings/transcripts/2026-05-15_empty.txt',
+                transcript_content: '雑談のみで、判断基準として残す内容はない。'
+            }]
+        });
+
+        expect(result.agent_reports).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                role: 'personal_kg_extractor',
+                status: 'needs_review',
+                output_count: 0
+            })
         ]));
     });
 

@@ -13,9 +13,9 @@ const OUTCOMES = new Set(['success', 'failure', 'partial']);
 const PROMOTION_HINTS = new Set(['auto', 'wiki', 'skill', 'both']);
 const APPLY_MODES = new Set(['auto', 'manual']);
 const MEMORY_SUBJECT_TYPES = new Set(['person', 'role', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term']);
-const MEMORY_VISIBILITIES = new Set(['private', 'role', 'project', 'org']);
+const MEMORY_VISIBILITIES = new Set(['private', 'role', 'project', 'owner', 'team', 'org', 'public']);
 const MEMORY_ROLE_MIN = new Set(['member', 'gm', 'ceo']);
-const MEMORY_SENSITIVITIES = new Set(['internal', 'restricted', 'hr', 'finance', 'contract']);
+const MEMORY_SENSITIVITIES = new Set(['internal', 'restricted', 'confidential', 'top-secret', 'hr', 'finance', 'contract']);
 const MEMORY_PROMOTION_STATUSES = new Set(['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired', 'promoted_to_graph']);
 const MEMORY_REDACTION_STATUSES = new Set(['none', 'redacted', 'needs_redaction']);
 const MEMORY_DRAFT_STATUSES = ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired'];
@@ -376,7 +376,7 @@ function normalizeMemoryCandidateInput(payload = {}) {
 }
 
 function isLowRiskPrivateMemoryCandidate(candidate) {
-    return candidate.visibility === 'private'
+    return (candidate.visibility === 'private' || candidate.visibility === 'owner')
         && candidate.sensitivity === 'internal'
         && candidate.role_min === 'member'
         && candidate.redaction_status === 'none'

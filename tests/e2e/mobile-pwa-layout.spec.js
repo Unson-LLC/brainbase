@@ -1,8 +1,10 @@
 import { test, expect, devices } from '@playwright/test';
 
-const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
+const DEFAULT_PORT = isWorktree ? 31014 : 31013;
+const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT));
 const BASE_URL = process.env.BRAINBASE_BASE_URL
-  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+  || `http://localhost:${PORT}`;
 
 test.use(devices['iPhone 12 Pro']);
 
@@ -42,8 +44,11 @@ async function injectTopBanners(page) {
     });
 
     await page.waitForFunction(() => {
+        const stack = document.getElementById('top-banner-stack');
         const value = window.getComputedStyle(document.body).getPropertyValue('--app-top-offset').trim();
-        return Number.parseInt(value, 10) > 0;
+        const offset = Number.parseInt(value, 10);
+        const stackHeight = stack ? Math.ceil(stack.getBoundingClientRect().height) : 0;
+        return offset > 0 && offset >= stackHeight;
     });
 }
 
