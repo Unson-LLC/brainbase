@@ -416,7 +416,7 @@ describe('SnsGrowthCockpitView', () => {
             listPosts: async () => ({ posts }),
             updatePost: async (id, patch) => {
                 calls.push({ id, patch });
-                return { post: { ...posts[0], ...patch, status: 'approved', revisions: [{ id: 'rev_1' }] } };
+                return { post: { ...posts[0], ...patch, status: 'scheduled', revisions: [{ id: 'rev_1' }] } };
             }
         };
         const view = new SnsGrowthCockpitView({ posts: [posts[0]], apiClient, today: '2026-05-13' });
@@ -428,12 +428,12 @@ describe('SnsGrowthCockpitView', () => {
         await Promise.resolve();
 
         expect(calls[0].id).toBe('sns_20260513_1_trust_balance');
-        expect(calls[0].patch.status).toBe('approved');
+        expect(calls[0].patch.status).toBe('scheduled');
         expect(calls[0].patch.body).toContain('レビュー境界');
-        expect(container.textContent).toContain('approved');
-        expect(container.textContent).toContain('承認しました');
+        expect(container.textContent).toContain('scheduled');
+        expect(container.textContent).toContain('承認して予約済みにしました');
         expect(container.querySelector('[data-sns-action="approve"]')).toBeNull();
-        expect(container.querySelector('[data-sns-action="schedule"]')).toBeTruthy();
+        expect(container.querySelector('[data-sns-action="publish-dry-run"]')).toBeTruthy();
     });
 
     it('publishes an approved post through the SNS publish bridge only after browser confirmation', async () => {

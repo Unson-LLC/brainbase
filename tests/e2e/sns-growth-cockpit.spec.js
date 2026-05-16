@@ -234,9 +234,9 @@ test.describe('SNS Growth Cockpit', () => {
         await page.locator(`.sns-calendar-post[data-post-id="${post.id}"]`).click();
         await page.locator('[data-sns-action="approve"]').click();
 
-        await expect(page.locator('.sns-growth-insight')).toContainText('承認しました');
-        await expect(page.locator('.sns-growth-detail')).toContainText('approved');
+        await expect(page.locator('.sns-growth-insight')).toContainText('承認して予約済みにしました');
+        await expect(page.locator('.sns-growth-detail')).toContainText('scheduled');
         await expect(page.locator('.sns-growth-detail [data-sns-action="approve"]')).toHaveCount(0);
-        await expect(page.locator('.sns-growth-detail [data-sns-action="schedule"]')).toBeVisible();
+        await expect(page.locator('.sns-growth-detail [data-sns-action="publish-dry-run"]')).toBeVisible();
     });
 });
