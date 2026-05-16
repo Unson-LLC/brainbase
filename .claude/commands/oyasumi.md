@@ -26,10 +26,18 @@
    - base ごとの column_name 差異対応（Brainbase だけ日本語、Zeims は 担当者 MultiSelect）
 8. **Phase 7**: 成功/失敗件数・残作業のサマリ報告
 
-## Personal KG Candidate Handoff
+## Personal KG Agent Handoff
 
-議事録のうち、SNS生成Contextで使える思想・実績・営業哲学・読者理解は、Graph/Wiki/NocoDBとは別に owner-visible personal KG candidate へ戻す。
-これは `/ohayo` の投稿生成が昨日の一次情報を使えるようにするための処理であり、議事録全文や私的情報を入れる処理ではない。
+議事録とtranscriptのうち、思想・実績・営業哲学・読者理解は、Graph/Wiki/NocoDBとは別に owner-visible personal KG candidate へ戻す。
+これは `/ohayo` の投稿生成だけでなく、今後AIが「俺の脳で考える」ための個人KG集約である。
+`/oyasumi` 自体はcandidate本文を直接作る作業者ではなく、以下のagent fan-out/fan-inを指揮するcoordinatorとして扱う。
+
+| agent role | responsibility |
+|---|---|
+| `meeting_harvester` | 当日minutesと同名transcriptを集め、source metadataを保持する |
+| `personal_kg_extractor` | SNS化前の `personal_kg_core` を抽出する |
+| `sensitivity_reviewer` | family/medical/private/counterparty confidentialを除外・要確認に分ける |
+| `sns_projection` | `personal_kg_core` のうちSNSで使えるものだけを `sns_ready` へ投影する |
 
 まず dry-run で採用/除外/要確認を確認する。
 
@@ -49,6 +57,9 @@ DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --
 - `source_system=oyasumi-meeting-personal-kg`
 - `owner_person_id=sato_keigo`
 - `visibility=owner`
+- candidateは `memory_layer=personal_kg_core` と `memory_layer=sns_ready` を分ける
+- transcriptがある場合は transcript を一次情報、minutesを補助情報として扱う
+- extraction結果には `agent_reports` を残し、role別のinput/output件数を確認する
 - 家族、医療、健康、個人の私的事情は candidate 化しない
 - 顧客・相手企業の未公開予算や未公開事情は `needs_review` に残し、人間確認なしにSNS素材へ使わない
 - 同じ議事録の同じ抽出単位は `source_event_ids` で重複投入しない
