@@ -26,6 +26,33 @@
    - base ごとの column_name 差異対応（Brainbase だけ日本語、Zeims は 担当者 MultiSelect）
 8. **Phase 7**: 成功/失敗件数・残作業のサマリ報告
 
+## Personal KG Candidate Handoff
+
+議事録のうち、SNS生成Contextで使える思想・実績・営業哲学・読者理解は、Graph/Wiki/NocoDBとは別に owner-visible personal KG candidate へ戻す。
+これは `/ohayo` の投稿生成が昨日の一次情報を使えるようにするための処理であり、議事録全文や私的情報を入れる処理ではない。
+
+まず dry-run で採用/除外/要確認を確認する。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --json
+```
+
+問題なければ本番 `brainbase_ssot.memory_candidates` へ書き込む。
+
+```bash
+DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --write --json
+```
+
+扱い:
+
+- `source_system=oyasumi-meeting-personal-kg`
+- `owner_person_id=sato_keigo`
+- `visibility=owner`
+- 家族、医療、健康、個人の私的事情は candidate 化しない
+- 顧客・相手企業の未公開予算や未公開事情は `needs_review` に残し、人間確認なしにSNS素材へ使わない
+- 同じ議事録の同じ抽出単位は `source_event_ids` で重複投入しない
+
 ## Archive Blocked Triage
 
 `/oyasumi` は archive blocked の日次整理トリガーでもある。Phase 7 の前に必ず実行する。
