@@ -47,6 +47,24 @@ changes cannot be committed to a stale merged branch.
 - VibePro PR evidence can trace implementation and tests to explicit spec
   clauses, without implicit fallback.
 
+## Existing Client Session-Service Branches
+
+This story changes only merge continuation behavior. Existing client-side
+session list/cache/delete/filter/recovery branches stay unchanged:
+
+- Cache restore and empty-cache handling, including `!cached?.sessions?.length`
+  and `cached.currentSessionId`, continue to behave as before.
+- Stopped-session and recovery checks, including
+  `session.intendedState === 'stopped'` and
+  `this.recoveryService.isStuck(sessionId)`, continue to behave as before.
+- Generic update/delete/filter selection branches, including `previousSession`,
+  `this._pendingDeletes.has(sessionId)`, `currentSessionId !== deletingSessionId`,
+  `sessionFilter`, `!showArchivedSessions`, and `!currentSessionId`, continue to
+  behave as before.
+- Archive/delete flows may still use `wasCurrentSession` to switch away from a
+  removed or archived session. `mergeSession` must not use that archive-style
+  switch-away behavior; it keeps the same visible session selected.
+
 ## Non-goals
 
 - Do not change the user-facing session identity model.

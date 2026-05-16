@@ -64,6 +64,17 @@ test_files:
   mutating the previous history record.
 - **S-5**: Worktree status on a rotated session reports the active generation
   status and exposes retired generation metadata only as history.
+- **S-6**: Existing client session list/cache/delete/filter/recovery branches
+  remain inherited behavior while merge continuation changes only
+  `mergeSession`: `!cached?.sessions?.length`, `cached.currentSessionId`,
+  `session.intendedState === 'stopped'`,
+  `this.recoveryService.isStuck(sessionId)`, `previousSession`,
+  `this._pendingDeletes.has(sessionId)`, `currentSessionId !== deletingSessionId`,
+  `sessionFilter`, `!showArchivedSessions`, and `!currentSessionId` continue to
+  behave as before.
+- **S-7**: Archive/delete flows may still use `wasCurrentSession` to switch away
+  from removed or archived sessions, but `mergeSession` must not use that
+  archive-style switch-away branch.
 
 ## Anti-patterns
 
@@ -80,7 +91,9 @@ test_files:
 
 | Clause | Test |
 |---|---|
-| INV-1, C-5, AP-4 | `tests/ui/session-workspace-generation-rotation.test.js` |
-| INV-2, INV-3, C-4, S-2, AP-3 | `tests/server/controllers/session-workspace-rotation.test.js` |
+| INV-1, C-3, C-5, S-1, AP-4 | `tests/unit/server-session-controller.test.js`, `tests/ui/session-workspace-generation-rotation.test.js` |
+| INV-2, C-4, S-5 | `tests/server/services/worktree-service-workspace-generation.test.js`, `tests/unit/server-session-controller.test.js` |
+| INV-3, S-2, S-3, AP-3 | `tests/unit/server-session-controller.test.js` |
 | INV-4, C-1, C-2, S-1, AP-1, AP-2 | `tests/server/services/worktree-service-workspace-generation.test.js` |
-| INV-5, C-3, S-3, S-4, S-5 | `tests/server/controllers/session-workspace-rotation.test.js` |
+| INV-5, S-4 | `tests/unit/server-session-controller.test.js` |
+| S-6, S-7 | `tests/ui/session-workspace-generation-rotation.test.js` |

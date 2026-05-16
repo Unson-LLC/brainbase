@@ -34,6 +34,19 @@ export function installTerminalIoHandlers(controller) {
         logger.info(`[sendInput] POST /api/sessions/${id}/input type=${type} bytes=${typeof input === 'string' ? input.length : 0} forcePaste=${forcePaste === true} preview="${preview}"`);
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (session.workspaceRotationStatus === 'rotating') {
+                logger.info(`[sendInput] 409: session ${id} is rotating workspace generation`);
+                return res.status(409).json({ error: 'Session workspace generation is rotating', rotating: true });
+            }
+            if (session.workspaceRotationStatus === 'blocked') {
+                logger.info(`[sendInput] 409: session ${id} workspace rotation is blocked`);
+                return res.status(409).json({
+                    error: session.workspaceRotationError || 'Session workspace generation rotation is blocked',
+                    rotationBlocked: true
+                });
+            }
             await controller.terminalIo.sendInput(id, input, type, { forcePaste: forcePaste === true });
             // tmux に書き込んだ直後は cache が古い。invalidate しないと
             // 後続の snapshot 取得で stale なテキストが返り、xterm に書き戻されて

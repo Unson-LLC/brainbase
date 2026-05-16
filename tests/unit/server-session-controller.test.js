@@ -130,6 +130,7 @@ describe('SessionController (Server)', () => {
     mockWorktreeService = {
       create: vi.fn(),
       remove: vi.fn(),
+      merge: vi.fn(),
       getStatus: vi.fn(),
       getMergeDeploymentGuardStatus: vi.fn(async () => ({ ready: true })),
       autoHealArchiveState: vi.fn(),
@@ -311,6 +312,152 @@ describe('SessionController (Server)', () => {
           canTakeover: true
         }
       });
+    });
+  });
+
+  describe('merge', () => {
+    it('INV-1/S-1: merge後も同じsessionを維持してactive workspace generationへruntimeを切り替える', async () => {
+      const sessionId = 'session-rotate';
+      const originalSession = {
+        id: sessionId,
+        name: 'Rotate session',
+        path: '/tmp/worktrees/session-rotate-g1-brainbase',
+        initialCommand: 'continue work',
+        engine: 'codex',
+        intendedState: 'active',
+        activeWorkspaceId: 'session-rotate-g1',
+        worktree: {
+          repo: '/tmp/repo',
+          path: '/tmp/worktrees/session-rotate-g1-brainbase',
+          branch: 'session/session-rotate-g1',
+          workspaceId: 'session-rotate-g1',
+          generation: 1,
+          startCommit: 'base1'
+        },
+        workspaceHistory: []
+      };
+      mockStateStore.get.mockReturnValue({ sessions: [originalSession] });
+      mockStateStore.update.mockImplementation(async (nextState) => {
+        mockStateStore.get.mockReturnValue(nextState);
+        return nextState;
+      });
+      mockWorktreeService.merge.mockResolvedValue({
+        success: true,
+        prUrl: 'https://github.com/Unson-LLC/brainbase-unson/pull/999',
+        mergedAt: '2026-05-16T08:00:00Z',
+        mergeCommit: 'merge123',
+        rotation: {
+          retired: {
+            workspaceId: 'session-rotate-g1',
+            generation: 1,
+            path: '/tmp/worktrees/session-rotate-g1-brainbase',
+            branch: 'session/session-rotate-g1',
+            mergedPrUrl: 'https://github.com/Unson-LLC/brainbase-unson/pull/999',
+            mergedAt: '2026-05-16T08:00:00Z',
+            mergeCommit: 'merge123',
+            retiredAt: '2026-05-16T08:00:01Z'
+          },
+          active: {
+            workspaceId: 'session-rotate-g2',
+            generation: 2,
+            repo: '/tmp/repo',
+            path: '/tmp/worktrees/session-rotate-g2-brainbase',
+            branch: 'session/session-rotate-g2',
+            startCommit: 'base2'
+          }
+        }
+      });
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40123,
+        proxyPath: `/console/${sessionId}`
+      });
+
+      await sessionController.merge({ params: { id: sessionId } }, mockRes);
+
+      expect(mockWorktreeService.merge).toHaveBeenCalledWith(
+        sessionId,
+        '/tmp/repo',
+        'Rotate session',
+        {
+          workspaceId: 'session-rotate-g1',
+          generation: 1,
+          workspacePath: '/tmp/worktrees/session-rotate-g1-brainbase',
+          rotateAfterMerge: true
+        }
+      );
+      const finalState = mockStateStore.get();
+      expect(finalState.sessions[0]).toMatchObject({
+        id: sessionId,
+        intendedState: 'active',
+        activeWorkspaceId: 'session-rotate-g2',
+        workspaceRotationStatus: 'ready',
+        merged: true,
+        mergedPrUrl: 'https://github.com/Unson-LLC/brainbase-unson/pull/999',
+        worktree: {
+          workspaceId: 'session-rotate-g2',
+          generation: 2,
+          path: '/tmp/worktrees/session-rotate-g2-brainbase',
+          branch: 'session/session-rotate-g2'
+        }
+      });
+      expect(finalState.sessions[0].workspaceHistory).toHaveLength(1);
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith({
+        sessionId,
+        cwd: '/tmp/worktrees/session-rotate-g2-brainbase',
+        initialCommand: 'continue work',
+        engine: 'codex'
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true,
+        port: 40123,
+        proxyPath: `/console/${sessionId}`
+      }));
+    });
+  });
+
+  describe('sendInput', () => {
+    it('INV-3: workspace generation切替中はterminal入力をruntimeへ送らない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-rotating',
+          workspaceRotationStatus: 'rotating'
+        }]
+      });
+
+      await sessionController.sendInput({
+        params: { id: 'session-rotating' },
+        body: { input: 'echo stale', type: 'text' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session workspace generation is rotating',
+        rotating: true
+      });
+      expect(mockSessionManager.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('INV-3: workspace generation切替失敗でblockedの場合もterminal入力をruntimeへ送らない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-blocked',
+          workspaceRotationStatus: 'blocked',
+          workspaceRotationError: 'Merged PR but workspace generation rotation failed'
+        }]
+      });
+
+      await sessionController.sendInput({
+        params: { id: 'session-blocked' },
+        body: { input: 'echo blocked', type: 'text' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Merged PR but workspace generation rotation failed',
+        rotationBlocked: true
+      });
+      expect(mockSessionManager.sendInput).not.toHaveBeenCalled();
     });
   });
 
@@ -769,7 +916,11 @@ describe('SessionController (Server)', () => {
       expect(mockWorktreeService.create).toHaveBeenCalledWith(
         'session-new',
         fallbackRepoPath,
-        { skipFetch: true }
+        {
+          workspaceId: 'session-new-g1',
+          generation: 1,
+          skipFetch: true
+        }
       );
       expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 'session-new',
@@ -1283,7 +1434,11 @@ describe('SessionController (Server)', () => {
         'session-ui',
         '/tmp/repo',
         'abc123',
-        { fetchRemote: false }
+        {
+          fetchRemote: false,
+          workspaceId: 'session-ui',
+          generation: undefined
+        }
       );
       expect(mockRes.json).toHaveBeenCalledWith({
         'session-ui': expect.objectContaining({

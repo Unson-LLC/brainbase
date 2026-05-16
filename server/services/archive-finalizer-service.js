@@ -184,7 +184,11 @@ export class ArchiveFinalizerService {
             const status = await this.worktreeService.getStatus(
                 sessionId,
                 latest.worktree.repo,
-                latest.worktree.startCommit || null
+                latest.worktree.startCommit || null,
+                {
+                    workspaceId: latest.activeWorkspaceId || latest.worktree?.workspaceId || sessionId,
+                    generation: latest.worktree?.generation
+                }
             );
 
             if (status.hasWorkingCopyChanges || status.changesNotPushed > 0) {
@@ -193,7 +197,12 @@ export class ArchiveFinalizerService {
 
             if (status.needsMerge) {
                 await this._setArchive(sessionId, { status: ARCHIVE_STATUS.INTEGRATING });
-                const mergeResult = await this.worktreeService.merge(sessionId, latest.worktree.repo, latest.name);
+                const mergeResult = await this.worktreeService.merge(sessionId, latest.worktree.repo, latest.name, {
+                    workspaceId: latest.activeWorkspaceId || latest.worktree?.workspaceId || sessionId,
+                    generation: latest.worktree?.generation,
+                    workspacePath: latest.worktree?.path || latest.path || null,
+                    rotateAfterMerge: false
+                });
                 if (!mergeResult?.success) {
                     return await this._block(sessionId, mergeResult?.error || 'Merge failed', { mergeResult });
                 }

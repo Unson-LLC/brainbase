@@ -474,6 +474,7 @@ describe('WorktreeService.merge', () => {
     beforeEach(() => {
         mockExec = vi.fn();
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
+        vi.spyOn(service, 'syncCanonicalWorkspaceAfterMerge').mockResolvedValue({ success: true });
     });
 
     it('session/session-id bookmarkがpush済みならmergeでもそのbookmarkを使う', async () => {

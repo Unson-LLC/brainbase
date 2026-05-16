@@ -610,7 +610,11 @@ export function installSharedMethods(controller) {
                 session.id,
                 repoPath,
                 session.worktree?.startCommit || null,
-                { fetchRemote: false }
+                {
+                    fetchRemote: false,
+                    workspaceId: session.activeWorkspaceId || session.worktree?.workspaceId || session.id,
+                    generation: session.worktree?.generation
+                }
             );
             const changesNotPushed = status.changesNotPushed || 0;
             const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);

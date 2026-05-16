@@ -136,16 +136,46 @@ export class WorktreeService {
         return removed;
     }
 
-    _getWorkspaceName(sessionId, repoPath) {
-        return `${sessionId}-${path.basename(repoPath)}`;
+    _getWorkspaceIdentity(sessionId, options = {}) {
+        const workspaceId = options.workspaceId || options.activeWorkspaceId || sessionId;
+        const generation = Number.isFinite(options.generation)
+            ? options.generation
+            : this._parseWorkspaceGeneration(workspaceId, sessionId);
+        return { workspaceId, generation };
     }
 
-    _getSessionBranchName(sessionId) {
-        return `session/${sessionId}`;
+    _parseWorkspaceGeneration(workspaceId, sessionId) {
+        if (!workspaceId || workspaceId === sessionId) return 1;
+        const escapedSessionId = String(sessionId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const match = String(workspaceId).match(new RegExp(`^${escapedSessionId}-g(\\d+)$`));
+        return match ? Number.parseInt(match[1], 10) || 1 : 1;
     }
 
-    _getSessionBookmarkCandidates(sessionId) {
-        return [this._getSessionBranchName(sessionId), sessionId]
+    _nextWorkspaceIdentity(sessionId, options = {}) {
+        const current = this._getWorkspaceIdentity(sessionId, options);
+        const nextGeneration = Math.max(1, current.generation || 1) + 1;
+        return {
+            workspaceId: `${sessionId}-g${nextGeneration}`,
+            generation: nextGeneration
+        };
+    }
+
+    _getWorkspaceName(sessionId, repoPath, options = {}) {
+        const { workspaceId } = this._getWorkspaceIdentity(sessionId, options);
+        return `${workspaceId}-${path.basename(repoPath)}`;
+    }
+
+    _getSessionBranchName(sessionId, options = {}) {
+        const { workspaceId } = this._getWorkspaceIdentity(sessionId, options);
+        return `session/${workspaceId}`;
+    }
+
+    _getSessionBookmarkCandidates(sessionId, options = {}) {
+        const { workspaceId } = this._getWorkspaceIdentity(sessionId, options);
+        const candidates = workspaceId === sessionId
+            ? [this._getSessionBranchName(sessionId, options), workspaceId]
+            : [this._getSessionBranchName(sessionId, options), workspaceId];
+        return candidates
             .filter((value, index, list) => value && list.indexOf(value) === index);
     }
 
@@ -449,7 +479,7 @@ export class WorktreeService {
             }
         }
 
-        const bookmarkCandidates = this._getSessionBookmarkCandidates(sessionId);
+        const bookmarkCandidates = this._getSessionBookmarkCandidates(sessionId, options);
         const infos = [];
 
         for (const candidate of bookmarkCandidates) {
@@ -475,11 +505,11 @@ export class WorktreeService {
         return infos;
     }
 
-    async _resolveMergeBookmarkName(sessionId, repoPath) {
-        const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { fetchRemote: false });
+    async _resolveMergeBookmarkName(sessionId, repoPath, options = {}) {
+        const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { ...options, fetchRemote: false });
         return bookmarkInfos.find(info => info.pushed)?.name
             || bookmarkInfos[0]?.name
-            || this._getSessionBranchName(sessionId);
+            || this._getSessionBranchName(sessionId, options);
     }
 
     _isNonTrackingRemoteBookmarkError(error, bookmarkName) {
@@ -716,8 +746,9 @@ export class WorktreeService {
     async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null, options = {}) {
         const { fetchRemote = true } = options;
         const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
-        const fallbackBookmarkName = this._getSessionBranchName(sessionId);
+        const workspaceIdentity = this._getWorkspaceIdentity(sessionId, options);
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, workspaceIdentity);
+        const fallbackBookmarkName = this._getSessionBranchName(sessionId, workspaceIdentity);
 
         try {
             await fs.access(workspacePath);
@@ -745,7 +776,7 @@ export class WorktreeService {
                 hasWorkingCopyChanges = false;
             }
 
-            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { fetchRemote });
+            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { ...options, fetchRemote });
             const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
             const bookmarkPushed = Boolean(officialBookmark);
             const mergeTargetRef = officialBookmark?.name || bookmarkInfos[0]?.name || null;
@@ -774,8 +805,10 @@ export class WorktreeService {
                 commitsAheadOfBase,
                 commitsAhead: changesNotPushed,
                 hasUncommittedChanges: hasWorkingCopyChanges,
-                branchName: this._getSessionBranchName(sessionId),
-                mergeTargetRef
+                branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
+                mergeTargetRef,
+                workspaceId: workspaceIdentity.workspaceId,
+                generation: workspaceIdentity.generation
             };
         } catch {
             return {
@@ -786,14 +819,16 @@ export class WorktreeService {
                 bookmarkName: fallbackBookmarkName,
                 officialBookmarkName: null,
                 needsIntegration: false,
-                needsMerge: false
+                needsMerge: false,
+                workspaceId: workspaceIdentity.workspaceId,
+                generation: workspaceIdentity.generation
             };
         }
     }
 
-    async _ensureGitCompatibility(sessionId, repoPath, workspacePath) {
-        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
-        const branchName = this._getSessionBranchName(sessionId);
+    async _ensureGitCompatibility(sessionId, repoPath, workspacePath, options = {}) {
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
+        const branchName = this._getSessionBranchName(sessionId, options);
         const gitRoot = path.join(repoPath, '.git');
         const gitWorktreePath = path.join(gitRoot, 'worktrees', workspaceName);
 
@@ -847,9 +882,9 @@ export class WorktreeService {
         return { workspaceName, branchName, gitWorktreePath };
     }
 
-    async _removeGitCompatibility(sessionId, repoPath) {
-        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
-        const branchName = this._getSessionBranchName(sessionId);
+    async _removeGitCompatibility(sessionId, repoPath, options = {}) {
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
+        const branchName = this._getSessionBranchName(sessionId, options);
         const gitWorktreePath = path.join(repoPath, '.git', 'worktrees', workspaceName);
 
         try {
@@ -875,9 +910,10 @@ export class WorktreeService {
         const { skipFetch = false } = options;
         await this.ensureWorktreesDir();
 
-        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
+        const workspaceIdentity = this._getWorkspaceIdentity(sessionId, options);
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, workspaceIdentity);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = this._getSessionBranchName(sessionId);
+        const bookmarkName = this._getSessionBranchName(sessionId, workspaceIdentity);
 
         try {
             // Check if directory exists first
@@ -908,16 +944,18 @@ export class WorktreeService {
                 );
                 if (workspaceList.includes(`${workspaceName}:`)) {
                     logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
-                    await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
+                    await this._ensureGitCompatibility(sessionId, repoPath, workspacePath, workspaceIdentity);
                     const mainBranchName = await this._getMainBranchName(repoPath);
                     const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
                     const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
                     return {
                         worktreePath: workspacePath,
-                        branchName: this._getSessionBranchName(sessionId),
+                        branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
                         repoPath,
                         startCommit,
-                        workspaceName
+                        workspaceName,
+                        workspaceId: workspaceIdentity.workspaceId,
+                        generation: workspaceIdentity.generation
                     };
                 }
             } catch {
@@ -948,7 +986,7 @@ export class WorktreeService {
             // Run post-creation tasks in parallel (all non-critical, try-catch wrapped)
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
             const [gitResult, bookmarkResult, , , , startCommitResult] = await Promise.allSettled([
-                this._ensureGitCompatibility(sessionId, repoPath, workspacePath),
+                this._ensureGitCompatibility(sessionId, repoPath, workspacePath, workspaceIdentity),
                 this._execJujutsuWithStaleRetry(repoPath, `bookmark create -r ${workspaceBaseRevision} "${bookmarkName}"`),
                 this._symlinkIfMissing(path.join(repoPath, '.env'), path.join(workspacePath, '.env'), '.env'),
                 this._symlinkIfMissing(path.join(workspaceRoot, '.claude'), path.join(workspacePath, '.claude'), '.claude'),
@@ -971,10 +1009,12 @@ export class WorktreeService {
             logger.info(`Created Jujutsu workspace at ${workspacePath}`);
             return {
                 worktreePath: workspacePath,
-                branchName: this._getSessionBranchName(sessionId),
+                branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
                 repoPath,
                 startCommit,
-                workspaceName
+                workspaceName,
+                workspaceId: workspaceIdentity.workspaceId,
+                generation: workspaceIdentity.generation
             };
         } catch (err) {
             logger.error(`Failed to create workspace for ${sessionId}:`, err instanceof Error ? err.message : String(err));
@@ -988,8 +1028,8 @@ export class WorktreeService {
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<boolean>}
      */
-    async remove(sessionId, repoPath) {
-        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
+    async remove(sessionId, repoPath, options = {}) {
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
 
         try {
@@ -1002,7 +1042,7 @@ export class WorktreeService {
             }
 
             // Delete canonical and legacy session bookmarks.
-            for (const candidate of this._getSessionBookmarkCandidates(sessionId)) {
+            for (const candidate of this._getSessionBookmarkCandidates(sessionId, options)) {
                 try {
                     await this.execPromise(`jj -R "${repoPath}" bookmark delete "${candidate}"`);
                     logger.info(`[workspace] Deleted bookmark: ${candidate}`);
@@ -1028,12 +1068,88 @@ export class WorktreeService {
                 // Expected: directory no longer exists
             }
 
-            await this._removeGitCompatibility(sessionId, repoPath);
+            await this._removeGitCompatibility(sessionId, repoPath, options);
 
             return true;
         } catch (err) {
             logger.error(`Failed to remove workspace for ${sessionId}:`, err instanceof Error ? err.message : String(err));
             return false;
+        }
+    }
+
+    async _retireWorkspaceGeneration(sessionId, repoPath, options = {}) {
+        const workspaceIdentity = this._getWorkspaceIdentity(sessionId, options);
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, workspaceIdentity);
+        const workspacePath = options.workspacePath || path.join(this.worktreesDir, workspaceName);
+
+        try {
+            await this._execJujutsuWithStaleRetry(
+                repoPath,
+                `workspace forget "${workspaceName}"`,
+                { retryStale: false }
+            );
+        } catch (forgetErr) {
+            logger.info(`[merge] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
+        }
+
+        for (const candidate of this._getSessionBookmarkCandidates(sessionId, workspaceIdentity)) {
+            try {
+                await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `bookmark delete "${candidate}"`,
+                    { retryStale: false }
+                );
+            } catch (bookmarkErr) {
+                logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+            }
+        }
+
+        try {
+            await fs.rm(workspacePath, { recursive: true, force: true });
+            logger.info(`[merge] Removed physical directory: ${workspacePath}`);
+        } catch (rmErr) {
+            logger.warn(`[merge] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+        }
+
+        try {
+            await fs.access(workspacePath);
+            logger.warn(`[merge] Zombie worktree still exists after merge cleanup: ${workspacePath}`);
+            return {
+                success: false,
+                error: 'Worktree cleanup failed after merge',
+                workspaceId: workspaceIdentity.workspaceId,
+                workspaceName,
+                workspacePath
+            };
+        } catch {
+            // Expected: directory no longer exists
+        }
+
+        await this._removeGitCompatibility(sessionId, repoPath, workspaceIdentity);
+
+        return {
+            success: true,
+            workspaceId: workspaceIdentity.workspaceId,
+            generation: workspaceIdentity.generation,
+            workspaceName,
+            workspacePath,
+            branchName: this._getSessionBranchName(sessionId, workspaceIdentity)
+        };
+    }
+
+    async _readPrMergeMetadata(prUrl, ghRepoSpec) {
+        try {
+            const { stdout } = await this.execPromise(
+                `gh pr view "${String(prUrl).trim()}" --repo "${ghRepoSpec}" --json mergedAt,mergeCommit --jq '{mergedAt, mergeCommit: .mergeCommit.oid}'`
+            );
+            const parsed = JSON.parse(stdout || '{}');
+            return {
+                mergedAt: parsed.mergedAt || null,
+                mergeCommit: parsed.mergeCommit || null
+            };
+        } catch (error) {
+            logger.info(`[merge] PR merge metadata lookup skipped: ${error instanceof Error ? error.message : String(error)}`);
+            return { mergedAt: null, mergeCommit: null };
         }
     }
 
@@ -1045,8 +1161,7 @@ export class WorktreeService {
      * @returns {Promise<Object>} workspace状態情報
      */
     async getStatus(sessionId, repoPath, startCommit = null, options = {}) {
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
         return await this._collectStatus(sessionId, repoPath, workspacePath, startCommit, options);
     }
@@ -1222,12 +1337,13 @@ export class WorktreeService {
      * @param {string|null} sessionName - セッション名（オプション）
      * @returns {Promise<{success: boolean, message?: string, error?: string, needsCommit?: boolean, hasConflicts?: boolean, prUrl?: string}>}
      */
-    async merge(sessionId, repoPath, sessionName = null) {
+    async merge(sessionId, repoPath, sessionName = null, options = {}) {
         try {
+            const workspaceIdentity = this._getWorkspaceIdentity(sessionId, options);
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
             const ghRepoSpec = await this._getGitHubRepoSpec(repoPath);
-            const bookmarkName = await this._resolveMergeBookmarkName(sessionId, repoPath);
+            const bookmarkName = await this._resolveMergeBookmarkName(sessionId, repoPath, workspaceIdentity);
 
             // Push bookmark to remote
             logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
@@ -1271,66 +1387,119 @@ EOF
             // Merge PR
             logger.info(`[merge] Merging PR`);
             await this.execPromise(`gh pr merge "${prUrl.trim()}" --repo "${ghRepoSpec}" --merge --delete-branch`);
+            const mergeMetadata = options.rotateAfterMerge
+                ? await this._readPrMergeMetadata(prUrl.trim(), ghRepoSpec)
+                : { mergedAt: null, mergeCommit: null };
+            const mergedAt = mergeMetadata.mergedAt || new Date().toISOString();
 
             const deployGuard = await this.syncCanonicalWorkspaceAfterMerge(repoPath, mainBranchName);
             if (!deployGuard.success) {
                 return {
                     success: false,
+                    merged: true,
+                    rotationBlocked: Boolean(options.rotateAfterMerge),
                     error: `Merged PR but canonical workspace deploy guard failed: ${deployGuard.reason || 'unknown'}`,
                     prUrl: prUrl.trim(),
+                    mergedAt,
+                    mergeCommit: mergeMetadata.mergeCommit,
                     deployGuard
                 };
             }
 
-            // Cleanup workspace
-            const workspaceName = `${sessionId}-${path.basename(repoPath)}`;
-            const workspacePath = path.join(this.worktreesDir, workspaceName);
+            const retired = await this._retireWorkspaceGeneration(sessionId, repoPath, {
+                ...workspaceIdentity,
+                workspacePath: options.workspacePath
+            });
+            const retiredGeneration = {
+                workspaceId: workspaceIdentity.workspaceId,
+                generation: workspaceIdentity.generation,
+                workspaceName: retired.workspaceName,
+                path: retired.workspacePath,
+                branch: bookmarkName,
+                mergedPrUrl: prUrl.trim(),
+                mergedAt,
+                mergeCommit: mergeMetadata.mergeCommit,
+                retiredAt: new Date().toISOString()
+            };
 
-            try {
-                await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    `workspace forget "${workspaceName}"`,
-                    { retryStale: false }
-                );
-            } catch (forgetErr) {
-                logger.info(`[merge] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
-            }
-
-            for (const candidate of this._getSessionBookmarkCandidates(sessionId)) {
-                try {
-                    await this._execJujutsuWithStaleRetry(
-                        repoPath,
-                        `bookmark delete "${candidate}"`,
-                        { retryStale: false }
-                    );
-                } catch (bookmarkErr) {
-                    logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
-                }
-            }
-
-            // Remove physical directory — must succeed to prevent zombie worktrees
-            try {
-                await fs.rm(workspacePath, { recursive: true, force: true });
-                logger.info(`[merge] Removed physical directory: ${workspacePath}`);
-            } catch (rmErr) {
-                logger.warn(`[merge] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
-            }
-
-            // Verify removal — zombie prevention
-            try {
-                await fs.access(workspacePath);
-                logger.warn(`[merge] Zombie worktree still exists after merge cleanup: ${workspacePath}`);
+            if (!retired.success) {
                 return {
                     success: false,
-                    error: 'Worktree cleanup failed after merge',
-                    prUrl: prUrl.trim()
+                    merged: true,
+                    rotationBlocked: Boolean(options.rotateAfterMerge),
+                    error: retired.error,
+                    prUrl: prUrl.trim(),
+                    mergedAt,
+                    mergeCommit: mergeMetadata.mergeCommit,
+                    rotation: {
+                        retired: retiredGeneration,
+                        active: null
+                    }
                 };
-            } catch {
-                // Expected: directory no longer exists
             }
 
-            logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
-            return { success: true, message: 'Merged via PR', prUrl: prUrl.trim(), mergedAt: new Date().toISOString(), deployGuard };
+            if (!options.rotateAfterMerge) {
+                logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
+                return {
+                    success: true,
+                    message: 'Merged via PR',
+                    prUrl: prUrl.trim(),
+                    mergedAt,
+                    mergeCommit: mergeMetadata.mergeCommit,
+                    deployGuard,
+                    rotation: {
+                        retired: retiredGeneration,
+                        active: null
+                    }
+                };
+            }
+
+            let active;
+            try {
+                const nextWorkspace = this._nextWorkspaceIdentity(sessionId, workspaceIdentity);
+                const worktreeResult = await this.create(sessionId, repoPath, {
+                    workspaceId: nextWorkspace.workspaceId,
+                    generation: nextWorkspace.generation,
+                    skipFetch: true
+                });
+                active = {
+                    workspaceId: worktreeResult.workspaceId,
+                    generation: worktreeResult.generation,
+                    workspaceName: worktreeResult.workspaceName,
+                    path: worktreeResult.worktreePath,
+                    branch: worktreeResult.branchName,
+                    startCommit: worktreeResult.startCommit,
+                    repo: repoPath
+                };
+            } catch (rotationErr) {
+                return {
+                    success: false,
+                    merged: true,
+                    rotationBlocked: true,
+                    error: `Merged PR but workspace generation rotation failed: ${rotationErr instanceof Error ? rotationErr.message : String(rotationErr)}`,
+                    prUrl: prUrl.trim(),
+                    mergedAt,
+                    mergeCommit: mergeMetadata.mergeCommit,
+                    rotation: {
+                        retired: retiredGeneration,
+                        active: null
+                    }
+                };
+            }
+
+            logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName} and rotated workspace to ${active.workspaceId}`);
+            return {
+                success: true,
+                message: 'Merged via PR and rotated workspace generation',
+                prUrl: prUrl.trim(),
+                mergedAt,
+                mergeCommit: mergeMetadata.mergeCommit,
+                deployGuard,
+                rotation: {
+                    retired: retiredGeneration,
+                    active
+                }
+            };
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             logger.error(`Failed to merge workspace for ${sessionId}:`, message);
