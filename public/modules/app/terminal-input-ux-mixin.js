@@ -717,10 +717,21 @@ export function applyTerminalInputUxMixin(AppClass) {
         );
     };
 
+    AppClass.prototype._isTerminalSwitchInProgress = function() {
+        return Boolean(this._pendingTerminalSwitch || this._terminalSwitchState === 'switching');
+    };
+
     AppClass.prototype._scheduleSnapshotPrefetch = function() {
         if (this._snapshotPrefetchScheduled) return;
         this._snapshotPrefetchScheduled = true;
         const run = () => {
+            if (this._isTerminalSwitchInProgress?.()) {
+                window.setTimeout(() => {
+                    this._snapshotPrefetchScheduled = false;
+                    this._scheduleSnapshotPrefetch();
+                }, 1000);
+                return;
+            }
             this._snapshotPrefetchScheduled = false;
             const candidates = this._getSnapshotPrefetchCandidates(8);
             void this._prefetchTerminalSnapshots(candidates);

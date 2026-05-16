@@ -1000,11 +1000,14 @@ export class TerminalTransportClient {
 
     async verifyInputReady() {
         if (!this.sessionId || this.status.terminalAccess?.state !== 'owner') return false;
+        if (this.status.connected && this.status.inputReady === true) {
+            return true;
+        }
         try {
             const res = await httpClient.post(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/probe-input`, {
                 viewerId: this.viewerId,
                 viewerLabel: this.viewerLabel
-            }, { suppressAuthError: true });
+            }, { suppressAuthError: true, timeout: 5000 });
             this.status.inputReady = Boolean(res?.inputReady);
             this.status.runtimeState = this.status.inputReady ? 'interactive_ready' : (res?.code ? 'degraded' : this.status.runtimeState);
             this._emitStatus();

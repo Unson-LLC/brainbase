@@ -78,6 +78,29 @@ describe('terminal-transport-client', () => {
     expect(client.canSendInput('session-2')).toBe(false);
   });
 
+  it('verifyInputReadyは既にownerかつinputReadyならprobe APIを再実行しない', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.status.connected = true;
+    client.status.runtimeState = 'interactive_ready';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.ws = { readyState: 1 };
+
+    const result = await client.verifyInputReady();
+
+    expect(result).toBe(true);
+    expect(httpClient.post).not.toHaveBeenCalledWith(
+      '/api/sessions/session-1/terminal/probe-input',
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
   it('inputReadyでない場合はWebSocket openでも入力不可と判定する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

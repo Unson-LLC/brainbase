@@ -324,7 +324,7 @@ describe('TerminalTransportService', () => {
         expect(service._shouldCheckPastedTextOverlay('line one\nline two\n')).toBe(true);
     });
 
-    it('ready送信時_履歴付きeager snapshotを送る', async () => {
+    it('ready送信時_履歴付きeager snapshotを送らずstreaming開始をブロックしない', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({
             text: 'history\nsnapshot',
@@ -352,20 +352,8 @@ describe('TerminalTransportService', () => {
 
         const sent = ws.send.mock.calls.map(call => JSON.parse(call[0]));
         const sentTypes = sent.map(message => message.type);
-        expect(sentTypes).toEqual(['ready', 'snapshot']);
-        expect(sent[1]).toMatchObject({
-            type: 'snapshot',
-            text: 'history\nsnapshot',
-            colorText: '\x1b[32mhistory\x1b[0m\n\x1b[32msnapshot\x1b[0m',
-            cursor: { x: 2, y: 12 }
-        });
-        expect(sent[1].screenOnly).toBe(false);
-        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
-            lines: 5000,
-            includeColors: true,
-            includeCopyMode: true,
-            visibleOnly: false
-        });
+        expect(sentTypes).toEqual(['ready']);
+        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
@@ -447,7 +435,7 @@ describe('TerminalTransportService', () => {
         });
     });
 
-    it('ready直後の同一full history snapshotはpollingで二重送信しない', async () => {
+    it('ready直後のsnapshot-pollingでは初回full history snapshotを送る', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValue({
             text: 'same-history',
@@ -480,7 +468,13 @@ describe('TerminalTransportService', () => {
             const msg = JSON.parse(call[0]);
             return msg.type === 'snapshot';
         });
-        expect(snapshotCall).toBeFalsy();
+        expect(snapshotCall).toBeTruthy();
+        expect(JSON.parse(snapshotCall[0])).toMatchObject({
+            type: 'snapshot',
+            text: 'same-history',
+            colorText: '\x1b[32msame-history\x1b[0m',
+            screenOnly: false
+        });
     });
 
     it('connection開始時_control-mode streamingを使い初回snapshot fallbackを予約する', async () => {
