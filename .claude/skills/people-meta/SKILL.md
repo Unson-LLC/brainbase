@@ -27,31 +27,6 @@ brainbaseにおける人物情報の標準フォーマットと運用ルール�
 
 **両方に登録すること。片方だけではNG。**
 
-### 1-b. 詳細データ昇格構造（オプション）
-
-登壇実績・メディア出演・役職履歴・プロダクト・著書・プレスなど人物に紐付く構造化データを保持したい場合は、個別ファイルを**ディレクトリに昇格**できる。
-
-```
-_codex/common/meta/people/<person_id>/
-  index.md           # 旧 <person_id>.md。frontmatter + 自己紹介本体
-  speaking.yaml      # 登壇 → GraphDB entity_type: speaking
-  media.yaml         # メディア出演 → media_appearance
-  roles.yaml         # 役職 → role_assignment
-  products.yaml      # プロダクト → product
-  publications.yaml  # 著書 → publication
-  press.yaml         # 紙面 → press_mention
-  reflections/       # 振り返り、業務棚卸し、PDF（GraphDB対象外）
-```
-
-**ルール**:
-- 正本はGraphDB (`graph_entities` / `graph_edges`、project_id は人物専用 project 例: `prj_<person>_portfolio`)
-- これらYAMLは派生（可読ミラー）。直接編集せず `scripts/sync-person-records-to-mirror.js` で再生成
-- 初回投入は `scripts/seed-<person>-personal-records.js` で YAML → GraphDB
-- 既存の単独ファイル形式（`<person_id>.md`）は引き続き有効。詳細データが少ない人物は無理に昇格しない
-- people.md のサマリーは変わらず必須
-
-参考実装: `_codex/common/meta/people/sato_keigo/`
-
 ### 2. 個別ファイル（people/*.md）
 
 #### ファイル名
@@ -204,6 +179,4 @@ name: 山本
 
 ---
 
-正本: GraphDB (`info_ssot.graph_entities` entity_type=`person`)
-可読ミラー: `_codex/common/meta/people.md` + `_codex/common/meta/people/*.md`（または `people/<person_id>/index.md`）
-派生詳細: `_codex/common/meta/people/<person_id>/{speaking,media,roles,products,publications,press}.yaml`（GraphDBの対応entity_typeのミラー）
+正本: `_codex/common/meta/people.md` + `_codex/common/meta/people/*.md`
