@@ -16,6 +16,7 @@ vi.mock('../../../public/modules/session-indicators.js', async () => {
     updateSessionIndicators: vi.fn(),
     pollSessionStatus: vi.fn(),
     startPolling: vi.fn(),
+    startActivityWs: vi.fn(() => () => {}),
     markDoneAsRead: vi.fn(async () => {})
   };
 });
@@ -76,6 +77,11 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     const { createApp } = await import('../../../public/app.js');
     app = createApp();
     app.focusTerminal = vi.fn();
+    app.initAuth = vi.fn(async () => {});
+    app.registerActivePort = vi.fn(async () => {});
+    app.updateAppVersionDisplay = vi.fn(async () => {});
+    app.refreshLearningHealthBanner = vi.fn(async () => {});
+    app.initPlugins = vi.fn();
 
     vi.spyOn(httpClient, 'get').mockImplementation(defaultHttpGetResponse);
     vi.spyOn(httpClient, 'post').mockResolvedValue({ proxyPath: '/console/session-1' });
@@ -132,14 +138,14 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
         {
           id: 'session-archived',
           name: 'Archived Session',
-          path: '/Users/ksato/workspace',
+          path: '/tmp/fixtures/workspace',
           engine: 'codex',
           intendedState: 'archived'
         },
         {
           id: 'session-generic-home',
           name: 'Generic Home Session',
-          path: '/Users/ksato',
+          path: '/tmp/fixtures/home',
           engine: 'codex',
           intendedState: 'active'
         }
@@ -1196,14 +1202,14 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
         {
           id: 'session-archived',
           name: 'Archived Session',
-          path: '/Users/ksato/workspace',
+          path: '/tmp/fixtures/workspace',
           engine: 'codex',
           intendedState: 'archived'
         },
         {
           id: 'session-generic-home',
           name: 'Generic Home Session',
-          path: '/Users/ksato',
+          path: '/tmp/fixtures/home',
           engine: 'codex',
           intendedState: 'active'
         }
@@ -1214,7 +1220,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
       origin: window.location.origin,
       data: {
         type: 'OPEN_FILE',
-        filePath: '/Users/ksato/workspace/var/sns-growth-live-backend.png',
+        filePath: '/tmp/fixtures/workspace/var/sns-growth-live-backend.png',
         previewPath: null,
         previewable: true,
         sessionId: null,
@@ -1225,7 +1231,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     await vi.waitFor(() => {
       expect(app.fileViewerService.openFile).toHaveBeenCalledWith(
         'session-current',
-        '/Users/ksato/workspace/var/sns-growth-live-backend.png'
+        '/tmp/fixtures/workspace/var/sns-growth-live-backend.png'
       );
     });
     expect(app.showFileViewer).toHaveBeenCalled();
