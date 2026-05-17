@@ -378,6 +378,32 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.textContent).not.toContain('secret-token');
     });
 
+    it('shows posting bridge credential readiness when OAuth2 env is absent', async () => {
+        const apiClient = {
+            listPosts: async () => ({ posts: [posts[0]] }),
+            listAccounts: async () => ({
+                accounts: [{
+                    ...accounts[0],
+                    credential_ref: {
+                        provider: 'env',
+                        path: 'SNS_X_ACCESS_TOKEN',
+                        env: 'SNS_X_ACCESS_TOKEN',
+                        env_present: false,
+                        posting_bridge_env_present: true
+                    }
+                }]
+            }),
+            updatePost: async () => ({ post: posts[0] })
+        };
+        const view = new SnsGrowthCockpitView({ apiClient, today: '2026-05-13' });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(container.textContent).toContain('posting env ready / SNS_X_ACCESS_TOKEN');
+        expect(container.textContent).not.toContain('env missing / SNS_X_ACCESS_TOKEN');
+    });
+
     it('runs an X account health check from the account strip', async () => {
         const calls = [];
         const apiClient = {
@@ -390,6 +416,7 @@ describe('SnsGrowthCockpitView', () => {
                     health: {
                         ok: true,
                         reason: null,
+                        credential_mode: 'x_api_oauth2',
                         rate_limit: { remaining: 299, resetAt: '2026-05-15T12:15:00.000Z' }
                     }
                 };
@@ -406,7 +433,7 @@ describe('SnsGrowthCockpitView', () => {
         await Promise.resolve();
 
         expect(calls).toEqual(['acc_x_sato']);
-        expect(container.textContent).toContain('Health OK');
+        expect(container.textContent).toContain('Health OK (x_api_oauth2)');
         expect(container.textContent).toContain('299 left');
     });
 
