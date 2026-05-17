@@ -53,6 +53,18 @@ function normalizeCodexTokenUsage(info, updatedAt = null) {
     };
 }
 
+function normalizePath(value) {
+    return typeof value === 'string' && value.trim()
+        ? value.replace(/\/+$/, '')
+        : null;
+}
+
+function extractCodexResumeId(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    return match ? match[1] : null;
+}
+
 export class ConversationLinker {
     /**
      * @param {Object} options
@@ -356,6 +368,60 @@ export class ConversationLinker {
         }
     }
 
+    async getCodexSessionId(jsonlPath) {
+        let stream;
+        try {
+            stream = createReadStream(jsonlPath);
+            const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+            try {
+                for await (const line of rl) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'session_meta' || data.session_meta) {
+                            const meta = data.session_meta || data.payload || data;
+                            return meta.id || meta.session_id || extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
+                        }
+                    } catch {
+                        // Skip malformed lines
+                    }
+                    break;
+                }
+                return extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
+            } finally {
+                rl.close();
+                stream.destroy();
+            }
+        } catch {
+            return extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
+        }
+    }
+
+    async _getSessionWorkspacePaths(session) {
+        const paths = [];
+        const addPath = (candidate) => {
+            const normalized = normalizePath(candidate);
+            if (normalized && !paths.includes(normalized)) {
+                paths.push(normalized);
+            }
+        };
+
+        const activePath = this.workspaceService
+            ? await this.workspaceService.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            : null;
+        addPath(activePath);
+        addPath(session.worktree?.path);
+        addPath(session.path);
+
+        for (const entry of session.workspaceHistory || []) {
+            addPath(entry?.path);
+        }
+
+        return paths;
+    }
+
     /**
      * 全セッションの会話ログ紐付けを実行
      * @returns {Promise<{updated: number, total: number, errors: string[]}>}
@@ -397,6 +463,8 @@ export class ConversationLinker {
                             ...session,
                             ...(summary.lastAssistantSnippet ? { lastAssistantSnippet: summary.lastAssistantSnippet } : {}),
                             ...(summary.lastAssistantSnippetAt ? { lastAssistantSnippetAt: summary.lastAssistantSnippetAt } : {}),
+                            ...(summary.codexThreadId ? { codexThreadId: summary.codexThreadId } : {}),
+                            ...(summary.codexThreadId ? { bindingSource: 'conversation-linker', bindingUpdatedAt: summary.linkedAt } : {}),
                             conversationSummary: summary
                         });
                         updated++;
@@ -451,28 +519,30 @@ export class ConversationLinker {
      * @returns {Promise<Object|null>} conversationSummary or null (no change)
      */
     async _linkSession(session, codexIndex) {
-        const worktreePath = this.workspaceService
-            ? await this.workspaceService.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
-            : (session.worktree?.path || session.path);
-        if (!worktreePath) return null;
+        const workspacePaths = await this._getSessionWorkspacePaths(session);
+        if (workspacePaths.length === 0) return null;
+        const activeWorktreePath = workspacePaths[0];
 
         // Claude Code ログ
-        const claudeLogDir = this._getClaudeLogDir(worktreePath);
         let claudeConversations = [];
         let totalConversations = 0;
+        const claudeLogDirs = [];
 
-        if (claudeLogDir && existsSync(claudeLogDir)) {
+        for (const worktreePath of workspacePaths) {
+            const claudeLogDir = this._getClaudeLogDir(worktreePath);
+            if (!claudeLogDir || !existsSync(claudeLogDir)) continue;
+            claudeLogDirs.push(claudeLogDir);
             const indexEntries = await this.readClaudeSessionsIndex(claudeLogDir);
 
             // sessions-index.json がある場合はそこから取得
             if (indexEntries.length > 0) {
-                claudeConversations = indexEntries.map(entry => ({
+                claudeConversations.push(...indexEntries.map(entry => ({
                     engine: 'claude',
                     conversationId: entry.sessionId,
                     firstPrompt: entry.firstPrompt || entry.summary || null,
                     lastActivity: entry.lastActivity || entry.lastModified || null,
                     messageCount: entry.numTurns || 0
-                }));
+                })));
             } else {
                 // sessions-index.json がない場合は jsonl ファイルを直接走査
                 const existingConversations = session.conversationSummary?.lastConversation
@@ -510,20 +580,31 @@ export class ConversationLinker {
                     // Directory read error, skip
                 }
             }
-            totalConversations += claudeConversations.length;
         }
+        totalConversations += claudeConversations.length;
 
         // Codex CLI ログ
-        const codexFiles = codexIndex.get(worktreePath) || [];
+        const codexFiles = [];
+        const codexFileSet = new Set();
+        for (const worktreePath of workspacePaths) {
+            for (const codexFile of codexIndex.get(worktreePath) || []) {
+                if (!codexFileSet.has(codexFile)) {
+                    codexFileSet.add(codexFile);
+                    codexFiles.push(codexFile);
+                }
+            }
+        }
         const codexConversations = [];
         for (const codexFile of codexFiles) {
             const uuid = path.basename(codexFile, '.jsonl').replace(/^rollout-/, '');
             try {
                 const stat = await fs.stat(codexFile);
+                const resumeId = await this.getCodexSessionId(codexFile);
                 const tokenUsage = await this.getCodexTokenUsage(codexFile);
                 codexConversations.push({
                     engine: 'codex',
                     conversationId: uuid,
+                    resumeId,
                     firstPrompt: null, // Codex firstPrompt は history.jsonl から取得する必要がある（重いのでスキップ）
                     lastActivity: stat.mtime.toISOString(),
                     messageCount: 0,
@@ -548,10 +629,14 @@ export class ConversationLinker {
         const tokenUsage = lastConversation?.tokenUsage || session.conversationSummary?.tokenUsage || null;
         let lastAssistantSnippet = session.lastAssistantSnippet || null;
         let lastAssistantSnippetAt = session.lastAssistantSnippetAt || null;
+        const codexThreadId = lastConversation?.engine === 'codex'
+            ? (lastConversation.resumeId || extractCodexResumeId(lastConversation.conversationId))
+            : (session.codexThreadId || null);
 
-        if (lastConversation?.engine === 'claude' && claudeLogDir) {
-            const claudeJsonl = path.join(claudeLogDir, `${lastConversation.conversationId}.jsonl`);
-            if (existsSync(claudeJsonl)) {
+        if (lastConversation?.engine === 'claude' && claudeLogDirs.length > 0) {
+            const claudeLogDir = claudeLogDirs.find((dir) => existsSync(path.join(dir, `${lastConversation.conversationId}.jsonl`)));
+            const claudeJsonl = claudeLogDir ? path.join(claudeLogDir, `${lastConversation.conversationId}.jsonl`) : null;
+            if (claudeJsonl && existsSync(claudeJsonl)) {
                 lastAssistantSnippet = await this.getLastClaudeAssistantSnippet(claudeJsonl);
                 lastAssistantSnippetAt = lastConversation.lastActivity || null;
             }
@@ -569,6 +654,7 @@ export class ConversationLinker {
             existing
             && existing.totalConversations === totalConversations
             && JSON.stringify(existing.tokenUsage || null) === JSON.stringify(tokenUsage || null)
+            && (existing.codexThreadId || null) === (codexThreadId || null)
             && (session.lastAssistantSnippet || null) === (lastAssistantSnippet || null)
             && (session.lastAssistantSnippetAt || null) === (lastAssistantSnippetAt || null)
         ) {
@@ -580,9 +666,11 @@ export class ConversationLinker {
             engines,
             lastConversation,
             tokenUsage,
+            codexThreadId,
             lastAssistantSnippet,
             lastAssistantSnippetAt,
-            claudeLogDir: claudeLogDir || null,
+            claudeLogDir: this._getClaudeLogDir(activeWorktreePath) || null,
+            claudeLogDirs: claudeLogDirs.length > 0 ? claudeLogDirs : null,
             codexLogFiles: codexFiles.length > 0 ? codexFiles : null,
             linkedAt: new Date().toISOString()
         };
@@ -697,18 +785,17 @@ export class ConversationLinker {
             throw new Error(`Session not found: ${sessionId}`);
         }
 
-        const worktreePath = this.workspaceService
-            ? await this.workspaceService.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
-            : (session.worktree?.path || session.path);
-        if (!worktreePath) {
+        const workspacePaths = await this._getSessionWorkspacePaths(session);
+        if (workspacePaths.length === 0) {
             return { conversations: [] };
         }
 
         const conversations = [];
 
         // Claude Code
-        const claudeLogDir = this._getClaudeLogDir(worktreePath);
-        if (claudeLogDir && existsSync(claudeLogDir)) {
+        for (const worktreePath of workspacePaths) {
+            const claudeLogDir = this._getClaudeLogDir(worktreePath);
+            if (!claudeLogDir || !existsSync(claudeLogDir)) continue;
             try {
                 const files = await fs.readdir(claudeLogDir);
                 const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
@@ -722,6 +809,7 @@ export class ConversationLinker {
                     conversations.push({
                         engine: 'claude',
                         id: uuid,
+                        workspacePath: worktreePath,
                         firstPrompt,
                         lastActivity: stats.lastActivity,
                         messageCount: stats.messageCount,
@@ -735,15 +823,24 @@ export class ConversationLinker {
 
         // Codex CLI
         const codexIndex = await this._buildCodexIndex();
-        const codexFiles = codexIndex.get(worktreePath.replace(/\/+$/, '')) || [];
+        const codexFileSet = new Set();
+        for (const worktreePath of workspacePaths) {
+            for (const filePath of codexIndex.get(worktreePath) || []) {
+                codexFileSet.add(filePath);
+            }
+        }
 
-        for (const filePath of codexFiles) {
+        for (const filePath of codexFileSet) {
             const uuid = path.basename(filePath, '.jsonl').replace(/^rollout-/, '');
             try {
                 const stat = await fs.stat(filePath);
+                const resumeId = await this.getCodexSessionId(filePath);
+                const workspacePath = await this.getCodexSessionCwd(filePath);
                 conversations.push({
                     engine: 'codex',
                     id: uuid,
+                    resumeId,
+                    workspacePath,
                     firstPrompt: null,
                     lastActivity: stat.mtime.toISOString(),
                     messageCount: 0,

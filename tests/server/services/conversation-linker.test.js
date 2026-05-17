@@ -15,11 +15,11 @@ async function createJsonlFile(lines) {
   return filePath;
 }
 
-async function createCodexSessionFile(rootDir, { year = '2026', month = '05', day = '07', file = 'rollout-test.jsonl', cwd }) {
+async function createCodexSessionFile(rootDir, { year = '2026', month = '05', day = '07', file = 'rollout-test.jsonl', cwd, id = '019e0000-0000-7000-8000-000000000001' }) {
   const dayDir = path.join(rootDir, year, month, day);
   await fs.mkdir(dayDir, { recursive: true });
   const filePath = path.join(dayDir, file);
-  await fs.writeFile(filePath, `${JSON.stringify({ type: 'session_meta', cwd })}\n`, 'utf8');
+  await fs.writeFile(filePath, `${JSON.stringify({ type: 'session_meta', payload: { id, cwd } })}\n`, 'utf8');
   return filePath;
 }
 
@@ -199,5 +199,43 @@ describe('ConversationLinker', () => {
     expect(readCwd).toHaveBeenCalledTimes(2);
     expect(secondIndex.has('/tmp/project-a')).toBe(false);
     expect(secondIndex.get('/tmp/project-b-updated')).toEqual([filePath]);
+  });
+
+  it('rotated sessionはactive workspaceとretired workspaceのCodexログを同じ会話履歴として扱う', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-history-'));
+    tempDirs.push(codexRoot);
+    await createCodexSessionFile(codexRoot, {
+      day: '16',
+      file: 'rollout-2026-05-16T11-07-17-019e2e89-b776-71f1-9a5a-c3ecacd0c24a.jsonl',
+      cwd: '/tmp/session-g1',
+      id: '019e2e89-b776-71f1-9a5a-c3ecacd0c24a'
+    });
+    await createCodexSessionFile(codexRoot, {
+      day: '17',
+      file: 'rollout-2026-05-17T20-03-15-019e359a-c2cc-7a23-99de-e468b147a26b.jsonl',
+      cwd: '/tmp/session-g2',
+      id: '019e359a-c2cc-7a23-99de-e468b147a26b'
+    });
+
+    const session = {
+      id: 'session-rotated',
+      path: '/tmp/session-g2',
+      worktree: { path: '/tmp/session-g2' },
+      workspaceHistory: [{ path: '/tmp/session-g1', retiredAt: '2026-05-17T11:02:58.598Z' }]
+    };
+    const stateStore = {
+      get: vi.fn(() => ({ sessions: [session] })),
+      mutateSessions: vi.fn(async (mutator) => ({ sessions: await mutator([session]) }))
+    };
+    const linker = new ConversationLinker({ stateStore });
+    linker.codexSessionsDir = codexRoot;
+
+    const result = await linker.linkAll();
+    const updated = stateStore.mutateSessions.mock.calls[0][0]([session])[0];
+
+    expect(result.updated).toBe(1);
+    expect(updated.conversationSummary.totalConversations).toBe(2);
+    expect(updated.conversationSummary.codexLogFiles).toHaveLength(2);
+    expect(updated.codexThreadId).toBe('019e359a-c2cc-7a23-99de-e468b147a26b');
   });
 });
