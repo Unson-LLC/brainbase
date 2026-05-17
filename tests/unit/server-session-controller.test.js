@@ -1398,6 +1398,7 @@ describe('SessionController (Server)', () => {
         changesNotPushed: 2,
         hasWorkingCopyChanges: false,
         needsMerge: true,
+        hasConflicts: true,
         bookmarkPushed: true,
         mainBranch: 'develop',
         worktreePath: '/tmp/worktrees/session-ctx/project'
@@ -1417,8 +1418,10 @@ describe('SessionController (Server)', () => {
         dirty: false,
         unpushed: true,
         unmerged: true,
+        conflict: true,
         hasWorkingCopyChanges: false,
         needsMerge: true,
+        hasConflicts: true,
         prStatus: 'open_or_pending',
         baseBranch: 'develop'
       }));
@@ -1504,6 +1507,7 @@ describe('SessionController (Server)', () => {
         changesNotPushed: 3,
         hasWorkingCopyChanges: true,
         needsMerge: true,
+        hasConflicts: true,
         bookmarkPushed: true,
         mainBranch: 'develop',
         worktreePath: '/tmp/worktrees/session-ui/project'
@@ -1532,8 +1536,10 @@ describe('SessionController (Server)', () => {
           dirty: true,
           unpushed: true,
           unmerged: true,
+          conflict: true,
           hasWorkingCopyChanges: true,
           needsMerge: true,
+          hasConflicts: true,
           changesNotPushed: 3,
           prStatus: 'open_or_pending',
           currentDirectory: '/tmp/worktrees/session-ui/project/src'

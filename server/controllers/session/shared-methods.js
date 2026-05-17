@@ -38,14 +38,17 @@ export function buildSessionWorktreeStatusSummary(status = {}) {
     const changesNotPushed = Number.parseInt(String(status.changesNotPushed || 0), 10) || 0;
     const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
     const needsMerge = Boolean(status.needsMerge);
+    const hasConflicts = Boolean(status.hasConflicts || status.conflicted);
 
     return {
         dirty: hasWorkingCopyChanges,
         unpushed: changesNotPushed > 0,
         unmerged: needsMerge,
+        conflict: hasConflicts,
         changesNotPushed,
         hasWorkingCopyChanges,
-        needsMerge
+        needsMerge,
+        hasConflicts
     };
 }
 
@@ -640,8 +643,10 @@ export function installSharedMethods(controller) {
                 dirty: statusSummary.dirty,
                 unpushed: statusSummary.unpushed,
                 unmerged: statusSummary.unmerged,
+                conflict: statusSummary.conflict,
                 hasWorkingCopyChanges: statusSummary.hasWorkingCopyChanges,
                 needsMerge: statusSummary.needsMerge,
+                hasConflicts: statusSummary.hasConflicts,
                 changesNotPushed,
                 prStatus: session.merged
                     ? 'merged'

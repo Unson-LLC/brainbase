@@ -185,6 +185,7 @@ export class SessionContextBarView extends BaseView {
         const dirty = context.dirty;
         const unpushed = Boolean(context.unpushed);
         const unmerged = Boolean(context.unmerged || context.needsMerge);
+        const conflict = Boolean(context.conflict || context.hasConflicts);
         const changesNotPushed = Number(context.changesNotPushed || 0);
         const prStatus = context.prStatus || 'none';
         const hasCwdMismatch = this._normalizePath(workspacePath) !== this._normalizePath(currentDirectory);
@@ -208,6 +209,9 @@ export class SessionContextBarView extends BaseView {
         }
         if (unmerged) {
             alerts.push('<span class="context-alert is-warning" title="Changes are not integrated into the base branch">unmerged</span>');
+        }
+        if (conflict) {
+            alerts.push('<span class="context-alert is-danger" title="Working copy has unresolved conflicts">conflict</span>');
         }
         if (prStatus === 'merged') {
             alerts.push('<span class="context-alert is-ok" title="PR merged">🔀 merged</span>');

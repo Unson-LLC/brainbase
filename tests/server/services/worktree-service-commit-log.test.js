@@ -223,6 +223,7 @@ describe('WorktreeService Git compatibility helpers', () => {
             { name: 'session/session-1', pushed: true, output: 'session/session-1: abc@origin' }
         ]);
         vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(2);
+        vi.spyOn(service, '_hasWorkingCopyConflicts').mockResolvedValue(false);
 
         mockExec
             .mockResolvedValueOnce({ stdout: 'develop\n' })
@@ -235,7 +236,54 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(result.hasWorkingCopyChanges).toBe(false);
         expect(result.needsIntegration).toBe(false);
         expect(result.needsMerge).toBe(true);
+        expect(result.hasConflicts).toBe(false);
         expect(result.commitsAheadOfBase).toBe(2);
+        expect(service._hasWorkingCopyConflicts).toHaveBeenCalledWith('/tmp/worktrees/session-1-repo');
+    });
+
+    it('statusに変化がない場合_conflict検査を省略する', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+        vi.spyOn(service, '_hasWorkingCopyConflicts');
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'The working copy has no changes.\n' });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasConflicts).toBe(false);
+        expect(service._hasWorkingCopyConflicts).not.toHaveBeenCalled();
+    });
+
+    it('statusに変化がある場合_jj resolve listでconflictを検出する', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({
+                stdout: [
+                    'Working copy changes:',
+                    'M src/app.js'
+                ].join('\n')
+            })
+            .mockResolvedValueOnce({ stdout: 'src/app.js\n' });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.hasWorkingCopyChanges).toBe(true);
+        expect(result.hasConflicts).toBe(true);
+        expect(result.conflicted).toBe(true);
+        expect(mockExec).toHaveBeenCalledWith(
+            'jj -R "/tmp/worktrees/session-1-repo" resolve --list --no-pager'
+        );
     });
 
     it('fetchRemote=false のとき jj git fetch を実行しない', async () => {
@@ -320,7 +368,8 @@ describe('WorktreeService Git compatibility helpers', () => {
                     'A ../../worktrees/session-1-repo/.claude/commands/commit.md',
                     'M ../../worktrees/session-1-repo/src/app.js'
                 ].join('\n')
-            });
+            })
+            .mockResolvedValueOnce({ stdout: '' });
 
         const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
 
@@ -399,13 +448,16 @@ describe('WorktreeService.autoHealArchiveState', () => {
     it('unpushed changeがある場合はself-healしない', async () => {
         const { promises: fs } = await import('fs');
         vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([
+            { name: 'session/session-1', pushed: true, output: 'session/session-1: test@origin' }
+        ]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+        vi.spyOn(service, '_hasWorkingCopyConflicts').mockResolvedValue(false);
 
         mockExec
             .mockResolvedValueOnce({ stdout: 'main\n' })
             .mockResolvedValueOnce({ stdout: '2\n' })
-            .mockResolvedValueOnce({ stdout: 'Working copy changes:\n' })
-            .mockResolvedValueOnce({ stdout: 'session/session-1: test@origin\n' })
-            .mockResolvedValueOnce({ stdout: '' });
+            .mockResolvedValueOnce({ stdout: 'Working copy changes:\n' });
 
         const result = await service.autoHealArchiveState(
             'session-1',

@@ -179,6 +179,12 @@ export function renderSessionRowHTML(session, options = {}) {
       title: 'Changes are not integrated into the base branch'
     }));
   }
+  if (summary.conflict || summary.hasConflicts) {
+    summaryChips.push(renderChip('conflict', {
+      className: 'chip-conflict',
+      title: 'Working copy has unresolved conflicts'
+    }));
+  }
   if (summary.prStatus === 'merged') {
     summaryChips.push(renderChip('merged', { className: 'chip-pr-ok', title: 'PR merged' }));
   } else if (summary.prStatus === 'open_or_pending') {

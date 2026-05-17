@@ -169,6 +169,7 @@ describe('session-list-renderer', () => {
             dirty: true,
             unpushed: true,
             unmerged: true,
+            conflict: true,
             changesNotPushed: 2,
             prStatus: 'open_or_pending'
           },
@@ -186,6 +187,8 @@ describe('session-list-renderer', () => {
       expect(html).toContain('title="Local commits are not pushed"');
       expect(html).toContain('unmerged');
       expect(html).toContain('title="Changes are not integrated into the base branch"');
+      expect(html).toContain('conflict');
+      expect(html).toContain('title="Working copy has unresolved conflicts"');
       expect(html).toContain('pending');
       expect(html).toContain('file: app.js');
       expect(html).toContain('Reconnecting');

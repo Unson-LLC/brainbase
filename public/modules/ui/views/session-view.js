@@ -264,6 +264,7 @@ export class SessionView {
             summary.dirty ? '1' : '0',
             summary.unpushed ? '1' : '0',
             summary.unmerged || summary.needsMerge ? '1' : '0',
+            summary.conflict || summary.hasConflicts ? '1' : '0',
             summary.changesNotPushed || 0,
             summary.prStatus || '',
             convSummary.totalConversations || 0,

@@ -1584,6 +1584,12 @@ button svg *,
     color: #c4a7ff;
 }
 
+.session-summary-chip.chip-conflict {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
 .session-summary-chip.chip-pr-ok {
     background: rgba(34, 197, 94, 0.12);
     border-color: rgba(34, 197, 94, 0.26);
