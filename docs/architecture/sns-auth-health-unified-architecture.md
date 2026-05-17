@@ -35,6 +35,8 @@ Changing the scheduled publisher to use the internal provider is larger than thi
 
 The API exposes only env key presence and credential mode. It never returns the env values.
 
+`posting_bridge_oauth1` health uses the same `x_client.py --verify` script family as public posting. In production default mode, the Node process must not fail early only because its own env is missing OAuth1 keys: `x_client.py` is allowed to discover the workspace `.env`, matching the existing posting bridge behavior. Explicit test env objects still fail before shelling out when required keys are incomplete.
+
 ## Follow-Up
 
 Unifying actual public posting onto the internal provider should be a separate story because it changes the public side-effect path and audit behavior.

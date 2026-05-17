@@ -18,6 +18,7 @@ status: active
 - INV-4: When OAuth2 health is unavailable, posting bridge health may verify OAuth1 readiness without posting.
 - INV-5: Posting bridge health must return a clear `credential_mode` so UI/API operators know which path was checked.
 - INV-6: Posting bridge health does not provide X API read rate-limit data.
+- INV-7: In production default mode, posting bridge health must allow `x_client.py --verify` to discover the same `.env` file used by the posting bridge.
 
 ## Contracts
 
@@ -58,6 +59,7 @@ OAuth2 health may return `credential_mode: "x_api_oauth2"` and actual rate-limit
 - S-2: OAuth2 env is missing, OAuth1 posting env is complete, and non-posting verify succeeds: health is OK using `posting_bridge_oauth1`.
 - S-3: OAuth2 is unavailable and OAuth1 posting env is incomplete: health is NG with `missing_posting_bridge_credentials`.
 - S-4: `X_ACCESS_TOKEN` exists without an explicit OAuth2 ref, or is present as `credential_ref.env`: OAuth2 client does not use it as Bearer.
+- S-5: Node process env lacks OAuth1 keys but `createPostingBridgeHealthCheck()` is using its default process env: the health check still runs `x_client.py --verify` so the script can load workspace `.env`.
 
 ## Anti-Patterns
 
