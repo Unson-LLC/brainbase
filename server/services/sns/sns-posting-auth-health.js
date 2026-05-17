@@ -43,10 +43,11 @@ export function createPostingBridgeHealthCheck({
     env = process.env,
     pythonPath = process.env.SNS_POST_PYTHON || '/Users/ksato/workspace/.venv/bin/python',
     scriptPath = process.env.SNS_POST_SCRIPT || '/Users/ksato/workspace/common/ops/scripts/sns_post.py',
-    execFileImpl = execFileAsync
+    execFileImpl = execFileAsync,
+    allowScriptEnvDiscovery = env === process.env
 } = {}) {
     return async function postingBridgeHealthCheck() {
-        if (!hasPostingBridgeCredentials(env)) {
+        if (!hasPostingBridgeCredentials(env) && !allowScriptEnvDiscovery) {
             return {
                 ok: false,
                 reason: 'missing_posting_bridge_credentials',

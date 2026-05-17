@@ -50,6 +50,38 @@ describe('SNS posting auth health', () => {
         expect(execFileImpl).not.toHaveBeenCalled();
     });
 
+    it('S-2: lets the posting script discover its .env when using the default process env', async () => {
+        const execFileImpl = vi.fn(async () => ({ stdout: 'Authenticated as @AIBizNavigator' }));
+        const originalValues = {
+            X_CONSUMER_KEY: process.env.X_CONSUMER_KEY,
+            X_CONSUMER_SECRET: process.env.X_CONSUMER_SECRET,
+            X_ACCESS_TOKEN: process.env.X_ACCESS_TOKEN,
+            X_ACCESS_TOKEN_SECRET: process.env.X_ACCESS_TOKEN_SECRET
+        };
+        for (const key of Object.keys(originalValues)) delete process.env[key];
+        try {
+            const healthCheck = createPostingBridgeHealthCheck({
+                pythonPath: '/python',
+                scriptPath: '/ops/scripts/sns_post.py',
+                execFileImpl
+            });
+
+            await expect(healthCheck()).resolves.toEqual({
+                ok: true,
+                reason: null,
+                credential_mode: 'posting_bridge_oauth1'
+            });
+            expect(execFileImpl).toHaveBeenCalledWith('/python', ['/ops/scripts/x_client.py', '--verify'], expect.objectContaining({
+                env: process.env
+            }));
+        } finally {
+            for (const [key, value] of Object.entries(originalValues)) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
+    });
+
     it('S-2: falls back to posting bridge health when explicit OAuth2 env is absent', async () => {
         const xProvider = {
             healthCheck: vi.fn(async () => ({ ok: true })),
