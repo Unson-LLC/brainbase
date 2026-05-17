@@ -1,6 +1,7 @@
 import { CliState, detectCliStateWithColors } from './cli-pattern-detector.js';
 
 const PROBE_COOLDOWN_MS = 2_000;
+const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 
 function nowIso() {
     return new Date().toISOString();
@@ -13,7 +14,8 @@ export class TerminalInputProbeService {
         terminalIo,
         snapshotService,
         runtimeRegistry,
-        captureCache = null
+        captureCache = null,
+        probeTimeoutMs = DEFAULT_PROBE_TIMEOUT_MS
     } = {}) {
         this.ownershipService = ownershipService;
         this.runtimeQuery = runtimeQuery;
@@ -21,6 +23,7 @@ export class TerminalInputProbeService {
         this.snapshotService = snapshotService;
         this.runtimeRegistry = runtimeRegistry;
         this.captureCache = captureCache;
+        this.probeTimeoutMs = probeTimeoutMs;
         this.lastProbeAt = new Map();
     }
 
@@ -53,7 +56,17 @@ export class TerminalInputProbeService {
             return this._fail(sessionId, 'TMUX_NOT_RUNNING', 'tmux session not found', { terminalAccess });
         }
 
-        const snapshot = await this._getSnapshot(sessionId);
+        let snapshot;
+        try {
+            snapshot = await this._withTimeout(
+                this._getSnapshot(sessionId),
+                this.probeTimeoutMs,
+                'PROBE_TIMEOUT'
+            );
+        } catch (error) {
+            const code = error?.code === 'PROBE_TIMEOUT' ? 'PROBE_TIMEOUT' : 'SNAPSHOT_UNAVAILABLE';
+            return this._fail(sessionId, code, error?.message || 'terminal snapshot is not available', { terminalAccess });
+        }
         if (snapshot.copyMode) {
             return this._fail(sessionId, 'TERMINAL_COPY_MODE', 'terminal is in copy mode', { terminalAccess });
         }
@@ -96,6 +109,26 @@ export class TerminalInputProbeService {
             this.snapshotService.getPaneMode(sessionId).catch(() => false)
         ]);
         return { text, colorText, copyMode };
+    }
+
+    _withTimeout(promise, timeoutMs, code) {
+        const safeTimeoutMs = Math.max(100, Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS);
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                const error = new Error(`terminal input probe timed out after ${safeTimeoutMs}ms`);
+                error.code = code;
+                reject(error);
+            }, safeTimeoutMs);
+            Promise.resolve(promise)
+                .then((value) => {
+                    clearTimeout(timer);
+                    resolve(value);
+                })
+                .catch((error) => {
+                    clearTimeout(timer);
+                    reject(error);
+                });
+        });
     }
 
     _getLegacyTerminalOwnership(sessionId, viewerId) {

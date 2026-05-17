@@ -30,6 +30,24 @@ async function repairCollapsedTerminalGeometry(controller, sessionId, reason) {
     return null;
 }
 
+function isInteractiveRuntimeReady(runtimeStatus = {}, observedRuntime = null) {
+    const runtimeState = observedRuntime?.runtimeState || runtimeStatus?.runtimeState;
+    const inputProbe = observedRuntime?.observed?.inputProbe || runtimeStatus?.inputProbe || null;
+    const inputReady = inputProbe?.status === 'passed' || runtimeStatus?.inputReady === true;
+    return runtimeState === 'interactive_ready' && inputReady;
+}
+
+function buildObservedRuntimeStatus(baseRuntimeStatus = {}, observedRuntime = null) {
+    return {
+        ...(baseRuntimeStatus || {}),
+        ...(observedRuntime?.runtimeState ? { runtimeState: observedRuntime.runtimeState } : {}),
+        ...(observedRuntime?.observed?.inputProbe ? {
+            inputProbe: observedRuntime.observed.inputProbe,
+            inputReady: observedRuntime.observed.inputProbe.status === 'passed'
+        } : {})
+    };
+}
+
 export function installRuntimeHandlers(controller) {
     controller.get = async (req, res) => {
         const { id } = req.params;
@@ -105,6 +123,27 @@ export function installRuntimeHandlers(controller) {
         }
 
         try {
+            const trimmedViewerId = typeof viewerId === 'string' ? viewerId.trim() : '';
+            const terminalAccess = trimmedViewerId
+                ? controller.ownership.getTerminalAccessState(id, trimmedViewerId)
+                : null;
+            const observedRuntime = controller.runtimeRegistry?.getSession?.(id) || null;
+            const baseRuntimeStatus = session.runtimeStatus || {};
+            const runtimeStatus = buildObservedRuntimeStatus(baseRuntimeStatus, observedRuntime);
+            if (
+                !forceTtyd
+                && session.intendedState === 'active'
+                && terminalAccess?.state !== 'blocked'
+                && isInteractiveRuntimeReady(runtimeStatus, observedRuntime)
+            ) {
+                return res.json({
+                    sessionId: id,
+                    runtimeStatus: controller._withViewerRuntimeStatus(runtimeStatus, trimmedViewerId),
+                    terminalAccess,
+                    fastPath: true
+                });
+            }
+
             const resolvedCwd = await controller._resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
             const runtimeOptions = {
                 sessionId: id,
@@ -144,20 +183,20 @@ export function installRuntimeHandlers(controller) {
 
             const geometryRepair = await repairCollapsedTerminalGeometry(controller, id, 'terminal-ensure');
             const updatedSession = controller._getSessionById(id);
-            const terminalAccess = typeof viewerId === 'string' && viewerId.trim()
-                ? controller.ownership.getTerminalAccessState(id, viewerId.trim())
+            const updatedTerminalAccess = trimmedViewerId
+                ? controller.ownership.getTerminalAccessState(id, trimmedViewerId)
                 : null;
             const response = {
                 sessionId: id,
-                runtimeStatus: controller._withViewerRuntimeStatus(updatedSession?.runtimeStatus || null, viewerId),
-                terminalAccess
+                runtimeStatus: controller._withViewerRuntimeStatus(updatedSession?.runtimeStatus || null, trimmedViewerId),
+                terminalAccess: updatedTerminalAccess
             };
             if (geometryRepair) {
                 response.geometryRepair = geometryRepair;
             }
             if (ttydResult) {
                 response.port = ttydResult.port;
-                response.proxyPath = controller._appendViewerIdToProxyPath(ttydResult.proxyPath, viewerId);
+                response.proxyPath = controller._appendViewerIdToProxyPath(ttydResult.proxyPath, trimmedViewerId);
             }
             res.json(response);
         } catch (error) {

@@ -325,7 +325,7 @@ describe('TerminalTransportService', () => {
         expect(service._shouldCheckPastedTextOverlay('line one\nline two\n')).toBe(true);
     });
 
-    it('ready送信時_履歴付きeager snapshotを送らずstreaming開始をブロックしない', async () => {
+    it('ready送信時_履歴付きeager snapshotを送らずxterm接続を先に返す', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValueOnce({
             text: 'history\nsnapshot',

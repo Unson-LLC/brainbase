@@ -54,6 +54,7 @@ describe('SessionContextBarView', () => {
     });
 
     afterEach(() => {
+        delete window.brainbaseApp;
         vi.useRealTimers();
     });
 
@@ -92,6 +93,32 @@ describe('SessionContextBarView', () => {
         expect(getSessionContext).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
+        expect(getSessionContext).toHaveBeenCalledWith('session-1');
+    });
+
+    it('session切替中_context取得をxterm表示完了まで延期する', async () => {
+        const getSessionContext = vi.fn().mockResolvedValue(createContext());
+        view = new SessionContextBarView({ sessionService: { getSessionContext } });
+        view.container = container;
+        window.brainbaseApp = {
+            _pendingTerminalSwitch: {
+                toSessionId: 'session-1',
+                startedAt: Date.now()
+            }
+        };
+
+        view._scheduleRefresh({
+            forceLoading: false,
+            delayMs: view.switchDelayMs,
+            waitForTerminalSwitch: true
+        });
+
+        await vi.advanceTimersByTimeAsync(view.switchDelayMs + view.terminalSwitchRefreshDelayMs - 1);
+        expect(getSessionContext).not.toHaveBeenCalled();
+
+        window.brainbaseApp._pendingTerminalSwitch = null;
+        await vi.advanceTimersByTimeAsync(1);
+
         expect(getSessionContext).toHaveBeenCalledWith('session-1');
     });
 });
