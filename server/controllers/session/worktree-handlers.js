@@ -2,6 +2,21 @@
 import { logger } from '../../utils/logger.js';
 import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 
+function extractCodexResumeId(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    return match ? match[1] : null;
+}
+
+function getCodexResumeId(session) {
+    if (!session || session.engine !== 'codex') return null;
+    return session.codexThreadId
+        || session.conversationSummary?.codexThreadId
+        || session.conversationSummary?.lastConversation?.resumeId
+        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
+        || null;
+}
+
 export function installWorktreeHandlers(controller) {
     controller.getProgress = async (req, res) => {
         const { id } = req.params;
@@ -244,6 +259,7 @@ export function installWorktreeHandlers(controller) {
 
             const activeWorkspaceId = session.activeWorkspaceId || session.worktree?.workspaceId || id;
             const activeGeneration = Number.isFinite(session.worktree?.generation) ? session.worktree.generation : undefined;
+            const codexResumeId = getCodexResumeId(session);
             const result = await controller.worktreeService.merge(id, session.worktree.repo, session.name, {
                 workspaceId: activeWorkspaceId,
                 generation: activeGeneration,
@@ -276,6 +292,11 @@ export function installWorktreeHandlers(controller) {
                                         generation: active.generation
                                     }
                                     : entry.worktree,
+                                ...(codexResumeId ? {
+                                    codexThreadId: codexResumeId,
+                                    bindingSource: 'workspace-rotation',
+                                    bindingUpdatedAt: new Date().toISOString()
+                                } : {}),
                                 workspaceHistory: retired
                                     ? [...(entry.workspaceHistory || []), retired]
                                     : (entry.workspaceHistory || []),
@@ -298,7 +319,8 @@ export function installWorktreeHandlers(controller) {
                         sessionId: id,
                         cwd: active.path,
                         initialCommand: session.initialCommand,
-                        engine: session.engine || 'claude'
+                        engine: session.engine || 'claude',
+                        ...(codexResumeId ? { codexResumeId } : {})
                     });
                     result.port = runtime?.port;
                     result.proxyPath = runtime?.proxyPath;

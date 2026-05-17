@@ -287,6 +287,7 @@ JJ_GUARD_DIR="$SCRIPT_DIR/bin"
 REAL_JJ_BIN="$(command -v jj 2>/dev/null || true)"
 # Default to Codex CLI; opt-in to app-server REPL via env var.
 USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
+CODEX_RESUME_ID="${BRAINBASE_CODEX_RESUME_ID:-}"
 CODEX_NOTIFY_ARG=""
 CODEX_HOOKS_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
@@ -406,7 +407,27 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
             fi
         else
             # Launch Codex CLI with notify hook (fallback)
-            if [ -n "$INITIAL_CMD" ]; then
+            if [ -n "$CODEX_RESUME_ID" ] && [ -n "$INITIAL_CMD" ]; then
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" resume %s %s %q "$(cat %q; rm -f %q)"' \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_WRAPPER" \
+                    "$CODEX_HOOKS_ARG" \
+                    "$CODEX_NOTIFY_ARG" \
+                    "$CODEX_RESUME_ID" \
+                    "$INITIAL_CMD_FILE" \
+                    "$INITIAL_CMD_FILE"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            elif [ -n "$CODEX_RESUME_ID" ]; then
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" resume %s %s %q' \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_WRAPPER" \
+                    "$CODEX_HOOKS_ARG" \
+                    "$CODEX_NOTIFY_ARG" \
+                    "$CODEX_RESUME_ID"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            elif [ -n "$INITIAL_CMD" ]; then
                 printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s "$(cat %q; rm -f %q)"' \
                     "$LOCALE_EXPORT" \
                     "$SESSION_NAME" \

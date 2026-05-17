@@ -12,6 +12,24 @@ function isMissingTmuxPaneError(error) {
     return message.includes("can't find pane") || message.includes('no server running on');
 }
 
+function extractCodexResumeId(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    return match ? match[1] : null;
+}
+
+function getCodexResumeId(session, engine) {
+    const selectedEngine = typeof engine === 'string' && engine.trim()
+        ? engine
+        : session?.engine;
+    if (!session || selectedEngine !== 'codex') return null;
+    return session.codexThreadId
+        || session.conversationSummary?.codexThreadId
+        || session.conversationSummary?.lastConversation?.resumeId
+        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
+        || null;
+}
+
 async function repairCollapsedTerminalGeometry(controller, sessionId, reason) {
     if (typeof controller.terminalIo?.repairCollapsedSessionWindow !== 'function') {
         return null;
@@ -153,6 +171,10 @@ export function installRuntimeHandlers(controller) {
                 initialCommand: typeof initialCommand === 'string' ? initialCommand : (session.initialCommand || ''),
                 engine: typeof engine === 'string' && engine.trim() ? engine : (session.engine || 'claude')
             };
+            const codexResumeId = getCodexResumeId(session, runtimeOptions.engine);
+            if (codexResumeId) {
+                runtimeOptions.codexResumeId = codexResumeId;
+            }
             let ttydResult = null;
 
             if (forceTtyd) {
@@ -446,6 +468,10 @@ export function installRuntimeHandlers(controller) {
             if (typeof engine === 'string' && engine.trim()) {
                 startOptions.engine = engine;
             }
+            const codexResumeId = getCodexResumeId(targetSession, startOptions.engine);
+            if (codexResumeId) {
+                startOptions.codexResumeId = codexResumeId;
+            }
             if (forceTtyd) startOptions.forceTtyd = true;
 
             const result = await controller.runtimeLifecycle.startTtyd(startOptions);
@@ -624,11 +650,13 @@ export function installRuntimeHandlers(controller) {
 
             controller.activity.clearDoneStatus(id);
 
+            const codexResumeId = getCodexResumeId(session, engine);
             const result = await controller.runtimeLifecycle.startTtyd({
                 sessionId: id,
                 cwd: restoredWorkspacePath,
                 initialCommand: session.initialCommand,
-                engine
+                engine,
+                ...(codexResumeId ? { codexResumeId } : {})
             });
 
             await controller._updateStateWithRetry((state) => {

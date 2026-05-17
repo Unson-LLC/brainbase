@@ -326,6 +326,13 @@ describe('SessionController (Server)', () => {
         engine: 'codex',
         intendedState: 'active',
         activeWorkspaceId: 'session-rotate-g1',
+        conversationSummary: {
+          codexThreadId: '019e2e89-b776-71f1-9a5a-c3ecacd0c24a',
+          lastConversation: {
+            engine: 'codex',
+            conversationId: '2026-05-16T11-07-17-019e2e89-b776-71f1-9a5a-c3ecacd0c24a'
+          }
+        },
         worktree: {
           repo: '/tmp/repo',
           path: '/tmp/worktrees/session-rotate-g1-brainbase',
@@ -394,6 +401,8 @@ describe('SessionController (Server)', () => {
         workspaceRotationStatus: 'ready',
         merged: true,
         mergedPrUrl: 'https://github.com/Unson-LLC/brainbase-unson/pull/999',
+        codexThreadId: '019e2e89-b776-71f1-9a5a-c3ecacd0c24a',
+        bindingSource: 'workspace-rotation',
         worktree: {
           workspaceId: 'session-rotate-g2',
           generation: 2,
@@ -406,7 +415,8 @@ describe('SessionController (Server)', () => {
         sessionId,
         cwd: '/tmp/worktrees/session-rotate-g2-brainbase',
         initialCommand: 'continue work',
-        engine: 'codex'
+        engine: 'codex',
+        codexResumeId: '019e2e89-b776-71f1-9a5a-c3ecacd0c24a'
       });
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
