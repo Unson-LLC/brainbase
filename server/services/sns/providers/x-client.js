@@ -18,11 +18,23 @@ import { randomBytes } from 'crypto';
  * @property {(credential_ref:any, tweet_id:string) => Promise<{impressions:number, likes:number, replies:number, reposts:number, bookmarks?:number}>} fetchTweetMetrics
  */
 
+const LEGACY_OAUTH1_ACCESS_TOKEN_ENVS = new Set([
+    'X_ACCESS_TOKEN',
+    'TWITTER_ACCESS_TOKEN'
+]);
+
+function isLegacyOAuth1AccessTokenEnv(envName) {
+    return LEGACY_OAUTH1_ACCESS_TOKEN_ENVS.has(String(envName || ''));
+}
+
 function defaultAccessTokenResolver(credentialRef) {
-    if (credentialRef?.env && process.env[credentialRef.env]) return process.env[credentialRef.env];
+    if (credentialRef?.env && !isLegacyOAuth1AccessTokenEnv(credentialRef.env) && process.env[credentialRef.env]) {
+        return process.env[credentialRef.env];
+    }
     return process.env.SNS_X_ACCESS_TOKEN
-        || process.env.X_ACCESS_TOKEN
-        || process.env.TWITTER_ACCESS_TOKEN
+        || process.env.SNS_X_OAUTH2_ACCESS_TOKEN
+        || process.env.X_OAUTH2_ACCESS_TOKEN
+        || process.env.TWITTER_OAUTH2_ACCESS_TOKEN
         || process.env.X_BEARER_TOKEN
         || process.env.TWITTER_BEARER_TOKEN
         || '';
@@ -55,7 +67,7 @@ function normalizeTweetMetrics(data) {
 
 /**
  * X API v2 client for production metrics lookup.
- * Uses OAuth 2.0 user context when SNS_X_ACCESS_TOKEN/X_ACCESS_TOKEN is supplied.
+ * Uses OAuth 2.0 user context when an explicit OAuth2/Bearer env is supplied.
  */
 export class XApiClient {
     constructor({

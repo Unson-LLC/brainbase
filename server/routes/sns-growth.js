@@ -49,6 +49,8 @@ function credentialRefForUi(credentialRef, env = process.env) {
     if (credentialRef.env) {
         safe.env_present = Boolean(env[credentialRef.env]);
     }
+    safe.posting_bridge_env_present = ['X_CONSUMER_KEY', 'X_CONSUMER_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_TOKEN_SECRET']
+        .every((key) => Boolean(String(env[key] || '').trim()));
     return safe;
 }
 
@@ -213,6 +215,7 @@ export function createSnsGrowthRouter({
                 health: {
                     ok: Boolean(healthResult?.ok),
                     reason: healthResult?.reason || null,
+                    credential_mode: healthResult?.credential_mode || null,
                     rate_limit: rateLimit
                 }
             });

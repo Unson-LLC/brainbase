@@ -318,7 +318,8 @@ describe('sns-growth routes', () => {
             provider: 'env',
             path: 'SNS_X_ACCESS_TOKEN',
             env: 'SNS_X_ACCESS_TOKEN',
-            env_present: true
+            env_present: true,
+            posting_bridge_env_present: false
         });
         expect(JSON.stringify(res.body)).not.toContain('present-but-never-returned');
     });
@@ -449,9 +450,72 @@ describe('sns-growth routes', () => {
         expect(res.body.health).toEqual({
             ok: true,
             reason: null,
+            credential_mode: null,
             rate_limit: { remaining: 299, resetAt: '2026-05-15T12:15:00.000Z' }
         });
         expect(JSON.stringify(res.body)).not.toContain('secret-token');
+    });
+
+    it('reports posting bridge credential health without exposing OAuth1 env values', async () => {
+        const accountService = new AccountService({ repository: new InMemoryAccountRepository() });
+        const actor = { sub: 'sato_keigo', actor_person_id: 'sato_keigo', role: 'ceo', org_ids: ['unson'] };
+        await accountService.create({
+            id: 'acc_x_sato',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'sato_keigo',
+            display_name: 'Keigo Sato X',
+            external_handle: '@AIBizNavigator',
+            credential_ref: { provider: 'env', path: 'SNS_X_ACCESS_TOKEN', env: 'SNS_X_ACCESS_TOKEN' },
+            capabilities: ['post', 'read']
+        }, actor);
+        const accountProvider = {
+            async healthCheck() {
+                return { ok: true, reason: null, credential_mode: 'posting_bridge_oauth1' };
+            },
+            async getRateLimitStatus() {
+                return { remaining: null, resetAt: null, reason: 'not_available_for_posting_bridge' };
+            }
+        };
+        const env = {
+            X_CONSUMER_KEY: 'consumer-key-secret',
+            X_CONSUMER_SECRET: 'consumer-secret-secret',
+            X_ACCESS_TOKEN: 'oauth1-token-secret',
+            X_ACCESS_TOKEN_SECRET: 'oauth1-token-secret-value'
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sns-growth', createSnsGrowthRouter({
+            repository: new InMemorySnsPostingLedgerRepository(),
+            accountService,
+            accountProvider,
+            env
+        }));
+
+        const accounts = await request(app)
+            .get('/api/sns-growth/accounts')
+            .expect(200);
+        expect(accounts.body.accounts[0].credential_ref).toMatchObject({
+            env_present: false,
+            posting_bridge_env_present: true
+        });
+        expect(JSON.stringify(accounts.body)).not.toContain('oauth1-token-secret');
+
+        const res = await request(app)
+            .post('/api/sns-growth/accounts/acc_x_sato/health-check')
+            .expect(200);
+
+        expect(res.body.health).toEqual({
+            ok: true,
+            reason: null,
+            credential_mode: 'posting_bridge_oauth1',
+            rate_limit: {
+                remaining: null,
+                resetAt: null,
+                reason: 'not_available_for_posting_bridge'
+            }
+        });
+        expect(JSON.stringify(res.body)).not.toContain('oauth1-token-secret');
     });
 
     it('keeps account health visible when rate-limit lookup is unavailable', async () => {
@@ -490,6 +554,7 @@ describe('sns-growth routes', () => {
         expect(res.body.health).toMatchObject({
             ok: true,
             reason: null,
+            credential_mode: null,
             rate_limit: { remaining: null, resetAt: null, reason: 'rate_headers_missing' }
         });
     });

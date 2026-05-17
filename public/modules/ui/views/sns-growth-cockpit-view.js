@@ -734,6 +734,7 @@ export class SnsGrowthCockpitView extends BaseView {
         if (!ref) return 'credential refなし';
         const provider = ref.provider || 'provider';
         const path = ref.path || 'pathなし';
+        if (ref.posting_bridge_env_present) return `posting env ready / ${path}`;
         const envState = ref.env ? (ref.env_present ? 'env ready' : 'env missing') : provider;
         return `${envState} / ${path}`;
     }
@@ -758,7 +759,8 @@ export class SnsGrowthCockpitView extends BaseView {
             `;
         }
         const health = this.accountHealth[account.id];
-        const healthLabel = health ? (health.ok ? 'Health OK' : `Health NG: ${health.reason || 'unknown'}`) : 'Health未確認';
+        const healthMode = health?.credential_mode ? ` (${health.credential_mode})` : '';
+        const healthLabel = health ? (health.ok ? `Health OK${healthMode}` : `Health NG: ${health.reason || 'unknown'}${healthMode}`) : 'Health未確認';
         const remaining = health?.rate_limit?.remaining;
         return `
             <section class="sns-account-strip" aria-label="X account management">

@@ -29,6 +29,10 @@ import {
     createSnsPostScriptExecutor,
     SnsLedgerPublishService
 } from '../services/sns/sns-ledger-publish-service.js';
+import {
+    createPostingBridgeHealthCheck,
+    createSnsAccountHealthProvider
+} from '../services/sns/sns-posting-auth-health.js';
 import { XApiClient } from '../services/sns/providers/x-client.js';
 import { buildXProvider } from '../services/sns/providers/x-provider.js';
 
@@ -63,11 +67,15 @@ function createSnsAccountService() {
 }
 
 function createSnsAccountProvider() {
-    return buildXProvider({
+    const xProvider = buildXProvider({
         xClient: new XApiClient(),
         oauthSecret: process.env.INTEGRATION_OAUTH_STATE_SECRET
             || process.env.AUTH_SESSION_SECRET
             || 'local-dev-oauth-state-secret'
+    });
+    return createSnsAccountHealthProvider({
+        xProvider,
+        postingBridgeHealthCheck: createPostingBridgeHealthCheck()
     });
 }
 

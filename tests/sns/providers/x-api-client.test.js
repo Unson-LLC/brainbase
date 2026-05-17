@@ -4,6 +4,45 @@ import { describe, expect, it, vi } from 'vitest';
 import { XApiClient } from '../../../server/services/sns/providers/x-client.js';
 
 describe('XApiClient metrics lookup', () => {
+    it('INV-3: does not treat OAuth1 X_ACCESS_TOKEN as an OAuth2 bearer fallback', async () => {
+        vi.stubEnv('X_ACCESS_TOKEN', 'oauth1-user-token');
+        vi.stubEnv('TWITTER_ACCESS_TOKEN', 'oauth1-twitter-token');
+        vi.stubEnv('SNS_X_ACCESS_TOKEN', '');
+        vi.stubEnv('SNS_X_OAUTH2_ACCESS_TOKEN', '');
+        vi.stubEnv('X_OAUTH2_ACCESS_TOKEN', '');
+        vi.stubEnv('TWITTER_OAUTH2_ACCESS_TOKEN', '');
+        vi.stubEnv('X_BEARER_TOKEN', '');
+        vi.stubEnv('TWITTER_BEARER_TOKEN', '');
+        const fetchImpl = vi.fn();
+        const client = new XApiClient({ fetchImpl });
+
+        await expect(client.healthCheck({})).resolves.toEqual({
+            ok: false,
+            reason: 'missing_x_access_token'
+        });
+        expect(fetchImpl).not.toHaveBeenCalled();
+        vi.unstubAllEnvs();
+    });
+
+    it('INV-3: does not treat an explicit OAuth1 X_ACCESS_TOKEN credential_ref as OAuth2', async () => {
+        vi.stubEnv('X_ACCESS_TOKEN', 'oauth1-user-token');
+        vi.stubEnv('SNS_X_ACCESS_TOKEN', '');
+        vi.stubEnv('SNS_X_OAUTH2_ACCESS_TOKEN', '');
+        vi.stubEnv('X_OAUTH2_ACCESS_TOKEN', '');
+        vi.stubEnv('TWITTER_OAUTH2_ACCESS_TOKEN', '');
+        vi.stubEnv('X_BEARER_TOKEN', '');
+        vi.stubEnv('TWITTER_BEARER_TOKEN', '');
+        const fetchImpl = vi.fn();
+        const client = new XApiClient({ fetchImpl });
+
+        await expect(client.healthCheck({ env: 'X_ACCESS_TOKEN' })).resolves.toEqual({
+            ok: false,
+            reason: 'missing_x_access_token'
+        });
+        expect(fetchImpl).not.toHaveBeenCalled();
+        vi.unstubAllEnvs();
+    });
+
     it('maps X API v2 tweet metrics into SNS Ledger metrics shape', async () => {
         const fetchImpl = vi.fn(async () => ({
             ok: true,
