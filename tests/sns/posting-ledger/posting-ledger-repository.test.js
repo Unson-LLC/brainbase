@@ -126,6 +126,74 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(repository.findById(post.id)?.status).toBe('review_needed');
     });
 
+    it('skips duplicate body text already reserved by another live ledger row', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        const postedBody = [
+            'Claude Codeを会社で使う時、小技を増やすより先に決めることがある',
+            '',
+            'CLAUDE.md、スキル、hook、レビュー、権限'
+        ].join('\n');
+
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                date: '2026-05-13',
+                slot_index: 2,
+                body: postedBody
+            }]
+        });
+
+        const result = repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                date: '2026-05-18',
+                slot_index: 1,
+                body: `  ${postedBody.replace('hook', 'hook')}  `
+            }]
+        });
+
+        expect(result.created).toHaveLength(0);
+        expect(result.updated).toHaveLength(0);
+        expect(result.skipped).toHaveLength(1);
+        expect(result.skipped[0]).toMatchObject({
+            reason: 'duplicate_body',
+            existing_post_id: 'sns_20260513_2_trust_balance'
+        });
+        expect(repository.listPosts({ startDate: '2026-05-18', endDate: '2026-05-18' })).toHaveLength(0);
+    });
+
+    it('does not overwrite posted rows when a review pack reuses the same account date and slot', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
+        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, {
+            status: 'posted',
+            posted_url: 'https://x.com/AIBizNavigator/status/2055199687339303164',
+            posted_at: '2026-05-15T08:12:43.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const result = repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                body: 'new generated copy should not replace public history'
+            }]
+        });
+
+        expect(result.created).toHaveLength(0);
+        expect(result.updated).toHaveLength(0);
+        expect(result.skipped).toHaveLength(1);
+        expect(result.skipped[0].reason).toBe('immutable_status');
+        expect(repository.findById(post.id)).toMatchObject({
+            status: 'posted',
+            body: baseDraft.body,
+            posted_url: 'https://x.com/AIBizNavigator/status/2055199687339303164'
+        });
+    });
+
     it('marks a posted record as deleted while preserving the posted URL and deletion metadata', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
         repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });

@@ -80,6 +80,39 @@ describe('sns-growth routes', () => {
         expect(res.body.summary.by_status.review_needed).toBe(1);
     });
 
+    it('reports duplicate review-pack rows as skipped instead of calendar posts', async () => {
+        const { app, repository } = makeApp();
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                date: '2026-05-13',
+                slot_index: 2,
+                lane: 'trust_balance',
+                body: 'Claude Codeを会社で使う時、小技を増やすより先に決めることがある'
+            }]
+        });
+
+        const res = await request(app)
+            .post('/api/sns-growth/review-pack')
+            .send({
+                account_id: 'acc_x_sato',
+                account_handle: '@AIBizNavigator',
+                drafts: [{
+                    date: '2026-05-18',
+                    slot_index: 1,
+                    lane: 'trust_balance',
+                    body: 'Claude Codeを会社で使う時、小技を増やすより先に決めることがある'
+                }]
+            })
+            .expect(201);
+
+        expect(res.body.created).toHaveLength(0);
+        expect(res.body.updated).toHaveLength(0);
+        expect(res.body.skipped).toHaveLength(1);
+        expect(res.body.skipped[0].reason).toBe('duplicate_body');
+        expect(repository.listPosts({ startDate: '2026-05-18', endDate: '2026-05-18' })).toHaveLength(0);
+    });
+
     it('updates a post body and status through the operational API', async () => {
         const { app, repository } = makeApp();
         repository.upsertReviewPack({
