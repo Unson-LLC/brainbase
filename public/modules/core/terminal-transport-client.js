@@ -22,7 +22,7 @@ const MAX_SCROLL_STEPS = 8;
 const SCROLL_FLUSH_MS = 16;
 const TOUCH_STEP_PX = 18;
 const TOUCH_FLUSH_MS = 30;
-const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
+const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
@@ -303,7 +303,7 @@ export class TerminalTransportClient {
             // でなく「過去にIMEを使った後に通常文字を打って最後にEnter」のシナリオでも
             // 起きるため、Enter は modifier 無しのときのみ常に保証する。
             // dedup (onData で natural \r が来ればタイマーキャンセル) で重複は防ぐ。
-            // Shift/Ctrl/Alt/Meta+Enter は別の意味 (M-Enter等) なので除外。
+            // Shift/Ctrl/Alt/Meta+Enter は別の意味 (S-Enter等) なので除外。
             if (e.key === 'Enter' && !e.isComposing
                 && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
                 this._imeJustCommittedWithEnter = false;
@@ -532,7 +532,7 @@ export class TerminalTransportClient {
         if (!event || event.type !== 'keydown') return true;
 
         if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-            void this.sendKey('M-Enter');
+            void this.sendKey('S-Enter');
             if (typeof event.preventDefault === 'function') {
                 event.preventDefault();
             }

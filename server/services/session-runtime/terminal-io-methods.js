@@ -23,6 +23,7 @@ const TEXT_CONTROL_KEY_MAP = new Map([
     ['\x1b[C', 'Right'],
     ['\x1b[D', 'Left']
 ]);
+const SHIFT_ENTER_CSI_U = '\x1b[13;2u';
 const TYPING_SIMULATION_DELAY_MS = 12;
 const COLLAPSED_PANE_COLS = 20;
 const COLLAPSED_PANE_ROWS = 5;
@@ -235,6 +236,11 @@ export const terminalIoMethods = {
                 if (normalizedInput === 'M-Enter') {
                     console.info(`[INPUT-TELEMETRY] tmuxRoute=promptNewlinePaste session=${sessionId}`);
                     await this._pasteInputFromTempFile(sessionId, '\n');
+                    return;
+                }
+                if (normalizedInput === 'S-Enter') {
+                    console.info(`[INPUT-TELEMETRY] tmuxRoute=shiftEnterCsiU session=${sessionId}`);
+                    await this._sendLiteralText(sessionId, SHIFT_ENTER_CSI_U);
                     return;
                 }
                 console.info(`[INPUT-TELEMETRY] tmuxRoute=namedKey session=${sessionId} key=${normalizedInput}`);

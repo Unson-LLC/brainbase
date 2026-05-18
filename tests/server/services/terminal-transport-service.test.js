@@ -175,7 +175,7 @@ describe('TerminalTransportService', () => {
         expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
     });
 
-    it('inputProbe failedでもShift+EnterのM-Enter keyはdropせずterminalIoへ送る', async () => {
+    it('inputProbe failedでもShift+EnterのS-Enter keyはdropせずterminalIoへ送る', async () => {
         const { service, sessionManager, captureCache, controlClient } = buildService();
         sessionManager.getSession.mockReturnValue({
             runtimeState: 'degraded',
@@ -199,12 +199,12 @@ describe('TerminalTransportService', () => {
         await service._handleMessage(connection, JSON.stringify({
             type: 'input',
             inputType: 'key',
-            value: 'M-Enter'
+            value: 'S-Enter'
         }));
 
         expect(captureCache.getSnapshot).not.toHaveBeenCalled();
         expect(controlClient.sendKey).not.toHaveBeenCalled();
-        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'M-Enter', 'key');
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'S-Enter', 'key');
         expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('INPUT_NOT_READY'));
     });
 
