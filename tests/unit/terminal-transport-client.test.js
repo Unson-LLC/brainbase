@@ -818,6 +818,54 @@ describe('terminal-transport-client', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it('OSC color response断片はローカルエコーも送信もしない', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText(']10;rgb:0000/0000/0000');
+
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('OSC color response混入時は通常テキストだけ送信する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('hello]10;rgb:0000/0000/0000world');
+    await vi.advanceTimersByTimeAsync(8);
+
+    expect(client.terminal.write.mock.calls.map(call => call[0])).toEqual(['helloworld']);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'helloworld'
+    });
+  });
+
   it('テキスト間のフォーカスイベントでローカルエコーがテキスト部分のみ適用される', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
