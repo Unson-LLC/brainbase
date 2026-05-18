@@ -683,6 +683,7 @@ export class TerminalTransportService {
 
         try {
             if (inputType === 'key') {
+                if (value === 'M-Enter') return false;
                 return connection.controlClient.sendKey?.(value) === true;
             }
 
