@@ -370,8 +370,8 @@ export class SnsGrowthCockpitView extends BaseView {
     }
 
     async _handleAction(action) {
-        if (action === 'reload') {
-            await this.loadPosts();
+        if (action === 'reload' || action === 'refresh-current-week') {
+            await this._refreshCurrentWeek();
             return;
         }
         const post = this._selectedPost();
@@ -421,6 +421,21 @@ export class SnsGrowthCockpitView extends BaseView {
 
     _hasSchedule(post) {
         return Boolean(post?.scheduled_at || (post?.date && post?.time));
+    }
+
+    _setCurrentWeek() {
+        this.today = todayJst();
+        this.startDate = weekStart(this.today);
+        this.endDate = addDays(this.startDate, 6);
+    }
+
+    async _refreshCurrentWeek() {
+        this._setCurrentWeek();
+        this.noticeMessage = '';
+        await this.loadPosts();
+        if (this._autoLoadAccounts) {
+            await this.loadAccounts();
+        }
     }
 
     async _handlePublishAction(post, action) {
@@ -642,7 +657,7 @@ export class SnsGrowthCockpitView extends BaseView {
                     <button type="button"><i data-lucide="chevron-left"></i></button>
                     <span>${escapeHtml(formatDisplayDate(this.startDate))} - ${escapeHtml(formatDisplayDate(this.endDate))}</span>
                     <button type="button"><i data-lucide="chevron-right"></i></button>
-                    <button type="button">今週</button>
+                    <button type="button" data-sns-action="refresh-current-week">今週</button>
                 </div>
             </section>
             <section class="sns-growth-toolbar">
@@ -653,6 +668,7 @@ export class SnsGrowthCockpitView extends BaseView {
                     <button type="button">ラーニング</button>
                 </div>
                 <div class="sns-growth-filters">
+                    <button type="button" data-sns-action="refresh-current-week"><i data-lucide="refresh-cw"></i> 更新</button>
                     <button type="button">すべてのアカウント <i data-lucide="chevron-down"></i></button>
                     <button type="button"><i data-lucide="list-filter"></i> フィルター</button>
                     <button type="button" aria-label="設定"><i data-lucide="settings"></i></button>

@@ -260,6 +260,47 @@ describe('SnsGrowthCockpitView', () => {
         expect(container.textContent).toContain('env ready');
     });
 
+    it('INV-1/S-1: manual update recomputes the current JST week before reloading posts', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-05-17T23:30:00+09:00'));
+        const calls = [];
+        const currentWeekPost = {
+            ...posts[0],
+            id: 'sns_20260518_1_current_week',
+            date: '2026-05-18',
+            title: '今週の投稿',
+            body: '更新ボタンで今週のLedgerを読み込む'
+        };
+        const apiClient = {
+            listPosts: async ({ startDate, endDate }) => {
+                calls.push({ startDate, endDate });
+                return { posts: calls.length === 1 ? [posts[0]] : [currentWeekPost] };
+            },
+            updatePost: async () => ({ post: currentWeekPost })
+        };
+        const view = new SnsGrowthCockpitView({
+            apiClient,
+            accounts,
+            today: '2026-05-17',
+            autoRefreshIntervalMs: 0
+        });
+        view.mount(container);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(calls[0]).toEqual({ startDate: '2026-05-11', endDate: '2026-05-17' });
+        expect(container.textContent).toContain('2026/05/11 - 2026/05/17');
+
+        vi.setSystemTime(new Date('2026-05-18T08:00:00+09:00'));
+        container.querySelector('.sns-growth-filters [data-sns-action="refresh-current-week"]')?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(calls[1]).toEqual({ startDate: '2026-05-18', endDate: '2026-05-24' });
+        expect(container.textContent).toContain('2026/05/18 - 2026/05/24');
+        expect(container.textContent).toContain('今週の投稿');
+    });
+
     it('auto-refreshes posts from the SNS Posting Ledger while the page stays mounted', async () => {
         vi.useFakeTimers();
         const refreshedPost = {
