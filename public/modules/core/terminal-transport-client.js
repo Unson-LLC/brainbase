@@ -1946,9 +1946,8 @@ export class TerminalTransportClient {
     _applyLocalEcho(text) {
         if (!this.terminal || !text || this.status.mode !== 'live') return;
 
-        // Backspace and non-ASCII IME text are echoed by the PTY.
-        // Optimistic erase is unsafe for wide CJK cells and can leave stale glyphs.
         if (text === '\x7f') {
+            this._applyLocalBackspaceEcho();
             return;
         }
 
@@ -1964,6 +1963,25 @@ export class TerminalTransportClient {
             this._schedulePendingEchoExpiry();
             this._writeToTerminal(normalized);
         }
+    }
+
+    _applyLocalBackspaceEcho() {
+        if (!this._canLocallyErasePendingEcho()) return;
+
+        this._pendingEchoText = this._pendingEchoText.slice(0, -1);
+        if (this._pendingEchoText) {
+            this._schedulePendingEchoExpiry();
+        } else {
+            this._clearPendingEchoState();
+        }
+        inputTelemetry.inc('localBackspaceEcho');
+        this._writeToTerminal('\b \b');
+    }
+
+    _canLocallyErasePendingEcho() {
+        if (!this._pendingEchoText) return false;
+        const lastChar = this._pendingEchoText[this._pendingEchoText.length - 1];
+        return /^[\x20-\x7e]$/.test(lastChar);
     }
 
     _applySubmitFeedback(text) {

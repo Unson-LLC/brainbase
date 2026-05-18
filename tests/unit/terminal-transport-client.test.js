@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalTransportClient, TERMINAL_SCROLLBACK_LINES, shouldUseXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
 import { httpClient } from '../../public/modules/core/http-client.js';
+import { inputTelemetry } from '../../public/modules/core/input-telemetry.js';
 
 describe('terminal-transport-client', () => {
   const flushMicrotasks = async () => {
@@ -9,6 +10,7 @@ describe('terminal-transport-client', () => {
   };
 
   beforeEach(() => {
+    inputTelemetry.reset();
     vi.spyOn(httpClient, 'get').mockResolvedValue({ ok: true, access: { role: 'member' } });
     vi.spyOn(httpClient, 'post').mockResolvedValue({ inputReady: true });
   });
@@ -888,7 +890,39 @@ describe('terminal-transport-client', () => {
     expect(echoTexts).toEqual(['hello', 'world']);
   });
 
-  it('Backspaceはローカルエコーせず即時送信してPTYの描画に任せる', async () => {
+  it('Backspaceは未確認ASCII local echoを即時消去して送信する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+    client._pendingEchoText = 'abc';
+    client._pendingEchoSince = Date.now();
+    const telemetrySpy = vi.spyOn(inputTelemetry, 'inc');
+
+    await client.sendText('\x7f');
+
+    expect(client.terminal.write.mock.calls.map(call => call[0])).toEqual(['\b \b']);
+    expect(client._pendingEchoText).toBe('ab');
+    expect(telemetrySpy).toHaveBeenCalledWith('localBackspaceEcho');
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '\x7f'
+    });
+  });
+
+  it('Backspaceは未確認local echoがなければPTYの描画に任せる', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -907,12 +941,34 @@ describe('terminal-transport-client', () => {
     await client.sendText('\x7f');
 
     expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(inputTelemetry.counters.localBackspaceEcho || 0).toBe(0);
     expect(send).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
-      type: 'input',
-      inputType: 'text',
-      value: '\x7f'
+  });
+
+  it('Backspaceは非ASCIIの未確認local echoを即時消去しない', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
     });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+    client._pendingEchoText = 'あ';
+    client._pendingEchoSince = Date.now();
+
+    await client.sendText('\x7f');
+
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingEchoText).toBe('あ');
+    expect(inputTelemetry.counters.localBackspaceEcho || 0).toBe(0);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('日本語IME確定文字はローカルエコーせずPTYの描画に任せる', async () => {
