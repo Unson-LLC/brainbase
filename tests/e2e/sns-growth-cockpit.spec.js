@@ -66,17 +66,56 @@ test.describe('SNS Growth Cockpit', () => {
         await expect(page.locator('.sns-calendar-post').filter({ hasText: visibleTitle }).first()).toBeVisible();
     });
 
+    test('manual update button reloads SNS Ledger without hard refresh', async ({ page, request }) => {
+        const lane = `manual_refresh_e2e_${Date.now()}`;
+        const accountId = `acc_x_sato_${lane}`;
+        const headers = await csrfHeaders(request, lane);
+        const date = todayJst();
+        const visibleTitle = `manual-refresh-${Date.now()}`;
+
+        await page.goto(`${BASE_URL}/sns-growth.html`);
+        await page.waitForLoadState('domcontentloaded');
+        await expect(page.locator('.sns-growth-app')).toBeVisible();
+        await expect(page.getByText(visibleTitle)).toHaveCount(0);
+
+        const pack = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
+            headers,
+            data: {
+                account_id: accountId,
+                account_handle: '@AIBizNavigator',
+                drafts: [{
+                    date,
+                    slot_index: 4,
+                    lane,
+                    body: `${visibleTitle} from manual update`,
+                    source_url: 'https://x.com/example/status/manual-refresh',
+                    persona_brain: { target_person: 'AI導入を任されたPM' },
+                    quality_gate: { status: 'pass' }
+                }]
+            }
+        });
+        expect(pack.ok()).toBe(true);
+        const packJson = await pack.json();
+        const post = (packJson.created || [])[0] || (packJson.updated || [])[0];
+        expect(post).toBeTruthy();
+
+        await page.locator('.sns-growth-filters [data-sns-action="refresh-current-week"]').click();
+
+        await expect(page.locator(`.sns-calendar-post[data-post-id="${post.id}"]`)).toBeVisible();
+    });
+
     test('renders the ledger review surface with publish bridge actions', async ({ page, request }) => {
         const lane = `render_e2e_${Date.now()}`;
         const accountId = `acc_x_sato_${lane}`;
         const headers = await csrfHeaders(request, lane);
+        const date = todayJst();
         const seedResponse = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
             headers,
             data: {
                 account_id: accountId,
                 account_handle: '@AIBizNavigator',
                 drafts: [{
-                    date: '2026-05-14',
+                    date,
                     slot_index: 1,
                     lane,
                     body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める',
@@ -109,13 +148,14 @@ test.describe('SNS Growth Cockpit', () => {
         const lane = `deletion_e2e_${Date.now()}`;
         const accountId = `acc_x_sato_${lane}`;
         const headers = await csrfHeaders(request, lane);
+        const date = todayJst();
         const pack = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
             headers,
             data: {
                 account_id: accountId,
                 account_handle: '@AIBizNavigator',
                 drafts: [{
-                    date: '2026-05-14',
+                    date,
                     slot_index: 2,
                     lane,
                     body: 'X上で削除した投稿をLedgerでは削除済みとして扱う',
@@ -137,7 +177,7 @@ test.describe('SNS Growth Cockpit', () => {
             data: {
                 status: 'posted',
                 posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
-                posted_at: '2026-05-14T03:00:00.000Z'
+                posted_at: `${date}T03:00:00.000Z`
             }
         });
 
@@ -157,13 +197,14 @@ test.describe('SNS Growth Cockpit', () => {
         const lane = `learning_e2e_${Date.now()}`;
         const accountId = `acc_x_sato_${lane}`;
         const headers = await csrfHeaders(request, lane);
+        const date = todayJst();
         const pack = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
             headers,
             data: {
                 account_id: accountId,
                 account_handle: '@AIBizNavigator',
                 drafts: [{
-                    date: '2026-05-14',
+                    date,
                     slot_index: 3,
                     lane,
                     body: '投稿後の反応をLedgerから学習候補に戻す',
@@ -185,7 +226,7 @@ test.describe('SNS Growth Cockpit', () => {
             data: {
                 status: 'posted',
                 posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000002',
-                posted_at: '2026-05-14T03:00:00.000Z'
+                posted_at: `${date}T03:00:00.000Z`
             }
         });
 
@@ -208,14 +249,15 @@ test.describe('SNS Growth Cockpit', () => {
         const lane = `approve_e2e_${Date.now()}`;
         const accountId = `acc_x_sato_${lane}`;
         const headers = await csrfHeaders(request, lane);
+        const date = todayJst();
         const pack = await request.post(`${BASE_URL}/api/sns-growth/review-pack`, {
             headers,
             data: {
                 account_id: accountId,
                 account_handle: '@AIBizNavigator',
                 drafts: [{
-                    date: '2026-05-14',
-                    slot_index: 5,
+                    date,
+                    slot_index: 4,
                     lane,
                     body: '承認後に次の操作が見える投稿',
                     source_url: 'https://x.com/example/status/approve',
