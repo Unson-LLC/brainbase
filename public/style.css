@@ -18892,6 +18892,7 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
 @media (max-width: 768px) {
     body.sns-growth-mode-active .mobile-tab-bar,
     body.sns-growth-mode-active .mobile-input-dock,
+    body.sns-growth-mode-active #terminal-stage,
     body.sns-growth-mode-active .terminal-snapshot-panel,
     body.sns-growth-mode-active > .terminal-snapshot-panel {
         display: none !important;

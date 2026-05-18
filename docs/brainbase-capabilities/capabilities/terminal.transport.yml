@@ -9,6 +9,7 @@ surfaces:
     - terminal transport HTTP helpers
   code:
     - public/modules/core/terminal-transport-client.js
+    - public/modules/app/terminal-display-mixin.js
     - scripts/codex-pty-shim.py
     - server/services/session-runtime
   data:
@@ -31,6 +32,7 @@ common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
   - Focus reporting bytes or focus loss disrupt input order.
+  - Mobile workspace overlays inside console-area can look like terminal taps unless terminal-stage visibility is checked.
 runbooks:
   - ../runbooks/verify-31013-source.md
 troubleshooting:
