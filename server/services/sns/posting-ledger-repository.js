@@ -34,6 +34,15 @@ const ALLOWED_TRANSITIONS = {
 };
 
 const DEFAULT_TIMES_BY_SLOT = ['09:00', '12:00', '15:00', '18:00', '21:00'];
+const BODY_RESERVING_STATUSES = new Set([
+    'review_needed',
+    'approved',
+    'scheduled',
+    'publishing',
+    'posted',
+    'learning_ready'
+]);
+const IMPORT_IMMUTABLE_STATUSES = new Set(['posted', 'learning_ready', 'deleted']);
 
 export class InvalidSnsPostTransitionError extends Error {
     constructor(from, to) {
@@ -133,6 +142,39 @@ function idempotencyKey(record) {
     return `${record.account_id || 'default'}|${record.date}|${record.slot_index}`;
 }
 
+function normalizeBodyFingerprint(body) {
+    return String(body || '')
+        .normalize('NFKC')
+        .replace(/https?:\/\/\S+/gu, '')
+        .replace(/[ \t\r\n、。,.!?！？'"“”‘’「」『』（）()[\]{}:：;；・-]+/gu, '')
+        .toLowerCase()
+        .trim();
+}
+
+function bodyKey(record) {
+    const fingerprint = normalizeBodyFingerprint(record.body);
+    if (!fingerprint) return null;
+    return `${record.account_id || 'default'}|${fingerprint}`;
+}
+
+function reservesBody(record) {
+    return BODY_RESERVING_STATUSES.has(record?.status);
+}
+
+function skippedImport(next, reason, existing = null) {
+    return {
+        id: next.id,
+        date: next.date,
+        slot_index: next.slot_index,
+        account_id: next.account_id,
+        body: next.body,
+        reason,
+        existing_post_id: existing?.id || null,
+        existing_status: existing?.status || null,
+        existing_posted_url: existing?.posted_url || null
+    };
+}
+
 function normalizeRecord(record) {
     return {
         ...record,
@@ -221,18 +263,28 @@ export class InMemorySnsPostingLedgerRepository {
         if (!Array.isArray(drafts)) throw new SnsPostValidationError('drafts must be array');
         const created = [];
         const updated = [];
+        const skipped = [];
         for (const draft of drafts) {
             const next = draftToRecord(draft, { account_id, account_handle });
             assertValidStatus(next.status);
             const key = idempotencyKey(next);
             const existingId = this.keys.get(key);
+            const existing = existingId ? this.posts.get(existingId) : null;
+            if (existing && IMPORT_IMMUTABLE_STATUSES.has(existing.status)) {
+                skipped.push(skippedImport(next, 'immutable_status', existing));
+                continue;
+            }
+            const duplicate = this._findDuplicateBody(next, existingId);
+            if (duplicate) {
+                skipped.push(skippedImport(next, 'duplicate_body', duplicate));
+                continue;
+            }
             if (!existingId) {
                 this.posts.set(next.id, next);
                 this.keys.set(key, next.id);
                 created.push(normalizeRecord(next));
                 continue;
             }
-            const existing = this.posts.get(existingId);
             const merged = {
                 ...existing,
                 title: next.title,
@@ -247,7 +299,7 @@ export class InMemorySnsPostingLedgerRepository {
             this.posts.set(existingId, merged);
             updated.push(normalizeRecord(merged));
         }
-        return { created, updated };
+        return { created, updated, skipped };
     }
 
     listPosts({ startDate = null, endDate = null, status = null } = {}) {
@@ -315,6 +367,17 @@ export class InMemorySnsPostingLedgerRepository {
         if (!scheduledAt || Number.isNaN(scheduledAt.getTime()) || scheduledAt > now) return null;
         return this.updatePost(id, { status: 'publishing' }, actor);
     }
+
+    _findDuplicateBody(next, allowedExistingId = null) {
+        const nextBodyKey = bodyKey(next);
+        if (!nextBodyKey) return null;
+        for (const post of this.posts.values()) {
+            if (post.id === allowedExistingId) continue;
+            if (!reservesBody(post)) continue;
+            if (bodyKey(post) === nextBodyKey) return normalizeRecord(post);
+        }
+        return null;
+    }
 }
 
 export class JsonFileSnsPostingLedgerRepository extends InMemorySnsPostingLedgerRepository {
@@ -370,17 +433,28 @@ export class PgSnsPostingLedgerRepository {
         await client.query('BEGIN');
         const created = [];
         const updated = [];
+        const skipped = [];
         try {
             for (const draft of drafts) {
                 const next = draftToRecord(draft, { account_id, account_handle });
                 assertValidStatus(next.status);
                 const existing = await client.query(
-                    `SELECT id FROM sns_posting_ledger_posts
+                    `SELECT * FROM sns_posting_ledger_posts
                      WHERE account_id = $1 AND date = $2 AND slot_index = $3
                      FOR UPDATE`,
                     [next.account_id, next.date, next.slot_index]
                 );
-                if (!existing.rows[0]) {
+                const existingRow = existing.rows[0] ? normalizeRecord(existing.rows[0]) : null;
+                if (existingRow && IMPORT_IMMUTABLE_STATUSES.has(existingRow.status)) {
+                    skipped.push(skippedImport(next, 'immutable_status', existingRow));
+                    continue;
+                }
+                const duplicate = await this._findDuplicateBody(client, next, existingRow?.id || null);
+                if (duplicate) {
+                    skipped.push(skippedImport(next, 'duplicate_body', duplicate));
+                    continue;
+                }
+                if (!existingRow) {
                     const inserted = await client.query(
                         `INSERT INTO sns_posting_ledger_posts (
                             id, account_id, account_handle, platform, date, slot_index, time,
@@ -414,7 +488,7 @@ export class PgSnsPostingLedgerRepository {
                      WHERE id = $1
                      RETURNING *`,
                     [
-                        existing.rows[0].id,
+                        existingRow.id,
                         next.title,
                         next.body,
                         next.lane,
@@ -427,7 +501,7 @@ export class PgSnsPostingLedgerRepository {
                 updated.push(normalizeRecord(updatedRow.rows[0]));
             }
             await client.query('COMMIT');
-            return { created, updated };
+            return { created, updated, skipped };
         } catch (error) {
             await client.query('ROLLBACK');
             throw error;
@@ -569,6 +643,24 @@ export class PgSnsPostingLedgerRepository {
         } finally {
             if (typeof client.release === 'function') client.release();
         }
+    }
+
+    async _findDuplicateBody(client, next, allowedExistingId = null) {
+        const nextBodyKey = bodyKey(next);
+        if (!nextBodyKey) return null;
+        const { rows } = await client.query(
+            `SELECT * FROM sns_posting_ledger_posts
+             WHERE account_id = $1
+               AND status = ANY($2::text[])
+             FOR UPDATE`,
+            [next.account_id, Array.from(BODY_RESERVING_STATUSES)]
+        );
+        for (const row of rows) {
+            const post = normalizeRecord(row);
+            if (post.id === allowedExistingId) continue;
+            if (bodyKey(post) === nextBodyKey) return post;
+        }
+        return null;
     }
 }
 

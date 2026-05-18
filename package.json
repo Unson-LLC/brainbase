@@ -35,7 +35,7 @@
     "dev": "BRAINBASE_ALLOW_DIRECT_SERVER=1 node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js",
     "start": "node start.js",
     "auth-setup": "node scripts/auth-setup.mjs",
-    "test:server": "BRAINBASE_TEST_MODE=true BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
+    "test:server": "BRAINBASE_TEST_MODE=true BRAINBASE_VAR_DIR=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime} BRAINBASE_STATE_PATH=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime}/state.json BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
