@@ -658,6 +658,26 @@ describe('SessionView', () => {
             expect(container.querySelector('.session-favorites-filter-btn')?.getAttribute('aria-pressed')).toBe('true');
         });
 
+        it('should exclude archived favorites from the favorite badge and filter results', () => {
+            const mockSessions = [
+                { id: 'session-favorite', name: 'Favorite', project: 'brainbase', intendedState: 'active', favorite: true },
+                { id: 'session-archived-favorite', name: 'Archived Favorite', project: 'brainbase', intendedState: 'archived', favorite: true },
+                { id: 'session-normal', name: 'Normal', project: 'brainbase', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+
+            sessionView.render();
+
+            expect(container.querySelector('.session-favorites-count')?.textContent).toBe('1');
+
+            container.querySelector('.session-favorites-filter-btn').click();
+
+            expect([...container.querySelectorAll('.session-child-row')].map(row => row.dataset.id)).toEqual([
+                'session-favorite'
+            ]);
+            expect(container.textContent).not.toContain('Archived Favorite');
+        });
+
         it('should refresh cloned mobile session list after favorite actions and filter taps', () => {
             const mockSessions = [
                 {
