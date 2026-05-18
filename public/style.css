@@ -1571,10 +1571,23 @@ button svg *,
     color: var(--warning-color);
 }
 
+.session-summary-chip.chip-unpushed,
 .session-summary-chip.chip-push {
     background: rgba(47, 125, 246, 0.14);
     border-color: rgba(47, 125, 246, 0.28);
     color: #8bbcff;
+}
+
+.session-summary-chip.chip-unmerged {
+    background: rgba(168, 85, 247, 0.13);
+    border-color: rgba(168, 85, 247, 0.28);
+    color: #c4a7ff;
+}
+
+.session-summary-chip.chip-conflict {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
 }
 
 .session-summary-chip.chip-pr-ok {

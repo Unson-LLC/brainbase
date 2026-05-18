@@ -703,6 +703,28 @@ export class WorktreeService {
             });
     }
 
+    async _hasWorkingCopyConflicts(workspacePath) {
+        try {
+            const { stdout } = await this.execPromise(
+                `jj -R "${workspacePath}" resolve --list --no-pager`
+            );
+            return this._resolveListHasConflicts(stdout);
+        } catch (error) {
+            const output = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`;
+            if (/No conflicts found/i.test(output)) {
+                return false;
+            }
+            logger.warn(`[workspace] Failed to inspect conflicts for ${workspacePath}: ${error instanceof Error ? error.message : String(error)}`);
+            return false;
+        }
+    }
+
+    _resolveListHasConflicts(resolveOutput) {
+        return String(resolveOutput || '')
+            .split('\n')
+            .some((line) => line.trim() && !/No conflicts found/i.test(line));
+    }
+
     _diffOutputHasRelevantPaths(diffOutput) {
         return String(diffOutput || '')
             .split('\n')
@@ -788,6 +810,10 @@ export class WorktreeService {
             );
             const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
             const needsMerge = commitsAheadOfBase > 0;
+            const shouldCheckConflicts = hasWorkingCopyChanges || changesNotPushed > 0 || needsMerge;
+            const hasConflicts = shouldCheckConflicts
+                ? await this._hasWorkingCopyConflicts(workspacePath)
+                : false;
 
             return {
                 exists: true,
@@ -799,12 +825,14 @@ export class WorktreeService {
                 mainBranch: mainBranchName,
                 changesNotPushed,
                 hasWorkingCopyChanges,
+                hasConflicts,
                 bookmarkPushed,
                 needsIntegration,
                 needsMerge,
                 commitsAheadOfBase,
                 commitsAhead: changesNotPushed,
                 hasUncommittedChanges: hasWorkingCopyChanges,
+                conflicted: hasConflicts,
                 branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
                 mergeTargetRef,
                 workspaceId: workspaceIdentity.workspaceId,

@@ -1397,6 +1397,8 @@ describe('SessionController (Server)', () => {
         bookmarkName: 'session-ctx',
         changesNotPushed: 2,
         hasWorkingCopyChanges: false,
+        needsMerge: true,
+        hasConflicts: true,
         bookmarkPushed: true,
         mainBranch: 'develop',
         worktreePath: '/tmp/worktrees/session-ctx/project'
@@ -1413,7 +1415,13 @@ describe('SessionController (Server)', () => {
         repoPath: '/Users/ksato/workspace/code/brainbase',
         workspacePath: '/tmp/worktrees/session-ctx/project',
         currentDirectory: '/tmp/worktrees/session-ctx/project/src',
-        dirty: true,
+        dirty: false,
+        unpushed: true,
+        unmerged: true,
+        conflict: true,
+        hasWorkingCopyChanges: false,
+        needsMerge: true,
+        hasConflicts: true,
         prStatus: 'open_or_pending',
         baseBranch: 'develop'
       }));
@@ -1498,6 +1506,8 @@ describe('SessionController (Server)', () => {
         repoName: 'brainbase',
         changesNotPushed: 3,
         hasWorkingCopyChanges: true,
+        needsMerge: true,
+        hasConflicts: true,
         bookmarkPushed: true,
         mainBranch: 'develop',
         worktreePath: '/tmp/worktrees/session-ui/project'
@@ -1524,9 +1534,49 @@ describe('SessionController (Server)', () => {
           repo: 'brainbase',
           baseBranch: 'develop',
           dirty: true,
+          unpushed: true,
+          unmerged: true,
+          conflict: true,
+          hasWorkingCopyChanges: true,
+          needsMerge: true,
+          hasConflicts: true,
           changesNotPushed: 3,
           prStatus: 'open_or_pending',
           currentDirectory: '/tmp/worktrees/session-ui/project/src'
+        })
+      });
+    });
+
+    it('ui summary は未push commitだけならdirtyを立てずunpushedだけを返す', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ui-unpushed',
+          worktree: {
+            repo: '/tmp/repo',
+            path: '/tmp/worktrees/session-ui-unpushed/project',
+            startCommit: 'abc123'
+          }
+        }]
+      });
+      mockWorktreeService.getStatus.mockResolvedValue({
+        repoName: 'brainbase',
+        changesNotPushed: 1,
+        hasWorkingCopyChanges: false,
+        needsMerge: false,
+        bookmarkPushed: true,
+        mainBranch: 'develop',
+        worktreePath: '/tmp/worktrees/session-ui-unpushed/project'
+      });
+
+      await sessionController.getUiSummaries({ query: {} }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        'session-ui-unpushed': expect.objectContaining({
+          dirty: false,
+          unpushed: true,
+          unmerged: false,
+          hasWorkingCopyChanges: false,
+          changesNotPushed: 1
         })
       });
     });

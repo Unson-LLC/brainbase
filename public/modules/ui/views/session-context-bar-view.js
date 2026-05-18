@@ -183,6 +183,9 @@ export class SessionContextBarView extends BaseView {
         const workspacePath = context.workspacePath || '-';
         const currentDirectory = context.currentDirectory || context.cwd || workspacePath || '-';
         const dirty = context.dirty;
+        const unpushed = Boolean(context.unpushed);
+        const unmerged = Boolean(context.unmerged || context.needsMerge);
+        const conflict = Boolean(context.conflict || context.hasConflicts);
         const changesNotPushed = Number(context.changesNotPushed || 0);
         const prStatus = context.prStatus || 'none';
         const hasCwdMismatch = this._normalizePath(workspacePath) !== this._normalizePath(currentDirectory);
@@ -199,10 +202,16 @@ export class SessionContextBarView extends BaseView {
         // 異常時のみ表示（アクションが必要な情報）
         const alerts = [];
         if (dirty) {
-            alerts.push('<span class="context-alert is-warning" title="Uncommitted changes">⚠️ dirty</span>');
+            alerts.push('<span class="context-alert is-warning" title="Working copy has uncommitted changes">dirty</span>');
         }
-        if (changesNotPushed > 0) {
-            alerts.push(`<span class="context-alert is-warning" title="${changesNotPushed} commits not pushed">↑ ${changesNotPushed}</span>`);
+        if (unpushed || changesNotPushed > 0) {
+            alerts.push('<span class="context-alert is-warning" title="Local commits are not pushed">unpushed</span>');
+        }
+        if (unmerged) {
+            alerts.push('<span class="context-alert is-warning" title="Changes are not integrated into the base branch">unmerged</span>');
+        }
+        if (conflict) {
+            alerts.push('<span class="context-alert is-danger" title="Working copy has unresolved conflicts">conflict</span>');
         }
         if (prStatus === 'merged') {
             alerts.push('<span class="context-alert is-ok" title="PR merged">🔀 merged</span>');
