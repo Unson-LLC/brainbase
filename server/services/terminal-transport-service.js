@@ -341,11 +341,9 @@ export class TerminalTransportService {
             const handleOutput = (data) => {
                 if (connection.closed || connection.ws.readyState !== 1 || !data) return;
                 touchOwnershipThrottled();
-                connection.initialFrameDelivered = true;
-                if (connection.initialSnapshotTimer) {
-                    clearTimeout(connection.initialSnapshotTimer);
-                    connection.initialSnapshotTimer = null;
-                }
+                // Do not treat arbitrary control-mode output as a complete initial frame.
+                // Some sessions emit only control/partial output on attach; cancelling the
+                // fallback there leaves xterm blank even though tmux capture has content.
                 outputBatch += data;
                 if (outputBatchTimer === null) {
                     outputBatchTimer = setTimeout(flushOutputBatch, 8);

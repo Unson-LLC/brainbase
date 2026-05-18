@@ -885,7 +885,7 @@ describe('TerminalTransportService', () => {
         vi.useRealTimers();
     });
 
-    it('初回streaming output受信時_initial snapshot fallbackをキャンセルする', async () => {
+    it('初回streaming output受信時も_initial snapshot fallbackをキャンセルしない', async () => {
         vi.useFakeTimers();
 
         const { service, controlClient, captureCache } = buildService();
@@ -912,8 +912,13 @@ describe('TerminalTransportService', () => {
         await vi.advanceTimersByTimeAsync(200);
 
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
-        expect(sentTypes).toEqual(['output']);
-        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
+        expect(sentTypes).toEqual(['output', 'snapshot', 'status']);
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: expect.any(Number),
+            includeColors: true,
+            includeCopyMode: true,
+            visibleOnly: true
+        });
 
         vi.useRealTimers();
     });
