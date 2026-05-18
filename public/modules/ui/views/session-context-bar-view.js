@@ -129,7 +129,7 @@ export class SessionContextBarView extends BaseView {
     _isTerminalSwitchActive() {
         if (typeof window === 'undefined') return false;
         const sessionId = appStore.getState().currentSessionId;
-        const pending = window.brainbaseApp?._pendingTerminalSwitch;
+        const pending = /** @type {any} */ (window).brainbaseApp?._pendingTerminalSwitch;
         if (!pending) return false;
         if (sessionId && pending.toSessionId && pending.toSessionId !== sessionId) return false;
         return true;
