@@ -646,6 +646,7 @@ export class TerminalTransportService {
                 this.captureCache.invalidate(sessionId);
                 this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
                 connection.lastCopyMode = true;
+                await this._pollConnection(connection);
                 if (ws.readyState === 1) {
                     ws.send(JSON.stringify({
                         type: 'status',

@@ -686,8 +686,21 @@ describe('TerminalTransportService', () => {
 
         expect(sessionManager.scrollSession).toHaveBeenCalledWith('session-1', 'up', 8);
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: 5000,
+            includeColors: true,
+            includeCopyMode: true,
+            visibleOnly: false
+        });
         expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
-        const statusCall = ws.send.mock.calls.find((call) => JSON.parse(call[0]).type === 'status');
+        const snapshotCall = ws.send.mock.calls.find((call) => JSON.parse(call[0]).type === 'snapshot');
+        expect(JSON.parse(snapshotCall[0])).toMatchObject({
+            type: 'snapshot',
+            text: 'snapshot',
+            screenOnly: false
+        });
+        const statusCalls = ws.send.mock.calls.filter((call) => JSON.parse(call[0]).type === 'status');
+        const statusCall = statusCalls[statusCalls.length - 1];
         expect(JSON.parse(statusCall[0])).toMatchObject({
             type: 'status',
             mode: 'live',
