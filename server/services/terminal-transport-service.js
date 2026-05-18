@@ -16,7 +16,7 @@ const MAX_SCROLL_STEPS = 8;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const MIN_TERMINAL_COLS = 40;
 const MIN_TERMINAL_ROWS = 12;
-const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter']);
+const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
 const FOCUS_EVENT_PATTERN = /\x1B\[(?:I|O)/g;
@@ -684,7 +684,7 @@ export class TerminalTransportService {
 
         try {
             if (inputType === 'key') {
-                if (value === 'M-Enter') return false;
+                if (value === 'M-Enter' || value === 'S-Enter') return false;
                 return connection.controlClient.sendKey?.(value) === true;
             }
 

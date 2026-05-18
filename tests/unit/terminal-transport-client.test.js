@@ -446,7 +446,7 @@ describe('terminal-transport-client', () => {
     expect(client.status.mode).toBe('live');
   });
 
-  it('Shift+Enter押下時_M-Enterとして送信する', () => {
+  it('Shift+Enter押下時_S-Enterとして送信する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -466,10 +466,10 @@ describe('terminal-transport-client', () => {
 
     expect(handled).toBe(false);
     expect(preventDefault).toHaveBeenCalled();
-    expect(client.sendKey).toHaveBeenCalledWith('M-Enter');
+    expect(client.sendKey).toHaveBeenCalledWith('S-Enter');
   });
 
-  it('inputReady=falseでもShift+EnterのM-Enter keyはprobeせず送信する', async () => {
+  it('inputReady=falseでもShift+EnterのS-Enter keyはprobeせず送信する', async () => {
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
     const client = new TerminalTransportClient({
@@ -483,7 +483,7 @@ describe('terminal-transport-client', () => {
     client.status.terminalAccess = { state: 'owner' };
     client.status.inputReady = false;
 
-    await client.sendKey('M-Enter');
+    await client.sendKey('S-Enter');
 
     expect(httpClient.post).not.toHaveBeenCalledWith(
       '/api/sessions/session-1/terminal/probe-input',
@@ -494,7 +494,7 @@ describe('terminal-transport-client', () => {
     expect(JSON.parse(send.mock.calls[0][0])).toEqual({
       type: 'input',
       inputType: 'key',
-      value: 'M-Enter'
+      value: 'S-Enter'
     });
   });
 
