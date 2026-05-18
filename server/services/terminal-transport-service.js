@@ -400,7 +400,11 @@ export class TerminalTransportService {
         if (connection.closed || connection.ws.readyState !== 1) return;
 
         this.captureCache.invalidate(connection.sessionId);
-        const visibleSnapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true, visibleOnly: true });
+        const visibleSnapshot = await this._getSnapshotPayload(connection.sessionId, {
+            lines: HISTORY_SNAPSHOT_LINES,
+            includeColors: true,
+            visibleOnly: false
+        });
         connection.initialFrameDelivered = true;
         connection.lastSnapshot = visibleSnapshot.text;
         connection.lastCopyMode = visibleSnapshot.copyMode;
@@ -413,7 +417,7 @@ export class TerminalTransportService {
             type: 'snapshot',
             text: visibleSnapshot.text,
             capturedAt: visibleSnapshot.capturedAt,
-            screenOnly: true
+            screenOnly: false
         };
         if (visibleSnapshot.colorText) snapshotMsg.colorText = visibleSnapshot.colorText;
         if (visibleSnapshot.cursor) snapshotMsg.cursor = visibleSnapshot.cursor;

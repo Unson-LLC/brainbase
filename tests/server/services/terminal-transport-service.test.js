@@ -914,10 +914,10 @@ describe('TerminalTransportService', () => {
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
         expect(sentTypes).toEqual(['output', 'snapshot', 'status']);
         expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
-            lines: expect.any(Number),
+            lines: 5000,
             includeColors: true,
             includeCopyMode: true,
-            visibleOnly: true
+            visibleOnly: false
         });
 
         vi.useRealTimers();
@@ -949,7 +949,17 @@ describe('TerminalTransportService', () => {
 
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
         expect(sentTypes).toContain('snapshot');
+        const snapshotMessage = ws.send.mock.calls
+            .map(call => JSON.parse(call[0]))
+            .find(message => message.type === 'snapshot');
+        expect(snapshotMessage.screenOnly).toBe(false);
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', {
+            lines: 5000,
+            includeColors: true,
+            includeCopyMode: true,
+            visibleOnly: false
+        });
         expect(connection.initialFrameDelivered).toBe(true);
 
         vi.useRealTimers();
