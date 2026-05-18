@@ -408,10 +408,11 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         else
             # Launch Codex CLI with notify hook (fallback)
             if [ -n "$CODEX_RESUME_ID" ] && [ -n "$INITIAL_CMD" ]; then
-                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" resume %s %s %q "$(cat %q; rm -f %q)"' \
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" resume -C %q %s %s %q "$(cat %q; rm -f %q)"' \
                     "$LOCALE_EXPORT" \
                     "$SESSION_NAME" \
                     "$CODEX_WRAPPER" \
+                    "$WORKTREE_PATH" \
                     "$CODEX_HOOKS_ARG" \
                     "$CODEX_NOTIFY_ARG" \
                     "$CODEX_RESUME_ID" \
@@ -419,10 +420,11 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
                     "$INITIAL_CMD_FILE"
                 tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
             elif [ -n "$CODEX_RESUME_ID" ]; then
-                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" resume %s %s %q' \
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" resume -C %q %s %s %q' \
                     "$LOCALE_EXPORT" \
                     "$SESSION_NAME" \
                     "$CODEX_WRAPPER" \
+                    "$WORKTREE_PATH" \
                     "$CODEX_HOOKS_ARG" \
                     "$CODEX_NOTIFY_ARG" \
                     "$CODEX_RESUME_ID"
