@@ -232,6 +232,11 @@ export const terminalIoMethods = {
             await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
 
             if (normalizedType === 'key' && this.ALLOWED_KEYS.includes(normalizedInput)) {
+                if (normalizedInput === 'M-Enter') {
+                    console.info(`[INPUT-TELEMETRY] tmuxRoute=promptNewlinePaste session=${sessionId}`);
+                    await this._pasteInputFromTempFile(sessionId, '\n');
+                    return;
+                }
                 console.info(`[INPUT-TELEMETRY] tmuxRoute=namedKey session=${sessionId} key=${normalizedInput}`);
                 await this._sendNamedKey(sessionId, normalizedInput);
                 return;

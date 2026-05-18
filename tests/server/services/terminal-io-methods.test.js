@@ -148,4 +148,23 @@ describe('terminalIoMethods input routing', () => {
         expect(manager._capturePromptInput).toHaveBeenCalledWith('session-1', 'Enter', 'key');
         expect(manager._runTmux).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', 'Enter']);
     });
+
+    it('M-Enterはnamed keyではなくprompt改行pasteとして送る', async () => {
+        const manager = {
+            ...terminalIoMethods,
+            ALLOWED_KEYS: ['M-Enter'],
+            terminalMutationQueues: new Map(),
+            execPromise: vi.fn(async () => ({ stdout: '' })),
+            _capturePromptInput: vi.fn(async () => {}),
+            _sendNamedKey: vi.fn(async () => {}),
+            _pasteInputFromTempFile: vi.fn(async () => {}),
+            _runTmux: vi.fn(async () => ({ stdout: '' }))
+        };
+
+        await manager.sendInput('session-1', 'M-Enter', 'key');
+
+        expect(manager._capturePromptInput).toHaveBeenCalledWith('session-1', 'M-Enter', 'key');
+        expect(manager._pasteInputFromTempFile).toHaveBeenCalledWith('session-1', '\n');
+        expect(manager._sendNamedKey).not.toHaveBeenCalled();
+    });
 });
