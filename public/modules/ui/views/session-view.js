@@ -802,7 +802,8 @@ export class SessionView {
     _renderSessionListToolbar(sessions) {
         const toolbar = document.createElement('div');
         toolbar.className = 'session-list-toolbar';
-        const favoriteCount = (sessions || []).filter(session => this._isFavoriteSession(session)).length;
+        const favoriteCount = this._getListableSessions(sessions)
+            .filter(session => this._isFavoriteSession(session)).length;
         toolbar.innerHTML = `
             <label class="session-search-wrap">
                 <i data-lucide="search"></i>
@@ -826,6 +827,10 @@ export class SessionView {
             </button>
         `;
         return toolbar;
+    }
+
+    _getListableSessions(sessions) {
+        return (sessions || []).filter(session => session?.intendedState !== 'archived');
     }
 
     _attachSessionListToolbarHandlers(toolbar, options = {}) {
@@ -890,7 +895,7 @@ export class SessionView {
 
     _filterSessionsForList(sessions) {
         const query = this.sessionSearchQuery.trim().toLowerCase();
-        return (sessions || []).filter(session => {
+        return this._getListableSessions(sessions).filter(session => {
             if (this.showFavoriteSessionsOnly && !this._isFavoriteSession(session)) return false;
             if (!query) return true;
             return this._getSessionSearchText(session).includes(query);
