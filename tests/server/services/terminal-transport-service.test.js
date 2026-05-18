@@ -228,6 +228,26 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
+    it('OSC color response断片だけのinput messageはtmuxへ送らず無視する', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: ']10;rgb:0000/0000/0000'
+        }));
+
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
     it('inputReady が false でも snapshot が ready なら probe を回復して送信する', async () => {
         const { service, sessionManager, captureCache, controlClient } = buildService();
         sessionManager.getSession.mockReturnValue({

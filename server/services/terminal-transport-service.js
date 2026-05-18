@@ -19,6 +19,7 @@ const MIN_TERMINAL_ROWS = 12;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
+const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1B\\)?/gi;
 const FOCUS_EVENT_PATTERN = /\x1B\[(?:I|O)/g;
 const STREAMING_TEXT_CONTROL_KEY_MAP = new Map([
     ['\r', 'Enter'],
@@ -777,6 +778,7 @@ export class TerminalTransportService {
         if (typeof value !== 'string' || !value) return value;
         return value
             .replace(OSC_SEQUENCE_PATTERN, '')
+            .replace(BARE_OSC_COLOR_RESPONSE_PATTERN, '')
             .replace(FOCUS_EVENT_PATTERN, '');
     }
 
