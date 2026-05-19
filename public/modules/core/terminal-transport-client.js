@@ -184,6 +184,9 @@ export class TerminalTransportClient {
         // 到着した場合に保存しておくバッファ。init() で terminal が準備でき次第 flush。
         this._preTerminalSnapshot = null;
         this._resetTerminalOnNextSnapshot = false;
+        this._terminalWriteQueue = [];
+        this._terminalWriteActive = false;
+        this._terminalWriteGeneration = 0;
     }
 
     async init(hostEl) {
@@ -800,6 +803,7 @@ export class TerminalTransportClient {
             this._clearPendingEchoState();
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
+            this._cancelTerminalWriteQueue();
             this.terminal?.reset();
         }
         this._emitStatus();
@@ -1929,11 +1933,10 @@ export class TerminalTransportClient {
         this._clearPendingEchoState();
 
         const viewportState = options.forceViewportState || this._captureViewportState();
-        if (shouldResetTerminal && typeof this.terminal.reset === 'function') {
-            this.terminal.reset();
-        }
         const clearSequence = options.screenOnly === true ? '\x1b[2J\x1b[H' : '\x1b[2J\x1b[3J\x1b[H';
-        this._writeToTerminal(clearSequence + normalizedText, viewportState);
+        this._writeToTerminal(clearSequence + normalizedText, viewportState, {
+            resetTerminal: shouldResetTerminal
+        });
     }
 
     _applyOutput(text) {
@@ -1987,8 +1990,11 @@ export class TerminalTransportClient {
     _applySubmitFeedback(text) {
         if (!this.terminal || !this._hasSubmitText(text) || this.status.mode !== 'live') return;
         this._clearImeCursorState();
-        this._clearPendingEchoState();
-        this._writeToTerminal('\r\n');
+        this._writeToTerminal('\r\n', null, {
+            afterWrite: () => {
+                this._clearPendingEchoState();
+            }
+        });
     }
 
     _canOptimisticallyEcho(text) {
@@ -2014,23 +2020,86 @@ export class TerminalTransportClient {
         return remaining;
     }
 
-    _writeToTerminal(text, viewportState = null) {
+    _writeToTerminal(text, viewportState = null, options = {}) {
         if (!this.terminal || !text) return;
         const nextViewportState = viewportState || this._captureViewportState();
-        this.terminal.write(text, () => {
-            this._restoreViewportState(nextViewportState);
-            // NocoDB バグ#2: モバイルでターミナル更新時にスクロール位置が最下部に
-            // 戻る問題への対策。 ユーザーが上スクロール中（wasPinnedToBottom=false）
-            // の場合、 iOS Safari の momentum scroll / fitAddon resize で
-            // write callback 直後に再度スクロールが戻されるケースがある。
-            // 次フレームで再度 restore して位置を確実にキープする。
-            if (nextViewportState && !nextViewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
-                requestAnimationFrame(() => {
-                    this._restoreViewportState(nextViewportState);
-                });
-            }
-            this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
+        this._terminalWriteQueue.push({
+            text,
+            viewportState: nextViewportState,
+            resetTerminal: Boolean(options.resetTerminal),
+            generation: this._terminalWriteGeneration,
+            afterWrite: typeof options.afterWrite === 'function' ? options.afterWrite : null
         });
+        this._drainTerminalWriteQueue();
+    }
+
+    _drainTerminalWriteQueue() {
+        if (this._terminalWriteActive || !this.terminal) return;
+        const operation = this._terminalWriteQueue.shift();
+        if (!operation) return;
+        if (operation.generation !== this._terminalWriteGeneration) {
+            this._drainTerminalWriteQueue();
+            return;
+        }
+
+        this._terminalWriteActive = true;
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            if (operation.generation !== this._terminalWriteGeneration) return;
+            finished = true;
+            this._restoreViewportAfterTerminalWrite(operation.viewportState);
+            try {
+                operation.afterWrite?.();
+            } finally {
+                this._terminalWriteActive = false;
+                this._drainTerminalWriteQueue();
+            }
+        };
+
+        try {
+            if (operation.resetTerminal && typeof this.terminal.reset === 'function') {
+                this.terminal.reset();
+            }
+            const writeFn = this.terminal.write;
+            writeFn.call(this.terminal, operation.text, finish);
+            if (writeFn.length < 2) {
+                this._queueTerminalWriteFallback(finish);
+            }
+        } catch (err) {
+            this._terminalWriteActive = false;
+            this._terminalWriteQueue.length = 0;
+            ttcWarn('[TTC-PROBE] terminal write failed', { err: String(err?.message || err) });
+        }
+    }
+
+    _cancelTerminalWriteQueue() {
+        this._terminalWriteGeneration += 1;
+        this._terminalWriteQueue.length = 0;
+        this._terminalWriteActive = false;
+    }
+
+    _queueTerminalWriteFallback(finish) {
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(finish);
+            return;
+        }
+        Promise.resolve().then(finish);
+    }
+
+    _restoreViewportAfterTerminalWrite(viewportState) {
+        this._restoreViewportState(viewportState);
+        // NocoDB バグ#2: モバイルでターミナル更新時にスクロール位置が最下部に
+        // 戻る問題への対策。 ユーザーが上スクロール中（wasPinnedToBottom=false）
+        // の場合、 iOS Safari の momentum scroll / fitAddon resize で
+        // write callback 直後に再度スクロールが戻されるケースがある。
+        // 次フレームで再度 restore して位置を確実にキープする。
+        if (viewportState && !viewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                this._restoreViewportState(viewportState);
+            });
+        }
+        this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
     }
 
     _prepareForSessionSwitch() {
@@ -2043,14 +2112,11 @@ export class TerminalTransportClient {
         this._lastSnapshotText = null;
         this._resetTerminalOnNextSnapshot = true;
         this._isViewportPinnedToBottom = true;
-        // xterm.jsの前セッション表示を即クリア。
-        // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
+        this._cancelTerminalWriteQueue();
         if (this.terminal) {
-            if (typeof this.terminal.reset === 'function') {
-                this.terminal.reset();
-            } else {
-                this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
-            }
+            // xterm.jsの前セッション表示を即クリア。
+            // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
+            this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H', null, { resetTerminal: true });
         }
     }
 

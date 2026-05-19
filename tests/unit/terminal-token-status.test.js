@@ -104,4 +104,13 @@ describe('terminal token status', () => {
     expect(tokenStatusBlock).not.toContain('position: absolute');
     expect(tokenStatusBlock).not.toContain('bottom:');
   });
+
+  it('xterm type-to-focus Shift+Enter uses the same S-Enter contract as xterm custom key handling', () => {
+    const inputUxSource = readFileSync(join(process.cwd(), 'public/modules/app/terminal-input-ux-mixin.js'), 'utf8');
+    const transportSource = readFileSync(join(process.cwd(), 'public/modules/core/terminal-transport-client.js'), 'utf8');
+
+    expect(transportSource).toContain("void this.sendKey('S-Enter')");
+    expect(inputUxSource).toContain("this.terminalTransportClient.sendKey('S-Enter')");
+    expect(inputUxSource).not.toContain("this.terminalTransportClient.sendKey('M-Enter')");
+  });
 });
