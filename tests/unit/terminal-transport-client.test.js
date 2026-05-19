@@ -1749,6 +1749,131 @@ describe('terminal-transport-client', () => {
     expect(client._pendingEchoText).toBe('');
   });
 
+  it('INV-1: xterm writeはlocal/output/snapshotで直列化される', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const callbacks = [];
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn((text, callback) => {
+        callbacks.push(callback);
+      }),
+      scrollToBottom: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._applyOutput('first');
+    client._applyOutput('second');
+
+    expect(terminal.write).toHaveBeenCalledTimes(1);
+    expect(terminal.write.mock.calls[0][0]).toBe('first');
+
+    callbacks.shift()();
+
+    expect(terminal.write).toHaveBeenCalledTimes(2);
+    expect(terminal.write.mock.calls[1][0]).toBe('second');
+  });
+
+  it('INV-1: snapshot resetは先行write完了後に実行される', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const callbacks = [];
+    const reset = vi.fn();
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn((text, callback) => {
+        callbacks.push(callback);
+      }),
+      reset,
+      scrollToBottom: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._applyOutput('streaming output');
+    client._applySnapshot('snapshot output', { resetTerminal: true });
+
+    expect(terminal.write).toHaveBeenCalledTimes(1);
+    expect(terminal.write.mock.calls[0][0]).toBe('streaming output');
+    expect(reset).not.toHaveBeenCalled();
+
+    callbacks.shift()();
+
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(terminal.write).toHaveBeenCalledTimes(2);
+    expect(terminal.write.mock.calls[1][0]).toBe('\x1b[2J\x1b[3J\x1b[Hsnapshot output');
+  });
+
+  it('INV-1: セッション切替で旧sessionの未完了write queueを破棄する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const callbacks = [];
+    const reset = vi.fn();
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn((text, callback) => {
+        callbacks.push(callback);
+      }),
+      reset,
+      scrollToBottom: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._applyOutput('old output');
+    client._applyOutput('stale queued output');
+
+    expect(terminal.write).toHaveBeenCalledTimes(1);
+    expect(terminal.write.mock.calls[0][0]).toBe('old output');
+    expect(client._terminalWriteActive).toBe(true);
+    expect(client._terminalWriteQueue).toHaveLength(1);
+
+    client._prepareForSessionSwitch();
+
+    expect(client._terminalWriteActive).toBe(true);
+    expect(client._terminalWriteQueue).toHaveLength(0);
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(terminal.write).toHaveBeenCalledTimes(2);
+    expect(terminal.write.mock.calls[1][0]).toBe('\x1b[2J\x1b[3J\x1b[H');
+
+    callbacks[0]?.();
+    expect(terminal.write).toHaveBeenCalledTimes(2);
+    expect(client._terminalWriteQueue).toHaveLength(0);
+  });
+
+  it('INV-3: submit feedbackはnewline描画完了後にpending echoをclearする', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const callbacks = [];
+    const terminal = {
+      buffer: { active: { baseY: 1, viewportY: 1 } },
+      write: vi.fn((text, callback) => {
+        callbacks.push(callback);
+      }),
+      scrollToBottom: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client.status.mode = 'live';
+    client._pendingEchoText = 'draft';
+    client._pendingEchoSince = Date.now();
+
+    client._applySubmitFeedback('\r');
+
+    expect(terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
+    expect(client._pendingEchoText).toBe('draft');
+
+    callbacks.shift()();
+
+    expect(client._pendingEchoText).toBe('');
+  });
+
   it('同一session再接続では未確認local echoを保持する', async () => {
     const sentMessages = [];
     let socket = null;

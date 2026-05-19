@@ -1695,7 +1695,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 });
                 this.focusTerminal('type-to-focus');
                 if (key === 'Enter' && e.shiftKey) {
-                    this.terminalTransportClient.sendKey('M-Enter').catch(() => {});
+                    this.terminalTransportClient.sendKey('S-Enter').catch(() => {});
                     e.preventDefault();
                 } else if (key === 'Enter') {
                     this.terminalTransportClient.sendKey('Enter').catch(() => {});
