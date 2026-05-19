@@ -43,10 +43,16 @@
 
 ```bash
 cd /Users/ksato/workspace/code/brainbase
-npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --json
+npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --json
 ```
 
 問題なければ本番 `brainbase_ssot.memory_candidates` へ書き込む。
+
+```bash
+DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --write --json
+```
+
+対象repoを限定する場合だけ `--repo` / `--project` を使う。通常の `/oyasumi` は mana 管理repo全体を横断する。
 
 ```bash
 DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --write --json
@@ -58,6 +64,7 @@ DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --
 - `owner_person_id=sato_keigo`
 - `visibility=owner`
 - candidateは `memory_layer=personal_kg_core` と `memory_layer=sns_ready` を分ける
+- `sns_ready` は `personal_kg_core` から抽象化projectionとして同時生成する。core本文をSNS生成へ直接渡さない
 - transcriptがある場合は transcript を一次情報、minutesを補助情報として扱う
 - extraction結果には `agent_reports` を残し、role別のinput/output件数を確認する
 - 家族、医療、健康、個人の私的事情は、佐藤の判断再現に必要な場合のみ `personal_kg_core` に owner-only + sensitivity tag + provenance 付きで保持する

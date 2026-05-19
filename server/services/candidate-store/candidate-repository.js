@@ -266,6 +266,19 @@ export class PgCandidateRepository {
     async create(input) {
         validate(input);
         try {
+            const key = duplicateKey(input);
+            const duplicate = await this.pool.query(
+                `SELECT id
+                 FROM memory_candidates
+                 WHERE source_system = $1
+                   AND owner_person_id = $2
+                   AND source_event_ids::text = $3
+                 LIMIT 1`,
+                [input.source_system, input.owner_person_id, JSON.stringify(input.source_event_ids.slice().sort())]
+            );
+            if (duplicate.rows.length > 0) {
+                throw new DuplicateCandidateError(key);
+            }
             const { rows } = await this.pool.query(
                 `INSERT INTO memory_candidates (
                     id, cognitive_type, owner_person_id, actor_person_id, source_system, source_event_ids,

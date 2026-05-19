@@ -18,12 +18,38 @@ import {
 const execFileAsync = promisify(execFile);
 const { Pool } = pg;
 
+const MANA_MEETING_SOURCES = [
+    { project: 'salestailor', repo: 'Unson-LLC/salestailor-project' },
+    { project: 'zeims', repo: 'Unson-LLC/zeims-project' },
+    { project: 'senrigan', repo: 'Unson-LLC/senrigan-project' },
+    { project: 'baao', repo: 'Unson-LLC/baao-project' },
+    { project: 'brainbase', repo: 'Unson-LLC/brainbase-project' },
+    { project: 'back-office', repo: 'Unson-LLC/back_office' },
+    { project: 'ncom-catalyst', repo: 'Unson-LLC/ncom-catalyst' },
+    { project: 'mywa', repo: 'Unson-LLC/MyWa' },
+    { project: 'vibepro-project', repo: 'Unson-LLC/vibepro-project' },
+    { project: 'unson-os', repo: 'Unson-LLC/unson_os' },
+    { project: 'tech-knight', repo: 'Tech-Knight-inc/tech-knight-project' },
+    { project: 'senpainurse', repo: 'Tech-Knight-inc/senpainurse' },
+    { project: 'web-inn', repo: 'Tech-Knight-inc/web-inn' },
+    { project: 'smartfront', repo: 'Tech-Knight-inc/smartfront' },
+    { project: 'aitle', repo: 'Tech-Knight-inc/Aitle' },
+    { project: 'unson-board', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/unson-board/minutes' },
+    { project: 'back-office', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/back-office/minutes' },
+    { project: 'dialogai', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/dialogai/minutes' },
+    { project: 'mywa', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/mywa/minutes' },
+    { project: 'unson-os', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/unson-os/minutes' },
+    { project: 'yakumokai', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/yakumokai/minutes' },
+    { project: 'other', repo: 'Unson-LLC/Drive', minutesDir: 'meetings/other/minutes' }
+];
+
 function parseArgs(argv) {
     const args = {
         date: null,
         repo: 'Unson-LLC/salestailor-project',
         project: 'salestailor',
         paths: [],
+        allRepos: false,
         write: false,
         json: false
     };
@@ -37,6 +63,7 @@ function parseArgs(argv) {
         else if (arg.startsWith('--project=')) args.project = arg.slice('--project='.length);
         else if (arg === '--path') args.paths.push(argv[++index]);
         else if (arg.startsWith('--path=')) args.paths.push(arg.slice('--path='.length));
+        else if (arg === '--all-repos') args.allRepos = true;
         else if (arg === '--write') args.write = true;
         else if (arg === '--json') args.json = true;
         else if (arg === '--dry-run') args.write = false;
@@ -82,8 +109,24 @@ async function ghRaw(path) {
     return stdout;
 }
 
-async function listMinutePaths({ repo, date }) {
-    const records = await ghJson(`repos/${repo}/contents/meetings/minutes`);
+function isNotFoundError(error) {
+    const errorText = [
+        error?.stderr,
+        error?.stdout,
+        error?.message,
+        String(error)
+    ].filter(Boolean).join('\n');
+    return /Not Found|HTTP 404|404/u.test(errorText);
+}
+
+async function listMinutePaths({ repo, date, minutesDir = 'meetings/minutes' }) {
+    let records;
+    try {
+        records = await ghJson(`repos/${repo}/contents/${minutesDir}`);
+    } catch (error) {
+        if (isNotFoundError(error)) return [];
+        throw error;
+    }
     return records
         .filter((record) => record.type === 'file')
         .filter((record) => String(record.name || '').startsWith(`${date}_`) || String(record.name || '').startsWith(`${date}-`))
@@ -128,24 +171,28 @@ async function fetchCompanionTranscript({ repo, minutesPath }) {
             content
         };
     } catch (error) {
-        const errorText = [
-            error?.stderr,
-            error?.stdout,
-            error?.message,
-            String(error)
-        ].filter(Boolean).join('\n');
-        if (/Not Found|HTTP 404|404/u.test(errorText)) {
+        if (isNotFoundError(error)) {
             return null;
         }
         throw error;
     }
 }
 
-async function loadMeetings({ repo, date, paths, project }) {
-    const targetPaths = paths.length > 0 ? paths : await listMinutePaths({ repo, date });
+function sourceConfigs(args) {
+    if (args.allRepos) return MANA_MEETING_SOURCES;
+    return [{ repo: args.repo, project: args.project }];
+}
+
+async function loadMeetings({ repo, date, paths = [], project, sources = null }) {
+    const targetSources = sources || [{ repo, project }];
     const meetings = [];
-    for (const path of targetPaths) {
-        meetings.push(await fetchMeeting({ repo, path, projectCode: project }));
+    for (const source of targetSources) {
+        const targetPaths = paths.length > 0
+            ? paths
+            : await listMinutePaths({ repo: source.repo, date, minutesDir: source.minutesDir });
+        for (const path of targetPaths) {
+            meetings.push(await fetchMeeting({ repo: source.repo, path, projectCode: source.project }));
+        }
     }
     return meetings;
 }
@@ -196,11 +243,13 @@ function outputText({ extracted, writeSummary, write }) {
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
+    const sources = sourceConfigs(args);
     const meetings = await loadMeetings({
         repo: args.repo,
         date: args.date,
         paths: args.paths,
-        project: args.project
+        project: args.project,
+        sources
     });
     const extracted = extractMeetingPersonalKgCandidates({
         date: args.date,
@@ -223,6 +272,7 @@ async function main() {
 
     const payload = {
         mode: args.write ? 'write' : 'dry-run',
+        sources,
         meetings: meetings.map((meeting) => ({
             repo: meeting.repo,
             path: meeting.path,
@@ -247,6 +297,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export {
+    MANA_MEETING_SOURCES,
     parseArgs,
     loadMeetings,
     companionTranscriptPath

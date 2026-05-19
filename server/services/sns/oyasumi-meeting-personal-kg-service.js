@@ -126,7 +126,7 @@ function buildCandidate({
     sensitivityReason = null
 }) {
     const projectCode = projectOrDefault(meeting);
-    const sourceEventId = githubRef(meeting, `${memoryLayer}:${category}:${key}`, sourceKind);
+    const sourceEventId = githubRef(meeting, `${memoryLayer}:${key}`, sourceKind);
     const sourcePath = sourcePathFor(meeting, sourceKind);
     const sourceUrl = sourceUrlFor(meeting, sourceKind);
     const meetingSlug = idPart(String(sourcePath || 'meeting').split('/').pop()?.replace(/\.[^.]+$/u, '') || 'meeting');
@@ -330,6 +330,114 @@ const PERSONAL_KG_CORE_RULES = [
         body: 'Context: AI活用支援の相談は月20万から半年500万円規模まで幅があり、営業代行として受注した案件から月5から10件程度のリード獲得や月額予算15万円程度の話が出ていた。 Judgment: 佐藤は、AI受託・営業代行を短期キャッシュだけでなく、自社プロダクト導入機会の入口として見る。'
     },
     {
+        key: 'ai-automation-proposal-needs-ops-log-and-hq-story',
+        category: 'operating_principle',
+        cognitiveType: 'insight',
+        sourceKind: 'minutes',
+        sensitivity: 'confidential',
+        redactionStatus: 'needs_redaction',
+        projectionAllowed: true,
+        projectionGate: 'sns_projection_can_use_after_context_review',
+        promotionScopeCandidate: ['personal'],
+        sensitivityReason: 'counterparty_confidential_business_context',
+        matches: (content, meeting) => /ota-setup-automation-proposal/u.test(meeting.path || '') && /YCS|OTA|Agoda|Bangkok HQ|セットアップ業務/u.test(content) && /AI|自動化|半自動/u.test(content),
+        body: 'Context: TechKnightでAgoda JapanのYCSセットアップ業務をAIで半自動化する提案を検討していた。先方は日本側だけでなくBangkok HQへ説明する必要があり、提案は英語資料・実績資料・YCSログ確認を前提にしていた。 Judgment: 佐藤は、単なる画面操作代行ではなく、実ログから業務フローを掴み、海外本部に通る提案ストーリーへ変換できる点に事業機会を見た。 Reusable Pattern: AI自動化案件は「操作をAIにやらせる」では弱い。現場ログ、決裁者向け説明、実績資料が揃うと高単価提案になりやすい。 Apply When: 相手側に反復業務ログがあり、社内決裁者へ説明する材料が必要なB2B自動化案件。 Do Not Apply When: 画面操作の単発代行だけで、業務フローや決裁文脈に踏み込めない案件。'
+    },
+    {
+        key: 'review-before-execution-for-quality-risk',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'minutes',
+        matches: (content, meeting) => /team-dev-quality-issues/u.test(meeting.path || '') && /品質問題|設計ミス|テスト.*不十分|必ず一次確認/u.test(content),
+        body: 'Context: TechKnightで特定メンバーの実装品質・確認不足が続き、顧客影響や手戻りが出る懸念が出ていた。会議では作業前レビューやテスト体制の見直しが論点になった。 Judgment: 佐藤は人格評価や叱責ではなく、作業前レビュー・設計確認・テスト体制を先に置く運用変更として扱った。 Reusable Pattern: 品質問題は「人の問題」と断定せず、レビュー導線と責任分界を先に設計する。 Apply When: 同じ種類のミスや確認不足が続き、本人任せの改善では顧客影響が出そうな時。 Do Not Apply When: 一度きりの軽微なミスや、本人に十分な前提共有がされていない段階。'
+    },
+    {
+        key: 'role-fit-reassignment-is-operations-design',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'minutes',
+        matches: (content, meeting) => /team-dev-quality-issues/u.test(meeting.path || '') && /バックオフィス担当|作業.*移行|タスク.*振り分け|担当.*再配置/u.test(content),
+        body: 'Context: TechKnightの会議で、品質課題や展示会・出張・請求などのバックオフィス作業が並行しており、誰に何を任せるかの再配置が必要になっていた。 Judgment: 佐藤は、不得意な仕事を責めるより、役割を変えて得意な置き場所に移すことで全体の詰まりを取ろうとした。 Reusable Pattern: メンバーの問題に見えるものは、仕事の置き場所の問題として再設計できることがある。 Apply When: 個人の能力不足よりも、担当業務の種類と本人の適性がズレている可能性が高い時。 Do Not Apply When: 権限・期限・品質責任を曖昧にしたまま、単に担当だけを移してしまう時。'
+    },
+    {
+        key: 'direct-edit-dashboard-over-admin-heavy-cms',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'minutes',
+        matches: (content, meeting) => /weekly-team-progress-update/u.test(meeting.path || '') && /CMS|直接編集|サイト上で直接編集|WordPress|本部ダッシュボード/u.test(content),
+        body: 'Context: SmartFrontの本部ダッシュボードで、運用者が情報を更新し続ける前提のUIが必要になっていた。CMS的な実装方向が論点だった。 Judgment: 佐藤は、管理画面を重く作るより、WordPressのように直接編集できる運用者寄りの体験がよいと見た。 Reusable Pattern: 継続運用されるダッシュボードは、機能の網羅性より編集導線の自然さが重要になる。 Apply When: 非エンジニアや現場担当者が頻繁に文言・表示内容を更新する画面。 Do Not Apply When: 承認フロー、監査証跡、権限分離が厳密に必要な管理画面。'
+    },
+    {
+        key: 'ops-ssot-should-live-where-team-works',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'minutes',
+        matches: (content, meeting) => /weekly-team-progress-update/u.test(meeting.path || '') && /環境変数|運用情報|Slack canvas|SSOT|タスク管理.*通知/u.test(content),
+        body: 'Context: SmartFront定例で、環境変数や運用情報が散らばり、タスク管理や開発通知の経路も混線していた。Slack canvasへの集約が話題になった。 Judgment: 佐藤は、運用情報は「探すドキュメント」ではなく、チームが実際に毎日見る場所へ置くべきだと判断した。 Reusable Pattern: SSOTは正しい保管場所より、運用者が自然に参照する導線に置く方が機能しやすい。 Apply When: 開発・運用情報の散逸で確認漏れや属人化が起きている時。 Do Not Apply When: 権限管理や秘密情報管理が必要で、Slack等に置くと漏洩リスクが高い情報。'
+    },
+    {
+        key: 'healthcare-workflow-ui-must-reduce-next-action-ambiguity',
+        category: 'content_design',
+        cognitiveType: 'insight',
+        sourceKind: 'minutes',
+        sensitivity: 'restricted',
+        matches: (content, meeting) => /hospital-discharge-support-system-meeting/u.test(meeting.path || '') && /退院支援|チェックリスト|初期値|ハイライト/u.test(content) && /UI|入力/u.test(content),
+        body: 'Context: SenpaiNurseで退院支援の入力UIを改善しており、訪問前に作業版を出す必要があった。ハイライト、初期値、退院支援チェックリストが論点だった。 Judgment: 佐藤は、医療/介護系UIでは機能量より「次に何を入力・確認すべきか」を迷わせないことを重視した。 Reusable Pattern: 業務UIの価値は、入力項目数ではなく次アクションの曖昧さを減らすことにある。 Apply When: 現場ユーザーが制度要件や判断手順に沿って入力する必要があるUI。 Do Not Apply When: 熟練者向けで自由度や高速入力を優先すべきUI。'
+    },
+    {
+        key: 'avoid-duplicate-excel-by-embedding-billing-requirements',
+        category: 'operating_principle',
+        cognitiveType: 'insight',
+        sourceKind: 'minutes',
+        sensitivity: 'restricted',
+        matches: (content, meeting) => /patient-discharge-support-ai/u.test(meeting.path || '') && /Excel|ハンドブック|加算要件|請求要件/u.test(content) && /退院支援|システム/u.test(content),
+        body: 'Context: SenpaiNurseで退院支援の既存Excelチャート、東京都退院支援ハンドブック、加算要件をシステムにどう取り込むかを議論していた。 Judgment: 佐藤は、Excelとシステムを並行運用すると二重入力になるため、請求要件やチェックリストを自然な画面入力に埋め込むべきだと見た。 Reusable Pattern: 既存Excelを単に置き換えるのではなく、制度要件を業務フローに埋め込むと現場負荷が下がる。 Apply When: Excel運用が制度要件や請求要件を満たすために残っている業務。 Do Not Apply When: Excelが一時的な分析・集計用途で、業務フロー自体ではない場合。'
+    },
+    {
+        key: 'consulting-revenue-now-theme-hook-later',
+        category: 'sales_philosophy',
+        cognitiveType: 'insight',
+        sourceKind: 'minutes',
+        sensitivity: 'confidential',
+        redactionStatus: 'needs_redaction',
+        projectionAllowed: true,
+        projectionGate: 'sns_projection_can_use_after_context_review',
+        promotionScopeCandidate: ['personal'],
+        sensitivityReason: 'counterparty_confidential_business_context',
+        matches: (content, meeting) => /project-progress-ai-study-meeting/u.test(meeting.path || '') && /AI勉強会|Webアプリケーション診断|フィジカルAI|Physical AI|前さばき支援/u.test(content) && /短期|長期|新規テーマ|探索/u.test(content),
+        body: 'Context: NCOMでAI勉強会・Webアプリ診断・Physical AIの話題が同時に出ていた。短期売上と新テーマ開拓をどう扱うかが論点だった。 Judgment: 佐藤は、AI勉強会や診断を短期売上として維持しつつ、Physical AIは本題にしすぎず次の組織テーマのフックとして扱うのがよいと見た。 Reusable Pattern: 既存提供モデルで短期売上を作りながら、新テーマは軽く差し込んで将来の会話余地を作る。 Apply When: 既存案件で売上化できる型があり、相手組織に新テーマ探索の兆しがある時。 Do Not Apply When: 新テーマを出すことで本題の意思決定や納品責任がぼやける時。'
+    },
+    {
+        key: 'separate-facts-and-hypotheses-before-taskforce',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'minutes',
+        matches: (content, meeting) => /taskforce-ai-consulting-proposal/u.test(meeting.path || '') && /事実と推察を分ける|事実.*仮説|ヒアリングリスト|タスクフォース/u.test(content),
+        body: 'Context: NCOMのタスクフォース準備で、ヒアリング内容・Physical AI・過去資料・仮説をどう整理するかが論点だった。 Judgment: 佐藤は、抽象的な構想に逃げず、事実と仮説を分けて、会議で何を確認すべきかを明確にすることを重視した。 Reusable Pattern: 戦略会議の前には、確認済みの事実、未確認の仮説、次に聞く質問を分ける。 Apply When: 複数テーマが混ざり、会議で聞くべきことが曖昧になっている時。 Do Not Apply When: すでに意思決定済みで、実行タスクだけを進めればよい時。'
+    },
+    {
+        key: 'production-changes-require-before-after-reporting',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'minutes',
+        matches: (content, meeting) => /project-progress-ai-study-meeting/u.test(meeting.path || '') && /Webアプリケーション診断|指摘事項|受け入れテスト|リグレッションテスト|本番/u.test(content),
+        body: 'Context: DialogAIのメディアアップロード不具合とデプロイ報告のやり取りで、本番や顧客影響のある変更の共有不足が問題になっていた。 Judgment: 佐藤は、善意で先に直すよりも、作業前・作業後の報告と状態共有を優先すべきだと判断した。 Reusable Pattern: 本番影響のある変更は、実装力よりも可視性と復旧可能性を先に守る。 Apply When: 顧客影響、本番反映、診断・検収に関わる変更を行う時。 Do Not Apply When: 完全にローカルで閉じた検証や、誰にも影響しない試作。'
+    },
+    {
+        key: 'sensitive-counterparty-context-still-belongs-in-owner-kg',
+        category: 'operating_principle',
+        cognitiveType: 'claim',
+        sourceKind: 'minutes',
+        sensitivity: 'confidential',
+        redactionStatus: 'needs_redaction',
+        projectionAllowed: true,
+        projectionGate: 'sns_projection_can_use_after_context_review',
+        promotionScopeCandidate: ['personal'],
+        sensitivityReason: 'counterparty_confidential_business_context',
+        matches: (content, meeting) => /team-dev-quality-issues/u.test(meeting.path || '') && /NDA|月額予算|未公開|価格改定|予算|顧問先/u.test(content),
+        body: 'Context: 議事録には、相手企業や顧問先の未公開事情・予算感に見える情報が含まれることがある。 Judgment: 佐藤は、SNSに出せない情報でも、自分の判断OSには必要な背景としてowner-visibleに残すべきだと考えている。 Reusable Pattern: 個人KGの本体は公開素材ではない。公開不可情報は捨てず、visibility・sensitivity・redactionで扱いを分ける。 Apply When: AIが佐藤圭吾として判断するために必要だが、外部公開やチーム共有には向かない背景情報。 Do Not Apply When: 法令・契約・個人情報上、保存自体が不適切な情報や、不要な秘密そのもの。'
+    },
+    {
         key: 'brainbase-thinks-as-my-brain',
         category: 'philosophy',
         cognitiveType: 'claim',
@@ -358,7 +466,7 @@ const PERSONAL_KG_CORE_RULES = [
         category: 'philosophy',
         cognitiveType: 'hypothesis',
         sourceKind: 'transcript',
-        matches: (content) => /Excel|民主化/u.test(content) && /AI/u.test(content),
+        matches: (content) => /Excel.*民主化|民主化.*Excel/u.test(content) && /AI/u.test(content),
         body: 'AIはExcelのように民主化する。差が出るのはツールを触れることではなく、会社で使える形に落とす設計である。'
     }
 ];
@@ -482,7 +590,7 @@ function extractCoreFromMeeting({ meeting, date }) {
     for (const rule of PERSONAL_KG_CORE_RULES) {
         const sourceKind = rule.sourceKind === 'transcript' && transcript ? 'transcript' : 'minutes';
         const content = sourceKind === 'transcript' ? transcript : `${minutes} ${transcript}`;
-        if (!rule.matches(content)) continue;
+        if (!rule.matches(content, meeting)) continue;
         adopted.push(buildCandidate({
             meeting,
             date,
@@ -530,7 +638,10 @@ function projectSnsReadyFromMeeting({ meeting, date }) {
 function extractFromMeeting({ meeting, date }) {
     const core = extractCoreFromMeeting({ meeting, date });
     const sensitiveCore = extractSensitiveCoreSections(meeting, date);
-    const snsReady = projectSnsReadyFromMeeting({ meeting, date });
+    const snsReady = dedupeBySourceEvent([
+        ...projectSnsReadyFromMeeting({ meeting, date }),
+        ...projectSnsReadyCandidatesFromCoreCandidates([...core, ...sensitiveCore])
+    ]);
     return {
         adopted: [...core, ...sensitiveCore, ...snsReady],
         rejected: rejectSensitiveSections(meeting, date),
