@@ -375,6 +375,36 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
     });
 
+    it('does not project semantic security incident details into sns_ready', () => {
+        const core = {
+            id: 'semantic-security-incident-core',
+            cognitive_type: 'knowledge_architecture',
+            owner_person_id: 'sato_keigo',
+            source_system: SOURCE_SYSTEM,
+            source_event_ids: ['github:meeting#security-incident'],
+            workspace: 'github',
+            visibility: 'owner',
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            confidence: 0.8,
+            body: 'Context: メールアカウントの乗っ取り疑いがあり、不審メールとフィッシングリンクを確認した。 Judgment: Outlook連携も含めてパスワード変更と影響調査を優先する。 Reusable Pattern: 自分から自分への不審メール、Gmailの危険判定、迷惑メール振り分けを見る。 Apply When: メールセキュリティの異常を検知する時。 Do Not Apply When: 正常な自動転送の場合。',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'business_judgment',
+                    memory_layer: 'personal_kg_core',
+                    agent_role: 'semantic_personal_kg_extractor',
+                    retrieval_purpose: 'owner_judgment',
+                    projection_allowed: false,
+                    sns_projection_allowed: false,
+                    source_ref: 'github:meeting#security-incident'
+                }
+            },
+            evidence_ids: []
+        };
+
+        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+    });
+
     it('extracts semantic personal_kg_core candidates through an injected LLM client', async () => {
         const extracted = await extractMeetingPersonalKgCandidatesSemantic({
             date: '2026-05-15',

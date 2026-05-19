@@ -22,7 +22,7 @@ const SNS_PROJECTION_BLOCKED_CATEGORIES = new Set(['private_or_family', 'medical
 const ALLOWED_SEMANTIC_SENSITIVITY = new Set(['internal', 'confidential', 'restricted']);
 const ALLOWED_SEMANTIC_REDACTION_STATUS = new Set(['none', 'needs_redaction']);
 const SEMANTIC_MODEL_INPUT_LIMIT = 18000;
-const SEMANTIC_SNS_BLOCK_PATTERN = /補助金|助成金|融資|返金|銀行口座|税務リスク|役員報酬|未払い|資金調達|キャッシュ不足|保証協会/u;
+const SEMANTIC_SNS_BLOCK_PATTERN = /補助金|助成金|融資|返金|銀行口座|税務リスク|役員報酬|未払い|資金調達|キャッシュ不足|保証協会|不審メール|乗っ取り|フィッシング|迷惑メール|Outlook|Entra|セキュリティ診断|暫定ルート|PC貸出|Pマーク|IFA|MA仲介/u;
 
 function normalizeSpaces(value) {
     return String(value || '').replace(/\s+/gu, ' ').trim();
