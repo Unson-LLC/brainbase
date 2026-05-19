@@ -405,6 +405,36 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
     });
 
+    it('does not project semantic onsite security access details into sns_ready', () => {
+        const core = {
+            id: 'semantic-onsite-security-core',
+            cognitive_type: 'operating_principle',
+            owner_person_id: 'sato_keigo',
+            source_system: SOURCE_SYSTEM,
+            source_event_ids: ['github:meeting#onsite-security'],
+            workspace: 'github',
+            visibility: 'owner',
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            confidence: 0.8,
+            body: 'Context: 外部業者のオンサイト作業で物理セキュリティ制約とネットワークアクセス要件を確認した。 Judgment: システムアクセスを伴う作業では事前の環境設定が必要。 Reusable Pattern: オンサイト作業では物理セキュリティとネットワークアクセス要件を明確化する。 Apply When: 外部業者がシステムアクセスを伴う作業をする時。 Do Not Apply When: リモート作業のみの場合。',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'business_judgment',
+                    memory_layer: 'personal_kg_core',
+                    agent_role: 'semantic_personal_kg_extractor',
+                    retrieval_purpose: 'owner_judgment',
+                    projection_allowed: false,
+                    sns_projection_allowed: false,
+                    source_ref: 'github:meeting#onsite-security'
+                }
+            },
+            evidence_ids: []
+        };
+
+        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+    });
+
     it('extracts semantic personal_kg_core candidates through an injected LLM client', async () => {
         const extracted = await extractMeetingPersonalKgCandidatesSemantic({
             date: '2026-05-15',
