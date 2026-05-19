@@ -84,7 +84,14 @@ function buildCandidate({
     memoryLayer = MEMORY_LAYER_SNS_READY,
     agentRole = 'sns_projection',
     sourceKind = 'minutes',
-    projectionOf = null
+    projectionOf = null,
+    sensitivity = 'internal',
+    redactionStatus = 'none',
+    retrievalPurpose = memoryLayer === MEMORY_LAYER_CORE ? 'owner_judgment' : 'sns_generation',
+    projectionAllowed = sensitivity === 'internal' && redactionStatus === 'none',
+    projectionGate = projectionAllowed ? 'sns_projection_can_use_after_context_review' : 'redact_or_approve_before_sns_team_org',
+    promotionScopeCandidate = projectionAllowed ? ['personal', 'team_candidate'] : ['personal'],
+    sensitivityReason = null
 }) {
     const projectCode = projectOrDefault(meeting);
     const sourceEventId = githubRef(meeting, `${memoryLayer}:${category}:${key}`, sourceKind);
@@ -104,11 +111,12 @@ function buildCandidate({
         org_ids: orgsFor(projectCode),
         project_ids: [projectCode],
         visibility: 'owner',
-        sensitivity: 'internal',
+        sensitivity,
         role_min: 'member',
         agency_level: 'synthesize',
         promotion_status: 'candidate',
         requires_approval: true,
+        redaction_status: redactionStatus,
         confidence,
         body: compact(body),
         permission_snapshot: {
@@ -118,6 +126,16 @@ function buildCandidate({
                 agent_role: agentRole,
                 source_kind: sourceKind,
                 projection_of: projectionOf,
+                retrieval_purpose: retrievalPurpose,
+                projection_allowed: projectionAllowed,
+                sns_projection_allowed: memoryLayer === MEMORY_LAYER_SNS_READY || projectionAllowed,
+                projection_gate: projectionGate,
+                promotion_scope_candidate: promotionScopeCandidate,
+                sensitivity_reason: sensitivityReason,
+                personal_core_detail_policy: 'preserve_details_needed_for_owner_judgment',
+                non_owner_retrieval_policy: memoryLayer === MEMORY_LAYER_CORE
+                    ? 'deny_core_details_without_projection_or_promotion'
+                    : 'projection_read_only',
                 meeting_date: date,
                 repo: meeting.repo,
                 path: sourcePath,
@@ -144,7 +162,7 @@ const ADOPTION_RULES = [
         category: 'sales_philosophy',
         cognitiveType: 'insight',
         matches: (content) => /月20万.*半年500万円/u.test(content) && /営業代行/u.test(content),
-        body: 'AI活用支援の相談は月20万から半年500万円規模まで幅があり、営業代行で現金化しながら自社プロダクトの導入機会を作る動線がある。'
+        body: 'AI活用支援の相談は案件幅が大きく、営業代行で現金化しながら自社プロダクトの導入機会を作る動線がある。'
     },
     {
         key: 'salestailor-conversion-proof',
@@ -177,6 +195,20 @@ const ADOPTION_RULES = [
 ];
 
 const PERSONAL_KG_CORE_RULES = [
+    {
+        key: 'ai-sales-agency-confidential-business-context',
+        category: 'sales_philosophy',
+        cognitiveType: 'insight',
+        sourceKind: 'minutes',
+        sensitivity: 'confidential',
+        redactionStatus: 'needs_redaction',
+        projectionAllowed: false,
+        projectionGate: 'redact_or_approve_before_sns_team_org',
+        promotionScopeCandidate: ['personal', 'team_candidate'],
+        sensitivityReason: 'counterparty_confidential_business_context',
+        matches: (content) => /月20万.*半年500万円/u.test(content) && /営業代行/u.test(content),
+        body: 'Context: AI活用支援の相談は月20万から半年500万円規模まで幅があり、営業代行として受注した案件から月5から10件程度のリード獲得や月額予算15万円程度の話が出ていた。 Judgment: 佐藤は、AI受託・営業代行を短期キャッシュだけでなく、自社プロダクト導入機会の入口として見る。'
+    },
     {
         key: 'brainbase-thinks-as-my-brain',
         category: 'philosophy',
@@ -256,6 +288,36 @@ function rejectSensitiveSections(meeting, date) {
     return rejected;
 }
 
+function extractSensitiveCoreSections(meeting, date) {
+    const adopted = [];
+    for (const section of extractSections(meeting.content || '')) {
+        const text = `${section.title}\n${section.body}`;
+        const hasMedical = MEDICAL_PATTERN.test(text);
+        const hasPrivate = PRIVATE_PATTERN.test(text);
+        if (!hasMedical && !hasPrivate) continue;
+        const reason = hasMedical ? 'medical_or_health' : 'private_or_family';
+        adopted.push(buildCandidate({
+            meeting,
+            date,
+            key: `${reason}-${idPart(section.title || 'sensitive-context')}`,
+            category: 'persona_understanding',
+            cognitiveType: 'observation',
+            body: `Context: ${compact(stripMarkdown(text), 180)} Judgment: この私的背景は本人の判断再現にだけ使い、SNS・team・org projectionにはそのまま出さない。`,
+            confidence: 0.68,
+            memoryLayer: MEMORY_LAYER_CORE,
+            agentRole: 'sensitivity_reviewer',
+            sourceKind: 'minutes',
+            sensitivity: hasMedical ? 'confidential' : 'restricted',
+            redactionStatus: 'needs_redaction',
+            projectionAllowed: false,
+            projectionGate: 'redact_or_approve_before_sns_team_org',
+            promotionScopeCandidate: ['personal'],
+            sensitivityReason: reason
+        }));
+    }
+    return adopted;
+}
+
 function needsHumanReview(meeting, date) {
     const content = String(meeting.content || '');
     if (!COUNTERPARTY_CONFIDENTIAL_PATTERN.test(content)) return [];
@@ -286,6 +348,8 @@ function dedupeBySourceEvent(candidates) {
 
 function sanitizeAdopted(candidates) {
     return candidates.filter((candidate) => {
+        const memoryLayer = candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.memory_layer;
+        if (memoryLayer === MEMORY_LAYER_CORE) return true;
         const body = String(candidate.body || '');
         return !MEDICAL_PATTERN.test(body) && !PRIVATE_PATTERN.test(body) && !/懇親会|飲み会|会食で話した/u.test(body);
     });
@@ -309,7 +373,13 @@ function extractCoreFromMeeting({ meeting, date }) {
             confidence: 0.82,
             memoryLayer: MEMORY_LAYER_CORE,
             agentRole: 'personal_kg_extractor',
-            sourceKind
+            sourceKind,
+            sensitivity: rule.sensitivity || 'internal',
+            redactionStatus: rule.redactionStatus || 'none',
+            projectionAllowed: rule.projectionAllowed,
+            projectionGate: rule.projectionGate,
+            promotionScopeCandidate: rule.promotionScopeCandidate,
+            sensitivityReason: rule.sensitivityReason || null
         }));
     }
     return sanitizeAdopted(adopted);
@@ -339,9 +409,10 @@ function projectSnsReadyFromMeeting({ meeting, date }) {
 
 function extractFromMeeting({ meeting, date }) {
     const core = extractCoreFromMeeting({ meeting, date });
+    const sensitiveCore = extractSensitiveCoreSections(meeting, date);
     const snsReady = projectSnsReadyFromMeeting({ meeting, date });
     return {
-        adopted: [...core, ...snsReady],
+        adopted: [...core, ...sensitiveCore, ...snsReady],
         rejected: rejectSensitiveSections(meeting, date),
         needs_review: needsHumanReview(meeting, date)
     };

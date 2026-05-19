@@ -81,11 +81,17 @@ function sampleMeetings() {
 }
 
 describe('Oyasumi meeting minutes to Personal KG', () => {
-    it('S-1/INV-2 extracts SNS-usable candidates and rejects private medical sections', () => {
+    it('S-1/INV-2 extracts personal core details and rejects them from SNS projection', () => {
         const result = extractMeetingPersonalKgCandidates({
             date: '2026-05-15',
             meetings: sampleMeetings()
         });
+        const coreCandidates = result.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
+        ));
+        const snsReadyCandidates = result.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'sns_ready'
+        ));
 
         expect(result.source_system).toBe(SOURCE_SYSTEM);
         expect(result.agent_reports).toEqual(expect.arrayContaining([
@@ -111,7 +117,14 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(result.adopted[0].source_event_ids[0]).toContain('github:Unson-LLC/salestailor-project:meetings/minutes/2026-05-15_');
         expect(new Set(result.adopted.map((candidate) => candidate.id)).size).toBe(result.adopted.length);
         expect(result.adopted[0].permission_snapshot.oyasumi_meeting_personal_kg.meeting_date).toBe('2026-05-15');
-        expect(result.adopted.map((candidate) => candidate.body).join('\n')).not.toMatch(/娘|心臓|手術|医師|家族|懇親会|飲み会/u);
+        expect(coreCandidates).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                sensitivity: 'confidential',
+                redaction_status: 'needs_redaction',
+                body: expect.stringMatching(/娘|心臓|手術|医師|家族/u)
+            })
+        ]));
+        expect(snsReadyCandidates.map((candidate) => candidate.body).join('\n')).not.toMatch(/娘|心臓|手術|医師|家族|懇親会|飲み会/u);
         expect(result.rejected).toEqual(expect.arrayContaining([
             expect.objectContaining({ reason: 'medical_or_health' })
         ]));
@@ -217,6 +230,9 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             date: '2026-05-15',
             meetings: sampleMeetings()
         });
+        const snsReadyCount = extracted.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'sns_ready'
+        )).length;
         await writeMeetingPersonalKgCandidates({ candidateService, extracted });
 
         const contextService = new SnsGenerationContextService({
@@ -230,7 +246,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         });
 
         expect(context.personal_kg.candidate_sources).toEqual(expect.arrayContaining([
-            expect.objectContaining({ source_system: SOURCE_SYSTEM, count: extracted.adopted.length })
+            expect.objectContaining({ source_system: SOURCE_SYSTEM, count: snsReadyCount })
         ]));
         expect(context.personal_kg.anchors).toEqual(expect.arrayContaining([
             expect.stringContaining('AI活用支援の相談')
