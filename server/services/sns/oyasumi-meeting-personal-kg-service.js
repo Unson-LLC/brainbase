@@ -22,6 +22,7 @@ const SNS_PROJECTION_BLOCKED_CATEGORIES = new Set(['private_or_family', 'medical
 const ALLOWED_SEMANTIC_SENSITIVITY = new Set(['internal', 'confidential', 'restricted']);
 const ALLOWED_SEMANTIC_REDACTION_STATUS = new Set(['none', 'needs_redaction']);
 const SEMANTIC_MODEL_INPUT_LIMIT = 18000;
+const SEMANTIC_SNS_BLOCK_PATTERN = /補助金|助成金|融資|返金|銀行口座|税務リスク|役員報酬|未払い|資金調達|キャッシュ不足|保証協会/u;
 
 function normalizeSpaces(value) {
     return String(value || '').replace(/\s+/gu, ' ').trim();
@@ -210,6 +211,7 @@ function projectSnsReadyCandidateFromCore(candidate) {
     if (SNS_PROJECTION_BLOCKED_CATEGORIES.has(kg.category)) return null;
     if (kg.agent_role === 'semantic_personal_kg_extractor' && (candidate.sensitivity !== 'internal' || candidate.redaction_status !== 'none')) return null;
     if (kg.agent_role === 'semantic_personal_kg_extractor' && /\[REDACTED|REDACTED -/u.test(candidate.body || '')) return null;
+    if (kg.agent_role === 'semantic_personal_kg_extractor' && SEMANTIC_SNS_BLOCK_PATTERN.test(candidate.body || '')) return null;
     const bodyParts = structuredBodyParts(candidate.body);
     const pattern = bodyParts['Reusable Pattern'] || bodyParts.Judgment || candidate.body;
     const applyWhen = bodyParts['Apply When'] || '';

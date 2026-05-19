@@ -345,6 +345,36 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
     });
 
+    it('does not project semantic subsidy or financing details into sns_ready even when classified internal', () => {
+        const core = {
+            id: 'semantic-finance-core',
+            cognitive_type: 'insight',
+            owner_person_id: 'sato_keigo',
+            source_system: SOURCE_SYSTEM,
+            source_event_ids: ['github:meeting#semantic-finance'],
+            workspace: 'github',
+            visibility: 'owner',
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            confidence: 0.8,
+            body: 'Context: 補助金の返金タイミングと銀行口座、融資のつなぎ方を検討した。 Judgment: キャッシュ不足を避けるため、保証協会や税務リスクも含めて判断する。 Reusable Pattern: 資金繰りの制約を先に整理する。 Apply When: 入金時期に不確実性がある時。 Do Not Apply When: 公開SNS素材。',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'business_judgment',
+                    memory_layer: 'personal_kg_core',
+                    agent_role: 'semantic_personal_kg_extractor',
+                    retrieval_purpose: 'owner_judgment',
+                    projection_allowed: false,
+                    sns_projection_allowed: false,
+                    source_ref: 'github:meeting#semantic-finance'
+                }
+            },
+            evidence_ids: []
+        };
+
+        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+    });
+
     it('extracts semantic personal_kg_core candidates through an injected LLM client', async () => {
         const extracted = await extractMeetingPersonalKgCandidatesSemantic({
             date: '2026-05-15',
