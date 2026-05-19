@@ -40,6 +40,7 @@ const MODE_CONFIG = {
             ['meetings', '会議'],
             ['decisions', 'Decision'],
             ['wikiNocodb', 'Wiki/NocoDB反映'],
+            ['personalKg', 'Personal KG'],
             ['failures', '失敗・未完了'],
             ['carryovers', '翌日持ち越し']
         ],
@@ -77,7 +78,12 @@ export function normalizeDailyOpsReport(input = {}, options = {}) {
     const sectionsInput = input.sections || {};
     const sectionList = Array.isArray(sectionsInput)
         ? sectionsInput
-        : config.sections.map(([id, title]) => normalizeSection(id, title, sectionsInput[id] ?? input[id]));
+        : config.sections.map(([id, title]) => {
+            if (mode === 'oyasumi' && id === 'personalKg') {
+                return normalizePersonalKgSection(title, sectionsInput[id] ?? input[id] ?? input.personal_kg ?? input.oyasumi_personal_kg);
+            }
+            return normalizeSection(id, title, sectionsInput[id] ?? input[id]);
+        });
 
     return {
         mode,
@@ -472,6 +478,54 @@ function normalizeSection(id, fallbackTitle, value) {
         title: value.title || fallbackTitle || id,
         items: Array.isArray(value.items) ? value.items.map(normalizeItem) : []
     };
+}
+
+function normalizePersonalKgSection(fallbackTitle, value) {
+    if (!value) return { id: 'personalKg', title: fallbackTitle || 'Personal KG', items: [] };
+    if (Array.isArray(value) || typeof value === 'string' || value.items) {
+        return normalizeSection('personalKg', fallbackTitle || 'Personal KG', value);
+    }
+    const counts = value.counts || value;
+    const items = [
+        {
+            title: 'personal_kg_core',
+            summary: '判断再現用のowner-visible core candidate。詳細保持はowner_judgmentに限定。',
+            meta: {
+                count: numberOrZero(counts.personal_kg_core ?? counts.core ?? counts.core_count),
+                status: 'owner-only'
+            }
+        },
+        {
+            title: 'sns_ready',
+            summary: 'SNS生成Contextで読めるprojection candidate。',
+            meta: {
+                count: numberOrZero(counts.sns_ready ?? counts.snsReady ?? counts.sns_ready_count),
+                status: 'projection'
+            }
+        },
+        {
+            title: 'needs_redaction',
+            summary: 'private / medical / counterparty confidential など、projection前にredactionまたはapprovalが必要なcandidate。',
+            meta: {
+                count: numberOrZero(counts.needs_redaction ?? counts.needsRedaction ?? counts.needs_redaction_count),
+                status: 'hold'
+            }
+        },
+        {
+            title: 'projection_allowed',
+            summary: 'SNS/team/orgへ別instance化できる候補。core本文を直接外部化しない。',
+            meta: {
+                count: numberOrZero(counts.projection_allowed ?? counts.projectionAllowed ?? counts.projection_allowed_count),
+                status: 'candidate'
+            }
+        }
+    ];
+    return { id: 'personalKg', title: fallbackTitle || 'Personal KG', items };
+}
+
+function numberOrZero(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
 }
 
 function normalizeItem(value) {

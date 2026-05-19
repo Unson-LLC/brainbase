@@ -36,7 +36,7 @@
 |---|---|
 | `meeting_harvester` | 当日minutesと同名transcriptを集め、source metadataを保持する |
 | `personal_kg_extractor` | SNS化前の `personal_kg_core` を抽出する |
-| `sensitivity_reviewer` | family/medical/private/counterparty confidentialを除外・要確認に分ける |
+| `sensitivity_reviewer` | family/medical/private/counterparty confidentialをpersonal core保持可否とprojection不可に分ける |
 | `sns_projection` | `personal_kg_core` のうちSNSで使えるものだけを `sns_ready` へ投影する |
 
 まず dry-run で採用/除外/要確認を確認する。
@@ -60,9 +60,10 @@ DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --
 - candidateは `memory_layer=personal_kg_core` と `memory_layer=sns_ready` を分ける
 - transcriptがある場合は transcript を一次情報、minutesを補助情報として扱う
 - extraction結果には `agent_reports` を残し、role別のinput/output件数を確認する
-- 家族、医療、健康、個人の私的事情は candidate 化しない
-- 顧客・相手企業の未公開予算や未公開事情は `needs_review` に残し、人間確認なしにSNS素材へ使わない
+- 家族、医療、健康、個人の私的事情は、佐藤の判断再現に必要な場合のみ `personal_kg_core` に owner-only + sensitivity tag + provenance 付きで保持する
+- 顧客・相手企業の未公開予算や未公開事情は `personal_kg_core` に詳細を残してよいが、`sns_ready` / team / org / Graph promotion へは redaction / approval 済みの別instance以外で出さない
 - 同じ議事録の同じ抽出単位は `source_event_ids` で重複投入しない
+- HTMLレポートには `personal_kg_core`, `sns_ready`, `needs_redaction`, `projection_allowed` の件数を出し、取り込み漏れ・誤projectionを検知する
 
 ## Archive Blocked Triage
 
