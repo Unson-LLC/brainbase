@@ -1,7 +1,7 @@
 // @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { refreshIcons, formatDueDate } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons, formatDueDate, formatTaskDeadline, getTaskDeadline } from '../../ui-helpers.js';
 import { isTaskInProgress } from '../../utils/task-filters.js';
 import { BaseView } from './base-view.js';
 
@@ -71,8 +71,9 @@ export class NextTasksView extends BaseView {
             ? `<span class="next-task-priority ${task.priority}">${task.priority}</span>`
             : '';
 
-        const deadlineHtml = this._formatDeadline(task.deadline || task.due);
-        const isOverdue = this._isOverdue(task.deadline || task.due);
+        const deadline = getTaskDeadline(task);
+        const deadlineHtml = this._formatDeadline(deadline);
+        const isOverdue = this._isOverdue(deadline);
         const isInProgress = isTaskInProgress(task);
 
         const statusBadge = isInProgress
@@ -120,12 +121,13 @@ export class NextTasksView extends BaseView {
     _formatDeadline(deadline) {
         if (!deadline) return '';
 
-        const text = formatDueDate(deadline);
+        const relativeText = formatDueDate(deadline);
+        const text = formatTaskDeadline(deadline);
         let cssClass = 'next-task-deadline';
-        if (text === '期限切れ') cssClass += ' overdue';
-        else if (text === '今日') cssClass += ' urgent';
+        if (relativeText === '期限切れ') cssClass += ' overdue';
+        else if (relativeText === '今日') cssClass += ' urgent';
 
-        return `<span class="${cssClass}"><i data-lucide="calendar"></i> ${text}</span>`;
+        return `<span class="${cssClass}"><i data-lucide="calendar"></i> ${escapeHtml(text)}</span>`;
     }
 
     _isOverdue(deadline) {

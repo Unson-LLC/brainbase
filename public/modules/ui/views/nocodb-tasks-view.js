@@ -1,7 +1,7 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { getProjectConfig } from '../../project-mapping.js';
-import { escapeHtml, refreshIcons, formatDueDate } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons, formatDueDate, formatTaskDeadline, getTaskDeadline } from '../../ui-helpers.js';
 import { BaseView } from './base-view.js';
 
 /**
@@ -351,8 +351,9 @@ export class NocoDBTasksView extends BaseView {
         const statusClass = task.status === 'completed' ? 'completed' : '';
         const statusTone = this._getStatusTone(task.status);
         const statusLabel = this._getStatusLabel(task.status);
-        const isOverdue = this._isOverdue(task.due);
-        const dueDateHtml = task.due ? this._formatDueDate(task.due) : '';
+        const deadline = getTaskDeadline(task);
+        const isOverdue = this._isOverdue(deadline);
+        const dueDateHtml = deadline ? this._formatDueDate(deadline) : '';
         const assignee = task.assignee || '未割当';
         const assigneeInitials = this._getAssigneeInitials(assignee);
         const isStatusOpen = this.openStatusTaskId === task.id;
@@ -535,10 +536,11 @@ export class NocoDBTasksView extends BaseView {
     _formatDueDate(dueStr) {
         if (!dueStr) return '';
 
-        const text = formatDueDate(dueStr);
-        const isUrgent = text === '期限切れ' || text === '今日';
+        const relativeText = formatDueDate(dueStr);
+        const text = formatTaskDeadline(dueStr);
+        const isUrgent = relativeText === '期限切れ' || relativeText === '今日';
 
-        return `<span class="deadline ${isUrgent ? 'urgent' : ''}"><i data-lucide="calendar"></i> ${text}</span>`;
+        return `<span class="deadline ${isUrgent ? 'urgent' : ''}"><i data-lucide="calendar"></i> ${escapeHtml(text)}</span>`;
     }
 
     /**

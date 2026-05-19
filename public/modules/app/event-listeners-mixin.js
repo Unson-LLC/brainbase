@@ -4,6 +4,7 @@ import { markDoneAsRead } from '../session-indicators.js';
 import { showSuccess, showError, showInfo } from '../toast.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 import { recordRecentFileOpen } from '../session-ui-state.js';
+import { getTaskDeadline } from '../ui-helpers.js';
 
 export function applyEventListenersMixin(AppClass) {
     AppClass.prototype.setupEventListeners = async function() {
@@ -222,7 +223,7 @@ export function applyEventListenersMixin(AppClass) {
 
                 // タスクコンテキストを構築（議事録から登録されたタスクの場合）
                 const taskTitle = task.title || task.name || 'Untitled';
-                const deadline = task.deadline || task.due;
+                const deadline = getTaskDeadline(task);
                 const taskLines = [
                     '以下のタスクを対応してください。',
                     `ID: ${task.id}`,

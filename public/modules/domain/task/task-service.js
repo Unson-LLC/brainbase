@@ -6,6 +6,14 @@ import { filterByPriority } from '../../utils/task-filters.js';
 import { sessionDataCache } from '../../core/session-data-cache.js';
 
 const TASKS_CACHE_SCOPE = 'global';
+const TASK_DEADLINE_FIELDS = ['deadline', 'due', 'due_at', 'dueAt', 'deadline_at', 'deadlineAt', '期限', '期限日'];
+
+function getTaskDeadlineValue(task) {
+    for (const field of TASK_DEADLINE_FIELDS) {
+        if (task?.[field]) return task[field];
+    }
+    return null;
+}
 
 /**
  * タスクのビジネスロジック
@@ -161,8 +169,8 @@ export class TaskService {
         // 期限の昇順でソート（期限なしは最後）、同じ期限なら優先度順
         const priorityOrder = { critical: 5, highest: 5, high: 4, medium: 3, normal: 2, low: 1 };
         nextTasks.sort((a, b) => {
-            const aDeadline = a.deadline || a.due;
-            const bDeadline = b.deadline || b.due;
+            const aDeadline = getTaskDeadlineValue(a);
+            const bDeadline = getTaskDeadlineValue(b);
 
             // 期限なしは最後
             if (!aDeadline && !bDeadline) {
