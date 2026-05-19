@@ -17,6 +17,7 @@ const PROJECT_ORGS = {
 const SOURCE_SYSTEM = 'oyasumi-meeting-personal-kg';
 const MEMORY_LAYER_CORE = 'personal_kg_core';
 const MEMORY_LAYER_SNS_READY = 'sns_ready';
+const ALLOWED_COGNITIVE_TYPES = new Set(['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result']);
 
 function normalizeSpaces(value) {
     return String(value || '').replace(/\s+/gu, ' ').trim();
@@ -66,6 +67,10 @@ function redactSnsProjectionText(value) {
         .replace(/SmartFront/gu, '業務ダッシュボード')
         .replace(/TechKnight/gu, '事業会社')
         .replace(/NCOM/gu, '相手組織');
+}
+
+function normalizeCognitiveType(value) {
+    return ALLOWED_COGNITIVE_TYPES.has(value) ? value : 'insight';
 }
 
 function idPart(value) {
@@ -212,7 +217,7 @@ function projectSnsReadyCandidateFromCore(candidate) {
     const projectionId = `${String(candidate.id).replace('_personal_kg_core_', '_sns_ready_')}_projection`.slice(0, 180);
     return {
         id: projectionId,
-        cognitive_type: candidate.cognitive_type,
+        cognitive_type: normalizeCognitiveType(candidate.cognitive_type),
         owner_person_id: candidate.owner_person_id || DEFAULT_OWNER_PERSON_ID,
         actor_person_id: DEFAULT_ACTOR_PERSON_ID,
         source_system: SOURCE_SYSTEM,
