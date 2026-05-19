@@ -6,6 +6,7 @@ import { PromotionGateService } from '../../../server/services/candidate-store/p
 import {
     SOURCE_SYSTEM,
     extractMeetingPersonalKgCandidates,
+    projectSnsReadyCandidateFromCore,
     writeMeetingPersonalKgCandidates
 } from '../../../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 import { SnsGenerationContextService } from '../../../server/services/sns/sns-generation-context-service.js';
@@ -254,5 +255,33 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(context.personal_kg.proof_points).toEqual(expect.arrayContaining([
             expect.stringContaining('商談化率3%から10%')
         ]));
+    });
+
+    it('projects owner-only core into redacted sns_ready candidate without leaking details', () => {
+        const extracted = extractMeetingPersonalKgCandidates({
+            date: '2026-05-15',
+            meetings: sampleMeetings()
+        });
+        const core = extracted.adopted.find((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
+            && candidate.permission_snapshot.oyasumi_meeting_personal_kg.rule_id === 'ai-sales-agency-confidential-business-context'
+        ));
+
+        const projected = projectSnsReadyCandidateFromCore(core);
+
+        expect(projected).toEqual(expect.objectContaining({
+            source_system: SOURCE_SYSTEM,
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            recommended_subject_type: 'sns_ready',
+            body: expect.stringContaining('Reusable Pattern:')
+        }));
+        expect(projected.permission_snapshot.oyasumi_meeting_personal_kg).toEqual(expect.objectContaining({
+            memory_layer: 'sns_ready',
+            projection_of: core.id,
+            retrieval_purpose: 'sns_generation',
+            projection_allowed: true
+        }));
+        expect(projected.body).not.toMatch(/月20万|半年500万円|月額予算15万円|月5[〜~\-から]10件|娘|心臓|手術|医師|家族/u);
     });
 });

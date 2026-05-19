@@ -36,6 +36,38 @@ function compact(value, max = MAX_BODY_LENGTH) {
     return `${body.slice(0, max - 1).trim()}…`;
 }
 
+function structuredBodyParts(body) {
+    const text = String(body || '');
+    const labels = ['Context', 'Judgment', 'Reusable Pattern', 'Apply When', 'Do Not Apply When'];
+    const parts = {};
+    for (let index = 0; index < labels.length; index += 1) {
+        const label = labels[index];
+        const nextLabel = labels[index + 1];
+        const pattern = nextLabel
+            ? new RegExp(`${label}:\\s*([\\s\\S]*?)(?=\\n?${nextLabel}:)`, 'u')
+            : new RegExp(`${label}:\\s*([\\s\\S]*)$`, 'u');
+        const match = text.match(pattern);
+        if (match) parts[label] = normalizeSpaces(match[1]);
+    }
+    return parts;
+}
+
+function redactSnsProjectionText(value) {
+    return normalizeSpaces(value)
+        .replace(/月\s*\d+\s*万(?:円)?/gu, '具体金額')
+        .replace(/半年\s*\d+\s*万(?:円)?/gu, '具体金額')
+        .replace(/月額予算\s*\d+\s*万(?:円)?/gu, '具体予算')
+        .replace(/月\s*\d+\s*(?:から|〜|~|-)\s*\d+\s*件/gu, '具体件数')
+        .replace(/\d+\s*(?:から|〜|~|-)\s*\d+\s*件/gu, '具体件数')
+        .replace(/Agoda Japan/gu, '相手企業')
+        .replace(/Bangkok HQ/gu, '海外本部')
+        .replace(/DialogAI/gu, '顧客向けプロダクト')
+        .replace(/SenpaiNurse/gu, '業務システム')
+        .replace(/SmartFront/gu, '業務ダッシュボード')
+        .replace(/TechKnight/gu, '事業会社')
+        .replace(/NCOM/gu, '相手組織');
+}
+
 function idPart(value) {
     return String(value || '')
         .toLowerCase()
@@ -154,6 +186,94 @@ function buildCandidate({
             sha: meeting.sha || null
         }]
     };
+}
+
+function coreCandidateProjectionSourceRef(candidate) {
+    const kg = candidate.permission_snapshot?.oyasumi_meeting_personal_kg || {};
+    return `${kg.source_ref || candidate.source_event_ids?.[0] || candidate.id}#sns_ready_projection`;
+}
+
+function projectSnsReadyCandidateFromCore(candidate) {
+    const kg = candidate.permission_snapshot?.oyasumi_meeting_personal_kg || {};
+    if (kg.memory_layer !== MEMORY_LAYER_CORE) return null;
+    const bodyParts = structuredBodyParts(candidate.body);
+    const pattern = bodyParts['Reusable Pattern'] || bodyParts.Judgment || candidate.body;
+    const applyWhen = bodyParts['Apply When'] || '';
+    const doNotApplyWhen = bodyParts['Do Not Apply When'] || '';
+    const projectedBody = compact([
+        `Reusable Pattern: ${redactSnsProjectionText(pattern)}`,
+        applyWhen ? `Apply When: ${redactSnsProjectionText(applyWhen)}` : '',
+        doNotApplyWhen ? `Do Not Apply When: ${redactSnsProjectionText(doNotApplyWhen)}` : ''
+    ].filter(Boolean).join(' '), 360);
+    if (!projectedBody || /娘|心臓|手術|医師|家族|疾患|遺伝|月額予算\s*\d|月\d+[〜~\-から]\d+件/u.test(projectedBody)) {
+        return null;
+    }
+    const sourceRef = coreCandidateProjectionSourceRef(candidate);
+    const projectionId = `${String(candidate.id).replace('_personal_kg_core_', '_sns_ready_')}_projection`.slice(0, 180);
+    return {
+        id: projectionId,
+        cognitive_type: candidate.cognitive_type,
+        owner_person_id: candidate.owner_person_id || DEFAULT_OWNER_PERSON_ID,
+        actor_person_id: DEFAULT_ACTOR_PERSON_ID,
+        source_system: SOURCE_SYSTEM,
+        source_event_ids: [sourceRef],
+        workspace: candidate.workspace || 'github',
+        channel_id: candidate.channel_id || null,
+        thread_ts: candidate.thread_ts || null,
+        project_code: candidate.project_code || null,
+        org_ids: candidate.org_ids || [],
+        project_ids: candidate.project_ids || [],
+        team_id: candidate.team_id || null,
+        visibility: 'owner',
+        sensitivity: 'internal',
+        role_min: candidate.role_min || 'member',
+        agency_level: 'synthesize',
+        recommended_subject_type: MEMORY_LAYER_SNS_READY,
+        recommended_owner_person_id: candidate.recommended_owner_person_id || null,
+        promotion_status: 'candidate',
+        requires_approval: true,
+        redaction_status: 'none',
+        confidence: Math.min(Number(candidate.confidence || 0.72), 0.82),
+        body: projectedBody,
+        permission_snapshot: {
+            oyasumi_meeting_personal_kg: {
+                category: kg.category || 'operating_principle',
+                category_rule_id: kg.category_rule_id || null,
+                memory_layer: MEMORY_LAYER_SNS_READY,
+                agent_role: 'sns_projection',
+                source_kind: kg.source_kind || 'minutes',
+                projection_of: candidate.id,
+                retrieval_purpose: 'sns_generation',
+                projection_allowed: true,
+                sns_projection_allowed: true,
+                projection_gate: 'sns_projection_can_use_after_context_review',
+                promotion_scope_candidate: ['personal'],
+                sensitivity_reason: null,
+                personal_core_detail_policy: 'projection_only_abstracted_from_owner_core',
+                non_owner_retrieval_policy: 'projection_read_only',
+                meeting_date: kg.meeting_date || null,
+                repo: kg.repo || null,
+                path: kg.path || null,
+                minutes_path: kg.minutes_path || null,
+                transcript_path: kg.transcript_path || null,
+                html_url: kg.html_url || null,
+                sha: kg.sha || null,
+                extraction_decision: 'projected',
+                rule_id: `${kg.rule_id || candidate.id}:sns_ready_projection`,
+                source_ref: sourceRef
+            }
+        },
+        evidence_ids: [
+            ...(candidate.evidence_ids || []),
+            { uri: `candidate:${candidate.id}`, source_ref: candidate.id }
+        ]
+    };
+}
+
+function projectSnsReadyCandidatesFromCoreCandidates(candidates = []) {
+    return dedupeBySourceEvent(candidates
+        .map(projectSnsReadyCandidateFromCore)
+        .filter(Boolean));
 }
 
 const ADOPTION_RULES = [
@@ -525,5 +645,7 @@ async function writeMeetingPersonalKgCandidates({ candidateService, extracted })
 export {
     SOURCE_SYSTEM,
     extractMeetingPersonalKgCandidates,
+    projectSnsReadyCandidateFromCore,
+    projectSnsReadyCandidatesFromCoreCandidates,
     writeMeetingPersonalKgCandidates
 };
