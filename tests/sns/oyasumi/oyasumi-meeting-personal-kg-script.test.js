@@ -19,4 +19,11 @@ describe('oyasumi meeting personal KG script', () => {
         expect(args.date).toBe('2026-05-15');
         expect(args.write).toBe(false);
     });
+
+    it('enables semantic extraction only when explicitly requested', () => {
+        const args = parseArgs(['--date', '2026-05-15', '--semantic']);
+
+        expect(args.semantic).toBe(true);
+        expect(args.write).toBe(false);
+    });
 });

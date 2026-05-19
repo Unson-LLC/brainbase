@@ -18,6 +18,10 @@ const SOURCE_SYSTEM = 'oyasumi-meeting-personal-kg';
 const MEMORY_LAYER_CORE = 'personal_kg_core';
 const MEMORY_LAYER_SNS_READY = 'sns_ready';
 const ALLOWED_COGNITIVE_TYPES = new Set(['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result']);
+const SNS_PROJECTION_BLOCKED_CATEGORIES = new Set(['private_or_family', 'medical_or_health']);
+const ALLOWED_SEMANTIC_SENSITIVITY = new Set(['internal', 'confidential', 'restricted']);
+const ALLOWED_SEMANTIC_REDACTION_STATUS = new Set(['none', 'needs_redaction']);
+const SEMANTIC_MODEL_INPUT_LIMIT = 18000;
 
 function normalizeSpaces(value) {
     return String(value || '').replace(/\s+/gu, ' ').trim();
@@ -128,7 +132,8 @@ function buildCandidate({
     projectionAllowed = sensitivity === 'internal' && redactionStatus === 'none',
     projectionGate = projectionAllowed ? 'sns_projection_can_use_after_context_review' : 'redact_or_approve_before_sns_team_org',
     promotionScopeCandidate = projectionAllowed ? ['personal', 'team_candidate'] : ['personal'],
-    sensitivityReason = null
+    sensitivityReason = null,
+    bodyMaxLength = MAX_BODY_LENGTH
 }) {
     const projectCode = projectOrDefault(meeting);
     const sourceEventId = githubRef(meeting, `${memoryLayer}:${key}`, sourceKind);
@@ -155,7 +160,7 @@ function buildCandidate({
         requires_approval: true,
         redaction_status: redactionStatus,
         confidence,
-        body: compact(body),
+        body: compact(body, bodyMaxLength),
         permission_snapshot: {
             oyasumi_meeting_personal_kg: {
                 category,
@@ -201,6 +206,10 @@ function coreCandidateProjectionSourceRef(candidate) {
 function projectSnsReadyCandidateFromCore(candidate) {
     const kg = candidate.permission_snapshot?.oyasumi_meeting_personal_kg || {};
     if (kg.memory_layer !== MEMORY_LAYER_CORE) return null;
+    if (candidate.sensitivity === 'restricted') return null;
+    if (SNS_PROJECTION_BLOCKED_CATEGORIES.has(kg.category)) return null;
+    if (kg.agent_role === 'semantic_personal_kg_extractor' && (candidate.sensitivity !== 'internal' || candidate.redaction_status !== 'none')) return null;
+    if (kg.agent_role === 'semantic_personal_kg_extractor' && /\[REDACTED|REDACTED -/u.test(candidate.body || '')) return null;
     const bodyParts = structuredBodyParts(candidate.body);
     const pattern = bodyParts['Reusable Pattern'] || bodyParts.Judgment || candidate.body;
     const applyWhen = bodyParts['Apply When'] || '';
@@ -564,6 +573,164 @@ function needsHumanReview(meeting, date) {
     }];
 }
 
+function truncateModelInput(value, max = SEMANTIC_MODEL_INPUT_LIMIT) {
+    const text = normalizeSpaces(value);
+    if (text.length <= max) return text;
+    return `${text.slice(0, max)}\n[TRUNCATED]`;
+}
+
+function buildSemanticExtractorPrompt({ meeting, date }) {
+    const source = [
+        `date: ${date}`,
+        `repo: ${meeting.repo}`,
+        `path: ${meeting.path}`,
+        `project_code: ${projectOrDefault(meeting)}`,
+        '',
+        'MINUTES:',
+        truncateModelInput(meeting.content || '', 9000),
+        '',
+        'TRANSCRIPT:',
+        truncateModelInput(meeting.transcript_content || '', 9000)
+    ].join('\n');
+
+    return {
+        system: [
+            'You extract owner-only Personal Knowledge Graph candidates for Sato Keigo.',
+            'Return JSON only. Do not include markdown.',
+            'Extract only durable judgment signals useful for future decisions, not routine task summaries.',
+            'Keep personal/confidential details in personal_kg_core when they are needed for owner judgment.',
+            'Never mark private, medical, family, secrets, credentials, or raw login details as SNS-ready.',
+            'Do not invent facts. Every candidate must be grounded in the provided source.'
+        ].join('\n'),
+        user: [
+            source,
+            '',
+            'Return this JSON shape:',
+            '{"candidates":[{"key":"short-stable-kebab-key","category":"operating_principle|persona_understanding|relationship_context|business_judgment|knowledge_architecture|sales_philosophy|content_design|philosophy|preference","cognitive_type":"observation|insight|claim|preference|hypothesis|experiment|result","sensitivity":"internal|confidential|restricted","redaction_status":"none|needs_redaction","confidence":0.0,"source_kind":"minutes|transcript","body":"Context: ... Judgment: ... Reusable Pattern: ... Apply When: ... Do Not Apply When: ..."}]}',
+            '',
+            'Rules:',
+            '- 0 to 6 candidates.',
+            '- body must include Context, Judgment, Reusable Pattern, Apply When, and Do Not Apply When.',
+            '- Write body in Japanese unless the source itself is a product name or quoted English term.',
+            '- sensitivity=restricted for family/private/personal logistics or credentials/login context.',
+            '- sensitivity=confidential for counterparty business context, budgets, non-public plans, or negotiations.',
+            '- redaction_status=needs_redaction unless the candidate is safe internal operating philosophy.',
+            '- Prefer fewer high-signal candidates over exhaustive notes.'
+        ].join('\n')
+    };
+}
+
+function parseSemanticExtractorResponse(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw.candidates)) return raw.candidates;
+    if (typeof raw !== 'string') return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return parseSemanticExtractorResponse(parsed);
+    } catch {
+        const match = raw.match(/\{[\s\S]*\}/u);
+        if (!match) return [];
+        try {
+            const parsed = JSON.parse(match[0]);
+            return parseSemanticExtractorResponse(parsed);
+        } catch {
+            return [];
+        }
+    }
+}
+
+function normalizeSemanticBody(draft) {
+    const body = normalizeSpaces(draft?.body || '');
+    if (/Context:.*Judgment:/u.test(body)) return body;
+    return [
+        `Context: ${normalizeSpaces(draft?.context || body)}`,
+        `Judgment: ${normalizeSpaces(draft?.judgment || draft?.summary || '')}`,
+        `Reusable Pattern: ${normalizeSpaces(draft?.reusable_pattern || draft?.pattern || '')}`,
+        `Apply When: ${normalizeSpaces(draft?.apply_when || '')}`,
+        `Do Not Apply When: ${normalizeSpaces(draft?.do_not_apply_when || '')}`
+    ].filter((part) => !part.endsWith(': ')).join(' ');
+}
+
+function semanticSensitivityForDraft(draft, body) {
+    const text = `${draft?.category || ''} ${draft?.sensitivity_reason || ''} ${body}`;
+    const medical = MEDICAL_PATTERN.test(text);
+    const privateContext = PRIVATE_PATTERN.test(text) || /ログイン情報|パスワード|プライベートメール|受験|報酬条件|時給|ペナルティ/u.test(text);
+    if (medical) {
+        return {
+            category: 'medical_or_health',
+            sensitivity: 'confidential',
+            redactionStatus: 'needs_redaction',
+            projectionAllowed: false,
+            projectionGate: 'redact_or_approve_before_sns_team_org',
+            promotionScopeCandidate: ['personal'],
+            sensitivityReason: 'medical_or_health'
+        };
+    }
+    if (privateContext) {
+        return {
+            category: 'private_or_family',
+            sensitivity: 'restricted',
+            redactionStatus: 'needs_redaction',
+            projectionAllowed: false,
+            projectionGate: 'redact_or_approve_before_sns_team_org',
+            promotionScopeCandidate: ['personal'],
+            sensitivityReason: 'private_or_family'
+        };
+    }
+
+    const sensitivity = ALLOWED_SEMANTIC_SENSITIVITY.has(draft?.sensitivity) ? draft.sensitivity : 'internal';
+    const redactionStatus = ALLOWED_SEMANTIC_REDACTION_STATUS.has(draft?.redaction_status) ? draft.redaction_status : 'none';
+    const projectionAllowed = sensitivity === 'internal' && redactionStatus === 'none';
+    return {
+        category: normalizeSpaces(draft?.category || 'operating_principle') || 'operating_principle',
+        sensitivity,
+        redactionStatus,
+        projectionAllowed,
+        projectionGate: projectionAllowed ? 'sns_projection_can_use_after_context_review' : 'redact_or_approve_before_sns_team_org',
+        promotionScopeCandidate: projectionAllowed ? ['personal', 'team_candidate'] : ['personal'],
+        sensitivityReason: draft?.sensitivity_reason || null
+    };
+}
+
+function semanticCandidateFromDraft({ meeting, date, draft, index }) {
+    const body = normalizeSemanticBody(draft);
+    if (!body || body.length < 40) return null;
+    const sensitivity = semanticSensitivityForDraft(draft, body);
+    const sourceKind = draft?.source_kind === 'transcript' && meeting.transcript_content ? 'transcript' : 'minutes';
+    return buildCandidate({
+        meeting,
+        date,
+        key: `semantic-${idPart(draft?.key || sensitivity.category || `candidate-${index}`)}`,
+        category: sensitivity.category,
+        cognitiveType: normalizeCognitiveType(draft?.cognitive_type),
+        body,
+        confidence: Math.min(Math.max(Number(draft?.confidence || 0.72), 0.45), 0.9),
+        memoryLayer: MEMORY_LAYER_CORE,
+        agentRole: 'semantic_personal_kg_extractor',
+        sourceKind,
+        sensitivity: sensitivity.sensitivity,
+        redactionStatus: sensitivity.redactionStatus,
+        projectionAllowed: sensitivity.projectionAllowed,
+        projectionGate: sensitivity.projectionGate,
+        promotionScopeCandidate: sensitivity.promotionScopeCandidate,
+        sensitivityReason: sensitivity.sensitivityReason,
+        bodyMaxLength: 900
+    });
+}
+
+async function extractSemanticCoreFromMeeting({ meeting, date, llmClient }) {
+    if (!llmClient) return [];
+    const prompt = buildSemanticExtractorPrompt({ meeting, date });
+    const raw = typeof llmClient.extractPersonalKgCandidates === 'function'
+        ? await llmClient.extractPersonalKgCandidates({ meeting, date, prompt })
+        : await llmClient(prompt);
+    const drafts = parseSemanticExtractorResponse(raw);
+    return drafts
+        .map((draft, index) => semanticCandidateFromDraft({ meeting, date, draft, index }))
+        .filter(Boolean);
+}
+
 function dedupeBySourceEvent(candidates) {
     const seenSourceEvents = new Set();
     const seenBodies = new Set();
@@ -721,6 +888,77 @@ function extractMeetingPersonalKgCandidates({ date, meetings = [] }) {
     };
 }
 
+async function extractMeetingPersonalKgCandidatesSemantic({ date, meetings = [], llmClient }) {
+    const ruleExtracted = extractMeetingPersonalKgCandidates({ date, meetings });
+    const semanticCore = [];
+    const semanticReview = [];
+
+    for (const meeting of meetings) {
+        try {
+            semanticCore.push(...await extractSemanticCoreFromMeeting({ meeting, date, llmClient }));
+        } catch (error) {
+            semanticReview.push({
+                reason: 'semantic_extractor_error',
+                source_ref: githubRef(meeting, 'semantic_extractor_error'),
+                meeting_date: date,
+                repo: meeting.repo,
+                path: meeting.path,
+                summary: error?.message || 'semantic extractor failed'
+            });
+        }
+    }
+
+    const semanticSnsReady = projectSnsReadyCandidatesFromCoreCandidates(semanticCore);
+    const finalAdopted = dedupeBySourceEvent([
+        ...ruleExtracted.adopted,
+        ...semanticCore,
+        ...semanticSnsReady
+    ]);
+    const coreCount = finalAdopted.filter((candidate) => candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.memory_layer === MEMORY_LAYER_CORE).length;
+    const snsReadyCount = finalAdopted.filter((candidate) => candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.memory_layer === MEMORY_LAYER_SNS_READY).length;
+    const semanticCoreCount = semanticCore.length;
+    const semanticSnsReadyCount = semanticSnsReady.length;
+    const agentReports = [
+        ...ruleExtracted.agent_reports,
+        {
+            role: 'semantic_personal_kg_extractor',
+            status: semanticReview.length > 0 ? 'needs_review' : 'completed',
+            input_count: meetings.length,
+            output_count: semanticCoreCount,
+            notes: semanticReview.length > 0
+                ? [`errors=${semanticReview.length}`]
+                : []
+        },
+        {
+            role: 'semantic_sns_projection',
+            status: 'completed',
+            input_count: semanticCoreCount,
+            output_count: semanticSnsReadyCount,
+            notes: []
+        },
+        {
+            role: 'personal_kg_merge',
+            status: 'completed',
+            input_count: ruleExtracted.adopted.length + semanticCore.length + semanticSnsReady.length,
+            output_count: finalAdopted.length,
+            notes: [`core=${coreCount}`, `sns_ready=${snsReadyCount}`]
+        }
+    ];
+
+    return {
+        ...summarizeExtraction({
+            date,
+            adopted: finalAdopted,
+            rejected: ruleExtracted.rejected,
+            needsReview: [...ruleExtracted.needs_review, ...semanticReview]
+        }),
+        agent_reports: agentReports,
+        adopted: finalAdopted,
+        rejected: ruleExtracted.rejected,
+        needs_review: [...ruleExtracted.needs_review, ...semanticReview]
+    };
+}
+
 async function writeMeetingPersonalKgCandidates({ candidateService, extracted }) {
     if (!candidateService || typeof candidateService.createCandidate !== 'function') {
         throw new Error('candidateService with createCandidate required');
@@ -761,6 +999,7 @@ async function writeMeetingPersonalKgCandidates({ candidateService, extracted })
 export {
     SOURCE_SYSTEM,
     extractMeetingPersonalKgCandidates,
+    extractMeetingPersonalKgCandidatesSemantic,
     projectSnsReadyCandidateFromCore,
     projectSnsReadyCandidatesFromCoreCandidates,
     writeMeetingPersonalKgCandidates

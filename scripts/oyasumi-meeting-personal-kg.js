@@ -12,6 +12,7 @@ import { PromotionGateService } from '../server/services/candidate-store/promoti
 import {
     SOURCE_SYSTEM,
     extractMeetingPersonalKgCandidates,
+    extractMeetingPersonalKgCandidatesSemantic,
     writeMeetingPersonalKgCandidates
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 
@@ -50,6 +51,7 @@ function parseArgs(argv) {
         project: 'salestailor',
         paths: [],
         allRepos: false,
+        semantic: false,
         write: false,
         json: false
     };
@@ -64,6 +66,7 @@ function parseArgs(argv) {
         else if (arg === '--path') args.paths.push(argv[++index]);
         else if (arg.startsWith('--path=')) args.paths.push(arg.slice('--path='.length));
         else if (arg === '--all-repos') args.allRepos = true;
+        else if (arg === '--semantic') args.semantic = true;
         else if (arg === '--write') args.write = true;
         else if (arg === '--json') args.json = true;
         else if (arg === '--dry-run') args.write = false;
@@ -72,6 +75,54 @@ function parseArgs(argv) {
         throw new Error('--date YYYY-MM-DD required');
     }
     return args;
+}
+
+function parseJsonObjectFromText(text) {
+    try {
+        return JSON.parse(text);
+    } catch {
+        const match = String(text || '').match(/\{[\s\S]*\}/u);
+        if (!match) throw new Error('LLM response did not contain JSON object');
+        return JSON.parse(match[0]);
+    }
+}
+
+function createOpenAiCompatibleSemanticClient() {
+    const apiKey = process.env.LLM_OPENAI_COMPATIBLE_API_KEY || process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        throw new Error('Semantic extraction requires LLM_OPENAI_COMPATIBLE_API_KEY or OPENROUTER_API_KEY');
+    }
+    const baseUrl = (process.env.LLM_OPENAI_COMPATIBLE_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/u, '');
+    const model = process.env.MANA_CHAT_MODEL || process.env.OYASUMI_SEMANTIC_MODEL || 'openai/gpt-4.1-mini';
+
+    return {
+        async extractPersonalKgCandidates({ prompt }) {
+            const response = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model,
+                    temperature: 0.1,
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        { role: 'system', content: prompt.system },
+                        { role: 'user', content: prompt.user }
+                    ]
+                })
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`semantic LLM request failed: ${response.status} ${errorText.slice(0, 240)}`);
+            }
+            const payload = await response.json();
+            const content = payload?.choices?.[0]?.message?.content;
+            if (!content) throw new Error('semantic LLM response missing content');
+            return parseJsonObjectFromText(content);
+        }
+    };
 }
 
 function databaseConfig() {
@@ -251,10 +302,16 @@ async function main() {
         project: args.project,
         sources
     });
-    const extracted = extractMeetingPersonalKgCandidates({
-        date: args.date,
-        meetings
-    });
+    const extracted = args.semantic
+        ? await extractMeetingPersonalKgCandidatesSemantic({
+            date: args.date,
+            meetings,
+            llmClient: createOpenAiCompatibleSemanticClient()
+        })
+        : extractMeetingPersonalKgCandidates({
+            date: args.date,
+            meetings
+        });
 
     let writeSummary = null;
     if (args.write) {
@@ -272,6 +329,7 @@ async function main() {
 
     const payload = {
         mode: args.write ? 'write' : 'dry-run',
+        extractor: args.semantic ? 'semantic' : 'rules',
         sources,
         meetings: meetings.map((meeting) => ({
             repo: meeting.repo,

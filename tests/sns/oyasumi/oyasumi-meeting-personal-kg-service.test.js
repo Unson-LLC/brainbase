@@ -6,6 +6,7 @@ import { PromotionGateService } from '../../../server/services/candidate-store/p
 import {
     SOURCE_SYSTEM,
     extractMeetingPersonalKgCandidates,
+    extractMeetingPersonalKgCandidatesSemantic,
     projectSnsReadyCandidateFromCore,
     writeMeetingPersonalKgCandidates
 } from '../../../server/services/sns/oyasumi-meeting-personal-kg-service.js';
@@ -283,5 +284,102 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             projection_allowed: true
         }));
         expect(projected.body).not.toMatch(/月20万|半年500万円|月額予算15万円|月5[〜~\-から]10件|娘|心臓|手術|医師|家族/u);
+    });
+
+    it('does not project restricted private core details into sns_ready', () => {
+        const core = {
+            id: 'private-core',
+            cognitive_type: 'observation',
+            owner_person_id: 'sato_keigo',
+            source_system: SOURCE_SYSTEM,
+            source_event_ids: ['github:meeting#private'],
+            workspace: 'github',
+            visibility: 'owner',
+            sensitivity: 'restricted',
+            redaction_status: 'needs_redaction',
+            confidence: 0.8,
+            body: 'Context: 個人的な事情と報酬条件を含む。 Judgment: 本人の判断再現にだけ使い、SNS・team・org projectionにはそのまま出さない。',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'private_or_family',
+                    memory_layer: 'personal_kg_core',
+                    retrieval_purpose: 'owner_judgment',
+                    projection_allowed: false,
+                    sns_projection_allowed: false,
+                    source_ref: 'github:meeting#private'
+                }
+            },
+            evidence_ids: []
+        };
+
+        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+    });
+
+    it('does not project semantic confidential core details into sns_ready', () => {
+        const core = {
+            id: 'semantic-confidential-core',
+            cognitive_type: 'insight',
+            owner_person_id: 'sato_keigo',
+            source_system: SOURCE_SYSTEM,
+            source_event_ids: ['github:meeting#semantic-confidential'],
+            workspace: 'github',
+            visibility: 'owner',
+            sensitivity: 'confidential',
+            redaction_status: 'needs_redaction',
+            confidence: 0.8,
+            body: 'Context: 相手企業の未公開業務制約を含む。 Judgment: 本人判断には有用。 Reusable Pattern: まず業務制約を読む。 Apply When: 類似案件。 Do Not Apply When: 公開SNS素材。',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'business_judgment',
+                    memory_layer: 'personal_kg_core',
+                    agent_role: 'semantic_personal_kg_extractor',
+                    retrieval_purpose: 'owner_judgment',
+                    projection_allowed: false,
+                    sns_projection_allowed: false,
+                    source_ref: 'github:meeting#semantic-confidential'
+                }
+            },
+            evidence_ids: []
+        };
+
+        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+    });
+
+    it('extracts semantic personal_kg_core candidates through an injected LLM client', async () => {
+        const extracted = await extractMeetingPersonalKgCandidatesSemantic({
+            date: '2026-05-15',
+            meetings: sampleMeetings(),
+            llmClient: {
+                async extractPersonalKgCandidates() {
+                    return {
+                        candidates: [{
+                            key: 'relationship-context-before-draft',
+                            category: 'operating_principle',
+                            cognitive_type: 'preference',
+                            sensitivity: 'internal',
+                            redaction_status: 'none',
+                            confidence: 0.82,
+                            source_kind: 'transcript',
+                            body: 'Context: 佐藤はAIに自分の哲学をDBやルールから取り出して判断させたいと話している。 Judgment: 返信や提案の生成では、文面だけではなく思想と関係性を取り出して判断する必要がある。 Reusable Pattern: AIに作業を渡す前に、判断OSとして使う哲学や過去判断を参照する。 Apply When: Slack返信、提案書、商談後の整理を作る時。 Do Not Apply When: 単なる事実確認だけで判断が不要な時。'
+                        }]
+                    };
+                }
+            }
+        });
+
+        expect(extracted.adopted).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                source_system: SOURCE_SYSTEM,
+                sensitivity: 'internal',
+                body: expect.stringContaining('判断OS')
+            })
+        ]));
+        expect(extracted.agent_reports).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                role: 'semantic_personal_kg_extractor',
+                status: 'completed',
+                output_count: 2
+            })
+        ]));
     });
 });
