@@ -10,7 +10,7 @@ describe('AuthService auth grant precedence', () => {
                     slack_user_id: 'U07LNUP582X',
                     person_id: 'per_user',
                     workspace_id: 'unson',
-                    name: '佐藤',
+                    name: 'Test User',
                     role: 'CEO / CTO',
                     project_codes: [],
                     clearance: []
@@ -19,7 +19,7 @@ describe('AuthService auth grant precedence', () => {
             {
                 rows: [{
                     person_id: 'per_grant',
-                    name: '佐藤圭吾',
+                    name: 'Test User Grant',
                     slack_user_id: 'U07LNUP582X',
                     workspace_id: 'unson',
                     role: 'ceo',
