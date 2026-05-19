@@ -181,7 +181,8 @@ export function applySessionManagementMixin(AppClass) {
                 if (this.isMobile()) {
                     const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
-                    let snapshot = this._terminalSnapshotCache.get(sessionId) || null;
+                    const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
+                    let snapshot = cachedSnapshot;
                     if (!snapshot) {
                         try {
                             snapshot = await this._loadTerminalSnapshot(sessionId, { force: true, mode: 'fast' });
@@ -208,6 +209,21 @@ export function applySessionManagementMixin(AppClass) {
                         snapshot,
                         title: 'Terminal display'
                     });
+                    if (cachedSnapshot) {
+                        void this._loadTerminalSnapshot(sessionId, { force: true, mode: 'fast' })
+                            .then((freshSnapshot) => {
+                                const stillCurrentSnapshotSession = appStore.getState().currentSessionId === sessionId
+                                    && this._mobileTerminalMode === 'snapshot';
+                                if (!this._isSessionSwitchCurrent(sessionId, switchToken) && !stillCurrentSnapshotSession) return;
+                                this._renderTerminalSnapshotPanel({
+                                    visible: true,
+                                    snapshot: freshSnapshot,
+                                    title: 'Terminal display'
+                                });
+                                this._updateTerminalInputStatus();
+                            })
+                            .catch(() => {});
+                    }
                     if (this.reconnectManager) {
                         this.reconnectManager.setCurrentSession(sessionId);
                         this.reconnectManager.terminalAccess = terminalAccess || null;
@@ -241,14 +257,13 @@ export function applySessionManagementMixin(AppClass) {
                     });
                     this.hideTerminalLoadingOverlay?.();
 
-                    if (!cachedSnapshot) {
-                        this._loadTerminalSnapshot?.(sessionId, { force: false, mode: 'fast' })
-                            .then(snapshot => {
-                                if (this._isSessionSwitchCurrent(sessionId, switchToken)) {
-                                    this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: sessionTitle });
-                                }
-                            }).catch(() => {});
-                    }
+                    this._loadTerminalSnapshot?.(sessionId, { force: true, mode: 'fast' })
+                        .then(snapshot => {
+                            if (this._isSessionSwitchCurrent(sessionId, switchToken)) {
+                                this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: sessionTitle });
+                                this._updateTerminalInputStatus();
+                            }
+                        }).catch(() => {});
 
                     // ── Step 2: バックグラウンドでxterm接続 ──
                     this._setCurrentSessionUiState({
