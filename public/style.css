@@ -4537,6 +4537,7 @@ body.resizing iframe {
 .next-task-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     font-size: 0.7rem;
     color: var(--text-secondary);
@@ -15942,7 +15943,17 @@ body.sns-growth-mode-active .terminal-header {
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .deadline {
-    display: none;
+    grid-column: 2;
+    grid-row: 2;
+    display: inline-flex;
+    align-self: start;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    color: #aeb8c5;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .assignee-combobox {
@@ -16080,9 +16091,9 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .task-title {
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     position: relative;
-    align-self: center;
+    align-self: end;
     min-width: 0;
     overflow: visible;
     color: #f3f6fa;
@@ -16094,10 +16105,10 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .task-title-text {
     display: -webkit-box;
-    max-height: calc(12.5px * 1.35 * 2);
+    max-height: calc(12.5px * 1.35);
     overflow: hidden;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     overflow-wrap: anywhere;
 }
 

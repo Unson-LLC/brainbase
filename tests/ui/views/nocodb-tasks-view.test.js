@@ -60,6 +60,29 @@ describe('NocoDBTasksView', () => {
         expect(container.querySelector('.assignee-avatar')?.textContent).toBe('KS');
     });
 
+    it('期限エイリアスを明示的な期限として表示する', () => {
+        const tasks = [{
+            id: 'nocodb:proj:1',
+            title: 'Deadline task',
+            project: 'proj',
+            status: 'pending',
+            assignee: 'ksato',
+            deadlineAt: '2099-12-31'
+        }];
+        const service = buildService({ getFilteredTasks: vi.fn(() => tasks) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+
+        view.render();
+
+        const deadline = container.querySelector('.deadline');
+        expect(deadline).toBeTruthy();
+        expect(deadline.textContent).toContain('期限: 2099/12/31');
+    });
+
     it('プロジェクトメタ情報はconfigのアイコン表現を優先して表示する', async () => {
         await projectMappingReady;
         const tasks = [{

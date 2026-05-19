@@ -278,6 +278,20 @@ describe('TaskService', () => {
             // priorityFilter設定時はfocusTaskを除外しないので、1つ表示される
             expect(result.tasks).toHaveLength(1);
         });
+
+        it('should sort tasks by normalized deadline aliases', () => {
+            appStore.setState({
+                tasks: [
+                    { id: 'late', name: 'Late Task', priority: 'MEDIUM', status: 'todo', due: '2099-05-10', owner: null },
+                    { id: 'early', name: 'Early Task', priority: 'MEDIUM', status: 'todo', due_at: '2099-05-01', owner: null }
+                ],
+                filters: { priorityFilter: 'MEDIUM' }
+            });
+
+            const result = taskService.getNextTasks();
+
+            expect(result.tasks.map(task => task.id)).toEqual(['early', 'late']);
+        });
     });
 
     describe('deferTask', () => {
