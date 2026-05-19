@@ -435,6 +435,36 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
     });
 
+    it('does not project semantic vulnerability assessment vendor details into sns_ready', () => {
+        const core = {
+            id: 'semantic-diagnosis-vendor-core',
+            cognitive_type: 'operating_principle',
+            owner_person_id: 'sato_keigo',
+            source_system: SOURCE_SYSTEM,
+            source_event_ids: ['github:meeting#diagnosis-vendor'],
+            workspace: 'github',
+            visibility: 'owner',
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            confidence: 0.8,
+            body: 'Context: 脆弱性診断のために診断業者と監査法人向けの専用チャットチャネルを設定する。 Judgment: 時間制約のある外部協働では通知設定確認が必要。 Reusable Pattern: 外部業者との協働開始時に専用チャットチャネルを設定する。 Apply When: 診断業者や監査法人との外部協働時。 Do Not Apply When: 内部プロジェクトの場合。',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'business_judgment',
+                    memory_layer: 'personal_kg_core',
+                    agent_role: 'semantic_personal_kg_extractor',
+                    retrieval_purpose: 'owner_judgment',
+                    projection_allowed: false,
+                    sns_projection_allowed: false,
+                    source_ref: 'github:meeting#diagnosis-vendor'
+                }
+            },
+            evidence_ids: []
+        };
+
+        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+    });
+
     it('extracts semantic personal_kg_core candidates through an injected LLM client', async () => {
         const extracted = await extractMeetingPersonalKgCandidatesSemantic({
             date: '2026-05-15',
