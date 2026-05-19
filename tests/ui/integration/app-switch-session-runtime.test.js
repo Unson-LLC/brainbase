@@ -627,6 +627,13 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
     app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
     app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+    const loadSnapshotSpy = vi.spyOn(app, '_loadTerminalSnapshot')
+      .mockResolvedValue({
+        text: 'fresh snapshot',
+        colorText: null,
+        capturedAt: '2026-04-01T05:00:03.000Z',
+        mode: 'fast'
+      });
 
     let resolveRuntime;
     httpClient.get.mockImplementationOnce(() => new Promise((resolve) => {
@@ -670,6 +677,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(true);
     expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
+    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: true, mode: 'fast' });
 
     resolveRuntime({
       runtimeStatus: {
@@ -728,8 +736,8 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
 
     await app.switchSession('session-1');
 
-    // cold cacheでもスナップショットパネルが表示され、バックグラウンドでfast loadが発火
-    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: false, mode: 'fast' });
+    // cold cacheでもスナップショットパネルが表示され、バックグラウンドでfresh fast loadが発火
+    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: true, mode: 'fast' });
     // xterm接続成功後はxtermに切り替わる（snapshot hidden）
     expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
     expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
@@ -930,6 +938,49 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(false);
   });
 
+  it('mobileではcached snapshotを即表示しつつfresh snapshotへ差し替える', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    app._terminalSnapshotCache.set('session-1', {
+      text: 'old cached snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z',
+      mode: 'fast'
+    });
+    const renderSpy = vi.spyOn(app, '_renderTerminalSnapshotPanel');
+    const loadSnapshotSpy = vi.spyOn(app, '_loadTerminalSnapshot').mockResolvedValue({
+      text: 'fresh snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:03.000Z',
+      mode: 'fast'
+    });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    await app.switchSession('session-1');
+
+    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: true, mode: 'fast' });
+    await vi.waitFor(() => {
+      expect(renderSpy).toHaveBeenCalledWith(expect.objectContaining({
+        visible: true,
+        snapshot: expect.objectContaining({ text: 'fresh snapshot' }),
+        title: 'Terminal display'
+      }));
+    });
+  });
+
   it('mobileでtapするとdedicated ttyd modalを開く', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);
@@ -1012,6 +1063,34 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     await app._refreshMobileSnapshotDisplay();
 
     expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: true });
+  });
+
+  it('force snapshot loadは既存in-flight requestを再利用せずfresh captureする', async () => {
+    const staleInFlight = Promise.resolve({
+      text: 'stale in-flight snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z',
+      mode: 'fast'
+    });
+    app._terminalSnapshotRequests.set('session-1', {
+      mode: 'fast',
+      promise: staleInFlight
+    });
+    httpClient.get.mockResolvedValueOnce({
+      text: 'fresh forced snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:03.000Z',
+      mode: 'fast'
+    });
+
+    const snapshot = await app._loadTerminalSnapshot('session-1', { force: true, mode: 'fast' });
+
+    expect(snapshot.text).toBe('fresh forced snapshot');
+    expect(httpClient.get).toHaveBeenCalledWith(expect.stringContaining('/api/sessions/session-1/terminal/snapshot'));
+    expect(app._terminalSnapshotCache.get('session-1')).toMatchObject({
+      text: 'fresh forced snapshot',
+      mode: 'fast'
+    });
   });
 
   it('mobile snapshot poll interval uses latest sessionUi hook status', async () => {

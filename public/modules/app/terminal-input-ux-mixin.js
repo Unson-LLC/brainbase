@@ -596,7 +596,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         }
 
         const inFlight = this._terminalSnapshotRequests.get(sessionId) || null;
-        if (inFlight) {
+        if (inFlight && !force) {
             const inFlightSatisfiesMode = mode === 'fast'
                 ? true
                 : inFlight.mode === 'full';
