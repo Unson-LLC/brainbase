@@ -59,6 +59,27 @@ Use VibePro as a Story / Architecture / Spec / Graphify / Gate control plane. Th
 - Do not treat type-check or a superficially rendered UI as enough when UI code introduces `/api/...` calls. Network Contract Gate requires matching Next.js routes and network-aware flow evidence for API 4xx/5xx.
 - Do not treat Story-level E2E existence as enough for UI-heavy changes. Clickable-looking controls on the changed screen need an interaction contract: save/mutate, visible state change, navigation, scroll/focus, disabled, or explicit unfinished state.
 
+## Git / Worktree Dirty Guardrails
+
+- Do not use `git stash`, `git restore`, `git reset`, or checkout changes as the first response to a dirty repository worktree. First classify the dirty state.
+- Before cleaning dirty state, record:
+  - `git status --short --branch`
+  - `git diff --name-status`
+  - `git diff --cached --name-status`
+  - `git diff --stat`
+  - `git diff --cached --stat`
+  - `git reflog --date=iso -8 HEAD`
+  - `git reflog --date=iso -8 <current-branch>`
+- If a checked-out branch moved via an external sync, merge, rebase, or another worktree, verify whether the dirty diff is a stale reverse diff before treating it as user work.
+- A stale reverse diff is likely when the branch reflog advanced from an old commit to `HEAD`, while `git diff --cached` or `git diff` is exactly the inverse of the commits between that old commit and `HEAD`.
+- Prove this before cleanup by comparing the dirty diff with the commit range, for example:
+  - `git diff --stat <old-commit> HEAD`
+  - `git diff --stat HEAD <old-commit>`
+  - `git diff --name-status <old-commit> HEAD`
+  - `git diff --name-status HEAD <old-commit>`
+- If the dirty state is a proven stale reverse diff, say so explicitly and then synchronize the worktree/index to `HEAD` with the least destructive command that resolves the observed state. Do not preserve it as a stash unless the user asks for archival.
+- If the dirty state contains files or hunks that do not match the stale reverse diff, treat them as possible user work and do not clean them without reporting the exact files and asking for direction when needed.
+
 ## Key Artifacts
 
 - `.vibepro/stories/story-map.md`: repo Story map for human review.

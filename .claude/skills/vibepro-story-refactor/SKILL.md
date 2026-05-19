@@ -55,6 +55,9 @@ Prioritize candidates that VibePro surfaces as:
 - Do not merge or create a PR unless `gate_status.ready_for_pr_create=true` and `gate_status.overall_status=ready_for_review`.
 - Do not waive critical unresolved Gates with a reason alone. Critical Gates require evidence closure or a split/block decision.
 - Do not call a VibePro refactor complete while `gate:agent_review` is `needs_review`, `missing`, `stale`, `block`, or `failed`; complete the parallel subagent reviews first.
+- Do not clean dirty repository worktrees by reflexively stashing. First inspect `git status --short --branch`, unstaged diff, cached diff, and branch/HEAD reflog.
+- If a branch was advanced by external sync, merge, rebase, or another worktree, check whether the dirty state is a stale reverse diff from the previous branch commit to `HEAD`. Compare `git diff --stat <old> HEAD` with `git diff --cached --stat` / `git diff --stat` before deciding.
+- Only classify dirty state as safe to clean after proving it is already represented in `HEAD` and contains no extra user hunks. Otherwise report the exact files and keep the work intact.
 
 ## Completion Check
 

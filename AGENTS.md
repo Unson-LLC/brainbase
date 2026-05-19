@@ -138,6 +138,10 @@ When the user asks for VibePro work:
 - Do not claim user-perceived speed improvement from server logs alone. Separate `server_side` metrics such as DB query/API readiness from `user_perceived` metrics such as DOM visible or interactive ready.
 - If a performance comparison is not comparable, report improvement as unknown and include the missing marker or evidence source.
 - For UI changes that introduce `/api/...` client calls, confirm the matching Next.js App Router or Pages Router route exists. Server Action/server function -> HTTP API replacements require route contract and network-aware E2E evidence; type-check alone is not enough.
+- Before cleaning dirty repository worktrees, inspect the dirty state instead of stashing by reflex:
+  - Run `git status --short --branch`, `git diff --name-status`, `git diff --cached --name-status`, `git diff --stat`, `git diff --cached --stat`, and relevant `git reflog --date=iso`.
+  - If an external sync, merge, rebase, or another worktree advanced a checked-out branch, compare the dirty diff with the inverse of the commit range that moved the branch.
+  - Treat it as safe cleanup only after proving it is a stale reverse diff already represented in `HEAD`; otherwise report the files as possible user work.
 
 For repository-local work, prefer the target repository's existing `AGENTS.md` instructions first, then apply these VibePro rules for VibePro-specific decisions.
 <!-- VIBEPRO_CODEX_END -->
