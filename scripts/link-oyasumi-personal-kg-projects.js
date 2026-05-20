@@ -140,13 +140,13 @@ async function updateCandidateLinks(pool, candidate, links) {
     );
 }
 
-async function main() {
-    const args = parseArgs(process.argv.slice(2));
-    const pool = new Pool(databaseConfig());
+async function linkOyasumiPersonalKgProjects({ write = false, limit = null, projectCode = null, pool = null } = {}) {
+    const activePool = pool || new Pool(databaseConfig());
     try {
-        const projectIndex = await loadProjectIndex(pool);
-        const candidates = await listCandidates(pool, args);
-        const summary = { mode: args.write ? 'write' : 'dry-run', scanned: candidates.length, linked: 0, unresolved: 0, unchanged: 0, by_project_code: {}, unresolved_project_codes: {} };
+        const args = { write, limit, projectCode };
+        const projectIndex = await loadProjectIndex(activePool);
+        const candidates = await listCandidates(activePool, args);
+        const summary = { mode: write ? 'write' : 'dry-run', scanned: candidates.length, linked: 0, unresolved: 0, unchanged: 0, by_project_code: {}, unresolved_project_codes: {} };
         for (const candidate of candidates) {
             const projectCode = candidate.project_code;
             const bucket = summary.by_project_code[projectCode] || { scanned: 0, linked: 0, unresolved: 0 };
@@ -165,21 +165,27 @@ async function main() {
                 summary.unchanged += 1;
                 continue;
             }
-            if (args.write) await updateCandidateLinks(pool, candidate, mergeLinks(currentLinks, nextLink));
+            if (write) await updateCandidateLinks(activePool, candidate, mergeLinks(currentLinks, nextLink));
             summary.linked += 1;
             bucket.linked += 1;
         }
-        if (args.json) console.log(JSON.stringify(summary, null, 2));
-        else {
-            console.log(`mode: ${summary.mode}`);
-            console.log(`scanned: ${summary.scanned}`);
-            console.log(`linked: ${summary.linked}`);
-            console.log(`unchanged: ${summary.unchanged}`);
-            console.log(`unresolved: ${summary.unresolved}`);
-            if (Object.keys(summary.unresolved_project_codes).length > 0) console.log(`unresolved_project_codes: ${JSON.stringify(summary.unresolved_project_codes)}`);
-        }
+        return summary;
     } finally {
-        await pool.end();
+        if (!pool) await activePool.end();
+    }
+}
+
+async function main() {
+    const args = parseArgs(process.argv.slice(2));
+    const summary = await linkOyasumiPersonalKgProjects(args);
+    if (args.json) console.log(JSON.stringify(summary, null, 2));
+    else {
+        console.log(`mode: ${summary.mode}`);
+        console.log(`scanned: ${summary.scanned}`);
+        console.log(`linked: ${summary.linked}`);
+        console.log(`unchanged: ${summary.unchanged}`);
+        console.log(`unresolved: ${summary.unresolved}`);
+        if (Object.keys(summary.unresolved_project_codes).length > 0) console.log(`unresolved_project_codes: ${JSON.stringify(summary.unresolved_project_codes)}`);
     }
 }
 
@@ -190,4 +196,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     });
 }
 
-export { parseArgs, matchProjectEntity, buildProjectLink, mergeLinks, hasSameProjectLink };
+export {
+    PROJECT_CODE_ALIASES,
+    parseArgs,
+    matchProjectEntity,
+    buildProjectLink,
+    mergeLinks,
+    hasSameProjectLink,
+    linkOyasumiPersonalKgProjects
+};

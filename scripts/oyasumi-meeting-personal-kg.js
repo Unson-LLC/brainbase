@@ -15,6 +15,9 @@ import {
     extractMeetingPersonalKgCandidatesSemantic,
     writeMeetingPersonalKgCandidates
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
+import {
+    linkOyasumiPersonalKgProjects
+} from './link-oyasumi-personal-kg-projects.js';
 
 const execFileAsync = promisify(execFile);
 const { Pool } = pg;
@@ -53,7 +56,8 @@ function parseArgs(argv) {
         allRepos: false,
         semantic: false,
         write: false,
-        json: false
+        json: false,
+        projectLink: true
     };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
@@ -68,6 +72,7 @@ function parseArgs(argv) {
         else if (arg === '--all-repos') args.allRepos = true;
         else if (arg === '--semantic') args.semantic = true;
         else if (arg === '--write') args.write = true;
+        else if (arg === '--no-project-link') args.projectLink = false;
         else if (arg === '--json') args.json = true;
         else if (arg === '--dry-run') args.write = false;
     }
@@ -126,6 +131,9 @@ function createOpenAiCompatibleSemanticClient() {
 }
 
 function databaseConfig() {
+    if (process.env.INFO_SSOT_DATABASE_URL) {
+        return { connectionString: process.env.INFO_SSOT_DATABASE_URL };
+    }
     if (process.env.DATABASE_URL) {
         return { connectionString: process.env.DATABASE_URL };
     }
@@ -248,7 +256,7 @@ async function loadMeetings({ repo, date, paths = [], project, sources = null })
     return meetings;
 }
 
-function outputText({ extracted, writeSummary, write }) {
+function outputText({ extracted, writeSummary, projectLinkSummary, write }) {
     const lines = [
         `${SOURCE_SYSTEM}: ${extracted.date}`,
         `mode: ${write ? 'write' : 'dry-run'}`,
@@ -260,6 +268,11 @@ function outputText({ extracted, writeSummary, write }) {
         lines.push(`inserted: ${writeSummary.inserted}`);
         lines.push(`skipped: ${writeSummary.skipped}`);
         lines.push(`blocked: ${writeSummary.blocked}`);
+    }
+    if (projectLinkSummary) {
+        lines.push(`project_links_linked: ${projectLinkSummary.linked}`);
+        lines.push(`project_links_unchanged: ${projectLinkSummary.unchanged}`);
+        lines.push(`project_links_unresolved: ${projectLinkSummary.unresolved}`);
     }
     if (Array.isArray(extracted.agent_reports) && extracted.agent_reports.length > 0) {
         lines.push('');
@@ -314,6 +327,7 @@ async function main() {
         });
 
     let writeSummary = null;
+    let projectLinkSummary = null;
     if (args.write) {
         const config = databaseConfig();
         validateConfig(config);
@@ -322,6 +336,9 @@ async function main() {
             const repository = new PgCandidateRepository({ pool });
             const candidateService = new PromotionGateService({ repository });
             writeSummary = await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+            if (args.projectLink) {
+                projectLinkSummary = await linkOyasumiPersonalKgProjects({ write: true, pool });
+            }
         } finally {
             await pool.end();
         }
@@ -342,9 +359,10 @@ async function main() {
             transcript_sha: meeting.transcript_sha
         })),
         extracted,
-        write_summary: writeSummary
+        write_summary: writeSummary,
+        project_link_summary: projectLinkSummary
     };
-    console.log(args.json ? JSON.stringify(payload, null, 2) : outputText({ extracted, writeSummary, write: args.write }));
+    console.log(args.json ? JSON.stringify(payload, null, 2) : outputText({ extracted, writeSummary, projectLinkSummary, write: args.write }));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
