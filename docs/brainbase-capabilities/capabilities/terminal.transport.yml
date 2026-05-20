@@ -29,6 +29,7 @@ verification:
     - Pure Enter input takes the fast path.
     - Table snapshots remain stable across prompt/polling transitions.
     - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
+    - Xterm focus reports (`ESC[I`, `ESC[O`) and bare focus fragments (`[I`, `[O`) are not echoed or sent as terminal input.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
