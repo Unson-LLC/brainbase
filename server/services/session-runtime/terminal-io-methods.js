@@ -323,7 +323,7 @@ export const terminalIoMethods = {
 
     _stripTerminalFocusEvents(input) {
         if (typeof input !== 'string') return input;
-        return input.replace(/\x1b\[(?:I|O)/g, '');
+        return input.replace(/(?:\x1b)?\[(?:I|O)/g, '');
     },
 
     _normalizeTerminalTextControlInput(input, type) {

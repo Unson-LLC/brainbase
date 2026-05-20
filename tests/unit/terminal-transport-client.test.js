@@ -758,7 +758,7 @@ describe('terminal-transport-client', () => {
     expect(client.ws.send).not.toHaveBeenCalled();
   });
 
-  it('フォーカスイベント混入時_テキスト部分のみバッチしフォーカスは即時送信する', async () => {
+  it('フォーカスイベント混入時_テキスト部分だけをバッチしフォーカスは送信しない', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -775,28 +775,17 @@ describe('terminal-transport-client', () => {
 
     await client.sendText('ab\x1b[Icd');
 
-    // フォーカスイベントで分割: 'ab' (flush) + '\x1b[I' (即時) + 'cd' (バッファ)
-    // 'ab' は flush される、'\x1b[I' は即時送信
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).not.toHaveBeenCalled();
+    expect(client._pendingTextBuffer).toBe('abcd');
+
+    await vi.advanceTimersByTimeAsync(8);
+    expect(send).toHaveBeenCalledTimes(1);
     expect(JSON.parse(send.mock.calls[0][0])).toEqual({
       type: 'input',
       inputType: 'text',
-      value: 'ab'
+      value: 'abcd'
     });
-    expect(JSON.parse(send.mock.calls[1][0])).toEqual({
-      type: 'input',
-      inputType: 'text',
-      value: '\x1b[I'
-    });
-
-    // 'cd' はバッファに残っている
-    await vi.advanceTimersByTimeAsync(8);
-    expect(send).toHaveBeenCalledTimes(3);
-    expect(JSON.parse(send.mock.calls[2][0])).toEqual({
-      type: 'input',
-      inputType: 'text',
-      value: 'cd'
-    });
+    expect(client.terminal.write).toHaveBeenCalledWith('abcd', expect.any(Function));
   });
 
   it('フォーカスイベントのみの入力はローカルエコーを適用しない', async () => {
@@ -817,7 +806,37 @@ describe('terminal-transport-client', () => {
     await client.sendText('\x1b[I');
 
     expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('ESCが欠落したbareフォーカスイベント断片はローカルエコーも送信もしない', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('hello[Iworld[O');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(client._pendingTextBuffer).toBe('helloworld');
+    expect(client.terminal.write).toHaveBeenCalledWith('helloworld', expect.any(Function));
+
+    await vi.advanceTimersByTimeAsync(8);
     expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'helloworld'
+    });
   });
 
   it('OSC color response断片はローカルエコーも送信もしない', async () => {
@@ -868,7 +887,7 @@ describe('terminal-transport-client', () => {
     });
   });
 
-  it('テキスト間のフォーカスイベントでローカルエコーがテキスト部分のみ適用される', async () => {
+  it('テキスト間のフォーカスイベントは除去してローカルエコーする', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -885,9 +904,8 @@ describe('terminal-transport-client', () => {
 
     await client.sendText('hello\x1b[Oworld');
 
-    // ローカルエコーは 'hello' と 'world' のみ
     const echoTexts = client.terminal.write.mock.calls.map(c => c[0]);
-    expect(echoTexts).toEqual(['hello', 'world']);
+    expect(echoTexts).toEqual(['helloworld']);
   });
 
   it('Backspaceは未確認ASCII local echoを即時消去して送信する', async () => {

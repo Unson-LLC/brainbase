@@ -25,6 +25,7 @@ const TOUCH_FLUSH_MS = 30;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
 const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/gi;
 const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/gi;
+const FOCUS_REPORT_PATTERN = /(?:\x1b)?\[(?:I|O)/g;
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
@@ -61,7 +62,8 @@ function stripTerminalControlResponses(value) {
     if (typeof value !== 'string' || !value) return value;
     return value
         .replace(OSC_SEQUENCE_PATTERN, '')
-        .replace(BARE_OSC_COLOR_RESPONSE_PATTERN, '');
+        .replace(BARE_OSC_COLOR_RESPONSE_PATTERN, '')
+        .replace(FOCUS_REPORT_PATTERN, '');
 }
 
 const DEFAULT_TERMINAL_THEME = {
@@ -1515,7 +1517,8 @@ export class TerminalTransportClient {
 
     _splitFocusEvents(value) {
         if (typeof value !== 'string' || !value) return [{ value, isFocusEvent: false }];
-        const FOCUS_RE = /\x1b\[[IO]/g;
+        const FOCUS_RE = FOCUS_REPORT_PATTERN;
+        FOCUS_RE.lastIndex = 0;
         const segments = [];
         let lastIndex = 0;
         let match;

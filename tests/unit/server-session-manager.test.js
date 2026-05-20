@@ -399,6 +399,18 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(literalSpy).toHaveBeenCalledWith('session-1', 'helloworld');
     });
 
+    it('ESCが欠落したbareフォーカスイベント断片も除去して送信する', async () => {
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', '[I', 'text');
+      await sessionManager.sendInput('session-1', 'hello[Iworld[O', 'text');
+
+      expect(pasteSpy).not.toHaveBeenCalled();
+      expect(literalSpy).toHaveBeenCalledTimes(1);
+      expect(literalSpy).toHaveBeenCalledWith('session-1', 'helloworld');
+    });
+
     it('中長文の1行テキストは typing simulation せず即時literal送信する', async () => {
       const typingSpy = vi.spyOn(sessionManager, '_sendSimulatedTyping').mockResolvedValue();
       const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();

@@ -271,6 +271,45 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
+    it('focus report断片だけのinput messageはtmuxへ送らず無視する', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '[I'
+        }));
+
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('focus report混入input messageは断片を除去してtmuxへ送る', async () => {
+        const { service, sessionManager } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello[Iworld\x1b[O'
+        }));
+
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'helloworld', 'text');
+    });
+
     it('inputReady が false でも snapshot が ready なら probe を回復して送信する', async () => {
         const { service, sessionManager, captureCache, controlClient } = buildService();
         sessionManager.getSession.mockReturnValue({
