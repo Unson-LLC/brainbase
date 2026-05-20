@@ -120,6 +120,9 @@ export function installWorktreeHandlers(controller) {
                 initialCommand,
                 engine,
                 intendedState: 'active',
+                startupStatus: 'pending',
+                startupPhase: 'ttyd',
+                startupMessage: 'ターミナルを起動中...',
                 ...(taskBrief ? { taskBrief, taskBriefUpdatedAt: now } : {}),
                 createdAt: now,
                 updatedAt: now
@@ -167,14 +170,41 @@ export function installWorktreeHandlers(controller) {
                 try {
                     await controller._updateStateWithRetry((state) => ({
                         ...state,
-                        sessions: (state.sessions || []).filter((session) => session.id !== sessionId)
+                        sessions: (state.sessions || []).map((session) => {
+                            if (session.id !== sessionId) return session;
+                            return {
+                                ...session,
+                                startupStatus: 'failed',
+                                startupPhase: 'error',
+                                startupMessage: ttydError?.message || 'ターミナル起動に失敗',
+                                updatedAt: new Date().toISOString()
+                            };
+                        })
                     }));
                 } catch (rollbackError) {
-                    logger.error('[createWithWorktree] Rollback failed:', rollbackError);
+                    logger.error('[createWithWorktree] Failed to persist startup failure:', rollbackError);
                 }
-                controller.worktreeService.remove(sessionId, resolvedRepoPath).catch(() => {});
+                try {
+                    await Promise.resolve(controller.worktreeService.remove(sessionId, resolvedRepoPath));
+                } catch (cleanupError) {
+                    logger.error('[createWithWorktree] Worktree cleanup after ttyd failure failed:', cleanupError);
+                }
                 throw ttydError;
             }
+
+            await controller._updateStateWithRetry((state) => ({
+                ...state,
+                sessions: (state.sessions || []).map((session) => {
+                    if (session.id !== sessionId) return session;
+                    return {
+                        ...session,
+                        startupStatus: 'ready',
+                        startupPhase: 'done',
+                        startupMessage: '',
+                        updatedAt: new Date().toISOString()
+                    };
+                })
+            }));
 
             const ownership = controller.ownership.forceTerminalOwnership(sessionId, viewerId, viewerLabel);
             controller._updateProgress(sessionId, 'done', 100, 'セッション作成完了！');

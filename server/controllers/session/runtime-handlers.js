@@ -66,6 +66,10 @@ function buildObservedRuntimeStatus(baseRuntimeStatus = {}, observedRuntime = nu
     };
 }
 
+function isStartupShell(session) {
+    return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
+}
+
 export function installRuntimeHandlers(controller) {
     controller.get = async (req, res) => {
         const { id } = req.params;
@@ -104,6 +108,14 @@ export function installRuntimeHandlers(controller) {
         if (!session) {
             return res.status(404).json({ error: 'Session not found' });
         }
+        if (isStartupShell(session)) {
+            return res.status(409).json({
+                error: 'Session startup is not ready for terminal snapshot.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            });
+        }
 
         const terminalAccess = controller.ownership.getTerminalAccessState(id, viewerId);
         let effectiveSession = session;
@@ -138,6 +150,14 @@ export function installRuntimeHandlers(controller) {
         if (!session) return;
         if (session.intendedState === 'archived') {
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+        if (isStartupShell(session)) {
+            return res.status(409).json({
+                error: 'Session startup is not ready for terminal runtime.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            });
         }
 
         try {
@@ -274,6 +294,14 @@ export function installRuntimeHandlers(controller) {
         if (!session) {
             return res.status(404).json({ error: 'Session not found' });
         }
+        if (isStartupShell(session)) {
+            return res.status(409).json({
+                error: 'Session startup is not ready for terminal snapshot.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            });
+        }
 
         const terminalAccess = controller.ownership.getTerminalAccessState(id, viewerId);
         const visibleOnly = terminalAccess?.state === 'blocked' ? false : requestedVisibleOnly;
@@ -347,6 +375,16 @@ export function installRuntimeHandlers(controller) {
         if (!controller.terminalInputProbe?.probe) {
             return res.status(503).json({ error: 'Terminal input probe is not available' });
         }
+        const session = controller._findSessionOrFail(id, res);
+        if (!session) return;
+        if (isStartupShell(session)) {
+            return res.status(409).json({
+                error: 'Session startup is not ready for terminal input probe.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            });
+        }
 
         const result = await controller.terminalInputProbe.probe({ sessionId: id, viewerId, viewerLabel });
         if (!result.success) {
@@ -389,6 +427,15 @@ export function installRuntimeHandlers(controller) {
         if (targetSession?.intendedState === 'archived') {
             logger.info(`[start] Rejected: session ${sessionId} is archived`);
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+        if (isStartupShell(targetSession)) {
+            logger.info(`[start] Rejected: session ${sessionId} startup is not ready`);
+            return res.status(409).json({
+                error: 'Session startup is not ready for terminal runtime.',
+                startupStatus: targetSession.startupStatus,
+                startupPhase: targetSession.startupPhase || null,
+                startupMessage: targetSession.startupMessage || null
+            });
         }
         if (targetSession?.workspaceRotationStatus === 'rotating') {
             logger.info(`[start] Rejected: session ${sessionId} is rotating workspace generation`);

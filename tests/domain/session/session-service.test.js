@@ -122,6 +122,31 @@ describe('SessionService', () => {
     });
 
     describe('createSession', () => {
+        it('creates a pending session shell without starting terminal runtime', async () => {
+            addSession.mockResolvedValue();
+
+            const result = await sessionService.createPendingSessionShell({
+                project: 'project-a',
+                name: 'Draft Session',
+                sessionId: 'session-pending',
+                engine: 'codex'
+            });
+
+            expect(addSession).toHaveBeenCalledWith(expect.objectContaining({
+                id: 'session-pending',
+                name: 'Draft Session',
+                project: 'project-a',
+                path: expect.stringContaining('project-a'),
+                engine: 'codex',
+                intendedState: 'active',
+                startupStatus: 'pending',
+                startupPhase: 'worktree'
+            }));
+            expect(httpClient.post).not.toHaveBeenCalled();
+            expect(appStore.getState().currentSessionId).toBe('session-pending');
+            expect(result.session.startupStatus).toBe('pending');
+        });
+
         it('should create new session via API and reload sessions', async () => {
             const newSession = {
                 name: 'New Session',
@@ -184,6 +209,25 @@ describe('SessionService', () => {
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.reason).toBe('Failed to create worktree. Is this a git repository?');
 
+            unsubscribe();
+        });
+
+        it('does not fallback to canonical runtime when shell-first worktree startup fails', async () => {
+            const listener = vi.fn();
+            const unsubscribe = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, listener);
+            httpClient.post.mockRejectedValueOnce(new Error('Failed to create worktree'));
+
+            await expect(sessionService.createSession({
+                name: 'Shell Session',
+                project: 'project-a',
+                useWorktree: true,
+                sessionId: 'session-shell',
+                allowRegularFallback: false
+            })).rejects.toThrow('Failed to create worktree');
+
+            expect(httpClient.post).toHaveBeenCalledTimes(1);
+            expect(httpClient.post).not.toHaveBeenCalledWith('/api/sessions/start', expect.any(Object));
+            expect(listener).not.toHaveBeenCalled();
             unsubscribe();
         });
     });

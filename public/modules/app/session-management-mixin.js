@@ -178,6 +178,38 @@ export function applySessionManagementMixin(AppClass) {
                     surface: this.isMobile() ? 'mobile' : 'desktop'
                 });
 
+                if (this._isSessionStartupShell?.(session)) {
+                    this.terminalTransportClient?.disconnect?.({ preserveView: false });
+                    this.terminalTransportClient?.hide?.();
+                    this._terminalTransportStatus = null;
+                    this._clearTerminalFrame(terminalFrame);
+                    this._renderTerminalSnapshotPanel?.({ visible: false });
+                    this._resumePendingSessionStartup?.(session);
+                    this.showTerminalLoadingOverlay?.({
+                        startup: true,
+                        sessionId,
+                        message: session.startupStatus === 'failed'
+                            ? 'セッション起動に失敗しました'
+                            : (session.startupMessage || 'ワークスペースを準備中...'),
+                        hint: session.startupStatus === 'failed'
+                            ? '入力内容は残っています。設定を確認して再試行してください。'
+                            : '入力できます。送信すると起動完了後に実行します。',
+                        failed: session.startupStatus === 'failed'
+                    });
+                    this._finishTerminalSwitch?.(sessionId, switchToken, {
+                        state: session.startupStatus === 'failed' ? 'startup_failed' : 'startup_pending',
+                        hideOverlay: false
+                    });
+                    this._setCurrentSessionUiState?.({
+                        transport: session.startupStatus === 'failed' ? 'disconnected' : 'reconnecting',
+                        attention: session.startupStatus === 'failed' ? 'warning' : 'none'
+                    });
+                    return {
+                        ok: true,
+                        mode: session.startupStatus === 'failed' ? 'startup_failed' : 'startup_pending'
+                    };
+                }
+
                 if (this.isMobile()) {
                     const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
@@ -503,6 +535,8 @@ export function applySessionManagementMixin(AppClass) {
                 }
 
                 if (currentSessionId) {
+                    const currentSession = sessions?.find((session) => session.id === currentSessionId);
+                    this._resumePendingSessionStartup?.(currentSession);
                     await this.loadSessionData(currentSessionId);
                     this._updateSessionGoalBanner(currentSessionId);
                 } else {

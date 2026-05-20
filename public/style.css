@@ -11824,6 +11824,77 @@ body.resizing iframe {
     padding: 2rem;
 }
 
+.session-startup-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(640px, calc(100vw - 96px));
+    margin-top: 18px;
+}
+
+.session-startup-composer.hidden {
+    display: none;
+}
+
+.session-startup-prompt-input {
+    width: 100%;
+    min-height: 112px;
+    resize: vertical;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.88);
+    color: #e5e7eb;
+    padding: 12px 14px;
+    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    outline: none;
+}
+
+.session-startup-prompt-input:focus {
+    border-color: rgba(59, 130, 246, 0.9);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.session-startup-composer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.session-startup-prompt-status {
+    min-width: 0;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: left;
+}
+
+.session-startup-prompt-status[data-state="queued"],
+.session-startup-prompt-status[data-state="sent"] {
+    color: #93c5fd;
+}
+
+.session-startup-prompt-status[data-state="failed"] {
+    color: #fca5a5;
+}
+
+.session-startup-prompt-send {
+    flex: 0 0 auto;
+    border: 1px solid rgba(59, 130, 246, 0.7);
+    border-radius: 8px;
+    background: #2563eb;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.session-startup-prompt-send:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .spinner {
     width: 48px;
     height: 48px;

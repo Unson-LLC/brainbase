@@ -13,6 +13,7 @@ surfaces:
   code:
     - public/modules/app/session-creation-mixin.js
     - public/modules/app/ui-setup-mixin.js
+    - public/modules/app/session-management-mixin.js
     - public/modules/domain/session/session-service.js
     - server/controllers/session-controller.js
     - server/services/worktree-service.js
@@ -27,15 +28,19 @@ visibility_rules:
   - The selected project must appear in project.selector.
   - Worktree availability depends on hasGitRepository(selectedProject).
   - general uses the workspace root and always enables worktree by default.
+  - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
+  - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
 verification:
   commands:
     - GET /api/state or session list API after creation
     - inspect state session.project
     - inspect session path or worktree metadata
+    - npm test -- tests/ui/session-creation-mixin.test.js tests/domain/session/session-service.test.js tests/ui/integration/app-switch-session-runtime.test.js
   expected:
     - New session appears in the session list.
     - session.project equals the selected project.
     - Worktree sessions have expected worktree path and repo metadata.
+    - Worktree session creation closes the modal and selects the pending shell before runtime startup completes.
 common_failures:
   - Project missing from dropdown due to auth grant filtering.
   - Project path resolves to fallback because config local.path is missing or stale.
