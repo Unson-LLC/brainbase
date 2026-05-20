@@ -5,7 +5,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getTerminalViewerId, getTerminalViewerLabel } from '../../core/terminal-viewer.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject, generateSessionName } from '../../session-manager.js';
-import { addSession, removeSession, saveSessionOrder as persistSessionOrder } from '../../state-api.js';
+import { addSession, removeSession, saveSessionOrder as persistSessionOrder, updateSession as patchSessionState } from '../../state-api.js';
 import { pruneSessionUiState, setSessionSummaryMap } from '../../session-ui-state.js';
 
 /**
@@ -71,6 +71,8 @@ export class SessionService {
                 sessions: (sessions || []).map(s => ({
                     id: s.id, name: s.name, project: s.project, path: s.path,
                     intendedState: s.intendedState, favorite: s.favorite === true,
+                    startupStatus: s.startupStatus, startupPhase: s.startupPhase,
+                    startupMessage: s.startupMessage,
                     engine: s.engine,
                     worktree: s.worktree, createdAt: s.createdAt,
                     archivedAt: s.archivedAt, pausedReason: s.pausedReason
@@ -165,10 +167,11 @@ export class SessionService {
      * @param {boolean} params.useWorktree - worktreeを使用するか
      * @param {string} params.engine - AI Engine ('claude' or 'codex')
      * @param {string} params.sessionId - セッションID（オプション、指定しない場合は自動生成）
+     * @param {boolean} [params.allowRegularFallback] - worktree作成失敗時に通常セッションへfallbackするか
      * @returns {Promise<Object>} 作成されたセッション
      */
     async createSession(params) {
-        const { project, initialCommand = '', useWorktree = false, engine = 'claude' } = params;
+        const { project, initialCommand = '', useWorktree = false, engine = 'claude', allowRegularFallback = true } = params;
         let { name, sessionId } = params;
 
         const repoPath = getProjectPath(project);
@@ -202,7 +205,9 @@ export class SessionService {
         try {
             let result;
             if (useWorktree) {
-                result = await this._createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project);
+                result = await this._createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project, {
+                    allowRegularFallback
+                });
             } else {
                 result = await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine, project);
             }
@@ -225,6 +230,82 @@ export class SessionService {
             console.error('Failed to create session:', error);
             throw error;
         }
+    }
+
+    /**
+     * Slow worktree-backed sessions need an immediate UI shell so the user can
+     * start drafting while workspace/runtime startup continues in the background.
+     * The shell is intentionally marked pending so terminal switching will not
+     * start against the canonical repository path before the worktree exists.
+     *
+     * @param {Object} params
+     * @param {string} params.project
+     * @param {string} params.name
+     * @param {string} params.sessionId
+     * @param {string} params.engine
+     * @returns {Promise<{sessionId: string, session: Object}>}
+     */
+    async createPendingSessionShell(params) {
+        const { project, sessionId, engine = 'claude' } = params;
+        let { name } = params;
+        const repoPath = getProjectPath(project);
+
+        if (!sessionId) {
+            throw new Error('sessionId is required for pending session shell');
+        }
+
+        if (!name || !name.trim()) {
+            const existingSessions = this.store.getState().sessions || [];
+            name = generateSessionName(project, existingSessions);
+        }
+
+        const session = {
+            ...buildSessionObject({
+                id: sessionId,
+                name,
+                path: repoPath,
+                project,
+                initialCommand: '',
+                engine,
+                intendedState: 'active'
+            }),
+            startupStatus: 'pending',
+            startupPhase: 'worktree',
+            startupMessage: 'ワークスペースを準備中...'
+        };
+
+        await addSession(session);
+
+        const previousSessions = this.store.getState().sessions || [];
+        const sessions = [
+            ...previousSessions.filter((entry) => entry.id !== sessionId),
+            session
+        ];
+        this.store.setState({ sessions, currentSessionId: sessionId });
+        this._saveToCache();
+        await this.eventBus.emit(EVENTS.SESSION_CREATED, { session, pending: true });
+
+        return { sessionId, session };
+    }
+
+    async markSessionStartupFailed(sessionId, message) {
+        const updates = {
+            startupStatus: 'failed',
+            startupPhase: 'error',
+            startupMessage: message || 'セッション起動に失敗しました',
+            updatedAt: new Date().toISOString()
+        };
+        const previousSessions = this.store.getState().sessions || [];
+        const sessions = previousSessions.map((session) =>
+            session.id === sessionId ? { ...session, ...updates } : session
+        );
+        this.store.setState({ sessions });
+        try {
+            await patchSessionState(sessionId, updates);
+        } catch {
+            // Local failed state is enough to preserve the visible prompt.
+        }
+        await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
     }
 
     /**
@@ -286,7 +367,8 @@ export class SessionService {
      * Worktreeセッション作成
      * @private
      */
-    async _createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project) {
+    async _createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project, options = {}) {
+        const { allowRegularFallback = true } = options;
         let res;
         try {
             res = await this.httpClient.post('/api/sessions/create-with-worktree', {
@@ -301,6 +383,9 @@ export class SessionService {
             });
         } catch (error) {
             const reason = error?.message || 'Worktree creation failed';
+            if (!allowRegularFallback) {
+                throw error;
+            }
             console.warn('Worktree creation failed, falling back to regular session:', reason);
             await this.eventBus.emit(EVENTS.SESSION_WORKTREE_FALLBACK, {
                 sessionId,
@@ -314,6 +399,9 @@ export class SessionService {
         if (!res || res.error) {
             // Fallback to regular session
             const reason = res?.error || 'Worktree creation failed';
+            if (!allowRegularFallback) {
+                throw new Error(reason);
+            }
             console.warn('Worktree creation failed, falling back to regular session:', reason);
             await this.eventBus.emit(EVENTS.SESSION_WORKTREE_FALLBACK, {
                 sessionId,

@@ -295,6 +295,13 @@
 	                            <div class="spinner"></div>
 	                            <div class="loading-message">Claude起動中...</div>
 	                            <div class="loading-hint">まもなく使えるようになります</div>
+	                            <div id="session-startup-composer" class="session-startup-composer hidden">
+	                                <textarea id="session-startup-prompt-input" class="session-startup-prompt-input" rows="4" placeholder="最初のプロンプトを入力..." aria-label="起動中の初回プロンプト" spellcheck="false"></textarea>
+	                                <div class="session-startup-composer-footer">
+	                                    <span id="session-startup-prompt-status" class="session-startup-prompt-status" aria-live="polite"></span>
+	                                    <button id="session-startup-prompt-send" class="session-startup-prompt-send" type="button">送信予約</button>
+	                                </div>
+	                            </div>
 	                        </div>
 	                    </div>
 

@@ -120,6 +120,35 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(app.reconnectManager.setCurrentSession).toHaveBeenCalledWith('session-1');
   });
 
+  it('pending startup shell does not start runtime or snapshot loading from canonical path', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    vi.spyOn(httpClient, 'patch').mockResolvedValue({});
+    vi.clearAllMocks();
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-pending',
+        name: 'Pending Session',
+        project: 'brainbase',
+        path: '/Users/ksato/workspace/code/brainbase',
+        engine: 'codex',
+        intendedState: 'active',
+        startupStatus: 'pending',
+        startupMessage: 'ワークスペースを準備中...'
+      }]
+    });
+
+    const result = await app.switchSession('session-pending');
+
+    expect(result).toEqual({ ok: true, mode: 'startup_pending' });
+    expect(httpClient.get).not.toHaveBeenCalled();
+    expect(httpClient.post).not.toHaveBeenCalled();
+    expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('session-startup-composer').classList.contains('hidden')).toBe(false);
+  });
+
   it('archived sessionへswitchSessionしても現在のterminal frameを破壊しない', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => false);
@@ -1880,6 +1909,8 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     document.getElementById('session-list').innerHTML = `
       <div class="session-child-row" data-id="session-paused"></div>
       <div class="session-child-row" data-id="session-active"></div>
+      <div class="session-child-row" data-id="session-pending"></div>
+      <div class="session-child-row" data-id="session-failed"></div>
       <div class="session-child-row" data-id="session-done"></div>
     `;
     for (const row of document.querySelectorAll('.session-child-row')) {
@@ -1898,7 +1929,9 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
       sessions: [
         { id: 'session-done', intendedState: 'done' },
         { id: 'session-paused', intendedState: 'paused' },
-        { id: 'session-active', intendedState: 'active' }
+        { id: 'session-active', intendedState: 'active' },
+        { id: 'session-pending', intendedState: 'active', startupStatus: 'pending' },
+        { id: 'session-failed', intendedState: 'active', startupStatus: 'failed' }
       ]
     });
 

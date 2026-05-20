@@ -33,6 +33,7 @@ function buildService() {
         releaseTerminalOwnership: vi.fn(() => true),
         ensureTerminalOwnership: vi.fn(() => ({ allowed: true })),
         getTerminalAccessState: vi.fn(() => ({ state: 'owner' })),
+        getSessionById: vi.fn(() => ({ id: 'session-1', startupStatus: 'ready' })),
         getSession: vi.fn(() => ({
             runtimeState: 'interactive_ready',
             observed: { inputProbe: { status: 'passed' } }
@@ -65,6 +66,28 @@ function buildMockWs() {
 }
 
 describe('TerminalTransportService', () => {
+    it('pending startup shellのWebSocket接続を拒否する', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getSessionById.mockReturnValue({
+            id: 'session-pending',
+            startupStatus: 'pending',
+            startupPhase: 'worktree',
+            startupMessage: 'ワークスペースを準備中...'
+        });
+        const ws = buildMockWs();
+
+        await service._handleConnection(ws, {}, {
+            sessionId: 'session-pending',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac'
+        });
+
+        expect(sessionManager.ensureTerminalOwnership).not.toHaveBeenCalled();
+        expect(sessionManager.isTmuxSessionRunning).not.toHaveBeenCalled();
+        expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('SESSION_STARTUP_NOT_READY'));
+        expect(ws.close).toHaveBeenCalledWith(4009, 'session_startup_not_ready');
+    });
+
     it('input message で tmux sendInput を呼ぶ', async () => {
         const { service, sessionManager, captureCache } = buildService();
         const connection = {

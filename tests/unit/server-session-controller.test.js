@@ -106,6 +106,7 @@ describe('SessionController (Server)', () => {
       getVisibleContentWithColors: vi.fn(async () => null),
       getCursorPosition: vi.fn(async () => null),
       getPaneMode: vi.fn(),
+      getOutput: vi.fn(),
       isTmuxSessionRunning: vi.fn(),
       _isXtermOnlyMode: vi.fn(() => false),
       _isProcessRunning: vi.fn(),
@@ -313,6 +314,36 @@ describe('SessionController (Server)', () => {
         }
       });
     });
+
+    it('pending startup shellのstart時_409を返しttydを起動しない', async () => {
+      const sessionId = 'session-start-pending-shell';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/canonical-repo',
+          intendedState: 'active',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.start({
+        body: { sessionId, viewerId: 'viewer-1' },
+        headers: { referer: 'http://localhost:31013/', 'user-agent': 'Mozilla/5.0' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockSessionManager.ensureTerminalOwnership).not.toHaveBeenCalled();
+      expect(mockSessionManager.resolveSessionWorkspacePath).not.toHaveBeenCalled();
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal runtime.',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+    });
   });
 
   describe('merge', () => {
@@ -468,6 +499,145 @@ describe('SessionController (Server)', () => {
         rotationBlocked: true
       });
       expect(mockSessionManager.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('pending startup shellのsendInput時_409を返しterminalへ送らない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-input-pending',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.sendInput({
+        params: { id: 'session-input-pending' },
+        body: { input: 'echo pending', type: 'text' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal input.',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+      expect(mockSessionManager.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('pending startup shellのprobeInput時_409を返しprobeを実行しない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-probe-pending',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.probeTerminalInput({
+        params: { id: 'session-probe-pending' },
+        body: { viewerId: 'viewer-1' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal input probe.',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+      expect(mockSessionManager.probeTerminalInput).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('legacy terminal IO startup shell guards', () => {
+    it('pending startup shellのrepair geometry時_409を返しtmux修復しない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-repair-pending',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.repairTerminalGeometry({
+        params: { id: 'session-repair-pending' },
+        body: { reason: 'test' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockSessionManager.repairCollapsedSessionWindow).not.toHaveBeenCalled();
+    });
+
+    it('pending startup shellのgetContent時_409を返しsnapshotを取得しない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-content-pending',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.getContent({
+        params: { id: 'session-content-pending' },
+        query: { lines: '120' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal content.',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+      expect(mockSessionManager.getContent).not.toHaveBeenCalled();
+    });
+
+    it('failed startup shellのgetOutput時_409を返しsnapshotを取得しない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-output-failed',
+          startupStatus: 'failed',
+          startupPhase: 'error',
+          startupMessage: '起動失敗'
+        }]
+      });
+
+      await sessionController.getOutput({
+        params: { id: 'session-output-failed' }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal output.',
+        startupStatus: 'failed',
+        startupPhase: 'error',
+        startupMessage: '起動失敗'
+      });
+      expect(mockSessionManager.getOutput).not.toHaveBeenCalled();
+    });
+
+    it('pending startup shellのscroll時_409を返しtmux scrollしない', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-scroll-pending',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.scroll({
+        params: { id: 'session-scroll-pending' },
+        body: { direction: 'up', steps: 1 }
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockSessionManager.scrollSession).not.toHaveBeenCalled();
     });
   });
 
@@ -712,6 +882,39 @@ describe('SessionController (Server)', () => {
       });
     });
 
+    it('pending startup shellのterminal ensure時_409を返しruntimeを起動しない', async () => {
+      const sessionId = 'session-pending-shell';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/canonical-repo',
+          engine: 'codex',
+          intendedState: 'active',
+          startupStatus: 'pending',
+          startupPhase: 'worktree',
+          startupMessage: 'ワークスペースを準備中...'
+        }]
+      });
+
+      await sessionController.ensureTerminalRuntime({
+        params: { id: sessionId },
+        body: {
+          viewerId: 'viewer-1'
+        }
+      }, mockRes);
+
+      expect(mockSessionManager.resolveSessionWorkspacePath).not.toHaveBeenCalled();
+      expect(mockSessionManager.ensureSessionRuntime).not.toHaveBeenCalled();
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal runtime.',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+    });
+
     it('runtimeが既にinteractive_readyならensureとworkspace解決をスキップする', async () => {
       const sessionId = 'session-ready-runtime';
       mockStateStore.get.mockReturnValue({
@@ -880,6 +1083,34 @@ describe('SessionController (Server)', () => {
       }));
     });
 
+    it('pending startup shellのsnapshot取得時_409を返しtmux captureを実行しない', async () => {
+      const sessionId = 'session-snapshot-pending-shell';
+      mockSessionManager.getSessionById.mockReturnValue({
+        id: sessionId,
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+
+      await sessionController.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.getTerminalAccessState).not.toHaveBeenCalled();
+      expect(mockSessionManager.repairCollapsedSessionWindow).not.toHaveBeenCalled();
+      expect(mockSessionManager.getContent).not.toHaveBeenCalled();
+      expect(mockSessionManager.getContentWithColors).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session startup is not ready for terminal snapshot.',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        startupMessage: 'ワークスペースを準備中...'
+      });
+    });
+
     it('snapshot取得時_collapsed paneを先に修復してcacheをinvalidateする', async () => {
       const sessionId = 'session-snapshot-collapsed';
       const invalidate = vi.fn();
@@ -954,8 +1185,12 @@ describe('SessionController (Server)', () => {
       const worktreePath = path.join(tempDir, 'worktrees', 'session-new-techknight');
       await fs.mkdir(worktreePath, { recursive: true });
 
-      mockStateStore.get.mockReturnValue({ sessions: [] });
-      mockStateStore.update.mockResolvedValue({ sessions: [] });
+      let mockState = { sessions: [] };
+      mockStateStore.get.mockImplementation(() => mockState);
+      mockStateStore.update.mockImplementation(async (nextState) => {
+        mockState = nextState;
+        return mockState;
+      });
       mockSessionManager.startTtyd.mockResolvedValue({
         port: 40124,
         proxyPath: '/console/session-new'
@@ -1010,6 +1245,21 @@ describe('SessionController (Server)', () => {
         sessions: expect.arrayContaining([
           expect.objectContaining({
             id: 'session-new',
+            startupStatus: 'pending',
+            startupPhase: 'ttyd',
+            worktree: expect.objectContaining({
+              repo: fallbackRepoPath,
+              path: worktreePath
+            })
+          })
+        ])
+      }));
+      expect(mockStateStore.update).toHaveBeenCalledWith(expect.objectContaining({
+        sessions: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'session-new',
+            startupStatus: 'ready',
+            startupPhase: 'done',
             worktree: expect.objectContaining({
               repo: fallbackRepoPath,
               path: worktreePath
@@ -1062,6 +1312,60 @@ describe('SessionController (Server)', () => {
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         error: 'Session state missing persisted worktree.path'
       }));
+    });
+
+    it('ttyd起動失敗時_pending shellをfailedとして残す', async () => {
+      const repoPath = path.join(tempDir, 'repo-runtime-fail');
+      const worktreePath = path.join(tempDir, 'worktrees', 'session-runtime-fail');
+      const controller = new SessionController(buildControllerDeps());
+      let state = { sessions: [] };
+      let resolveCleanup;
+
+      await fs.mkdir(repoPath, { recursive: true });
+      await fs.mkdir(worktreePath, { recursive: true });
+
+      mockWorktreeService.create.mockResolvedValue({
+        worktreePath,
+        branchName: 'session/session-runtime-fail',
+        startCommit: 'abc123'
+      });
+      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      mockSessionManager.startTtyd.mockRejectedValue(new Error('ttyd failed'));
+      mockWorktreeService.remove.mockImplementation(() => new Promise((resolve) => {
+        resolveCleanup = resolve;
+      }));
+      controller._updateStateWithRetry = vi.fn(async (mutator) => {
+        state = mutator(state);
+        return state;
+      });
+
+      const createPromise = controller.createWithWorktree({
+        body: {
+          sessionId: 'session-runtime-fail',
+          repoPath,
+          name: 'Runtime Fail',
+          engine: 'codex',
+          viewerId: 'viewer-1'
+        },
+        headers: {}
+      }, mockRes);
+
+      await vi.waitFor(() => {
+        expect(mockWorktreeService.remove).toHaveBeenCalledWith('session-runtime-fail', repoPath);
+      });
+      expect(mockRes.status).not.toHaveBeenCalled();
+      resolveCleanup(true);
+      await createPromise;
+
+      expect(state.sessions).toEqual([
+        expect.objectContaining({
+          id: 'session-runtime-fail',
+          startupStatus: 'failed',
+          startupPhase: 'error',
+          startupMessage: 'ttyd failed'
+        })
+      ]);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
     });
   });
 

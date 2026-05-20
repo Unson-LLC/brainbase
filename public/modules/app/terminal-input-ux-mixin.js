@@ -663,7 +663,12 @@ export function applyTerminalInputUxMixin(AppClass) {
             }
         }
 
-        const nonArchived = sessions.filter((session) => session?.id && session.intendedState !== 'archived');
+        const nonArchived = sessions.filter((session) =>
+            session?.id
+            && session.intendedState !== 'archived'
+            && session.startupStatus !== 'pending'
+            && session.startupStatus !== 'failed'
+        );
         const sourceSessions = visibleIds.length > 0
             ? visibleIds
                 .map((id) => nonArchived.find((session) => session.id === id))

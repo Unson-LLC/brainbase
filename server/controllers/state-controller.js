@@ -41,6 +41,7 @@ const ALLOWED_SESSION_FIELDS = [
     'id', 'name', 'project', 'path', 'cwd', 'worktree', 'initialCommand',
     'engine', 'intendedState', 'favorite', 'createdAt', 'archivedAt', 'archive', 'merged', 'mergedAt', 'mergedPrUrl',
     'activeWorkspaceId', 'workspaceHistory', 'workspaceRotationStatus', 'workspaceRotationError',
+    'startupStatus', 'startupPhase', 'startupMessage',
     'updatedAt', 'taskBrief', 'taskBriefUpdatedAt', 'lastAssistantSnippet', 'lastAssistantSnippetAt',
     // Schema v2 追加フィールド
     'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',

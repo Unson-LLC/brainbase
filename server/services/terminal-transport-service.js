@@ -74,6 +74,10 @@ function buildTerminalWsMatch(urlString = '') {
     }
 }
 
+function isStartupShell(session) {
+    return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
+}
+
 export class TerminalTransportService {
     constructor({
         sessionManager = null,
@@ -126,6 +130,20 @@ export class TerminalTransportService {
         if (!sessionId || !viewerId) {
             ws.send(JSON.stringify({ type: 'error', code: 'INVALID_REQUEST', message: 'sessionId and viewerId are required' }));
             ws.close();
+            return;
+        }
+
+        const session = this.runtimeQuery.getSessionById?.(sessionId) || null;
+        if (isStartupShell(session)) {
+            ws.send(JSON.stringify({
+                type: 'error',
+                code: 'SESSION_STARTUP_NOT_READY',
+                message: 'Session startup is not ready for terminal transport.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            }));
+            ws.close(4009, 'session_startup_not_ready');
             return;
         }
 

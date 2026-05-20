@@ -20,6 +20,7 @@ visibility_rules:
   - Enter should provide immediate local feedback even when readiness probes lag.
   - Table rendering snapshots must not be cleared by volatile prompt transitions.
   - Focus loss can look like input transport failure.
+  - Pending or failed startup shells must keep the startup composer visible and reject terminal IO until the runtime is ready.
 verification:
   commands:
     - npm test -- tests/unit/terminal-transport-client.test.js
@@ -27,10 +28,12 @@ verification:
   expected:
     - Pure Enter input takes the fast path.
     - Table snapshots remain stable across prompt/polling transitions.
+    - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
   - Focus reporting bytes or focus loss disrupt input order.
+  - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
 runbooks:
   - ../runbooks/verify-31013-source.md
 troubleshooting:
