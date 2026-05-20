@@ -20,6 +20,8 @@ const PROJECT_CODE_ALIASES = {
     mywa: ['mywa'],
     dialogai: ['dialogai'],
     aitle: ['aitle'],
+    'unson-board': ['unson'],
+    yakumokai: ['unson'],
     'unson-os': ['unson-os']
 };
 
@@ -40,8 +42,8 @@ function parseArgs(argv) {
 }
 
 function databaseConfig() {
-    if (process.env.DATABASE_URL) return { connectionString: process.env.DATABASE_URL };
     if (process.env.INFO_SSOT_DATABASE_URL) return { connectionString: process.env.INFO_SSOT_DATABASE_URL };
+    if (process.env.DATABASE_URL) return { connectionString: process.env.DATABASE_URL };
     return {
         host: process.env.PGHOST || '127.0.0.1',
         port: Number(process.env.PGPORT || 25432),
