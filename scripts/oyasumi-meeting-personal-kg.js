@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-import { execFile, spawn } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import process from 'node:process';
 import pg from 'pg';
@@ -85,112 +82,47 @@ function parseJsonObjectFromText(text) {
         return JSON.parse(text);
     } catch {
         const match = String(text || '').match(/\{[\s\S]*\}/u);
-        if (!match) throw new Error('agent response did not contain JSON object');
+        if (!match) throw new Error('LLM response did not contain JSON object');
         return JSON.parse(match[0]);
     }
 }
 
-function createCodexExecSemanticClient() {
-    const codexPath = process.env.CODEX_CLI_PATH || process.env.OYASUMI_AGENT_EXEC_PATH || 'codex';
-    const timeoutMs = Number(process.env.OYASUMI_AGENT_TIMEOUT_MS || process.env.CODEX_TIMEOUT_MS || 600000);
-    const model = process.env.OYASUMI_AGENT_MODEL || process.env.OYASUMI_SEMANTIC_MODEL || '';
-    const reasoningEffort = process.env.OYASUMI_AGENT_REASONING_EFFORT || process.env.CODEX_REASONING_EFFORT || 'low';
-    const cwd = process.env.OYASUMI_AGENT_EXEC_CWD || process.cwd();
+function createOpenAiCompatibleSemanticClient() {
+    const apiKey = process.env.LLM_OPENAI_COMPATIBLE_API_KEY || process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        throw new Error('Semantic extraction requires LLM_OPENAI_COMPATIBLE_API_KEY or OPENROUTER_API_KEY');
+    }
+    const baseUrl = (process.env.LLM_OPENAI_COMPATIBLE_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/u, '');
+    const model = process.env.MANA_CHAT_MODEL || process.env.OYASUMI_SEMANTIC_MODEL || 'openai/gpt-4.1-mini';
 
     return {
         async extractPersonalKgCandidates({ prompt }) {
-            const outputPath = path.join(
-                os.tmpdir(),
-                `oyasumi-personal-kg-agent-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
-            );
-            const args = [
-                'exec',
-                '--ephemeral',
-                '--ignore-rules',
-                '--skip-git-repo-check',
-                '--sandbox',
-                'read-only',
-                '-C',
-                cwd,
-                '-c',
-                `model_reasoning_effort="${reasoningEffort}"`,
-                '--output-last-message',
-                outputPath
-            ];
-            if (model) args.push('--model', model);
-            args.push('-');
-
-            const agentPrompt = [
-                'You are a bounded extraction subagent for oyasumi Personal KG backfill.',
-                'Do not browse. Do not inspect files. Do not run commands.',
-                'Use only the source text in this prompt.',
-                'Return JSON only. No markdown, no commentary.',
-                '',
-                prompt.system,
-                '',
-                prompt.user
-            ].join('\n');
-
-            return new Promise((resolve, reject) => {
-                const child = spawn(codexPath, args, {
-                    env: {
-                        ...process.env,
-                        CODEX_DISABLE_TELEMETRY: '1'
-                    },
-                    stdio: ['pipe', 'pipe', 'pipe']
-                });
-                let stdout = '';
-                let stderr = '';
-                const timer = setTimeout(() => {
-                    child.kill('SIGTERM');
-                    reject(new Error(`Codex extraction subagent timed out after ${timeoutMs}ms`));
-                }, timeoutMs);
-
-                child.stdout.on('data', (chunk) => {
-                    stdout += chunk.toString();
-                });
-                child.stderr.on('data', (chunk) => {
-                    stderr += chunk.toString();
-                });
-                child.on('error', (error) => {
-                    clearTimeout(timer);
-                    reject(new Error(`Codex extraction subagent spawn failed: ${error.message}`));
-                });
-                child.on('close', (code) => {
-                    clearTimeout(timer);
-                    let output = '';
-                    try {
-                        if (fs.existsSync(outputPath)) {
-                            output = fs.readFileSync(outputPath, 'utf8');
-                            fs.unlinkSync(outputPath);
-                        }
-                    } catch (error) {
-                        reject(new Error(`Codex extraction subagent output read failed: ${error.message}`));
-                        return;
-                    }
-                    if (code !== 0) {
-                        reject(new Error(`Codex extraction subagent exited with code ${code}: ${(stderr || stdout).slice(0, 240)}`));
-                        return;
-                    }
-                    try {
-                        resolve(parseJsonObjectFromText(output || stdout));
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-                child.stdin.write(agentPrompt);
-                child.stdin.end();
+            const response = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model,
+                    temperature: 0.1,
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        { role: 'system', content: prompt.system },
+                        { role: 'user', content: prompt.user }
+                    ]
+                })
             });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`semantic LLM request failed: ${response.status} ${errorText.slice(0, 240)}`);
+            }
+            const payload = await response.json();
+            const content = payload?.choices?.[0]?.message?.content;
+            if (!content) throw new Error('semantic LLM response missing content');
+            return parseJsonObjectFromText(content);
         }
     };
-}
-
-function createSemanticClient() {
-    const backend = String(process.env.OYASUMI_SEMANTIC_BACKEND || 'codex').toLowerCase();
-    if (backend === 'codex' || backend === 'agent' || backend === 'subagent') {
-        return createCodexExecSemanticClient();
-    }
-    throw new Error(`Unsupported OYASUMI_SEMANTIC_BACKEND: ${backend}. Semantic extraction now uses codex/agent/subagent backends only.`);
 }
 
 function databaseConfig() {
@@ -374,7 +306,7 @@ async function main() {
         ? await extractMeetingPersonalKgCandidatesSemantic({
             date: args.date,
             meetings,
-            llmClient: createSemanticClient()
+            llmClient: createOpenAiCompatibleSemanticClient()
         })
         : extractMeetingPersonalKgCandidates({
             date: args.date,
