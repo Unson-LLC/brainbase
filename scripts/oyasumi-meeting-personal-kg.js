@@ -90,8 +90,16 @@ function parseJsonObjectFromText(text) {
     }
 }
 
+function defaultCodexPath() {
+    const candidates = [
+        path.join(os.homedir(), '.npm-global/bin/codex'),
+        '/usr/local/bin/codex'
+    ];
+    return candidates.find((candidate) => fs.existsSync(candidate)) || 'codex';
+}
+
 function createCodexExecSemanticClient() {
-    const codexPath = process.env.CODEX_CLI_PATH || process.env.OYASUMI_AGENT_EXEC_PATH || 'codex';
+    const codexPath = process.env.CODEX_CLI_PATH || process.env.OYASUMI_AGENT_EXEC_PATH || defaultCodexPath();
     const timeoutMs = Number(process.env.OYASUMI_AGENT_TIMEOUT_MS || process.env.CODEX_TIMEOUT_MS || 600000);
     const model = process.env.OYASUMI_AGENT_MODEL || process.env.OYASUMI_SEMANTIC_MODEL || '';
     const reasoningEffort = process.env.OYASUMI_AGENT_REASONING_EFFORT || process.env.CODEX_REASONING_EFFORT || 'low';
@@ -141,6 +149,7 @@ function createCodexExecSemanticClient() {
                 });
                 let stdout = '';
                 let stderr = '';
+                let stdinError = null;
                 const timer = setTimeout(() => {
                     child.kill('SIGTERM');
                     reject(new Error(`Codex extraction subagent timed out after ${timeoutMs}ms`));
@@ -151,6 +160,9 @@ function createCodexExecSemanticClient() {
                 });
                 child.stderr.on('data', (chunk) => {
                     stderr += chunk.toString();
+                });
+                child.stdin.on('error', (error) => {
+                    stdinError = error;
                 });
                 child.on('error', (error) => {
                     clearTimeout(timer);
@@ -169,7 +181,8 @@ function createCodexExecSemanticClient() {
                         return;
                     }
                     if (code !== 0) {
-                        reject(new Error(`Codex extraction subagent exited with code ${code}: ${(stderr || stdout).slice(0, 240)}`));
+                        const detail = stderr || stdout || stdinError?.message || 'no output';
+                        reject(new Error(`Codex extraction subagent exited with code ${code}: ${detail.slice(0, 240)}`));
                         return;
                     }
                     try {
@@ -178,8 +191,7 @@ function createCodexExecSemanticClient() {
                         reject(error);
                     }
                 });
-                child.stdin.write(agentPrompt);
-                child.stdin.end();
+                child.stdin.end(agentPrompt);
             });
         }
     };
