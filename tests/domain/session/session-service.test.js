@@ -199,6 +199,8 @@ describe('SessionService', () => {
                 sessionId: expect.any(String),
                 repoPath: expect.stringContaining('project-a'),
                 viewerId: 'viewer-test'
+            }), expect.objectContaining({
+                timeout: 120000
             }));
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
                 sessionId: expect.any(String),
