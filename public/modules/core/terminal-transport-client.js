@@ -1646,6 +1646,7 @@ export class TerminalTransportClient {
     _shouldSendTextImmediately(value) {
         if (typeof value !== 'string' || !value) return true;
         if (this._isControlTextInput(value)) return true;
+        if (this._isNavigationEscape(value)) return true;
         if (value.includes('\n') || value.includes('\r')) return true;
         const nextValue = this._pendingTextBuffer + value;
         return this._getUtf8ByteLength(nextValue) > TEXT_BATCH_MAX_BYTES;
