@@ -280,4 +280,67 @@ test.describe('story-terminal-input-render-stability', () => {
             document.getElementById('story-terminal-backspace-local-echo-host')?.remove();
         });
     });
+
+    test('AC: browser xterm sends repeated Escape immediately without text batching', async ({ page }) => {
+        // story-terminal-input-latency ac:1
+        // story-terminal-input-latency ac:3
+        await page.goto(BASE_URL);
+        await page.waitForLoadState('domcontentloaded');
+
+        const result = await page.evaluate(async () => {
+            const { TerminalTransportClient } = await import('/modules/core/terminal-transport-client.js');
+            const host = document.createElement('div');
+            host.id = 'story-terminal-escape-immediate-host';
+            host.style.width = '960px';
+            host.style.height = '240px';
+            host.style.position = 'fixed';
+            host.style.left = '0';
+            host.style.top = '0';
+            host.style.zIndex = '2147483647';
+            host.style.background = '#000';
+            document.body.appendChild(host);
+
+            const client = new TerminalTransportClient({
+                viewerId: 'story-e2e-escape',
+                viewerLabel: 'Story E2E Escape'
+            });
+            await client.init(host);
+            client.sessionId = 'session-1';
+            client.status.mode = 'live';
+            client.status.connected = true;
+            client.status.inputReady = true;
+            client.status.terminalAccess = { state: 'owner' };
+            client.ws = {
+                readyState: WebSocket.OPEN,
+                send(message) {
+                    this.sent.push({ at: performance.now(), message: JSON.parse(message) });
+                },
+                sent: []
+            };
+
+            await client.sendText('a');
+            await client.sendText('\x1b');
+            await client.sendText('\x1b');
+
+            return {
+                sentMessages: client.ws.sent.map(item => item.message),
+                pendingTextBuffer: client._pendingTextBuffer
+            };
+        });
+
+        expect(result.sentMessages).toEqual([
+            { type: 'input', inputType: 'text', value: 'a' },
+            { type: 'input', inputType: 'text', value: '\x1b' },
+            { type: 'input', inputType: 'text', value: '\x1b' }
+        ]);
+        expect(result.pendingTextBuffer).toBe('');
+
+        await page.screenshot({
+            path: 'var/test-results/story-terminal-escape-immediate.png',
+            fullPage: false
+        });
+        await page.evaluate(() => {
+            document.getElementById('story-terminal-escape-immediate-host')?.remove();
+        });
+    });
 });

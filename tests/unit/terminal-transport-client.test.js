@@ -615,6 +615,67 @@ describe('terminal-transport-client', () => {
     });
   });
 
+  it('Escはbatchせず即時送信し直前のbufferを先にflushする', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('a');
+    await client.sendText('\x1b');
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'a'
+    });
+    expect(JSON.parse(send.mock.calls[1][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '\x1b'
+    });
+
+    await vi.advanceTimersByTimeAsync(8);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('Esc連打はそれぞれ即時送信する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\x1b');
+    await client.sendText('\x1b');
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls.map(call => JSON.parse(call[0]))).toEqual([
+      { type: 'input', inputType: 'text', value: '\x1b' },
+      { type: 'input', inputType: 'text', value: '\x1b' }
+    ]);
+  });
+
   it('改行を含むtextは即時送信してbatchしない', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
