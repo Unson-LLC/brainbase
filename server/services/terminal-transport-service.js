@@ -11,7 +11,6 @@ const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
-const STREAMING_INLINE_TEXT_MAX_BYTES = 1024;
 const MAX_SCROLL_STEPS = 8;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const MIN_TERMINAL_COLS = 40;
@@ -21,24 +20,6 @@ const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAIT
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
 const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1B\\)?/gi;
 const FOCUS_EVENT_PATTERN = /(?:\x1B)?\[(?:I|O)/g;
-const STREAMING_TEXT_CONTROL_KEY_MAP = new Map([
-    ['\r', 'Enter'],
-    ['\n', 'Enter'],
-    ['\r\n', 'Enter'],
-    ['\x7f', 'BSpace'],
-    ['\x08', 'BSpace'],
-    ['\x03', 'C-c'],
-    ['\x04', 'C-d'],
-    ['\x0c', 'C-l'],
-    ['\x15', 'C-u'],
-    ['\x1b', 'Escape'],
-    ['\t', 'Tab'],
-    ['\x1b[A', 'Up'],
-    ['\x1b[B', 'Down'],
-    ['\x1b[C', 'Right'],
-    ['\x1b[D', 'Left']
-]);
-
 function safeJsonParse(raw) {
     try {
         return JSON.parse(raw);
@@ -701,30 +682,7 @@ export class TerminalTransportService {
     }
 
     _sendStreamingInput(connection, value, inputType) {
-        if (connection.transport !== 'streaming' || !connection.controlClient) return false;
-
-        try {
-            if (inputType === 'key') {
-                if (value === 'M-Enter' || value === 'S-Enter') return false;
-                return connection.controlClient.sendKey?.(value) === true;
-            }
-
-            if (inputType !== 'text' || typeof value !== 'string' || !value) return false;
-
-            const mappedKey = STREAMING_TEXT_CONTROL_KEY_MAP.get(value);
-            if (mappedKey) {
-                return connection.controlClient.sendKey?.(mappedKey) === true;
-            }
-
-            if (value.includes('\n') || value.includes('\r')) return false;
-            if (/[\x00-\x1f\x7f]/.test(value)) return false;
-            if (Buffer.byteLength(value, 'utf8') > STREAMING_INLINE_TEXT_MAX_BYTES) return false;
-
-            return connection.controlClient.sendLiteralText?.(value) === true;
-        } catch (err) {
-            logger.warn(`[TerminalTransport] streaming input fallback for ${connection.sessionId}: ${err?.message || err}`);
-            return false;
-        }
+        return false;
     }
 
     /**
