@@ -108,6 +108,63 @@ describe('SessionManager', () => {
     expect(result.runtimeStatus.proxyPath).toBe('/console/session-1');
   });
 
+  // story-tmux-missing-runtime-pause regression test (2026-05-21):
+  // 17 sessions が active+tmux_missing で滞留した incident の root cause。
+  // 修正後は ensureTtydForActiveSession が直接 _pauseSessionsForMissingTmux を
+  // 呼んで paused に flip し、 10 分おきの warn loop を完全に止める。
+  it('ensureTtydForActiveSession_tmux_不在時_セッションがpausedに_flipされる', async () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    const manager = createManager();
+    vi.spyOn(manager, '_isTmuxSessionRunning').mockResolvedValue(false);
+    const pauseSpy = vi.spyOn(manager, '_pauseSessionsForMissingTmux');
+
+    const result = await manager.ensureTtydForActiveSession({
+      id: 'session-1',
+      intendedState: 'active',
+      engine: 'claude',
+      ttydProcess: null,
+    });
+
+    expect(result.restarted).toBe(false);
+    expect(result.skippedReason).toBe('tmux_missing');
+    expect(result.paused).toBe(true);
+    expect(pauseSpy).toHaveBeenCalledWith(['session-1'], { reason: 'tmux_missing_runtime' });
+  });
+
+  it('_pauseSessionsForMissingTmux_state_を_paused_に更新し_activeSessions_からも除外する', async () => {
+    const manager = createManager();
+    manager.activeSessions.set('session-1', { port: 40100, pid: 23456 });
+    manager.activeSessions.set('session-2', { port: 40101, pid: 23457 });
+
+    const result = await manager._pauseSessionsForMissingTmux(['session-1', 'session-2'], {
+      reason: 'tmux_missing_runtime',
+    });
+
+    expect(result.paused).toEqual(['session-1', 'session-2']);
+    expect(manager.activeSessions.has('session-1')).toBe(false);
+    expect(manager.activeSessions.has('session-2')).toBe(false);
+
+    const state = manager.stateStore.get();
+    for (const s of state.sessions) {
+      expect(s.intendedState).toBe('paused');
+      expect(s.pausedReason).toBe('tmux_missing_runtime');
+      expect(s.tmuxMissingAt).toBeTruthy();
+      expect(s.pausedAt).toBeTruthy();
+      expect(s.ttydProcess).toBeNull();
+    }
+  });
+
+  it('_pauseSessionsForMissingTmux_空_input_は_no-op_で例外を出さない', async () => {
+    const manager = createManager();
+    const result = await manager._pauseSessionsForMissingTmux([], { reason: 'tmux_missing_runtime' });
+    expect(result.paused).toEqual([]);
+  });
+
+  it('_pauseSessionsForMissingTmux_reason_未指定なら_throw', async () => {
+    const manager = createManager();
+    await expect(manager._pauseSessionsForMissingTmux(['session-1'], {})).rejects.toThrow(/reason is required/);
+  });
+
   it('reportActivity_working_latest_sets_isWorking_true', () => {
     const manager = createManager();
     const now = Date.now();
