@@ -21,8 +21,10 @@
  *   node server/scripts/pause-orphan-tmux-missing-sessions.js --apply --session session-1778025113158
  *
  * The script talks to a running brainbase-ui via its terminal-health endpoint
- * to discover tmux_missing sessions, then issues a session stop request via
- * the existing internal API.
+ * to discover tmux_missing sessions, then PATCHes their state to `paused` via
+ * `/api/state/sessions/:id`. We can't use `/api/sessions/:id/stop` because
+ * tmux_missing sessions are already absent from the runtime activeSessions map
+ * (so /stop returns 404 without updating persisted state).
  */
 
 import { argv, exit } from 'node:process';
@@ -62,20 +64,32 @@ function collectTmuxMissingSessionIds(health, filter) {
   return [...ids];
 }
 
-async function stopSession(sessionId) {
-  // POST /api/sessions/:id/stop preserves tmux=false by default which is fine
-  // (tmux is already gone — that's the whole point). The server-side stop
-  // handler will mark the session paused and clear ttydProcess.
-  const res = await fetch(`${HEALTH_URL}/api/sessions/${encodeURIComponent(sessionId)}/stop`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ preserveTmux: false }),
+async function pauseSession(sessionId) {
+  // PATCH /api/state/sessions/:id で intendedState を直接 paused に更新する。
+  // 2026-05-21 incident: /api/sessions/:id/stop は activeSessions map に対象
+  // が存在しないと 404 を返して state を更新しない。 tmux_missing sessions は
+  // すでに activeSessions から外れているので /stop は使えない。 直接 state
+  // を mutate するこの経路を採用する。 _pauseSessionsForMissingTmux helper
+  // と同じ field set を書き込んで挙動を揃える。
+  const now = new Date().toISOString();
+  const body = JSON.stringify({
+    intendedState: 'paused',
+    pausedReason: 'tmux_missing_runtime',
+    pausedAt: now,
+    tmuxMissingAt: now,
+    ttydProcess: null,
   });
-  if (!res.ok && res.status !== 404) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`POST /api/sessions/${sessionId}/stop -> ${res.status} ${body.slice(0, 200)}`);
+  const res = await fetch(`${HEALTH_URL}/api/state/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body,
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`PATCH /api/state/sessions/${sessionId} -> ${res.status} ${errBody.slice(0, 200)}`);
   }
-  return res.status;
+  const patched = await res.json().catch(() => ({}));
+  return { status: res.status, intendedState: patched.intendedState, pausedReason: patched.pausedReason };
 }
 
 async function main() {
@@ -93,7 +107,7 @@ async function main() {
   }
 
   if (dryRun) {
-    console.log('[pause-orphan] dry-run: not stopping. re-run with --apply');
+    console.log('[pause-orphan] dry-run: not patching. re-run with --apply');
     return;
   }
 
@@ -101,8 +115,8 @@ async function main() {
   let fail = 0;
   for (const id of ids) {
     try {
-      const status = await stopSession(id);
-      console.log(`  ✓ stopped ${id} (HTTP ${status})`);
+      const r = await pauseSession(id);
+      console.log(`  ✓ paused ${id} (HTTP ${r.status}, intendedState=${r.intendedState}, pausedReason=${r.pausedReason})`);
       ok++;
     } catch (err) {
       console.error(`  ✗ ${id}: ${err.message}`);
