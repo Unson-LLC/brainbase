@@ -315,6 +315,8 @@ tmux set -g history-limit 5000 2>/dev/null || true
 if [ "$ENGINE" = "codex" ]; then
     ensure_codex_workspace_trusted "$WORKTREE_PATH"
     sync_codex_project_commands
+else
+    ensure_claude_workspace_trusted "$WORKTREE_PATH"
 fi
 
 if [ -d "$JJ_GUARD_DIR" ]; then
