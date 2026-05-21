@@ -993,7 +993,7 @@ describe('terminal-transport-client', () => {
     });
   });
 
-  it('Backspaceは未確認local echoがなければPTYの描画に任せる', async () => {
+  it('Backspaceは未確認local echoがなくても即時消去して送信する', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -1011,8 +1011,8 @@ describe('terminal-transport-client', () => {
 
     await client.sendText('\x7f');
 
-    expect(client.terminal.write).not.toHaveBeenCalled();
-    expect(inputTelemetry.counters.localBackspaceEcho || 0).toBe(0);
+    expect(client.terminal.write.mock.calls.map(call => call[0])).toEqual(['\b \b']);
+    expect(inputTelemetry.counters.localBackspaceEcho).toBe(1);
     expect(send).toHaveBeenCalledTimes(1);
   });
 
@@ -1040,6 +1040,48 @@ describe('terminal-transport-client', () => {
     expect(client._pendingEchoText).toBe('あ');
     expect(inputTelemetry.counters.localBackspaceEcho || 0).toBe(0);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('Backspaceのローカル消去後に返る単純なPTY echoは二重描画しない', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn((text, callback) => callback?.())
+    };
+
+    client.terminal = terminal;
+    client.status.mode = 'live';
+
+    client._applyLocalEcho('\x7f');
+    expect(terminal.write).toHaveBeenCalledWith('\b \b', expect.any(Function));
+
+    terminal.write.mockClear();
+    client._applyOutput('\b \b');
+
+    expect(terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingBackspaceEchoCount).toBe(0);
+  });
+
+  it('Backspaceのローカル消去後に返る行再描画は通常どおり描画して保留状態を解除する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn((text, callback) => callback?.())
+    };
+
+    client.terminal = terminal;
+    client.status.mode = 'live';
+
+    client._applyLocalEcho('\x7f');
+    terminal.write.mockClear();
+    client._applyOutput('\r\x1b[K> ab');
+
+    expect(terminal.write).toHaveBeenCalledWith('\r\x1b[K> ab', expect.any(Function));
+    expect(client._pendingBackspaceEchoCount).toBe(0);
   });
 
   it('日本語IME確定文字はローカルエコーせずPTYの描画に任せる', async () => {
