@@ -380,6 +380,24 @@ describe('input commands', () => {
         expect(process.stdin.write).not.toHaveBeenCalled();
     });
 
+    it('sendLiteralText呼び出し時_control-mode processが終了済みならfalseを返す', () => {
+        const { client, process } = createStartedClient();
+        client.process = null;
+
+        expect(client.sendLiteralText('hello')).toBe(false);
+
+        expect(process.stdin.write).not.toHaveBeenCalled();
+    });
+
+    it('sendLiteralText呼び出し時_stdinが閉じていればfalseを返す', () => {
+        const { client, process } = createStartedClient();
+        process.stdin.destroyed = true;
+
+        expect(client.sendLiteralText('hello')).toBe(false);
+
+        expect(process.stdin.write).not.toHaveBeenCalled();
+    });
+
     it('sendKey呼び出し時_allowlistされたkeyだけをcontrol-modeへ送る', () => {
         const { client, process } = createStartedClient();
 
@@ -390,5 +408,14 @@ describe('input commands', () => {
         expect(process.stdin.write).toHaveBeenCalledWith(
             'send-keys -t "test session" BSpace\n'
         );
+    });
+
+    it('sendKey呼び出し時_control-mode processが終了済みならfalseを返す', () => {
+        const { client, process } = createStartedClient();
+        client.process = null;
+
+        expect(client.sendKey('BSpace')).toBe(false);
+
+        expect(process.stdin.write).not.toHaveBeenCalled();
     });
 });
