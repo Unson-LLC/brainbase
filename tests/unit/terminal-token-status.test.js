@@ -90,7 +90,7 @@ describe('terminal token status', () => {
     expect(app.terminalTokenStatusEl.title).toContain('Codex token limits: 5h usage 26%, elapsed time 60%, 7d usage 63%, elapsed time 85%');
   });
 
-  it('terminal token status is rendered in the header instead of overlaying terminal input', () => {
+  it('terminal toolbar stays mounted but hidden instead of overlaying terminal input', () => {
     const indexHtml = readFileSync(join(process.cwd(), 'public/index.html'), 'utf8');
     const styleCss = readFileSync(join(process.cwd(), 'public/style.css'), 'utf8');
     const headerStatusStart = indexHtml.indexOf('<div class="terminal-header-status-group">');
@@ -101,6 +101,8 @@ describe('terminal token status', () => {
     expect(headerStatusStart).toBeGreaterThan(-1);
     expect(tokenStatusIndex).toBeGreaterThan(headerStatusStart);
     expect(tokenStatusIndex).toBeLessThan(terminalStageIndex);
+    expect(styleCss).toContain('.console-area > .terminal-header');
+    expect(styleCss).toContain('display: none;');
     expect(tokenStatusBlock).not.toContain('position: absolute');
     expect(tokenStatusBlock).not.toContain('bottom:');
   });
