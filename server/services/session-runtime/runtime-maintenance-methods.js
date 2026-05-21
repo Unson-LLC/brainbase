@@ -142,22 +142,11 @@ export const runtimeMaintenanceMethods = {
             }
 
             if (pauseSessionIds.size > 0) {
-                const now = new Date().toISOString();
-                const currentState = this.stateStore.get();
-                const updatedSessions = (currentState.sessions || []).map(session => {
-                    if (!pauseSessionIds.has(session.id)) return session;
-                    return {
-                        ...session,
-                        intendedState: 'paused',
-                        pausedReason: 'tmux_missing_on_restore',
-                        pausedAt: now,
-                        tmuxMissingAt: now,
-                        ttydProcess: null,
-                        updatedAt: now
-                    };
+                // 2026-05-21: consolidated path. Single source of truth for
+                // tmux_missing → paused transition lives in _pauseSessionsForMissingTmux.
+                await this._pauseSessionsForMissingTmux(pauseSessionIds, {
+                    reason: 'tmux_missing_on_restore',
                 });
-                await this.stateStore.update({ ...currentState, sessions: updatedSessions });
-                logger.warn(`[restoreActiveSessions] Paused ${pauseSessionIds.size} session(s) with missing TMUX`);
             }
 
             logger.info(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
@@ -176,6 +165,57 @@ export const runtimeMaintenanceMethods = {
         } catch (err) {
             logger.error('[restoreActiveSessions] Error:', err);
         }
+    },
+
+    /**
+     * tmux runtime が missing な active session を paused に flip する単一の
+     * state transition point。 boot-time restore と periodic ensure ループの
+     * 双方から呼ばれる。
+     *
+     * 2026-05-21: 17 sessions が tmux_missing で degraded のまま滞留した
+     * incident への対応で抽出。以前は restoreActiveSessions が inline で同様
+     * の更新を行い、ensureTtydForActiveSession は warn だけして state 更新を
+     * 行っていなかった。 単一経路に集約して再発を防ぐ。
+     *
+     * @param {Iterable<string>} sessionIds
+     * @param {{ reason: 'tmux_missing_on_restore'|'tmux_missing_runtime' }} options
+     * @returns {Promise<{ paused: string[] }>}
+     */
+    async _pauseSessionsForMissingTmux(sessionIds, { reason } = {}) {
+        const ids = new Set();
+        for (const id of sessionIds || []) {
+            if (typeof id === 'string' && id.length > 0) ids.add(id);
+        }
+        if (ids.size === 0) return { paused: [] };
+        if (typeof reason !== 'string' || reason.length === 0) {
+            throw new Error('[_pauseSessionsForMissingTmux] reason is required');
+        }
+
+        const now = new Date().toISOString();
+        const currentState = this.stateStore.get();
+        const updatedSessions = (currentState.sessions || []).map(session => {
+            if (!ids.has(session.id)) return session;
+            return {
+                ...session,
+                intendedState: 'paused',
+                pausedReason: reason,
+                pausedAt: now,
+                tmuxMissingAt: now,
+                ttydProcess: null,
+                updatedAt: now,
+            };
+        });
+        await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+
+        // Drop from active registry so future ensure ticks skip them.
+        for (const id of ids) {
+            this.activeSessions.delete(id);
+        }
+
+        logger.warn(
+            `[_pauseSessionsForMissingTmux] Paused ${ids.size} session(s) with reason=${reason}: ${[...ids].join(', ')}`
+        );
+        return { paused: [...ids] };
     },
 
     async cleanupOrphans() {
