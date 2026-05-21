@@ -702,7 +702,7 @@ describe('terminal-transport-client', () => {
     expect(client.terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
   });
 
-  it('paste内の改行はbare EnterではなくS-Enterとして送信する', async () => {
+  it('paste内の改行は行分割せずpaste messageとして一括送信する', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -721,15 +721,12 @@ describe('terminal-transport-client', () => {
 
     await client.sendPasteText('hello\nworld\r\nagain');
 
-    expect(send).toHaveBeenCalledTimes(5);
-    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
-      { type: 'input', inputType: 'text', value: 'hello' },
-      { type: 'input', inputType: 'key', value: 'S-Enter' },
-      { type: 'input', inputType: 'text', value: 'world' },
-      { type: 'input', inputType: 'key', value: 'S-Enter' },
-      { type: 'input', inputType: 'text', value: 'again' }
-    ]);
-    expect(send.mock.calls.some(([raw]) => JSON.parse(raw).value?.includes?.('\n'))).toBe(false);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'paste',
+      value: 'hello\nworld\r\nagain'
+    });
     expect(submitSpy).not.toHaveBeenCalled();
   });
 

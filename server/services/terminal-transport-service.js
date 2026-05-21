@@ -544,9 +544,13 @@ export class TerminalTransportService {
             case 'input': {
                 const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
                 connection.terminalAccess = terminalAccess;
-                const inputTypeForLog = message.inputType === 'key' ? 'key' : 'text';
+                const inputTypeForLog = message.inputType === 'key'
+                    ? 'key'
+                    : message.inputType === 'paste'
+                        ? 'paste'
+                        : 'text';
                 const rawValue = typeof message.value === 'string' ? message.value : '';
-                const normalizedValue = inputTypeForLog === 'text'
+                const normalizedValue = inputTypeForLog === 'text' || inputTypeForLog === 'paste'
                     ? this._stripTerminalControlResponses(rawValue)
                     : rawValue;
                 const valueLen = normalizedValue.length;
@@ -555,7 +559,7 @@ export class TerminalTransportService {
                     ? normalizedValue.replace(/[\x00-\x1F\x7F]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`).slice(0, 60)
                     : '';
                 logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state} debug="${valueDebug}"`);
-                if (inputTypeForLog === 'text' && !normalizedValue && rawValue) {
+                if ((inputTypeForLog === 'text' || inputTypeForLog === 'paste') && !normalizedValue && rawValue) {
                     logger.info(`[INPUT-TELEMETRY] ignored reason=TERMINAL_CONTROL_RESPONSE session=${sessionId} originalLen=${rawValue.length}`);
                     return;
                 }
@@ -591,7 +595,15 @@ export class TerminalTransportService {
                 try {
                     sentViaStreaming = this._sendStreamingInput(connection, normalizedValue, inputType);
                     if (!sentViaStreaming) {
-                        await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
+                        if (inputType === 'paste') {
+                            await this.terminalIo.sendInput(sessionId, normalizedValue, 'text', {
+                                forcePaste: true,
+                                bracketedPaste: true,
+                                preserveLineFeed: true
+                            });
+                        } else {
+                            await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
+                        }
                     }
                     logger.info(`[INPUT-TELEMETRY] sentOk session=${sessionId} len=${valueLen} type=${inputType} route=${sentViaStreaming ? 'control-mode' : 'terminal-io'}`);
                 } catch (err) {

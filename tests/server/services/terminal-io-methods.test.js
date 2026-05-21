@@ -168,6 +168,51 @@ describe('terminalIoMethods input routing', () => {
         expect(manager._sendNamedKey).not.toHaveBeenCalled();
     });
 
+    it('forcePaste指定の複数行入力はbracketed pasteオプションをpaste-bufferへ渡す', async () => {
+        const manager = {
+            ...terminalIoMethods,
+            ALLOWED_KEYS: [],
+            terminalMutationQueues: new Map(),
+            execPromise: vi.fn(async () => ({ stdout: '' })),
+            _capturePromptInput: vi.fn(async () => {}),
+            _pasteInputFromTempFile: vi.fn(async () => {}),
+            _runTmux: vi.fn(async () => ({ stdout: '' }))
+        };
+
+        await manager.sendInput('session-1', 'hello\nworld', 'text', {
+            forcePaste: true,
+            bracketedPaste: true,
+            preserveLineFeed: true
+        });
+
+        expect(manager._pasteInputFromTempFile).toHaveBeenCalledWith('session-1', 'hello\nworld', {
+            bracketedPaste: true,
+            preserveLineFeed: true
+        });
+    });
+
+    it('bracketed paste指定時はtmux paste-bufferに-pと-rを付ける', async () => {
+        const manager = {
+            ...terminalIoMethods,
+            _runTmux: vi.fn(async () => ({ stdout: '' }))
+        };
+
+        await manager._pasteInputFromTempFile('session-1', 'hello\nworld', {
+            bracketedPaste: true,
+            preserveLineFeed: true
+        });
+
+        expect(manager._runTmux).toHaveBeenCalledWith(expect.arrayContaining(['load-buffer']));
+        expect(manager._runTmux).toHaveBeenCalledWith(expect.arrayContaining([
+            'paste-buffer',
+            '-d',
+            '-p',
+            '-r',
+            '-t',
+            'session-1'
+        ]));
+    });
+
     it('S-EnterはShift+Enter CSI-u sequenceとして送る', async () => {
         const manager = {
             ...terminalIoMethods,

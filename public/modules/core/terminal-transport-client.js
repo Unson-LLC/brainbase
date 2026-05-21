@@ -996,16 +996,8 @@ export class TerminalTransportClient {
             return;
         }
 
-        const lines = text.split(/\r\n|\r|\n/);
-        for (let i = 0; i < lines.length; i += 1) {
-            if (lines[i]) {
-                await this.sendText(lines[i]);
-            }
-            if (i < lines.length - 1) {
-                await this.sendKey('S-Enter');
-            }
-        }
-        await this._flushBufferedText({ enqueueIfUnavailable: true });
+        await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
+        await this._dispatchPasteMessage(text);
     }
 
     async sendKey(value) {
@@ -1688,6 +1680,23 @@ export class TerminalTransportClient {
         this.ws.send(JSON.stringify(message));
         inputTelemetry.inc('sentOk');
         ttcDebug('[TTC-PROBE] dispatch sent', { len: value.length });
+    }
+
+    async _dispatchPasteMessage(value) {
+        const message = { type: 'input', inputType: 'paste', value };
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            this._messageQueue.enqueue(message);
+            inputTelemetry.inc('queued');
+            return;
+        }
+        if (!this.canSendInput(this.sessionId) && !await this._ensureInputReadyForUserInput()) {
+            this._messageQueue.enqueue(message);
+            inputTelemetry.inc('queued');
+            return;
+        }
+        await this._ensureInteractiveMode();
+        this.ws.send(JSON.stringify(message));
+        inputTelemetry.inc('sentOk');
     }
 
     _canSendInputWithoutReady(sessionId) {
