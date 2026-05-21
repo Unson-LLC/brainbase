@@ -30,6 +30,7 @@ visibility_rules:
   - general uses the workspace root and always enables worktree by default.
   - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
   - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
+  - The initial prompt entered in the create-session modal must be passed to the worktree runtime launch, not typed later into the terminal.
   - Codex worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
   - Claude Code worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
 verification:
@@ -43,12 +44,14 @@ verification:
     - session.project equals the selected project.
     - Worktree sessions have expected worktree path and repo metadata.
     - Worktree session creation closes the modal and selects the pending shell before runtime startup completes.
+    - A create-modal initial prompt is delivered as the runtime initial command and is not duplicated through terminal typeahead.
     - Codex worktree sessions reach the Codex prompt without a workspace trust picker.
     - Claude Code worktree sessions reach the Claude Code prompt without a workspace trust picker.
 common_failures:
   - Project missing from dropdown due to auth grant filtering.
   - Project path resolves to fallback because config local.path is missing or stale.
   - Existing git/jj locks block worktree creation.
+  - Worktree startup ignores the create-modal prompt if shell-first startup drops initialCommand before POST /api/sessions/create-with-worktree.
   - Codex stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.codex/config.toml.
   - Claude Code stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.claude.json.
 runbooks:

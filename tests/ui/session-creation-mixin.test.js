@@ -102,7 +102,7 @@ describe('applySessionCreationMixin', () => {
         }));
         expect(sessionService.createSession).toHaveBeenCalledWith(expect.objectContaining({
             sessionId: createdSessionId,
-            initialCommand: '',
+            initialCommand: 'first prompt',
             useWorktree: true,
             allowRegularFallback: false
         }));
@@ -113,8 +113,9 @@ describe('applySessionCreationMixin', () => {
 
         resolveStartup({ sessionId: createdSessionId, proxyPath: '/console/session-shell' });
         await vi.waitFor(() => {
-            expect(terminalInteractionService.sendInput).toHaveBeenCalledWith(createdSessionId, 'first prompt');
+            expect(sessionService.createSession).toHaveBeenCalledTimes(1);
         });
+        expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
     });
 
     it('startup composer draft is not sent unless user explicitly queues it', async () => {
@@ -443,8 +444,12 @@ describe('applySessionCreationMixin', () => {
 
         resolveStartup({ sessionId: result.sessionId, proxyPath: `/console/${result.sessionId}` });
         await vi.waitFor(() => {
-            expect(terminalInteractionService.sendInput).toHaveBeenCalledWith(result.sessionId, 'queued prompt');
+            expect(sessionService.createSession).toHaveBeenCalledWith(expect.objectContaining({
+                sessionId: result.sessionId,
+                initialCommand: 'queued prompt'
+            }));
         });
+        expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
         expect(appStore.getState().currentSessionId).toBe('other-session');
     });
 
