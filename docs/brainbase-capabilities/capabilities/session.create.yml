@@ -30,6 +30,7 @@ visibility_rules:
   - general uses the workspace root and always enables worktree by default.
   - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
   - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
+  - Codex worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
 verification:
   commands:
     - GET /api/state or session list API after creation
@@ -41,10 +42,12 @@ verification:
     - session.project equals the selected project.
     - Worktree sessions have expected worktree path and repo metadata.
     - Worktree session creation closes the modal and selects the pending shell before runtime startup completes.
+    - Codex worktree sessions reach the Codex prompt without a workspace trust picker.
 common_failures:
   - Project missing from dropdown due to auth grant filtering.
   - Project path resolves to fallback because config local.path is missing or stale.
   - Existing git/jj locks block worktree creation.
+  - Codex stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.codex/config.toml.
 runbooks:
   - ../runbooks/missing-project-in-session-selector.md
 troubleshooting:

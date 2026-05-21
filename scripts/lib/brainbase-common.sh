@@ -126,3 +126,56 @@ post_brainbase_activity_json() {
     -d "$payload_json" \
     --max-time 1 >/dev/null 2>&1 || true
 }
+
+# Mark a Brainbase-created worktree as trusted for Codex before launching it.
+# Codex prompts on first entry to a new worktree; that blocks Brainbase session
+# startup. Appending a project trust entry keeps the security decision explicit
+# while avoiding a per-session interactive prompt.
+ensure_codex_workspace_trusted() {
+  local workspace_path="$1"
+
+  if [ -z "$workspace_path" ] || [ ! -d "$workspace_path" ]; then
+    return 0
+  fi
+  if [ -z "$HOME" ] || ! command -v python3 >/dev/null 2>&1; then
+    return 0
+  fi
+
+  CODEX_TRUST_WORKSPACE_PATH="$workspace_path" python3 - <<'PY'
+import os
+from pathlib import Path
+
+workspace_path = os.environ.get("CODEX_TRUST_WORKSPACE_PATH", "")
+home = os.environ.get("HOME", "")
+if not workspace_path or not home:
+    raise SystemExit(0)
+
+try:
+    workspace_path = os.path.realpath(workspace_path)
+except OSError:
+    raise SystemExit(0)
+
+config_dir = Path(home) / ".codex"
+config_path = config_dir / "config.toml"
+config_dir.mkdir(parents=True, exist_ok=True)
+
+try:
+    text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+except OSError:
+    raise SystemExit(0)
+
+escaped_path = workspace_path.replace("\\", "\\\\").replace('"', '\\"')
+header = f'[projects."{escaped_path}"]'
+if header in text:
+    raise SystemExit(0)
+
+prefix = "\n" if text and not text.endswith("\n") else ""
+entry = f'{prefix}\n{header}\ntrust_level = "trusted"\n'
+
+try:
+    with config_path.open("a", encoding="utf-8") as f:
+        f.write(entry)
+except OSError:
+    raise SystemExit(0)
+PY
+}
