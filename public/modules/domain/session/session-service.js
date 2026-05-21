@@ -380,6 +380,8 @@ export class SessionService {
                 project,
                 viewerId: this.viewerId,
                 viewerLabel: this.viewerLabel
+            }, {
+                timeout: 120000
             });
         } catch (error) {
             const reason = error?.message || 'Worktree creation failed';

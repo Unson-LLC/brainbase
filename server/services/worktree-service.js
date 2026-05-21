@@ -910,6 +910,29 @@ export class WorktreeService {
         return { workspaceName, branchName, gitWorktreePath };
     }
 
+    async _reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity) {
+        logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
+        await this._ensureGitCompatibility(sessionId, repoPath, workspacePath, workspaceIdentity);
+        const mainBranchName = await this._getMainBranchName(repoPath);
+        const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
+        const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
+        return {
+            worktreePath: workspacePath,
+            branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
+            repoPath,
+            startCommit,
+            workspaceName,
+            workspaceId: workspaceIdentity.workspaceId,
+            generation: workspaceIdentity.generation
+        };
+    }
+
+    _isWorkspaceAlreadyExistsError(err, workspaceName) {
+        const message = err instanceof Error ? err.message : String(err || '');
+        return message.includes(`Workspace named '${workspaceName}' already exists`)
+            || message.includes(`Workspace named "${workspaceName}" already exists`);
+    }
+
     async _removeGitCompatibility(sessionId, repoPath, options = {}) {
         const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
         const branchName = this._getSessionBranchName(sessionId, options);
@@ -971,20 +994,7 @@ export class WorktreeService {
                     'workspace list'
                 );
                 if (workspaceList.includes(`${workspaceName}:`)) {
-                    logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
-                    await this._ensureGitCompatibility(sessionId, repoPath, workspacePath, workspaceIdentity);
-                    const mainBranchName = await this._getMainBranchName(repoPath);
-                    const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
-                    const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
-                    return {
-                        worktreePath: workspacePath,
-                        branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
-                        repoPath,
-                        startCommit,
-                        workspaceName,
-                        workspaceId: workspaceIdentity.workspaceId,
-                        generation: workspaceIdentity.generation
-                    };
+                    return await this._reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity);
                 }
             } catch {
                 // Workspace doesn't exist, continue to create
@@ -1005,11 +1015,19 @@ export class WorktreeService {
             const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
 
             // Create workspace
-            await this._execJujutsuWithStaleRetry(
-                repoPath,
-                `workspace add --name "${workspaceName}" -r "${workspaceBaseRevision}" --sparse-patterns full "${workspacePath}"`
-            );
-            logger.info(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
+            try {
+                await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `workspace add --name "${workspaceName}" -r "${workspaceBaseRevision}" --sparse-patterns full "${workspacePath}"`
+                );
+                logger.info(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
+            } catch (addErr) {
+                if (this._isWorkspaceAlreadyExistsError(addErr, workspaceName)) {
+                    logger.warn(`[workspace] Workspace appeared during create: ${workspaceName}, reusing existing workspace`);
+                    return await this._reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity);
+                }
+                throw addErr;
+            }
 
             // Run post-creation tasks in parallel (all non-critical, try-catch wrapped)
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
