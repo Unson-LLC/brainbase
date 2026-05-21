@@ -22,6 +22,7 @@ visibility_rules:
   - Focus loss can look like input transport failure.
   - Pending or failed startup shells must keep the startup composer visible and reject terminal IO until the runtime is ready.
   - Outer terminal capability/color/focus responses must be consumed by the PTY shim and must not reach Codex stdin.
+  - Terminal writes must coalesce xterm renderer refreshes so bottom-row redraws do not leave stale duplicate cells.
 verification:
   commands:
     - npm test -- tests/unit/terminal-transport-client.test.js
@@ -33,11 +34,13 @@ verification:
     - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
     - Xterm focus reports (`ESC[I`, `ESC[O`) and bare focus fragments (`[I`, `[O`) are not echoed or sent as terminal input.
     - Terminal responses such as `ESC[?0u`, `ESC[0u`, `ESC[I`, `ESC[O`, and OSC 10/11 color responses are dropped before Codex can treat ESC as interrupt.
+    - Streaming writes refresh the lower visible rows after write callbacks, and reset snapshots refresh all visible rows.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
   - Focus reporting bytes or focus loss disrupt input order.
   - Terminal response bytes leak into Codex input, causing visible fragments like `[0` or `]10;rgb...` and unsolicited "Conversation interrupted" states.
+  - Xterm renderer keeps stale lower-row cells after rapid prompt/status redraws, making the bottom of the terminal look duplicated.
   - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
 runbooks:
   - ../runbooks/verify-31013-source.md

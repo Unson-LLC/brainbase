@@ -2297,8 +2297,10 @@ describe('terminal-transport-client', () => {
       const writeCallbacks = [];
       client.terminal = {
         write: vi.fn((text, cb) => { writeCallbacks.push(cb); }),
+        refresh: vi.fn(),
         scrollToBottom: vi.fn(),
         scrollToLine: vi.fn(),
+        rows: 30,
         buffer: { active: { baseY: 100, viewportY: 80 } }
       };
       const restoreSpy = vi.spyOn(client, '_restoreViewportState');
@@ -2310,12 +2312,14 @@ describe('terminal-transport-client', () => {
       expect(restoreSpy).toHaveBeenCalledTimes(1);
       expect(restoreSpy.mock.calls[0][0].wasPinnedToBottom).toBe(false);
 
-      expect(rafCallbacks).toHaveLength(1);
+      expect(rafCallbacks).toHaveLength(2);
       rafCallbacks[0]?.();
       expect(restoreSpy).toHaveBeenCalledTimes(2);
+      rafCallbacks[1]?.();
+      expect(client.terminal.refresh).toHaveBeenCalledWith(18, 29);
     });
 
-    it('_writeToTerminal: pinned=true のときは rAF再復元しない', () => {
+    it('_writeToTerminal: pinned=true のときは下部行だけ次フレームでrefreshする', () => {
       const client = new TerminalTransportClient({
         viewerId: 'viewer-mobile-2',
         viewerLabel: 'Mobile'
@@ -2323,8 +2327,10 @@ describe('terminal-transport-client', () => {
       const writeCallbacks = [];
       client.terminal = {
         write: vi.fn((text, cb) => { writeCallbacks.push(cb); }),
+        refresh: vi.fn(),
         scrollToBottom: vi.fn(),
         scrollToLine: vi.fn(),
+        rows: 30,
         buffer: { active: { baseY: 100, viewportY: 100 } }
       };
       const restoreSpy = vi.spyOn(client, '_restoreViewportState');
@@ -2334,7 +2340,34 @@ describe('terminal-transport-client', () => {
       client._writeToTerminal('hello');
       writeCallbacks[0]?.();
       expect(restoreSpy).toHaveBeenCalledTimes(1);
-      expect(rafCallbacks).toHaveLength(0);
+      expect(rafCallbacks).toHaveLength(1);
+      rafCallbacks[0]?.();
+      expect(client.terminal.refresh).toHaveBeenCalledWith(18, 29);
+    });
+
+    it('_applySnapshot: reset描画後は全表示行をrefreshする', () => {
+      const client = new TerminalTransportClient({
+        viewerId: 'viewer-snapshot-refresh',
+        viewerLabel: 'Desktop'
+      });
+      const writeCallbacks = [];
+      client.terminal = {
+        write: vi.fn((text, cb) => { writeCallbacks.push(cb); }),
+        reset: vi.fn(),
+        refresh: vi.fn(),
+        scrollToBottom: vi.fn(),
+        rows: 30,
+        cols: 120,
+        buffer: { active: { baseY: 100, viewportY: 100 } }
+      };
+      const rafCallbacks = [];
+      vi.stubGlobal('requestAnimationFrame', (cb) => { rafCallbacks.push(cb); return rafCallbacks.length; });
+
+      client._applySnapshot('snapshot body', { resetTerminal: true });
+      writeCallbacks[0]?.();
+      expect(rafCallbacks).toHaveLength(1);
+      rafCallbacks[0]?.();
+      expect(client.terminal.refresh).toHaveBeenCalledWith(0, 29);
     });
   });
 });
