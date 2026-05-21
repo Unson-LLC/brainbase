@@ -1757,6 +1757,13 @@ export class TerminalTransportClient {
         };
     }
 
+    _createPinnedViewportState() {
+        return {
+            distanceFromBottom: 0,
+            wasPinnedToBottom: true
+        };
+    }
+
     _computeIsViewportPinnedToBottom() {
         const viewportState = this._captureViewportState();
         return viewportState ? viewportState.wasPinnedToBottom : true;
@@ -1808,10 +1815,19 @@ export class TerminalTransportClient {
             this._isViewportPinnedToBottom = true;
             this._pendingSnapshotText = null;
             this._applySnapshot(normalizedText, {
-                forceViewportState: {
-                    distanceFromBottom: 0,
-                    wasPinnedToBottom: true
-                },
+                forceViewportState: this._createPinnedViewportState(),
+                resetTerminal: true,
+                screenOnly: options.screenOnly === true
+            });
+            return;
+        }
+
+        if (this._resetTerminalOnNextSnapshot) {
+            this._isViewportPinnedToBottom = true;
+            this._pendingSnapshotText = null;
+            this._pendingSnapshotOptions = null;
+            this._applySnapshot(normalizedText, {
+                forceViewportState: this._createPinnedViewportState(),
                 resetTerminal: true,
                 screenOnly: options.screenOnly === true
             });
@@ -1991,7 +2007,8 @@ export class TerminalTransportClient {
         this._resetTerminalOnNextSnapshot = false;
         this._clearPendingEchoState();
 
-        const viewportState = options.forceViewportState || this._captureViewportState();
+        const viewportState = options.forceViewportState
+            || (shouldResetTerminal ? this._createPinnedViewportState() : this._captureViewportState());
         const clearSequence = options.screenOnly === true ? '\x1b[2J\x1b[H' : '\x1b[2J\x1b[3J\x1b[H';
         this._writeToTerminal(clearSequence + normalizedText, viewportState, {
             resetTerminal: shouldResetTerminal
