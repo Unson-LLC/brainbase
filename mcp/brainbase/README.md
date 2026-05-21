@@ -27,8 +27,9 @@ npm run build
 | 環境変数 | 必須 | デフォルト | 説明 |
 |---------|-----|-----------|------|
 | `BRAINBASE_ENTITY_SOURCE` | No | `graphapi` | `graphapi` 固定。ほかの値はエラー |
-| `BRAINBASE_GRAPH_API_URL` | No | `https://graph.brain-base.work` | Graph SSOT APIのURL |
-| `BRAINBASE_API_BASE_URL` | No | - | `BRAINBASE_GRAPH_API_URL` の別名 |
+| `BRAINBASE_GRAPH_API_URL` | No | `https://bb.unson.jp` | Graph SSOT APIのURL |
+| `BRAINBASE_API_URL` | No | - | `BRAINBASE_GRAPH_API_URL` の別名（Infisicalの既存secret名に合わせた alias） |
+| `BRAINBASE_API_BASE_URL` | No | - | `BRAINBASE_GRAPH_API_URL` の別名（後方互換） |
 | `BRAINBASE_PROJECT_CODES` | No | - | プロジェクトコードのカンマ区切りリスト（フィルタリング用） |
 | `BRAINBASE_GRAPH_API_TOKEN` | No | - | API Tokenの環境変数フォールバック |
 
@@ -64,7 +65,7 @@ npm run mcp-setup
 
 # MCP起動
 export BRAINBASE_ENTITY_SOURCE=graphapi
-export BRAINBASE_GRAPH_API_URL=https://graph.brain-base.work
+export BRAINBASE_GRAPH_API_URL=https://bb.unson.jp
 export BRAINBASE_PROJECT_CODES=brainbase,zeims
 node dist/index.js
 ```
