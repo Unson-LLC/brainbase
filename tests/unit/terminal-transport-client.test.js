@@ -1207,7 +1207,7 @@ describe('terminal-transport-client', () => {
     expect(client.hostEl.classList.contains('bb-ime-cursor-settling')).toBe(false);
   });
 
-  it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {
+  it('INV-2/S-2: non-reset snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -1269,6 +1269,48 @@ describe('terminal-transport-client', () => {
 
     expect(scrollToBottom).toHaveBeenCalled();
     expect(terminal.scrollToLine).not.toHaveBeenCalled();
+  });
+
+  it('INV-1/S-1: reset snapshot適用時_事前viewportが古い位置でも最新出力へpinする', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 0));
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 0
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn((text, callback) => {
+        terminal.buffer.active.baseY = 240;
+        terminal.buffer.active.viewportY = 0;
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(() => {
+        terminal.buffer.active.viewportY = terminal.buffer.active.baseY;
+      }),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+
+    client._applySnapshot('latest output', { resetTerminal: true });
+    await vi.runAllTimersAsync();
+
+    expect(terminal.reset).toHaveBeenCalledTimes(1);
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hlatest output',
+      expect.any(Function)
+    );
+    expect(terminal.scrollToBottom).toHaveBeenCalled();
+    expect(terminal.scrollToLine).not.toHaveBeenCalled();
+    expect(terminal.buffer.active.viewportY).toBe(240);
   });
 
   it('snapshot適用時_cursor座標があればtmuxのカーソル位置へ戻す', async () => {
@@ -1608,6 +1650,46 @@ describe('terminal-transport-client', () => {
       '\x1b[2J\x1b[3J\x1b[Hsame output',
       expect.any(Function)
     );
+    expect(client._resetTerminalOnNextSnapshot).toBe(false);
+  });
+
+  it('S-3: reset予定snapshotは上スクロール中でも保留せず最新出力へpinする', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 20
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn((text, callback) => {
+        terminal.buffer.active.baseY = 180;
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(() => {
+        terminal.buffer.active.viewportY = terminal.buffer.active.baseY;
+      }),
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._resetTerminalOnNextSnapshot = true;
+
+    client._queueOrApplySnapshot('fresh reset snapshot');
+    await Promise.resolve();
+
+    expect(client._pendingSnapshotText).toBeNull();
+    expect(terminal.reset).toHaveBeenCalledTimes(1);
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hfresh reset snapshot',
+      expect.any(Function)
+    );
+    expect(terminal.scrollToBottom).toHaveBeenCalled();
+    expect(terminal.scrollToLine).not.toHaveBeenCalled();
     expect(client._resetTerminalOnNextSnapshot).toBe(false);
   });
 
