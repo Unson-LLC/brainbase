@@ -38,6 +38,56 @@ print(b''.join(sanitizer.feed(chunk) for chunk in chunks).decode('utf-8'))
         expect(result.stdout.trim()).toBe('hello world!');
     });
 
+    it('ESCが上流で消費されたbare focus fragmentもCodex入力へ転送しない', () => {
+        const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
+        const result = runPython(`
+import importlib.util
+spec = importlib.util.spec_from_file_location("shim", ${JSON.stringify(scriptPath)})
+shim = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(shim)
+
+sanitizer = shim.OuterInputSanitizer()
+chunks = [
+    b'prompt',
+    b'[I',
+    b' text',
+    b'[O',
+    b'!',
+]
+print(b''.join(sanitizer.feed(chunk) for chunk in chunks).decode('utf-8'))
+`);
+
+        expect(result.stderr).toBe('');
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('prompt text!');
+    });
+
+    it('分割されたbare focus fragmentも保持してまとめて捨てる', () => {
+        const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
+        const result = runPython(`
+import importlib.util
+spec = importlib.util.spec_from_file_location("shim", ${JSON.stringify(scriptPath)})
+shim = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(shim)
+
+sanitizer = shim.OuterInputSanitizer()
+parts = [
+    b'a',
+    b'[',
+    b'I',
+    b'b',
+    b'[',
+    b'O',
+    b'c',
+]
+print(b''.join(sanitizer.feed(part) for part in parts).decode('utf-8'))
+`);
+
+        expect(result.stderr).toBe('');
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('abc');
+    });
+
     it('分割された端末応答も保持してまとめて捨てる', () => {
         const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
         const result = runPython(`

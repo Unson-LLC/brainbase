@@ -52,12 +52,16 @@ OSC_BG_RESPONSE = b'\x1b]11;rgb:1a1a/1a1a/2e2e\x1b\\'
 
 # Responses that may come from the outer terminal after Codex asks capability
 # questions. If forwarded to Codex stdin, the leading ESC can be interpreted as
-# "interrupt", leaving fragments such as "[0" or "]10;rgb..." in the prompt.
+# "interrupt", leaving fragments such as "[0", "[I", or "]10;rgb..." in the
+# prompt. Focus reports can also arrive as bare "[I"/"[O" after ESC was
+# consumed upstream, so drop both escaped and bare forms.
 OUTER_TERMINAL_FIXED_RESPONSES = (
     KITTY_RESPONSE,
     b'\x1b[0u',
     b'\x1b[I',
     b'\x1b[O',
+    b'[I',
+    b'[O',
 )
 OUTER_TERMINAL_OSC_RESPONSE_PREFIXES = (
     b'\x1b]10;',
@@ -165,11 +169,23 @@ class OuterInputSanitizer:
         out = bytearray()
 
         while self._buffer:
+            current = bytes(self._buffer)
+            bare_focus_match = next(
+                (seq for seq in (b'[I', b'[O') if current.startswith(seq)),
+                None,
+            )
+            if bare_focus_match is not None:
+                dbg('dropping outer terminal bare focus response', bare_focus_match)
+                del self._buffer[:len(bare_focus_match)]
+                continue
+
+            if current == b'[':
+                break
+
             if self._buffer[0] != 0x1B:
                 out.append(self._buffer.pop(0))
                 continue
 
-            current = bytes(self._buffer)
             fixed_match = next(
                 (seq for seq in OUTER_TERMINAL_FIXED_RESPONSES if current.startswith(seq)),
                 None,
