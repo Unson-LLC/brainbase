@@ -152,6 +152,7 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._pendingEchoSince = 0;
         this._pendingEchoExpiryTimer = null;
+        this._pendingBackspaceEchoCount = 0;
         this._deferredSnapshotWhileEchoPending = null;
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
@@ -1476,6 +1477,7 @@ export class TerminalTransportClient {
         this._clearPendingEchoExpiryTimer();
         this._pendingEchoText = '';
         this._pendingEchoSince = 0;
+        this._pendingBackspaceEchoCount = 0;
         if (clearDeferred) {
             this._deferredSnapshotWhileEchoPending = null;
         }
@@ -2096,14 +2098,17 @@ export class TerminalTransportClient {
     }
 
     _applyLocalBackspaceEcho() {
-        if (!this._canLocallyErasePendingEcho()) return;
-
-        this._pendingEchoText = this._pendingEchoText.slice(0, -1);
         if (this._pendingEchoText) {
-            this._schedulePendingEchoExpiry();
-        } else {
-            this._clearPendingEchoState();
+            if (!this._canLocallyErasePendingEcho()) return;
+
+            this._pendingEchoText = this._pendingEchoText.slice(0, -1);
+            if (this._pendingEchoText) {
+                this._schedulePendingEchoExpiry();
+            } else {
+                this._clearPendingEchoState({ clearDeferred: false });
+            }
         }
+        this._pendingBackspaceEchoCount += 1;
         inputTelemetry.inc('localBackspaceEcho');
         this._writeToTerminal('\b \b');
     }
@@ -2136,6 +2141,8 @@ export class TerminalTransportClient {
     }
 
     _consumePendingEcho(text) {
+        text = this._consumePendingBackspaceEcho(text);
+        if (!text) return '';
         if (!this._pendingEchoText) return text;
         if (!text.startsWith(this._pendingEchoText)) {
             this._clearPendingEchoState();
@@ -2144,6 +2151,29 @@ export class TerminalTransportClient {
 
         const remaining = text.slice(this._pendingEchoText.length);
         this._clearPendingEchoState();
+        return remaining;
+    }
+
+    _consumePendingBackspaceEcho(text) {
+        if (!this._pendingBackspaceEchoCount || !text) return text;
+
+        let remaining = text;
+        while (this._pendingBackspaceEchoCount > 0) {
+            if (remaining.startsWith('\b \b')) {
+                remaining = remaining.slice(3);
+            } else if (remaining.startsWith('\x1b[D \x1b[D')) {
+                remaining = remaining.slice(7);
+            } else if (remaining.startsWith('\x1b[D\x1b[K')) {
+                remaining = remaining.slice(6);
+            } else {
+                break;
+            }
+            this._pendingBackspaceEchoCount -= 1;
+        }
+
+        if (this._pendingBackspaceEchoCount > 0 && remaining === text) {
+            this._pendingBackspaceEchoCount = 0;
+        }
         return remaining;
     }
 
