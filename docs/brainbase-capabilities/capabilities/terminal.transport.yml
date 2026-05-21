@@ -26,6 +26,7 @@ visibility_rules:
   - Backspace/Delete must provide immediate local visual feedback even after prior input echo has already been confirmed.
   - Escape/navigation keys must bypass text batching and flush any pending printable text first.
   - Split focus reports must hold a lone ESC briefly so a following bare `[I` or `[O` can be dropped as one control response.
+  - Multiline paste must use a single bracketed paste transport instead of per-line `S-Enter` key simulation.
 verification:
   commands:
     - npm test -- tests/unit/terminal-transport-client.test.js
@@ -42,6 +43,7 @@ verification:
     - Backspace locally erases one ASCII cell immediately and consumes the matching simple PTY echo to avoid double deletion.
     - Esc key presses are sent immediately one-by-one and are not delayed by the text batch timer.
     - Split focus reports (`ESC` then `[I`/`[O`) are dropped before either fragment reaches local echo or stdin.
+    - Multiline paste is sent as one `paste` input and reaches tmux through `paste-buffer -p -r`.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
@@ -51,6 +53,7 @@ common_failures:
   - Backspace feels delayed because it waits for Codex/Claude PTY output once pending local echo has already been confirmed.
   - Esc feels delayed because it is recognized as navigation for probe bypass but still waits in the printable text batch buffer.
   - `[I` or `[O` appears when `ESC[I`/`ESC[O` is split across xterm `onData` events and the leading ESC is sent before the bare suffix arrives.
+  - Long multiline paste is slow when each line is sent as text and each newline is converted into an awaited `S-Enter` key message.
   - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
 runbooks:
   - ../runbooks/verify-31013-source.md

@@ -907,6 +907,32 @@ describe('TerminalTransportService', () => {
         expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello\nworld', 'text');
     });
 
+    it('paste message はterminalIoのbracketed paste経路へ一括送信する', async () => {
+        const { service, sessionManager, controlClient } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'paste',
+            value: 'hello\nworld'
+        }));
+
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(controlClient.sendKey).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello\nworld', 'text', {
+            forcePaste: true,
+            bracketedPaste: true,
+            preserveLineFeed: true
+        });
+    });
+
     it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {
         const { service, sessionManager, controlClient } = buildService();
         sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });
