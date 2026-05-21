@@ -641,6 +641,59 @@ describe('terminal-transport-client', () => {
     expect(client.terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
   });
 
+  it('paste内の改行はbare EnterではなくS-Enterとして送信する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    const submitSpy = vi.spyOn(client, '_applySubmitFeedback');
+
+    await client.sendPasteText('hello\nworld\r\nagain');
+
+    expect(send).toHaveBeenCalledTimes(5);
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      { type: 'input', inputType: 'text', value: 'hello' },
+      { type: 'input', inputType: 'key', value: 'S-Enter' },
+      { type: 'input', inputType: 'text', value: 'world' },
+      { type: 'input', inputType: 'key', value: 'S-Enter' },
+      { type: 'input', inputType: 'text', value: 'again' }
+    ]);
+    expect(send.mock.calls.some(([raw]) => JSON.parse(raw).value?.includes?.('\n'))).toBe(false);
+    expect(submitSpy).not.toHaveBeenCalled();
+  });
+
+  it('pasteイベントはxterm標準の生改行入力を止めてpaste経路に渡す', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client._inputQueue = Promise.resolve();
+    client.sendPasteText = vi.fn().mockResolvedValue(undefined);
+
+    const event = {
+      clipboardData: { getData: vi.fn(() => 'a\nb') },
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    };
+
+    client._handlePasteEvent(event);
+    await flushMicrotasks();
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.stopPropagation).toHaveBeenCalled();
+    expect(client.sendPasteText).toHaveBeenCalledWith('a\nb');
+  });
+
   it('inputReady=falseでもEnter文字はprobeせず送信する', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });

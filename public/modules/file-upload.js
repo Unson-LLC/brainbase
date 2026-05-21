@@ -377,7 +377,11 @@ async function pasteTextToTerminal(sessionId, text) {
     try {
         // 注: forcePaste:true は Codex で会話中断を起こすため使わない。
         // 通常のテキスト入力経路で即時に送る。
-        await sendTextToTerminal(sessionId, text);
+        if (typeof terminalInteractionService.sendPasteText === 'function') {
+            await terminalInteractionService.sendPasteText(sessionId, text);
+        } else {
+            await sendTextToTerminal(sessionId, text);
+        }
     } catch (error) {
         console.error('Failed to paste text:', error);
         alert('テキストの貼り付けに失敗しました');

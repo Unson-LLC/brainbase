@@ -174,6 +174,7 @@ export class TerminalTransportClient {
         this._boundTouchStartHandler = null;
         this._boundTouchMoveHandler = null;
         this._boundTouchEndHandler = null;
+        this._boundPasteHandler = null;
         // xterm.js 5.x: short IME commit後にbare EnterでonData('\r')が発火しない場合がある。
         // IME確定Enter(isComposing=true)でフラグを立て、直後のbare Enter(isComposing=false)を
         // xtermが握り潰したと判断できるタイマーで\rを補完する。IME確定Enter自体は\rを送らない。
@@ -237,6 +238,8 @@ export class TerminalTransportClient {
         this.hostEl.addEventListener('compositionend', () => {
             this._setImeComposing(false, { settleCursor: true });
         }, true);
+        this._boundPasteHandler = (event) => this._handlePasteEvent(event);
+        this.hostEl.addEventListener('paste', this._boundPasteHandler, true);
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
             const token = this._connectToken;
@@ -438,6 +441,10 @@ export class TerminalTransportClient {
             this.hostEl?.removeEventListener('click', this._hostPointerFocusHandler);
             this._hostPointerFocusHandler = null;
         }
+        if (this._boundPasteHandler) {
+            this.hostEl?.removeEventListener('paste', this._boundPasteHandler, true);
+            this._boundPasteHandler = null;
+        }
         this._detachScrollHandlers();
         this._removeCursorDebugPanel();
         this.terminal?.dispose();
@@ -554,6 +561,30 @@ export class TerminalTransportClient {
         }
 
         return true;
+    }
+
+    _handlePasteEvent(event) {
+        const text = event?.clipboardData?.getData?.('text/plain') || '';
+        if (!text) return;
+        if (typeof event.preventDefault === 'function') {
+            event.preventDefault();
+        }
+        if (typeof event.stopPropagation === 'function') {
+            event.stopPropagation();
+        }
+        const token = this._connectToken;
+        this._inputQueue = this._inputQueue
+            .then(() => {
+                if (this._connectToken !== token) {
+                    inputTelemetry.dropped('PASTE_QUEUE_TOKEN_MISMATCH', { len: text.length });
+                    return;
+                }
+                return this.sendPasteText(text);
+            })
+            .catch((err) => {
+                console.error('[TTC-PROBE][paste] chain error', err);
+                inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { source: 'paste', err: String(err?.message || err) });
+            });
     }
 
     async connect(sessionId, { skipInitialResize = false } = {}) {
@@ -935,6 +966,31 @@ export class TerminalTransportClient {
             this._pendingTextBuffer += seg.value;
             this._scheduleBufferedTextFlush();
         }
+    }
+
+    async sendPasteText(value) {
+        const sanitizedValue = stripTerminalControlResponses(value);
+        if (!sanitizedValue && value) {
+            inputTelemetry.dropped('TERMINAL_CONTROL_RESPONSE', { len: value.length, source: 'paste' });
+            return;
+        }
+        const text = sanitizedValue;
+        if (!text) return;
+        if (!this._hasSubmitText(text)) {
+            await this.sendText(text);
+            return;
+        }
+
+        const lines = text.split(/\r\n|\r|\n/);
+        for (let i = 0; i < lines.length; i += 1) {
+            if (lines[i]) {
+                await this.sendText(lines[i]);
+            }
+            if (i < lines.length - 1) {
+                await this.sendKey('S-Enter');
+            }
+        }
+        await this._flushBufferedText({ enqueueIfUnavailable: true });
     }
 
     async sendKey(value) {

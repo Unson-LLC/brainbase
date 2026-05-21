@@ -100,6 +100,27 @@ export class TerminalInteractionService {
         await this._syncActiveXtermSnapshot(sessionId);
     }
 
+    async sendPasteText(sessionId, text) {
+        if (!text) return;
+        this._assertSendable(sessionId);
+
+        if (this._canSendViaXterm(sessionId)) {
+            const transport = this.getTerminalTransportClient();
+            if (typeof transport.sendPasteText === 'function') {
+                await transport.sendPasteText(text);
+                return;
+            }
+            await transport.sendText(text);
+            return;
+        }
+
+        await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
+            input: text,
+            type: 'text'
+        });
+        await this._syncActiveXtermSnapshot(sessionId);
+    }
+
     async sendKey(sessionId, key) {
         if (!key) return;
         this._assertSendable(sessionId);

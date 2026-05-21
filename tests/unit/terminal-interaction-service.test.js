@@ -44,6 +44,26 @@ describe('TerminalInteractionService', () => {
         expect(httpClient.post).not.toHaveBeenCalled();
     });
 
+    it('sendPasteTextはxtermのpaste専用経路を優先する', async () => {
+        const httpClient = { post: vi.fn() };
+        const transport = {
+            canSendInput: vi.fn(() => true),
+            sendText: vi.fn(async () => {}),
+            sendPasteText: vi.fn(async () => {})
+        };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => transport,
+            shouldUseXtermTransport: () => true
+        });
+
+        await service.sendPasteText('session-1', 'hello\nworld');
+
+        expect(transport.sendPasteText).toHaveBeenCalledWith('hello\nworld');
+        expect(transport.sendText).not.toHaveBeenCalled();
+        expect(httpClient.post).not.toHaveBeenCalled();
+    });
+
     it('slash commandはpaste経路に落とさずliteral textとEnterに分けて送信する', async () => {
         const httpClient = { post: vi.fn(async () => {}) };
         const service = new TerminalInteractionService({
