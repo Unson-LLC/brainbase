@@ -19754,3 +19754,9 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
         border-bottom: 1px solid rgba(191, 201, 214, 0.12);
     }
 }
+
+/* Keep terminal controls mounted for JS state, but remove the visual chrome. */
+.console-area > .terminal-header,
+.command-center-theme .console-area > .terminal-header {
+    display: none;
+}
