@@ -229,6 +229,7 @@ export function applySessionCreationMixin(AppClass) {
                 this._continueSessionStartup({
                     project,
                     name: shell.session?.name || name,
+                    initialCommand,
                     useWorktree,
                     engine,
                     sessionId
@@ -284,8 +285,8 @@ export function applySessionCreationMixin(AppClass) {
             }
         },
 
-        async _continueSessionStartup({ project, name, useWorktree, engine, sessionId }) {
-            this._rememberSessionStartupParams({ project, name, useWorktree, engine, sessionId });
+        async _continueSessionStartup({ project, name, initialCommand = '', useWorktree, engine, sessionId }) {
+            this._rememberSessionStartupParams({ project, name, initialCommand, useWorktree, engine, sessionId });
             this._sessionStartupInFlight = this._sessionStartupInFlight || new Set();
             if (this._sessionStartupInFlight.has(sessionId)) {
                 return;
@@ -296,7 +297,7 @@ export function applySessionCreationMixin(AppClass) {
                 const result = await this.sessionService.createSession({
                     project,
                     name,
-                    initialCommand: '',
+                    initialCommand,
                     useWorktree,
                     engine,
                     sessionId,
@@ -310,6 +311,10 @@ export function applySessionCreationMixin(AppClass) {
                     this._sessionStartupResumeWatchers?.delete(result.sessionId);
                     const previousSessionId = appStore.getState().currentSessionId || null;
                     const shouldPresentSession = previousSessionId === result.sessionId;
+                    if (initialCommand.trim()
+                        && this._sessionStartupPromptQueue?.get(result.sessionId) === initialCommand) {
+                        this._clearSessionStartupPromptState(result.sessionId);
+                    }
                     await this._flushSessionStartupPrompt(result.sessionId);
                     if (shouldPresentSession) {
                         await eventBus.emit(EVENTS.SESSION_CHANGED, {
