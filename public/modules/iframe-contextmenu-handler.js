@@ -36,6 +36,23 @@ function getWorkspaceRoot(sessionId = null) {
 }
 
 let currentSelectedText = '';
+const FILE_LINK_CLICK_MAX_DRAG_PX = 4;
+const FILE_LINK_CLICK_MAX_DURATION_MS = 900;
+
+export function shouldActivateTerminalFileLinkClick({ pointerDown, event, selectedText = '', now = Date.now(), lastActivationAt = 0 } = {}) {
+    if (!pointerDown || !event) return false;
+    if (event.button !== 0) return false;
+    if (lastActivationAt && (now - lastActivationAt) < 250) return false;
+    if (typeof selectedText === 'string' && selectedText.trim()) return false;
+    if (pointerDown.link && event.link && pointerDown.link !== event.link) return false;
+
+    const dx = Math.abs((event.clientX ?? pointerDown.clientX) - pointerDown.clientX);
+    const dy = Math.abs((event.clientY ?? pointerDown.clientY) - pointerDown.clientY);
+    if (dx > FILE_LINK_CLICK_MAX_DRAG_PX || dy > FILE_LINK_CLICK_MAX_DRAG_PX) return false;
+
+    const duration = now - (pointerDown.startedAt || now);
+    return duration <= FILE_LINK_CLICK_MAX_DURATION_MS;
+}
 
 function createContextMenu() {
     const menu = document.createElement('div');
@@ -398,18 +415,38 @@ function installManualXtermFileLinkHandlers(terminal) {
     const terminalElement = terminal?.element;
     if (!terminalElement || terminal.__bbManualFileLinkHandlersInstalled) return;
 
-    const activateHoveredLink = (event) => {
+    const activateHoveredLink = (event, source = 'mouseup') => {
         if (event.button !== 0) return;
         const now = Date.now();
+        const selectedText = typeof terminal.getSelection === 'function' ? terminal.getSelection() : '';
+        const hoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event);
+        const shouldActivate = shouldActivateTerminalFileLinkClick({
+            pointerDown: terminal.__bbFileLinkPointerDown,
+            event: {
+                button: event.button,
+                clientX: event.clientX,
+                clientY: event.clientY,
+                link: hoveredLink
+            },
+            selectedText,
+            now,
+            lastActivationAt: terminal.__bbLastFileLinkActivationAt || 0
+        });
+        if (!shouldActivate) {
+            if (source === 'mouseup') {
+                terminal.__bbFileLinkPointerDown = null;
+            }
+            return;
+        }
         if (terminal.__bbLastFileLinkActivationAt && (now - terminal.__bbLastFileLinkActivationAt) < 250) {
             console.log('[XtermFileLink] activation deduped', { type: event.type });
             return;
         }
         // クリック位置に実際にリンクがある場合のみ発火
         // recentHoveredLink フォールバックは削除: 空白クリックで直前ホバーのファイルが開くバグの原因だった
-        const hoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event);
         if (!hoveredLink) return;
         terminal.__bbLastFileLinkActivationAt = now;
+        terminal.__bbFileLinkPointerDown = null;
         event.preventDefault();
         event.stopPropagation();
         postOpenFile(hoveredLink);
@@ -445,14 +482,18 @@ function installManualXtermFileLinkHandlers(terminal) {
     terminalElement.addEventListener('mousedown', (event) => {
         if (event.button !== 0) return;
         const hoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event);
+        terminal.__bbFileLinkPointerDown = hoveredLink ? {
+            clientX: event.clientX,
+            clientY: event.clientY,
+            startedAt: Date.now(),
+            link: hoveredLink
+        } : null;
         if (!hoveredLink) return;
         rememberHoveredLink(terminal, hoveredLink);
-        event.preventDefault();
-        event.stopPropagation();
     }, true);
 
-    terminalElement.addEventListener('mouseup', activateHoveredLink, true);
-    terminalElement.addEventListener('click', activateHoveredLink, true);
+    terminalElement.addEventListener('mouseup', (event) => activateHoveredLink(event, 'mouseup'), true);
+    terminalElement.addEventListener('click', (event) => activateHoveredLink(event, 'click'), true);
 
     terminal.__bbManualFileLinkHandlersInstalled = true;
 }
