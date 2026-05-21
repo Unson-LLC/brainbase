@@ -13,6 +13,77 @@ function runPython(source) {
 }
 
 describe('codex-pty-shim activity fallback', () => {
+    it('外側端末の capability response をCodex入力へ転送しない', () => {
+        const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
+        const result = runPython(`
+import importlib.util
+spec = importlib.util.spec_from_file_location("shim", ${JSON.stringify(scriptPath)})
+shim = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(shim)
+
+sanitizer = shim.OuterInputSanitizer()
+chunks = [
+    b'hello',
+    b'\\x1b[?0u',
+    b' world',
+    b'\\x1b[I',
+    b'\\x1b]10;rgb:0000/0000/0000\\x1b\\\\',
+    b'!',
+]
+print(b''.join(sanitizer.feed(chunk) for chunk in chunks).decode('utf-8'))
+`);
+
+        expect(result.stderr).toBe('');
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('hello world!');
+    });
+
+    it('分割された端末応答も保持してまとめて捨てる', () => {
+        const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
+        const result = runPython(`
+import importlib.util
+spec = importlib.util.spec_from_file_location("shim", ${JSON.stringify(scriptPath)})
+shim = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(shim)
+
+sanitizer = shim.OuterInputSanitizer()
+parts = [
+    b'a',
+    b'\\x1b',
+    b'[?',
+    b'0u',
+    b'b',
+    b'\\x1b]11;rgb:1111',
+    b'/2222/3333',
+    b'\\x07',
+    b'c',
+]
+print(b''.join(sanitizer.feed(part) for part in parts).decode('utf-8'))
+`);
+
+        expect(result.stderr).toBe('');
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('abc');
+    });
+
+    it('通常のユーザー入力や矢印キーは転送対象として残す', () => {
+        const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
+        const result = runPython(`
+import importlib.util
+spec = importlib.util.spec_from_file_location("shim", ${JSON.stringify(scriptPath)})
+shim = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(shim)
+
+sanitizer = shim.OuterInputSanitizer()
+data = sanitizer.feed(b'abc\\x1b[A\\r')
+print(data.hex())
+`);
+
+        expect(result.stderr).toBe('');
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('6162631b5b410d');
+    });
+
     it('Codexスピナー出力をworkingとして検出する', () => {
         const scriptPath = path.join(repoRoot, 'scripts/codex-pty-shim.py');
         const result = runPython(`
