@@ -190,6 +190,8 @@ export class TerminalTransportClient {
         this._terminalWriteQueue = [];
         this._terminalWriteActive = false;
         this._terminalWriteGeneration = 0;
+        this._terminalRenderRefreshRaf = null;
+        this._pendingTerminalRenderRefreshMode = null;
     }
 
     async init(hostEl) {
@@ -446,6 +448,7 @@ export class TerminalTransportClient {
             this._boundPasteHandler = null;
         }
         this._detachScrollHandlers();
+        this._cancelTerminalRenderRefresh();
         this._removeCursorDebugPanel();
         this.terminal?.dispose();
         this.terminal = null;
@@ -1223,18 +1226,65 @@ export class TerminalTransportClient {
         if (!this.terminal) return;
         const rows = Number(this.terminal.rows) || 0;
         if (rows <= 0) return;
+        this._refreshTerminalRows(0, rows - 1);
+    }
+
+    _refreshTerminalRows(start, end) {
+        if (!this.terminal) return;
+        const rows = Number(this.terminal.rows) || 0;
+        if (rows <= 0) return;
+        const safeStart = Math.max(0, Math.min(rows - 1, Math.floor(start)));
+        const safeEnd = Math.max(safeStart, Math.min(rows - 1, Math.floor(end)));
         try {
             if (typeof this.terminal.refresh === 'function') {
-                this.terminal.refresh(0, rows - 1);
+                this.terminal.refresh(safeStart, safeEnd);
                 return;
             }
             const renderService = this.terminal?._core?._renderService;
             if (typeof renderService?.refreshRows === 'function') {
-                renderService.refreshRows(0, rows - 1);
+                renderService.refreshRows(safeStart, safeEnd);
             }
         } catch (error) {
             console.warn('[TerminalTransportClient] Failed to refresh terminal rows', error);
         }
+    }
+
+    _scheduleTerminalRenderRefresh(mode = 'bottom') {
+        if (!this.terminal) return;
+        if (mode === 'all' || this._pendingTerminalRenderRefreshMode !== 'all') {
+            this._pendingTerminalRenderRefreshMode = mode === 'all' ? 'all' : 'bottom';
+        }
+        if (this._terminalRenderRefreshRaf != null) return;
+
+        const run = () => {
+            this._terminalRenderRefreshRaf = null;
+            const refreshMode = this._pendingTerminalRenderRefreshMode || 'bottom';
+            this._pendingTerminalRenderRefreshMode = null;
+            const rows = Number(this.terminal?.rows) || 0;
+            if (rows <= 0) return;
+            if (refreshMode === 'all') {
+                this._refreshTerminalRows(0, rows - 1);
+                return;
+            }
+            const start = Math.max(0, rows - 12);
+            this._refreshTerminalRows(start, rows - 1);
+        };
+
+        this._terminalRenderRefreshRaf = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame(run)
+            : setTimeout(run, 16);
+    }
+
+    _cancelTerminalRenderRefresh() {
+        if (this._terminalRenderRefreshRaf != null) {
+            if (typeof cancelAnimationFrame === 'function' && typeof this._terminalRenderRefreshRaf === 'number') {
+                cancelAnimationFrame(this._terminalRenderRefreshRaf);
+            } else {
+                clearTimeout(this._terminalRenderRefreshRaf);
+            }
+            this._terminalRenderRefreshRaf = null;
+        }
+        this._pendingTerminalRenderRefreshMode = null;
     }
 
     async reconnect() {
@@ -2011,7 +2061,8 @@ export class TerminalTransportClient {
             || (shouldResetTerminal ? this._createPinnedViewportState() : this._captureViewportState());
         const clearSequence = options.screenOnly === true ? '\x1b[2J\x1b[H' : '\x1b[2J\x1b[3J\x1b[H';
         this._writeToTerminal(clearSequence + normalizedText, viewportState, {
-            resetTerminal: shouldResetTerminal
+            resetTerminal: shouldResetTerminal,
+            renderRefresh: 'all'
         });
     }
 
@@ -2103,6 +2154,7 @@ export class TerminalTransportClient {
             text,
             viewportState: nextViewportState,
             resetTerminal: Boolean(options.resetTerminal),
+            renderRefresh: options.renderRefresh === 'all' ? 'all' : 'bottom',
             generation: this._terminalWriteGeneration,
             afterWrite: typeof options.afterWrite === 'function' ? options.afterWrite : null
         });
@@ -2125,6 +2177,7 @@ export class TerminalTransportClient {
             if (operation.generation !== this._terminalWriteGeneration) return;
             finished = true;
             this._restoreViewportAfterTerminalWrite(operation.viewportState);
+            this._scheduleTerminalRenderRefresh(operation.renderRefresh);
             try {
                 operation.afterWrite?.();
             } finally {
@@ -2153,6 +2206,7 @@ export class TerminalTransportClient {
         this._terminalWriteGeneration += 1;
         this._terminalWriteQueue.length = 0;
         this._terminalWriteActive = false;
+        this._cancelTerminalRenderRefresh();
     }
 
     _queueTerminalWriteFallback(finish) {
