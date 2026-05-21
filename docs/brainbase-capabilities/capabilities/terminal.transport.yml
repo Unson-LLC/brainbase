@@ -25,6 +25,7 @@ visibility_rules:
   - Terminal writes must coalesce xterm renderer refreshes so bottom-row redraws do not leave stale duplicate cells.
   - Backspace/Delete must provide immediate local visual feedback even after prior input echo has already been confirmed.
   - Escape/navigation keys must bypass text batching and flush any pending printable text first.
+  - Split focus reports must hold a lone ESC briefly so a following bare `[I` or `[O` can be dropped as one control response.
 verification:
   commands:
     - npm test -- tests/unit/terminal-transport-client.test.js
@@ -40,6 +41,7 @@ verification:
     - Streaming writes refresh the lower visible rows after write callbacks, and reset snapshots refresh all visible rows.
     - Backspace locally erases one ASCII cell immediately and consumes the matching simple PTY echo to avoid double deletion.
     - Esc key presses are sent immediately one-by-one and are not delayed by the text batch timer.
+    - Split focus reports (`ESC` then `[I`/`[O`) are dropped before either fragment reaches local echo or stdin.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
@@ -48,6 +50,7 @@ common_failures:
   - Xterm renderer keeps stale lower-row cells after rapid prompt/status redraws, making the bottom of the terminal look duplicated.
   - Backspace feels delayed because it waits for Codex/Claude PTY output once pending local echo has already been confirmed.
   - Esc feels delayed because it is recognized as navigation for probe bypass but still waits in the printable text batch buffer.
+  - `[I` or `[O` appears when `ESC[I`/`ESC[O` is split across xterm `onData` events and the leading ESC is sent before the bare suffix arrives.
   - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
 runbooks:
   - ../runbooks/verify-31013-source.md

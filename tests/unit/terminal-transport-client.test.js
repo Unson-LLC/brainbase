@@ -923,6 +923,32 @@ describe('terminal-transport-client', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('ESCとbare focus断片が別onDataで届いても送信もローカルエコーもしない', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\x1b');
+    expect(send).not.toHaveBeenCalled();
+
+    await client.sendText('[O');
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('ESCが欠落したbareフォーカスイベント断片はローカルエコーも送信もしない', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });

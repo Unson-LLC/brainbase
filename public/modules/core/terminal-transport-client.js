@@ -15,6 +15,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 64 * 1024;
+const FOCUS_ESCAPE_GRACE_MS = 12;
 const LOCAL_ECHO_SNAPSHOT_DEFER_MS = 1200;
 const SCROLL_MIN_DELTA_PX = 12;
 const SCROLL_STEP_PX = 40;
@@ -159,6 +160,8 @@ export class TerminalTransportClient {
         this._visibilityHandler = null;
         this._pendingTextBuffer = '';
         this._pendingTextFlushTimer = null;
+        this._pendingFocusEscape = null;
+        this._pendingFocusEscapeTimer = null;
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
         this._lastSentCols = 0;
         this._lastSentRows = 0;
@@ -450,6 +453,7 @@ export class TerminalTransportClient {
         }
         this._detachScrollHandlers();
         this._cancelTerminalRenderRefresh();
+        this._clearPendingFocusEscape();
         this._removeCursorDebugPanel();
         this.terminal?.dispose();
         this.terminal = null;
@@ -821,6 +825,7 @@ export class TerminalTransportClient {
             inputTelemetry.dropped('DISCONNECT_QUEUE_CLEARED', { count: queuedBeforeClear });
         }
         this._messageQueue.clear();
+        this._clearPendingFocusEscape();
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
@@ -847,12 +852,18 @@ export class TerminalTransportClient {
     }
 
     async sendText(value) {
+        value = await this._resolvePotentialFocusEscape(value);
+        if (!value) return;
         const sanitizedValue = stripTerminalControlResponses(value);
         if (!sanitizedValue && value) {
             inputTelemetry.dropped('TERMINAL_CONTROL_RESPONSE', { len: value.length });
             return;
         }
         value = sanitizedValue;
+        if (value === '\x1b' && !this._pendingTextBuffer) {
+            this._schedulePotentialFocusEscape();
+            return;
+        }
         const capturedToken = this._connectToken;
         const capturedSessionId = this.sessionId;
         ttcDebug('[TTC-PROBE][sendText] entered', {
@@ -1524,6 +1535,70 @@ export class TerminalTransportClient {
         const buffered = this._pendingTextBuffer;
         this._pendingTextBuffer = '';
         return buffered;
+    }
+
+    _clearPendingFocusEscape() {
+        if (this._pendingFocusEscapeTimer) {
+            clearTimeout(this._pendingFocusEscapeTimer);
+            this._pendingFocusEscapeTimer = null;
+        }
+        this._pendingFocusEscape = null;
+    }
+
+    _schedulePotentialFocusEscape() {
+        this._clearPendingFocusEscape();
+        const pending = {
+            connectToken: this._connectToken,
+            sessionId: this.sessionId
+        };
+        this._pendingFocusEscape = pending;
+        this._pendingFocusEscapeTimer = setTimeout(() => {
+            this._pendingFocusEscapeTimer = null;
+            if (this._pendingFocusEscape !== pending) return;
+            this._pendingFocusEscape = null;
+            this._sendResolvedEscape(pending).catch((error) => {
+                ttcWarn('[TTC-PROBE] failed to send deferred escape', { error: String(error?.message || error) });
+            });
+        }, FOCUS_ESCAPE_GRACE_MS);
+    }
+
+    async _resolvePotentialFocusEscape(value) {
+        if (!this._pendingFocusEscape) return value;
+        const pending = this._pendingFocusEscape;
+        this._clearPendingFocusEscape();
+
+        if (typeof value === 'string' && (value.startsWith('[I') || value.startsWith('[O'))) {
+            inputTelemetry.dropped('SPLIT_FOCUS_RESPONSE', { len: 1 + Math.min(value.length, 2) });
+            return value.slice(2);
+        }
+
+        if (value === '\x1b') {
+            await this._sendResolvedEscape(pending);
+            await this._sendResolvedEscape({
+                connectToken: this._connectToken,
+                sessionId: this.sessionId
+            });
+            return '';
+        }
+
+        await this._sendResolvedEscape(pending);
+        return value;
+    }
+
+    async _sendResolvedEscape(pending) {
+        if (pending
+            && (this._connectToken !== pending.connectToken || this.sessionId !== pending.sessionId)) {
+            inputTelemetry.dropped('DEFERRED_ESCAPE_SESSION_CHANGED', { len: 1 });
+            return;
+        }
+        await this._flushBufferedText({
+            enqueueIfUnavailable: true,
+            allowInputNotReady: true
+        });
+        await this._dispatchTextMessage('\x1b', {
+            enqueueIfUnavailable: true,
+            allowInputNotReady: true
+        });
     }
 
     async _flushBufferedText({
