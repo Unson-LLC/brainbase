@@ -352,8 +352,8 @@ describe('TerminalTransportService', () => {
             mode: 'snapshot_recovery',
             cliReason: 'codex_prompt'
         }));
-        expect(controlClient.sendLiteralText).toHaveBeenCalledWith('hello');
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
     });
 
     it('snapshot-polling input は同期pollせず短時間でまとめてrefreshする', async () => {
@@ -841,7 +841,7 @@ describe('TerminalTransportService', () => {
         expect(connection.rows).toBe(12);
     });
 
-    it('streaming input はcontrol-mode literal送信を使いspawn-per-input経路を避ける', async () => {
+    it('streaming input はterminal-io経路へfallbackする', async () => {
         const { service, sessionManager, controlClient, captureCache } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -858,13 +858,13 @@ describe('TerminalTransportService', () => {
             value: 'hello'
         }));
 
-        expect(controlClient.sendLiteralText).toHaveBeenCalledWith('hello');
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
         expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
     });
 
-    it('streaming Backspace text はcontrol-mode key送信を使う', async () => {
+    it('streaming Backspace text はterminal-io経路へfallbackする', async () => {
         const { service, sessionManager, controlClient } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -881,8 +881,8 @@ describe('TerminalTransportService', () => {
             value: '\x7f'
         }));
 
-        expect(controlClient.sendKey).toHaveBeenCalledWith('BSpace');
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(controlClient.sendKey).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', '\x7f', 'text');
     });
 
     it('streaming multiline paste は既存のterminalIo経路にfallbackする', async () => {
