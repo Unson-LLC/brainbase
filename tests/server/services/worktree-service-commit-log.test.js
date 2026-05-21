@@ -170,6 +170,32 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(mockExec).toHaveBeenNthCalledWith(4, 'git -C "/tmp/worktrees/session-1-repo" reset --hard HEAD');
     });
 
+    it('既存workspace再利用時_checkout済みbranchをforce更新せずresetもしない', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'readFile').mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'abc123\n' })
+            .mockResolvedValueOnce({ stdout: 'abc123\n' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service._ensureGitCompatibility(
+            'session-1',
+            '/tmp/repo',
+            '/tmp/worktrees/session-1-repo',
+            { updateBranch: false, resetWorkspace: false }
+        );
+
+        expect(result.branchName).toBe('session/session-1');
+        expect(mockExec).toHaveBeenNthCalledWith(1, 'git -C "/tmp/repo" rev-parse HEAD');
+        expect(mockExec).toHaveBeenNthCalledWith(2, 'git -C "/tmp/repo" rev-parse --verify "refs/heads/session/session-1"');
+        expect(mockExec).toHaveBeenNthCalledWith(3, 'git -C "/tmp/worktrees/session-1-repo" rm -r --cached .jj/ 2>/dev/null || true');
+        expect(mockExec).not.toHaveBeenCalledWith(expect.stringContaining('branch --force'));
+        expect(mockExec).not.toHaveBeenCalledWith(expect.stringContaining('reset --hard'));
+    });
+
     it('Git互換メタデータ削除時_worktree管理情報とbranchを掃除する', async () => {
         const { promises: fs } = await import('fs');
         const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined);

@@ -855,6 +855,7 @@ export class WorktreeService {
     }
 
     async _ensureGitCompatibility(sessionId, repoPath, workspacePath, options = {}) {
+        const { updateBranch = true, resetWorkspace = true } = options;
         const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
         const branchName = this._getSessionBranchName(sessionId, options);
         const gitRoot = path.join(repoPath, '.git');
@@ -871,9 +872,21 @@ export class WorktreeService {
             throw new Error(`Failed to resolve HEAD commit for ${repoPath}`);
         }
 
-        await this.execPromise(
-            `git -C "${repoPath}" branch --force "${branchName}" "${commit}"`
-        );
+        if (updateBranch) {
+            await this.execPromise(
+                `git -C "${repoPath}" branch --force "${branchName}" "${commit}"`
+            );
+        } else {
+            try {
+                await this.execPromise(
+                    `git -C "${repoPath}" rev-parse --verify "refs/heads/${branchName}"`
+                );
+            } catch {
+                await this.execPromise(
+                    `git -C "${repoPath}" branch "${branchName}" "${commit}"`
+                );
+            }
+        }
 
         await fs.writeFile(
             path.join(gitWorktreePath, 'gitdir'),
@@ -904,15 +917,21 @@ export class WorktreeService {
             // .jj/ may not be tracked — that's fine
         }
 
-        // Align the git worktree metadata with the freshly materialized JJ workspace.
-        await this.execPromise(`git -C "${workspacePath}" reset --hard HEAD`);
+        if (resetWorkspace) {
+            // Align the git worktree metadata with the freshly materialized JJ workspace.
+            await this.execPromise(`git -C "${workspacePath}" reset --hard HEAD`);
+        }
 
         return { workspaceName, branchName, gitWorktreePath };
     }
 
     async _reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity) {
         logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
-        await this._ensureGitCompatibility(sessionId, repoPath, workspacePath, workspaceIdentity);
+        await this._ensureGitCompatibility(sessionId, repoPath, workspacePath, {
+            ...workspaceIdentity,
+            updateBranch: false,
+            resetWorkspace: false
+        });
         const mainBranchName = await this._getMainBranchName(repoPath);
         const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
         const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
