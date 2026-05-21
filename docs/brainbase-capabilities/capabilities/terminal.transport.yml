@@ -21,19 +21,23 @@ visibility_rules:
   - Table rendering snapshots must not be cleared by volatile prompt transitions.
   - Focus loss can look like input transport failure.
   - Pending or failed startup shells must keep the startup composer visible and reject terminal IO until the runtime is ready.
+  - Outer terminal capability/color/focus responses must be consumed by the PTY shim and must not reach Codex stdin.
 verification:
   commands:
     - npm test -- tests/unit/terminal-transport-client.test.js
+    - npm test -- tests/unit/codex-pty-shim.test.js
     - inspect /api/version to confirm canonical runtime sha
   expected:
     - Pure Enter input takes the fast path.
     - Table snapshots remain stable across prompt/polling transitions.
     - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
     - Xterm focus reports (`ESC[I`, `ESC[O`) and bare focus fragments (`[I`, `[O`) are not echoed or sent as terminal input.
+    - Terminal responses such as `ESC[?0u`, `ESC[0u`, `ESC[I`, `ESC[O`, and OSC 10/11 color responses are dropped before Codex can treat ESC as interrupt.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
   - Focus reporting bytes or focus loss disrupt input order.
+  - Terminal response bytes leak into Codex input, causing visible fragments like `[0` or `]10;rgb...` and unsolicited "Conversation interrupted" states.
   - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
 runbooks:
   - ../runbooks/verify-31013-source.md

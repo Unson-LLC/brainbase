@@ -50,6 +50,20 @@ OSC_FG_RESPONSE = b'\x1b]10;rgb:e5e5/e5e5/e5e5\x1b\\'
 OSC_BG_QUERY = b'\x1b]11;?'
 OSC_BG_RESPONSE = b'\x1b]11;rgb:1a1a/1a1a/2e2e\x1b\\'
 
+# Responses that may come from the outer terminal after Codex asks capability
+# questions. If forwarded to Codex stdin, the leading ESC can be interpreted as
+# "interrupt", leaving fragments such as "[0" or "]10;rgb..." in the prompt.
+OUTER_TERMINAL_FIXED_RESPONSES = (
+    KITTY_RESPONSE,
+    b'\x1b[0u',
+    b'\x1b[I',
+    b'\x1b[O',
+)
+OUTER_TERMINAL_OSC_RESPONSE_PREFIXES = (
+    b'\x1b]10;',
+    b'\x1b]11;',
+)
+
 # Number of bytes from codex's startup output to scan for blocking queries.
 # Queries come in the first few hundred bytes; 8 KB is more than enough.
 SCAN_WINDOW = 8192
@@ -135,6 +149,61 @@ def write_as_typeahead(fd, data, after_key=None):
     os.write(fd, b'\r')
     if after_key is not None:
         after_key(TYPEAHEAD_DELAY_SECONDS)
+
+
+class OuterInputSanitizer:
+    """Drop terminal-generated responses before they reach Codex stdin."""
+
+    def __init__(self):
+        self._buffer = bytearray()
+
+    def feed(self, data):
+        if not data:
+            return b''
+
+        self._buffer.extend(data)
+        out = bytearray()
+
+        while self._buffer:
+            if self._buffer[0] != 0x1B:
+                out.append(self._buffer.pop(0))
+                continue
+
+            current = bytes(self._buffer)
+            fixed_match = next(
+                (seq for seq in OUTER_TERMINAL_FIXED_RESPONSES if current.startswith(seq)),
+                None,
+            )
+            if fixed_match is not None:
+                dbg('dropping outer terminal fixed response', fixed_match)
+                del self._buffer[:len(fixed_match)]
+                continue
+
+            if any(seq.startswith(current) for seq in OUTER_TERMINAL_FIXED_RESPONSES):
+                break
+
+            osc_prefix = next(
+                (prefix for prefix in OUTER_TERMINAL_OSC_RESPONSE_PREFIXES if current.startswith(prefix)),
+                None,
+            )
+            if osc_prefix is not None:
+                end_bel = current.find(b'\x07', len(osc_prefix))
+                end_st = current.find(b'\x1b\\', len(osc_prefix))
+                candidates = [idx + 1 for idx in (end_bel,) if idx >= 0]
+                candidates.extend(idx + 2 for idx in (end_st,) if idx >= 0)
+                if not candidates:
+                    break
+                end = min(candidates)
+                dbg('dropping outer terminal OSC response', current[:min(end, 80)])
+                del self._buffer[:end]
+                continue
+
+            if any(prefix.startswith(current) for prefix in OUTER_TERMINAL_OSC_RESPONSE_PREFIXES):
+                break
+
+            out.append(self._buffer.pop(0))
+
+        return bytes(out)
 
 
 def detect_codex_activity(data):
@@ -409,6 +478,7 @@ def main():
     signal.signal(signal.SIGINT, on_terminate)
 
     interceptor = QueryInterceptor(inner_master)
+    outer_input_sanitizer = OuterInputSanitizer()
     activity_reporter = ActivityReporter()
     input_line = bytearray()
 
@@ -474,6 +544,9 @@ def main():
                         dbg('outer_stdin closed', e)
                         return
                     dbg(f'outer→inner {len(data)}b', data[:80])
+                    data = outer_input_sanitizer.feed(data)
+                    if not data:
+                        continue
                     for byte in data:
                         if byte in (10, 13):
                             rewritten = rewrite_brainbase_command_line(input_line)
