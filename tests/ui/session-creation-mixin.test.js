@@ -46,6 +46,7 @@ describe('applySessionCreationMixin', () => {
 
     it('worktree session creation shows a pending shell before startup completes', async () => {
         document.body.innerHTML = `
+            <div class="console-area">
             <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
                 <div class="loading-content">
                     <div class="loading-message"></div>
@@ -56,6 +57,7 @@ describe('applySessionCreationMixin', () => {
                         <button id="session-startup-prompt-send" type="button"></button>
                     </div>
                 </div>
+            </div>
             </div>
         `;
         appStore.setState({ currentSessionId: 'previous-session', sessions: [] });
@@ -107,6 +109,7 @@ describe('applySessionCreationMixin', () => {
             allowRegularFallback: false
         }));
         expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(false);
+        expect(document.querySelector('.console-area').classList.contains('terminal-startup-active')).toBe(true);
         expect(document.getElementById('session-startup-composer').classList.contains('hidden')).toBe(false);
         expect(document.getElementById('session-startup-prompt-input').value).toBe('first prompt');
         expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();

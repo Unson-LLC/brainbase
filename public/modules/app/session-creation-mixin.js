@@ -596,6 +596,7 @@ export function applySessionCreationMixin(AppClass) {
         showTerminalLoadingOverlay(options = {}) {
             const overlay = document.getElementById('terminal-loading-overlay');
             if (!overlay) return;
+            document.querySelector('.console-area')?.classList.toggle('terminal-startup-active', options.startup === true);
             overlay.classList.remove('hidden');
             const message = overlay.querySelector('.loading-message');
             const hint = overlay.querySelector('.loading-hint');
@@ -616,6 +617,7 @@ export function applySessionCreationMixin(AppClass) {
         hideTerminalLoadingOverlay() {
             const overlay = document.getElementById('terminal-loading-overlay');
             if (!overlay) return;
+            document.querySelector('.console-area')?.classList.remove('terminal-startup-active');
             overlay.classList.add('hidden');
             this.hideSessionStartupComposer();
         },
