@@ -49,11 +49,14 @@ The only runtime code change in this PR is a Network Contract cleanup for existi
 - [ ] The PR keeps the actual inline implementation as follow-up work and does not claim the modal has already been removed.
 - [ ] Existing Network Contract cleanup is explicit: Mana Lambda chat and Brainbase terminal health/state calls are built through URL helpers without changing request semantics.
 - [ ] Existing tmux-missing cleanup behavior remains unchanged: without `--session` every `tmux_missing` health issue is eligible, and with `--session` only listed IDs are patched.
+- [ ] Current UI journeys are explicitly non-applicable for this PR because no public UI source changes; existing modal behavior remains current until the follow-up implementation PR.
 
 ## Follow-up Implementation Notes
 
 The follow-up implementation should cover these behaviors, but this PR does not implement or verify them yet:
 desktop add-session modal suppression; draft row selection before startup; editable project/engine/workspace/name/prompt controls; project-driven workspace availability; no-repository disabled workspace explanation; worktree confirmation through `createPendingSessionShell`; non-worktree confirmation through the existing regular creation flow; draft cancel restore; pending startup composer queue/flush/retry/reload; mobile and desktop entrypoints sharing one inline state machine.
+
+The follow-up implementation must also update agent-facing capability artifacts that currently name `#create-session-modal`, especially `docs/brainbase-capabilities/capabilities/session.create.yml` and `docs/brainbase-capabilities/capabilities/project.selector.yml`.
 
 ## Verification
 

@@ -5,6 +5,8 @@ const storyPath = 'docs/user_stories/active/story-inline-session-creation.md';
 const specPath = 'docs/specs/story-inline-session-creation-spec.md';
 const manaRoutesPath = 'server/routes/brainbase/mana-capture-routes.js';
 const pauseOrphanPath = 'server/scripts/pause-orphan-tmux-missing-sessions.js';
+const prBodyPath = '.vibepro/pr/story-inline-session-creation/pr-body.md';
+const gateDagPath = '.vibepro/pr/story-inline-session-creation/gate-dag.json';
 
 async function read(path: string): Promise<string> {
   return readFile(path, 'utf8');
@@ -45,5 +47,23 @@ test.describe('story-inline-session-creation PR gate evidence', () => {
     expect(script).toContain('filter.has(issue.sessionId)');
     expect(script).toContain('tmux_missing');
     expect(script).toContain("method: 'PATCH'");
+  });
+
+  test('story-inline-session-creation ac:6 classifies current UI journeys as non-applicable for this PR', async () => {
+    const story = await read(storyPath);
+    const spec = await read(specPath);
+    expect(story).toContain('Current UI journeys are explicitly non-applicable');
+    expect(spec).toContain('browser UI journeys are non-applicable in this PR because no public UI source is changed');
+    expect(spec).toContain('docs/brainbase-capabilities/capabilities/session.create.yml');
+    expect(spec).toContain('docs/brainbase-capabilities/capabilities/project.selector.yml');
+  });
+
+  test('story-inline-session-creation gate artifacts use the current planning/network acceptance surface', async () => {
+    const prBody = await read(prBodyPath);
+    const gateDag = JSON.parse(await read(gateDagPath));
+    const serializedGateDag = JSON.stringify(gateDag);
+    expect(prBody).toContain('Current UI journeys are explicitly non-applicable');
+    expect(serializedGateDag).toContain('Current UI journeys are explicitly non-applicable');
+    expect(serializedGateDag).not.toContain('Desktop `#add-session-btn` does not activate `#create-session-modal`');
   });
 });

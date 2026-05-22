@@ -55,4 +55,46 @@ describe('mana capture routes', () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://mana.example.com/api/chat');
   });
+
+  it('POST /chat rejects an empty message before calling Mana Lambda', async () => {
+    const res = await request(app)
+      .post('/api/brainbase/mana/chat')
+      .send({ message: '   ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'message is required' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('POST /chat preserves 503 fallback semantics for non-ok Mana Lambda responses', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      text: async () => 'bad gateway',
+    });
+
+    const res = await request(app)
+      .post('/api/brainbase/mana/chat')
+      .send({ message: 'hello' });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      error: 'AI response unavailable',
+      reply: 'ごめん、今ちょっと考えがまとまらない。もう一回言ってくれる？',
+    });
+  });
+
+  it('POST /chat preserves 503 fallback semantics when Mana Lambda fetch throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+
+    const res = await request(app)
+      .post('/api/brainbase/mana/chat')
+      .send({ message: 'hello' });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      error: 'AI response unavailable',
+      reply: 'ごめん、今ちょっと考えがまとまらない。もう一回言ってくれる？',
+    });
+  });
 });

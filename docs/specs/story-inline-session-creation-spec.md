@@ -34,6 +34,8 @@ Follow-up implementation planning scope:
 - `tests/ui/session-creation-mixin.test.js`
 - `tests/domain/session/session-service.test.js`
 - `tests/e2e/story-session-shell-first-startup-ux.spec.js`
+- `docs/brainbase-capabilities/capabilities/session.create.yml`
+- `docs/brainbase-capabilities/capabilities/project.selector.yml`
 
 ## Invariants
 
@@ -68,6 +70,8 @@ Follow-up implementation planning scope:
 - S-3: Given the `pause-orphan` script receives a terminal health response, when `--session` is provided, then only matching `tmux_missing` session IDs are patched through `/api/state/sessions/:id`.
 - S-4: Given the `pause-orphan` script runs in dry-run mode, when tmux-missing sessions are present, then no PATCH request is sent.
 - S-5: Given future inline creation implementation starts, when desktop or mobile entrypoints are touched, then the tests must be updated from modal-opening expectations to inline-shell expectations in that implementation PR.
+- S-6: Given this PR does not change public UI code, when UI/E2E review is performed, then browser journey evidence is explicitly non-applicable for current behavior and existing modal-opening coverage remains unchanged until the follow-up implementation PR.
+- S-7: Given the follow-up implementation removes the modal primary path, when capability artifacts are updated, then `session.create.yml` and `project.selector.yml` must stop presenting `#create-session-modal` as the canonical creation surface.
 
 ## Anti-patterns
 
@@ -84,8 +88,11 @@ Follow-up implementation planning scope:
 - V-1: `tests/e2e/story-inline-session-creation-pr-gate.spec.ts` covers this PR's Story/Spec acceptance criteria.
 - V-2: `tests/server/routes/mana-capture-routes.test.js` covers Mana Lambda `/api/chat` URL construction and success response semantics.
 - V-3: `tests/server/scripts/pause-orphan-tmux-missing-sessions.test.js` covers dry-run/apply, `--session` filtering, URL encoding, and PATCH payload semantics.
-- V-4: Follow-up implementation must add unit tests for desktop add-session, cancel restore, project/worktree disabled explanation, and worktree/non-worktree confirmation paths.
-- V-5: Follow-up implementation must update `tests/e2e/story-session-shell-first-startup-ux.spec.js` or add a replacement behavioral E2E for inline shell, pending startup, retry, mobile entrypoint, and hard-reload recovery.
+- V-4: `tests/server/routes/mana-capture-routes.test.js` covers empty-message validation, non-ok Lambda fallback, and thrown fetch fallback so POST `/chat` request/response semantics remain stable.
+- V-5: `tests/e2e/story-inline-session-creation-pr-gate.spec.ts` records that browser UI journeys are non-applicable in this PR because no public UI source is changed.
+- V-6: Follow-up implementation must add unit tests for desktop add-session, cancel restore, project/worktree disabled explanation, and worktree/non-worktree confirmation paths.
+- V-7: Follow-up implementation must update `tests/e2e/story-session-shell-first-startup-ux.spec.js` or add a replacement behavioral E2E for inline shell, pending startup, retry, mobile entrypoint, and hard-reload recovery.
+- V-8: Follow-up implementation must update `docs/brainbase-capabilities/capabilities/session.create.yml` and `docs/brainbase-capabilities/capabilities/project.selector.yml` so agent-facing capability surfaces no longer point at the removed modal path.
 
 ## Open Questions
 
