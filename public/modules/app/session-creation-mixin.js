@@ -646,7 +646,12 @@ export function applySessionCreationMixin(AppClass) {
                 this._sessionStartupPromptQueue.set(sessionId, currentInput.value);
                 this._persistSessionStartupPromptState(sessionId);
                 this._setSessionStartupPromptStatus('起動完了後に送信します', 'queued');
-                this._retryFailedSessionStartup?.(sessionId);
+                if (this._retryFailedSessionStartup?.(sessionId)) {
+                    return;
+                }
+                if (this._isSessionStartupPromptReadyToSend(sessionId)) {
+                    void this._flushSessionStartupPrompt(sessionId);
+                }
             };
             this._queueCurrentSessionStartupPrompt = queueCurrentPrompt;
 
@@ -664,6 +669,17 @@ export function applySessionCreationMixin(AppClass) {
                 const sessionId = input.dataset.sessionId || appStore.getState().currentSessionId;
                 if (!sessionId) return;
                 this._sessionStartupPromptDrafts.set(sessionId, input.value);
+                if (this._isSessionStartupPromptWaitingForStartup(sessionId)) {
+                    if (input.value.trim()) {
+                        this._sessionStartupPromptQueue.set(sessionId, input.value);
+                        this._setSessionStartupPromptStatus('起動完了後に送信します', 'queued');
+                    } else {
+                        this._sessionStartupPromptQueue.delete(sessionId);
+                        this._setSessionStartupPromptStatus('入力待ち', 'idle');
+                    }
+                    this._persistSessionStartupPromptState(sessionId);
+                    return;
+                }
                 if (!this._sessionStartupPromptQueue?.has(sessionId)) {
                     this._persistSessionStartupPromptState(sessionId);
                     return;
@@ -834,6 +850,10 @@ export function applySessionCreationMixin(AppClass) {
         },
 
         async _flushSessionStartupPrompt(sessionId) {
+            this._sessionStartupPromptFlushing = this._sessionStartupPromptFlushing || new Set();
+            if (this._sessionStartupPromptFlushing.has(sessionId)) {
+                return;
+            }
             this._hydrateSessionStartupPromptState(sessionId);
             this._captureSessionStartupPromptFromComposer(sessionId, {
                 queue: this._sessionStartupPromptQueue?.has(sessionId) === true
@@ -845,6 +865,7 @@ export function applySessionCreationMixin(AppClass) {
                 return;
             }
 
+            this._sessionStartupPromptFlushing.add(sessionId);
             this._setSessionStartupPromptStatus('送信中...', 'sending');
             try {
                 if (!this.terminalInteractionService?.sendInput) {
@@ -861,6 +882,8 @@ export function applySessionCreationMixin(AppClass) {
                 this._sessionStartupPromptQueue.set(sessionId, prompt);
                 this._persistSessionStartupPromptState(sessionId);
                 this._setSessionStartupPromptStatus('送信に失敗しました。再接続後にもう一度送信してください。', 'failed');
+            } finally {
+                this._sessionStartupPromptFlushing.delete(sessionId);
             }
         },
 
@@ -884,6 +907,25 @@ export function applySessionCreationMixin(AppClass) {
             if (!sessionId) return false;
             const input = document.getElementById('session-startup-prompt-input');
             return appStore.getState().currentSessionId === sessionId || input?.dataset?.sessionId === sessionId;
+        },
+
+        _getSessionStartupPromptSession(sessionId) {
+            if (!sessionId) return null;
+            return (appStore.getState().sessions || []).find((entry) => entry.id === sessionId) || null;
+        },
+
+        _isSessionStartupPromptWaitingForStartup(sessionId) {
+            const session = this._getSessionStartupPromptSession(sessionId);
+            return session?.startupStatus === 'pending'
+                || this._sessionStartupInFlight?.has(sessionId) === true;
+        },
+
+        _isSessionStartupPromptReadyToSend(sessionId) {
+            const session = this._getSessionStartupPromptSession(sessionId);
+            return Boolean(session)
+                && this._sessionStartupInFlight?.has(sessionId) !== true
+                && session.startupStatus !== 'pending'
+                && session.startupStatus !== 'failed';
         },
 
         /**

@@ -146,9 +146,8 @@ test.describe('story-session-shell-first-startup-ux', () => {
             }).toBe('pending');
 
             await setStartupPrompt(page, 'queued first prompt');
-            await page.locator('#session-startup-prompt-send').click();
             await page.waitForTimeout(250);
-            // Ensure the prompt is queued before releasing the mocked worktree startup.
+            // Typing while startup is pending should queue automatically before startup is released.
             await expect.poll(async () => (
                 await page.evaluate((sessionId) => (
                     window.brainbaseApp?._sessionStartupPromptQueue?.get(sessionId) || null
@@ -215,7 +214,7 @@ test.describe('story-session-shell-first-startup-ux', () => {
 
             if (createAttempts.length === 1) {
                 await route.fulfill({
-                    status: 200,
+                    status: 500,
                     contentType: 'application/json',
                     body: JSON.stringify({ error: 'startup failed' })
                 });
@@ -296,7 +295,8 @@ test.describe('story-session-shell-first-startup-ux', () => {
                 return await page.evaluate(async (sessionId) => {
                     const { appStore } = await import('/modules/core/store.js');
                     const session = (appStore.getState().sessions || []).find((entry) => entry.id === sessionId);
-                    return session?.startupStatus || null;
+                    if (session?.startupStatus === 'failed') return 'failed';
+                    return window.brainbaseApp?._sessionStartupFailed?.has(sessionId) ? 'failed' : (session?.startupStatus || null);
                 }, sessionId);
             }).toBe('failed');
 

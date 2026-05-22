@@ -31,6 +31,8 @@ visibility_rules:
   - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
   - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
   - The initial prompt entered in the create-session modal must be passed to the worktree runtime launch, not typed later into the terminal.
+  - Text typed into the startup composer while the runtime is pending must be queued automatically and flushed once the runtime becomes ready.
+  - Submitting the startup composer after the runtime is ready must send immediately instead of showing a pending-startup error.
   - Codex worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
   - Claude Code worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
 verification:
@@ -45,6 +47,8 @@ verification:
     - Worktree sessions have expected worktree path and repo metadata.
     - Worktree session creation closes the modal and selects the pending shell before runtime startup completes.
     - A create-modal initial prompt is delivered as the runtime initial command and is not duplicated through terminal typeahead.
+    - Startup composer text typed during pending startup is sent after startup becomes ready without requiring an early send click.
+    - Startup composer send after startup is already ready delivers the prompt immediately.
     - Codex worktree sessions reach the Codex prompt without a workspace trust picker.
     - Claude Code worktree sessions reach the Claude Code prompt without a workspace trust picker.
 common_failures:
@@ -52,6 +56,8 @@ common_failures:
   - Project path resolves to fallback because config local.path is missing or stale.
   - Existing git/jj locks block worktree creation.
   - Worktree startup ignores the create-modal prompt if shell-first startup drops initialCommand before POST /api/sessions/create-with-worktree.
+  - Startup composer text is persisted only as a draft, so startup completion has nothing queued to send.
+  - Startup composer send races the ready transition and incorrectly remains in a pending-startup state.
   - Codex stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.codex/config.toml.
   - Claude Code stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.claude.json.
 runbooks:
