@@ -115,6 +115,7 @@ export function createCoreServices({
         runtimeRegistry: terminalRuntimeRegistry,
         serverGeneration: process.env.BRAINBASE_SERVER_GENERATION || null
     });
+    sessionServices.shared.runtimeReconciler = terminalRuntimeReconciler;
     const terminalInputProbeService = new TerminalInputProbeService({
         ownershipService: sessionServices.ownership,
         runtimeQuery: sessionServices.runtime.query,
