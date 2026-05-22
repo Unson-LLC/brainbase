@@ -49,17 +49,24 @@ The only runtime code change in this PR is a Network Contract cleanup for existi
 
 ## Acceptance Criteria
 
-- [ ] Desktop `#add-session-btn` does not activate `#create-session-modal`.
-- [ ] A new session row is added and selected before slow worktree/runtime startup begins.
-- [ ] The terminal area shows an inline creation shell with editable project, engine, workspace, name, and prompt controls.
-- [ ] Project changes update workspace availability without starting runtime.
-- [ ] Projects without a Git repository disable the workspace toggle with an inline reason.
-- [ ] Worktree confirmation calls `createPendingSessionShell` before background `createSession`.
-- [ ] Non-worktree confirmation uses the existing regular creation flow.
-- [ ] Cancel removes the draft shell without mutating existing sessions.
-- [ ] The existing pending startup composer still queues and flushes prompt text once after readiness.
-- [ ] The updated E2E covers inline creation through pending startup and retry.
+- [ ] The Story records why the create-session modal should be removed from the primary new-session flow.
+- [ ] The Spec defines the inline draft shell invariants, runtime-start boundary, cancel behavior, and mobile/desktop shared state machine.
+- [ ] The PR keeps the actual inline implementation as follow-up work and does not claim the modal has already been removed.
+- [ ] Existing Network Contract cleanup is explicit: Mana Lambda chat and Brainbase terminal health/state calls are built through URL helpers without changing request semantics.
 - [ ] Existing tmux-missing cleanup behavior remains unchanged: without `--session` every `tmux_missing` health issue is eligible, and with `--session` only listed IDs are patched.
+
+## Future Implementation Checklist
+
+- Desktop `#add-session-btn` does not activate `#create-session-modal`.
+- A new session row is added and selected before slow worktree/runtime startup begins.
+- The terminal area shows an inline creation shell with editable project, engine, workspace, name, and prompt controls.
+- Project changes update workspace availability without starting runtime.
+- Projects without a Git repository disable the workspace toggle with an inline reason.
+- Worktree confirmation calls `createPendingSessionShell` before background `createSession`.
+- Non-worktree confirmation uses the existing regular creation flow.
+- Cancel removes the draft shell without mutating existing sessions.
+- The existing pending startup composer still queues and flushes prompt text once after readiness.
+- The updated E2E covers inline creation through pending startup and retry.
 
 ## Verification
 
