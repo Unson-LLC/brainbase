@@ -41,6 +41,7 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 ## 3. Brainbase Non-Negotiables
 
 - **Graph SSOT first**: For people, orgs, customers, partners, projects, terms, decisions, and CRM facts, check brainbase Graph (`https://bb.unson.jp`) before writing or deciding. Use `brainbase-graph-philosophy-context`.
+- **Entity ID citation**: When a reply names a person, organization, customer, or project, cite the Graph entity ID you verified (e.g., `per_xxx` / `org_xxx` / `cus_xxx` / `prj_xxx`). If the entity is not in the Graph, say so explicitly (`Graph に未登録`) rather than silently omitting the citation.
 - **Capability map first**: For Brainbase capability, project/session creation, auth grant, port `31013`, launchd runtime, terminal/xterm transport, or "not visible/not working" issues, use `brainbase-capability-map`.
 - **Skills first**: Load only the smallest relevant Skill. Do not bulk-load Skill folders.
 - **Local vs Lightsail matters**: For `/oyasumi` Decision/Wiki writes, POST through local `http://localhost:31013`; DB access must be the Lightsail tunnel, not an accidental local database.
