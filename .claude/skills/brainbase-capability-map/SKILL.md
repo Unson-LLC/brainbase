@@ -39,6 +39,7 @@ Pick the matching capability_id then **Read the yml** before reasoning. Reading 
 | `development.workflow` | `development.workflow.yml` | jj/git workflow, commit/PR shape |
 | `git.protected-push` | `git.protected-push.yml` | direct push / force push to develop or main |
 | `graph.ssot` | `graph.ssot.yml` | canonical person/org/customer/decision/story lookup before writing facts |
+| `personal-kg` | `personal-kg.yml` | owner-visible cognitive memory (思想/実績/判断基準) for `/oyasumi`, SNS generation, morning brief; in-progress |
 | `project.catalog` | `project.catalog.yml` | configured project list used by UI / project mapping |
 | `project.selector` | `project.selector.yml` | a project is missing from the Create Session selector |
 | `requirements.coverage` | `requirements.coverage.yml` | acceptance criteria still satisfied before claiming done |
