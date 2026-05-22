@@ -28,18 +28,13 @@ After `story-session-shell-first-startup-ux`, worktree sessions already show a p
 
 The expected flow is: clicking `新規セッション` immediately opens a new session surface, and the user configures project, engine, workspace, name, and initial input there.
 
-## Requirements
+## Current PR Requirements
 
-- `新規セッション` must not open `#create-session-modal` on the primary path.
-- Brainbase must create/select an inline draft session shell immediately.
-- The inline shell must provide session name, project, AI engine, JJ workspace, initial input, start, and cancel controls.
-- Runtime, ttyd, xterm, snapshot loading, and worktree creation must not start before the user confirms settings.
-- Confirming a worktree draft must reuse the existing pending-shell/background startup flow.
-- Confirming a regular draft must reuse the existing non-worktree creation flow.
-- Canceling an unconfirmed draft must remove only that draft and restore the previous current session when possible.
-- Startup prompt queueing, retry, failure preservation, and reload recovery from `story-session-shell-first-startup-ux` must remain intact.
-- Mobile and desktop new-session entrypoints must share the same inline creation state machine.
-- The existing `pause-orphan-tmux-missing-sessions.js` maintenance script may filter tmux-missing sessions by explicit `--session` IDs before PATCHing `/api/state/sessions/:id`; this is an operational cleanup path and is outside the inline creation runtime flow.
+- Record the product requirement that `新規セッション` should eventually avoid `#create-session-modal` on the primary path.
+- Record the implementation contract for a future inline draft shell without changing the current new-session UI in this PR.
+- Keep the future implementation bounded to the existing session creation UI, session service, state store, and terminal startup architecture.
+- Make the existing Mana Lambda chat URL construction explicit without changing `/chat` request or response semantics.
+- Make the existing `pause-orphan-tmux-missing-sessions.js` Brainbase health/state URL construction explicit and preserve `--session` filtering before PATCHing `/api/state/sessions/:id`.
 
 ## Architecture Decision
 
@@ -55,26 +50,17 @@ The only runtime code change in this PR is a Network Contract cleanup for existi
 - [ ] Existing Network Contract cleanup is explicit: Mana Lambda chat and Brainbase terminal health/state calls are built through URL helpers without changing request semantics.
 - [ ] Existing tmux-missing cleanup behavior remains unchanged: without `--session` every `tmux_missing` health issue is eligible, and with `--session` only listed IDs are patched.
 
-## Future Implementation Checklist
+## Follow-up Implementation Notes
 
-- Desktop `#add-session-btn` does not activate `#create-session-modal`.
-- A new session row is added and selected before slow worktree/runtime startup begins.
-- The terminal area shows an inline creation shell with editable project, engine, workspace, name, and prompt controls.
-- Project changes update workspace availability without starting runtime.
-- Projects without a Git repository disable the workspace toggle with an inline reason.
-- Worktree confirmation calls `createPendingSessionShell` before background `createSession`.
-- Non-worktree confirmation uses the existing regular creation flow.
-- Cancel removes the draft shell without mutating existing sessions.
-- The existing pending startup composer still queues and flushes prompt text once after readiness.
-- The updated E2E covers inline creation through pending startup and retry.
+The follow-up implementation should cover these behaviors, but this PR does not implement or verify them yet:
+desktop add-session modal suppression; draft row selection before startup; editable project/engine/workspace/name/prompt controls; project-driven workspace availability; no-repository disabled workspace explanation; worktree confirmation through `createPendingSessionShell`; non-worktree confirmation through the existing regular creation flow; draft cancel restore; pending startup composer queue/flush/retry/reload; mobile and desktop entrypoints sharing one inline state machine.
 
 ## Verification
 
 ```bash
-npm test -- tests/ui/session-creation-mixin.test.js
-npm test -- tests/domain/session/session-service.test.js
-npm test -- tests/ui/integration/app-switch-session-runtime.test.js
-BRAINBASE_E2E_PORT=31016 BRAINBASE_PORT=31016 PORT=31016 npm run test:e2e -- tests/e2e/story-session-shell-first-startup-ux.spec.js --project=chromium
+npm test -- --run tests/server/routes/mana-capture-routes.test.js tests/server/scripts/pause-orphan-tmux-missing-sessions.test.js tests/server/routes/health.test.js tests/server/controllers/health-controller.test.js
+npx playwright test tests/e2e/story-inline-session-creation-pr-gate.spec.ts --project=chromium
+npm run typecheck
 vibepro check ui . --story-id story-inline-session-creation
 vibepro pr prepare . --base origin/develop --story-id story-inline-session-creation
 ```

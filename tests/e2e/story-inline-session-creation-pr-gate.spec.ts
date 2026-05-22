@@ -20,14 +20,14 @@ test.describe('story-inline-session-creation PR gate evidence', () => {
 
   test('story-inline-session-creation ac:2 defines inline draft shell runtime boundaries', async () => {
     const spec = await read(specPath);
-    expect(spec).toContain('Inline draft shells must not start terminal runtime');
-    expect(spec).toContain('Canceling an unconfirmed draft shell must not archive');
-    expect(spec).toContain('Mobile and desktop new-session entrypoints share the same inline creation state machine');
+    expect(spec).toContain('future inline draft shell must be client-owned before confirmation');
+    expect(spec).toContain('Future inline draft shells must not start terminal runtime');
+    expect(spec).toContain('Future mobile and desktop new-session entrypoints share the same inline state machine');
   });
 
   test('story-inline-session-creation ac:3 keeps implementation work separated from this PR', async () => {
     const story = await read(storyPath);
-    expect(story).toContain('Future Implementation Checklist');
+    expect(story).toContain('Follow-up Implementation Notes');
     expect(story).toContain('does not claim the modal has already been removed');
   });
 

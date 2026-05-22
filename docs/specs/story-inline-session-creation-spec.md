@@ -8,71 +8,84 @@ created_at: 2026-05-22
 updated_at: 2026-05-22
 ---
 
-# Spec: Inline session creation shell
+# Spec: Inline session creation planning and network cleanup
 
 ## Scope
+
+Current PR scope:
+
+- `docs/user_stories/active/story-inline-session-creation.md`
+- `docs/specs/story-inline-session-creation-spec.md`
+- `server/routes/brainbase/mana-capture-routes.js`
+- `server/scripts/pause-orphan-tmux-missing-sessions.js`
+- `tests/server/routes/mana-capture-routes.test.js`
+- `tests/server/scripts/pause-orphan-tmux-missing-sessions.test.js`
+- `tests/e2e/story-inline-session-creation-pr-gate.spec.ts`
+
+Follow-up implementation planning scope:
 
 - `public/index.html`
 - `public/style.css`
 - `public/modules/app/session-creation-mixin.js`
 - `public/modules/app/session-management-mixin.js`
+- `public/modules/app/mobile-navigation-mixin.js`
 - `public/modules/domain/session/session-service.js`
 - `public/modules/ui/views/session-view.js`
 - `tests/ui/session-creation-mixin.test.js`
 - `tests/domain/session/session-service.test.js`
 - `tests/e2e/story-session-shell-first-startup-ux.spec.js`
-- `server/scripts/pause-orphan-tmux-missing-sessions.js`
 
 ## Invariants
 
-- INV-1: The primary new-session action must not require a modal before the user sees the new session surface.
-- INV-2: Inline draft shells must not start terminal runtime, ttyd, xterm transport, snapshot loading, or worktree creation before the user confirms the session settings.
-- INV-3: Once settings are confirmed, existing shell-first startup semantics remain authoritative for worktree sessions.
-- INV-4: Startup prompt queueing, retry, failure preservation, and reload recovery must remain compatible with `story-session-shell-first-startup-ux`.
-- INV-5: The same project, engine, workspace, session name, and initial command values must reach `SessionService.createSession()` regardless of whether the old modal fallback exists.
-- INV-6: Canceling an unconfirmed draft shell must not archive, delete, or mutate any existing session.
-- INV-7: A disabled workspace option must explain the project repository constraint inline instead of silently falling back.
-- INV-8: The `pause-orphan-tmux-missing-sessions.js` script may filter `tmux_missing` health issues by explicit `--session` IDs and must keep PATCHing `/api/state/sessions/:id`; this maintenance path is not part of inline session creation.
+- INV-1: This PR must not change the current new-session runtime behavior or claim the inline shell is implemented.
+- INV-2: The future inline draft shell must be client-owned before confirmation; it must not be persisted to `state.json`, exposed as a real `SessionService` session, or visible to runtime reconciliation until the user confirms.
+- INV-3: Future inline draft shells must not start terminal runtime, ttyd, xterm transport, snapshot loading, or worktree creation before the user confirms the session settings.
+- INV-4: Once settings are confirmed in the future implementation, existing shell-first startup semantics remain authoritative for worktree sessions.
+- INV-5: Startup prompt queueing, retry, failure preservation, and reload recovery must remain compatible with `story-session-shell-first-startup-ux` in the follow-up implementation.
+- INV-6: The same project, engine, workspace, session name, and initial command values must reach `SessionService.createSession()` after confirmation in the follow-up implementation.
+- INV-7: Canceling an unconfirmed draft shell must not archive, delete, persist, or mutate any existing session in the follow-up implementation.
+- INV-8: A disabled workspace option must explain the project repository constraint inline instead of silently falling back in the follow-up implementation.
+- INV-9: `server/routes/brainbase/mana-capture-routes.js` must keep POST `/chat` request/response semantics while building the external Mana Lambda `/api/chat` URL explicitly.
+- INV-10: The `pause-orphan-tmux-missing-sessions.js` script may filter `tmux_missing` health issues by explicit `--session` IDs and must keep PATCHing `/api/state/sessions/:id`; this maintenance path is not part of inline session creation.
 
 ## Contracts
 
-- CON-1: `#add-session-btn` creates/selects an inline draft shell in app state instead of adding `.active` to `#create-session-modal`.
-- CON-2: The inline shell owns the editable controls for `project`, `engine`, `useWorktree`, `sessionName`, and `initialCommand`.
-- CON-3: Confirming a worktree inline shell calls the same pending-shell and background-start path used by shell-first startup UX.
-- CON-4: Confirming a non-worktree inline shell calls the existing regular session creation path.
-- CON-5: The inline shell may reuse startup composer storage only after the session is confirmed; draft-only text must be separately discardable on cancel.
-- CON-6: Project selection uses the existing project option source and worktree availability logic.
-- CON-7: Mobile and desktop new-session entrypoints share the same inline creation state machine.
-- CON-8: `pause-orphan-tmux-missing-sessions.js` builds `/api/health/terminal` and `/api/state/sessions/:id` URLs through explicit helper functions so VibePro can distinguish Brainbase routes from external API calls.
+- CON-1: Current PR acceptance is documentation/spec/network cleanup only; UI modal removal is a follow-up implementation contract.
+- CON-2: Future `#add-session-btn` behavior creates/selects a client-owned inline draft shell in app state instead of adding `.active` to `#create-session-modal`.
+- CON-3: The future inline shell owns editable controls for `project`, `engine`, `useWorktree`, `sessionName`, and `initialCommand`.
+- CON-4: Future worktree confirmation calls the same pending-shell and background-start path used by shell-first startup UX.
+- CON-5: Future non-worktree confirmation calls the existing regular session creation path.
+- CON-6: Future draft prompt text may reuse startup composer storage only after confirmation; draft-only text must be separately discardable on cancel.
+- CON-7: Future project selection uses the existing project option source and worktree availability logic.
+- CON-8: Future mobile and desktop new-session entrypoints share the same inline state machine across `session-creation-mixin.js` and `mobile-navigation-mixin.js`.
+- CON-9: `server/routes/brainbase/mana-capture-routes.js` builds the external Mana Lambda `/api/chat` URL through `buildManaLambdaUrl`.
+- CON-10: `pause-orphan-tmux-missing-sessions.js` builds `/api/health/terminal` and `/api/state/sessions/:id` URLs through explicit helper functions so VibePro can distinguish Brainbase routes from external API calls.
 
 ## Scenarios
 
-- S-1: Given the user clicks `新規セッション`, when no modifier/debug path is used, then the modal stays closed and a new inline draft shell is selected.
-- S-2: Given the inline draft shell is visible, when the user changes project, then workspace availability and default session name update without starting runtime.
-- S-3: Given the inline draft shell is visible, when the user types an initial prompt and confirms with worktree enabled, then the prompt is passed into the existing background startup flow and is not duplicated through terminal typeahead.
-- S-4: Given worktree startup is pending after confirmation, when the user edits or submits the startup composer, then text is queued and flushed once after runtime readiness.
-- S-5: Given startup fails after confirmation, when the user returns to the session, then the prompt remains visible and retryable.
-- S-6: Given the user cancels an inline draft shell before confirmation, when a previous current session exists, then Brainbase returns to that session and removes only the draft shell.
-- S-7: Given the user opens the mobile new-session action, when the action fires, then the same inline draft shell appears instead of the modal.
-- S-8: Given the `pause-orphan` script receives a terminal health response, when `--session` is provided, then only matching `tmux_missing` session IDs are patched through `/api/state/sessions/:id`.
+- S-1: Given this PR is reviewed, when the Story and Spec are read, then they clearly identify inline session creation as follow-up implementation work.
+- S-2: Given Mana Lambda URL has or lacks a trailing slash, when POST `/chat` calls the external Lambda, then the route fetches exactly one `/api/chat` path and preserves successful reply semantics.
+- S-3: Given the `pause-orphan` script receives a terminal health response, when `--session` is provided, then only matching `tmux_missing` session IDs are patched through `/api/state/sessions/:id`.
+- S-4: Given the `pause-orphan` script runs in dry-run mode, when tmux-missing sessions are present, then no PATCH request is sent.
+- S-5: Given future inline creation implementation starts, when desktop or mobile entrypoints are touched, then the tests must be updated from modal-opening expectations to inline-shell expectations in that implementation PR.
 
 ## Anti-patterns
 
-- AP-1: Keeping the modal as the primary path and merely adding another form to the pending shell.
-- AP-2: Creating a worktree or starting runtime as soon as the draft shell appears.
-- AP-3: Treating draft prompt text as a queued terminal prompt before the user confirms session settings.
-- AP-4: Silently converting a requested worktree session into a regular session when the project has no repository.
-- AP-5: Duplicating project/engine/worktree logic between modal code and inline shell code without a shared state model.
-- AP-6: Removing the old modal code before tests prove mobile and desktop paths use the inline state machine.
+- AP-1: Claiming modal removal is complete in a PR that only defines Story/Spec and network cleanup.
+- AP-2: Leaving changed runtime/API paths out of Story, Spec, or test surfaces.
+- AP-3: Keeping future implementation contracts as current PR Acceptance Criteria.
+- AP-4: In the follow-up implementation, keeping the modal as the primary path and merely adding another form to the pending shell.
+- AP-5: In the follow-up implementation, creating a worktree or starting runtime as soon as the draft shell appears.
+- AP-6: In the follow-up implementation, persisting an unconfirmed draft as a real session before confirmation.
+- AP-7: In the follow-up implementation, silently converting a requested worktree session into a regular session when the project has no repository.
 
 ## Verification
 
-- V-1: Unit test that `#add-session-btn` opens inline draft shell and does not activate `#create-session-modal`.
-- V-2: Unit test that confirming worktree draft shell calls `createPendingSessionShell` first, then background `createSession`.
-- V-3: Unit test that canceling draft shell removes only the draft and restores previous selection.
-- V-4: Unit test that project change updates workspace disabled state and explanatory text.
-- V-5: E2E test that new-session flow shows inline shell, confirms settings, shows pending startup composer, queues prompt, and flushes once.
-- V-6: VibePro UI check for clickable controls: project selector, engine segmented control, workspace toggle, start, cancel, startup composer send/retry.
+- V-1: `tests/e2e/story-inline-session-creation-pr-gate.spec.ts` covers this PR's Story/Spec acceptance criteria.
+- V-2: `tests/server/routes/mana-capture-routes.test.js` covers Mana Lambda `/api/chat` URL construction and success response semantics.
+- V-3: `tests/server/scripts/pause-orphan-tmux-missing-sessions.test.js` covers dry-run/apply, `--session` filtering, URL encoding, and PATCH payload semantics.
+- V-4: Follow-up implementation must add unit tests for desktop add-session, cancel restore, project/worktree disabled explanation, and worktree/non-worktree confirmation paths.
+- V-5: Follow-up implementation must update `tests/e2e/story-session-shell-first-startup-ux.spec.js` or add a replacement behavioral E2E for inline shell, pending startup, retry, mobile entrypoint, and hard-reload recovery.
 
 ## Open Questions
 
