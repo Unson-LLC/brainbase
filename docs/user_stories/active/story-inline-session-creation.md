@@ -7,6 +7,7 @@ source_requirement:
 architecture_docs:
   - path: docs/architecture/terminal-runtime-architecture.md
     status: referenced
+  reason: "既存の session creation UI、session service、state store、terminal startup 境界内の変更であり、新しいサービス境界・永続化モデル・認証境界・runtime protocol を追加しないため新規ADRは不要。"
 related_stories:
   - story-session-shell-first-startup-ux
 related_tasks:
