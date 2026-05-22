@@ -38,6 +38,13 @@ The expected flow is: clicking `新規セッション` immediately opens a new s
 - Canceling an unconfirmed draft must remove only that draft and restore the previous current session when possible.
 - Startup prompt queueing, retry, failure preservation, and reload recovery from `story-session-shell-first-startup-ux` must remain intact.
 - Mobile and desktop new-session entrypoints must share the same inline creation state machine.
+- The existing `pause-orphan-tmux-missing-sessions.js` maintenance script may filter tmux-missing sessions by explicit `--session` IDs before PATCHing `/api/state/sessions/:id`; this is an operational cleanup path and is outside the inline creation runtime flow.
+
+## Architecture Decision
+
+ADR is not required for this planning PR. The intended implementation stays inside the existing session creation UI, session service, state store, and terminal startup boundaries documented in `docs/architecture/terminal-runtime-architecture.md`. It does not introduce a new service boundary, persistence model, authentication boundary, or runtime protocol.
+
+The only runtime code change in this PR is a Network Contract cleanup for existing maintenance/API calls: external Mana Lambda chat URL construction and Brainbase terminal health/state URLs are made explicit without changing request semantics.
 
 ## Acceptance Criteria
 
@@ -51,6 +58,7 @@ The expected flow is: clicking `新規セッション` immediately opens a new s
 - [ ] Cancel removes the draft shell without mutating existing sessions.
 - [ ] The existing pending startup composer still queues and flushes prompt text once after readiness.
 - [ ] The updated E2E covers inline creation through pending startup and retry.
+- [ ] Existing tmux-missing cleanup behavior remains unchanged: without `--session` every `tmux_missing` health issue is eligible, and with `--session` only listed IDs are patched.
 
 ## Verification
 
@@ -62,4 +70,3 @@ BRAINBASE_E2E_PORT=31016 BRAINBASE_PORT=31016 PORT=31016 npm run test:e2e -- tes
 vibepro check ui . --story-id story-inline-session-creation
 vibepro pr prepare . --base origin/develop --story-id story-inline-session-creation
 ```
-

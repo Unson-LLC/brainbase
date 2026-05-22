@@ -21,6 +21,7 @@ updated_at: 2026-05-22
 - `tests/ui/session-creation-mixin.test.js`
 - `tests/domain/session/session-service.test.js`
 - `tests/e2e/story-session-shell-first-startup-ux.spec.js`
+- `server/scripts/pause-orphan-tmux-missing-sessions.js`
 
 ## Invariants
 
@@ -31,6 +32,7 @@ updated_at: 2026-05-22
 - INV-5: The same project, engine, workspace, session name, and initial command values must reach `SessionService.createSession()` regardless of whether the old modal fallback exists.
 - INV-6: Canceling an unconfirmed draft shell must not archive, delete, or mutate any existing session.
 - INV-7: A disabled workspace option must explain the project repository constraint inline instead of silently falling back.
+- INV-8: The `pause-orphan-tmux-missing-sessions.js` script may filter `tmux_missing` health issues by explicit `--session` IDs and must keep PATCHing `/api/state/sessions/:id`; this maintenance path is not part of inline session creation.
 
 ## Contracts
 
@@ -41,6 +43,7 @@ updated_at: 2026-05-22
 - CON-5: The inline shell may reuse startup composer storage only after the session is confirmed; draft-only text must be separately discardable on cancel.
 - CON-6: Project selection uses the existing project option source and worktree availability logic.
 - CON-7: Mobile and desktop new-session entrypoints share the same inline creation state machine.
+- CON-8: `pause-orphan-tmux-missing-sessions.js` builds `/api/health/terminal` and `/api/state/sessions/:id` URLs through explicit helper functions so VibePro can distinguish Brainbase routes from external API calls.
 
 ## Scenarios
 
@@ -51,6 +54,7 @@ updated_at: 2026-05-22
 - S-5: Given startup fails after confirmation, when the user returns to the session, then the prompt remains visible and retryable.
 - S-6: Given the user cancels an inline draft shell before confirmation, when a previous current session exists, then Brainbase returns to that session and removes only the draft shell.
 - S-7: Given the user opens the mobile new-session action, when the action fires, then the same inline draft shell appears instead of the modal.
+- S-8: Given the `pause-orphan` script receives a terminal health response, when `--session` is provided, then only matching `tmux_missing` session IDs are patched through `/api/state/sessions/:id`.
 
 ## Anti-patterns
 

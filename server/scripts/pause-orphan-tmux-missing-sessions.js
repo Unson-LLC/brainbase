@@ -35,6 +35,12 @@ function buildBrainbaseUrl(pathname) {
   return new URL(pathname, `${HEALTH_URL.replace(/\/+$/, '')}/`).toString();
 }
 
+function buildSessionStateUrl(sessionId) {
+  const url = new URL('api/state/sessions/', `${HEALTH_URL.replace(/\/+$/, '')}/`);
+  url.pathname = `${url.pathname}${encodeURIComponent(sessionId)}`;
+  return url.toString();
+}
+
 function parseArgs() {
   const out = { dryRun: true, sessions: null };
   for (let i = 2; i < argv.length; i++) {
@@ -83,7 +89,7 @@ async function pauseSession(sessionId) {
     tmuxMissingAt: now,
     ttydProcess: null,
   });
-  const res = await fetch(`${HEALTH_URL}/api/state/sessions/${encodeURIComponent(sessionId)}`, {
+  const res = await fetch(buildSessionStateUrl(sessionId), {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body,
