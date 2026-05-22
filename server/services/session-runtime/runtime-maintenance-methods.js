@@ -218,6 +218,107 @@ export const runtimeMaintenanceMethods = {
         return { paused: [...ids] };
     },
 
+    /**
+     * tmux pane が指定 threshold 以上稼働している active session を検知して
+     * recycle する。 tmux を kill して codex/claude プロセスを破棄し、 state を
+     * paused にする。 次回 user が start すると fresh tmux + agent が立ち上がる。
+     *
+     * 2026-05-22 incident: 「手紙改善」「運用報告書」 session が 10 日稼働で
+     * codex プロセスの env スナップショットが凍結 (CLAUDE_CODE_OAUTH_TOKEN 等)
+     * → token rotation 後に「壊れた」と codex が誤判定する事故。 上限 threshold
+     * を設けて長期稼働 session を能動的に recycle する。
+     *
+     * @param {{ thresholdHours: number, reason?: string }} options
+     * @returns {Promise<{ recycled: Array<{ id: string, uptimeHours: number }> }>}
+     */
+    async _pauseStaleSessionsByUptime({ thresholdHours, reason = 'stale_uptime_recycle' } = {}) {
+        if (typeof thresholdHours !== 'number' || !(thresholdHours > 0)) {
+            throw new Error('[_pauseStaleSessionsByUptime] thresholdHours must be a positive number');
+        }
+
+        const state = this.stateStore.get();
+        const activeSessions = (state.sessions || []).filter((s) => s?.intendedState === 'active');
+        if (activeSessions.length === 0) return { recycled: [] };
+
+        const thresholdSec = thresholdHours * 3600;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const stale = [];
+
+        for (const s of activeSessions) {
+            try {
+                const { stdout } = await this.execPromise(
+                    `tmux display -t '${s.id}' -p '#{session_created}' 2>/dev/null`
+                );
+                const created = parseInt(String(stdout).trim(), 10);
+                if (!Number.isFinite(created)) continue;
+                const uptimeSec = nowSec - created;
+                if (uptimeSec >= thresholdSec) {
+                    stale.push({ id: s.id, uptimeHours: Math.floor(uptimeSec / 3600) });
+                }
+            } catch (_) {
+                // tmux not running for this session — handled by
+                // ensureTtydForActiveSession via _pauseSessionsForMissingTmux.
+            }
+        }
+
+        if (stale.length === 0) return { recycled: [] };
+
+        // Kill tmux first so the env-frozen codex/claude process tree dies.
+        // ttyd will exit on its own when tmux disappears.
+        for (const { id, uptimeHours } of stale) {
+            logger.warn(
+                `[_pauseStaleSessionsByUptime] Recycling stale session ${id} (uptime=${uptimeHours}h >= threshold=${thresholdHours}h)`
+            );
+            await this.execPromise(`tmux kill-session -t '${id}' 2>/dev/null`).catch(() => {});
+        }
+
+        // Mark state via existing helper (single source of truth for paused
+        // transition, PR #802).
+        await this._pauseSessionsForMissingTmux(stale.map((x) => x.id), { reason });
+
+        return { recycled: stale };
+    },
+
+    /**
+     * Periodic recycler. Calls _pauseStaleSessionsByUptime on an interval.
+     * Default: check every 1h with threshold 168h (7 days).
+     * Env overrides:
+     *   BRAINBASE_STALE_UPTIME_THRESHOLD_HOURS (default 168)
+     *   BRAINBASE_STALE_UPTIME_CHECK_INTERVAL_MS (default 3600000)
+     */
+    startStaleSessionRecycler() {
+        if (this._staleRecyclerTimer) return;
+        const thresholdHours = Number(process.env.BRAINBASE_STALE_UPTIME_THRESHOLD_HOURS) || 168;
+        const intervalMs = Number(process.env.BRAINBASE_STALE_UPTIME_CHECK_INTERVAL_MS) || 3600000;
+        if (!(thresholdHours > 0) || !(intervalMs > 0)) {
+            logger.warn(`[StaleSessionRecycler] disabled (threshold=${thresholdHours}h interval=${intervalMs}ms)`);
+            return;
+        }
+        logger.info(`[StaleSessionRecycler] Starting (threshold=${thresholdHours}h, interval=${intervalMs / 1000}s)`);
+        const tick = async () => {
+            try {
+                const { recycled } = await this._pauseStaleSessionsByUptime({ thresholdHours });
+                if (recycled.length > 0) {
+                    logger.warn(`[StaleSessionRecycler] Recycled ${recycled.length} session(s): ${recycled.map((x) => x.id).join(', ')}`);
+                }
+            } catch (err) {
+                logger.error('[StaleSessionRecycler] Error:', err instanceof Error ? err.message : String(err));
+            }
+        };
+        // Don't await — run async on interval
+        this._staleRecyclerTimer = setInterval(tick, intervalMs);
+        // Fire once immediately so boot-time long-running sessions get recycled.
+        tick().catch(() => {});
+    },
+
+    stopStaleSessionRecycler() {
+        if (this._staleRecyclerTimer) {
+            clearInterval(this._staleRecyclerTimer);
+            this._staleRecyclerTimer = null;
+            logger.info('[StaleSessionRecycler] Stopped');
+        }
+    },
+
     async cleanupOrphans() {
         try {
             logger.info('[cleanupOrphans] Checking for orphaned/duplicate ttyd processes...');
