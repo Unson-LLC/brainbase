@@ -118,7 +118,7 @@ describe('applySessionCreationMixin', () => {
         expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
     });
 
-    it('startup composer draft is not sent unless user explicitly queues it', async () => {
+    it('startup composer draft typed during pending startup is queued and sent when ready', async () => {
         document.body.innerHTML = `
             <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
                 <div class="loading-content">
@@ -138,11 +138,36 @@ describe('applySessionCreationMixin', () => {
             resolveStartup = resolve;
         });
         const sessionService = {
-            createPendingSessionShell: vi.fn(async ({ sessionId }) => ({
-                sessionId,
-                session: { id: sessionId, name: 'Draft Shell', startupStatus: 'pending' }
-            })),
-            createSession: vi.fn(() => startupPromise),
+            createPendingSessionShell: vi.fn(async ({ sessionId }) => {
+                appStore.setState({
+                    currentSessionId: sessionId,
+                    sessions: [{
+                        id: sessionId,
+                        name: 'Draft Shell',
+                        project: 'brainbase',
+                        engine: 'codex',
+                        startupStatus: 'pending'
+                    }]
+                });
+                return {
+                    sessionId,
+                    session: { id: sessionId, name: 'Draft Shell', startupStatus: 'pending' }
+                };
+            }),
+            createSession: vi.fn(async ({ sessionId }) => {
+                const result = await startupPromise;
+                appStore.setState({
+                    currentSessionId: sessionId,
+                    sessions: [{
+                        id: sessionId,
+                        name: 'Draft Shell',
+                        project: 'brainbase',
+                        engine: 'codex',
+                        startupStatus: 'ready'
+                    }]
+                });
+                return result;
+            }),
             getProgress: vi.fn(async () => ({ phase: 'worktree', percent: 50, message: '起動中' })),
             markSessionStartupFailed: vi.fn()
         };
@@ -162,14 +187,100 @@ describe('applySessionCreationMixin', () => {
         const input = document.getElementById('session-startup-prompt-input');
         input.value = 'draft only';
         input.dispatchEvent(new Event('input'));
+        expect(app._sessionStartupPromptQueue.get(result.sessionId)).toBe('draft only');
 
         resolveStartup({ sessionId: result.sessionId, proxyPath: `/console/${result.sessionId}` });
         await vi.waitFor(() => {
-            expect(sessionService.createSession).toHaveBeenCalledTimes(1);
+            expect(terminalInteractionService.sendInput).toHaveBeenCalledWith(result.sessionId, 'draft only');
         });
-        await Promise.resolve();
+    });
 
-        expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
+    it('startup composer submit sends immediately when session is already ready', async () => {
+        document.body.innerHTML = `
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
+                <div class="loading-content">
+                    <div class="loading-message"></div>
+                    <div class="loading-hint"></div>
+                    <div id="session-startup-composer" class="session-startup-composer hidden">
+                        <textarea id="session-startup-prompt-input"></textarea>
+                        <span id="session-startup-prompt-status"></span>
+                        <button id="session-startup-prompt-send" type="button"></button>
+                    </div>
+                </div>
+            </div>
+        `;
+        appStore.setState({
+            currentSessionId: 'session-ready',
+            sessions: [{
+                id: 'session-ready',
+                name: 'Ready Shell',
+                project: 'brainbase',
+                engine: 'codex',
+                startupStatus: 'ready'
+            }]
+        });
+        const terminalInteractionService = { sendInput: vi.fn(async () => {}) };
+        class App {
+            constructor() {
+                this.terminalInteractionService = terminalInteractionService;
+            }
+        }
+        applySessionCreationMixin(App);
+
+        const app = new App();
+        app.showSessionStartupComposer('session-ready');
+        const input = document.getElementById('session-startup-prompt-input');
+        input.value = 'send now';
+        input.dispatchEvent(new Event('input'));
+        document.getElementById('session-startup-prompt-send').click();
+
+        await vi.waitFor(() => {
+            expect(terminalInteractionService.sendInput).toHaveBeenCalledWith('session-ready', 'send now');
+        });
+        expect(app._sessionStartupPromptQueue.has('session-ready')).toBe(false);
+    });
+
+    it('startup composer flush sends a queued prompt only once when called concurrently', async () => {
+        document.body.innerHTML = `
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
+                <div class="loading-content">
+                    <div class="loading-message"></div>
+                    <div class="loading-hint"></div>
+                    <div id="session-startup-composer" class="session-startup-composer hidden">
+                        <textarea id="session-startup-prompt-input"></textarea>
+                        <span id="session-startup-prompt-status"></span>
+                        <button id="session-startup-prompt-send" type="button"></button>
+                    </div>
+                </div>
+            </div>
+        `;
+        let releaseSend;
+        const sendStarted = new Promise((resolve) => {
+            const sendReleased = new Promise((release) => {
+                releaseSend = release;
+            });
+            resolve(sendReleased);
+        });
+        const terminalInteractionService = {
+            sendInput: vi.fn(async () => await sendStarted)
+        };
+        class App {
+            constructor() {
+                this.terminalInteractionService = terminalInteractionService;
+            }
+        }
+        applySessionCreationMixin(App);
+
+        const app = new App();
+        app._sessionStartupPromptDrafts = new Map([['session-ready', 'send once']]);
+        app._sessionStartupPromptQueue = new Map([['session-ready', 'send once']]);
+        const firstFlush = app._flushSessionStartupPrompt('session-ready');
+        const secondFlush = app._flushSessionStartupPrompt('session-ready');
+        releaseSend();
+        await Promise.all([firstFlush, secondFlush]);
+
+        expect(terminalInteractionService.sendInput).toHaveBeenCalledTimes(1);
+        expect(terminalInteractionService.sendInput).toHaveBeenCalledWith('session-ready', 'send once');
     });
 
     it('startup failure keeps the prompt retryable and restarts startup on send', async () => {
