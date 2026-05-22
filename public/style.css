@@ -19755,8 +19755,8 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     }
 }
 
-/* Keep terminal controls mounted for JS state, but remove the visual chrome. */
-.console-area > .terminal-header,
-.command-center-theme .console-area > .terminal-header {
+/* Keep terminal controls mounted for JS state, but remove the visual chrome only during startup prompt mode. */
+.console-area.terminal-startup-active > .terminal-header,
+.command-center-theme .console-area.terminal-startup-active > .terminal-header {
     display: none;
 }
