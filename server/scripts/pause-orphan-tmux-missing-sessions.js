@@ -31,6 +31,10 @@ import { argv, exit } from 'node:process';
 
 const HEALTH_URL = process.env.BRAINBASE_UI_URL || 'http://localhost:31013';
 
+function buildBrainbaseUrl(pathname) {
+  return new URL(pathname, `${HEALTH_URL.replace(/\/+$/, '')}/`).toString();
+}
+
 function parseArgs() {
   const out = { dryRun: true, sessions: null };
   for (let i = 2; i < argv.length; i++) {
@@ -49,7 +53,7 @@ function parseArgs() {
 }
 
 async function fetchTerminalHealth() {
-  const res = await fetch(`${HEALTH_URL}/api/health/terminal`);
+  const res = await fetch(buildBrainbaseUrl('api/health/terminal'));
   if (!res.ok) throw new Error(`GET /api/health/terminal -> ${res.status}`);
   return res.json();
 }

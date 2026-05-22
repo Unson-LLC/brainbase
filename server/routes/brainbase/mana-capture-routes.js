@@ -102,6 +102,7 @@ export function createManaCaptureRouter(options = {}) {
      * manaチャット → mana Lambda (Mastra askMana) 経由
      */
     const MANA_LAMBDA_URL = process.env.MANA_LAMBDA_URL || 'https://akdofkjrawesv25ynbgco3yodq0oojfm.lambda-url.us-east-1.on.aws';
+    const buildManaLambdaUrl = (pathname) => new URL(pathname, `${MANA_LAMBDA_URL.replace(/\/+$/, '')}/`).toString();
 
     router.post('/chat', asyncHandler(async (req, res) => {
         const { message, history, userId, sessionId, projectId } = req.body;
@@ -110,7 +111,7 @@ export function createManaCaptureRouter(options = {}) {
         }
 
         try {
-            const response = await fetch(`${MANA_LAMBDA_URL}/api/chat`, {
+            const response = await fetch(buildManaLambdaUrl('api/chat'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
