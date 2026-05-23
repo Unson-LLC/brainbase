@@ -440,6 +440,22 @@ const PERSONAL_KG_CORE_RULES = [
         body: 'Context: DialogAIのメディアアップロード不具合とデプロイ報告のやり取りで、本番や顧客影響のある変更の共有不足が問題になっていた。 Judgment: 佐藤は、善意で先に直すよりも、作業前・作業後の報告と状態共有を優先すべきだと判断した。 Reusable Pattern: 本番影響のある変更は、実装力よりも可視性と復旧可能性を先に守る。 Apply When: 顧客影響、本番反映、診断・検収に関わる変更を行う時。 Do Not Apply When: 完全にローカルで閉じた検証や、誰にも影響しない試作。'
     },
     {
+        key: 'act-directly-when-physical-resource-bottleneck-causes-waiting',
+        category: 'operating_principle',
+        cognitiveType: 'preference',
+        sourceKind: 'transcript',
+        matches: (content, meeting) => /weekly-progress-meeting-webfp/u.test(meeting.path || '') && /できるとこあれば|戻ってきて.*時間がもったいない|時間がもったいない気もしなくもない/u.test(content),
+        body: 'Context: NCOMのWebFP進捗会議で、確認作業が相手側のPCや担当者の戻り待ちになりそうな場面があった。 Judgment: 佐藤は、自分で動ける確認なら戻り待ちにせず手を出した方が速いと判断した。 Reusable Pattern: 確認作業のボトルネックが他人物理リソースや担当者待ちなら、権限と影響範囲を確認したうえで自分が代行して詰まりを取る。 Apply When: 待ち時間が成果を遅らせ、本人が確認可能で、代行しても責任境界を壊さない時。 Do Not Apply When: 権限、監査、顧客合意、本人確認が必要で、代行すると責任所在が曖昧になる時。'
+    },
+    {
+        key: 'hearing-should-start-simple-with-few-questions',
+        category: 'content_design',
+        cognitiveType: 'preference',
+        sourceKind: 'transcript',
+        matches: (content, meeting) => /weekly-progress-meeting-webfp/u.test(meeting.path || '') && /質問が多すぎる|シンプルにヒアリング|よく喋ってくれる2名/u.test(content),
+        body: 'Context: NCOMのWebFP進捗会議で、ヒアリング設計の質問数や入り方が論点になった。 Judgment: 佐藤は、質問を増やして網羅するより、よく話してくれる少数の相手に絞り、シンプルにヒアリングから入る方がよいと判断した。 Reusable Pattern: 初回ヒアリングは質問数を絞り、相手が自然に話せる入口を作る。 Apply When: 相手の課題や温度感をまだ探索しており、網羅的な質問票が会話を重くしそうな時。 Do Not Apply When: 法務、監査、要件確定など、漏れなく確認すること自体が目的の場面。'
+    },
+    {
         key: 'sensitive-counterparty-context-still-belongs-in-owner-kg',
         category: 'operating_principle',
         cognitiveType: 'claim',
@@ -781,7 +797,8 @@ function extractCoreFromMeeting({ meeting, date }) {
             projectionAllowed: rule.projectionAllowed,
             projectionGate: rule.projectionGate,
             promotionScopeCandidate: rule.promotionScopeCandidate,
-            sensitivityReason: rule.sensitivityReason || null
+            sensitivityReason: rule.sensitivityReason || null,
+            bodyMaxLength: rule.bodyMaxLength || 900
         }));
     }
     return sanitizeAdopted(adopted);

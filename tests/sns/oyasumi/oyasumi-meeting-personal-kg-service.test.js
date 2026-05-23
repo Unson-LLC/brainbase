@@ -59,6 +59,17 @@ const DINNER_TRANSCRIPT = [
     '佐藤: AIはExcelのように民主化する。差が出るのはツールを触れるかではなく、会社で使える形に落とす設計である。'
 ].join('\n');
 
+const NCOM_WEBFP_MINUTES = [
+    '# 2026-05-22 weekly progress meeting WebFP',
+    '',
+    'Speaker 1 from 小林氏への指摘: 「質問が多すぎるので、シンプルにヒアリングから入るべき」'
+].join('\n');
+
+const NCOM_WEBFP_TRANSCRIPT = [
+    '佐藤圭吾: 私とかもできるとこあればと思いましたけど、じゃあちょっとそのチェック、向こうにやってもらって、また戻ってきてだと、時間がもったいない気もしなくもないので。',
+    '佐藤圭吾: よく喋ってくれる2名くらいでいいかなっていうのがこの間分かった感じがあるので、勉強会全体相談というより、シンプルにヒアリングさせてくださいっていうとこから入ればいいかなって思いました。'
+].join('\n');
+
 function sampleMeetings() {
     return [
         {
@@ -184,6 +195,49 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
                 output_count: 0
             })
         ]));
+    });
+
+    it('extracts WebFP transcript judgments about direct action and simple hearing design', () => {
+        const result = extractMeetingPersonalKgCandidates({
+            date: '2026-05-22',
+            meetings: [{
+                repo: 'Unson-LLC/ncom-catalyst',
+                path: 'meetings/minutes/2026-05-22_weekly-progress-meeting-webfp.md',
+                html_url: 'https://github.com/Unson-LLC/ncom-catalyst/blob/main/meetings/minutes/2026-05-22_weekly-progress-meeting-webfp.md',
+                sha: 'cf985cb37f884eff575854efe726826eda02fc7f',
+                project_code: 'ncom-catalyst',
+                content: NCOM_WEBFP_MINUTES,
+                transcript_path: 'meetings/transcripts/2026-05-22_weekly-progress-meeting-webfp.txt',
+                transcript_content: NCOM_WEBFP_TRANSCRIPT
+            }]
+        });
+
+        const coreCandidates = result.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
+        ));
+        const snsReadyCandidates = result.adopted.filter((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'sns_ready'
+        ));
+
+        expect(result.agent_reports).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                role: 'personal_kg_extractor',
+                status: 'completed',
+                output_count: 2
+            })
+        ]));
+        expect(coreCandidates).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                body: expect.stringContaining('自分で動ける確認なら戻り待ちにせず手を出した方が速い')
+            }),
+            expect.objectContaining({
+                body: expect.stringContaining('初回ヒアリングは質問数を絞り')
+            })
+        ]));
+        expect(coreCandidates.every((candidate) => (
+            candidate.permission_snapshot.oyasumi_meeting_personal_kg.source_kind === 'transcript'
+        ))).toBe(true);
+        expect(snsReadyCandidates).toHaveLength(2);
     });
 
     it('S-2 skips duplicates by stable source_event_ids', async () => {
