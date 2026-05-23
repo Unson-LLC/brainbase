@@ -42,11 +42,20 @@ import {
 } from '../../public/modules/session-indicators.js';
 import { getSessionStatus } from '../../public/modules/session-ui-state.js';
 
+async function flushPollingMicrotasks() {
+    await Promise.resolve();
+    await Promise.resolve();
+}
+
 describe('session-indicators WebSocket sync', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-04-19T00:00:00.000Z'));
         vi.clearAllMocks();
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: vi.fn().mockResolvedValue({})
+        });
         wsMock.instances.length = 0;
         __resetSessionIndicatorStateForTests();
         appStore.setState({
@@ -57,9 +66,36 @@ describe('session-indicators WebSocket sync', () => {
 
     afterEach(() => {
         vi.useRealTimers();
+        vi.unstubAllGlobals();
     });
 
-    it('status-full受信時_消えたsessionもUI更新対象に含める', () => {
+    it('S-1_INV-3_WebSocket接続中でも初期pollingでstatusをhydrateする', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+                'session-1': {
+                    isWorking: true,
+                    isDone: false,
+                    lastWorkingAt: 100,
+                    timestamp: 100
+                }
+            })
+        });
+
+        startActivityWs(() => null);
+        await flushPollingMicrotasks();
+
+        expect(getSessionStatus('session-1')).toEqual(expect.objectContaining({
+            isWorking: true,
+            isDone: false
+        }));
+        expect(eventBus.emit).toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            { sessionIds: ['session-1'] }
+        );
+    });
+
+    it('CON-2_status-full受信時_消えたsessionもUI更新対象に含める', async () => {
         appStore.setState({
             sessionUi: {
                 byId: {
@@ -84,8 +120,29 @@ describe('session-indicators WebSocket sync', () => {
                 }
             }
         });
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+                'session-cleared': {
+                    isWorking: true,
+                    isDone: false,
+                    lastWorkingAt: 100,
+                    lastDoneAt: 0,
+                    timestamp: 100
+                },
+                'session-kept': {
+                    isWorking: true,
+                    isDone: false,
+                    lastWorkingAt: 100,
+                    lastDoneAt: 0,
+                    timestamp: 100
+                }
+            })
+        });
 
         startActivityWs(() => null);
+        await flushPollingMicrotasks();
+        vi.clearAllMocks();
 
         wsMock.instances[0].options.onStatusFull({
             'session-kept': {
@@ -107,7 +164,7 @@ describe('session-indicators WebSocket sync', () => {
         expect([...uiEventCall[1].sessionIds].sort()).toEqual(['session-cleared', 'session-kept']);
     });
 
-    it('status-full受信時_差分がなければsession再ロードを呼ばない', () => {
+    it('CON-2_status-full受信時_差分がなければsession再ロードを呼ばない', async () => {
         appStore.setState({
             sessionUi: {
                 byId: {
@@ -123,9 +180,23 @@ describe('session-indicators WebSocket sync', () => {
                 }
             }
         });
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+                'session-1': {
+                    isWorking: false,
+                    isDone: true,
+                    lastWorkingAt: 0,
+                    lastDoneAt: 100,
+                    timestamp: 100
+                }
+            })
+        });
         const onStatusChange = vi.fn();
 
         startActivityWs(() => null, 3000, onStatusChange);
+        await flushPollingMicrotasks();
+        vi.clearAllMocks();
 
         wsMock.instances[0].options.onStatusFull({
             'session-1': {
@@ -162,6 +233,8 @@ describe('session-indicators WebSocket sync', () => {
         });
 
         startActivityWs(() => null);
+        await flushPollingMicrotasks();
+        vi.clearAllMocks();
         await markDoneAsRead('session-1', null);
         vi.clearAllMocks();
 
@@ -199,6 +272,8 @@ describe('session-indicators WebSocket sync', () => {
         });
 
         startActivityWs(() => null);
+        await flushPollingMicrotasks();
+        vi.clearAllMocks();
         await markDoneAsRead('session-1', null);
         vi.clearAllMocks();
 

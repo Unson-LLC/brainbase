@@ -37,6 +37,23 @@ interface StateFileData {
   sessions: Record<string, SessionStateEntry>;
 }
 
+interface BrainbaseSessionState {
+  id?: unknown;
+  path?: unknown;
+  worktree?: {
+    path?: unknown;
+  };
+  summary?: {
+    workspacePath?: unknown;
+    currentDirectory?: unknown;
+  };
+  lastKnownGoodPath?: unknown;
+  intendedState?: unknown;
+  updatedAt?: unknown;
+  lastAccessedAt?: unknown;
+  createdAt?: unknown;
+}
+
 interface OutputResponse {
   output?: string;
   hasChoices?: boolean;
@@ -111,7 +128,7 @@ function writeState(state: StateFileData) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-function resolveSessionId(): string | null {
+function resolveSessionIdFromEnvironment(): string | null {
   const fromEnv = sanitizeText(process.env.BRAINBASE_SESSION_ID, 120);
   if (fromEnv) return fromEnv;
   if (process.env.TMUX) {
@@ -123,6 +140,87 @@ function resolveSessionId(): string | null {
     if (fromTmux) return fromTmux;
   }
   return null;
+}
+
+function normalizeComparablePath(value: unknown): string | null {
+  const text = sanitizeText(value, 1024);
+  if (!text) return null;
+  try {
+    return fs.realpathSync.native(text);
+  } catch {
+    return path.resolve(text);
+  }
+}
+
+function collectProjectPathCandidates(): string[] {
+  const candidates = [
+    process.env.BRAINBASE_HOOK_ORIGINAL_CWD,
+    process.env.CLAUDE_PROJECT_DIR,
+    process.env.PWD,
+    process.env.INIT_CWD,
+    process.cwd(),
+  ]
+    .map(normalizeComparablePath)
+    .filter((value): value is string => Boolean(value));
+  return Array.from(new Set(candidates));
+}
+
+function collectSessionPaths(session: BrainbaseSessionState): string[] {
+  return [
+    session.path,
+    session.worktree?.path,
+    session.lastKnownGoodPath,
+    session.summary?.workspacePath,
+    session.summary?.currentDirectory,
+  ]
+    .map(normalizeComparablePath)
+    .filter((value): value is string => Boolean(value));
+}
+
+function timestampValue(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function rankSessionCandidate(session: BrainbaseSessionState): number {
+  const intendedState = typeof session.intendedState === "string" ? session.intendedState : "";
+  const stateRank = intendedState === "active" || intendedState === "running" ? 1_000_000_000_000_000 : 0;
+  const updatedAt = Math.max(
+    timestampValue(session.updatedAt),
+    timestampValue(session.lastAccessedAt),
+    timestampValue(session.createdAt),
+  );
+  return stateRank + updatedAt;
+}
+
+async function resolveSessionIdFromProjectPath(port: string): Promise<string | null> {
+  const projectPaths = collectProjectPathCandidates();
+  if (projectPaths.length === 0) return null;
+  try {
+    const response = await fetch(`http://localhost:${port}/api/state`, {
+      method: "GET",
+      signal: AbortSignal.timeout(1000),
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { sessions?: unknown };
+    const sessions = Array.isArray(data?.sessions) ? data.sessions as BrainbaseSessionState[] : [];
+    const matches = sessions
+      .filter((session) => typeof session?.id === "string")
+      .filter((session) => {
+        const sessionPaths = collectSessionPaths(session);
+        return sessionPaths.some((sessionPath) => projectPaths.includes(sessionPath));
+      })
+      .sort((a, b) => rankSessionCandidate(b) - rankSessionCandidate(a));
+    return typeof matches[0]?.id === "string" ? matches[0].id : null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveSessionId(port: string): Promise<string | null> {
+  return resolveSessionIdFromEnvironment() || await resolveSessionIdFromProjectPath(port);
 }
 
 async function isHealthyPort(port: string): Promise<boolean> {
@@ -328,14 +426,14 @@ async function withContext(
   action: string,
   fn: (context: { sessionId: string; port: string; state: StateFileData }) => Promise<void>,
 ) {
-  const sessionId = resolveSessionId();
-  if (!sessionId) {
-    logHookExecution(hookType, `${action}-skip`, "BRAINBASE_SESSION_ID を解決できません");
-    return;
-  }
   const port = await resolvePort();
   if (!port) {
-    logHookExecution(hookType, `${action}-skip`, `brainbase port を解決できません: ${sessionId}`);
+    logHookExecution(hookType, `${action}-skip`, "brainbase port を解決できません");
+    return;
+  }
+  const sessionId = await resolveSessionId(port);
+  if (!sessionId) {
+    logHookExecution(hookType, `${action}-skip`, "BRAINBASE_SESSION_ID を解決できません");
     return;
   }
   const state = readState();

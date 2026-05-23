@@ -52,6 +52,20 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (req.url === "/api/state") {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({
+      sessions: [{
+        id: sessionId,
+        path: repoRoot,
+        worktree: { path: repoRoot },
+        intendedState: "active",
+        updatedAt: "2026-04-19T00:00:00.000Z",
+      }],
+    }));
+    return;
+  }
+
   if (req.url === "/api/sessions/report_activity" && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
@@ -88,8 +102,11 @@ async function run() {
   const env = {
     ...process.env,
     BRAINBASE_PORT: port,
-    BRAINBASE_SESSION_ID: sessionId,
+    BRAINBASE_SESSION_ID: "",
+    BRAINBASE_HOOK_ORIGINAL_CWD: repoRoot,
+    CLAUDE_PROJECT_DIR: repoRoot,
     CLAUDE_USER_PROMPT: "一覧の色の不具合を確認して",
+    TMUX: "",
   };
 
   Object.assign(process.env, env);

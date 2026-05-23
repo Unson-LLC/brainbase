@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CANONICAL_REPO_ROOT="${BRAINBASE_HOOK_REPO_ROOT:-}"
+ORIGINAL_CWD="$PWD"
 
 if [ "$#" -lt 1 ]; then
   echo "Usage: .claude/scripts/run-hook.sh <script.ts> [args...]" >&2
@@ -14,6 +15,7 @@ HOOK_SCRIPT="$1"
 shift
 
 cd "$REPO_ROOT"
+export BRAINBASE_HOOK_ORIGINAL_CWD="$ORIGINAL_CWD"
 
 if [[ "$HOOK_SCRIPT" = /* ]]; then
   HOOK_PATH="$HOOK_SCRIPT"

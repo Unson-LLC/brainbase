@@ -3,7 +3,7 @@ import { refreshIcons } from './ui-helpers.js';
 /**
  * session-indicators.js - Session status indicator management
  *
- * Real-time WebSocket push with polling fallback.
+ * Real-time WebSocket push with polling reconciliation.
  * The single source of truth is sessionUi.byId[sessionId].hookStatus.
  */
 
@@ -342,14 +342,15 @@ export function updateSessionIndicators(_currentSessionId) {
 
 /**
  * Start WebSocket-based activity status updates.
- * Falls back to polling if WebSocket is unavailable.
+ * Polling stays active as reconciliation even while WebSocket is connected so
+ * cold-load state and missed startup messages do not leave indicators stale.
  * @param {function} getCurrentSessionId
  * @param {number} pollingIntervalMs - Fallback polling interval
  * @param {function} onStatusChange
  * @returns {function} Cleanup function
  */
 export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, onStatusChange) {
-    let pollingCleanup = null;
+    let pollingCleanup = startPolling(getCurrentSessionId, pollingIntervalMs, onStatusChange);
 
     function applyFullStatus(statusMap) {
         const previousStatusMap = getSessionHookStatusMap();
@@ -388,10 +389,6 @@ export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, o
 
     const client = new SessionActivityWsClient({
         onStatusFull: (statusMap) => {
-            if (pollingCleanup) {
-                pollingCleanup();
-                pollingCleanup = null;
-            }
             applyFullStatus(statusMap);
         },
         onStatusUpdate: (sessionId, hookStatus) => {
@@ -399,13 +396,6 @@ export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, o
         },
         onConnectionChange: (connected) => {
             updateConnectionStatus(connected);
-            if (!connected && !pollingCleanup) {
-                pollingCleanup = startPolling(getCurrentSessionId, pollingIntervalMs, onStatusChange);
-            }
-            if (connected && pollingCleanup) {
-                pollingCleanup();
-                pollingCleanup = null;
-            }
         }
     });
 
