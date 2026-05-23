@@ -44,6 +44,7 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.get('/ui-summaries', controller.getUiSummaries);
     router.get('/runtime/inventory', controller.getRuntimeInventory);
     router.post('/:id/clear-done', controller.clearDone);
+    router.get('/:id/hibernate/eligibility', controller.getHibernateEligibility);
     router.get('/:id/runtime', controller.getRuntime);
     router.post('/:id/terminal/ensure', controller.ensureTerminalRuntime);
     router.post('/:id/terminal/takeover', controller.takeoverTerminal);

@@ -51,7 +51,7 @@ export const ownershipServiceMethods = {
     },
 
     getTerminalOwnerSnapshot(sessionId) {
-        const owner = this.terminalOwners.get(sessionId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
         if (!owner) return null;
         return {
             ownerViewerId: owner.viewerId,

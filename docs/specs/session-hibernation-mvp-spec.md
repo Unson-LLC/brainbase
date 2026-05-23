@@ -94,20 +94,31 @@ Returns:
   "sessions": [
     {
       "sessionId": "session-...",
-      "runtimeStatus": "hot",
-      "rssBytes": 123,
+      "runtimePresence": "hot",
+      "rssKb": 123,
+      "processCount": 1,
+      "processesByCategory": {
+        "codex": 1,
+        "codex_app_server": 0,
+        "pty_shim": 0,
+        "tmux": 0,
+        "ttyd": 0,
+        "mcp": 0,
+        "unknown_child": 0
+      },
       "processes": [
         {
           "pid": 123,
           "ppid": 1,
           "category": "codex",
-          "rssBytes": 123,
+          "rssKb": 123,
+          "attribution": "command",
           "command": "codex resume ..."
         }
-      ],
-      "unattributed": []
+      ]
     }
-  ]
+  ],
+  "unattributed": []
 }
 ```
 
@@ -115,7 +126,9 @@ Rules:
 
 - The endpoint is read-only.
 - Unknown process categories must be included as `unknown_child`.
+- Unmatched or ambiguous processes must be visible in top-level `unattributed`.
 - The endpoint must not infer eligibility by RSS alone.
+- Phase 1.5 eligibility is API/diagnostics-only; the user-facing hibernate action and blocker remediation UX begin in Phase 2.
 
 ### Contract-2: Hibernation Eligibility
 
@@ -210,6 +223,14 @@ Rules:
 - [ ] Inventory endpoint returns per-session RSS and process categories.
 - [ ] UI or diagnostics surface shows session memory posture.
 - [ ] No lifecycle mutation happens in inventory-only mode.
+
+### Phase 1.5
+
+- [ ] Inventory attributes child processes through a uniquely matched session parent.
+- [ ] `GET /api/sessions/:id/hibernate/eligibility` returns read-only blocker reasons.
+- [ ] Unknown or ambiguous process ownership blocks hibernation eligibility.
+- [ ] Eligibility does not stop processes or mutate session state.
+- [ ] Eligibility is not represented as a completed user-facing control before Phase 2.
 
 ### Phase 2
 

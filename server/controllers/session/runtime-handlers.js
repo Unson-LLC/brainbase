@@ -157,6 +157,41 @@ export function installRuntimeHandlers(controller) {
         }
     };
 
+    controller.getHibernateEligibility = async (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (typeof controller.runtimeQuery?.getHibernationEligibility !== 'function') {
+            return res.status(501).json({ error: 'Hibernation eligibility is not available' });
+        }
+
+        const session = controller._getSessionById(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        try {
+            const activityStatus = controller.activity?.getSessionStatus?.()?.[id] || null;
+            const owner = controller.ownership?.getTerminalOwnerSnapshot?.(id) || null;
+            const pendingInput = controller.activity?.promptBuffers?.get?.(id) || '';
+            const eligibility = await controller.runtimeQuery.getHibernationEligibility(id, {
+                activityStatus,
+                owner,
+                pendingInput
+            });
+
+            if (!eligibility) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
+
+            return res.json(eligibility);
+        } catch (error) {
+            logger.error('[hibernation] Failed to evaluate eligibility:', error);
+            return res.status(500).json({ error: 'Failed to evaluate hibernation eligibility' });
+        }
+    };
+
     controller.ensureTerminalRuntime = async (req, res) => {
         const { id } = req.params;
         const { initialCommand, cwd, engine, viewerId, forceTtyd } = req.body || {};
