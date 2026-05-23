@@ -41,6 +41,34 @@ export function applyEventListenersMixin(AppClass) {
         const copyTerminalModal = document.getElementById('copy-terminal-modal');
         const terminalContentDisplay = document.getElementById('terminal-content-display');
         const copyContentBtn = document.getElementById('copy-content-btn');
+        const copyLinesSelect = document.getElementById('terminal-copy-lines');
+        let terminalCopySessionId = null;
+        let terminalCopyLoadToken = 0;
+        const readCopyLines = () => {
+            const value = Number.parseInt(copyLinesSelect?.value || '500', 10);
+            return Number.isFinite(value) ? Math.min(5000, Math.max(1, value)) : 500;
+        };
+        const scrollTerminalContentToBottom = () => {
+            setTimeout(() => {
+                terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+            }, 50);
+        };
+        const loadTerminalCopyContent = async (sessionId) => {
+            const loadToken = ++terminalCopyLoadToken;
+            const lines = readCopyLines();
+            terminalContentDisplay.textContent = '読み込み中...';
+            try {
+                const content = await this.terminalInteractionService.fetchTerminalContent(sessionId, lines);
+                if (loadToken !== terminalCopyLoadToken) return;
+                terminalContentDisplay.textContent = content;
+                scrollTerminalContentToBottom();
+            } catch (error) {
+                if (loadToken !== terminalCopyLoadToken) return;
+                console.error('Failed to get terminal content:', error);
+                terminalContentDisplay.textContent = '';
+                alert('ターミナル内容の取得に失敗しました');
+            }
+        };
 
         if (copyTerminalBtn && copyTerminalModal && terminalContentDisplay) {
             copyTerminalBtn.onclick = async () => {
@@ -50,23 +78,20 @@ export function applyEventListenersMixin(AppClass) {
                     return;
                 }
 
-                try {
-                    const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
-                    if (!res.ok) throw new Error('Failed to fetch content');
-
-                    const { content } = await res.json();
-                    terminalContentDisplay.textContent = content;
-                    copyTerminalModal.classList.add('active');
-
-                    // Scroll to bottom
-                    setTimeout(() => {
-                        terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
-                    }, 50);
-                } catch (error) {
-                    console.error('Failed to get terminal content:', error);
-                    alert('ターミナル内容の取得に失敗しました');
-                }
+                terminalCopySessionId = currentSessionId;
+                copyTerminalModal.classList.add('active');
+                await loadTerminalCopyContent(currentSessionId);
             };
+        }
+
+        if (copyLinesSelect && copyTerminalModal && terminalContentDisplay) {
+            copyLinesSelect.addEventListener('change', async () => {
+                if (!copyTerminalModal.classList.contains('active')) return;
+                const sessionId = terminalCopySessionId || appStore.getState().currentSessionId;
+                if (!sessionId) return;
+                terminalCopySessionId = sessionId;
+                await loadTerminalCopyContent(sessionId);
+            });
         }
 
         if (copyContentBtn && terminalContentDisplay) {

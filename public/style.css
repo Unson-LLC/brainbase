@@ -2290,6 +2290,22 @@ button svg *,
     line-height: var(--terminal-line-height);
 }
 
+.terminal-copy-range-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.terminal-copy-lines {
+    height: 30px;
+    min-width: 92px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 0 8px;
+}
+
 /* Snapshot link styles */
 .snapshot-url-link {
     color: #60a5fa;

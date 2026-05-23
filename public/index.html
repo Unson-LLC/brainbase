@@ -664,6 +664,12 @@
             <div class="modal-header">
                 <h3>ターミナル出力</h3>
                 <div class="modal-header-actions">
+                    <label class="terminal-copy-range-label" for="terminal-copy-lines">範囲</label>
+                    <select id="terminal-copy-lines" class="terminal-copy-lines" aria-label="コピーするターミナル行数">
+                        <option value="500">500行</option>
+                        <option value="2000">2000行</option>
+                        <option value="5000">5000行</option>
+                    </select>
                     <button id="copy-content-btn" class="btn-primary btn-sm"><i data-lucide="copy"></i> コピー</button>
                     <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
                 </div>
