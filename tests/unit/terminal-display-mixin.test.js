@@ -61,6 +61,21 @@ describe('terminal-display-mixin', () => {
         expect(frame.classList.contains('terminal-frame-revealing')).toBe(true);
     });
 
+    it('terminal-stageが非表示ならconsole内overlay表示中でもterminal surfaceを可視扱いしない', () => {
+        document.body.innerHTML = `
+            <div id="console-area" style="display:flex">
+                <div id="terminal-stage" style="display:none">
+                    <iframe id="terminal-frame"></iframe>
+                    <div id="terminal-xterm-host" class="hidden"></div>
+                </div>
+                <div id="sns-growth-overlay" class="open"></div>
+            </div>
+        `;
+        const app = new TestApp();
+
+        expect(app._isConsoleVisible()).toBe(false);
+    });
+
     it('xterm表示復帰時はactive判定に依存せずrestoreAfterRevealを呼ぶ', () => {
         const app = new TestApp();
         const frame = document.getElementById('terminal-frame');

@@ -213,7 +213,10 @@ export function applyTerminalDisplayMixin(AppClass) {
     AppClass.prototype._isConsoleVisible = function() {
         const consoleArea = document.getElementById('console-area');
         if (!consoleArea) return false;
-        return window.getComputedStyle(consoleArea).display !== 'none';
+        if (window.getComputedStyle(consoleArea).display === 'none') return false;
+        const terminalStage = document.getElementById('terminal-stage');
+        if (!terminalStage) return true;
+        return window.getComputedStyle(terminalStage).display !== 'none';
     };
 
     AppClass.prototype._scheduleTerminalViewportSync = function() {

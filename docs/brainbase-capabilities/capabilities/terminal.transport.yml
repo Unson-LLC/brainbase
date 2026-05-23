@@ -9,6 +9,7 @@ surfaces:
     - terminal transport HTTP helpers
   code:
     - public/modules/core/terminal-transport-client.js
+    - public/modules/app/terminal-display-mixin.js
     - scripts/codex-pty-shim.py
     - server/services/session-runtime
   data:
@@ -52,6 +53,7 @@ common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
   - Focus reporting bytes or focus loss disrupt input order.
+  - Mobile workspace overlays inside console-area can look like terminal taps unless terminal-stage visibility is checked.
   - Terminal response bytes leak into Codex input, causing visible fragments like `[0` or `]10;rgb...` and unsolicited "Conversation interrupted" states.
   - Xterm renderer keeps stale lower-row cells after rapid prompt/status redraws, making the bottom of the terminal look duplicated.
   - Backspace feels delayed because it waits for Codex/Claude PTY output once pending local echo has already been confirmed.
