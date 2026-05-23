@@ -724,6 +724,76 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     await switchPromise;
   });
 
+  it('desktop snapshot panelは前セッションで上スクロールしていても切替直後は最新位置へpinする', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+    vi.spyOn(app, '_loadTerminalSnapshot').mockResolvedValue({
+      text: 'fresh snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:03.000Z',
+      mode: 'fast'
+    });
+
+    let resolveRuntime;
+    httpClient.get.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRuntime = resolve;
+    }));
+
+    app._terminalSnapshotCache.set('session-1', {
+      text: 'cached snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z'
+    });
+
+    const snapshotContent = document.getElementById('terminal-snapshot-content');
+    Object.defineProperty(snapshotContent, 'scrollHeight', { configurable: true, value: 1200 });
+    Object.defineProperty(snapshotContent, 'clientHeight', { configurable: true, value: 200 });
+    snapshotContent.scrollTop = 0;
+
+    appStore.setState({
+      currentSessionId: 'session-previous',
+      sessions: [
+        {
+          id: 'session-previous',
+          name: 'Previous Session',
+          path: '/tmp/session-previous',
+          engine: 'claude',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-1',
+          name: 'Session 1',
+          path: '/tmp/session-1',
+          engine: 'claude',
+          intendedState: 'active'
+        }
+      ]
+    });
+
+    const switchPromise = app.switchSession('session-1');
+    await Promise.resolve();
+
+    expect(snapshotContent.scrollTop).toBe(snapshotContent.scrollHeight);
+
+    resolveRuntime({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
+
+    await switchPromise;
+  });
+
   it('desktop xterm切替ではcold cacheでもスナップショットプレースホルダーを表示しfastロードを発火する', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);

@@ -239,7 +239,8 @@ export function applySessionManagementMixin(AppClass) {
                     this._renderTerminalSnapshotPanel({
                         visible: true,
                         snapshot,
-                        title: 'Terminal display'
+                        title: 'Terminal display',
+                        pinToBottom: true
                     });
                     if (cachedSnapshot) {
                         void this._loadTerminalSnapshot(sessionId, { force: true, mode: 'fast' })
@@ -250,7 +251,8 @@ export function applySessionManagementMixin(AppClass) {
                                 this._renderTerminalSnapshotPanel({
                                     visible: true,
                                     snapshot: freshSnapshot,
-                                    title: 'Terminal display'
+                                    title: 'Terminal display',
+                                    pinToBottom: true
                                 });
                                 this._updateTerminalInputStatus();
                             })
@@ -285,14 +287,15 @@ export function applySessionManagementMixin(AppClass) {
                     this._renderTerminalSnapshotPanel?.({
                         visible: true,
                         snapshot: cachedSnapshot || this._terminalSnapshotCache?.get(sessionId) || null,
-                        title: sessionTitle
+                        title: sessionTitle,
+                        pinToBottom: true
                     });
                     this.hideTerminalLoadingOverlay?.();
 
                     this._loadTerminalSnapshot?.(sessionId, { force: true, mode: 'fast' })
                         .then(snapshot => {
                             if (this._isSessionSwitchCurrent(sessionId, switchToken)) {
-                                this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: sessionTitle });
+                                this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: sessionTitle, pinToBottom: true });
                                 this._updateTerminalInputStatus();
                             }
                         }).catch(() => {});

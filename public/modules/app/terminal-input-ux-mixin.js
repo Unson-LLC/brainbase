@@ -754,13 +754,13 @@ export function applyTerminalInputUxMixin(AppClass) {
         }, 0);
     };
 
-    AppClass.prototype._renderTerminalSnapshotPanel = function({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
+    AppClass.prototype._renderTerminalSnapshotPanel = function({ visible = false, snapshot = null, title = 'Snapshot fallback', pinToBottom = false } = {}) {
         this._cacheTerminalUiElements();
         if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
 
         // 前回と同じ内容ならDOM操作スキップ
         const snapshotKey = visible
-            ? `v|${title}|${snapshot?.capturedAt || ''}|${snapshot?.colorText?.length || snapshot?.text?.length || 0}`
+            ? `v|${title}|${snapshot?.capturedAt || ''}|${snapshot?.colorText?.length || snapshot?.text?.length || 0}|${pinToBottom ? 'pin' : 'sticky'}`
             : 'hidden';
         if (this._lastSnapshotPanelKey === snapshotKey) return;
         this._lastSnapshotPanelKey = snapshotKey;
@@ -783,7 +783,8 @@ export function applyTerminalInputUxMixin(AppClass) {
         // 強制的に底に戻されるのを防ぐ。
         const el = this.terminalSnapshotContentEl;
         const STICKY_THRESHOLD_PX = 48;
-        const wasAtBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < STICKY_THRESHOLD_PX;
+        const wasAtBottom = pinToBottom
+            || (el.scrollHeight - el.scrollTop - el.clientHeight) < STICKY_THRESHOLD_PX;
 
         const snapshotText = this._normalizeTerminalSnapshotText(snapshot?.text);
         if (snapshot?.colorText) {
