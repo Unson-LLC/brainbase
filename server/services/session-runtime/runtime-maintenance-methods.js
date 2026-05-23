@@ -565,6 +565,16 @@ export const runtimeMaintenanceMethods = {
                     await this.cleanupOrphans();
                 }
 
+                if (typeof this.runtimeReconciler?.reconcile === 'function') {
+                    const reconcileResult = await this.runtimeReconciler.reconcile({ dryRun: false, recover: true });
+                    const recoveryActions = (reconcileResult.actions || []).filter((action) =>
+                        action.type === 'restart_terminal_runtime' || action.success === true
+                    );
+                    if (recoveryActions.length > 0) {
+                        logger.warn(`[PTY Watchdog] Runtime reconciliation recovered ${recoveryActions.length} issue(s)`);
+                    }
+                }
+
                 await this.repairActiveTtydSessions();
             } catch (err) {
                 logger.error('[PTY Watchdog] Error:', err.message);
