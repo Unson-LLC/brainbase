@@ -19,7 +19,7 @@ const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'E
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
 const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1B\\)?/gi;
-const FOCUS_EVENT_PATTERN = /(?:\x1B)?\[(?:I|O)/g;
+const FOCUS_EVENT_PATTERN = /\x1B\[(?:I|O)/g;
 function safeJsonParse(raw) {
     try {
         return JSON.parse(raw);
@@ -542,8 +542,6 @@ export class TerminalTransportService {
                 return;
             }
             case 'input': {
-                const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
-                connection.terminalAccess = terminalAccess;
                 const inputTypeForLog = message.inputType === 'key'
                     ? 'key'
                     : message.inputType === 'paste'
@@ -558,11 +556,22 @@ export class TerminalTransportService {
                 const valueDebug = normalizedValue
                     ? normalizedValue.replace(/[\x00-\x1F\x7F]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`).slice(0, 60)
                     : '';
-                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state} debug="${valueDebug}"`);
+                const initialTerminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${initialTerminalAccess?.state} debug="${valueDebug}"`);
                 if ((inputTypeForLog === 'text' || inputTypeForLog === 'paste') && !normalizedValue && rawValue) {
                     logger.info(`[INPUT-TELEMETRY] ignored reason=TERMINAL_CONTROL_RESPONSE session=${sessionId} originalLen=${rawValue.length}`);
                     return;
                 }
+                let terminalAccess = initialTerminalAccess;
+                if (terminalAccess?.state === 'available') {
+                    const ownership = this.ownershipService.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+                    if (ownership?.terminalAccess) {
+                        terminalAccess = ownership.terminalAccess;
+                    } else {
+                        terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+                    }
+                }
+                connection.terminalAccess = terminalAccess;
                 if (terminalAccess?.state !== 'owner') {
                     logger.warn(`[TTC-PROBE][ws-input] dropped NOT_OWNER session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=NOT_OWNER session=${sessionId} len=${valueLen} viewer=${viewerId}`);

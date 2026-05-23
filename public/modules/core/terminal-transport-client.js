@@ -26,7 +26,7 @@ const TOUCH_FLUSH_MS = 30;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
 const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/gi;
 const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/gi;
-const FOCUS_REPORT_PATTERN = /(?:\x1b)?\[(?:I|O)/g;
+const FOCUS_REPORT_PATTERN = /\x1b\[(?:I|O)/g;
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
@@ -529,6 +529,14 @@ export class TerminalTransportClient {
             && this.ws?.readyState === WebSocket.OPEN;
     }
 
+    _canDispatchInputForOwnershipReclaim(sessionId) {
+        return this.sessionId === sessionId
+            && this.status.mode === 'live'
+            && this.status.terminalAccess?.state === 'available'
+            && this.status.inputReady === true
+            && this.ws?.readyState === WebSocket.OPEN;
+    }
+
     isBlockedForSession(sessionId) {
         return this.sessionId === sessionId
             && (this.status.mode === 'blocked' || this.status.blockedAccess?.state === 'blocked');
@@ -889,7 +897,10 @@ export class TerminalTransportClient {
         // probe を待たずに送信する。Codex の選択画面 (CLI state が READY/WAITING にならない)
         // などで矢印が効かなくなる問題を回避。
         const skipProbe = this._canBypassInputReadyProbe(value);
-        if (!skipProbe && !this.canSendInput(this.sessionId)) {
+        if (!skipProbe
+            && !this.canSendInput(this.sessionId)
+            && !this._canDispatchInputForOwnershipReclaim(this.sessionId)
+        ) {
             ttcDebug('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
             const ok = await this._ensureInputReadyForUserInput();
@@ -1327,6 +1338,9 @@ export class TerminalTransportClient {
             ttcWarn('[TTC-PROBE][ensureInputReady] early-return ws not open', { wsState: this.ws?.readyState });
             return false;
         }
+        if (this._canDispatchInputForOwnershipReclaim(this.sessionId)) {
+            return true;
+        }
         if (this.status.mode === 'blocked' || this.status.terminalAccess?.state !== 'owner') {
             ttcWarn('[TTC-PROBE][ensureInputReady] early-return blocked', {
                 mode: this.status.mode,
@@ -1645,6 +1659,7 @@ export class TerminalTransportClient {
             return;
         }
         const canSend = this.canSendInput(this.sessionId)
+            || this._canDispatchInputForOwnershipReclaim(this.sessionId)
             || (allowInputNotReady && this._canSendInputWithoutReady(this.sessionId));
         if (!canSend) {
             if (enqueueIfUnavailable) {
@@ -2216,7 +2231,8 @@ export class TerminalTransportClient {
 
     _canOptimisticallyEcho(text) {
         if (typeof text !== 'string' || !text) return false;
-        return /^[\t\x20-\x7e]+$/.test(text);
+        if (/^[\t\x20-\x7e]+$/.test(text)) return true;
+        return this._isImeCommitText(text);
     }
 
     _normalizeEchoText(text) {

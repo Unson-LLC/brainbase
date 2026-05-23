@@ -80,6 +80,31 @@ describe('terminal-transport-client', () => {
     expect(client.canSendInput('session-2')).toBe(false);
   });
 
+  it('available状態でもinputReadyかつliveなら再所有権取得用に入力をdispatchできる', async () => {
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'available' };
+    client.status.inputReady = true;
+    client.ws = { readyState: 1, send };
+
+    expect(client.canSendInput('session-1')).toBe(false);
+    expect(await client._ensureInputReadyForUserInput()).toBe(true);
+
+    await client._dispatchTextMessage('hello');
+
+    expect(send).toHaveBeenCalledWith(JSON.stringify({
+      type: 'input',
+      inputType: 'text',
+      value: 'hello'
+    }));
+  });
+
   it('verifyInputReadyは既にownerかつinputReadyならprobe APIを再実行しない', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
@@ -946,7 +971,7 @@ describe('terminal-transport-client', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('ESCが欠落したbareフォーカスイベント断片はローカルエコーも送信もしない', async () => {
+  it('bare [I/[O は通常テキストとしてローカルエコーし送信する', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -964,15 +989,15 @@ describe('terminal-transport-client', () => {
     await client.sendText('hello[Iworld[O');
 
     expect(send).not.toHaveBeenCalled();
-    expect(client._pendingTextBuffer).toBe('helloworld');
-    expect(client.terminal.write).toHaveBeenCalledWith('helloworld', expect.any(Function));
+    expect(client._pendingTextBuffer).toBe('hello[Iworld[O');
+    expect(client.terminal.write).toHaveBeenCalledWith('hello[Iworld[O', expect.any(Function));
 
     await vi.advanceTimersByTimeAsync(8);
     expect(send).toHaveBeenCalledTimes(1);
     expect(JSON.parse(send.mock.calls[0][0])).toEqual({
       type: 'input',
       inputType: 'text',
-      value: 'helloworld'
+      value: 'hello[Iworld[O'
     });
   });
 
@@ -1168,7 +1193,7 @@ describe('terminal-transport-client', () => {
     expect(client._pendingBackspaceEchoCount).toBe(0);
   });
 
-  it('日本語IME確定文字はローカルエコーせずPTYの描画に任せる', async () => {
+  it('日本語IME確定文字は確定直後にローカルエコーする', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -1179,13 +1204,31 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.transport = 'streaming';
     client.status.terminalAccess = { state: 'owner' };
     client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('生成して');
 
-    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(client.terminal.write).toHaveBeenCalledWith('生成して', expect.any(Function));
+    expect(client._pendingEchoText).toBe('生成して');
+  });
+
+  it('日本語IME確定文字のPTY echoは二重描画しない', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = '生成して';
+    client._applyOutput('生成して');
+
+    expect(terminal.write).not.toHaveBeenCalled();
     expect(client._pendingEchoText).toBe('');
   });
 

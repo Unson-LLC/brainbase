@@ -6,7 +6,7 @@
 - INV-2: A snapshot received while local echo is unconfirmed must not repaint the terminal unless the snapshot contains the pending local echo or the echo timeout has expired.
 - INV-3: Submit feedback may clear local echo state only through the same render ordering path as the submit input.
 - INV-4: Focus report sequences (`ESC [ I`, `ESC [ O`) and terminal OSC color responses must not be locally echoed as user input.
-- INV-5: Backspace may optimistically erase only locally echoed single-cell ASCII input; IME/non-ASCII input must wait for PTY output.
+- INV-5: Backspace may optimistically erase only locally echoed single-cell ASCII input; IME commit text may be locally echoed and must consume the matching PTY echo to avoid duplicate rendering.
 - INV-6: Shift+Enter must use the repo's `S-Enter` prompt-newline key consistently across xterm custom key handling and type-to-focus recovery.
 
 ## Contracts
@@ -24,6 +24,7 @@
 - S-4: User presses Shift+Enter while xterm is not focused but terminal transport is active. The recovery path sends the same `S-Enter` prompt-newline key as xterm custom key handling.
 - S-5: xterm emits `abc ESC[I def`. Only `abcdef` is eligible for local echo; the focus report is sent or ignored as control input, never drawn.
 - S-6: Deferred session-switch work that carries an old switch token must be ignored so a stale terminal focus/render update cannot apply after the user has switched sessions.
+- S-7: Japanese IME commit text is visible immediately after composition confirmation, and the later PTY echo is consumed instead of drawn twice.
 
 ## Anti-patterns
 

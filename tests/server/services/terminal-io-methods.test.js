@@ -168,6 +168,15 @@ describe('terminalIoMethods input routing', () => {
         expect(manager._sendNamedKey).not.toHaveBeenCalled();
     });
 
+    it('フォーカスレポートはESC付きだけを除去しbare [I/[Oは残す', () => {
+        const manager = {
+            ...terminalIoMethods
+        };
+
+        expect(manager._stripTerminalFocusEvents('\x1b[Ihello[Iworld\x1b[O[O'))
+            .toBe('hello[Iworld[O');
+    });
+
     it('forcePaste指定の複数行入力はbracketed pasteオプションをpaste-bufferへ渡す', async () => {
         const manager = {
             ...terminalIoMethods,

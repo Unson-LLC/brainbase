@@ -271,7 +271,7 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
-    it('focus report断片だけのinput messageはtmuxへ送らず無視する', async () => {
+    it('bare [I は通常テキストとしてtmuxへ送る', async () => {
         const { service, sessionManager, captureCache } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -287,11 +287,11 @@ describe('TerminalTransportService', () => {
             value: '[I'
         }));
 
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
-        expect(captureCache.invalidate).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', '[I', 'text');
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('focus report混入input messageは断片を除去してtmuxへ送る', async () => {
+    it('focus report混入input messageはESC付きだけ除去してtmuxへ送る', async () => {
         const { service, sessionManager } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -307,7 +307,57 @@ describe('TerminalTransportService', () => {
             value: 'hello[Iworld\x1b[O'
         }));
 
-        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'helloworld', 'text');
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello[Iworld', 'text');
+    });
+
+    it('available状態の入力は同一viewerでownershipを再取得して送る', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getTerminalAccessState
+            .mockReturnValueOnce({ state: 'available' })
+            .mockReturnValue({ state: 'owner', ownerViewerId: 'viewer-1' });
+        sessionManager.ensureTerminalOwnership.mockReturnValue({
+            allowed: true,
+            terminalAccess: { state: 'owner', ownerViewerId: 'viewer-1' }
+        });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello'
+        }));
+
+        expect(sessionManager.ensureTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
+        expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('blocked'));
+    });
+
+    it('制御応答だけのinputはavailable状態でもownershipを取得しない', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        sessionManager.getTerminalAccessState.mockReturnValue({ state: 'available' });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\x1b[I\x1b[O'
+        }));
+
+        expect(sessionManager.ensureTerminalOwnership).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
     it('inputReady が false でも snapshot が ready なら probe を回復して送信する', async () => {

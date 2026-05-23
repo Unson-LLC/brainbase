@@ -36,7 +36,7 @@ Brainbase renders Claude Code and Codex through xterm. Recent fixes improved ind
 - [x] Local echo, submit feedback, server output, and snapshot repaint use one serialized render path.
 - [x] Snapshot repaint cannot clear or duplicate pending local input while the user is typing.
 - [x] Shift+Enter uses the same repo `S-Enter` prompt-newline key contract in both xterm key handling and type-to-focus recovery.
-- [x] Backspace remains immediate for locally echoed ASCII input and does not corrupt IME/non-ASCII input.
+- [x] Backspace remains immediate for locally echoed ASCII input, and IME commit text remains visible after composition confirmation without duplicate PTY echo rendering.
 - [x] Focus reporting/control responses do not enter local echo or normal text batching.
 - [x] Deferred session-switch work with an old switch token cannot apply stale terminal focus or render state after the active session changes.
 - [x] Unit tests cover render ordering and existing pending echo snapshot deferral, Shift+Enter recovery, and Backspace behavior.
@@ -45,7 +45,7 @@ Brainbase renders Claude Code and Codex through xterm. Recent fixes improved ind
 
 ```bash
 vibepro story diagnose . --id story-terminal-input-render-stability --run-graphify
-npm test -- tests/unit/terminal-transport-client.test.js && npm test -- tests/unit/terminal-token-status.test.js
+npm test -- tests/unit/terminal-transport-client.test.js tests/server/services/terminal-transport-service.test.js tests/server/services/terminal-io-methods.test.js tests/unit/server-session-manager.test.js && npm test -- tests/unit/terminal-token-status.test.js
 npm run typecheck
 BRAINBASE_E2E_PORT=31015 BRAINBASE_PORT=31015 PORT=31015 npx playwright test tests/e2e/story-terminal-input-render-stability.spec.js --project=chromium
 ```
