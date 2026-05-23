@@ -80,6 +80,40 @@ describe('terminal-transport-client', () => {
     expect(client.canSendInput('session-2')).toBe(false);
   });
 
+  it('現在選択中sessionとclient sessionがずれている間は入力可能にしない', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac',
+      getCurrentSessionId: () => 'session-2'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.ws = { readyState: 1 };
+
+    expect(client.canSendInput('session-1')).toBe(false);
+  });
+
+  it('現在選択中sessionとclient sessionがずれている入力はlocal echo前に捨てる', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac',
+      getCurrentSessionId: () => 'session-2'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
+    client.ws = { readyState: 1, send: vi.fn() };
+    const echoSpy = vi.spyOn(client, '_applyLocalEcho');
+
+    await client.sendText('hello');
+
+    expect(echoSpy).not.toHaveBeenCalled();
+    expect(client.ws.send).not.toHaveBeenCalled();
+  });
+
   it('available状態でもinputReadyかつliveなら再所有権取得用に入力をdispatchできる', async () => {
     vi.stubGlobal('WebSocket', { OPEN: 1 });
     const client = new TerminalTransportClient({

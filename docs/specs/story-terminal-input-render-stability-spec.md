@@ -6,8 +6,10 @@
 - INV-2: A snapshot received while local echo is unconfirmed must not repaint the terminal unless the snapshot contains the pending local echo or the echo timeout has expired.
 - INV-3: Submit feedback may clear local echo state only through the same render ordering path as the submit input.
 - INV-4: Focus report sequences (`ESC [ I`, `ESC [ O`) and terminal OSC color responses must not be locally echoed as user input.
-- INV-5: Backspace may optimistically erase only locally echoed single-cell ASCII input; IME commit text may be locally echoed and must consume the matching PTY echo to avoid duplicate rendering.
+- INV-5: Backspace may optimistically erase only locally echoed single-cell ASCII input; Japanese IME commit text is allowed to local echo at composition confirmation and must consume the matching PTY echo to avoid duplicate rendering.
 - INV-6: Shift+Enter must use the repo's `S-Enter` prompt-newline key consistently across xterm custom key handling and type-to-focus recovery.
+- INV-7: Browser-to-PTY readiness evidence must verify typed text through tmux snapshot capture, not only through xterm local buffer state.
+- INV-8: Bare `[I` and `[O` are ordinary user text in the browser/server transport path unless they complete a held split focus report after a lone ESC; the Codex PTY shim may drop bare focus fragments only as outer-terminal response sanitization.
 
 ## Contracts
 
@@ -25,6 +27,7 @@
 - S-5: xterm emits `abc ESC[I def`. Only `abcdef` is eligible for local echo; the focus report is sent or ignored as control input, never drawn.
 - S-6: Deferred session-switch work that carries an old switch token must be ignored so a stale terminal focus/render update cannot apply after the user has switched sessions.
 - S-7: Japanese IME commit text is visible immediately after composition confirmation, and the later PTY echo is consumed instead of drawn twice.
+- S-8: Browser types a nonce into the active xterm session. The nonce appears in xterm local rendering and is then observed through `/terminal/snapshot` tmux capture before the test clears the prompt line.
 
 ## Anti-patterns
 
@@ -38,3 +41,4 @@
 - V-1: `npm test -- tests/unit/terminal-transport-client.test.js`
 - V-2: `vibepro story diagnose . --id story-terminal-input-render-stability --run-graphify`
 - V-3: `vibepro pr prepare . --base origin/develop --story-id story-terminal-input-render-stability`
+- V-4: `BRAINBASE_E2E_PORT=31015 BRAINBASE_PORT=31015 PORT=31015 npx playwright test tests/e2e/story-terminal-input-render-stability-canary.spec.ts tests/e2e/story-terminal-input-render-stability.spec.js --project=chromium`

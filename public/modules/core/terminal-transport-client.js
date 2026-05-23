@@ -116,11 +116,12 @@ export function shouldUseXtermTransport() {
 }
 
 export class TerminalTransportClient {
-    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null }) {
+    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null, getCurrentSessionId = null }) {
         this.viewerId = viewerId;
         this.viewerLabel = viewerLabel;
         this.onStatusChange = onStatusChange;
         this.onSnapshotChange = onSnapshotChange;
+        this.getCurrentSessionId = typeof getCurrentSessionId === 'function' ? getCurrentSessionId : null;
         this.hostEl = null;
         this.terminal = null;
         this.fitAddon = null;
@@ -521,8 +522,15 @@ export class TerminalTransportClient {
         return this.sessionId === sessionId && (this.status.mode === 'live' || this.status.mode === 'snapshot' || this.status.mode === 'blocked');
     }
 
+    _isCurrentAppSession(sessionId = this.sessionId) {
+        if (!this.getCurrentSessionId) return true;
+        const currentSessionId = this.getCurrentSessionId();
+        return !currentSessionId || currentSessionId === sessionId;
+    }
+
     canSendInput(sessionId) {
         return this.sessionId === sessionId
+            && this._isCurrentAppSession(sessionId)
             && this.status.mode !== 'blocked'
             && this.status.terminalAccess?.state === 'owner'
             && this.status.inputReady === true
@@ -531,6 +539,7 @@ export class TerminalTransportClient {
 
     _canDispatchInputForOwnershipReclaim(sessionId) {
         return this.sessionId === sessionId
+            && this._isCurrentAppSession(sessionId)
             && this.status.mode === 'live'
             && this.status.terminalAccess?.state === 'available'
             && this.status.inputReady === true
@@ -874,6 +883,15 @@ export class TerminalTransportClient {
         }
         const capturedToken = this._connectToken;
         const capturedSessionId = this.sessionId;
+        if (!this._isCurrentAppSession(capturedSessionId)) {
+            ttcWarn('[TTC-PROBE] sendText dropped: stale app session', {
+                len: value.length,
+                clientSessionId: capturedSessionId,
+                currentSessionId: this.getCurrentSessionId?.()
+            });
+            inputTelemetry.dropped('STALE_APP_SESSION', { len: value.length });
+            return;
+        }
         ttcDebug('[TTC-PROBE][sendText] entered', {
             len: value?.length,
             canSend: this.canSendInput(this.sessionId),

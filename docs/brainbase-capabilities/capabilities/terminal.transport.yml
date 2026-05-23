@@ -26,6 +26,8 @@ visibility_rules:
   - Backspace/Delete must provide immediate local visual feedback even after prior input echo has already been confirmed.
   - Escape/navigation keys must bypass text batching and flush any pending printable text first.
   - Split focus reports must hold a lone ESC briefly so a following bare `[I` or `[O` can be dropped as one control response.
+  - Bare `[I` or `[O` that arrives without a held ESC is ordinary user text in the browser/server transport path.
+  - Codex PTY shim may still drop bare `[I` or `[O` only when sanitizing outer-terminal generated responses before they reach Codex stdin.
   - Multiline paste must use a single bracketed paste transport instead of per-line `S-Enter` key simulation.
 verification:
   commands:
@@ -36,13 +38,15 @@ verification:
     - Pure Enter input takes the fast path.
     - Table snapshots remain stable across prompt/polling transitions.
     - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
-    - Xterm focus reports (`ESC[I`, `ESC[O`) and bare focus fragments (`[I`, `[O`) are not echoed or sent as terminal input.
+    - Xterm focus reports (`ESC[I`, `ESC[O`) are not echoed or sent as terminal input.
+    - Browser/server transport preserves bare `[I` and `[O` as user text unless they complete a held split focus report after a lone ESC.
     - Terminal responses such as `ESC[?0u`, `ESC[0u`, `ESC[I`, `ESC[O`, and OSC 10/11 color responses are dropped before Codex can treat ESC as interrupt.
-    - Codex PTY shim drops bare focus fragments (`[I`, `[O`) even when the leading ESC was already consumed upstream.
+    - Codex PTY shim drops outer-terminal bare focus fragments (`[I`, `[O`) even when the leading ESC was already consumed upstream.
     - Streaming writes refresh the lower visible rows after write callbacks, and reset snapshots refresh all visible rows.
     - Backspace locally erases one ASCII cell immediately and consumes the matching simple PTY echo to avoid double deletion.
     - Esc key presses are sent immediately one-by-one and are not delayed by the text batch timer.
     - Split focus reports (`ESC` then `[I`/`[O`) are dropped before either fragment reaches local echo or stdin.
+    - Browser-to-PTY canary verifies typed text through tmux snapshot capture, not only xterm local buffer state.
     - Multiline paste is sent as one `paste` input and reaches tmux through `paste-buffer -p -r`.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.

@@ -13,7 +13,7 @@ related_tasks:
     task_ids: [story-terminal-input-render-stability]
 status: active
 created_at: 2026-05-19
-updated_at: 2026-05-19
+updated_at: 2026-05-23
 ---
 
 # Terminal input and render stability refactor
@@ -38,8 +38,9 @@ Brainbase renders Claude Code and Codex through xterm. Recent fixes improved ind
 - [x] Shift+Enter uses the same repo `S-Enter` prompt-newline key contract in both xterm key handling and type-to-focus recovery.
 - [x] Backspace remains immediate for locally echoed ASCII input, and IME commit text remains visible after composition confirmation without duplicate PTY echo rendering.
 - [x] Focus reporting/control responses do not enter local echo or normal text batching.
+- [x] Browser/server transport treats bare `[I` and `[O` as user text unless they complete a held split focus report; the Codex PTY shim drops bare focus fragments only as outer-terminal response sanitization.
 - [x] Deferred session-switch work with an old switch token cannot apply stale terminal focus or render state after the active session changes.
-- [x] Unit tests cover render ordering and existing pending echo snapshot deferral, Shift+Enter recovery, and Backspace behavior.
+- [x] Browser-to-PTY canary verifies typed text through tmux snapshot capture, not only xterm local buffer state.
 
 ## Verification
 
@@ -47,5 +48,5 @@ Brainbase renders Claude Code and Codex through xterm. Recent fixes improved ind
 vibepro story diagnose . --id story-terminal-input-render-stability --run-graphify
 npm test -- tests/unit/terminal-transport-client.test.js tests/server/services/terminal-transport-service.test.js tests/server/services/terminal-io-methods.test.js tests/unit/server-session-manager.test.js && npm test -- tests/unit/terminal-token-status.test.js
 npm run typecheck
-BRAINBASE_E2E_PORT=31015 BRAINBASE_PORT=31015 PORT=31015 npx playwright test tests/e2e/story-terminal-input-render-stability.spec.js --project=chromium
+BRAINBASE_E2E_PORT=31015 BRAINBASE_PORT=31015 PORT=31015 npx playwright test tests/e2e/story-terminal-input-render-stability-canary.spec.ts tests/e2e/story-terminal-input-render-stability.spec.js --project=chromium
 ```
