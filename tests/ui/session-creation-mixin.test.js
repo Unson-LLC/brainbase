@@ -6,6 +6,12 @@ vi.mock('../../public/modules/core/http-client.js', () => ({
     }
 }));
 
+vi.mock('../../public/modules/project-mapping.js', () => ({
+    projectMappingReady: Promise.resolve(),
+    getSessionSelectableProjects: vi.fn(() => ['brainbase', 'aitle', 'no-repo']),
+    hasGitRepository: vi.fn((project) => project !== 'no-repo')
+}));
+
 import { httpClient } from '../../public/modules/core/http-client.js';
 import { appStore } from '../../public/modules/core/store.js';
 import { applySessionCreationMixin } from '../../public/modules/app/session-creation-mixin.js';
@@ -42,6 +48,196 @@ describe('applySessionCreationMixin', () => {
         expect(desktop.dataset.gitSha).toBe('bc8e3c37');
         expect(desktop.title).toContain('commit: bc8e3c37');
         expect(desktop.title).toContain('branch: develop');
+    });
+
+    it('openInlineSessionDraft呼び出し時_create-session-modalを開かず未確認の下書きだけ表示する', async () => {
+        document.body.innerHTML = `
+            <div class="console-area"></div>
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden"></div>
+            <div id="create-session-modal" class="modal"></div>
+            <div id="inline-session-draft" class="inline-session-draft hidden">
+                <input id="inline-session-name-input">
+                <select id="inline-session-project-select"></select>
+                <input id="inline-session-command-input">
+                <input type="checkbox" id="inline-use-worktree-checkbox">
+                <label id="inline-worktree-label"></label>
+                <p id="inline-worktree-hint"></p>
+                <input type="radio" name="inline-session-engine" value="claude" checked>
+                <input type="radio" name="inline-session-engine" value="codex">
+                <button id="inline-session-create" type="button"></button>
+                <button id="inline-session-cancel" type="button"></button>
+                <button id="inline-session-discard" type="button"></button>
+            </div>
+        `;
+        const createSession = vi.fn();
+        class App {
+            constructor() {
+                this.createSession = createSession;
+            }
+            closeMobileSessionsSheet() {}
+        }
+        applySessionCreationMixin(App);
+
+        await new App().openInlineSessionDraft('brainbase');
+
+        expect(document.getElementById('create-session-modal').classList.contains('active')).toBe(false);
+        expect(document.getElementById('inline-session-draft').classList.contains('hidden')).toBe(false);
+        expect(document.getElementById('inline-session-name-input').value).toBe('New brainbase Session');
+        expect(document.getElementById('inline-session-project-select').value).toBe('brainbase');
+        expect(document.getElementById('inline-use-worktree-checkbox').checked).toBe(true);
+        expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it('inline session draft cancel時_セッション作成や状態永続化を実行しない', async () => {
+        document.body.innerHTML = `
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden"></div>
+            <div id="create-session-modal" class="modal"></div>
+            <div id="inline-session-draft" class="inline-session-draft hidden">
+                <input id="inline-session-name-input">
+                <select id="inline-session-project-select"></select>
+                <input id="inline-session-command-input">
+                <input type="checkbox" id="inline-use-worktree-checkbox">
+                <label id="inline-worktree-label"></label>
+                <p id="inline-worktree-hint"></p>
+                <input type="radio" name="inline-session-engine" value="claude" checked>
+                <button id="inline-session-create" type="button"></button>
+                <button id="inline-session-cancel" type="button"></button>
+                <button id="inline-session-discard" type="button"></button>
+            </div>
+        `;
+        const existingSessions = [{ id: 'existing-session', name: 'Existing Session' }];
+        appStore.setState({ currentSessionId: 'existing-session', sessions: existingSessions });
+        const createSession = vi.fn();
+        class App {
+            constructor() {
+                this.createSession = createSession;
+            }
+            closeMobileSessionsSheet() {}
+        }
+        applySessionCreationMixin(App);
+
+        await new App().openInlineSessionDraft('brainbase');
+        document.getElementById('inline-session-cancel').click();
+
+        expect(document.getElementById('inline-session-draft').classList.contains('hidden')).toBe(true);
+        expect(createSession).not.toHaveBeenCalled();
+        expect(appStore.getState().currentSessionId).toBe('existing-session');
+        expect(appStore.getState().sessions).toEqual(existingSessions);
+        expect(window.localStorage.length).toBe(0);
+    });
+
+    it('inline session draftでworkspaceを外して作成時_通常セッション作成経路へ渡す', async () => {
+        document.body.innerHTML = `
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden"></div>
+            <div id="create-session-modal" class="modal"></div>
+            <div id="inline-session-draft" class="inline-session-draft hidden">
+                <input id="inline-session-name-input">
+                <select id="inline-session-project-select"></select>
+                <input id="inline-session-command-input">
+                <input type="checkbox" id="inline-use-worktree-checkbox">
+                <label id="inline-worktree-label"></label>
+                <p id="inline-worktree-hint"></p>
+                <input type="radio" name="inline-session-engine" value="claude" checked>
+                <input type="radio" name="inline-session-engine" value="codex">
+                <button id="inline-session-create" type="button"></button>
+                <button id="inline-session-cancel" type="button"></button>
+                <button id="inline-session-discard" type="button"></button>
+            </div>
+        `;
+        const createSession = vi.fn(async () => ({ sessionId: 'regular-session' }));
+        class App {
+            constructor() {
+                this.createSession = createSession;
+            }
+            closeMobileSessionsSheet() {}
+        }
+        applySessionCreationMixin(App);
+
+        await new App().openInlineSessionDraft('brainbase');
+        document.getElementById('inline-session-name-input').value = 'Regular inline session';
+        document.getElementById('inline-session-command-input').value = 'regular prompt';
+        document.getElementById('inline-use-worktree-checkbox').checked = false;
+        document.getElementById('inline-session-create').click();
+
+        await vi.waitFor(() => {
+            expect(createSession).toHaveBeenCalledWith(
+                'brainbase',
+                'Regular inline session',
+                'regular prompt',
+                false,
+                'claude'
+            );
+        });
+    });
+
+    it('inline session draft作成時_選択値を既存createSession経路へ渡す', async () => {
+        document.body.innerHTML = `
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden"></div>
+            <div id="create-session-modal" class="modal active"></div>
+            <div id="inline-session-draft" class="inline-session-draft hidden">
+                <input id="inline-session-name-input">
+                <select id="inline-session-project-select"></select>
+                <input id="inline-session-command-input">
+                <input type="checkbox" id="inline-use-worktree-checkbox">
+                <label id="inline-worktree-label"></label>
+                <p id="inline-worktree-hint"></p>
+                <input type="radio" name="inline-session-engine" value="claude">
+                <input type="radio" name="inline-session-engine" value="codex" checked>
+                <button id="inline-session-create" type="button"></button>
+                <button id="inline-session-cancel" type="button"></button>
+                <button id="inline-session-discard" type="button"></button>
+            </div>
+        `;
+        const createSession = vi.fn(async () => ({ sessionId: 'session-created' }));
+        class App {
+            constructor() {
+                this.createSession = createSession;
+            }
+            closeMobileSessionsSheet() {}
+        }
+        applySessionCreationMixin(App);
+
+        await new App().openInlineSessionDraft('aitle');
+        document.getElementById('inline-session-name-input').value = 'Aitle diagnosis';
+        document.getElementById('inline-session-command-input').value = 'start here';
+        document.getElementById('inline-session-create').click();
+
+        await vi.waitFor(() => {
+            expect(createSession).toHaveBeenCalledWith('aitle', 'Aitle diagnosis', 'start here', true, 'codex');
+        });
+        expect(document.getElementById('inline-session-draft').classList.contains('hidden')).toBe(true);
+        expect(document.getElementById('create-session-modal').classList.contains('active')).toBe(false);
+    });
+
+    it('inline session draftでリポジトリなしproject選択時_workspaceを無効化して理由を表示する', async () => {
+        document.body.innerHTML = `
+            <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden"></div>
+            <div id="create-session-modal" class="modal"></div>
+            <div id="inline-session-draft" class="inline-session-draft hidden">
+                <input id="inline-session-name-input">
+                <select id="inline-session-project-select"></select>
+                <input id="inline-session-command-input">
+                <input type="checkbox" id="inline-use-worktree-checkbox">
+                <label id="inline-worktree-label"></label>
+                <p id="inline-worktree-hint"></p>
+                <input type="radio" name="inline-session-engine" value="claude" checked>
+                <button id="inline-session-create" type="button"></button>
+                <button id="inline-session-cancel" type="button"></button>
+                <button id="inline-session-discard" type="button"></button>
+            </div>
+        `;
+        class App {
+            closeMobileSessionsSheet() {}
+            createSession() {}
+        }
+        applySessionCreationMixin(App);
+
+        await new App().openInlineSessionDraft('no-repo');
+
+        const checkbox = document.getElementById('inline-use-worktree-checkbox');
+        expect(checkbox.disabled).toBe(true);
+        expect(checkbox.checked).toBe(false);
+        expect(document.getElementById('inline-worktree-hint').textContent).toContain('Gitリポジトリがない');
     });
 
     it('worktree session creation shows a pending shell before startup completes', async () => {

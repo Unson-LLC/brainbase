@@ -318,11 +318,11 @@ export function applyEventListenersMixin(AppClass) {
             this.modals.taskEditModal.open(task);
         });
 
-        // Create session: open modal
+        // Create session: open inline draft shell
         const unsub4 = eventBus.on(EVENTS.CREATE_SESSION, (event) => {
             const { project } = event.detail;
             console.log('Create session requested for project:', project);
-            this.openCreateSessionModal(project);
+            this.openInlineSessionDraft(project);
         });
 
         // Worktree fallback: warn user when session falls back to main workspace

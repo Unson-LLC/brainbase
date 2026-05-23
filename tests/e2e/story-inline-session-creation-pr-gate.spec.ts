@@ -5,8 +5,6 @@ const storyPath = 'docs/user_stories/active/story-inline-session-creation.md';
 const specPath = 'docs/specs/story-inline-session-creation-spec.md';
 const manaRoutesPath = 'server/routes/brainbase/mana-capture-routes.js';
 const pauseOrphanPath = 'server/scripts/pause-orphan-tmux-missing-sessions.js';
-const prBodyPath = '.vibepro/pr/story-inline-session-creation/pr-body.md';
-const gateDagPath = '.vibepro/pr/story-inline-session-creation/gate-dag.json';
 
 async function read(path: string): Promise<string> {
   return readFile(path, 'utf8');
@@ -22,18 +20,45 @@ test.describe('story-inline-session-creation PR gate evidence', () => {
 
   test('story-inline-session-creation ac:2 defines inline draft shell runtime boundaries', async () => {
     const spec = await read(specPath);
-    expect(spec).toContain('future inline draft shell must be client-owned before confirmation');
-    expect(spec).toContain('Future inline draft shells must not start terminal runtime');
-    expect(spec).toContain('Future mobile and desktop new-session entrypoints share the same inline state machine');
+    expect(spec).toContain('The inline draft shell must be client-owned before confirmation');
+    expect(spec).toContain('Inline draft shells must not start terminal runtime');
+    expect(spec).toContain('Mobile and desktop new-session entrypoints share the same inline state machine');
   });
 
-  test('story-inline-session-creation ac:3 keeps implementation work separated from this PR', async () => {
+  test('story-inline-session-creation ac:3 implements modal suppression in public UI code', async () => {
     const story = await read(storyPath);
-    expect(story).toContain('Follow-up Implementation Notes');
-    expect(story).toContain('does not claim the modal has already been removed');
+    const sessionCreation = await read('public/modules/app/session-creation-mixin.js');
+    const eventListeners = await read('public/modules/app/event-listeners-mixin.js');
+    expect(story).toContain('Remove `#create-session-modal` from the primary desktop and mobile new-session path');
+    expect(sessionCreation).toContain('openInlineSessionDraft');
+    expect(sessionCreation).toContain('return this.openInlineSessionDraft(project)');
+    expect(eventListeners).toContain('this.openInlineSessionDraft(project)');
   });
 
-  test('story-inline-session-creation ac:4 uses explicit URL helpers for network contract cleanup', async () => {
+  test('story-inline-session-creation ac:4 keeps draft client-owned until confirmation', async () => {
+    const sessionCreation = await read('public/modules/app/session-creation-mixin.js');
+    expect(sessionCreation).toContain('draft.classList.remove');
+    expect(sessionCreation).toContain('await this.createSession(selectedProject, name, initialCommand, useWorktree, engine)');
+    const handleCreateBlock = sessionCreation.slice(
+      sessionCreation.indexOf('const handleCreate = async () =>'),
+      sessionCreation.indexOf('createBtn.addEventListener')
+    );
+    expect(handleCreateBlock).toContain('closeDraft();');
+    expect(handleCreateBlock.indexOf('closeDraft();')).toBeLessThan(
+      handleCreateBlock.indexOf('await this.createSession(selectedProject, name, initialCommand, useWorktree, engine)')
+    );
+  });
+
+  test('story-inline-session-creation ac:5 updates capability artifacts away from create-session modal', async () => {
+    const sessionCapability = await read('docs/brainbase-capabilities/capabilities/session.create.yml');
+    const projectCapability = await read('docs/brainbase-capabilities/capabilities/project.selector.yml');
+    expect(sessionCapability).toContain('#inline-session-draft');
+    expect(sessionCapability).not.toContain('#create-session-modal');
+    expect(projectCapability).toContain('#inline-session-project-select');
+    expect(projectCapability).not.toContain('#create-session-modal');
+  });
+
+  test('story-inline-session-creation ac:6 keeps earlier network cleanup evidence intact', async () => {
     const manaRoutes = await read(manaRoutesPath);
     const pauseOrphan = await read(pauseOrphanPath);
     expect(manaRoutes).toContain('buildManaLambdaUrl');
@@ -42,28 +67,12 @@ test.describe('story-inline-session-creation PR gate evidence', () => {
     expect(pauseOrphan).toContain('buildSessionStateUrl');
   });
 
-  test('story-inline-session-creation ac:5 preserves tmux-missing session filtering semantics', async () => {
-    const script = await read(pauseOrphanPath);
-    expect(script).toContain('filter.has(issue.sessionId)');
-    expect(script).toContain('tmux_missing');
-    expect(script).toContain("method: 'PATCH'");
-  });
-
-  test('story-inline-session-creation ac:6 classifies current UI journeys as non-applicable for this PR', async () => {
+  test('story-inline-session-creation gate surface is inline implementation, not planning-only evidence', async () => {
     const story = await read(storyPath);
     const spec = await read(specPath);
-    expect(story).toContain('Current UI journeys are explicitly non-applicable');
-    expect(spec).toContain('browser UI journeys are non-applicable in this PR because no public UI source is changed');
-    expect(spec).toContain('docs/brainbase-capabilities/capabilities/session.create.yml');
-    expect(spec).toContain('docs/brainbase-capabilities/capabilities/project.selector.yml');
-  });
-
-  test('story-inline-session-creation gate artifacts use the current planning/network acceptance surface', async () => {
-    const prBody = await read(prBodyPath);
-    const gateDag = JSON.parse(await read(gateDagPath));
-    const serializedGateDag = JSON.stringify(gateDag);
-    expect(prBody).toContain('Current UI journeys are explicitly non-applicable');
-    expect(serializedGateDag).toContain('Current UI journeys are explicitly non-applicable');
-    expect(serializedGateDag).not.toContain('Desktop `#add-session-btn` does not activate `#create-session-modal`');
+    expect(story).toContain('Desktop `#add-session-btn` and mobile new-session entrypoints open the inline draft shell');
+    expect(spec).toContain('`#add-session-btn` creates/selects a client-owned inline draft shell');
+    expect(story).not.toContain('Current UI journeys are explicitly non-applicable');
+    expect(spec).not.toContain('browser UI journeys are non-applicable in this PR because no public UI source is changed');
   });
 });

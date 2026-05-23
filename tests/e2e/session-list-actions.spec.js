@@ -71,13 +71,14 @@ test.describe('session list actions', () => {
             await page.waitForTimeout(2000);
 
             await page.locator('#add-session-btn').click();
-            await expect(page.locator('#create-session-modal')).toHaveClass(/active/);
-            await page.locator('#session-name-input').fill(originalName);
-            const useWorktreeCheckbox = page.locator('#use-worktree-checkbox');
+            await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
+            await expect(page.locator('#inline-session-draft')).not.toHaveClass(/hidden/);
+            await page.locator('#inline-session-name-input').fill(originalName);
+            const useWorktreeCheckbox = page.locator('#inline-use-worktree-checkbox');
             if (await useWorktreeCheckbox.isChecked()) {
                 await useWorktreeCheckbox.uncheck();
             }
-            await page.locator('#create-session-btn').click();
+            await page.locator('#inline-session-create').click();
             await expect(row(originalName)).toBeVisible({ timeout: 30000 });
             console.log('created session');
 
