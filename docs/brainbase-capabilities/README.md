@@ -44,6 +44,7 @@ troubleshooting: []
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
 | `session.create` | Defines how sessions are created, including project selection, engine, worktree handling, and verification. |
 | `terminal.transport` | Defines xterm transport behavior, Enter feedback, and terminal rendering constraints. |
+| `codex.app-server` | Defines the first structured Codex App Server adapter path for threads, turns, and notifications. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |

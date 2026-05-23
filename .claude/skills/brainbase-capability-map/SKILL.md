@@ -48,6 +48,7 @@ Pick the matching capability_id then **Read the yml** before reasoning. Reading 
 | `secrets.infisical` | `secrets.infisical.yml` | secret/env/Infisical org split, CI/CD/runtime/local dev injection |
 | `session.create` | `session.create.yml` | a session cannot be created / new session flow |
 | `terminal.transport` | `terminal.transport.yml` | xterm/ttyd/Enter/IME/描画 issues in session terminal |
+| `codex.app-server` | `codex.app-server.yml` | Codex App Server structured threads / turns / notifications adapter |
 | `verification.testing` | `verification.testing.yml` | which tests must run for the change |
 | `vibepro.impact-review` | `vibepro.impact-review.yml` | VibePro Graphify impact review for graph-sensitive changes |
 | `vibepro.skills-usage` | `vibepro.skills-usage.yml` | how Brainbase agents should use VibePro Skills |

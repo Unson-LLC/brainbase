@@ -1,0 +1,36 @@
+id: codex.app-server
+name: Codex App Server adapter
+purpose: Provide a structured JSON-RPC integration path for Codex threads, turns, and notifications without relying on terminal snapshots.
+surfaces:
+  ui: []
+  api: []
+  code:
+    - server/services/codex-app-server-adapter.js
+    - tests/server/services/codex-app-server-adapter.test.js
+  data:
+    - in-memory Codex App Server process state
+    - in-memory JSON-RPC pending request map
+depends_on:
+  - session.create
+  - terminal.transport
+visibility_rules:
+  - This first slice is a backend adapter only; it must not replace xterm/tmux terminal transport.
+  - Use stdio transport first; WebSocket transport is experimental and out of scope for this capability slice.
+  - Initialize with Brainbase client metadata before sending thread or turn requests.
+  - Emit app-server notifications as structured events instead of parsing terminal text.
+  - Do not persist Codex threads or turns until a separate session-state story defines the SSOT.
+verification:
+  commands:
+    - npm test -- tests/server/services/codex-app-server-adapter.test.js
+    - codex app-server --help
+  expected:
+    - Adapter unit tests pass.
+    - Local Codex CLI exposes the app-server command.
+    - Existing terminal transport remains unchanged for user-facing sessions.
+common_failures:
+  - Sending thread or turn requests before initialize/initialized handshake completes.
+  - Treating malformed stdout as fatal instead of emitting parse_error.
+  - Exposing WebSocket app-server transport remotely without auth.
+  - Persisting app-server events into Graph SSOT directly instead of a defined session/event ledger.
+runbooks: []
+troubleshooting: []
