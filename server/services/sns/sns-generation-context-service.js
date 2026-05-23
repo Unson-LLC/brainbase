@@ -3,6 +3,16 @@
 const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
 const WINNING_STATUSES = new Set(['posted', 'learning_ready']);
 const GROUPS = ['by_lane', 'by_source_type', 'by_format', 'by_persona_affect', 'by_algorithm_fit'];
+const DEDUPE_STATUSES = new Set([
+    'review_needed',
+    'approved',
+    'scheduled',
+    'publishing',
+    'posted',
+    'learning_ready',
+    'skipped',
+    'deleted'
+]);
 
 function toDateOnly(value) {
     const text = String(value || '').slice(0, 10);
@@ -96,6 +106,46 @@ function summarizePost(post) {
         title: post.title || null,
         source_type: post.source?.type || null,
         reason: post.deletion_reason || post.memo || null
+    };
+}
+
+function normalizeBodyFingerprint(body) {
+    return String(body || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/gu, '')
+        .replace(/[「」『』（）()[\]{}【】、。，．・:：;；!?！？"“”'‘’`]/gu, '')
+        .replace(/\s+/gu, '')
+        .trim();
+}
+
+function postSourceUrl(post) {
+    return post?.source?.url || post?.source_url || null;
+}
+
+function buildRecentHistory(posts, range) {
+    const recentPosts = posts
+        .filter((post) => DEDUPE_STATUSES.has(post.status))
+        .filter((post) => post.date >= range.start_date && post.date <= range.end_date)
+        .map((post) => ({
+            id: post.id,
+            date: post.date,
+            status: post.status,
+            lane: post.lane || null,
+            title: post.title || null,
+            body: post.body || '',
+            body_fingerprint: normalizeBodyFingerprint(post.body),
+            source_url: postSourceUrl(post),
+            posted_url: post.posted_url || null
+        }))
+        .filter((post) => post.body_fingerprint || post.source_url);
+
+    return {
+        lookback_start_date: range.start_date,
+        lookback_end_date: range.end_date,
+        posts: recentPosts,
+        used_source_urls: [...new Set(recentPosts.map((post) => post.source_url).filter(Boolean))],
+        blocked_body_fingerprints: [...new Set(recentPosts.map((post) => post.body_fingerprint).filter(Boolean))]
     };
 }
 
@@ -294,7 +344,7 @@ function topKeys(stats, group, limit = 3) {
         .filter((key) => key !== 'unknown');
 }
 
-function buildPolicy({ stats30, learning, personalKg }) {
+function buildPolicy({ stats30, learning, personalKg, recentHistory }) {
     const recommended = topKeys(stats30, 'by_lane');
     for (const lane of ['peer_circle', 'trust_balance', 'own_proof']) {
         if (!recommended.includes(lane)) recommended.push(lane);
@@ -331,7 +381,8 @@ function buildPolicy({ stats30, learning, personalKg }) {
             '相手の投稿を補強し、相手の読者に会社導入の責任境界を翻訳する',
             '相手選定や成長施策の都合を本文に出さない',
             '巨大アカウントより、拾ってくれる近い界隈の投稿を優先する'
-        ]
+        ],
+        recent_history: recentHistory
     };
 }
 
@@ -389,10 +440,12 @@ export class SnsGenerationContextService {
             days_30: buildStats(posts, lookback.days_30)
         };
         const learning = buildLearning({ posts, candidates });
+        const recentHistory = buildRecentHistory(posts, { start_date: startDate, end_date: targetDate });
         const generationPolicy = buildPolicy({
             stats30: postingStats.days_30,
             learning,
-            personalKg
+            personalKg,
+            recentHistory
         });
         return {
             date: targetDate,
@@ -414,9 +467,11 @@ export class SnsGenerationContextService {
 
 export {
     buildLearning,
+    buildRecentHistory,
     buildStats,
     buildPersonalKgContext,
     buildPolicy,
     extractStrategy,
-    lookbackFor
+    lookbackFor,
+    normalizeBodyFingerprint
 };

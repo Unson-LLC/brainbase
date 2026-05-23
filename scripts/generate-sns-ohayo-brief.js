@@ -151,6 +151,63 @@ function cleanTweetText(text, max = 120) {
     return `${cleaned.slice(0, max - 1).trim()}…`;
 }
 
+function compactText(text, max = 120) {
+    const cleaned = String(text || '').replace(/。/gu, '、').replace(/\s+/gu, ' ').trim().replace(/[、,]+$/u, '');
+    if (cleaned.length <= max) return cleaned;
+    return `${cleaned.slice(0, max - 1).trim()}…`;
+}
+
+function publicKgSnippet(text, max = 72) {
+    const withoutLabels = String(text || '')
+        .replace(/Own Proof:\s*/gu, '')
+        .replace(/Reusable Pattern:\s*/gu, '')
+        .replace(/\s+Apply When:[\s\S]*$/u, '')
+        .replace(/\s+Do Not Apply When:[\s\S]*$/u, '');
+    return compactText(withoutLabels, max);
+}
+
+function normalizeBodyFingerprint(body) {
+    return String(body || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/gu, '')
+        .replace(/[「」『』（）()[\]{}【】、。，．・:：;；!?！？"“”'‘’`]/gu, '')
+        .replace(/\s+/gu, '')
+        .trim();
+}
+
+function isNearFingerprint(candidate, existing) {
+    if (!candidate || !existing) return false;
+    if (candidate === existing) return true;
+    const minLength = Math.min(candidate.length, existing.length);
+    if (minLength < 42) return false;
+    return candidate.includes(existing) || existing.includes(candidate);
+}
+
+function recentHistory(generationContext) {
+    return generationContext?.generation_policy?.recent_history || {
+        posts: [],
+        used_source_urls: [],
+        blocked_body_fingerprints: []
+    };
+}
+
+function dedupeReasons({ body, sourceUrl = null, generationContext = null }) {
+    const history = recentHistory(generationContext);
+    const fingerprint = normalizeBodyFingerprint(body);
+    const blocked = new Set((history.blocked_body_fingerprints || []).map(normalizeBodyFingerprint));
+    const reasons = [];
+    if (fingerprint && blocked.has(fingerprint)) {
+        reasons.push('duplicate_recent_body');
+    } else if (fingerprint && [...blocked].some((existing) => isNearFingerprint(fingerprint, existing))) {
+        reasons.push('near_duplicate_recent_body');
+    }
+    if (sourceUrl && new Set(history.used_source_urls || []).has(sourceUrl)) {
+        reasons.push('source_url_already_used');
+    }
+    return [...new Set(reasons)];
+}
+
 function topicFromTweet(tweet) {
     const text = String(tweet.text || '');
     if (/Claude Code/u.test(text)) return 'Claude Code';
@@ -223,6 +280,50 @@ function draftHintForNews(signal) {
         '日本の会社で見る時も、機能比較より先に、どこまでAIに任せてどこで人間が戻るかを決める方が大事',
         signal.url
     ].join('\n');
+}
+
+function draftHintAlternativesForPeer(signal, generationContext = null) {
+    const anchor = publicKgSnippet((generationContext?.personal_kg?.anchors || [])[0] || '', 70);
+    const sourceText = compactText(signal.text || signal.topic || 'この論点', 64);
+    return [
+        draftHintForPeer(signal),
+        [
+            `${sourceText}、かなり現場の論点だと思う`,
+            '',
+            anchor || '会社導入では、便利さより先に責任境界と戻し方を決める必要がある',
+            '',
+            'AIを入れるほど、人間側の設計の粗さがそのまま出る',
+            signal.url
+        ].join('\n'),
+        [
+            'この話、AI活用を個人技で終わらせないために大事だと思ってる',
+            '',
+            '会社で見るべきなのは、誰が判断し、どこでレビューし、何を記憶に戻すか',
+            '',
+            'ツールの前に運用の型がいる',
+            signal.url
+        ].join('\n')
+    ];
+}
+
+function draftHintAlternativesForNews(signal, generationContext = null) {
+    const anchor = publicKgSnippet((generationContext?.personal_kg?.anchors || [])[1] || (generationContext?.personal_kg?.anchors || [])[0] || '', 70);
+    const sourceText = compactText(signal.topic || '海外のAI事例', 64);
+    return [
+        draftHintForNews(signal),
+        [
+            `${sourceText}という話、日本企業だと「どう使うか」より「どこまで任せるか」に翻訳した方がよさそう`,
+            '',
+            anchor || '現場に入るAIは、業務ログと責任分界まで含めて設計する必要がある',
+            signal.url
+        ].join('\n'),
+        [
+            '海外のAI事例を見る時、機能名だけ追うと浅くなる',
+            '',
+            '日本の現場では、AIが動いた後に人間がどこで戻れるかまで設計して初めて使える',
+            signal.url
+        ].join('\n')
+    ];
 }
 
 function personaBrain(topic) {
@@ -337,6 +438,47 @@ function baselineBodyFor(item, index) {
     ].join('\n');
 }
 
+function baselineBodyAlternatives(item, index, generationContext = null) {
+    const personalKg = generationContext?.personal_kg || {};
+    const proof = publicKgSnippet((personalKg.proof_points || [])[index] || (personalKg.proof_points || [])[0] || '', 86);
+    const anchor = publicKgSnippet((personalKg.anchors || [])[index] || (personalKg.anchors || [])[0] || '', 86);
+    const defaultBody = baselineBodyFor(item, index);
+    if (index === 0) {
+        return [
+            defaultBody,
+            [
+                proof || 'MANAの実運用では、AI駆動PMが会議時間やPM工数の削減に効いている',
+                '',
+                'この話を単なる成功事例で終わらせず、どの業務をAIに渡し、どこで人間が責任を持つかまで設計する',
+                '',
+                'ここまで戻して初めて会社のAI活用になる'
+            ].join('\n'),
+            [
+                '個人KGをSNSに使う価値は、投稿を増やすことじゃない',
+                '',
+                anchor || '読者が何を誤解し、何を怖がっているかを先に立ち上げる',
+                '',
+                '反応を見て、次の仮説に戻せることが本体'
+            ].join('\n')
+        ];
+    }
+    return [
+        defaultBody,
+        [
+            'Claude Codeを会社に入れる時、最初に見るのは機能より責任の置き方だと思ってる',
+            '',
+            '誰が指示し、どこまで任せ、どこでレビューし、失敗時にどう戻すか',
+            '',
+            'ここが曖昧だと、便利な個人ツールで止まる'
+        ].join('\n'),
+        [
+            anchor || 'AI活用支援では、相手の決断の怖さを減らして責任を支えることが人間の仕事になる',
+            '',
+            'Claude Codeも同じで、導入論はプロンプト集より運用設計から始めた方がいい'
+        ].join('\n')
+    ];
+}
+
 function qualityGate({ body, lane, personaBrain: brain, signal, requireSignal = false }) {
     const affect = evaluatePersonaAffect({ body, lane, personaBrain: brain, signal });
     const checks = [];
@@ -398,34 +540,80 @@ function buildPost({ slot, label, lane, topic, body, signal, extra = {}, require
 }
 
 function buildReviewPack({ date, weeklyPlan, peerCards, newsCards, generationContext = null }) {
-    const baselinePosts = parseBaselineItems(weeklyPlan).map((item, index) => buildPost({
-        slot: `baseline_${index + 1}`,
-        label: `Baseline ${index + 1}`,
-        lane: index === 0 ? 'own_proof' : 'trust_balance',
-        topic: item,
-        body: baselineBodyFor(item, index),
-        generationContext
-    })).filter((post) => post.quality_gate.decision === 'pass');
-
-    const posts = [...baselinePosts];
     const holds = [];
+    const posts = [];
+
+    for (const [index, item] of parseBaselineItems(weeklyPlan).entries()) {
+        const lane = index === 0 ? 'own_proof' : 'trust_balance';
+        const candidates = baselineBodyAlternatives(item, index, generationContext).map((body) => buildPost({
+            slot: `baseline_${index + 1}`,
+            label: `Baseline ${index + 1}`,
+            lane,
+            topic: item,
+            body,
+            generationContext
+        }));
+        let selected = null;
+        for (const candidate of candidates) {
+            if (candidate.quality_gate.decision !== 'pass') continue;
+            const reasons = dedupeReasons({ body: candidate.body, generationContext });
+            if (reasons.length > 0) {
+                holds.push({
+                    lane,
+                    decision: 'dedupe hold',
+                    reasons,
+                    slot: candidate.slot,
+                    topic: candidate.topic
+                });
+                continue;
+            }
+            selected = candidate;
+            break;
+        }
+        if (selected) {
+            posts.push(selected);
+        } else if (!holds.some((hold) => hold.slot === `baseline_${index + 1}`)) {
+            holds.push({
+                lane,
+                decision: 'quality hold',
+                reasons: ['baseline_quality_or_dedupe_blocked'],
+                slot: `baseline_${index + 1}`,
+                topic: item
+            });
+        }
+    }
 
     const peerPost = peerCards
-        .map((signal) => buildPost({
+        .flatMap((signal) => draftHintAlternativesForPeer(signal, generationContext).map((body) => buildPost({
             slot: 'peer_quote_1',
             label: 'Peer Quote 1',
             lane: 'peer_circle',
             topic: signal.topic,
-            body: draftHintForPeer(signal),
+            body,
             signal,
             requireSignal: true,
             generationContext,
             extra: { peer_circle_brain: peerCircleBrain(signal) }
-        }))
-        .find((post) => post.quality_gate.decision === 'pass');
+        })))
+        .find((post) => {
+            if (post.quality_gate.decision !== 'pass') return false;
+            const reasons = dedupeReasons({ body: post.body, sourceUrl: post.source_url, generationContext });
+            if (reasons.length > 0) {
+                holds.push({
+                    lane: post.lane,
+                    decision: 'dedupe hold',
+                    reasons,
+                    slot: post.slot,
+                    topic: post.topic,
+                    source_url: post.source_url
+                });
+                return false;
+            }
+            return true;
+        });
     if (peerPost) {
         posts.push(peerPost);
-    } else {
+    } else if (!holds.some((hold) => hold.slot === 'peer_quote_1')) {
         holds.push({
             lane: 'Peer Quote',
             decision: 'quality hold',
@@ -434,21 +622,36 @@ function buildReviewPack({ date, weeklyPlan, peerCards, newsCards, generationCon
     }
 
     const newsPost = newsCards
-        .map((signal) => buildPost({
+        .flatMap((signal) => draftHintAlternativesForNews(signal, generationContext).map((body) => buildPost({
             slot: 'news_commentary_1',
             label: 'News Commentary 1',
             lane: 'trust_balance',
             topic: signal.topic,
-            body: draftHintForNews(signal),
+            body,
             signal,
             requireSignal: true,
             generationContext,
             extra: { amplifier_brain: amplifierBrain(signal) }
-        }))
-        .find((post) => post.quality_gate.decision === 'pass');
+        })))
+        .find((post) => {
+            if (post.quality_gate.decision !== 'pass') return false;
+            const reasons = dedupeReasons({ body: post.body, sourceUrl: post.source_url, generationContext });
+            if (reasons.length > 0) {
+                holds.push({
+                    lane: post.lane,
+                    decision: 'dedupe hold',
+                    reasons,
+                    slot: post.slot,
+                    topic: post.topic,
+                    source_url: post.source_url
+                });
+                return false;
+            }
+            return true;
+        });
     if (newsPost) {
         posts.push(newsPost);
-    } else {
+    } else if (!holds.some((hold) => hold.slot === 'news_commentary_1')) {
         holds.push({
             lane: 'News Commentary',
             decision: 'quality hold',
