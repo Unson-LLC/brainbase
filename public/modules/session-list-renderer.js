@@ -39,6 +39,23 @@ function renderChip(text, { className = '', title = '' } = {}) {
   return `<span class="${classes}"${titleAttr}>${escapeHtml(text)}</span>`;
 }
 
+function formatRuntimeMemory(rssKb) {
+  const kb = Number(rssKb || 0);
+  if (kb <= 0) return '0 MB';
+  return `${Math.round(kb / 1024)} MB`;
+}
+
+function buildRuntimeInventoryTitle(runtimeInventory) {
+  const categoryCounts = Object.entries(runtimeInventory?.processesByCategory || {})
+    .filter(([, count]) => Number(count || 0) > 0)
+    .map(([category, count]) => `${category}:${count}`)
+    .join(', ');
+  const posture = runtimeInventory?.runtimePresence || 'cold';
+  const processCount = Number(runtimeInventory?.processCount || 0);
+  const rssText = formatRuntimeMemory(runtimeInventory?.rssKb);
+  return `Runtime ${posture}, RSS ${rssText}, processes ${processCount}${categoryCounts ? ` (${categoryCounts})` : ''}`;
+}
+
 function getSessionIconName(session, project) {
   const text = `${session?.name || ''} ${project || ''}`.toLowerCase();
   if (text.includes('mobile') || text.includes('モバイル')) return 'smartphone';
@@ -189,6 +206,17 @@ export function renderSessionRowHTML(session, options = {}) {
     summaryChips.push(renderChip('merged', { className: 'chip-pr-ok', title: 'PR merged' }));
   } else if (summary.prStatus === 'open_or_pending') {
     summaryChips.push(renderChip('pending', { className: 'chip-pr-pending', title: 'PR open or pending' }));
+  }
+  if (summary.runtimeInventory) {
+    const runtimeInventory = summary.runtimeInventory;
+    const runtimePresence = runtimeInventory.runtimePresence || 'cold';
+    const runtimeMemoryText = runtimePresence === 'hot'
+      ? `hot ${formatRuntimeMemory(runtimeInventory.rssKb)}`
+      : 'cold';
+    summaryChips.push(renderChip(runtimeMemoryText, {
+      className: `chip-runtime-memory chip-runtime-${runtimePresence}`,
+      title: buildRuntimeInventoryTitle(runtimeInventory)
+    }));
   }
   if (recentFile?.label) {
     summaryChips.push(renderChip(`file: ${recentFile.label}`, {

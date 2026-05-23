@@ -244,6 +244,37 @@ describe('session-list-renderer', () => {
       expect(html).not.toContain('chip-token');
     });
 
+    it('should render runtime memory posture from diagnostics summary', () => {
+      const session = {
+        id: 'session-runtime-memory',
+        name: 'Runtime Memory Session'
+      };
+
+      const html = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        sessionUiState: {
+          summary: {
+            runtimeInventory: {
+              runtimePresence: 'hot',
+              rssKb: 15360,
+              processCount: 3,
+              processesByCategory: {
+                codex: 1,
+                mcp: 2
+              }
+            }
+          }
+        }
+      });
+
+      expect(html).toContain('hot 15 MB');
+      expect(html).toContain('chip-runtime-memory');
+      expect(html).toContain('Runtime hot, RSS 15 MB, processes 3');
+      expect(html).toContain('codex:1');
+      expect(html).toContain('mcp:2');
+    });
+
     it('should render waiting indicator when session is waiting for input', () => {
       const session = {
         id: 'session-waiting',

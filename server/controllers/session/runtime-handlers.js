@@ -143,6 +143,20 @@ export function installRuntimeHandlers(controller) {
         });
     };
 
+    controller.getRuntimeInventory = async (_req, res) => {
+        if (typeof controller.runtimeQuery?.getRuntimeInventory !== 'function') {
+            return res.status(501).json({ error: 'Runtime inventory is not available' });
+        }
+
+        try {
+            const inventory = await controller.runtimeQuery.getRuntimeInventory();
+            return res.json(inventory);
+        } catch (error) {
+            logger.error('[runtime-inventory] Failed to collect runtime inventory:', error);
+            return res.status(500).json({ error: 'Failed to collect runtime inventory' });
+        }
+    };
+
     controller.ensureTerminalRuntime = async (req, res) => {
         const { id } = req.params;
         const { initialCommand, cwd, engine, viewerId, forceTtyd } = req.body || {};

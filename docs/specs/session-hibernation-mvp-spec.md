@@ -12,9 +12,9 @@ implementation_files:
   - server/controllers/state-controller.js
   - public/modules/app/session-management-mixin.js
 test_files:
-  - tests/server/services/session-runtime-hibernation.test.js
-  - tests/ui/session-hibernation-status.test.js
-  - tests/e2e/story-session-hibernation-mvp.spec.ts
+  - tests/server/session-runtime-inventory.test.js
+  - tests/unit/session-list-renderer.test.js
+  - tests/e2e/story-session-hibernation-mvp-phase1.spec.ts
 ---
 
 # SPEC: Session Hibernation MVP
@@ -233,10 +233,10 @@ Rules:
 ## Verification
 
 ```bash
-npm test -- tests/server/services/session-runtime-hibernation.test.js
-npm test -- tests/ui/session-hibernation-status.test.js
+npm test -- tests/server/session-runtime-inventory.test.js
+npm test -- tests/unit/session-list-renderer.test.js
 npm run typecheck
-BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-session-hibernation-mvp.spec.ts --project=chromium
+BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-session-hibernation-mvp-phase1.spec.ts --project=chromium
 curl -s http://127.0.0.1:31013/api/version | jq '.runtime'
 ```
 

@@ -4,6 +4,139 @@ import net from 'net';
 import path from 'path';
 import { logger } from '../../utils/logger.js';
 
+const PROCESS_CATEGORIES = [
+    'codex',
+    'codex_app_server',
+    'pty_shim',
+    'tmux',
+    'ttyd',
+    'mcp',
+    'unknown_child'
+];
+
+function parsePsOutput(psOutput) {
+    if (typeof psOutput !== 'string') return [];
+    return psOutput
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+            const match = line.match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/);
+            if (!match) return null;
+            return {
+                pid: Number(match[1]),
+                ppid: Number(match[2]),
+                rssKb: Number(match[3]),
+                command: match[4]
+            };
+        })
+        .filter(Boolean);
+}
+
+function classifyRuntimeProcess(command) {
+    if (typeof command !== 'string') return 'unknown_child';
+    if (command.includes('codex-pty-shim.py')) return 'pty_shim';
+    if (/\bcodex\s+app-server\b/.test(command)) return 'codex_app_server';
+    if (/\bttyd\b/.test(command)) return 'ttyd';
+    if (/\btmux\b/.test(command)) return 'tmux';
+    if (command.includes('/mcp/') || command.includes('.claude/mcp') || /\bmcp\//.test(command)) return 'mcp';
+    if (/\bcodex\b/.test(command)) return 'codex';
+    return 'unknown_child';
+}
+
+function buildSessionRuntimeIdentifiers(session) {
+    const values = new Set();
+    const add = (value) => {
+        if (typeof value === 'string' && value.trim()) values.add(value.trim());
+    };
+
+    add(session?.id);
+    add(session?.name);
+    add(session?.path);
+    add(session?.worktree?.path);
+    add(session?.codexThreadId);
+    add(session?.conversationSummary?.codexThreadId);
+    add(session?.conversationSummary?.lastConversation?.resumeId);
+    add(session?.conversationSummary?.lastConversation?.conversationId);
+
+    return [...values];
+}
+
+function findMatchingSessionIds(processInfo, sessions) {
+    const command = processInfo?.command || '';
+    return sessions
+        .filter(session => buildSessionRuntimeIdentifiers(session).some(identifier => command.includes(identifier)))
+        .map(session => session.id)
+        .filter(Boolean);
+}
+
+export function buildRuntimeInventory({ sessions = [], activeSessions = new Map(), psOutput = '' } = {}) {
+    const sessionSummaries = new Map();
+    const processRows = parsePsOutput(psOutput);
+    const unattributed = [];
+
+    for (const session of sessions || []) {
+        const activeEntry = activeSessions?.get?.(session.id) || null;
+        sessionSummaries.set(session.id, {
+            sessionId: session.id,
+            name: session.name || null,
+            intendedState: session.intendedState || null,
+            runtimePresence: activeEntry ? 'hot' : 'cold',
+            rssKb: 0,
+            processCount: 0,
+            processesByCategory: Object.fromEntries(PROCESS_CATEGORIES.map(category => [category, 0])),
+            processes: []
+        });
+    }
+
+    for (const processInfo of processRows) {
+        const category = classifyRuntimeProcess(processInfo.command);
+        const matchingSessionIds = findMatchingSessionIds(processInfo, sessions);
+
+        if (matchingSessionIds.length === 1 && sessionSummaries.has(matchingSessionIds[0])) {
+            const summary = sessionSummaries.get(matchingSessionIds[0]);
+            summary.runtimePresence = 'hot';
+            summary.rssKb += processInfo.rssKb;
+            summary.processCount += 1;
+            summary.processesByCategory[category] = (summary.processesByCategory[category] || 0) + 1;
+            summary.processes.push({ ...processInfo, category });
+            continue;
+        }
+
+        if (matchingSessionIds.length > 1 || category !== 'unknown_child') {
+            unattributed.push({
+                ...processInfo,
+                category,
+                matchedSessionIds: matchingSessionIds,
+                reason: matchingSessionIds.length > 1 ? 'matched_multiple_sessions' : 'no_session_match'
+            });
+        }
+    }
+
+    const sessionList = [...sessionSummaries.values()];
+    const totals = sessionList.reduce((acc, session) => {
+        acc.rssKb += session.rssKb;
+        acc.processCount += session.processCount;
+        if (session.runtimePresence === 'hot') acc.hotSessions += 1;
+        if (session.runtimePresence === 'cold') acc.coldSessions += 1;
+        return acc;
+    }, {
+        sessionCount: sessionList.length,
+        hotSessions: 0,
+        coldSessions: 0,
+        rssKb: 0,
+        processCount: 0,
+        unattributedProcessCount: unattributed.length
+    });
+
+    return {
+        generatedAt: new Date().toISOString(),
+        sessions: sessionList,
+        totals,
+        unattributed
+    };
+}
+
 export const runtimeQueryMethods = {
     findFreePort(startPort = this.nextPort) {
         return new Promise((resolve) => {
@@ -146,6 +279,30 @@ export const runtimeQueryMethods = {
             ttydRunning: runtimeStatus.ttydRunning,
             runtimeStatus
         };
+    },
+
+    async getRuntimeInventory() {
+        const state = this.stateStore.get();
+        let psOutput = '';
+
+        try {
+            if (typeof this.execPromise === 'function') {
+                const result = await this.execPromise('ps -axo pid=,ppid=,rss=,command=');
+                psOutput = typeof result === 'string' ? result : result?.stdout || '';
+            } else {
+                psOutput = execSync('ps -axo pid=,ppid=,rss=,command=', { encoding: 'utf-8' });
+            }
+        } catch (error) {
+            logger.warn('[runtime-inventory] ps command failed', {
+                error: error instanceof Error ? error.message : String(error)
+            });
+        }
+
+        return buildRuntimeInventory({
+            sessions: state.sessions || [],
+            activeSessions: this.activeSessions,
+            psOutput
+        });
     },
 
     _isProcessRunning(pid) {
