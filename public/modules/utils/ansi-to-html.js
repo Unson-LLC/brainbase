@@ -75,12 +75,13 @@ function buildStyle(state, palette) {
 /**
  * ANSIエスケープシーケンス付きテキストをHTML変換
  * @param {string|null|undefined} text
- * @param {{ theme?: Record<string, string> }} [options]
+ * @param {{ theme?: Record<string, string>, lineScoped?: boolean }} [options]
  * @returns {string}
  */
 export function ansiToHtml(text, options = {}) {
     if (!text || typeof text !== 'string') return '';
     const palette = buildTerminalAnsiPalette(options.theme || DEFAULT_TERMINAL_THEME);
+    const lineScoped = options.lineScoped !== false;
 
     // Step 1: 非SGR ANSIシーケンスを除去（カーソル移動、画面クリア等）
     // これらはターミナルエミュレータの制御用で、HTML表示では不要
@@ -113,21 +114,59 @@ export function ansiToHtml(text, options = {}) {
     let result = '';
     let lastIndex = 0;
     let spanOpen = false;
+    let lineStyleSuppressed = false;
     let match;
+
+    const closeSpan = () => {
+        if (!spanOpen) return;
+        result += '</span>';
+        spanOpen = false;
+    };
+
+    const openCurrentSpan = () => {
+        if (spanOpen || lineStyleSuppressed) return;
+        const style = buildStyle(state, palette);
+        if (!style) return;
+        result += `<span style="${style}">`;
+        spanOpen = true;
+    };
+
+    const appendTextSegment = (segment) => {
+        if (!segment) return;
+        if (!lineScoped || !segment.includes('\n')) {
+            openCurrentSpan();
+            result += segment;
+            return;
+        }
+
+        const lines = segment.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i]) {
+                openCurrentSpan();
+                result += lines[i];
+            }
+            if (i < lines.length - 1) {
+                closeSpan();
+                result += '\n';
+                lineStyleSuppressed = true;
+            }
+        }
+    };
 
     while ((match = SGR_RE.exec(escaped)) !== null) {
         // マッチ前のテキストを追加
-        result += escaped.slice(lastIndex, match.index);
+        appendTextSegment(escaped.slice(lastIndex, match.index));
         lastIndex = match.index + match[0].length;
 
         const params = match[1] ? match[1].split(';').map(Number) : [0];
+        lineStyleSuppressed = false;
 
         let i = 0;
         while (i < params.length) {
             const p = params[i];
             if (p === 0) {
                 // reset
-                if (spanOpen) { result += '</span>'; spanOpen = false; }
+                closeSpan();
                 state.color = null;
                 state.colorIndex = null;
                 state.bgColor = null;
@@ -202,15 +241,15 @@ export function ansiToHtml(text, options = {}) {
         // 現在のスタイルに応じてspanを開く
         const style = buildStyle(state, palette);
         if (style) {
-            if (spanOpen) result += '</span>';
+            closeSpan();
             result += `<span style="${style}">`;
             spanOpen = true;
         }
     }
 
     // 残りのテキスト
-    result += escaped.slice(lastIndex);
-    if (spanOpen) result += '</span>';
+    appendTextSegment(escaped.slice(lastIndex));
+    closeSpan();
 
     return linkifyHtml(result);
 }

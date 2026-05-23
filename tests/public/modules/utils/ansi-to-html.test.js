@@ -42,6 +42,20 @@ describe('ansiToHtml', () => {
         expect(result).toContain('<span style="color:#23d18b;font-weight:bold">bold green</span>');
     });
 
+    it('tmux snapshotの行末SGRを次行へ漏らさない', () => {
+        const input = '\x1b[32mgreen\nplain';
+        const result = ansiToHtml(input);
+        expect(result).toBe('<span style="color:#0dbc79">green</span>\nplain');
+    });
+
+    it('改行後は明示的なSGRでのみ色を再開する', () => {
+        const input = '\x1b[32mgreen\nplain \x1b[31mred\x1b[0m';
+        const result = ansiToHtml(input);
+        expect(result).toBe(
+            '<span style="color:#0dbc79">green</span>\nplain <span style="color:#cd3131">red</span>'
+        );
+    });
+
     it('256色（38;5;N）をspan変換する', () => {
         const input = '\x1b[38;5;206mpink text\x1b[0m';
         const result = ansiToHtml(input);
