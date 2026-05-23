@@ -276,6 +276,26 @@ describe('SNS Generation Context', () => {
         expect(context.generation_policy.winning_angles).toEqual(expect.arrayContaining([
             expect.stringContaining('MANAによるAI駆動PM')
         ]));
+        expect(context.generation_policy.recent_history).toMatchObject({
+            lookback_start_date: '2026-04-17',
+            lookback_end_date: '2026-05-16',
+            used_source_urls: ['https://x.com/peer/status/1']
+        });
+        expect(context.generation_policy.recent_history.posts).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                id: 'post_trust',
+                status: 'posted',
+                lane: 'trust_balance',
+                body: 'Claude Codeを会社で使う時、権限とレビュー境界を先に決める',
+                body_fingerprint: 'claudecodeを会社で使う時権限とレビュー境界を先に決める',
+                posted_url: 'https://x.com/a/status/post_trust'
+            }),
+            expect.objectContaining({
+                id: 'post_peer',
+                source_url: 'https://x.com/peer/status/1'
+            })
+        ]));
+        expect(context.generation_policy.recent_history.blocked_body_fingerprints).toContain('claudecodeを会社で使う時権限とレビュー境界を先に決める');
         expect(context.learning.created_candidates).toEqual([
             expect.objectContaining({ id: 'cand_sns_feedback_post_trust', source_system: 'sns-feedback' })
         ]);

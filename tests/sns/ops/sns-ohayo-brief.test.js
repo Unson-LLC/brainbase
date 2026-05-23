@@ -29,6 +29,68 @@ function generationContextFixture() {
     };
 }
 
+function generationContextWithRecentHistory() {
+    return {
+        ...generationContextFixture(),
+        personal_kg: {
+            anchors: [
+                'AI活用支援では、相手の決断の怖さを減らして責任を支えることが人間の仕事になる',
+                'SNS運用は投稿作成ではなく、読者理解を個人KGに戻す学習ループとして扱う'
+            ],
+            proof_points: [
+                'Own Proof: MANAは実運用4ヶ月で会議時間90%削減、PM工数75%削減、タスク登録80%自動化の実績がある'
+            ]
+        },
+        generation_policy: {
+            ...generationContextFixture().generation_policy,
+            recent_history: {
+                lookback_start_date: '2026-04-24',
+                lookback_end_date: '2026-05-23',
+                used_source_urls: ['https://x.com/near_ai_pm/status/2050000000000000001'],
+                blocked_body_fingerprints: [
+                    'sns運用を投稿を作る仕組みじゃなくて読者理解を学習に戻す個人ナレッジグラフとして作ってるxで反応を見る反応から読者理解を更新する次の仮説に戻す投稿生成よりこっちが本体なんよな',
+                    'claudecodeを会社で使う時小技を増やすより先に決めることがあるclaude.mdスキルhookレビュー権限ここがないと個人の便利ツールで止まる会社で使うaiは行動ルールまで含めて設計するものなんよな'
+                ],
+                posts: [
+                    {
+                        id: 'posted_own_proof',
+                        date: '2026-05-18',
+                        status: 'posted',
+                        lane: 'own_proof',
+                        title: 'SNS運用',
+                        body: 'SNS運用を「投稿を作る仕組み」じゃなくて、読者理解を学習に戻す個人ナレッジグラフとして作ってる\n\nXで反応を見る\n反応から読者理解を更新する\n次の仮説に戻す\n\n投稿生成より、こっちが本体なんよな',
+                        body_fingerprint: 'sns運用を投稿を作る仕組みじゃなくて読者理解を学習に戻す個人ナレッジグラフとして作ってるxで反応を見る反応から読者理解を更新する次の仮説に戻す投稿生成よりこっちが本体なんよな',
+                        source_url: null,
+                        posted_url: 'https://x.com/AIBizNavigator/status/2056298985590317189'
+                    },
+                    {
+                        id: 'posted_claude_code',
+                        date: '2026-05-15',
+                        status: 'posted',
+                        lane: 'trust_balance',
+                        title: 'Claude Code法人導入',
+                        body: 'Claude Codeを会社で使う時、小技を増やすより先に決めることがある\n\nCLAUDE.md、スキル、hook、レビュー、権限\n\nここがないと、個人の便利ツールで止まる\n会社で使うAIは、行動ルールまで含めて設計するものなんよな',
+                        body_fingerprint: 'claudecodeを会社で使う時小技を増やすより先に決めることがあるclaude.mdスキルhookレビュー権限ここがないと個人の便利ツールで止まる会社で使うaiは行動ルールまで含めて設計するものなんよな',
+                        source_url: null,
+                        posted_url: 'https://x.com/AIBizNavigator/status/2055199687339303164'
+                    },
+                    {
+                        id: 'posted_peer',
+                        date: '2026-05-17',
+                        status: 'posted',
+                        lane: 'peer_circle',
+                        title: 'Claude Code',
+                        body: '既存の引用コメント',
+                        body_fingerprint: '既存の引用コメント',
+                        source_url: 'https://x.com/near_ai_pm/status/2050000000000000001',
+                        posted_url: 'https://x.com/AIBizNavigator/status/2056000000000000000'
+                    }
+                ]
+            }
+        }
+    };
+}
+
 describe('sns ohayo brief', () => {
     it('classifies near-peer authors before mega accounts', () => {
         expect(classifyAuthorBand({ author_followers: 1999 })).toBe('out_of_band');
@@ -124,6 +186,64 @@ describe('sns ohayo brief', () => {
         expect(slots).toEqual(['baseline_1', 'baseline_2']);
         expect(brief.markdown).toContain('Peer Quote: quality hold');
         expect(brief.markdown).toContain('News Commentary: quality hold');
+    });
+
+    it('INV-2/S-1/S-3: rewrites baseline drafts when recent ledger bodies match the old fixed templates', () => {
+        const jpTweets = JSON.parse(fs.readFileSync(jpFixture, 'utf8'));
+        const enTweets = JSON.parse(fs.readFileSync(enFixture, 'utf8'));
+
+        const brief = buildBrief({
+            date: '2026-05-23',
+            jpTweets,
+            enTweets,
+            jpReads: 10,
+            enReads: 10,
+            weeklyPlan: '## Sat 2026-05-23\n\nBaseline:\n1. Own Proof\n2. Claude Code法人導入',
+            generationContext: generationContextWithRecentHistory()
+        });
+
+        const bodies = brief.signals.reviewPack.posts.map((post) => post.body).join('\n---\n');
+        expect(bodies).not.toContain('SNS運用を「投稿を作る仕組み」じゃなくて、読者理解を学習に戻す個人ナレッジグラフとして作ってる');
+        expect(bodies).not.toContain('Claude Codeを会社で使う時、小技を増やすより先に決めることがある');
+        expect(brief.signals.reviewPack.posts.filter((post) => post.slot.startsWith('baseline_'))).toHaveLength(2);
+        expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'baseline_1')?.body).toContain('MANA');
+        expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'baseline_2')?.body).toContain('責任');
+        expect(brief.signals.reviewPack.holds).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                lane: 'own_proof',
+                decision: 'dedupe hold',
+                reasons: expect.arrayContaining(['duplicate_recent_body'])
+            }),
+            expect.objectContaining({
+                lane: 'trust_balance',
+                decision: 'dedupe hold',
+                reasons: expect.arrayContaining(['duplicate_recent_body'])
+            })
+        ]));
+    });
+
+    it('INV-3/S-2: holds peer or news candidates when the source URL was already used recently', () => {
+        const jpTweets = JSON.parse(fs.readFileSync(jpFixture, 'utf8'));
+        const enTweets = JSON.parse(fs.readFileSync(enFixture, 'utf8'));
+
+        const brief = buildBrief({
+            date: '2026-05-23',
+            jpTweets,
+            enTweets,
+            jpReads: 10,
+            enReads: 10,
+            weeklyPlan: '## Sat 2026-05-23\n\nBaseline:\n1. Own Proof\n2. Claude Code法人導入',
+            generationContext: generationContextWithRecentHistory()
+        });
+
+        expect(brief.signals.reviewPack.posts.some((post) => post.source_url === 'https://x.com/near_ai_pm/status/2050000000000000001')).toBe(false);
+        expect(brief.signals.reviewPack.holds).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                lane: 'peer_circle',
+                decision: 'dedupe hold',
+                reasons: expect.arrayContaining(['source_url_already_used'])
+            })
+        ]));
     });
 
     it('CLI writes markdown and signals files from fixture inputs without calling X API', () => {
