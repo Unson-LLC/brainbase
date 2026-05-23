@@ -8,6 +8,7 @@ import { deriveSessionUiState } from '../../session-ui-state.js';
 
 const MAX_ENTRIES = 200;
 const STALE_WORKING_MS = 3 * 60 * 1000;
+const STALE_REFRESH_MS = 30 * 1000;
 const JAPANESE_TEXT_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
 
 function containsReadableJapanese(value) {
@@ -139,6 +140,25 @@ function buildFingerprint(session, uiState) {
     });
 }
 
+function buildMovementKey(session, uiState, status, taskBrief) {
+    const lifecycle = uiState.lifecycle || 'active';
+    const activity = uiState.activity || 'idle';
+    const attention = uiState.attention || 'none';
+    const hookStatus = uiState.hookStatus || null;
+    const liveActivity = hookStatus?.liveActivity || null;
+
+    return JSON.stringify({
+        intendedState: session?.intendedState || 'active',
+        lifecycle,
+        activity,
+        attention,
+        transport: uiState.transport || 'disconnected',
+        statusTone: status?.tone || 'idle',
+        activityKind: liveActivity?.activityKind || '',
+        taskBrief: taskBrief || ''
+    });
+}
+
 function getActivityTimestamp(session, uiState) {
     const hookStatus = uiState.hookStatus || null;
     const liveActivity = hookStatus?.liveActivity || null;
@@ -168,6 +188,8 @@ export class LiveFeedService {
         this._listeners = [];
         this._unsubscribers = [];
         this._fingerprints = new Map();
+        this._movementKeys = new Map();
+        this._staleRefreshTimer = null;
         this._started = false;
     }
 
@@ -180,19 +202,28 @@ export class LiveFeedService {
             this._refreshEntries();
         });
         this._unsubscribers.push(unsubStore);
+        if (typeof setInterval === 'function') {
+            this._staleRefreshTimer = setInterval(() => {
+                this._refreshEntries({ force: true });
+            }, STALE_REFRESH_MS);
+        }
     }
 
     stop() {
         this._unsubscribers.forEach(fn => fn());
         this._unsubscribers = [];
+        if (this._staleRefreshTimer) {
+            clearInterval(this._staleRefreshTimer);
+            this._staleRefreshTimer = null;
+        }
         this._started = false;
     }
 
-    _refreshEntries({ initial = false } = {}) {
+    _refreshEntries({ initial = false, force = false } = {}) {
         const state = this.store.getState();
         const sessions = Array.isArray(state.sessions) ? state.sessions : [];
         const activeSessionIds = new Set();
-        const nextEntries = [];
+        const entryUpdates = [];
 
         for (const session of sessions) {
             if (!session?.id || session.intendedState === 'archived') continue;
@@ -202,14 +233,17 @@ export class LiveFeedService {
             const fingerprint = buildFingerprint(session, uiState);
             const previousFingerprint = this._fingerprints.get(session.id);
 
-            if (!initial && previousFingerprint === fingerprint) {
-                continue;
-            }
-
             const timestamp = getActivityTimestamp(session, uiState);
             const timestampMs = timestamp.getTime();
             const liveActivity = uiState.hookStatus?.liveActivity || null;
             const status = buildStatus(uiState, timestampMs);
+            const taskBrief = buildTaskBrief(session, uiState, liveActivity);
+            const movementKey = buildMovementKey(session, uiState, status, taskBrief);
+            const previousMovementKey = this._movementKeys.get(session.id);
+
+            if (!initial && !force && previousFingerprint === fingerprint) {
+                continue;
+            }
             const entry = {
                 id: session.id,
                 sessionId: session.id,
@@ -217,44 +251,92 @@ export class LiveFeedService {
                 label: session.name || session.id,
                 icon: status.icon,
                 statusTone: status.tone,
-                taskBrief: buildTaskBrief(session, uiState, liveActivity),
+                taskBrief,
                 currentStep: buildCurrentStep(session, uiState, liveActivity, status),
                 latestEvidence: buildLatestEvidence(session, uiState, liveActivity, status),
                 statusText: status.text
             };
 
+            const previousEntry = this.entries.find((item) => item.sessionId === session.id);
+            const previousContentKey = previousEntry ? JSON.stringify({
+                timestamp: previousEntry.timestamp?.getTime?.() || 0,
+                icon: previousEntry.icon || '',
+                statusTone: previousEntry.statusTone || '',
+                taskBrief: previousEntry.taskBrief || '',
+                currentStep: previousEntry.currentStep || '',
+                latestEvidence: previousEntry.latestEvidence || '',
+                statusText: previousEntry.statusText || ''
+            }) : '';
+            const nextContentKey = JSON.stringify({
+                timestamp: entry.timestamp.getTime(),
+                icon: entry.icon || '',
+                statusTone: entry.statusTone || '',
+                taskBrief: entry.taskBrief || '',
+                currentStep: entry.currentStep || '',
+                latestEvidence: entry.latestEvidence || '',
+                statusText: entry.statusText || ''
+            });
+            if (!initial && force && previousFingerprint === fingerprint && previousMovementKey === movementKey && previousContentKey === nextContentKey) {
+                continue;
+            }
+
             this._fingerprints.set(session.id, fingerprint);
-            nextEntries.push(entry);
+            this._movementKeys.set(session.id, movementKey);
+            entryUpdates.push({
+                entry,
+                shouldMove: initial || !previousMovementKey || previousMovementKey !== movementKey
+            });
         }
 
         const previousEntryCount = this.entries.length;
         for (const sessionId of Array.from(this._fingerprints.keys())) {
             if (!activeSessionIds.has(sessionId)) {
                 this._fingerprints.delete(sessionId);
+                this._movementKeys.delete(sessionId);
             }
         }
         this.entries = this.entries.filter((entry) => activeSessionIds.has(entry.sessionId));
 
-        if (nextEntries.length === 0) {
+        if (entryUpdates.length === 0) {
             if (this.entries.length !== previousEntryCount) {
                 this._notify(null);
             }
             return;
         }
 
-        nextEntries.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        for (const entry of nextEntries) {
-            this._upsertEntry(entry);
-        }
+        this._applyEntryUpdates(entryUpdates);
     }
 
-    _upsertEntry(entry) {
-        this.entries = this.entries.filter((item) => item.sessionId !== entry.sessionId);
-        this.entries.unshift(entry);
+    _applyEntryUpdates(entryUpdates) {
+        const moveUpdates = [];
+
+        for (const [sourceIndex, update] of entryUpdates.entries()) {
+            if (update.shouldMove) {
+                moveUpdates.push({ entry: update.entry, sourceIndex });
+                continue;
+            }
+            const index = this.entries.findIndex((item) => item.sessionId === update.entry.sessionId);
+            if (index >= 0) {
+                this.entries[index] = update.entry;
+            } else {
+                moveUpdates.push({ entry: update.entry, sourceIndex });
+            }
+        }
+
+        moveUpdates.sort((a, b) => {
+            const timestampDiff = a.entry.timestamp.getTime() - b.entry.timestamp.getTime();
+            if (timestampDiff !== 0) return timestampDiff;
+            return b.sourceIndex - a.sourceIndex;
+        });
+        for (const { entry } of moveUpdates) {
+            this.entries = this.entries.filter((item) => item.sessionId !== entry.sessionId);
+            this.entries.unshift(entry);
+        }
+
         if (this.entries.length > MAX_ENTRIES) {
             this.entries.length = MAX_ENTRIES;
         }
-        this._notify(entry);
+        this._notify(moveUpdates[moveUpdates.length - 1]?.entry || entryUpdates[entryUpdates.length - 1]?.entry || null);
     }
 
     onEntry(callback) {

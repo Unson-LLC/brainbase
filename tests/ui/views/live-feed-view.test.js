@@ -74,6 +74,7 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-item-rail')).toBeTruthy();
         expect(container.querySelector('.feed-item-dot.working')).toBeTruthy();
         expect(container.querySelector('.feed-item-actions')).toBeTruthy();
+        expect(Array.from(container.querySelectorAll('.feed-item-action')).every((button) => button.disabled)).toBe(true);
         expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: すべて');
     });
 

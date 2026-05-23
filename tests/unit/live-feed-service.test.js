@@ -180,6 +180,141 @@ describe('LiveFeedService', () => {
         expect(entries[0].currentStep).toContain('抽象的な状態語ではなく回答断片だけを出す形に見直しています');
     });
 
+    it('heartbeatだけの更新では行順を変えず内容だけ更新する', () => {
+        service.start();
+
+        replaceSessionHookStatuses({
+            'session-1': appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+            'session-2': {
+                ...appStore.getState().sessionUi.byId['session-2']?.hookStatus,
+                lastActivityAt: Date.parse('2026-03-25T10:04:00.000Z'),
+                liveActivity: {
+                    ...appStore.getState().sessionUi.byId['session-2']?.hookStatus?.liveActivity,
+                    updatedAt: Date.parse('2026-03-25T10:04:00.000Z')
+                }
+            }
+        });
+
+        const entries = service.getEntries();
+        expect(entries.map((entry) => entry.label)).toEqual(['Alpha', 'Beta']);
+        expect(entries[1].timestamp.toISOString()).toBe('2026-03-25T10:04:00.000Z');
+    });
+
+    it('assistant snippetだけの更新では行順を変えず本文だけ更新する', () => {
+        service.start();
+
+        replaceSessionHookStatuses({
+            'session-1': appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+            'session-2': {
+                ...appStore.getState().sessionUi.byId['session-2']?.hookStatus,
+                liveActivity: {
+                    ...appStore.getState().sessionUi.byId['session-2']?.hookStatus?.liveActivity,
+                    assistantSnippet: '入力待ちのまま補足文だけを更新しています',
+                    assistantSnippetUpdatedAt: Date.parse('2026-03-25T10:05:00.000Z')
+                }
+            }
+        });
+
+        const entries = service.getEntries();
+        expect(entries.map((entry) => entry.label)).toEqual(['Alpha', 'Beta']);
+        expect(entries[1].currentStep).toContain('入力待ちのまま補足文だけを更新しています');
+    });
+
+    it('複数セッションが同時更新されても通知は1回にまとめる', () => {
+        service.start();
+        const listener = vi.fn();
+        service.onEntry(listener);
+
+        replaceSessionHookStatuses({
+            'session-1': {
+                ...appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+                liveActivity: {
+                    ...appStore.getState().sessionUi.byId['session-1']?.hookStatus?.liveActivity,
+                    assistantSnippet: 'Alphaの本文だけを更新しています',
+                    assistantSnippetUpdatedAt: Date.parse('2026-03-25T10:06:00.000Z')
+                }
+            },
+            'session-2': {
+                ...appStore.getState().sessionUi.byId['session-2']?.hookStatus,
+                liveActivity: {
+                    ...appStore.getState().sessionUi.byId['session-2']?.hookStatus?.liveActivity,
+                    assistantSnippet: 'Betaの本文だけを更新しています',
+                    assistantSnippetUpdatedAt: Date.parse('2026-03-25T10:06:00.000Z')
+                }
+            }
+        });
+
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('同一timestampの同時moveではセッション相対順を保つ', () => {
+        appStore.setState({
+            sessions: [
+                { id: 'session-a', name: 'A', intendedState: 'active', runtimeStatus: { ttydRunning: true } },
+                { id: 'session-b', name: 'B', intendedState: 'active', runtimeStatus: { ttydRunning: true } },
+                { id: 'session-c', name: 'C', intendedState: 'active', runtimeStatus: { ttydRunning: true } }
+            ],
+            currentSessionId: 'session-a',
+            sessionUi: { byId: {} }
+        });
+        const sameTimestamp = Date.parse('2026-03-25T10:07:00.000Z');
+        replaceSessionHookStatuses({
+            'session-a': {
+                isWorking: true,
+                isDone: false,
+                lastWorkingAt: sameTimestamp,
+                lastActivityAt: sameTimestamp,
+                lastDoneAt: 0,
+                activeTurnCount: 1,
+                liveActivity: { activityKind: 'running_command', updatedAt: sameTimestamp, statusTone: 'working' }
+            },
+            'session-b': {
+                isWorking: true,
+                isDone: false,
+                lastWorkingAt: sameTimestamp,
+                lastActivityAt: sameTimestamp,
+                lastDoneAt: 0,
+                activeTurnCount: 1,
+                liveActivity: { activityKind: 'running_command', updatedAt: sameTimestamp, statusTone: 'working' }
+            },
+            'session-c': {
+                isWorking: true,
+                isDone: false,
+                lastWorkingAt: sameTimestamp,
+                lastActivityAt: sameTimestamp,
+                lastDoneAt: 0,
+                activeTurnCount: 1,
+                liveActivity: { activityKind: 'running_command', updatedAt: sameTimestamp, statusTone: 'working' }
+            }
+        });
+
+        service.start();
+
+        expect(service.getEntries().map((entry) => entry.label)).toEqual(['A', 'B', 'C']);
+    });
+
+    it('stale判定は明示timerで更新し行をblockedへ遷移させる', () => {
+        service.start();
+
+        expect(service.getEntries()[0].statusTone).toBe('working');
+
+        vi.advanceTimersByTime(3 * 60 * 1000);
+        expect(service.getEntries()[0].statusTone).toBe('blocked');
+        expect(service.getEntries()[0].statusText).toBe('4分更新なし');
+    });
+
+    it('stale判定の分数表示はmovementKey不変でもforce refreshで更新する', () => {
+        service.start();
+
+        vi.advanceTimersByTime(3 * 60 * 1000);
+        expect(service.getEntries()[0].statusText).toBe('4分更新なし');
+
+        vi.advanceTimersByTime(2 * 60 * 1000);
+
+        expect(service.getEntries()[0].statusTone).toBe('blocked');
+        expect(service.getEntries()[0].statusText).toBe('6分更新なし');
+    });
+
     it('liveActivityにassistantSnippetがなくてもsession.lastAssistantSnippetを表示する', () => {
         replaceSessionHookStatuses({
             'session-1': {

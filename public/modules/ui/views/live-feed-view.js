@@ -183,8 +183,8 @@ export class LiveFeedView {
                 ${latestEvidence}
             </div>
             <div class="feed-item-actions">
-                <button class="feed-item-action" type="button" aria-label="詳細を開く"><i data-lucide="external-link"></i></button>
-                <button class="feed-item-action" type="button" aria-label="コピー"><i data-lucide="copy"></i></button>
+                <button class="feed-item-action" type="button" aria-label="詳細を開く" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="external-link"></i></button>
+                <button class="feed-item-action" type="button" aria-label="コピー" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="copy"></i></button>
             </div>
         </div>`;
     }
@@ -204,8 +204,15 @@ export class LiveFeedView {
         const entries = this.liveFeedService.getEntries();
         const filteredEntries = this._filterEntries(entries);
         const entriesHtml = this._renderGroups(filteredEntries);
+        const isMobileSurface = Boolean(this._container.closest?.('.mobile-tab-content'));
+        const surfacePadding = isMobileSurface
+            ? ' style="padding-bottom: 72px; box-sizing: border-box;"'
+            : '';
+        const footerPadding = document.querySelector('.mana-chat-widget')
+            ? ' style="padding-right: 96px;"'
+            : '';
 
-        this._container.innerHTML = `<div class="live-feed-container">
+        this._container.innerHTML = `<div class="live-feed-container"${surfacePadding}>
             <div class="live-feed-header">
                 <div class="live-feed-status-wrap">
                     <span class="live-feed-status active"><span class="live-feed-status-dot"></span>LIVE</span>
@@ -214,13 +221,13 @@ export class LiveFeedView {
                     ${this._renderFilters(entries)}
                 </div>
                 <div class="live-feed-controls">
-                    <button class="feed-control-btn" type="button" aria-label="一時停止"><i data-lucide="pause"></i></button>
-                    <button class="feed-control-btn" type="button" aria-label="更新"><i data-lucide="refresh-cw"></i></button>
-                    <button class="feed-control-btn" type="button" aria-label="フィルタ"><i data-lucide="sliders-horizontal"></i></button>
+                    <button class="feed-control-btn" type="button" aria-label="一時停止" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="pause"></i></button>
+                    <button class="feed-control-btn" type="button" aria-label="更新" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="refresh-cw"></i></button>
+                    <button class="feed-control-btn" type="button" aria-label="フィルタ" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="sliders-horizontal"></i></button>
                 </div>
             </div>
             <div class="live-feed-list">${entriesHtml}</div>
-            <div class="live-feed-footer">
+            <div class="live-feed-footer"${footerPadding}>
                 <span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span>
                 <span>最終更新: ${entries[0] ? escapeHtml(this._formatTime(entries[0].timestamp)) : '--:--:--'}</span>
                 <span>表示: ${escapeHtml(this._activeFilterLabel())}</span>
