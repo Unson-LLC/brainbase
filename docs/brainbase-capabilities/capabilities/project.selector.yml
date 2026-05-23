@@ -3,8 +3,8 @@ name: Session creation project selector
 purpose: Decide which projects appear in the Create Session project dropdown.
 surfaces:
   ui:
-    - "#session-project-select"
-    - "#create-session-modal"
+    - "#inline-session-project-select"
+    - "#inline-session-draft"
   api:
     - GET /api/config
   code:

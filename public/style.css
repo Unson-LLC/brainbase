@@ -11835,6 +11835,121 @@ body.resizing iframe {
     pointer-events: none;
 }
 
+.inline-session-draft {
+    position: absolute;
+    inset: 0;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(3, 7, 18, 0.86);
+    backdrop-filter: blur(3px);
+}
+
+.inline-session-draft.hidden {
+    display: none;
+}
+
+.inline-session-draft-panel {
+    width: min(720px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.96);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+    padding: 22px;
+}
+
+.inline-session-draft-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.inline-session-draft-header h3 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 20px;
+    line-height: 1.2;
+}
+
+.inline-session-draft-kicker {
+    margin: 0 0 4px 0;
+    color: #60a5fa;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.inline-session-icon-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.88);
+    color: #cbd5e1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.inline-session-icon-btn:hover {
+    color: #f8fafc;
+    border-color: rgba(96, 165, 250, 0.7);
+}
+
+.inline-session-draft-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+}
+
+.inline-session-field {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.inline-session-field-full {
+    grid-column: 1 / -1;
+}
+
+.inline-session-radio-group {
+    flex-wrap: wrap;
+}
+
+.inline-session-draft-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+    .inline-session-draft {
+        padding: 14px;
+        align-items: stretch;
+    }
+
+    .inline-session-draft-panel {
+        padding: 16px;
+    }
+
+    .inline-session-draft-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .loading-content {
     text-align: center;
     padding: 2rem;

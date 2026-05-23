@@ -120,17 +120,18 @@ test.describe('story-session-shell-first-startup-ux', () => {
         try {
             await expect(page.locator('#session-list')).toBeVisible();
             await page.locator('#add-session-btn').click();
-            await expect(page.locator('#create-session-modal')).toHaveClass(/active/);
-            await page.locator('#session-name-input').fill(sessionName);
-            await page.locator('#session-project-select').selectOption('brainbase');
-            const useWorktreeCheckbox = page.locator('#use-worktree-checkbox');
+            await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
+            await expect(page.locator('#inline-session-draft')).not.toHaveClass(/hidden/);
+            await page.locator('#inline-session-name-input').fill(sessionName);
+            await page.locator('#inline-session-project-select').selectOption('brainbase');
+            const useWorktreeCheckbox = page.locator('#inline-use-worktree-checkbox');
             if (!(await useWorktreeCheckbox.isChecked())) {
                 await useWorktreeCheckbox.check();
             }
-            await page.locator('input[name="session-engine"][value="codex"]').check();
-            await page.locator('#create-session-btn').click();
+            await page.locator('input[name="inline-session-engine"][value="codex"]').check();
+            await page.locator('#inline-session-create').click();
 
-            await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
+            await expect(page.locator('#inline-session-draft')).toHaveClass(/hidden/);
             await expect(row).toBeVisible({ timeout: 15000 });
             await expect(row).toHaveClass(/active/);
             await expect(page.locator('#terminal-loading-overlay')).not.toHaveClass(/hidden/);
@@ -273,16 +274,17 @@ test.describe('story-session-shell-first-startup-ux', () => {
         try {
             await expect(page.locator('#session-list')).toBeVisible();
             await page.locator('#add-session-btn').click();
-            await expect(page.locator('#create-session-modal')).toHaveClass(/active/);
-            await page.locator('#session-name-input').fill(sessionName);
-            await page.locator('#session-project-select').selectOption('brainbase');
-            await page.locator('#session-command-input').fill('retry prompt');
-            const useWorktreeCheckbox = page.locator('#use-worktree-checkbox');
+            await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
+            await expect(page.locator('#inline-session-draft')).not.toHaveClass(/hidden/);
+            await page.locator('#inline-session-name-input').fill(sessionName);
+            await page.locator('#inline-session-project-select').selectOption('brainbase');
+            await page.locator('#inline-session-command-input').fill('retry prompt');
+            const useWorktreeCheckbox = page.locator('#inline-use-worktree-checkbox');
             if (!(await useWorktreeCheckbox.isChecked())) {
                 await useWorktreeCheckbox.check();
             }
-            await page.locator('input[name="session-engine"][value="codex"]').check();
-            await page.locator('#create-session-btn').click();
+            await page.locator('input[name="inline-session-engine"][value="codex"]').check();
+            await page.locator('#inline-session-create').click();
 
             await expect(row).toBeVisible({ timeout: 15000 });
             await expect.poll(() => createAttempts.length).toBe(1);

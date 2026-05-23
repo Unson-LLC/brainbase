@@ -289,6 +289,60 @@
 	                <div id="terminal-xterm-host" class="terminal-xterm-host hidden" aria-label="Terminal transport host"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
 
+	                    <div id="inline-session-draft" class="inline-session-draft hidden" aria-live="polite">
+	                        <div class="inline-session-draft-panel">
+	                            <div class="inline-session-draft-header">
+	                                <div>
+	                                    <p class="inline-session-draft-kicker">New session</p>
+	                                    <h3>新規セッション</h3>
+	                                </div>
+	                                <button id="inline-session-cancel" class="inline-session-icon-btn" type="button" aria-label="キャンセル">
+	                                    <i data-lucide="x"></i>
+	                                </button>
+	                            </div>
+	                            <div class="inline-session-draft-grid">
+	                                <label class="inline-session-field" for="inline-session-name-input">
+	                                    <span>セッション名</span>
+	                                    <input type="text" id="inline-session-name-input" class="form-input" placeholder="セッション名を入力">
+	                                </label>
+	                                <label class="inline-session-field" for="inline-session-project-select">
+	                                    <span>プロジェクト</span>
+	                                    <select id="inline-session-project-select" class="form-input">
+	                                        <option value="general">general</option>
+	                                    </select>
+	                                </label>
+	                                <label class="inline-session-field inline-session-field-full" for="inline-session-command-input">
+	                                    <span>初期コマンド（省略可）</span>
+	                                    <input type="text" id="inline-session-command-input" class="form-input" placeholder="例: Task ID: 123">
+	                                </label>
+	                                <div class="inline-session-field inline-session-field-full">
+	                                    <span>AI Engine</span>
+	                                    <div class="radio-group inline-session-radio-group">
+	                                        <label class="radio-label">
+	                                            <input type="radio" name="inline-session-engine" value="claude" checked>
+	                                            <span>Claude Code</span>
+	                                        </label>
+	                                        <label class="radio-label">
+	                                            <input type="radio" name="inline-session-engine" value="codex">
+	                                            <span>OpenAI Codex</span>
+	                                        </label>
+	                                    </div>
+	                                </div>
+	                                <div class="inline-session-field inline-session-field-full">
+	                                    <label class="checkbox-label" id="inline-worktree-label">
+	                                        <input type="checkbox" id="inline-use-worktree-checkbox">
+	                                        <span>jj workspaceを使用</span>
+	                                    </label>
+	                                    <p class="form-hint" id="inline-worktree-hint">ブランチを分離して安全に作業できます</p>
+	                                </div>
+	                            </div>
+	                            <div class="inline-session-draft-actions">
+	                                <button id="inline-session-discard" class="btn-secondary" type="button">キャンセル</button>
+	                                <button id="inline-session-create" class="btn-primary" type="button">作成</button>
+	                            </div>
+	                        </div>
+	                    </div>
+
 	                    <!-- Terminal Loading Overlay -->
 	                    <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
 	                        <div class="loading-content">

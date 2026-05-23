@@ -60,91 +60,128 @@ export function applySessionCreationMixin(AppClass) {
             }
         },
 
-        /**
-         * Open create session modal
-         * @param {string} project - Project name
-         */
-        openCreateSessionModal(project = 'general') {
-            console.log('Opening create session modal for project:', project);
+        async _populateSessionProjectSelect(projectSelect, selectedProject = 'general') {
+            if (!projectSelect) return;
 
-            const modal = document.getElementById('create-session-modal');
-            const nameInput = document.getElementById('session-name-input');
-            const commandInput = document.getElementById('session-command-input');
-            const worktreeCheckbox = document.getElementById('use-worktree-checkbox');
-            const projectSelect = document.getElementById('session-project-select');
-            const worktreeLabel = worktreeCheckbox?.parentElement;
+            try {
+                const { getSessionSelectableProjects, projectMappingReady } = await import('../project-mapping.js');
+                await projectMappingReady;
+                const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
 
-            if (!modal || !nameInput) {
-                console.error('Create session modal elements not found');
+                projectSelect.innerHTML = '';
+
+                const generalOption = document.createElement('option');
+                generalOption.value = 'general';
+                generalOption.textContent = 'general';
+                projectSelect.appendChild(generalOption);
+
+                projects.forEach((proj) => {
+                    const option = document.createElement('option');
+                    option.value = proj;
+                    option.textContent = proj;
+                    projectSelect.appendChild(option);
+                });
+
+                if (![...projectSelect.options].some((option) => option.value === selectedProject)) {
+                    const option = document.createElement('option');
+                    option.value = selectedProject;
+                    option.textContent = selectedProject;
+                    projectSelect.appendChild(option);
+                }
+                projectSelect.value = selectedProject;
+            } catch (error) {
+                console.warn('[CreateSession] Failed to refresh inline project select:', error);
+                projectSelect.value = selectedProject;
+            }
+        },
+
+        async _updateSessionDraftWorktreeAvailability(selectedProject, worktreeCheckbox, worktreeHint, worktreeLabel) {
+            if (!worktreeCheckbox) return;
+
+            if (selectedProject === 'general') {
+                worktreeCheckbox.disabled = false;
+                worktreeCheckbox.checked = true;
+                if (worktreeHint) worktreeHint.textContent = 'ブランチを分離して安全に作業できます';
+                if (worktreeLabel) {
+                    worktreeLabel.title = '';
+                    worktreeLabel.style.opacity = '1';
+                }
                 return;
             }
 
-            // Helper function to update worktree checkbox state
-            const updateWorktreeAvailability = async (selectedProject) => {
-                if (!worktreeCheckbox) return;
+            try {
+                const { hasGitRepository } = await import('../project-mapping.js');
+                const hasGit = hasGitRepository(selectedProject);
 
-                // general は常にworktree可能（workspace全体を使用）
-                if (selectedProject === 'general') {
-                    worktreeCheckbox.disabled = false;
-                    worktreeCheckbox.checked = true;
-                    if (worktreeLabel) {
+                worktreeCheckbox.disabled = !hasGit;
+                worktreeCheckbox.checked = hasGit;
+
+                if (worktreeHint) {
+                    worktreeHint.textContent = hasGit
+                        ? 'ブランチを分離して安全に作業できます'
+                        : 'このプロジェクトにはGitリポジトリがないため、jj workspaceを作成できません';
+                }
+                if (worktreeLabel) {
+                    if (!hasGit) {
+                        worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、jj workspaceを作成できません';
+                        worktreeLabel.style.opacity = '0.5';
+                    } else {
                         worktreeLabel.title = '';
                         worktreeLabel.style.opacity = '1';
                     }
-                    return;
                 }
 
-                try {
-                    const { hasGitRepository } = await import('../project-mapping.js');
-                    const hasGit = hasGitRepository(selectedProject);
+                console.log(`[CreateSession] Project ${selectedProject} hasGitRepository: ${hasGit}`);
+            } catch (err) {
+                console.warn('[CreateSession] Failed to check git repository:', err);
+                worktreeCheckbox.disabled = false;
+                worktreeCheckbox.checked = true;
+                if (worktreeHint) worktreeHint.textContent = 'ブランチを分離して安全に作業できます';
+            }
+        },
 
-                    worktreeCheckbox.disabled = !hasGit;
-                    worktreeCheckbox.checked = hasGit;
+        async openInlineSessionDraft(project = 'general') {
+            console.log('Opening inline session draft for project:', project);
 
-                    if (worktreeLabel) {
-                        if (!hasGit) {
-                            worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、jj workspaceを作成できません';
-                            worktreeLabel.style.opacity = '0.5';
-                        } else {
-                            worktreeLabel.title = '';
-                            worktreeLabel.style.opacity = '1';
-                        }
-                    }
+            const draft = document.getElementById('inline-session-draft');
+            const modal = document.getElementById('create-session-modal');
+            const nameInput = document.getElementById('inline-session-name-input');
+            const commandInput = document.getElementById('inline-session-command-input');
+            const projectSelect = document.getElementById('inline-session-project-select');
+            const worktreeCheckbox = document.getElementById('inline-use-worktree-checkbox');
+            const worktreeHint = document.getElementById('inline-worktree-hint');
+            const worktreeLabel = document.getElementById('inline-worktree-label');
+            const createBtn = document.getElementById('inline-session-create');
+            const cancelButtons = [
+                document.getElementById('inline-session-cancel'),
+                document.getElementById('inline-session-discard')
+            ].filter(Boolean);
 
-                    console.log(`[CreateSession] Project ${selectedProject} hasGitRepository: ${hasGit}`);
-                } catch (err) {
-                    console.warn('[CreateSession] Failed to check git repository:', err);
-                    // エラー時はデフォルト動作（worktree有効）
-                    worktreeCheckbox.disabled = false;
-                    worktreeCheckbox.checked = true;
-                }
-            };
-
-            // Set defaults
-            nameInput.value = `New ${project} Session`;
-            if (commandInput) commandInput.value = '';
-
-            // Refresh project options (filters archived) and set selection
-            if (projectSelect) {
-                this.refreshProjectSelect(project);
+            if (!draft || !nameInput || !projectSelect || !createBtn) {
+                console.error('Inline session draft elements not found');
+                return;
             }
 
-            // Update worktree checkbox based on initial project
-            updateWorktreeAvailability(project);
+            modal?.classList.remove('active');
+            this.hideTerminalLoadingOverlay?.();
+            this.closeMobileSessionsSheet?.();
+            this._teardownInlineSessionDraft?.();
 
-            // Add change listener for project select
+            nameInput.value = `New ${project} Session`;
+            if (commandInput) commandInput.value = '';
+            await this._populateSessionProjectSelect(projectSelect, project);
+            await this._updateSessionDraftWorktreeAvailability(projectSelect.value || project, worktreeCheckbox, worktreeHint, worktreeLabel);
+
             const handleProjectChange = (e) => {
-                updateWorktreeAvailability(e.target.value);
+                this._updateSessionDraftWorktreeAvailability(e.target.value, worktreeCheckbox, worktreeHint, worktreeLabel);
             };
             projectSelect?.addEventListener('change', handleProjectChange);
 
-            // Show modal
-            modal.classList.add('active');
-            nameInput.focus();
-            nameInput.select();
+            const closeDraft = () => {
+                draft.classList.add('hidden');
+                this._teardownInlineSessionDraft?.();
+            };
 
-            // Setup one-time submit handler
-            const createBtn = document.getElementById('create-session-btn');
             const handleCreate = async () => {
                 const name = nameInput.value.trim();
                 if (!name) {
@@ -152,38 +189,36 @@ export function applySessionCreationMixin(AppClass) {
                     return;
                 }
 
-                const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
-                const initialCommand = commandInput?.value || '';
-                const useWorktree = worktreeCheckbox?.checked || false;
                 const selectedProject = projectSelect?.value || project;
+                const engine = document.querySelector('input[name="inline-session-engine"]:checked')?.value || 'claude';
+                const initialCommand = commandInput?.value || '';
+                const useWorktree = worktreeCheckbox?.checked && !worktreeCheckbox.disabled;
 
-                // Close modal
-                modal.classList.remove('active');
-                this.closeMobileSessionsSheet();
-
-                // Create session
+                closeDraft();
                 await this.createSession(selectedProject, name, initialCommand, useWorktree, engine);
-
-                // Remove this event listener
-                createBtn?.removeEventListener('click', handleCreate);
             };
 
-            createBtn?.addEventListener('click', handleCreate);
-
-            // Setup close handlers
-            const closeHandlers = () => {
-                modal.classList.remove('active');
-                createBtn?.removeEventListener('click', handleCreate);
+            createBtn.addEventListener('click', handleCreate);
+            cancelButtons.forEach((button) => button.addEventListener('click', closeDraft));
+            this._teardownInlineSessionDraft = () => {
+                createBtn.removeEventListener('click', handleCreate);
                 projectSelect?.removeEventListener('change', handleProjectChange);
+                cancelButtons.forEach((button) => button.removeEventListener('click', closeDraft));
+                this._teardownInlineSessionDraft = null;
             };
 
-            modal.querySelectorAll('.close-modal-btn').forEach(btn => {
-                btn.addEventListener('click', closeHandlers, { once: true });
-            });
+            draft.classList.remove('hidden');
+            window.lucide?.createIcons?.();
+            nameInput.focus();
+            nameInput.select();
+        },
 
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) closeHandlers();
-            }, { once: true });
+        /**
+         * Backward-compatible entrypoint. The primary flow is inline, not modal.
+         * @param {string} project - Project name
+         */
+        openCreateSessionModal(project = 'general') {
+            return this.openInlineSessionDraft(project);
         },
 
         /**
