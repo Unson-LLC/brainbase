@@ -291,13 +291,82 @@ describe('SessionController.getFileContent', () => {
         expect(res.send).toHaveBeenCalledWith(imageBuffer);
     });
 
-    it('getHtmlPreviewAsset_許可外の絶対パスは400を返す', async () => {
+    it('getHtmlPreviewAsset_拡張子が未対応の絶対パスは415を返す', async () => {
         req.params.previewPath = ['__external__', 'passwd'];
         req.query.path = '/etc/passwd';
+        mockStat.mockResolvedValue({ size: 32, isFile: () => true });
 
         await controller.getHtmlPreviewAsset(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.status).toHaveBeenCalledWith(415);
+    });
+
+    it('workspace外のtmpテキスト絶対パスをプレビューできる', async () => {
+        req.query.path = '/tmp/brainbase-note.txt';
+        const content = 'tmp note';
+        const contentBuf = Buffer.from(content);
+        mockStat.mockImplementation(async (targetPath) => {
+            if (String(targetPath) === '/tmp/brainbase-note.txt') {
+                return { size: contentBuf.length };
+            }
+            const err = new Error('ENOENT');
+            err.code = 'ENOENT';
+            throw err;
+        });
+        const mockFd = {
+            read: vi.fn().mockImplementation((buffer, offset, length) => {
+                const toCopy = Math.min(length, contentBuf.length);
+                contentBuf.copy(buffer, offset, 0, toCopy);
+                return Promise.resolve({ bytesRead: toCopy, buffer });
+            }),
+            close: vi.fn().mockResolvedValue()
+        };
+        mockOpen.mockResolvedValue(mockFd);
+        mockReadFile.mockResolvedValue(content);
+
+        await controller.getFileContent(req, res);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            relativePath: '/tmp/brainbase-note.txt',
+            fileName: 'brainbase-note.txt',
+            content,
+            isMarkdown: false
+        }));
+    });
+
+    it('workspace外の別ドライブHTML絶対パスをプレビューURL付きで返す', async () => {
+        const htmlPath = '/Volumes/UNSON-DRIVE/reports/out.html';
+        req.query.path = htmlPath;
+        const content = '<!doctype html><h1>Report</h1>';
+        const contentBuf = Buffer.from(content);
+        mockStat.mockImplementation(async (targetPath) => {
+            if (String(targetPath) === htmlPath) {
+                return { size: contentBuf.length };
+            }
+            const err = new Error('ENOENT');
+            err.code = 'ENOENT';
+            throw err;
+        });
+        const mockFd = {
+            read: vi.fn().mockImplementation((buffer, offset, length) => {
+                const toCopy = Math.min(length, contentBuf.length);
+                contentBuf.copy(buffer, offset, 0, toCopy);
+                return Promise.resolve({ bytesRead: toCopy, buffer });
+            }),
+            close: vi.fn().mockResolvedValue()
+        };
+        mockOpen.mockResolvedValue(mockFd);
+        mockReadFile.mockResolvedValue(content);
+
+        await controller.getFileContent(req, res);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            relativePath: htmlPath,
+            fileName: 'out.html',
+            content,
+            isHtml: true,
+            htmlPreviewUrl: '/api/sessions/session-1/html-preview/__external__/out.html?path=%2FVolumes%2FUNSON-DRIVE%2Freports%2Fout.html'
+        }));
     });
 
     it('パストラバーサル攻撃_400を返す', async () => {

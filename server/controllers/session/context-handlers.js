@@ -241,7 +241,7 @@ export function installContextHandlers(controller) {
         if (!session) return;
 
         try {
-            const { relativePath, targetPath } = await controller._resolveFilePreviewTarget(session, rawPath);
+            const { relativePath, targetPath, external } = await controller._resolveFilePreviewTarget(session, rawPath);
             const { treeNavigable, treeRootPath, treeRelativePath } = await controller._resolveTreeNavigationTarget(session, targetPath);
 
             const stat = await fs.stat(targetPath);
@@ -280,7 +280,11 @@ export function installContextHandlers(controller) {
                 isMarkdown,
                 isHtml,
                 htmlPreviewUrl: isHtml
-                    ? `/api/sessions/${encodeURIComponent(id)}/html-preview/${encodePreviewPath(relativePath)}`
+                    ? (
+                        external
+                            ? `/api/sessions/${encodeURIComponent(id)}/html-preview/__external__/${encodeURIComponent(fileName)}?path=${encodeURIComponent(targetPath)}`
+                            : `/api/sessions/${encodeURIComponent(id)}/html-preview/${encodePreviewPath(relativePath)}`
+                    )
                     : null
             });
         } catch (error) {

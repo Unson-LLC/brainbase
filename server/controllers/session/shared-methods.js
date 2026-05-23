@@ -297,20 +297,11 @@ export function installSharedMethods(controller) {
         }
 
         const targetPath = path.resolve(trimmed);
-        const previewRoots = [
-            path.join(os.homedir(), '.codex', 'generated_images')
-        ];
-
-        for (const rootPath of previewRoots) {
-            const root = path.resolve(rootPath);
-            if (!controller._isWithinRoot(root, targetPath)) continue;
-            return {
-                targetPath,
-                relativePath: path.relative(root, targetPath).replace(/\\/g, '/')
-            };
-        }
-
-        throw new Error('Invalid path');
+        return {
+            targetPath,
+            relativePath: targetPath,
+            external: true
+        };
     };
 
     controller._resolveFilePreviewTarget = async (session, rawPath) => {
@@ -434,6 +425,7 @@ export function installSharedMethods(controller) {
         const addCandidate = (candidate) => {
             if (typeof candidate !== 'string' || !candidate.trim()) return;
             const normalized = path.normalize(candidate);
+            if (normalized === path.parse(normalized).root) return;
             if (seen.has(normalized)) return;
             seen.add(normalized);
             candidates.push(normalized);
@@ -484,6 +476,7 @@ export function installSharedMethods(controller) {
         const addCandidate = (candidate) => {
             if (typeof candidate !== 'string' || !candidate.trim()) return;
             const normalized = path.normalize(candidate);
+            if (normalized === path.parse(normalized).root) return;
             if (seen.has(normalized)) return;
             seen.add(normalized);
             candidates.push(normalized);
