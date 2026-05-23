@@ -15,13 +15,31 @@ describe('ansiToHtml', () => {
     it('基本色（30-37）をspan変換する', () => {
         const input = '\x1b[32mgreen text\x1b[0m';
         const result = ansiToHtml(input);
-        expect(result).toContain('<span style="color:#4e9a06">green text</span>');
+        expect(result).toContain('<span style="color:#0dbc79">green text</span>');
     });
 
     it('明るい色（90-97）をspan変換する', () => {
         const input = '\x1b[91mbright red\x1b[0m';
         const result = ansiToHtml(input);
-        expect(result).toContain('<span style="color:#ef2929">bright red</span>');
+        expect(result).toContain('<span style="color:#f14c4c">bright red</span>');
+    });
+
+    it('xterm themeと同じANSIパレットを指定できる', () => {
+        const input = '\x1b[31mred\x1b[0m \x1b[101mbright red bg\x1b[0m';
+        const result = ansiToHtml(input, {
+            theme: {
+                red: '#aa1111',
+                brightRed: '#ff7777'
+            }
+        });
+        expect(result).toContain('<span style="color:#aa1111">red</span>');
+        expect(result).toContain('<span style="background-color:#ff7777">bright red bg</span>');
+    });
+
+    it('bold指定された基本色はxtermのbright色として描画する', () => {
+        const input = '\x1b[1;32mbold green\x1b[0m';
+        const result = ansiToHtml(input);
+        expect(result).toContain('<span style="color:#23d18b;font-weight:bold">bold green</span>');
     });
 
     it('256色（38;5;N）をspan変換する', () => {

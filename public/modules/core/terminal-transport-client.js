@@ -1,6 +1,7 @@
 // @ts-check
 import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
+import { DEFAULT_TERMINAL_THEME } from '../terminal/terminal-theme.js';
 import { MessageQueue } from './message-queue.js';
 import { inputTelemetry } from './input-telemetry.js';
 
@@ -67,13 +68,6 @@ function stripTerminalControlResponses(value) {
         .replace(FOCUS_REPORT_PATTERN, '');
 }
 
-const DEFAULT_TERMINAL_THEME = {
-    background: '#000000',
-    foreground: '#e2e8f0',
-    cursor: '#f8fafc',
-    selectionBackground: 'rgba(59, 130, 246, 0.35)'
-};
-
 function readTerminalAppearance(hostEl) {
     if (typeof window === 'undefined' || !hostEl) {
         return {
@@ -98,6 +92,7 @@ function readTerminalAppearance(hostEl) {
         fontSize: Number.isFinite(parsedFontSize) ? parsedFontSize : 14,
         lineHeight: Number.isFinite(parsedLineHeight) ? parsedLineHeight : 1.35,
         theme: {
+            ...DEFAULT_TERMINAL_THEME,
             background: readValue('--terminal-bg', DEFAULT_TERMINAL_THEME.background),
             foreground: readValue('--terminal-fg', DEFAULT_TERMINAL_THEME.foreground),
             cursor: readValue('--terminal-cursor', DEFAULT_TERMINAL_THEME.cursor),
