@@ -68,6 +68,27 @@ Acceptance Criteria:
 - [ ] Runtime inventory does not mutate session state.
 - [ ] Existing session creation and terminal input flows remain unchanged.
 
+### Phase 1.5: Attribution Hardening And Eligibility Dry Run
+
+Goal: close the safety gap between visibility and process stopping.
+
+Scope:
+
+- Attribute child processes through a uniquely matched session parent.
+- Add a read-only `Hibernate eligibility` endpoint for a single session as an API/diagnostics dry run.
+- Return explicit blocker reasons without stopping processes or mutating session state.
+- Treat unknown, ambiguous, or shared process ownership as not eligible.
+- Do not add a user-facing hibernate control yet; Phase 2 owns the visible action and remediation UX.
+
+Acceptance Criteria:
+
+- [ ] Child processes under one session-owned parent are counted in that session's runtime inventory.
+- [ ] Unmatched `unknown_child` processes are visible in the unattributed list.
+- [ ] `GET /api/sessions/:id/hibernate/eligibility` returns `eligible`, `reasons`, and `blockers`.
+- [ ] Active turns, pending startup, pending input, active terminal owner, pinned sessions, missing restore metadata, and unknown process ownership block eligibility.
+- [ ] No process is stopped and no session lifecycle state is mutated.
+- [ ] Eligibility remains API/diagnostics-only until Phase 2 introduces manual hibernate and user remediation.
+
 ### Phase 2: Manual Hibernate And Resume
 
 Goal: prove that one idle session can be safely put to sleep and restored.

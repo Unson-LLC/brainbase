@@ -94,6 +94,7 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         getRuntimeStatus: shared.getRuntimeStatus,
         getSessionById: shared.getSessionById,
         getRuntimeInventory: shared.getRuntimeInventory,
+        getHibernationEligibility: shared.getHibernationEligibility,
         _isProcessRunning: shared._isProcessRunning,
         _isTmuxSessionRunning: shared._isTmuxSessionRunning,
         isTmuxSessionRunning: shared.isTmuxSessionRunning

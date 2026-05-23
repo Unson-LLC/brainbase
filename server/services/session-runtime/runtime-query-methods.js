@@ -70,9 +70,134 @@ function findMatchingSessionIds(processInfo, sessions) {
         .filter(Boolean);
 }
 
+function buildProcessMatchMap(processRows, sessions) {
+    const rowsByPid = new Map(processRows.map(processInfo => [processInfo.pid, processInfo]));
+    const matchMap = new Map();
+
+    for (const processInfo of processRows) {
+        matchMap.set(processInfo.pid, {
+            sessionIds: findMatchingSessionIds(processInfo, sessions),
+            source: 'command'
+        });
+    }
+
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const processInfo of processRows) {
+            const current = matchMap.get(processInfo.pid);
+            if (current?.sessionIds?.length) continue;
+
+            const parent = rowsByPid.get(processInfo.ppid);
+            const parentMatch = parent ? matchMap.get(parent.pid) : null;
+            if (parentMatch?.sessionIds?.length === 1) {
+                matchMap.set(processInfo.pid, {
+                    sessionIds: parentMatch.sessionIds,
+                    source: 'parent'
+                });
+                changed = true;
+            }
+        }
+    }
+
+    return matchMap;
+}
+
+function extractCodexResumeId(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    return match ? match[1] : null;
+}
+
+function getCodexResumeId(session) {
+    if (!session || session.engine !== 'codex') return null;
+    return session.codexThreadId
+        || session.conversationSummary?.codexThreadId
+        || session.conversationSummary?.lastConversation?.resumeId
+        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
+        || null;
+}
+
+function isStartupPending(session) {
+    return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
+}
+
+export function buildHibernationEligibility({
+    session,
+    inventorySession = null,
+    ambiguousProcesses = [],
+    activityStatus = null,
+    owner = null,
+    pendingInput = ''
+} = {}) {
+    const blockers = [];
+    const reasons = [];
+
+    if (!session) {
+        return {
+            eligible: false,
+            reasons: ['session_not_found'],
+            blockers: ['session_not_found']
+        };
+    }
+
+    const runtimePresence = inventorySession?.runtimePresence || 'cold';
+    const processCount = Number(inventorySession?.processCount || 0);
+    const rssKb = Number(inventorySession?.rssKb || 0);
+    const processesByCategory = inventorySession?.processesByCategory || {};
+    const codexResumeId = getCodexResumeId(session);
+
+    if (activityStatus?.isWorking || Number(activityStatus?.activeTurnCount || 0) > 0) {
+        blockers.push('active_turn');
+    }
+    if (isStartupPending(session)) {
+        blockers.push('pending_startup');
+    }
+    if (typeof pendingInput === 'string' && pendingInput.trim()) {
+        blockers.push('pending_input');
+    }
+    if (owner) {
+        blockers.push('active_owner');
+    }
+    if (session.runtimePinned === true) {
+        blockers.push('pinned');
+    }
+    if (session.engine === 'codex' && !codexResumeId) {
+        blockers.push('missing_restore_metadata');
+    }
+    if (Number(processesByCategory.unknown_child || 0) > 0 || ambiguousProcesses.length > 0) {
+        blockers.push('unknown_process_ownership');
+    }
+
+    if (runtimePresence !== 'hot' || processCount === 0) {
+        reasons.push('already_cold');
+    }
+    if (blockers.length === 0 && reasons.length === 0) {
+        reasons.push('idle_runtime_can_hibernate');
+    }
+
+    return {
+        sessionId: session.id,
+        eligible: blockers.length === 0 && runtimePresence === 'hot' && processCount > 0,
+        reasons,
+        blockers: Array.from(new Set(blockers)),
+        runtimePresence,
+        rssKb,
+        processCount,
+        processesByCategory,
+        ambiguousProcessCount: ambiguousProcesses.length,
+        restoreMetadata: {
+            restoreStrategy: session.engine === 'codex' ? 'codex_resume' : 'terminal_resume',
+            codexResumeId,
+            codexThreadId: session.codexThreadId || session.conversationSummary?.codexThreadId || null
+        }
+    };
+}
+
 export function buildRuntimeInventory({ sessions = [], activeSessions = new Map(), psOutput = '' } = {}) {
     const sessionSummaries = new Map();
     const processRows = parsePsOutput(psOutput);
+    const processMatchMap = buildProcessMatchMap(processRows, sessions);
     const unattributed = [];
 
     for (const session of sessions || []) {
@@ -91,7 +216,8 @@ export function buildRuntimeInventory({ sessions = [], activeSessions = new Map(
 
     for (const processInfo of processRows) {
         const category = classifyRuntimeProcess(processInfo.command);
-        const matchingSessionIds = findMatchingSessionIds(processInfo, sessions);
+        const match = processMatchMap.get(processInfo.pid) || { sessionIds: [] };
+        const matchingSessionIds = match.sessionIds || [];
 
         if (matchingSessionIds.length === 1 && sessionSummaries.has(matchingSessionIds[0])) {
             const summary = sessionSummaries.get(matchingSessionIds[0]);
@@ -99,15 +225,16 @@ export function buildRuntimeInventory({ sessions = [], activeSessions = new Map(
             summary.rssKb += processInfo.rssKb;
             summary.processCount += 1;
             summary.processesByCategory[category] = (summary.processesByCategory[category] || 0) + 1;
-            summary.processes.push({ ...processInfo, category });
+            summary.processes.push({ ...processInfo, category, attribution: match.source || 'command' });
             continue;
         }
 
-        if (matchingSessionIds.length > 1 || category !== 'unknown_child') {
+        if (matchingSessionIds.length > 1 || matchingSessionIds.length === 0) {
             unattributed.push({
                 ...processInfo,
                 category,
                 matchedSessionIds: matchingSessionIds,
+                attribution: match.source || null,
                 reason: matchingSessionIds.length > 1 ? 'matched_multiple_sessions' : 'no_session_match'
             });
         }
@@ -302,6 +429,32 @@ export const runtimeQueryMethods = {
             sessions: state.sessions || [],
             activeSessions: this.activeSessions,
             psOutput
+        });
+    },
+
+    async getHibernationEligibility(sessionId, {
+        activityStatus = null,
+        owner = null,
+        pendingInput = ''
+    } = {}) {
+        const state = this.stateStore.get();
+        const session = (state.sessions || []).find(candidate => candidate.id === sessionId) || null;
+        if (!session) return null;
+
+        const inventory = await this.getRuntimeInventory();
+        const inventorySession = (inventory.sessions || []).find(candidate => candidate.sessionId === sessionId) || null;
+        const ambiguousProcesses = (inventory.unattributed || []).filter((processInfo) => (
+            Array.isArray(processInfo.matchedSessionIds)
+            && processInfo.matchedSessionIds.includes(sessionId)
+        ));
+
+        return buildHibernationEligibility({
+            session,
+            inventorySession,
+            ambiguousProcesses,
+            activityStatus,
+            owner,
+            pendingInput
         });
     },
 
