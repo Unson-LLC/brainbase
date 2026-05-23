@@ -12,7 +12,8 @@
  * @returns {string} Formatted date string (今日, 明日, 期限切れ, or M/D)
  */
 export function formatDueDate(dateStr) {
-    const due = new Date(dateStr);
+    const due = parseDateLike(dateStr);
+    if (!due) return String(dateStr || '');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -22,6 +23,69 @@ export function formatDueDate(dateStr) {
     if (due.toDateString() === today.toDateString()) return '今日';
     if (due.toDateString() === tomorrow.toDateString()) return '明日';
     return `${due.getMonth() + 1}/${due.getDate()}`;
+}
+
+/**
+ * Return the first known deadline field from a task-like object.
+ * @param {Object|null|undefined} task
+ * @returns {string|null}
+ */
+export function getTaskDeadline(task) {
+    if (!task) return null;
+    return task.deadline ||
+        task.due ||
+        task.due_at ||
+        task.dueAt ||
+        task.deadline_at ||
+        task.deadlineAt ||
+        task['期限'] ||
+        task['期限日'] ||
+        null;
+}
+
+/**
+ * Format a task deadline with an explicit label and date.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+export function formatTaskDeadline(dateStr) {
+    const due = parseDateLike(dateStr);
+    if (!due) return `期限: ${String(dateStr || '')}`;
+
+    const relative = formatDueDate(dateStr);
+    const dateText = `${due.getFullYear()}/${due.getMonth() + 1}/${due.getDate()}`;
+    if (relative === '期限切れ' || relative === '今日' || relative === '明日') {
+        return `期限: ${dateText}（${relative}）`;
+    }
+    return `期限: ${dateText}`;
+}
+
+/**
+ * Parse date-only strings as local dates to avoid UTC timezone date shifts.
+ * @param {string|Date} value
+ * @returns {Date|null}
+ */
+function parseDateLike(value) {
+    if (!value) return null;
+    if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) return null;
+        const date = new Date(value);
+        date.setHours(0, 0, 0, 0);
+        return date;
+    }
+
+    const raw = String(value).trim();
+    const dateOnlyMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (dateOnlyMatch) {
+        const date = new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]));
+        date.setHours(0, 0, 0, 0);
+        return date;
+    }
+
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return null;
+    date.setHours(0, 0, 0, 0);
+    return date;
 }
 
 /**

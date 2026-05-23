@@ -162,4 +162,31 @@ describe('daily-ops-report', () => {
         expect(html).not.toContain('0: U');
         expect(html).not.toContain('1: n');
     });
+
+    it('adds oyasumi Personal KG count section from aggregate input', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'oyasumi',
+            date: '2026-05-18',
+            personalKg: {
+                personal_kg_core: 11,
+                sns_ready: 4,
+                needs_redaction: 3,
+                projection_allowed: 8
+            }
+        });
+
+        const section = report.sections.find((item) => item.id === 'personalKg');
+        const html = buildDailyOpsReportHtml(report);
+
+        expect(section.items).toHaveLength(4);
+        expect(section.items.map((item) => item.title)).toEqual([
+            'personal_kg_core',
+            'sns_ready',
+            'needs_redaction',
+            'projection_allowed'
+        ]);
+        expect(html).toContain('count: 11');
+        expect(html).toContain('count: 4');
+        expect(html).toContain('owner_judgment');
+    });
 });

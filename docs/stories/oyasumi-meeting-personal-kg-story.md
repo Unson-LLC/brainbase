@@ -28,9 +28,9 @@ example_sources:
 
 ## User Story
 
-SNS運用をするさとけいとして、
-`/oyasumi` が当日の議事録から、次の投稿に使える思想・実績・営業哲学・読者理解だけを個人KG candidateへ戻してほしい。
-そうすれば、会議や飲み会で得た一次情報が翌朝のSNS生成Contextに入り、投稿がニュースやXの表層反応だけでなく、自分の実体験と思想から生まれる。
+SNS運用と個人KGを運用するさとけいとして、
+`/oyasumi` が当日の議事録から、判断OSとして再利用できる思想・実績・営業哲学・読者理解・背景事情を owner-visible personal KG core candidateへ戻してほしい。
+そうすれば、会議や飲み会で得た一次情報が翌朝のSNS生成Contextだけでなく、今後のAI判断で「なぜ佐藤圭吾ならそう考えるか」を再現する材料になる。
 
 ## Context
 
@@ -48,9 +48,9 @@ SNS運用をするさとけいとして、
 ## Business Context
 
 brainbase SNS運用の価値は「AIが投稿文を書く」ことではない。
-価値は、会議、商談、飲み会、プロダクト開発、顧客反応から生まれた一次情報を個人KGに蓄積し、次の投稿で読者の脳に届く形へ変換できることにある。
+価値は、会議、商談、飲み会、プロダクト開発、顧客反応から生まれた一次情報を個人KGに蓄積し、必要に応じて安全なSNS projectionへ変換できることにある。
 
-`/oyasumi` はその日の活動を「片付ける」コマンドではなく、翌日の発信品質を上げるための記憶化フェーズである。
+`/oyasumi` はその日の活動を「片付ける」コマンドではなく、翌日の発信品質と以後のAI判断品質を上げるための記憶化フェーズである。
 
 ## Scope
 
@@ -62,14 +62,15 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
   - `proof`: 実績・数字・具体的な自社経験
   - `operating_principle`: AI活用、営業、PM、組織運用に関する判断基準
   - `persona_understanding`: 読者や顧客がどう感じるかの理解
-- SNSに使ってはいけない私的・センシティブ情報はcandidate化しない。
+- SNSやteam/org共有に使ってはいけない私的・センシティブ情報は `sns_ready` / team / org projection へ流さない。
+- `personal_kg_core` には、佐藤圭吾本人の判断再現に不可欠な場合のみ、owner-visible + sensitivity tag + provenance付きで詳細を保持できる。
 - candidateは `source_event_ids` と `evidence_ref` 相当のmetadataで、repo/path/date/slugへ戻れる。
 - 次回の `sns_generation_context.json` は、作成されたcandidateを `personal_kg.anchors` / `proof_points` / `candidate_sources` に含められる。
 
 ## Non-goals
 
 - 議事録全文をGraphやSNS Contextへ流し込まない。
-- 家族、医療、健康、個人のプライバシー、相手の未公開事情をSNS素材へ変換しない。
+- 家族、医療、健康、個人のプライバシー、相手の未公開事情をSNS素材・チーム共有・組織正本へ無加工で変換しない。
 - Graph SSOTへraw議事録を直接書かない。
 - `content_pillars.md` やSNS戦略OSを毎日自動で書き換えない。
 - X投稿、scheduler、SNS UIの状態管理はこのStoryでは変えない。
@@ -79,7 +80,8 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
 
 - [ ] AC-1: `/oyasumi YYYY-MM-DD` から、対象日のmana議事録を検出し、personal KG candidate化対象を抽出できる。
 - [ ] AC-2: 2026-05-15 SalesTailor議事録を入力した場合、AI活用、営業代行、信頼形成、SalesTailor実績に関するcandidateが作られる。
-- [ ] AC-3: 家族、医療、健康、個人の私的事情はcandidate化されず、SNS生成Contextにも出ない。
+- [ ] AC-3: 家族、医療、健康、個人の私的事情は `sns_ready` には出ず、SNS生成Contextにも出ない。
+- [ ] AC-3b: 判断再現に必要なprivate/confidential detailsは `personal_kg_core` に owner-visible + sensitivity tag + provenance付きで保持できる。
 - [ ] AC-4: candidateは `owner_person_id=sato_keigo`, `visibility=owner`, `sensitivity` 適切値、`project_code` 適切値、`source_system=oyasumi-meeting-personal-kg` を持つ。
 - [ ] AC-5: candidateの `source_event_ids` から、GitHub repo/path/date/slugへ戻れる。
 - [ ] AC-6: 同じ議事録を再処理しても重複candidateを作らない。
@@ -134,7 +136,8 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
 
 - given: 議事録に家族や医療の私的な話題が含まれる
 - when: personal KG candidateを抽出する
-- then: その情報は `rejected_private_or_sensitive` として記録され、candidate bodyには入らない
+- then: SNS projectionでは `rejected_private_or_sensitive` として記録され、`sns_ready` bodyには入らない
+- and: 佐藤の判断再現に不可欠な場合のみ `personal_kg_core` に owner-visible + sensitivity tag 付きで残る
 
 ### S-3: 重複投入しない
 
@@ -162,7 +165,8 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
 ## Verification Plan
 
 - Unit: SalesTailor 2026-05-15 sample minutesからcandidate候補を抽出できる。
-- Unit: 家族/医療/私的事情がcandidate化されない。
+- Unit: 家族/医療/私的事情が `sns_ready` candidate化されない。
+- Unit: sensitiveな `personal_kg_core` がowner以外のretrievalで返らない。
 - Unit: source provenanceと重複キーが安定している。
 - Integration: dry-runではDB writeせず、adopted/rejected/needs_review件数を返す。
 - Integration: production DB write後、`scripts/build-sns-generation-context.js` がcandidate_sourcesに `oyasumi-meeting-personal-kg` を含める。

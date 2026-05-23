@@ -52,6 +52,13 @@ describe('NocoDB task action style contract', () => {
         expect(tooltipRule).toContain('pointer-events: none');
     });
 
+    it('Command Centerのタスク期限は非表示にしない', () => {
+        const deadlineRule = getLastRule('.command-center-theme #tasks-tab-content .nocodb-task-item .deadline');
+
+        expect(deadlineRule).toContain('display: inline-flex');
+        expect(deadlineRule).not.toContain('display: none');
+    });
+
     it('アイコンSVGは操作ボタンのclick targetを奪わない', () => {
         const taskIconRules = getRulesContainingSelector('.nocodb-task-action-btn svg');
         const sessionIconRules = getRulesContainingSelector('.session-menu-toggle svg');

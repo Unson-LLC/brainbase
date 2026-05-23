@@ -18,7 +18,7 @@ updated_at: 2026-05-16
 - `server/controllers/session/runtime-handlers.js`
 - `server/services/terminal-input-probe-service.js`
 - `server/services/terminal-transport-service.js`
-- `tests/e2e/terminal-input-canary.spec.js`
+- `tests/e2e/story-terminal-input-render-stability-canary.spec.ts`
 
 ## Invariants
 
@@ -61,7 +61,7 @@ updated_at: 2026-05-16
 - Unit: `tests/server/services/terminal-transport-service.test.js`
 - Unit: `tests/unit/terminal-transport-client.test.js`
 - Unit: `tests/server/services/terminal-input-probe-service.test.js`
-- E2E: `tests/e2e/terminal-input-canary.spec.js`
+- E2E: `tests/e2e/story-terminal-input-render-stability-canary.spec.ts`
 
 ## Open Questions
 

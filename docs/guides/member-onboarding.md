@@ -109,7 +109,7 @@ ls -la ~/.brainbase/tokens.json   # → -rw------- (600)
 # Graph直接叩いて確認（任意）
 TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "https://graph.brain-base.work/api/info/graph/entities?type=project&limit=10" | jq
+  "https://bb.unson.jp/api/info/graph/entities?type=project&limit=10" | jq
 ```
 
 トークンがない場合は UI で Slack ログインをやり直す。 期限切れなら自動リフレッシュされるが、 401 が出たら再ログイン。

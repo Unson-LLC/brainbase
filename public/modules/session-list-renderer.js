@@ -162,12 +162,27 @@ export function renderSessionRowHTML(session, options = {}) {
     ));
   }
   if (summary.dirty) {
-    summaryChips.push(renderChip('dirty', { className: 'chip-dirty', title: 'Working copy has changes' }));
+    summaryChips.push(renderChip('dirty', {
+      className: 'chip-dirty',
+      title: 'Working copy has uncommitted changes'
+    }));
   }
-  if (summary.changesNotPushed > 0) {
-    summaryChips.push(renderChip(`↑${summary.changesNotPushed}`, {
-      className: 'chip-push',
-      title: `${summary.changesNotPushed} change(s) not pushed`
+  if (summary.unpushed || summary.changesNotPushed > 0) {
+    summaryChips.push(renderChip('unpushed', {
+      className: 'chip-unpushed',
+      title: 'Local commits are not pushed'
+    }));
+  }
+  if (summary.unmerged || summary.needsMerge) {
+    summaryChips.push(renderChip('unmerged', {
+      className: 'chip-unmerged',
+      title: 'Changes are not integrated into the base branch'
+    }));
+  }
+  if (summary.conflict || summary.hasConflicts) {
+    summaryChips.push(renderChip('conflict', {
+      className: 'chip-conflict',
+      title: 'Working copy has unresolved conflicts'
     }));
   }
   if (summary.prStatus === 'merged') {

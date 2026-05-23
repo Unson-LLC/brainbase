@@ -180,6 +180,25 @@ function seedCategory(candidate) {
         || null;
 }
 
+function oyasumiPersonalKgPolicy(candidate) {
+    return candidate.permission_snapshot?.oyasumi_meeting_personal_kg || null;
+}
+
+function isNonRedactedInternal(candidate) {
+    const sensitivity = candidate.sensitivity || 'internal';
+    const redactionStatus = candidate.redaction_status || 'none';
+    return sensitivity === 'internal' && redactionStatus === 'none';
+}
+
+function isSnsContextReadableCandidate(candidate) {
+    if (candidate.visibility !== 'owner') return false;
+    const oyasumiPolicy = oyasumiPersonalKgPolicy(candidate);
+    if (!oyasumiPolicy) return isNonRedactedInternal(candidate);
+    if (oyasumiPolicy.memory_layer !== 'sns_ready') return false;
+    if (oyasumiPolicy.projection_allowed === false) return false;
+    return isNonRedactedInternal(candidate);
+}
+
 function compactBody(candidate, max = 180) {
     const body = String(candidate.body || '').replace(/\s+/gu, ' ').trim();
     if (body.length <= max) return body;
@@ -230,13 +249,15 @@ function personalKgProofCandidates(candidates) {
         .map((candidate) => compactBody(candidate, 220));
 }
 
-function buildPersonalKgContext(candidates = []) {
+function buildPersonalKgContext(candidates = [], { totalCandidateCount = candidates.length } = {}) {
     const snsCandidates = candidates.filter((candidate) => candidate.source_system === 'sns-feedback');
     const ownerVisibleCandidates = candidates.filter((candidate) => candidate.visibility === 'owner');
     const anchorCandidates = personalKgAnchorCandidates(ownerVisibleCandidates);
     const proofCandidates = personalKgProofCandidates(ownerVisibleCandidates);
     return {
         memory_count: ownerVisibleCandidates.length,
+        guarded_count: Math.max(0, totalCandidateCount - ownerVisibleCandidates.length),
+        retrieval_purpose: 'sns_generation',
         candidate_sources: sourceSummary(ownerVisibleCandidates),
         anchors: [...new Set([
             ...anchorCandidates,
@@ -356,12 +377,13 @@ export class SnsGenerationContextService {
         const targetDate = toDateOnly(date);
         const startDate = addDays(targetDate, -Math.max(1, lookbackDays) + 1);
         const posts = await this.ledgerRepository.listPosts({ startDate, endDate: targetDate });
-        const candidates = this.candidateRepository
+        const allCandidates = this.candidateRepository
             ? await this.candidateRepository.list({ owner_person_id: viewer.actor_person_id || DEFAULT_OWNER_PERSON_ID })
             : [];
+        const candidates = allCandidates.filter(isSnsContextReadableCandidate);
         const lookback = lookbackFor(targetDate);
         const strategy = extractStrategy(this.strategyText, this.contentPillarsText);
-        const personalKg = buildPersonalKgContext(candidates);
+        const personalKg = buildPersonalKgContext(candidates, { totalCandidateCount: allCandidates.length });
         const postingStats = {
             days_7: buildStats(posts, lookback.days_7),
             days_30: buildStats(posts, lookback.days_30)

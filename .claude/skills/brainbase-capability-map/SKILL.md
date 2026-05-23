@@ -28,13 +28,39 @@ Do not duplicate capability records in this Skill. This Skill is only the agent 
 - Terminal/xterm transport, Enter feedback, IME, or rendering behavior is involved.
 - A fix needs a repeatable runbook or troubleshooting entry.
 
+## Capability Catalog (inline index — keep in sync with `capabilities/*.yml`)
+
+Pick the matching capability_id then **Read the yml** before reasoning. Reading this table alone is not enough — the yml has `surfaces` / `verification` / `common_failures` / `runbooks` that this index does not.
+
+| capability_id | yml | When this matches |
+|---|---|---|
+| `auth.grants` | `auth.grants.yml` | login / project access / JWT scope / localStorage stale auth |
+| `code.reading` | `code.reading.yml` | reading code before changing — symbol/pattern search vs broad load |
+| `development.workflow` | `development.workflow.yml` | jj/git workflow, commit/PR shape |
+| `git.protected-push` | `git.protected-push.yml` | direct push / force push to develop or main |
+| `graph.ssot` | `graph.ssot.yml` | canonical person/org/customer/decision/story lookup before writing facts |
+| `personal-kg` | `personal-kg.yml` | owner-visible cognitive memory (思想/実績/判断基準) for `/oyasumi`, SNS generation, morning brief; in-progress |
+| `project.catalog` | `project.catalog.yml` | configured project list used by UI / project mapping |
+| `project.selector` | `project.selector.yml` | a project is missing from the Create Session selector |
+| `requirements.coverage` | `requirements.coverage.yml` | acceptance criteria still satisfied before claiming done |
+| `requirements.nocodb` | `requirements.nocodb.yml` | FRD-* / REQ-* / BUG-* lookup before scope/impl change |
+| `runtime.launchd` | `runtime.launchd.yml` | port 31013 / launchd / restart / canonical runtime source |
+| `secrets.infisical` | `secrets.infisical.yml` | secret/env/Infisical org split, CI/CD/runtime/local dev injection |
+| `session.create` | `session.create.yml` | a session cannot be created / new session flow |
+| `terminal.transport` | `terminal.transport.yml` | xterm/ttyd/Enter/IME/描画 issues in session terminal |
+| `verification.testing` | `verification.testing.yml` | which tests must run for the change |
+| `vibepro.impact-review` | `vibepro.impact-review.yml` | VibePro Graphify impact review for graph-sensitive changes |
+| `vibepro.skills-usage` | `vibepro.skills-usage.yml` | how Brainbase agents should use VibePro Skills |
+
 ## Workflow
 
-1. Open `docs/brainbase-capabilities/README.md`.
-2. Pick the smallest relevant capability file under `capabilities/`.
-3. Follow linked runbooks or troubleshooting pages.
-4. Verify using the commands listed in the capability file.
-5. When claiming the capability is working, cite the file/API/process/log used for verification.
+1. Match the user request to a `capability_id` in the table above.
+2. **REQUIRED**: `Read docs/brainbase-capabilities/capabilities/<capability_id>.yml`. The yml is the source of truth — this SKILL.md index is only for routing.
+3. Follow linked runbooks (`runbooks/*.md`) or troubleshooting pages (`troubleshooting/*.md`).
+4. Verify using the commands in the yml's `verification` section.
+5. When claiming the capability is working, cite the file/API/process/log from the yml that you used for verification.
+
+**Anti-pattern**: `cat`/`sed`-ing only this SKILL.md and answering from its description is "reading ceremony" — the catalog rows are 1-liners and miss verification commands, common failures, and runbooks. Always Read the matching yml.
 
 ## Operating Rule
 

@@ -4,6 +4,7 @@ import { TerminalInteractionService } from '../../public/modules/core/terminal-i
 describe('TerminalInteractionService', () => {
     afterEach(() => {
         vi.restoreAllMocks();
+        vi.unstubAllGlobals();
     });
 
     it('xtermがwritableならWebSocket経由で送信する', async () => {
@@ -42,6 +43,41 @@ describe('TerminalInteractionService', () => {
 
         expect(transport.sendText).toHaveBeenCalledWith('/tmp/image.png');
         expect(httpClient.post).not.toHaveBeenCalled();
+    });
+
+    it('sendPasteTextはxtermのpaste専用経路を優先する', async () => {
+        const httpClient = { post: vi.fn() };
+        const transport = {
+            canSendInput: vi.fn(() => true),
+            sendText: vi.fn(async () => {}),
+            sendPasteText: vi.fn(async () => {})
+        };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => transport,
+            shouldUseXtermTransport: () => true
+        });
+
+        await service.sendPasteText('session-1', 'hello\nworld');
+
+        expect(transport.sendPasteText).toHaveBeenCalledWith('hello\nworld');
+        expect(transport.sendText).not.toHaveBeenCalled();
+        expect(httpClient.post).not.toHaveBeenCalled();
+    });
+
+    it('fetchTerminalContentは指定行数をcontent APIへ渡す', async () => {
+        const fetchMock = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ content: 'terminal output' })
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+        const service = new TerminalInteractionService({
+            httpClient: { post: vi.fn() }
+        });
+
+        await expect(service.fetchTerminalContent('session-1', 2000)).resolves.toBe('terminal output');
+
+        expect(fetchMock).toHaveBeenCalledWith('/api/sessions/session-1/content?lines=2000');
     });
 
     it('slash commandはpaste経路に落とさずliteral textとEnterに分けて送信する', async () => {

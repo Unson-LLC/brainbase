@@ -28,10 +28,6 @@ Internet
   │                       │     └── Docker PostgreSQL 15 (:5432)
   │                       │           └── DB: nocodb
   │                       │
-  │    graph.brain-base.work ── Graph API (:3000)
-  │                                └── System PostgreSQL 14 (:5432)
-  │                                      └── DB: brainbase_ssot
-  │
   │    infisical.unson.jp ─── Infisical (:8080)
   │                              ├── Docker PostgreSQL 14 (:5432, internal)
   │                              └── Redis 7 (:6379, internal)
@@ -52,14 +48,6 @@ Internet
 | **postgres** | postgres:15 | (内部:5432) | NocoDB用PostgreSQL |
 
 **ネットワーク**: `ubuntu_nocodb-network` (bridge)
-
-### docker-compose.graph-api.yml (/home/ubuntu/brainbase/)
-
-| コンテナ | イメージ | ポート | 用途 |
-|---|---|---|---|
-| **brainbase-graph-api** | brainbase-graph-api:latest | (内部:3000) | Graph API (エンティティ/関係性) |
-
-**ネットワーク**: `ubuntu_nocodb-network` (external) — nginx-proxyと共有
 
 ### docker-compose.yml (Honcho: /home/ubuntu/honcho/)
 
@@ -122,7 +110,6 @@ Docker PostgreSQL 14 - Infisical (infisical-internal内 :5432)
 | **bb.unson.jp** | 176.34.20.239 | A | Route53 (unson.jp) |
 | **noco.unson.jp** | 176.34.20.239 | A | Route53 (unson.jp) |
 | **infisical.unson.jp** | 176.34.20.239 | A | Route53 (unson.jp) |
-| **graph.brain-base.work** | 176.34.20.239 | A | Cloudflare (brain-base.work) |
 
 ### DNSゾーン一覧
 
@@ -131,7 +118,7 @@ Docker PostgreSQL 14 - Infisical (infisical-internal内 :5432)
 | **unson.jp** | AWS Route53 | Z0906877KZJ9LFTXF6QS |
 | **tech-knight.jp** | AWS Route53 | Z08485133BLE8H4ACJ8JY |
 | **flux-system.com** | AWS Route53 | Z02239413FYMYZNU3KMUN |
-| **brain-base.work** | Cloudflare | (Cloudflare Dashboard) |
+| **brain-base.work** | Cloudflare | (Cloudflare Dashboard) ※Lightsail に向くアクティブなサブドメインは無い |
 
 ### unson.jp 全サブドメイン（Route53）
 
@@ -158,9 +145,7 @@ Docker PostgreSQL 14 - Infisical (infisical-internal内 :5432)
 
 ### brain-base.work サブドメイン（Cloudflare）
 
-| サブドメイン | 向き先 | 用途 |
-|---|---|---|
-| `graph.brain-base.work` | **176.34.20.239** (Lightsail) | Graph API |
+※2026-05-21 以降、Lightsail に向くアクティブなサブドメインは無い（旧 `graph.brain-base.work` は廃止済み、bb.unson.jp 経由で Graph SSOT を利用）。
 
 ### SSL 証明書
 
@@ -171,7 +156,6 @@ Let's Encrypt で自動取得・更新。nginx-proxy + acme-companion が管理�
 | bb.unson.jp | ✅ あり | ✅ acme-companion |
 | noco.unson.jp | ✅ あり | ✅ acme-companion |
 | infisical.unson.jp | ✅ あり | ✅ acme-companion |
-| graph.brain-base.work | Cloudflare側で終端 | Cloudflare Proxy (orange cloud) でSSL。Lightsail側はHTTPで受ける |
 
 ### nginx-proxy ルーティング（自動生成）
 
@@ -187,11 +171,8 @@ HTTPS :443
   ├── Host: noco.unson.jp
   │     └── upstream: nocodb:8080
   │
-  ├── Host: infisical.unson.jp
-  │     └── upstream: infisical-backend:8080
-  │
-  └── Host: graph.brain-base.work
-        └── upstream: brainbase-graph-api:3000
+  └── Host: infisical.unson.jp
+        └── upstream: infisical-backend:8080
 ```
 
 **仕組み**: `VIRTUAL_HOST=bb.unson.jp` をコンテナの環境変数に設定すると、nginx-proxy が自動でupstream/server_nameを生成。`LETSENCRYPT_HOST` を設定するとacme-companionがSSL証明書を自動取得。
@@ -236,9 +217,6 @@ ssh -i ~/.ssh/lightsail-brainbase.pem ubuntu@176.34.20.239
 cd /home/ubuntu && docker compose ps
 cd /home/ubuntu && docker compose restart [service]
 
-# Graph API管理
-cd /home/ubuntu/brainbase && docker compose -f docker-compose.graph-api.yml ps
-
 # Honcho管理
 cd /home/ubuntu/honcho && docker compose ps
 cd /home/ubuntu/honcho && docker compose logs -f api
@@ -256,7 +234,6 @@ PGPASSWORD='<Infisicalまたは運用secret storeから取得>' psql -h localhos
 
 # ログ確認
 docker logs nginx-proxy --tail 20
-docker logs brainbase-graph-api --tail 20
 docker logs honcho-api --tail 20
 docker logs infisical-backend --tail 20
 ```

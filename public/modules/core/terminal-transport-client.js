@@ -15,6 +15,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 64 * 1024;
+const FOCUS_ESCAPE_GRACE_MS = 12;
 const LOCAL_ECHO_SNAPSHOT_DEFER_MS = 1200;
 const SCROLL_MIN_DELTA_PX = 12;
 const SCROLL_STEP_PX = 40;
@@ -23,6 +24,9 @@ const SCROLL_FLUSH_MS = 16;
 const TOUCH_STEP_PX = 18;
 const TOUCH_FLUSH_MS = 30;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
+const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/gi;
+const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/gi;
+const FOCUS_REPORT_PATTERN = /\x1b\[(?:I|O)/g;
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
@@ -53,6 +57,14 @@ function ttcWarn(...args) {
     if (isTtcDebugEnabled() && typeof console !== 'undefined' && console.warn) {
         console.warn(...args);
     }
+}
+
+function stripTerminalControlResponses(value) {
+    if (typeof value !== 'string' || !value) return value;
+    return value
+        .replace(OSC_SEQUENCE_PATTERN, '')
+        .replace(BARE_OSC_COLOR_RESPONSE_PATTERN, '')
+        .replace(FOCUS_REPORT_PATTERN, '');
 }
 
 const DEFAULT_TERMINAL_THEME = {
@@ -104,11 +116,12 @@ export function shouldUseXtermTransport() {
 }
 
 export class TerminalTransportClient {
-    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null }) {
+    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null, getCurrentSessionId = null }) {
         this.viewerId = viewerId;
         this.viewerLabel = viewerLabel;
         this.onStatusChange = onStatusChange;
         this.onSnapshotChange = onSnapshotChange;
+        this.getCurrentSessionId = typeof getCurrentSessionId === 'function' ? getCurrentSessionId : null;
         this.hostEl = null;
         this.terminal = null;
         this.fitAddon = null;
@@ -141,12 +154,15 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._pendingEchoSince = 0;
         this._pendingEchoExpiryTimer = null;
+        this._pendingBackspaceEchoCount = 0;
         this._deferredSnapshotWhileEchoPending = null;
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
         this._pendingTextBuffer = '';
         this._pendingTextFlushTimer = null;
+        this._pendingFocusEscape = null;
+        this._pendingFocusEscapeTimer = null;
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
         this._lastSentCols = 0;
         this._lastSentRows = 0;
@@ -163,6 +179,7 @@ export class TerminalTransportClient {
         this._boundTouchStartHandler = null;
         this._boundTouchMoveHandler = null;
         this._boundTouchEndHandler = null;
+        this._boundPasteHandler = null;
         // xterm.js 5.x: short IME commit後にbare EnterでonData('\r')が発火しない場合がある。
         // IME確定Enter(isComposing=true)でフラグを立て、直後のbare Enter(isComposing=false)を
         // xtermが握り潰したと判断できるタイマーで\rを補完する。IME確定Enter自体は\rを送らない。
@@ -175,6 +192,11 @@ export class TerminalTransportClient {
         // 到着した場合に保存しておくバッファ。init() で terminal が準備でき次第 flush。
         this._preTerminalSnapshot = null;
         this._resetTerminalOnNextSnapshot = false;
+        this._terminalWriteQueue = [];
+        this._terminalWriteActive = false;
+        this._terminalWriteGeneration = 0;
+        this._terminalRenderRefreshRaf = null;
+        this._pendingTerminalRenderRefreshMode = null;
     }
 
     async init(hostEl) {
@@ -223,6 +245,8 @@ export class TerminalTransportClient {
         this.hostEl.addEventListener('compositionend', () => {
             this._setImeComposing(false, { settleCursor: true });
         }, true);
+        this._boundPasteHandler = (event) => this._handlePasteEvent(event);
+        this.hostEl.addEventListener('paste', this._boundPasteHandler, true);
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
             const token = this._connectToken;
@@ -424,7 +448,13 @@ export class TerminalTransportClient {
             this.hostEl?.removeEventListener('click', this._hostPointerFocusHandler);
             this._hostPointerFocusHandler = null;
         }
+        if (this._boundPasteHandler) {
+            this.hostEl?.removeEventListener('paste', this._boundPasteHandler, true);
+            this._boundPasteHandler = null;
+        }
         this._detachScrollHandlers();
+        this._cancelTerminalRenderRefresh();
+        this._clearPendingFocusEscape();
         this._removeCursorDebugPanel();
         this.terminal?.dispose();
         this.terminal = null;
@@ -492,10 +522,26 @@ export class TerminalTransportClient {
         return this.sessionId === sessionId && (this.status.mode === 'live' || this.status.mode === 'snapshot' || this.status.mode === 'blocked');
     }
 
+    _isCurrentAppSession(sessionId = this.sessionId) {
+        if (!this.getCurrentSessionId) return true;
+        const currentSessionId = this.getCurrentSessionId();
+        return !currentSessionId || currentSessionId === sessionId;
+    }
+
     canSendInput(sessionId) {
         return this.sessionId === sessionId
+            && this._isCurrentAppSession(sessionId)
             && this.status.mode !== 'blocked'
             && this.status.terminalAccess?.state === 'owner'
+            && this.status.inputReady === true
+            && this.ws?.readyState === WebSocket.OPEN;
+    }
+
+    _canDispatchInputForOwnershipReclaim(sessionId) {
+        return this.sessionId === sessionId
+            && this._isCurrentAppSession(sessionId)
+            && this.status.mode === 'live'
+            && this.status.terminalAccess?.state === 'available'
             && this.status.inputReady === true
             && this.ws?.readyState === WebSocket.OPEN;
     }
@@ -540,6 +586,30 @@ export class TerminalTransportClient {
         }
 
         return true;
+    }
+
+    _handlePasteEvent(event) {
+        const text = event?.clipboardData?.getData?.('text/plain') || '';
+        if (!text) return;
+        if (typeof event.preventDefault === 'function') {
+            event.preventDefault();
+        }
+        if (typeof event.stopPropagation === 'function') {
+            event.stopPropagation();
+        }
+        const token = this._connectToken;
+        this._inputQueue = this._inputQueue
+            .then(() => {
+                if (this._connectToken !== token) {
+                    inputTelemetry.dropped('PASTE_QUEUE_TOKEN_MISMATCH', { len: text.length });
+                    return;
+                }
+                return this.sendPasteText(text);
+            })
+            .catch((err) => {
+                console.error('[TTC-PROBE][paste] chain error', err);
+                inputTelemetry.dropped('INPUT_QUEUE_CHAIN_ERROR', { source: 'paste', err: String(err?.message || err) });
+            });
     }
 
     async connect(sessionId, { skipInitialResize = false } = {}) {
@@ -772,6 +842,7 @@ export class TerminalTransportClient {
             inputTelemetry.dropped('DISCONNECT_QUEUE_CLEARED', { count: queuedBeforeClear });
         }
         this._messageQueue.clear();
+        this._clearPendingFocusEscape();
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
@@ -791,14 +862,36 @@ export class TerminalTransportClient {
             this._clearPendingEchoState();
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
+            this._cancelTerminalWriteQueue();
             this.terminal?.reset();
         }
         this._emitStatus();
     }
 
     async sendText(value) {
+        value = await this._resolvePotentialFocusEscape(value);
+        if (!value) return;
+        const sanitizedValue = stripTerminalControlResponses(value);
+        if (!sanitizedValue && value) {
+            inputTelemetry.dropped('TERMINAL_CONTROL_RESPONSE', { len: value.length });
+            return;
+        }
+        value = sanitizedValue;
+        if (value === '\x1b' && !this._pendingTextBuffer) {
+            this._schedulePotentialFocusEscape();
+            return;
+        }
         const capturedToken = this._connectToken;
         const capturedSessionId = this.sessionId;
+        if (!this._isCurrentAppSession(capturedSessionId)) {
+            ttcWarn('[TTC-PROBE] sendText dropped: stale app session', {
+                len: value.length,
+                clientSessionId: capturedSessionId,
+                currentSessionId: this.getCurrentSessionId?.()
+            });
+            inputTelemetry.dropped('STALE_APP_SESSION', { len: value.length });
+            return;
+        }
         ttcDebug('[TTC-PROBE][sendText] entered', {
             len: value?.length,
             canSend: this.canSendInput(this.sessionId),
@@ -822,7 +915,10 @@ export class TerminalTransportClient {
         // probe を待たずに送信する。Codex の選択画面 (CLI state が READY/WAITING にならない)
         // などで矢印が効かなくなる問題を回避。
         const skipProbe = this._canBypassInputReadyProbe(value);
-        if (!skipProbe && !this.canSendInput(this.sessionId)) {
+        if (!skipProbe
+            && !this.canSendInput(this.sessionId)
+            && !this._canDispatchInputForOwnershipReclaim(this.sessionId)
+        ) {
             ttcDebug('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
             const probeStart = performance.now();
             const ok = await this._ensureInputReadyForUserInput();
@@ -914,6 +1010,23 @@ export class TerminalTransportClient {
             this._pendingTextBuffer += seg.value;
             this._scheduleBufferedTextFlush();
         }
+    }
+
+    async sendPasteText(value) {
+        const sanitizedValue = stripTerminalControlResponses(value);
+        if (!sanitizedValue && value) {
+            inputTelemetry.dropped('TERMINAL_CONTROL_RESPONSE', { len: value.length, source: 'paste' });
+            return;
+        }
+        const text = sanitizedValue;
+        if (!text) return;
+        if (!this._hasSubmitText(text)) {
+            await this.sendText(text);
+            return;
+        }
+
+        await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
+        await this._dispatchPasteMessage(text);
     }
 
     async sendKey(value) {
@@ -1146,18 +1259,65 @@ export class TerminalTransportClient {
         if (!this.terminal) return;
         const rows = Number(this.terminal.rows) || 0;
         if (rows <= 0) return;
+        this._refreshTerminalRows(0, rows - 1);
+    }
+
+    _refreshTerminalRows(start, end) {
+        if (!this.terminal) return;
+        const rows = Number(this.terminal.rows) || 0;
+        if (rows <= 0) return;
+        const safeStart = Math.max(0, Math.min(rows - 1, Math.floor(start)));
+        const safeEnd = Math.max(safeStart, Math.min(rows - 1, Math.floor(end)));
         try {
             if (typeof this.terminal.refresh === 'function') {
-                this.terminal.refresh(0, rows - 1);
+                this.terminal.refresh(safeStart, safeEnd);
                 return;
             }
             const renderService = this.terminal?._core?._renderService;
             if (typeof renderService?.refreshRows === 'function') {
-                renderService.refreshRows(0, rows - 1);
+                renderService.refreshRows(safeStart, safeEnd);
             }
         } catch (error) {
             console.warn('[TerminalTransportClient] Failed to refresh terminal rows', error);
         }
+    }
+
+    _scheduleTerminalRenderRefresh(mode = 'bottom') {
+        if (!this.terminal) return;
+        if (mode === 'all' || this._pendingTerminalRenderRefreshMode !== 'all') {
+            this._pendingTerminalRenderRefreshMode = mode === 'all' ? 'all' : 'bottom';
+        }
+        if (this._terminalRenderRefreshRaf != null) return;
+
+        const run = () => {
+            this._terminalRenderRefreshRaf = null;
+            const refreshMode = this._pendingTerminalRenderRefreshMode || 'bottom';
+            this._pendingTerminalRenderRefreshMode = null;
+            const rows = Number(this.terminal?.rows) || 0;
+            if (rows <= 0) return;
+            if (refreshMode === 'all') {
+                this._refreshTerminalRows(0, rows - 1);
+                return;
+            }
+            const start = Math.max(0, rows - 12);
+            this._refreshTerminalRows(start, rows - 1);
+        };
+
+        this._terminalRenderRefreshRaf = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame(run)
+            : setTimeout(run, 16);
+    }
+
+    _cancelTerminalRenderRefresh() {
+        if (this._terminalRenderRefreshRaf != null) {
+            if (typeof cancelAnimationFrame === 'function' && typeof this._terminalRenderRefreshRaf === 'number') {
+                cancelAnimationFrame(this._terminalRenderRefreshRaf);
+            } else {
+                clearTimeout(this._terminalRenderRefreshRaf);
+            }
+            this._terminalRenderRefreshRaf = null;
+        }
+        this._pendingTerminalRenderRefreshMode = null;
     }
 
     async reconnect() {
@@ -1195,6 +1355,9 @@ export class TerminalTransportClient {
         if (this.ws?.readyState !== WebSocket.OPEN) {
             ttcWarn('[TTC-PROBE][ensureInputReady] early-return ws not open', { wsState: this.ws?.readyState });
             return false;
+        }
+        if (this._canDispatchInputForOwnershipReclaim(this.sessionId)) {
+            return true;
         }
         if (this.status.mode === 'blocked' || this.status.terminalAccess?.state !== 'owner') {
             ttcWarn('[TTC-PROBE][ensureInputReady] early-return blocked', {
@@ -1349,6 +1512,7 @@ export class TerminalTransportClient {
         this._clearPendingEchoExpiryTimer();
         this._pendingEchoText = '';
         this._pendingEchoSince = 0;
+        this._pendingBackspaceEchoCount = 0;
         if (clearDeferred) {
             this._deferredSnapshotWhileEchoPending = null;
         }
@@ -1397,6 +1561,70 @@ export class TerminalTransportClient {
         return buffered;
     }
 
+    _clearPendingFocusEscape() {
+        if (this._pendingFocusEscapeTimer) {
+            clearTimeout(this._pendingFocusEscapeTimer);
+            this._pendingFocusEscapeTimer = null;
+        }
+        this._pendingFocusEscape = null;
+    }
+
+    _schedulePotentialFocusEscape() {
+        this._clearPendingFocusEscape();
+        const pending = {
+            connectToken: this._connectToken,
+            sessionId: this.sessionId
+        };
+        this._pendingFocusEscape = pending;
+        this._pendingFocusEscapeTimer = setTimeout(() => {
+            this._pendingFocusEscapeTimer = null;
+            if (this._pendingFocusEscape !== pending) return;
+            this._pendingFocusEscape = null;
+            this._sendResolvedEscape(pending).catch((error) => {
+                ttcWarn('[TTC-PROBE] failed to send deferred escape', { error: String(error?.message || error) });
+            });
+        }, FOCUS_ESCAPE_GRACE_MS);
+    }
+
+    async _resolvePotentialFocusEscape(value) {
+        if (!this._pendingFocusEscape) return value;
+        const pending = this._pendingFocusEscape;
+        this._clearPendingFocusEscape();
+
+        if (typeof value === 'string' && (value.startsWith('[I') || value.startsWith('[O'))) {
+            inputTelemetry.dropped('SPLIT_FOCUS_RESPONSE', { len: 1 + Math.min(value.length, 2) });
+            return value.slice(2);
+        }
+
+        if (value === '\x1b') {
+            await this._sendResolvedEscape(pending);
+            await this._sendResolvedEscape({
+                connectToken: this._connectToken,
+                sessionId: this.sessionId
+            });
+            return '';
+        }
+
+        await this._sendResolvedEscape(pending);
+        return value;
+    }
+
+    async _sendResolvedEscape(pending) {
+        if (pending
+            && (this._connectToken !== pending.connectToken || this.sessionId !== pending.sessionId)) {
+            inputTelemetry.dropped('DEFERRED_ESCAPE_SESSION_CHANGED', { len: 1 });
+            return;
+        }
+        await this._flushBufferedText({
+            enqueueIfUnavailable: true,
+            allowInputNotReady: true
+        });
+        await this._dispatchTextMessage('\x1b', {
+            enqueueIfUnavailable: true,
+            allowInputNotReady: true
+        });
+    }
+
     async _flushBufferedText({
         enqueueIfUnavailable = false,
         ensureInteractive = false,
@@ -1416,6 +1644,12 @@ export class TerminalTransportClient {
         ensureInteractive = false,
         allowInputNotReady = false
     } = {}) {
+        const sanitizedValue = stripTerminalControlResponses(value);
+        if (!sanitizedValue && value) {
+            inputTelemetry.dropped('TERMINAL_CONTROL_RESPONSE', { len: value.length });
+            return;
+        }
+        value = sanitizedValue;
         const message = { type: 'input', inputType: 'text', value };
         if (this.ws?.readyState !== WebSocket.OPEN) {
             if (enqueueIfUnavailable) {
@@ -1443,6 +1677,7 @@ export class TerminalTransportClient {
             return;
         }
         const canSend = this.canSendInput(this.sessionId)
+            || this._canDispatchInputForOwnershipReclaim(this.sessionId)
             || (allowInputNotReady && this._canSendInputWithoutReady(this.sessionId));
         if (!canSend) {
             if (enqueueIfUnavailable) {
@@ -1480,6 +1715,23 @@ export class TerminalTransportClient {
         ttcDebug('[TTC-PROBE] dispatch sent', { len: value.length });
     }
 
+    async _dispatchPasteMessage(value) {
+        const message = { type: 'input', inputType: 'paste', value };
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            this._messageQueue.enqueue(message);
+            inputTelemetry.inc('queued');
+            return;
+        }
+        if (!this.canSendInput(this.sessionId) && !await this._ensureInputReadyForUserInput()) {
+            this._messageQueue.enqueue(message);
+            inputTelemetry.inc('queued');
+            return;
+        }
+        await this._ensureInteractiveMode();
+        this.ws.send(JSON.stringify(message));
+        inputTelemetry.inc('sentOk');
+    }
+
     _canSendInputWithoutReady(sessionId) {
         return this.ws?.readyState === WebSocket.OPEN
             && Boolean(sessionId)
@@ -1490,7 +1742,8 @@ export class TerminalTransportClient {
 
     _splitFocusEvents(value) {
         if (typeof value !== 'string' || !value) return [{ value, isFocusEvent: false }];
-        const FOCUS_RE = /\x1b\[[IO]/g;
+        const FOCUS_RE = FOCUS_REPORT_PATTERN;
+        FOCUS_RE.lastIndex = 0;
         const segments = [];
         let lastIndex = 0;
         let match;
@@ -1510,6 +1763,7 @@ export class TerminalTransportClient {
     _shouldSendTextImmediately(value) {
         if (typeof value !== 'string' || !value) return true;
         if (this._isControlTextInput(value)) return true;
+        if (this._isNavigationEscape(value)) return true;
         if (value.includes('\n') || value.includes('\r')) return true;
         const nextValue = this._pendingTextBuffer + value;
         return this._getUtf8ByteLength(nextValue) > TEXT_BATCH_MAX_BYTES;
@@ -1673,6 +1927,13 @@ export class TerminalTransportClient {
         };
     }
 
+    _createPinnedViewportState() {
+        return {
+            distanceFromBottom: 0,
+            wasPinnedToBottom: true
+        };
+    }
+
     _computeIsViewportPinnedToBottom() {
         const viewportState = this._captureViewportState();
         return viewportState ? viewportState.wasPinnedToBottom : true;
@@ -1724,10 +1985,19 @@ export class TerminalTransportClient {
             this._isViewportPinnedToBottom = true;
             this._pendingSnapshotText = null;
             this._applySnapshot(normalizedText, {
-                forceViewportState: {
-                    distanceFromBottom: 0,
-                    wasPinnedToBottom: true
-                },
+                forceViewportState: this._createPinnedViewportState(),
+                resetTerminal: true,
+                screenOnly: options.screenOnly === true
+            });
+            return;
+        }
+
+        if (this._resetTerminalOnNextSnapshot) {
+            this._isViewportPinnedToBottom = true;
+            this._pendingSnapshotText = null;
+            this._pendingSnapshotOptions = null;
+            this._applySnapshot(normalizedText, {
+                forceViewportState: this._createPinnedViewportState(),
                 resetTerminal: true,
                 screenOnly: options.screenOnly === true
             });
@@ -1907,12 +2177,13 @@ export class TerminalTransportClient {
         this._resetTerminalOnNextSnapshot = false;
         this._clearPendingEchoState();
 
-        const viewportState = options.forceViewportState || this._captureViewportState();
-        if (shouldResetTerminal && typeof this.terminal.reset === 'function') {
-            this.terminal.reset();
-        }
+        const viewportState = options.forceViewportState
+            || (shouldResetTerminal ? this._createPinnedViewportState() : this._captureViewportState());
         const clearSequence = options.screenOnly === true ? '\x1b[2J\x1b[H' : '\x1b[2J\x1b[3J\x1b[H';
-        this._writeToTerminal(clearSequence + normalizedText, viewportState);
+        this._writeToTerminal(clearSequence + normalizedText, viewportState, {
+            resetTerminal: shouldResetTerminal,
+            renderRefresh: 'all'
+        });
     }
 
     _applyOutput(text) {
@@ -1925,9 +2196,8 @@ export class TerminalTransportClient {
     _applyLocalEcho(text) {
         if (!this.terminal || !text || this.status.mode !== 'live') return;
 
-        // Backspace and non-ASCII IME text are echoed by the PTY.
-        // Optimistic erase is unsafe for wide CJK cells and can leave stale glyphs.
         if (text === '\x7f') {
+            this._applyLocalBackspaceEcho();
             return;
         }
 
@@ -1945,16 +2215,42 @@ export class TerminalTransportClient {
         }
     }
 
+    _applyLocalBackspaceEcho() {
+        if (this._pendingEchoText) {
+            if (!this._canLocallyErasePendingEcho()) return;
+
+            this._pendingEchoText = this._pendingEchoText.slice(0, -1);
+            if (this._pendingEchoText) {
+                this._schedulePendingEchoExpiry();
+            } else {
+                this._clearPendingEchoState({ clearDeferred: false });
+            }
+        }
+        this._pendingBackspaceEchoCount += 1;
+        inputTelemetry.inc('localBackspaceEcho');
+        this._writeToTerminal('\b \b');
+    }
+
+    _canLocallyErasePendingEcho() {
+        if (!this._pendingEchoText) return false;
+        const lastChar = this._pendingEchoText[this._pendingEchoText.length - 1];
+        return /^[\x20-\x7e]$/.test(lastChar);
+    }
+
     _applySubmitFeedback(text) {
         if (!this.terminal || !this._hasSubmitText(text) || this.status.mode !== 'live') return;
         this._clearImeCursorState();
-        this._clearPendingEchoState();
-        this._writeToTerminal('\r\n');
+        this._writeToTerminal('\r\n', null, {
+            afterWrite: () => {
+                this._clearPendingEchoState();
+            }
+        });
     }
 
     _canOptimisticallyEcho(text) {
         if (typeof text !== 'string' || !text) return false;
-        return /^[\t\x20-\x7e]+$/.test(text);
+        if (/^[\t\x20-\x7e]+$/.test(text)) return true;
+        return this._isImeCommitText(text);
     }
 
     _normalizeEchoText(text) {
@@ -1964,6 +2260,8 @@ export class TerminalTransportClient {
     }
 
     _consumePendingEcho(text) {
+        text = this._consumePendingBackspaceEcho(text);
+        if (!text) return '';
         if (!this._pendingEchoText) return text;
         if (!text.startsWith(this._pendingEchoText)) {
             this._clearPendingEchoState();
@@ -1975,23 +2273,112 @@ export class TerminalTransportClient {
         return remaining;
     }
 
-    _writeToTerminal(text, viewportState = null) {
+    _consumePendingBackspaceEcho(text) {
+        if (!this._pendingBackspaceEchoCount || !text) return text;
+
+        let remaining = text;
+        while (this._pendingBackspaceEchoCount > 0) {
+            if (remaining.startsWith('\b \b')) {
+                remaining = remaining.slice(3);
+            } else if (remaining.startsWith('\x1b[D \x1b[D')) {
+                remaining = remaining.slice(7);
+            } else if (remaining.startsWith('\x1b[D\x1b[K')) {
+                remaining = remaining.slice(6);
+            } else {
+                break;
+            }
+            this._pendingBackspaceEchoCount -= 1;
+        }
+
+        if (this._pendingBackspaceEchoCount > 0 && remaining === text) {
+            this._pendingBackspaceEchoCount = 0;
+        }
+        return remaining;
+    }
+
+    _writeToTerminal(text, viewportState = null, options = {}) {
         if (!this.terminal || !text) return;
         const nextViewportState = viewportState || this._captureViewportState();
-        this.terminal.write(text, () => {
-            this._restoreViewportState(nextViewportState);
-            // NocoDB バグ#2: モバイルでターミナル更新時にスクロール位置が最下部に
-            // 戻る問題への対策。 ユーザーが上スクロール中（wasPinnedToBottom=false）
-            // の場合、 iOS Safari の momentum scroll / fitAddon resize で
-            // write callback 直後に再度スクロールが戻されるケースがある。
-            // 次フレームで再度 restore して位置を確実にキープする。
-            if (nextViewportState && !nextViewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
-                requestAnimationFrame(() => {
-                    this._restoreViewportState(nextViewportState);
-                });
-            }
-            this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
+        this._terminalWriteQueue.push({
+            text,
+            viewportState: nextViewportState,
+            resetTerminal: Boolean(options.resetTerminal),
+            renderRefresh: options.renderRefresh === 'all' ? 'all' : 'bottom',
+            generation: this._terminalWriteGeneration,
+            afterWrite: typeof options.afterWrite === 'function' ? options.afterWrite : null
         });
+        this._drainTerminalWriteQueue();
+    }
+
+    _drainTerminalWriteQueue() {
+        if (this._terminalWriteActive || !this.terminal) return;
+        const operation = this._terminalWriteQueue.shift();
+        if (!operation) return;
+        if (operation.generation !== this._terminalWriteGeneration) {
+            this._drainTerminalWriteQueue();
+            return;
+        }
+
+        this._terminalWriteActive = true;
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            if (operation.generation !== this._terminalWriteGeneration) return;
+            finished = true;
+            this._restoreViewportAfterTerminalWrite(operation.viewportState);
+            this._scheduleTerminalRenderRefresh(operation.renderRefresh);
+            try {
+                operation.afterWrite?.();
+            } finally {
+                this._terminalWriteActive = false;
+                this._drainTerminalWriteQueue();
+            }
+        };
+
+        try {
+            if (operation.resetTerminal && typeof this.terminal.reset === 'function') {
+                this.terminal.reset();
+            }
+            const writeFn = this.terminal.write;
+            writeFn.call(this.terminal, operation.text, finish);
+            if (writeFn.length < 2) {
+                this._queueTerminalWriteFallback(finish);
+            }
+        } catch (err) {
+            this._terminalWriteActive = false;
+            this._terminalWriteQueue.length = 0;
+            ttcWarn('[TTC-PROBE] terminal write failed', { err: String(err?.message || err) });
+        }
+    }
+
+    _cancelTerminalWriteQueue() {
+        this._terminalWriteGeneration += 1;
+        this._terminalWriteQueue.length = 0;
+        this._terminalWriteActive = false;
+        this._cancelTerminalRenderRefresh();
+    }
+
+    _queueTerminalWriteFallback(finish) {
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(finish);
+            return;
+        }
+        Promise.resolve().then(finish);
+    }
+
+    _restoreViewportAfterTerminalWrite(viewportState) {
+        this._restoreViewportState(viewportState);
+        // NocoDB バグ#2: モバイルでターミナル更新時にスクロール位置が最下部に
+        // 戻る問題への対策。 ユーザーが上スクロール中（wasPinnedToBottom=false）
+        // の場合、 iOS Safari の momentum scroll / fitAddon resize で
+        // write callback 直後に再度スクロールが戻されるケースがある。
+        // 次フレームで再度 restore して位置を確実にキープする。
+        if (viewportState && !viewportState.wasPinnedToBottom && typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                this._restoreViewportState(viewportState);
+            });
+        }
+        this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
     }
 
     _prepareForSessionSwitch() {
@@ -2004,14 +2391,11 @@ export class TerminalTransportClient {
         this._lastSnapshotText = null;
         this._resetTerminalOnNextSnapshot = true;
         this._isViewportPinnedToBottom = true;
-        // xterm.jsの前セッション表示を即クリア。
-        // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
+        this._cancelTerminalWriteQueue();
         if (this.terminal) {
-            if (typeof this.terminal.reset === 'function') {
-                this.terminal.reset();
-            } else {
-                this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
-            }
+            // xterm.jsの前セッション表示を即クリア。
+            // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
+            this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H', null, { resetTerminal: true });
         }
     }
 

@@ -52,8 +52,7 @@ const BRAINBASE_ENV = {
         instance: 'brainbase-nocodb',
         endpoints: {
             ssot_graph: 'https://bb.unson.jp',
-            nocodb: 'https://noco.unson.jp',
-            graph_api: 'https://graph.brain-base.work'
+            nocodb: 'https://noco.unson.jp'
         }
     }
 };

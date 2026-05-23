@@ -254,7 +254,10 @@ export const terminalIoMethods = {
             // 通常の typing (send-keys -l) では markers なしで送られ、
             // Codex が pasted 扱いせず、入力欄から消えるバグが起きていた。
             if (options.forcePaste === true) {
-                await this._pasteInputFromTempFile(sessionId, normalizedInput);
+                await this._pasteInputFromTempFile(sessionId, normalizedInput, {
+                    bracketedPaste: options.bracketedPaste === true,
+                    preserveLineFeed: options.preserveLineFeed === true
+                });
                 return;
             }
 
@@ -529,7 +532,7 @@ export const terminalIoMethods = {
         }
     },
 
-    async _pasteInputFromTempFile(sessionId, input) {
+    async _pasteInputFromTempFile(sessionId, input, options = {}) {
         const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brainbase-input-'));
         const tempFile = path.join(tempDir, 'paste.txt');
         const bufferName = `brainbase-${sessionId}-${Date.now()}`;
@@ -537,7 +540,11 @@ export const terminalIoMethods = {
         try {
             await fs.promises.writeFile(tempFile, input, 'utf8');
             await this._runTmux(['load-buffer', '-b', bufferName, tempFile]);
-            await this._runTmux(['paste-buffer', '-d', '-b', bufferName, '-t', sessionId]);
+            const pasteArgs = ['paste-buffer', '-d'];
+            if (options.bracketedPaste === true) pasteArgs.push('-p');
+            if (options.preserveLineFeed === true) pasteArgs.push('-r');
+            pasteArgs.push('-b', bufferName, '-t', sessionId);
+            await this._runTmux(pasteArgs);
         } finally {
             this._runTmux(['delete-buffer', '-b', bufferName]).catch(() => {});
             fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});

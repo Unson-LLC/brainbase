@@ -360,11 +360,18 @@ export const runtimeLifecycleMethods = {
 
         const tmuxRunning = await this._isTmuxSessionRunning(session.id);
         if (!tmuxRunning) {
-            logger.warn(`[ensureTtydForActiveSession] Cannot restart ttyd for ${session.id}: tmux is not running`);
+            // 2026-05-21: 単一経路化。 boot-time restore と同じ
+            // _pauseSessionsForMissingTmux に集約。 以前はここで warn だけして
+            // state を放置していたため、 tmux が落ちた active session は
+            // 永久に degraded のまま 10 分おきの warning loop を続けていた。
+            await this._pauseSessionsForMissingTmux([session.id], {
+                reason: 'tmux_missing_runtime',
+            });
             return {
                 restarted: false,
                 runtimeStatus: currentStatus,
-                skippedReason: 'tmux_missing'
+                skippedReason: 'tmux_missing',
+                paused: true,
             };
         }
 

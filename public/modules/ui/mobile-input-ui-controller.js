@@ -838,15 +838,23 @@ export class MobileInputUIController {
         }
 
         try {
-            const content = await this.terminalInput.fetchTerminalContent(sessionId);
-
             const copyTerminalModal = document.getElementById('copy-terminal-modal');
             const terminalContentDisplay = document.getElementById('terminal-content-display');
+            if (terminalContentDisplay && copyTerminalModal) {
+                terminalContentDisplay.textContent = '読み込み中...';
+                copyTerminalModal.classList.add('active');
+                refreshIcons();
+            }
+
+            const copyLinesSelect = document.getElementById('terminal-copy-lines');
+            const copyLines = Number.parseInt(copyLinesSelect?.value || '500', 10);
+            const content = await this.terminalInput.fetchTerminalContent(
+                sessionId,
+                Number.isFinite(copyLines) ? Math.min(5000, Math.max(1, copyLines)) : 500
+            );
 
             if (terminalContentDisplay && copyTerminalModal) {
                 terminalContentDisplay.textContent = content;
-                copyTerminalModal.classList.add('active');
-                refreshIcons();
 
                 // Scroll to bottom
                 setTimeout(() => {

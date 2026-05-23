@@ -4,6 +4,12 @@ import { TERMINAL_RUNTIME_STATE } from './terminal-runtime-registry.js';
 const INPUT_PROBE_FRESH_MS = 60_000;
 const OWNERSHIP_STALE_MS = 90_000;
 const GATEWAY_STALE_MS = 45_000;
+const PANE_CAPTURE_LINES = 80;
+const PANE_ERROR_FLOOD_MIN_LINES = 12;
+const PANE_ERROR_FLOOD_MIN_RATIO = 0.55;
+const CODEX_PANE_ERROR_PATTERNS = [
+    /MallocStackLogging: can't turn off malloc stack logging because it was not enabled\./
+];
 
 function parsePsLine(line) {
     const match = String(line || '').match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/);
@@ -23,6 +29,49 @@ function extractSessionId(command) {
     const tmuxMatch = command.match(/tmux\s+new-session\s+.*?-s\s+["']?([^"'\s]+)/);
     if (tmuxMatch) return tmuxMatch[1];
     return null;
+}
+
+function shellQuote(value) {
+    return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function detectPaneErrorFlood(text) {
+    const lines = String(text || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(-PANE_CAPTURE_LINES);
+    if (lines.length === 0) {
+        return { stuck: false, matchedLines: 0, totalLines: 0, ratio: 0 };
+    }
+    const matchedLines = lines.filter((line) =>
+        CODEX_PANE_ERROR_PATTERNS.some((pattern) => pattern.test(line))
+    ).length;
+    const ratio = matchedLines / lines.length;
+    return {
+        stuck: matchedLines >= PANE_ERROR_FLOOD_MIN_LINES && ratio >= PANE_ERROR_FLOOD_MIN_RATIO,
+        matchedLines,
+        totalLines: lines.length,
+        ratio
+    };
+}
+
+function extractCodexResumeId(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    return match ? match[1] : null;
+}
+
+function getCodexResumeId(session, engine) {
+    const selectedEngine = typeof engine === 'string' && engine.trim()
+        ? engine
+        : session?.engine;
+    if (!session || selectedEngine !== 'codex') return null;
+    return session.codexThreadId
+        || session.conversationSummary?.codexThreadId
+        || session.conversationSummary?.lastConversation?.resumeId
+        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
+        || null;
 }
 
 export class TerminalRuntimeReconciler {
@@ -66,11 +115,13 @@ export class TerminalRuntimeReconciler {
             const ownership = this._observeOwnership(sessionId);
             observedSessions[sessionId] = {
                 sessionId,
+                session,
                 name: session.name || sessionId,
                 engine: session.engine || null,
                 intendedState: session.intendedState || 'active',
                 ttyd: ttydProcesses.filter((proc) => proc.sessionId === sessionId),
                 tmux,
+                pane: this._observePane(sessionId, session?.intendedState, tmux),
                 ownership
             };
         }
@@ -84,6 +135,7 @@ export class TerminalRuntimeReconciler {
                 engine: null,
                 ttyd: [ttyd],
                 tmux: { exists: false },
+                pane: null,
                 ownership: this._observeOwnership(ttyd.sessionId)
             };
         }
@@ -136,6 +188,7 @@ export class TerminalRuntimeReconciler {
                 issues: classification.issues,
                 observed: {
                     tmux: entry.tmux,
+                    pane: entry.pane,
                     ttyd: {
                         running: ttyds.length > 0,
                         duplicates: Math.max(0, ttyds.length - 1),
@@ -146,14 +199,23 @@ export class TerminalRuntimeReconciler {
             });
 
             if (recover && entry.intendedState === 'active' && classification.runtimeState === TERMINAL_RUNTIME_STATE.DEGRADED) {
-                actions.push({
-                    sessionId: entry.sessionId,
-                    type: 'ensure_runtime',
-                    reason: 'explicit_recover',
-                    dryRun
-                });
-                if (!dryRun && typeof this.runtimeLifecycle?.ensureSessionRuntime === 'function') {
-                    await this.runtimeLifecycle.ensureSessionRuntime({ sessionId: entry.sessionId });
+                const hasPaneErrorFlood = classification.issues.some((issue) => issue.type === 'codex_pane_error_flood');
+                if (hasPaneErrorFlood) {
+                    actions.push(await this._restartRuntimeAction({
+                        entry,
+                        reason: 'codex_pane_error_flood',
+                        dryRun
+                    }));
+                } else {
+                    actions.push({
+                        sessionId: entry.sessionId,
+                        type: 'ensure_runtime',
+                        reason: 'explicit_recover',
+                        dryRun
+                    });
+                    if (!dryRun && typeof this.runtimeLifecycle?.ensureSessionRuntime === 'function') {
+                        await this.runtimeLifecycle.ensureSessionRuntime({ sessionId: entry.sessionId });
+                    }
                 }
             }
         }
@@ -213,6 +275,7 @@ export class TerminalRuntimeReconciler {
                 },
                 observed: {
                     tmux: entry.tmux,
+                    pane: entry.pane,
                     ttyd: {
                         running: (entry.ttyd || []).length > 0,
                         duplicates: Math.max(0, (entry.ttyd || []).length - 1),
@@ -286,6 +349,29 @@ export class TerminalRuntimeReconciler {
         };
     }
 
+    _observePane(sessionId, intendedState, tmux = null) {
+        if (intendedState !== 'active' || !sessionId || tmux?.exists === false) {
+            return null;
+        }
+        try {
+            const stdout = this.execSync(`tmux capture-pane -t ${shellQuote(sessionId)} -p -S -${PANE_CAPTURE_LINES}`, { encoding: 'utf8' });
+            const diagnostic = detectPaneErrorFlood(stdout);
+            return {
+                checked: true,
+                stuck: diagnostic.stuck,
+                matchedLines: diagnostic.matchedLines,
+                totalLines: diagnostic.totalLines,
+                ratio: diagnostic.ratio
+            };
+        } catch (error) {
+            return {
+                checked: false,
+                stuck: false,
+                observationError: error instanceof Error ? error.message : 'pane_observation_failed'
+            };
+        }
+    }
+
     _listProcesses() {
         try {
             const stdout = this.execSync('ps -axo pid=,ppid=,pgid=,command=', { encoding: 'utf8' });
@@ -332,6 +418,15 @@ export class TerminalRuntimeReconciler {
         }
         if (entry.ownership?.state === 'owned') {
             return { runtimeState: TERMINAL_RUNTIME_STATE.BLOCKED_BY_OWNER, issues };
+        }
+        if (entry.pane?.stuck) {
+            issues.push(this._issue(
+                'codex_pane_error_flood',
+                entry.sessionId,
+                'critical',
+                `Terminal pane is dominated by Codex error output (${entry.pane.matchedLines}/${entry.pane.totalLines} recent lines).`
+            ));
+            return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
         }
 
         const inputProbe = registryEntry?.observed?.inputProbe;
@@ -381,6 +476,40 @@ export class TerminalRuntimeReconciler {
         return action;
     }
 
+    async _restartRuntimeAction({ entry, reason, dryRun }) {
+        const session = entry.session || {};
+        const engine = session.engine || entry.engine || 'claude';
+        const cwd = session.worktree?.path || session.path || session.cwd || undefined;
+        const action = {
+            sessionId: entry.sessionId,
+            type: 'restart_terminal_runtime',
+            reason,
+            dryRun
+        };
+        if (!dryRun) {
+            try {
+                await this.runtimeLifecycle?.stopTtyd?.(entry.sessionId, { preserveTmux: false });
+                const startOptions = {
+                    sessionId: entry.sessionId,
+                    cwd,
+                    initialCommand: session.initialCommand || '',
+                    engine,
+                    forceTtyd: true
+                };
+                const codexResumeId = getCodexResumeId(session, engine);
+                if (codexResumeId) {
+                    startOptions.codexResumeId = codexResumeId;
+                }
+                action.result = await this.runtimeLifecycle?.startTtyd?.(startOptions);
+                action.success = true;
+            } catch (error) {
+                action.success = false;
+                action.error = error instanceof Error ? error.message : String(error);
+            }
+        }
+        return action;
+    }
+
     _issue(type, sessionId, severity, message) {
         return { type, sessionId, severity, message };
     }
@@ -403,4 +532,4 @@ export class TerminalRuntimeReconciler {
     }
 }
 
-export { INPUT_PROBE_FRESH_MS, OWNERSHIP_STALE_MS, GATEWAY_STALE_MS };
+export { INPUT_PROBE_FRESH_MS, OWNERSHIP_STALE_MS, GATEWAY_STALE_MS, detectPaneErrorFlood };

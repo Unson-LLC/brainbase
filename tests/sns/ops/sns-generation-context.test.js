@@ -125,6 +125,56 @@ function candidateRepositoryWithFeedback() {
             evidence_ids: [{ uri: `seed:${candidate.id}` }]
         });
     }
+    repo.create({
+        id: 'oyasumi_sensitive_core_ai_sales_agency',
+        source_system: 'oyasumi-meeting-personal-kg',
+        cognitive_type: 'insight',
+        owner_person_id: 'sato_keigo',
+        actor_person_id: 'sato_keigo',
+        source_event_ids: ['github:minutes#personal_kg_core:ai-sales-agency-confidential-business-context'],
+        workspace: 'github',
+        project_code: 'salestailor',
+        org_ids: ['unson', 'salestailor'],
+        project_ids: ['salestailor'],
+        visibility: 'owner',
+        sensitivity: 'confidential',
+        redaction_status: 'needs_redaction',
+        body: 'Context: 顧問先の月額予算15万円と月5から10件のリード獲得見込みがある。 Judgment: 自社プロダクト導入機会の入口として見る。',
+        permission_snapshot: {
+            oyasumi_meeting_personal_kg: {
+                category: 'sales_philosophy',
+                memory_layer: 'personal_kg_core',
+                retrieval_purpose: 'owner_judgment',
+                projection_allowed: false,
+                projection_gate: 'redact_or_approve_before_sns_team_org'
+            }
+        }
+    });
+    repo.create({
+        id: 'oyasumi_sns_ready_ai_sales_agency',
+        source_system: 'oyasumi-meeting-personal-kg',
+        cognitive_type: 'insight',
+        owner_person_id: 'sato_keigo',
+        actor_person_id: 'sato_keigo',
+        source_event_ids: ['github:minutes#sns_ready:ai-sales-agency'],
+        workspace: 'github',
+        project_code: 'salestailor',
+        org_ids: ['unson', 'salestailor'],
+        project_ids: ['salestailor'],
+        visibility: 'owner',
+        sensitivity: 'internal',
+        redaction_status: 'none',
+        body: 'AI活用支援の相談は案件幅が大きく、営業代行で現金化しながら自社プロダクトの導入機会を作る動線がある。',
+        permission_snapshot: {
+            oyasumi_meeting_personal_kg: {
+                category: 'sales_philosophy',
+                memory_layer: 'sns_ready',
+                retrieval_purpose: 'sns_generation',
+                projection_allowed: true,
+                projection_gate: 'sns_projection_can_use_after_context_review'
+            }
+        }
+    });
     return repo;
 }
 
@@ -206,8 +256,13 @@ describe('SNS Generation Context', () => {
         expect(context.posting_stats.days_30.by_source_type['Peer Circle'].posts).toBe(1);
         expect(context.posting_stats.days_30.by_algorithm_fit.personal_kg_semantic_anchor.posts).toBe(1);
         expect(context.personal_kg.anchors).toEqual(expect.arrayContaining([
-            expect.stringContaining('Persona Brainで考える')
+            expect.stringContaining('Persona Brainで考える'),
+            expect.stringContaining('AI活用支援の相談は案件幅が大きく')
         ]));
+        expect(context.personal_kg.retrieval_purpose).toBe('sns_generation');
+        expect(context.personal_kg.guarded_count).toBe(1);
+        expect(context.personal_kg.anchors.join('\n')).not.toContain('月額予算15万円');
+        expect(context.personal_kg.anchors.join('\n')).not.toContain('月5から10件');
         expect(context.personal_kg.proof_points).toEqual(expect.arrayContaining([
             expect.stringContaining('MANAによるAI駆動PM')
         ]));
@@ -215,7 +270,8 @@ describe('SNS Generation Context', () => {
         expect(context.personal_kg.candidate_sources).toEqual(expect.arrayContaining([
             expect.objectContaining({ source_system: 'brainbase-personal-kg-seed', count: 1 }),
             expect.objectContaining({ source_system: 'baao-minutes-personal-kg-seed', count: 1 }),
-            expect.objectContaining({ source_system: 'cross-project-minutes-personal-kg-seed', count: 1 })
+            expect.objectContaining({ source_system: 'cross-project-minutes-personal-kg-seed', count: 1 }),
+            expect.objectContaining({ source_system: 'oyasumi-meeting-personal-kg', count: 1 })
         ]));
         expect(context.generation_policy.winning_angles).toEqual(expect.arrayContaining([
             expect.stringContaining('MANAによるAI駆動PM')

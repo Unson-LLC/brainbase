@@ -51,6 +51,47 @@ describe('WorktreeService workspace generation', () => {
         expect(execPromise).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark create -r develop "session/session-1-g1"');
     });
 
+    it('C-2: workspace add race reuses an existing workspace when jj reports already exists', async () => {
+        vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockImplementation(async (targetPath) => {
+            if (targetPath === '/tmp/repo') return undefined;
+            if (targetPath === '/tmp/worktrees/session-1-g1-repo') return undefined;
+            throw Object.assign(new Error('not found'), { code: 'ENOENT' });
+        });
+        vi.spyOn(service, '_isJujutsuRepo').mockResolvedValue(true);
+        vi.spyOn(service, '_ensureGitCompatibility').mockResolvedValue({
+            gitWorktreePath: '/tmp/repo/.git/worktrees/session-1-g1-repo'
+        });
+        vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
+        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('develop');
+        vi.spyOn(service, '_getWorkspaceStartCommit').mockResolvedValue('base123');
+
+        execPromise
+            .mockResolvedValueOnce({ stdout: '' }) // workspace list before race
+            .mockRejectedValueOnce(new Error("Command failed: jj workspace add\nError: Workspace named 'session-1-g1-repo' already exists\n"));
+
+        const result = await service.create('session-1', '/tmp/repo', {
+            workspaceId: 'session-1-g1',
+            generation: 1,
+            skipFetch: true
+        });
+
+        expect(result).toMatchObject({
+            workspaceId: 'session-1-g1',
+            generation: 1,
+            workspaceName: 'session-1-g1-repo',
+            worktreePath: '/tmp/worktrees/session-1-g1-repo',
+            branchName: 'session/session-1-g1',
+            startCommit: 'base123'
+        });
+        expect(service._ensureGitCompatibility).toHaveBeenCalledWith(
+            'session-1',
+            '/tmp/repo',
+            '/tmp/worktrees/session-1-g1-repo',
+            expect.objectContaining({ workspaceId: 'session-1-g1', generation: 1 })
+        );
+    });
+
     it('S-1: merge can retire the active generation and create the next generation', async () => {
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
         vi.spyOn(service, '_getGitHubRepoSpec').mockResolvedValue('Unson-LLC/brainbase-unson');

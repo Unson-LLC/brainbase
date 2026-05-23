@@ -90,7 +90,7 @@ describe('terminal token status', () => {
     expect(app.terminalTokenStatusEl.title).toContain('Codex token limits: 5h usage 26%, elapsed time 60%, 7d usage 63%, elapsed time 85%');
   });
 
-  it('terminal token status is rendered in the header instead of overlaying terminal input', () => {
+  it('terminal toolbar stays mounted and hides only during startup prompt mode', () => {
     const indexHtml = readFileSync(join(process.cwd(), 'public/index.html'), 'utf8');
     const styleCss = readFileSync(join(process.cwd(), 'public/style.css'), 'utf8');
     const headerStatusStart = indexHtml.indexOf('<div class="terminal-header-status-group">');
@@ -101,7 +101,19 @@ describe('terminal token status', () => {
     expect(headerStatusStart).toBeGreaterThan(-1);
     expect(tokenStatusIndex).toBeGreaterThan(headerStatusStart);
     expect(tokenStatusIndex).toBeLessThan(terminalStageIndex);
+    expect(styleCss).toContain('.console-area.terminal-startup-active > .terminal-header');
+    expect(styleCss).toContain('display: none;');
+    expect(styleCss).not.toContain('.console-area > .terminal-header,\n.command-center-theme .console-area > .terminal-header');
     expect(tokenStatusBlock).not.toContain('position: absolute');
     expect(tokenStatusBlock).not.toContain('bottom:');
+  });
+
+  it('xterm type-to-focus Shift+Enter uses the same S-Enter contract as xterm custom key handling', () => {
+    const inputUxSource = readFileSync(join(process.cwd(), 'public/modules/app/terminal-input-ux-mixin.js'), 'utf8');
+    const transportSource = readFileSync(join(process.cwd(), 'public/modules/core/terminal-transport-client.js'), 'utf8');
+
+    expect(transportSource).toContain("void this.sendKey('S-Enter')");
+    expect(inputUxSource).toContain("this.terminalTransportClient.sendKey('S-Enter')");
+    expect(inputUxSource).not.toContain("this.terminalTransportClient.sendKey('M-Enter')");
   });
 });

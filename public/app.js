@@ -476,6 +476,7 @@ export class App {
                 this.terminalTransportClient = new TerminalTransportClient({
                     viewerId: this.viewerId,
                     viewerLabel: this.viewerLabel,
+                    getCurrentSessionId: () => appStore.getState().currentSessionId,
                     onStatusChange: (status) => {
                         this._terminalTransportStatus = status;
                         this._updateTerminalInputStatus();

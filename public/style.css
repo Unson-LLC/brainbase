@@ -1571,10 +1571,23 @@ button svg *,
     color: var(--warning-color);
 }
 
+.session-summary-chip.chip-unpushed,
 .session-summary-chip.chip-push {
     background: rgba(47, 125, 246, 0.14);
     border-color: rgba(47, 125, 246, 0.28);
     color: #8bbcff;
+}
+
+.session-summary-chip.chip-unmerged {
+    background: rgba(168, 85, 247, 0.13);
+    border-color: rgba(168, 85, 247, 0.28);
+    color: #c4a7ff;
+}
+
+.session-summary-chip.chip-conflict {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
 }
 
 .session-summary-chip.chip-pr-ok {
@@ -2275,6 +2288,22 @@ button svg *,
     font-family: var(--terminal-font-family);
     font-size: var(--terminal-font-size);
     line-height: var(--terminal-line-height);
+}
+
+.terminal-copy-range-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.terminal-copy-lines {
+    height: 30px;
+    min-width: 92px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 0 8px;
 }
 
 /* Snapshot link styles */
@@ -4524,6 +4553,7 @@ body.resizing iframe {
 .next-task-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     font-size: 0.7rem;
     color: var(--text-secondary);
@@ -11810,6 +11840,77 @@ body.resizing iframe {
     padding: 2rem;
 }
 
+.session-startup-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(640px, calc(100vw - 96px));
+    margin-top: 18px;
+}
+
+.session-startup-composer.hidden {
+    display: none;
+}
+
+.session-startup-prompt-input {
+    width: 100%;
+    min-height: 112px;
+    resize: vertical;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.88);
+    color: #e5e7eb;
+    padding: 12px 14px;
+    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    outline: none;
+}
+
+.session-startup-prompt-input:focus {
+    border-color: rgba(59, 130, 246, 0.9);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.session-startup-composer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.session-startup-prompt-status {
+    min-width: 0;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: left;
+}
+
+.session-startup-prompt-status[data-state="queued"],
+.session-startup-prompt-status[data-state="sent"] {
+    color: #93c5fd;
+}
+
+.session-startup-prompt-status[data-state="failed"] {
+    color: #fca5a5;
+}
+
+.session-startup-prompt-send {
+    flex: 0 0 auto;
+    border: 1px solid rgba(59, 130, 246, 0.7);
+    border-radius: 8px;
+    background: #2563eb;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.session-startup-prompt-send:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .spinner {
     width: 48px;
     height: 48px;
@@ -15929,7 +16030,17 @@ body.sns-growth-mode-active .terminal-header {
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .deadline {
-    display: none;
+    grid-column: 2;
+    grid-row: 2;
+    display: inline-flex;
+    align-self: start;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    color: #aeb8c5;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .assignee-combobox {
@@ -16067,9 +16178,9 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .task-title {
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     position: relative;
-    align-self: center;
+    align-self: end;
     min-width: 0;
     overflow: visible;
     color: #f3f6fa;
@@ -16081,10 +16192,10 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme #tasks-tab-content .nocodb-task-item .task-title-text {
     display: -webkit-box;
-    max-height: calc(12.5px * 1.35 * 2);
+    max-height: calc(12.5px * 1.35);
     overflow: hidden;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     overflow-wrap: anywhere;
 }
 
@@ -19659,4 +19770,10 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
         border-right: 0;
         border-bottom: 1px solid rgba(191, 201, 214, 0.12);
     }
+}
+
+/* Keep terminal controls mounted for JS state, but remove the visual chrome only during startup prompt mode. */
+.console-area.terminal-startup-active > .terminal-header,
+.command-center-theme .console-area.terminal-startup-active > .terminal-header {
+    display: none;
 }

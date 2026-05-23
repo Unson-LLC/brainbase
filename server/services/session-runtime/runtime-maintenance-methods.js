@@ -142,22 +142,11 @@ export const runtimeMaintenanceMethods = {
             }
 
             if (pauseSessionIds.size > 0) {
-                const now = new Date().toISOString();
-                const currentState = this.stateStore.get();
-                const updatedSessions = (currentState.sessions || []).map(session => {
-                    if (!pauseSessionIds.has(session.id)) return session;
-                    return {
-                        ...session,
-                        intendedState: 'paused',
-                        pausedReason: 'tmux_missing_on_restore',
-                        pausedAt: now,
-                        tmuxMissingAt: now,
-                        ttydProcess: null,
-                        updatedAt: now
-                    };
+                // 2026-05-21: consolidated path. Single source of truth for
+                // tmux_missing → paused transition lives in _pauseSessionsForMissingTmux.
+                await this._pauseSessionsForMissingTmux(pauseSessionIds, {
+                    reason: 'tmux_missing_on_restore',
                 });
-                await this.stateStore.update({ ...currentState, sessions: updatedSessions });
-                logger.warn(`[restoreActiveSessions] Paused ${pauseSessionIds.size} session(s) with missing TMUX`);
             }
 
             logger.info(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
@@ -175,6 +164,158 @@ export const runtimeMaintenanceMethods = {
             await this.cleanupOrphans();
         } catch (err) {
             logger.error('[restoreActiveSessions] Error:', err);
+        }
+    },
+
+    /**
+     * tmux runtime が missing な active session を paused に flip する単一の
+     * state transition point。 boot-time restore と periodic ensure ループの
+     * 双方から呼ばれる。
+     *
+     * 2026-05-21: 17 sessions が tmux_missing で degraded のまま滞留した
+     * incident への対応で抽出。以前は restoreActiveSessions が inline で同様
+     * の更新を行い、ensureTtydForActiveSession は warn だけして state 更新を
+     * 行っていなかった。 単一経路に集約して再発を防ぐ。
+     *
+     * @param {Iterable<string>} sessionIds
+     * @param {{ reason: 'tmux_missing_on_restore'|'tmux_missing_runtime' }} options
+     * @returns {Promise<{ paused: string[] }>}
+     */
+    async _pauseSessionsForMissingTmux(sessionIds, { reason } = {}) {
+        const ids = new Set();
+        for (const id of sessionIds || []) {
+            if (typeof id === 'string' && id.length > 0) ids.add(id);
+        }
+        if (ids.size === 0) return { paused: [] };
+        if (typeof reason !== 'string' || reason.length === 0) {
+            throw new Error('[_pauseSessionsForMissingTmux] reason is required');
+        }
+
+        const now = new Date().toISOString();
+        const currentState = this.stateStore.get();
+        const updatedSessions = (currentState.sessions || []).map(session => {
+            if (!ids.has(session.id)) return session;
+            return {
+                ...session,
+                intendedState: 'paused',
+                pausedReason: reason,
+                pausedAt: now,
+                tmuxMissingAt: now,
+                ttydProcess: null,
+                updatedAt: now,
+            };
+        });
+        await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+
+        // Drop from active registry so future ensure ticks skip them.
+        for (const id of ids) {
+            this.activeSessions.delete(id);
+        }
+
+        logger.warn(
+            `[_pauseSessionsForMissingTmux] Paused ${ids.size} session(s) with reason=${reason}: ${[...ids].join(', ')}`
+        );
+        return { paused: [...ids] };
+    },
+
+    /**
+     * tmux pane が指定 threshold 以上稼働している active session を検知して
+     * recycle する。 tmux を kill して codex/claude プロセスを破棄し、 state を
+     * paused にする。 次回 user が start すると fresh tmux + agent が立ち上がる。
+     *
+     * 2026-05-22 incident: 「手紙改善」「運用報告書」 session が 10 日稼働で
+     * codex プロセスの env スナップショットが凍結 (CLAUDE_CODE_OAUTH_TOKEN 等)
+     * → token rotation 後に「壊れた」と codex が誤判定する事故。 上限 threshold
+     * を設けて長期稼働 session を能動的に recycle する。
+     *
+     * @param {{ thresholdHours: number, reason?: string }} options
+     * @returns {Promise<{ recycled: Array<{ id: string, uptimeHours: number }> }>}
+     */
+    async _pauseStaleSessionsByUptime({ thresholdHours, reason = 'stale_uptime_recycle' } = {}) {
+        if (typeof thresholdHours !== 'number' || !(thresholdHours > 0)) {
+            throw new Error('[_pauseStaleSessionsByUptime] thresholdHours must be a positive number');
+        }
+
+        const state = this.stateStore.get();
+        const activeSessions = (state.sessions || []).filter((s) => s?.intendedState === 'active');
+        if (activeSessions.length === 0) return { recycled: [] };
+
+        const thresholdSec = thresholdHours * 3600;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const stale = [];
+
+        for (const s of activeSessions) {
+            try {
+                const { stdout } = await this.execPromise(
+                    `tmux display -t '${s.id}' -p '#{session_created}' 2>/dev/null`
+                );
+                const created = parseInt(String(stdout).trim(), 10);
+                if (!Number.isFinite(created)) continue;
+                const uptimeSec = nowSec - created;
+                if (uptimeSec >= thresholdSec) {
+                    stale.push({ id: s.id, uptimeHours: Math.floor(uptimeSec / 3600) });
+                }
+            } catch (_) {
+                // tmux not running for this session — handled by
+                // ensureTtydForActiveSession via _pauseSessionsForMissingTmux.
+            }
+        }
+
+        if (stale.length === 0) return { recycled: [] };
+
+        // Kill tmux first so the env-frozen codex/claude process tree dies.
+        // ttyd will exit on its own when tmux disappears.
+        for (const { id, uptimeHours } of stale) {
+            logger.warn(
+                `[_pauseStaleSessionsByUptime] Recycling stale session ${id} (uptime=${uptimeHours}h >= threshold=${thresholdHours}h)`
+            );
+            await this.execPromise(`tmux kill-session -t '${id}' 2>/dev/null`).catch(() => {});
+        }
+
+        // Mark state via existing helper (single source of truth for paused
+        // transition, PR #802).
+        await this._pauseSessionsForMissingTmux(stale.map((x) => x.id), { reason });
+
+        return { recycled: stale };
+    },
+
+    /**
+     * Periodic recycler. Calls _pauseStaleSessionsByUptime on an interval.
+     * Default: check every 1h with threshold 168h (7 days).
+     * Env overrides:
+     *   BRAINBASE_STALE_UPTIME_THRESHOLD_HOURS (default 168)
+     *   BRAINBASE_STALE_UPTIME_CHECK_INTERVAL_MS (default 3600000)
+     */
+    startStaleSessionRecycler() {
+        if (this._staleRecyclerTimer) return;
+        const thresholdHours = Number(process.env.BRAINBASE_STALE_UPTIME_THRESHOLD_HOURS) || 168;
+        const intervalMs = Number(process.env.BRAINBASE_STALE_UPTIME_CHECK_INTERVAL_MS) || 3600000;
+        if (!(thresholdHours > 0) || !(intervalMs > 0)) {
+            logger.warn(`[StaleSessionRecycler] disabled (threshold=${thresholdHours}h interval=${intervalMs}ms)`);
+            return;
+        }
+        logger.info(`[StaleSessionRecycler] Starting (threshold=${thresholdHours}h, interval=${intervalMs / 1000}s)`);
+        const tick = async () => {
+            try {
+                const { recycled } = await this._pauseStaleSessionsByUptime({ thresholdHours });
+                if (recycled.length > 0) {
+                    logger.warn(`[StaleSessionRecycler] Recycled ${recycled.length} session(s): ${recycled.map((x) => x.id).join(', ')}`);
+                }
+            } catch (err) {
+                logger.error('[StaleSessionRecycler] Error:', err instanceof Error ? err.message : String(err));
+            }
+        };
+        // Don't await — run async on interval
+        this._staleRecyclerTimer = setInterval(tick, intervalMs);
+        // Fire once immediately so boot-time long-running sessions get recycled.
+        tick().catch(() => {});
+    },
+
+    stopStaleSessionRecycler() {
+        if (this._staleRecyclerTimer) {
+            clearInterval(this._staleRecyclerTimer);
+            this._staleRecyclerTimer = null;
+            logger.info('[StaleSessionRecycler] Stopped');
         }
     },
 
@@ -422,6 +563,16 @@ export const runtimeMaintenanceMethods = {
                 if (level === 'CRITICAL') {
                     logger.error(`[PTY Watchdog] CRITICAL: PTY usage at ${usage}%! Running orphan cleanup...`);
                     await this.cleanupOrphans();
+                }
+
+                if (typeof this.runtimeReconciler?.reconcile === 'function') {
+                    const reconcileResult = await this.runtimeReconciler.reconcile({ dryRun: false, recover: true });
+                    const recoveryActions = (reconcileResult.actions || []).filter((action) =>
+                        action.type === 'restart_terminal_runtime' || action.success === true
+                    );
+                    if (recoveryActions.length > 0) {
+                        logger.warn(`[PTY Watchdog] Runtime reconciliation recovered ${recoveryActions.length} issue(s)`);
+                    }
                 }
 
                 await this.repairActiveTtydSessions();

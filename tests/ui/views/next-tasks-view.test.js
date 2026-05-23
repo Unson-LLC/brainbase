@@ -112,6 +112,19 @@ describe('NextTasksView', () => {
             expect(container.innerHTML).toContain('my-project');
         });
 
+        it('should display an explicit deadline from deadline aliases', () => {
+            const mockTasks = [
+                { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium', due_at: '2099-12-31' }
+            ];
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
+
+            nextTasksView.render();
+
+            const deadline = container.querySelector('.next-task-deadline');
+            expect(deadline).toBeTruthy();
+            expect(deadline.textContent).toContain('期限: 2099/12/31');
+        });
+
         it('should render action buttons for each task', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium' }

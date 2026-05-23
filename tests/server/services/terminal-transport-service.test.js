@@ -33,6 +33,7 @@ function buildService() {
         releaseTerminalOwnership: vi.fn(() => true),
         ensureTerminalOwnership: vi.fn(() => ({ allowed: true })),
         getTerminalAccessState: vi.fn(() => ({ state: 'owner' })),
+        getSessionById: vi.fn(() => ({ id: 'session-1', startupStatus: 'ready' })),
         getSession: vi.fn(() => ({
             runtimeState: 'interactive_ready',
             observed: { inputProbe: { status: 'passed' } }
@@ -65,6 +66,28 @@ function buildMockWs() {
 }
 
 describe('TerminalTransportService', () => {
+    it('pending startup shellのWebSocket接続を拒否する', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getSessionById.mockReturnValue({
+            id: 'session-pending',
+            startupStatus: 'pending',
+            startupPhase: 'worktree',
+            startupMessage: 'ワークスペースを準備中...'
+        });
+        const ws = buildMockWs();
+
+        await service._handleConnection(ws, {}, {
+            sessionId: 'session-pending',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac'
+        });
+
+        expect(sessionManager.ensureTerminalOwnership).not.toHaveBeenCalled();
+        expect(sessionManager.isTmuxSessionRunning).not.toHaveBeenCalled();
+        expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('SESSION_STARTUP_NOT_READY'));
+        expect(ws.close).toHaveBeenCalledWith(4009, 'session_startup_not_ready');
+    });
+
     it('input message で tmux sendInput を呼ぶ', async () => {
         const { service, sessionManager, captureCache } = buildService();
         const connection = {
@@ -228,6 +251,115 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
+    it('OSC color response断片だけのinput messageはtmuxへ送らず無視する', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: ']10;rgb:0000/0000/0000'
+        }));
+
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('bare [I は通常テキストとしてtmuxへ送る', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '[I'
+        }));
+
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', '[I', 'text');
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+    });
+
+    it('focus report混入input messageはESC付きだけ除去してtmuxへ送る', async () => {
+        const { service, sessionManager } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello[Iworld\x1b[O'
+        }));
+
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello[Iworld', 'text');
+    });
+
+    it('available状態の入力は同一viewerでownershipを再取得して送る', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getTerminalAccessState
+            .mockReturnValueOnce({ state: 'available' })
+            .mockReturnValue({ state: 'owner', ownerViewerId: 'viewer-1' });
+        sessionManager.ensureTerminalOwnership.mockReturnValue({
+            allowed: true,
+            terminalAccess: { state: 'owner', ownerViewerId: 'viewer-1' }
+        });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: 'hello'
+        }));
+
+        expect(sessionManager.ensureTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
+        expect(connection.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('blocked'));
+    });
+
+    it('制御応答だけのinputはavailable状態でもownershipを取得しない', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        sessionManager.getTerminalAccessState.mockReturnValue({ state: 'available' });
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\x1b[I\x1b[O'
+        }));
+
+        expect(sessionManager.ensureTerminalOwnership).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
+    });
+
     it('inputReady が false でも snapshot が ready なら probe を回復して送信する', async () => {
         const { service, sessionManager, captureCache, controlClient } = buildService();
         sessionManager.getSession.mockReturnValue({
@@ -270,8 +402,8 @@ describe('TerminalTransportService', () => {
             mode: 'snapshot_recovery',
             cliReason: 'codex_prompt'
         }));
-        expect(controlClient.sendLiteralText).toHaveBeenCalledWith('hello');
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
     });
 
     it('snapshot-polling input は同期pollせず短時間でまとめてrefreshする', async () => {
@@ -759,7 +891,7 @@ describe('TerminalTransportService', () => {
         expect(connection.rows).toBe(12);
     });
 
-    it('streaming input はcontrol-mode literal送信を使いspawn-per-input経路を避ける', async () => {
+    it('streaming input はterminal-io経路へfallbackする', async () => {
         const { service, sessionManager, controlClient, captureCache } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -776,13 +908,13 @@ describe('TerminalTransportService', () => {
             value: 'hello'
         }));
 
-        expect(controlClient.sendLiteralText).toHaveBeenCalledWith('hello');
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
         expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
     });
 
-    it('streaming Backspace text はcontrol-mode key送信を使う', async () => {
+    it('streaming Backspace text はterminal-io経路へfallbackする', async () => {
         const { service, sessionManager, controlClient } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -799,8 +931,8 @@ describe('TerminalTransportService', () => {
             value: '\x7f'
         }));
 
-        expect(controlClient.sendKey).toHaveBeenCalledWith('BSpace');
-        expect(sessionManager.sendInput).not.toHaveBeenCalled();
+        expect(controlClient.sendKey).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', '\x7f', 'text');
     });
 
     it('streaming multiline paste は既存のterminalIo経路にfallbackする', async () => {
@@ -823,6 +955,32 @@ describe('TerminalTransportService', () => {
         expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
         expect(controlClient.sendKey).not.toHaveBeenCalled();
         expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello\nworld', 'text');
+    });
+
+    it('paste message はterminalIoのbracketed paste経路へ一括送信する', async () => {
+        const { service, sessionManager, controlClient } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'input',
+            inputType: 'paste',
+            value: 'hello\nworld'
+        }));
+
+        expect(controlClient.sendLiteralText).not.toHaveBeenCalled();
+        expect(controlClient.sendKey).not.toHaveBeenCalled();
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello\nworld', 'text', {
+            forcePaste: true,
+            bracketedPaste: true,
+            preserveLineFeed: true
+        });
     });
 
     it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {

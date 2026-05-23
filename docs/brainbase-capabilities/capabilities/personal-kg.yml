@@ -1,0 +1,69 @@
+id: personal-kg
+name: Personal KG (個人ナレッジグラフ)
+purpose: |
+  Keep founder/owner cognitive memory (思想・実績・営業哲学・読者理解・判断基準) as
+  reusable evidence for SNS generation, /ohayo morning brief, and future AI judgements.
+  Two layers: (a) personal-kg core stored as owner-visible cognitive memory in
+  candidate-store, (b) SNS projection (`sns_ready`) that exposes a subset for
+  SNS curator. Status: implementation in progress (multiple active stories).
+surfaces:
+  ui:
+    - /oyasumi command (coordinator that fan-outs to specialist agents)
+    - /ohayo command (consumes personal-kg via SNS generation context for morning brief)
+  api:
+    - POST http://localhost:31013/api/wiki/page (decisions / wiki write-back path used by /oyasumi)
+    - Direct DB write via `INFO_SSOT_DATABASE_URL` to `memory_candidates`
+      (no public REST yet; story `oyasumi-meeting-personal-kg` defines the schema)
+  code:
+    - .claude/commands/oyasumi.md
+    - scripts/oyasumi-meeting-personal-kg.js
+    - server/services/sns/oyasumi-meeting-personal-kg-service.js
+    - server/services/sns/sns-generation-context-service.js
+    - server/sql/candidate-store-schema.sql
+  data:
+    - INFO_SSOT_DATABASE_URL.memory_candidates  # candidate-store / personal-kg core
+    - INFO_SSOT_DATABASE_URL.personal_kg_entity_links  # links candidates to Graph projects
+depends_on:
+  - INFO_SSOT_DATABASE_URL  # Lightsail PostgreSQL tunnel (port 25432)
+  - graph.ssot capability  # entity links target Graph projects (`prj_xxx`)
+  - auth.grants capability  # owner visibility is scoped by JWT access
+specialist_agents:
+  # Per `/oyasumi` Personal KG Agent Handoff section
+  - meeting_harvester  # 当日 minutes + transcript を集めて source metadata 保持
+  - personal_kg_extractor  # SNS化前の personal_kg_core を抽出
+  - sensitivity_reviewer  # family/medical/private/counterparty 機密の保持可否分け
+  - sns_projection  # personal_kg_core のうち SNS で使えるものを sns_ready へ投影
+visibility_rules:
+  - owner-visible のみ (他オーナーの core memory は read 不可)
+  - redacted / rejected / expired candidate は SNS curator 側で除外
+  - `agency_level=none` は SNS projection 対象外
+verification:
+  commands:
+    # dry-run (DB 書き込み無し、抽出結果のみ確認)
+    - npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --json
+    # 本番書き込み (Lightsail tunnel 必須)
+    - INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --write --json
+    # DB 直接確認
+    - SELECT id, owner_id, agency_level, sns_ready, source FROM memory_candidates WHERE created_at::date = 'YYYY-MM-DD' ORDER BY created_at DESC LIMIT 20;
+  expected:
+    - 当日議事録が候補として memory_candidates に登場
+    - 出力 JSON の `project_link_summary` で `linked / unchanged / unresolved` 件数が分かる
+    - `unson-board` / `yakumokai` 等の SalesTailor 外 repo も Graph project `unson` に紐づく
+common_failures:
+  - /oyasumi が Graph/Wiki/NocoDB には反映するが memory_candidates に書き込まれていない (本 capability 不在で SNS 生成 context が空)
+  - Lightsail SSH tunnel 落ちで INFO_SSOT_DATABASE_URL 接続不可 → write が silent fail
+  - agency_level=none で保存され SNS curator から見えない (sensitivity_reviewer 設計問題)
+  - personal_kg_entity_links が未更新で SNS 投稿 context が project 単位で組めない
+  - 流動的な story 進行中なので schema 変更が頻繁、本 yaml と乖離する可能性あり (定期 sync 必要)
+runbooks:
+  # 専用 runbook なし。Story と /oyasumi command を一次参照とする (capability progress に応じて runbook 化)
+  - ../../stories/oyasumi-meeting-personal-kg-story.md
+  - ../../stories/oyasumi-personal-kg-agent-fanout-story.md
+  - ../../stories/personal-kg-sns-seed-mvp-story.md
+  - ../../../.claude/commands/oyasumi.md
+troubleshooting:
+  # 専用 troubleshooting なし。memory_candidates 不在は story 内 "Context" 節を参照
+  - ../../stories/oyasumi-meeting-personal-kg-story.md
+status_note: |
+  Story 進行中 (status: active for 2 of 3 related stories as of 2026-05-22).
+  Capability schema は安定するまで pointer 重視。実装が固まったら専用 runbook / troubleshooting を別 Story で追加する。

@@ -11,7 +11,6 @@ const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
-const STREAMING_INLINE_TEXT_MAX_BYTES = 1024;
 const MAX_SCROLL_STEPS = 8;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 const MIN_TERMINAL_COLS = 40;
@@ -19,25 +18,8 @@ const MIN_TERMINAL_ROWS = 12;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
 const INPUT_READY_STATES = new Set([CliState.READY, CliState.IDLE, CliState.WAITING]);
 const OSC_SEQUENCE_PATTERN = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*?(?:\x07|\x1B\\)/g;
+const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1B\\)?/gi;
 const FOCUS_EVENT_PATTERN = /\x1B\[(?:I|O)/g;
-const STREAMING_TEXT_CONTROL_KEY_MAP = new Map([
-    ['\r', 'Enter'],
-    ['\n', 'Enter'],
-    ['\r\n', 'Enter'],
-    ['\x7f', 'BSpace'],
-    ['\x08', 'BSpace'],
-    ['\x03', 'C-c'],
-    ['\x04', 'C-d'],
-    ['\x0c', 'C-l'],
-    ['\x15', 'C-u'],
-    ['\x1b', 'Escape'],
-    ['\t', 'Tab'],
-    ['\x1b[A', 'Up'],
-    ['\x1b[B', 'Down'],
-    ['\x1b[C', 'Right'],
-    ['\x1b[D', 'Left']
-]);
-
 function safeJsonParse(raw) {
     try {
         return JSON.parse(raw);
@@ -71,6 +53,10 @@ function buildTerminalWsMatch(urlString = '') {
     } catch {
         return null;
     }
+}
+
+function isStartupShell(session) {
+    return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
 }
 
 export class TerminalTransportService {
@@ -125,6 +111,20 @@ export class TerminalTransportService {
         if (!sessionId || !viewerId) {
             ws.send(JSON.stringify({ type: 'error', code: 'INVALID_REQUEST', message: 'sessionId and viewerId are required' }));
             ws.close();
+            return;
+        }
+
+        const session = this.runtimeQuery.getSessionById?.(sessionId) || null;
+        if (isStartupShell(session)) {
+            ws.send(JSON.stringify({
+                type: 'error',
+                code: 'SESSION_STARTUP_NOT_READY',
+                message: 'Session startup is not ready for terminal transport.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            }));
+            ws.close(4009, 'session_startup_not_ready');
             return;
         }
 
@@ -542,11 +542,13 @@ export class TerminalTransportService {
                 return;
             }
             case 'input': {
-                const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
-                connection.terminalAccess = terminalAccess;
-                const inputTypeForLog = message.inputType === 'key' ? 'key' : 'text';
+                const inputTypeForLog = message.inputType === 'key'
+                    ? 'key'
+                    : message.inputType === 'paste'
+                        ? 'paste'
+                        : 'text';
                 const rawValue = typeof message.value === 'string' ? message.value : '';
-                const normalizedValue = inputTypeForLog === 'text'
+                const normalizedValue = inputTypeForLog === 'text' || inputTypeForLog === 'paste'
                     ? this._stripTerminalControlResponses(rawValue)
                     : rawValue;
                 const valueLen = normalizedValue.length;
@@ -554,11 +556,22 @@ export class TerminalTransportService {
                 const valueDebug = normalizedValue
                     ? normalizedValue.replace(/[\x00-\x1F\x7F]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`).slice(0, 60)
                     : '';
-                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state} debug="${valueDebug}"`);
-                if (inputTypeForLog === 'text' && !normalizedValue && rawValue) {
+                const initialTerminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${initialTerminalAccess?.state} debug="${valueDebug}"`);
+                if ((inputTypeForLog === 'text' || inputTypeForLog === 'paste') && !normalizedValue && rawValue) {
                     logger.info(`[INPUT-TELEMETRY] ignored reason=TERMINAL_CONTROL_RESPONSE session=${sessionId} originalLen=${rawValue.length}`);
                     return;
                 }
+                let terminalAccess = initialTerminalAccess;
+                if (terminalAccess?.state === 'available') {
+                    const ownership = this.ownershipService.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+                    if (ownership?.terminalAccess) {
+                        terminalAccess = ownership.terminalAccess;
+                    } else {
+                        terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+                    }
+                }
+                connection.terminalAccess = terminalAccess;
                 if (terminalAccess?.state !== 'owner') {
                     logger.warn(`[TTC-PROBE][ws-input] dropped NOT_OWNER session=${sessionId} len=${valueLen}`);
                     logger.warn(`[INPUT-TELEMETRY] dropped reason=NOT_OWNER session=${sessionId} len=${valueLen} viewer=${viewerId}`);
@@ -591,7 +604,15 @@ export class TerminalTransportService {
                 try {
                     sentViaStreaming = this._sendStreamingInput(connection, normalizedValue, inputType);
                     if (!sentViaStreaming) {
-                        await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
+                        if (inputType === 'paste') {
+                            await this.terminalIo.sendInput(sessionId, normalizedValue, 'text', {
+                                forcePaste: true,
+                                bracketedPaste: true,
+                                preserveLineFeed: true
+                            });
+                        } else {
+                            await this.terminalIo.sendInput(sessionId, normalizedValue, inputType);
+                        }
                     }
                     logger.info(`[INPUT-TELEMETRY] sentOk session=${sessionId} len=${valueLen} type=${inputType} route=${sentViaStreaming ? 'control-mode' : 'terminal-io'}`);
                 } catch (err) {
@@ -682,30 +703,7 @@ export class TerminalTransportService {
     }
 
     _sendStreamingInput(connection, value, inputType) {
-        if (connection.transport !== 'streaming' || !connection.controlClient) return false;
-
-        try {
-            if (inputType === 'key') {
-                if (value === 'M-Enter' || value === 'S-Enter') return false;
-                return connection.controlClient.sendKey?.(value) === true;
-            }
-
-            if (inputType !== 'text' || typeof value !== 'string' || !value) return false;
-
-            const mappedKey = STREAMING_TEXT_CONTROL_KEY_MAP.get(value);
-            if (mappedKey) {
-                return connection.controlClient.sendKey?.(mappedKey) === true;
-            }
-
-            if (value.includes('\n') || value.includes('\r')) return false;
-            if (/[\x00-\x1f\x7f]/.test(value)) return false;
-            if (Buffer.byteLength(value, 'utf8') > STREAMING_INLINE_TEXT_MAX_BYTES) return false;
-
-            return connection.controlClient.sendLiteralText?.(value) === true;
-        } catch (err) {
-            logger.warn(`[TerminalTransport] streaming input fallback for ${connection.sessionId}: ${err?.message || err}`);
-            return false;
-        }
+        return false;
     }
 
     /**
@@ -777,6 +775,7 @@ export class TerminalTransportService {
         if (typeof value !== 'string' || !value) return value;
         return value
             .replace(OSC_SEQUENCE_PATTERN, '')
+            .replace(BARE_OSC_COLOR_RESPONSE_PATTERN, '')
             .replace(FOCUS_EVENT_PATTERN, '');
     }
 

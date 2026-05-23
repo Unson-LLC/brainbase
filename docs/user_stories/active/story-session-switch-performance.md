@@ -86,5 +86,5 @@ Brainbase のセッション切り替えでは、ユーザーが次のセッシ�
 ```bash
 npm run test:run -- tests/ui/session-context-bar-view.test.js tests/unit/server-session-controller.test.js tests/server/services/terminal-transport-service.test.js tests/unit/terminal-transport-client.test.js tests/server/services/terminal-input-probe-service.test.js
 npx eslint public/modules/core/terminal-transport-client.js server/services/terminal-input-probe-service.js public/modules/ui/views/session-context-bar-view.js public/modules/app/terminal-input-ux-mixin.js server/controllers/session/runtime-handlers.js server/services/terminal-transport-service.js
-PORT=31077 BRAINBASE_PORT=31077 BRAINBASE_BASE_URL=http://127.0.0.1:31077 npm run test:e2e -- tests/e2e/terminal-input-canary.spec.js
+PORT=31077 BRAINBASE_PORT=31077 BRAINBASE_BASE_URL=http://127.0.0.1:31077 npm run test:e2e -- tests/e2e/story-terminal-input-render-stability-canary.spec.ts
 ```

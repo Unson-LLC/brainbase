@@ -307,8 +307,7 @@ export class TmuxControlClient extends EventEmitter {
     sendLiteralText(input) {
         if (typeof input !== 'string' || !input) return false;
         if (CONTROL_TEXT_PATTERN.test(input)) return false;
-        this.sendCommand(`send-keys -t ${quoteTmuxCommandArg(this.sessionId)} -l -- ${quoteTmuxCommandArg(input)}`);
-        return true;
+        return this.sendCommand(`send-keys -t ${quoteTmuxCommandArg(this.sessionId)} -l -- ${quoteTmuxCommandArg(input)}`);
     }
 
     /**
@@ -317,18 +316,17 @@ export class TmuxControlClient extends EventEmitter {
      */
     sendKey(key) {
         if (!CONTROL_KEY_ALLOWLIST.has(key)) return false;
-        this.sendCommand(`send-keys -t ${quoteTmuxCommandArg(this.sessionId)} ${key}`);
-        return true;
+        return this.sendCommand(`send-keys -t ${quoteTmuxCommandArg(this.sessionId)} ${key}`);
     }
 
     /**
      * @param {string} command
-     * @returns {void}
+     * @returns {boolean}
      */
     sendCommand(command) {
-        if (!command || !this.process?.stdin || this.process.stdin.destroyed) return;
+        if (!command || !this.process?.stdin || this.process.stdin.destroyed) return false;
         this.touch();
-        this.process.stdin.write(`${command}\n`);
+        return this.process.stdin.write(`${command}\n`) !== false;
     }
 
     close() {

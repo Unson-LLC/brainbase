@@ -36,20 +36,28 @@
 |---|---|
 | `meeting_harvester` | 当日minutesと同名transcriptを集め、source metadataを保持する |
 | `personal_kg_extractor` | SNS化前の `personal_kg_core` を抽出する |
-| `sensitivity_reviewer` | family/medical/private/counterparty confidentialを除外・要確認に分ける |
+| `sensitivity_reviewer` | family/medical/private/counterparty confidentialをpersonal core保持可否とprojection不可に分ける |
 | `sns_projection` | `personal_kg_core` のうちSNSで使えるものだけを `sns_ready` へ投影する |
 
 まず dry-run で採用/除外/要確認を確認する。
 
 ```bash
 cd /Users/ksato/workspace/code/brainbase
-npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --json
+npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --json
 ```
 
 問題なければ本番 `brainbase_ssot.memory_candidates` へ書き込む。
 
 ```bash
-DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --write --json
+INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --write --json
+```
+
+write 時は `personal_kg_entity_links` の project link も同じ DB 接続で自動更新する。`unson-board` と `yakumokai` は Graph project `unson` に紐づける。出力の `project_link_summary` で `linked / unchanged / unresolved` を確認する。隔離再実行でリンクを止める場合だけ `--no-project-link` を使う。
+
+対象repoを限定する場合だけ `--repo` / `--project` を使う。通常の `/oyasumi` は mana 管理repo全体を横断する。
+
+```bash
+INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --write --json
 ```
 
 扱い:
@@ -58,11 +66,14 @@ DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --
 - `owner_person_id=sato_keigo`
 - `visibility=owner`
 - candidateは `memory_layer=personal_kg_core` と `memory_layer=sns_ready` を分ける
+- `sns_ready` は `personal_kg_core` から抽象化projectionとして同時生成する。core本文をSNS生成へ直接渡さない
 - transcriptがある場合は transcript を一次情報、minutesを補助情報として扱う
 - extraction結果には `agent_reports` を残し、role別のinput/output件数を確認する
-- 家族、医療、健康、個人の私的事情は candidate 化しない
-- 顧客・相手企業の未公開予算や未公開事情は `needs_review` に残し、人間確認なしにSNS素材へ使わない
+- write後は `personal_kg_entity_links` の project link が入る。未解決が出たら Graph project 不在か、folder project code の明示マッピング不足として扱う
+- 家族、医療、健康、個人の私的事情は、佐藤の判断再現に必要な場合のみ `personal_kg_core` に owner-only + sensitivity tag + provenance 付きで保持する
+- 顧客・相手企業の未公開予算や未公開事情は `personal_kg_core` に詳細を残してよいが、`sns_ready` / team / org / Graph promotion へは redaction / approval 済みの別instance以外で出さない
 - 同じ議事録の同じ抽出単位は `source_event_ids` で重複投入しない
+- HTMLレポートには `personal_kg_core`, `sns_ready`, `needs_redaction`, `projection_allowed` の件数を出し、取り込み漏れ・誤projectionを検知する
 
 ## Archive Blocked Triage
 

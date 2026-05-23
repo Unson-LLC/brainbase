@@ -167,6 +167,9 @@ describe('session-list-renderer', () => {
             repo: 'brainbase',
             baseBranch: 'develop',
             dirty: true,
+            unpushed: true,
+            unmerged: true,
+            conflict: true,
             changesNotPushed: 2,
             prStatus: 'open_or_pending'
           },
@@ -179,11 +182,43 @@ describe('session-list-renderer', () => {
 
       expect(html).toContain('brainbase/develop');
       expect(html).toContain('dirty');
-      expect(html).toContain('↑2');
+      expect(html).toContain('title="Working copy has uncommitted changes"');
+      expect(html).toContain('unpushed');
+      expect(html).toContain('title="Local commits are not pushed"');
+      expect(html).toContain('unmerged');
+      expect(html).toContain('title="Changes are not integrated into the base branch"');
+      expect(html).toContain('conflict');
+      expect(html).toContain('title="Working copy has unresolved conflicts"');
       expect(html).toContain('pending');
       expect(html).toContain('file: app.js');
       expect(html).toContain('Reconnecting');
       expect(html).not.toContain('session-attention-badge');
+    });
+
+    it('should render unpushed without dirty when only local commits are pending', () => {
+      const session = {
+        id: 'session-unpushed',
+        name: 'Unpushed Session'
+      };
+
+      const html = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        sessionUiState: {
+          summary: {
+            repo: 'brainbase',
+            baseBranch: 'develop',
+            dirty: false,
+            unpushed: true,
+            changesNotPushed: 1
+          }
+        }
+      });
+
+      expect(html).toContain('unpushed');
+      expect(html).toContain('chip-unpushed');
+      expect(html).not.toContain('chip-dirty');
+      expect(html).not.toContain('>dirty<');
     });
 
     it('should not render token usage chip in session list', () => {

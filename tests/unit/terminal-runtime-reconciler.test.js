@@ -15,12 +15,15 @@ describe('TerminalRuntimeReconciler', () => {
 
   function buildReconciler({
     dryProcesses = '',
+    paneOutput = '',
     killFn = vi.fn(),
     registryEntry = null,
     tmuxRunning = true,
     ownerSnapshot = null,
     sessions = [{ id: 'session-1', name: 'Session 1', engine: 'claude', intendedState: 'active' }],
-    ensureSessionRuntime = vi.fn()
+    ensureSessionRuntime = vi.fn(),
+    stopTtyd = vi.fn(),
+    startTtyd = vi.fn()
   } = {}) {
     const registry = {
       getAll: vi.fn(() => ({ sessions: {} })),
@@ -38,13 +41,13 @@ describe('TerminalRuntimeReconciler', () => {
       runtimeQuery: {
         _isTmuxSessionRunningSync: vi.fn(() => tmuxRunning)
       },
-      runtimeLifecycle: { ensureSessionRuntime },
+      runtimeLifecycle: { ensureSessionRuntime, stopTtyd, startTtyd },
       ownershipService: ownership,
       runtimeRegistry: registry,
-      execSyncFn: vi.fn(() => dryProcesses),
+      execSyncFn: vi.fn((command) => String(command).startsWith('tmux capture-pane') ? paneOutput : dryProcesses),
       killFn
     });
-    return { reconciler, registry, killFn, ownership, ensureSessionRuntime };
+    return { reconciler, registry, killFn, ownership, ensureSessionRuntime, stopTtyd, startTtyd };
   }
 
   it('activeかつtmuxとfresh probeがある場合_interactive_readyになる', async () => {
@@ -186,5 +189,63 @@ describe('TerminalRuntimeReconciler', () => {
     await reconciler.reconcile({ dryRun: false, recover: true });
 
     expect(ensureSessionRuntime).toHaveBeenCalledWith({ sessionId: 'session-1' });
+  });
+
+  it('Codex paneがMallocStackLogging floodの場合_degraded issueになる', async () => {
+    const { reconciler } = buildReconciler({
+      paneOutput: Array.from({ length: 20 }, (_, index) =>
+        `codex(${index}) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.`
+      ).join('\n')
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('degraded');
+    expect(health.sessions.degraded).toBe(1);
+    expect(health.issues).toContainEqual(expect.objectContaining({
+      type: 'codex_pane_error_flood',
+      severity: 'critical'
+    }));
+    expect(health.sessionHealth[0].observed.pane).toMatchObject({
+      stuck: true,
+      matchedLines: 20
+    });
+  });
+
+  it('recover trueでCodex pane floodの場合_tmuxごと再起動する', async () => {
+    const stopTtyd = vi.fn(async () => true);
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler, ensureSessionRuntime } = buildReconciler({
+      paneOutput: Array.from({ length: 20 }, (_, index) =>
+        `codex(${index}) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.`
+      ).join('\n'),
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/project',
+        codexThreadId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291'
+      }],
+      stopTtyd,
+      startTtyd
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(ensureSessionRuntime).not.toHaveBeenCalled();
+    expect(stopTtyd).toHaveBeenCalledWith('session-1', { preserveTmux: false });
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/project',
+      engine: 'codex',
+      forceTtyd: true,
+      codexResumeId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291'
+    }));
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      type: 'restart_terminal_runtime',
+      reason: 'codex_pane_error_flood',
+      success: true
+    }));
   });
 });

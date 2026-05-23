@@ -3,7 +3,7 @@
  * Loads environment variables for brainbase MCP
  */
 
-const DEFAULT_GRAPH_API_URL = 'https://graph.brain-base.work';
+const DEFAULT_GRAPH_API_URL = 'https://bb.unson.jp';
 
 export type EntitySourceMode = 'graphapi';
 
@@ -31,6 +31,7 @@ export function loadConfig(): BrainbaseConfig {
   const requestedSourceMode = (process.env.BRAINBASE_ENTITY_SOURCE || 'graphapi').trim().toLowerCase();
   const graphApiUrl = (
     process.env.BRAINBASE_GRAPH_API_URL
+    || process.env.BRAINBASE_API_URL
     || process.env.BRAINBASE_API_BASE_URL
     || DEFAULT_GRAPH_API_URL
   ).trim().replace(/\/+$/, '');

@@ -41,6 +41,7 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 ## 3. Brainbase Non-Negotiables
 
 - **Graph SSOT first**: For people, orgs, customers, partners, projects, terms, decisions, and CRM facts, check brainbase Graph (`https://bb.unson.jp`) before writing or deciding. Use `brainbase-graph-philosophy-context`.
+- **Entity ID citation**: When a reply names a person, organization, customer, or project, cite the Graph entity ID you verified (e.g., `per_xxx` / `org_xxx` / `cus_xxx` / `prj_xxx`). If the entity is not in the Graph, say so explicitly (`Graph に未登録`) rather than silently omitting the citation.
 - **Capability map first**: For Brainbase capability, project/session creation, auth grant, port `31013`, launchd runtime, terminal/xterm transport, or "not visible/not working" issues, use `brainbase-capability-map`.
 - **Skills first**: Load only the smallest relevant Skill. Do not bulk-load Skill folders.
 - **Local vs Lightsail matters**: For `/oyasumi` Decision/Wiki writes, POST through local `http://localhost:31013`; DB access must be the Lightsail tunnel, not an accidental local database.
@@ -101,3 +102,47 @@ git diff --check
 - Claude Code best practices: https://code.claude.com/docs/en/best-practices
 - Claude Code hooks: https://docs.anthropic.com/en/docs/claude-code/hooks
 - Claude Code settings: https://docs.anthropic.com/en/docs/claude-code/settings
+
+<!-- VIBEPRO_CODEX_START -->
+## VibePro Codex Operating Rules
+
+Use VibePro as the Story / Architecture / Spec / Graphify / Gate control plane for refactoring work.
+
+When the user asks for VibePro work:
+
+- Start from Story, then Architecture, then Spec, then Task, then Code, then Gate, then PR.
+- Do not edit code first for VibePro refactors unless the user explicitly asks for an emergency fix.
+- Use Graphify evidence before changing auth, data flow, runtime boundaries, UI state machines, or shared services.
+- Treat `review-cockpit.html` as the human control plane and `human-review.json` as the machine-readable decision record.
+- After implementation, run `vibepro pr prepare <repo> --story-id <story-id>` or the task-scoped equivalent.
+- If `vibepro pr prepare` reports `gate_status.agent_review_instruction` or unresolved `gate:agent_review`, treat that as an explicit user instruction to use parallel subagents for VibePro review:
+  - Run every listed `vibepro review prepare <repo> --id <story-id> --stage <stage>` command.
+  - Open `.vibepro/reviews/<story-id>/<stage>/parallel-dispatch.md`.
+  - Start the listed role reviews in parallel, one subagent per role, with no file edits.
+  - Record each returned result with the listed `vibepro review record` command.
+  - Rerun `vibepro pr prepare` and do not call the work complete until `gate:agent_review` passes or a blocking result is explicitly reported.
+- Do not call raw `gh pr create` directly for VibePro work. Use `vibepro pr create` so Gate evidence and waiver checks are preserved.
+- If Gates are unresolved, either add evidence, split the PR, block the PR, or record an explicit waiver reason.
+- Keep JSON outputs as source-of-truth artifacts and HTML outputs as human review artifacts.
+- When the user asks for a purpose-level check, use diagnosis packages instead of guessing low-level scanners:
+  - `vibepro check list`
+  - `vibepro check ui <repo>`
+  - `vibepro check security <repo>`
+  - `vibepro check performance <repo>`
+  - `vibepro check architecture <repo>`
+  - `vibepro check pr-readiness <repo> --base <ref> --head <ref>`
+  - `vibepro check launch-readiness <repo>`
+- For performance improvement claims, define and compare Story-level performance evidence:
+  - `vibepro performance define <repo> --id <story-id> --metric-id <id> --user-story <text> --start-condition <text> --completion-condition <text> --evidence-source <type>`
+  - `vibepro performance record <repo> --id <story-id> --metric-id <id> --label before|after --status completed --duration-ms <ms> --evidence-source <type:ref:summary>`
+  - `vibepro performance compare <repo> --id <story-id>`
+- Do not claim user-perceived speed improvement from server logs alone. Separate `server_side` metrics such as DB query/API readiness from `user_perceived` metrics such as DOM visible or interactive ready.
+- If a performance comparison is not comparable, report improvement as unknown and include the missing marker or evidence source.
+- For UI changes that introduce `/api/...` client calls, confirm the matching Next.js App Router or Pages Router route exists. Server Action/server function -> HTTP API replacements require route contract and network-aware E2E evidence; type-check alone is not enough.
+- Before cleaning dirty repository worktrees, inspect the dirty state instead of stashing by reflex:
+  - Run `git status --short --branch`, `git diff --name-status`, `git diff --cached --name-status`, `git diff --stat`, `git diff --cached --stat`, and relevant `git reflog --date=iso`.
+  - If an external sync, merge, rebase, or another worktree advanced a checked-out branch, compare the dirty diff with the inverse of the commit range that moved the branch.
+  - Treat it as safe cleanup only after proving it is a stale reverse diff already represented in `HEAD`; otherwise report the files as possible user work.
+
+For repository-local work, prefer the target repository's existing `AGENTS.md` instructions first, then apply these VibePro rules for VibePro-specific decisions.
+<!-- VIBEPRO_CODEX_END -->

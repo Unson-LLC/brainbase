@@ -1,6 +1,21 @@
 // @ts-check
 import { logger } from '../../utils/logger.js';
 
+function isStartupShell(session) {
+    return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
+}
+
+function rejectStartupShell(res, session, target = 'terminal I/O') {
+    if (!isStartupShell(session)) return false;
+    res.status(409).json({
+        error: `Session startup is not ready for ${target}.`,
+        startupStatus: session.startupStatus,
+        startupPhase: session.startupPhase || null,
+        startupMessage: session.startupMessage || null
+    });
+    return true;
+}
+
 export function installTerminalIoHandlers(controller) {
     controller.repairTerminalGeometry = async (req, res) => {
         const { id } = req.params;
@@ -9,6 +24,9 @@ export function installTerminalIoHandlers(controller) {
             : 'api';
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal geometry repair')) return;
             if (typeof controller.terminalIo?.repairCollapsedSessionWindow !== 'function') {
                 return res.status(503).json({ error: 'Terminal geometry repair is not available' });
             }
@@ -36,6 +54,7 @@ export function installTerminalIoHandlers(controller) {
         try {
             const session = controller._findSessionOrFail?.(id, res);
             if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal input')) return;
             if (session.workspaceRotationStatus === 'rotating') {
                 logger.info(`[sendInput] 409: session ${id} is rotating workspace generation`);
                 return res.status(409).json({ error: 'Session workspace generation is rotating', rotating: true });
@@ -65,6 +84,9 @@ export function installTerminalIoHandlers(controller) {
         const lines = parseInt(req.query.lines) || 500;
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal content')) return;
             const content = await controller.snapshot.getContent(id, lines);
             res.json({ content });
         } catch {
@@ -76,6 +98,9 @@ export function installTerminalIoHandlers(controller) {
         const { id } = req.params;
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal output')) return;
             const result = await controller.snapshot.getOutput(id);
             res.json(result);
         } catch (error) {
@@ -88,6 +113,9 @@ export function installTerminalIoHandlers(controller) {
         const { direction, steps } = req.body;
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal scroll')) return;
             await controller.terminalIo.scrollSession(id, direction, steps);
             controller.captureCache?.invalidate?.(id);
             res.json({ success: true });
@@ -102,6 +130,9 @@ export function installTerminalIoHandlers(controller) {
         const { direction } = req.body;
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal pane selection')) return;
             await controller.terminalIo.selectPane(id, direction);
             controller.captureCache?.invalidate?.(id);
             res.json({ success: true });
@@ -115,6 +146,9 @@ export function installTerminalIoHandlers(controller) {
         const { id } = req.params;
 
         try {
+            const session = controller._findSessionOrFail?.(id, res);
+            if (!session) return;
+            if (rejectStartupShell(res, session, 'terminal copy mode')) return;
             await controller.terminalIo.exitCopyMode(id);
             controller.captureCache?.invalidate?.(id);
             res.json({ success: true });

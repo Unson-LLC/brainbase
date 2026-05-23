@@ -13,12 +13,17 @@ Use this Skill when a human or AI reviewer needs to interpret VibePro PR artifac
 
 1. Read `.vibepro/pr/<story-id>/pr-prepare.json` `gate_status`.
 2. Confirm `gate_status.overall_status`, `ready_for_pr_create`, unresolved Gates, and critical unresolved Gates.
-3. Open `.vibepro/pr/<story-id>/review-cockpit.html`.
-4. Read the recommended decision and reason.
-5. Check split lanes and Graphify investigation scope.
-6. For performance-sensitive PRs, read the `Performance Evidence` section in `pr-body.md` and the JSON runs under `.vibepro/pr/<story-id>/performance-runs/`.
-7. Review next commands and confirm they use `vibepro pr create`.
-8. Copy `human-review.json`, fill the review record, and keep it as the human decision artifact.
+3. If `gate_status.agent_review_instruction` is present, block human approval until the coordinator has:
+   - run the listed `vibepro review prepare` commands,
+   - dispatched the generated `parallel-dispatch.md` requests to parallel subagents,
+   - recorded each result with `vibepro review record`,
+   - rerun `vibepro pr prepare` and cleared `gate:agent_review`.
+4. Open `.vibepro/pr/<story-id>/review-cockpit.html`.
+5. Read the recommended decision and reason.
+6. Check split lanes and Graphify investigation scope.
+7. For performance-sensitive PRs, read the `Performance Evidence` section in `pr-body.md` and the JSON runs under `.vibepro/pr/<story-id>/performance-runs/`.
+8. Review next commands and confirm they use `vibepro pr create`.
+9. Copy `human-review.json`, fill the review record, and keep it as the human decision artifact.
 
 ## Decision Rules
 
@@ -44,6 +49,7 @@ Fill these fields in `human-review.json`:
 - Do not treat `scope.status=reviewable` as completion approval. It is PR size/scope guidance only.
 - Do not approve a PR only from the PR body. The cockpit and Gate DAG are the review control plane.
 - Do not use raw `gh pr create`; it bypasses VibePro Gate enforcement and waiver recording.
+- Do not approve with unresolved Agent Review Gate. Missing, stale, or blocking required roles mean the parallel subagent review workflow has not completed for the current git state.
 - If a waiver is chosen, include the exact waiver reason in `vibepro pr create --allow-needs-verification --verification-waiver <reason>`.
 - Do not approve a performance claim when the comparison says `改善率不明` / `not_comparable`.
 - Do not accept server-side readiness as evidence for user-perceived readiness. User-perceived metrics need `browser_e2e`, `client_marker`, or `manual_observation`.

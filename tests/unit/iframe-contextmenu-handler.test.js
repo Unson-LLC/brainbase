@@ -8,8 +8,37 @@ import {
     buildSnapshotPrefixFallbackLinks,
     pickBestLinkAtPosition
 } from '../../public/modules/xterm-file-links.js';
+import { shouldActivateTerminalFileLinkClick } from '../../public/modules/iframe-contextmenu-handler.js';
 
 describe('iframe-contextmenu-handler', () => {
+    it('terminal file linkは短いクリックだけactivateする', () => {
+        const link = { text: 'public/app.js' };
+        expect(shouldActivateTerminalFileLinkClick({
+            pointerDown: { clientX: 100, clientY: 40, startedAt: 1000, link },
+            event: { button: 0, clientX: 102, clientY: 42, link },
+            now: 1100
+        })).toBe(true);
+    });
+
+    it('terminal file link上のドラッグは選択を優先してactivateしない', () => {
+        const link = { text: 'public/app.js' };
+        expect(shouldActivateTerminalFileLinkClick({
+            pointerDown: { clientX: 100, clientY: 40, startedAt: 1000, link },
+            event: { button: 0, clientX: 122, clientY: 40, link },
+            now: 1100
+        })).toBe(false);
+    });
+
+    it('terminal selectionがある時はfile link clickをactivateしない', () => {
+        const link = { text: 'public/app.js' };
+        expect(shouldActivateTerminalFileLinkClick({
+            pointerDown: { clientX: 100, clientY: 40, startedAt: 1000, link },
+            event: { button: 0, clientX: 101, clientY: 40, link },
+            selectedText: 'selected terminal text',
+            now: 1100
+        })).toBe(false);
+    });
+
     it('相対パスの後ろに矢印や説明が続いてもファイルリンクを抽出する', () => {
         expect(extractFileMatches('public/app.js:1568->コレに関しては下線がでない')).toEqual([
             { path: 'public/app.js', line: '1568', start: 0, end: 18 }

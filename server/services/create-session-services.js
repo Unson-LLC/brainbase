@@ -116,7 +116,10 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         cleanupArchivedSessions: shared.cleanupArchivedSessions,
         repairActiveTtydSessions: shared.repairActiveTtydSessions,
         startPtyWatchdog: shared.startPtyWatchdog,
-        stopPtyWatchdog: shared.stopPtyWatchdog
+        stopPtyWatchdog: shared.stopPtyWatchdog,
+        startStaleSessionRecycler: shared.startStaleSessionRecycler,
+        stopStaleSessionRecycler: shared.stopStaleSessionRecycler,
+        _pauseStaleSessionsByUptime: shared._pauseStaleSessionsByUptime
     };
 
     shared.runtimeRegistry = runtimeRegistry;

@@ -244,6 +244,7 @@ NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
 CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
 JJ_GUARD_DIR="$SCRIPT_DIR/bin"
+source "$SCRIPT_DIR/lib/brainbase-common.sh"
 REAL_JJ_BIN="$(command -v jj 2>/dev/null || true)"
 # Default to Codex CLI; opt-in to app-server REPL via env var.
 USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
@@ -312,7 +313,10 @@ tmux set -g mouse off 2>/dev/null || true
 tmux set -g history-limit 5000 2>/dev/null || true
 
 if [ "$ENGINE" = "codex" ]; then
+    ensure_codex_workspace_trusted "$WORKTREE_PATH"
     sync_codex_project_commands
+else
+    ensure_claude_workspace_trusted "$WORKTREE_PATH"
 fi
 
 if [ -d "$JJ_GUARD_DIR" ]; then

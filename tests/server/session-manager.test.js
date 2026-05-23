@@ -108,6 +108,131 @@ describe('SessionManager', () => {
     expect(result.runtimeStatus.proxyPath).toBe('/console/session-1');
   });
 
+  // story-tmux-missing-runtime-pause regression test (2026-05-21):
+  // 17 sessions が active+tmux_missing で滞留した incident の root cause。
+  // 修正後は ensureTtydForActiveSession が直接 _pauseSessionsForMissingTmux を
+  // 呼んで paused に flip し、 10 分おきの warn loop を完全に止める。
+  it('ensureTtydForActiveSession_tmux_不在時_セッションがpausedに_flipされる', async () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    const manager = createManager();
+    vi.spyOn(manager, '_isTmuxSessionRunning').mockResolvedValue(false);
+    const pauseSpy = vi.spyOn(manager, '_pauseSessionsForMissingTmux');
+
+    const result = await manager.ensureTtydForActiveSession({
+      id: 'session-1',
+      intendedState: 'active',
+      engine: 'claude',
+      ttydProcess: null,
+    });
+
+    expect(result.restarted).toBe(false);
+    expect(result.skippedReason).toBe('tmux_missing');
+    expect(result.paused).toBe(true);
+    expect(pauseSpy).toHaveBeenCalledWith(['session-1'], { reason: 'tmux_missing_runtime' });
+  });
+
+  it('_pauseSessionsForMissingTmux_state_を_paused_に更新し_activeSessions_からも除外する', async () => {
+    const manager = createManager();
+    manager.activeSessions.set('session-1', { port: 40100, pid: 23456 });
+    manager.activeSessions.set('session-2', { port: 40101, pid: 23457 });
+
+    const result = await manager._pauseSessionsForMissingTmux(['session-1', 'session-2'], {
+      reason: 'tmux_missing_runtime',
+    });
+
+    expect(result.paused).toEqual(['session-1', 'session-2']);
+    expect(manager.activeSessions.has('session-1')).toBe(false);
+    expect(manager.activeSessions.has('session-2')).toBe(false);
+
+    const state = manager.stateStore.get();
+    for (const s of state.sessions) {
+      expect(s.intendedState).toBe('paused');
+      expect(s.pausedReason).toBe('tmux_missing_runtime');
+      expect(s.tmuxMissingAt).toBeTruthy();
+      expect(s.pausedAt).toBeTruthy();
+      expect(s.ttydProcess).toBeNull();
+    }
+  });
+
+  it('_pauseSessionsForMissingTmux_空_input_は_no-op_で例外を出さない', async () => {
+    const manager = createManager();
+    const result = await manager._pauseSessionsForMissingTmux([], { reason: 'tmux_missing_runtime' });
+    expect(result.paused).toEqual([]);
+  });
+
+  it('_pauseSessionsForMissingTmux_reason_未指定なら_throw', async () => {
+    const manager = createManager();
+    await expect(manager._pauseSessionsForMissingTmux(['session-1'], {})).rejects.toThrow(/reason is required/);
+  });
+
+  // story-codex-pane-stale-uptime-recycle (2026-05-22):
+  // codex pane が 10 日稼働で env スナップ凍結 → token 腐敗で「broken」と
+  // 誤判定する事故。 threshold 超過で auto-recycle (kill tmux + paused) する。
+  it('_pauseStaleSessionsByUptime_threshold超過のactive_sessionだけrecycleする', async () => {
+    const manager = createManager();
+    // session-1 は 8 日稼働 (threshold=168h を超過)、 session-2 は 1 時間稼働 (新しい)
+    const nowSec = Math.floor(Date.now() / 1000);
+    const calls = [];
+    vi.spyOn(manager, 'execPromise').mockImplementation(async (cmd) => {
+      calls.push(cmd);
+      if (cmd.includes("tmux display -t 'session-1'")) {
+        return { stdout: String(nowSec - 8 * 86400) };  // 8 日前
+      }
+      if (cmd.includes("tmux display -t 'session-2'")) {
+        return { stdout: String(nowSec - 3600) };  // 1 時間前
+      }
+      return { stdout: '' };
+    });
+    // session-1, session-2 はテスト stateStore で active 状態として初期化
+    const state = manager.stateStore.get();
+    state.sessions = state.sessions.map(s => ({ ...s, intendedState: 'active' }));
+    await manager.stateStore.update(state);
+
+    const result = await manager._pauseStaleSessionsByUptime({ thresholdHours: 168 });
+
+    expect(result.recycled).toHaveLength(1);
+    expect(result.recycled[0].id).toBe('session-1');
+    expect(result.recycled[0].uptimeHours).toBeGreaterThanOrEqual(168);
+    // tmux kill-session が呼ばれた
+    expect(calls.some(c => c.includes("tmux kill-session -t 'session-1'"))).toBe(true);
+    // session-1 は paused に flip
+    const after = manager.stateStore.get();
+    const s1 = after.sessions.find(s => s.id === 'session-1');
+    expect(s1.intendedState).toBe('paused');
+    expect(s1.pausedReason).toBe('stale_uptime_recycle');
+  });
+
+  it('_pauseStaleSessionsByUptime_全session_threshold以下なら_recycleされない', async () => {
+    const manager = createManager();
+    const nowSec = Math.floor(Date.now() / 1000);
+    vi.spyOn(manager, 'execPromise').mockResolvedValue({ stdout: String(nowSec - 3600) });  // 1h
+    const state = manager.stateStore.get();
+    state.sessions = state.sessions.map(s => ({ ...s, intendedState: 'active' }));
+    await manager.stateStore.update(state);
+
+    const result = await manager._pauseStaleSessionsByUptime({ thresholdHours: 168 });
+    expect(result.recycled).toEqual([]);
+  });
+
+  it('_pauseStaleSessionsByUptime_thresholdHours_未指定なら_throw', async () => {
+    const manager = createManager();
+    await expect(manager._pauseStaleSessionsByUptime({})).rejects.toThrow(/thresholdHours must be a positive number/);
+    await expect(manager._pauseStaleSessionsByUptime({ thresholdHours: -1 })).rejects.toThrow(/thresholdHours must be a positive number/);
+    await expect(manager._pauseStaleSessionsByUptime({ thresholdHours: 0 })).rejects.toThrow(/thresholdHours must be a positive number/);
+  });
+
+  it('_pauseStaleSessionsByUptime_archived_session_は対象外', async () => {
+    const manager = createManager();
+    const nowSec = Math.floor(Date.now() / 1000);
+    vi.spyOn(manager, 'execPromise').mockResolvedValue({ stdout: String(nowSec - 30 * 86400) });  // 30 日
+    const state = manager.stateStore.get();
+    state.sessions = state.sessions.map(s => ({ ...s, intendedState: 'archived' }));
+    await manager.stateStore.update(state);
+
+    const result = await manager._pauseStaleSessionsByUptime({ thresholdHours: 168 });
+    expect(result.recycled).toEqual([]);
+  });
+
   it('reportActivity_working_latest_sets_isWorking_true', () => {
     const manager = createManager();
     const now = Date.now();

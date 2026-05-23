@@ -13,6 +13,7 @@ surfaces:
   code:
     - public/modules/app/session-creation-mixin.js
     - public/modules/app/ui-setup-mixin.js
+    - public/modules/app/session-management-mixin.js
     - public/modules/domain/session/session-service.js
     - server/controllers/session-controller.js
     - server/services/worktree-service.js
@@ -27,19 +28,38 @@ visibility_rules:
   - The selected project must appear in project.selector.
   - Worktree availability depends on hasGitRepository(selectedProject).
   - general uses the workspace root and always enables worktree by default.
+  - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
+  - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
+  - The initial prompt entered in the create-session modal must be passed to the worktree runtime launch, not typed later into the terminal.
+  - Text typed into the startup composer while the runtime is pending must be queued automatically and flushed once the runtime becomes ready.
+  - Submitting the startup composer after the runtime is ready must send immediately instead of showing a pending-startup error.
+  - Codex worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
+  - Claude Code worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
 verification:
   commands:
     - GET /api/state or session list API after creation
     - inspect state session.project
     - inspect session path or worktree metadata
+    - npm test -- tests/ui/session-creation-mixin.test.js tests/domain/session/session-service.test.js tests/ui/integration/app-switch-session-runtime.test.js
   expected:
     - New session appears in the session list.
     - session.project equals the selected project.
     - Worktree sessions have expected worktree path and repo metadata.
+    - Worktree session creation closes the modal and selects the pending shell before runtime startup completes.
+    - A create-modal initial prompt is delivered as the runtime initial command and is not duplicated through terminal typeahead.
+    - Startup composer text typed during pending startup is sent after startup becomes ready without requiring an early send click.
+    - Startup composer send after startup is already ready delivers the prompt immediately.
+    - Codex worktree sessions reach the Codex prompt without a workspace trust picker.
+    - Claude Code worktree sessions reach the Claude Code prompt without a workspace trust picker.
 common_failures:
   - Project missing from dropdown due to auth grant filtering.
   - Project path resolves to fallback because config local.path is missing or stale.
   - Existing git/jj locks block worktree creation.
+  - Worktree startup ignores the create-modal prompt if shell-first startup drops initialCommand before POST /api/sessions/create-with-worktree.
+  - Startup composer text is persisted only as a draft, so startup completion has nothing queued to send.
+  - Startup composer send races the ready transition and incorrectly remains in a pending-startup state.
+  - Codex stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.codex/config.toml.
+  - Claude Code stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.claude.json.
 runbooks:
   - ../runbooks/missing-project-in-session-selector.md
 troubleshooting:

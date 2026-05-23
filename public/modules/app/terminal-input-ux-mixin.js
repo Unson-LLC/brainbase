@@ -596,7 +596,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         }
 
         const inFlight = this._terminalSnapshotRequests.get(sessionId) || null;
-        if (inFlight) {
+        if (inFlight && !force) {
             const inFlightSatisfiesMode = mode === 'fast'
                 ? true
                 : inFlight.mode === 'full';
@@ -663,7 +663,12 @@ export function applyTerminalInputUxMixin(AppClass) {
             }
         }
 
-        const nonArchived = sessions.filter((session) => session?.id && session.intendedState !== 'archived');
+        const nonArchived = sessions.filter((session) =>
+            session?.id
+            && session.intendedState !== 'archived'
+            && session.startupStatus !== 'pending'
+            && session.startupStatus !== 'failed'
+        );
         const sourceSessions = visibleIds.length > 0
             ? visibleIds
                 .map((id) => nonArchived.find((session) => session.id === id))
@@ -1695,7 +1700,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 });
                 this.focusTerminal('type-to-focus');
                 if (key === 'Enter' && e.shiftKey) {
-                    this.terminalTransportClient.sendKey('M-Enter').catch(() => {});
+                    this.terminalTransportClient.sendKey('S-Enter').catch(() => {});
                     e.preventDefault();
                 } else if (key === 'Enter') {
                     this.terminalTransportClient.sendKey('Enter').catch(() => {});

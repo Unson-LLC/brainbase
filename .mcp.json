@@ -8,7 +8,6 @@
       "command": "/Users/ksato/workspace/code/brainbase/scripts/run-brainbase-mcp.sh",
       "env": {
         "BRAINBASE_ENTITY_SOURCE": "graphapi",
-        "BRAINBASE_GRAPH_API_URL": "https://graph.brain-base.work",
         "BRAINBASE_WIKI_API_URL": "http://localhost:31013"
       }
     },

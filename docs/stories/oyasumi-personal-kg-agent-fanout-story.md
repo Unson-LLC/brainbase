@@ -39,7 +39,7 @@ source_context:
 ## Business Context
 
 brainbase SNS運用の価値は、X投稿文をAIで作ることではなく、会議・商談・開発・顧客反応から佐藤圭吾の判断基準を個人KGへ戻し、翌日以降のAI判断品質を上げることにある。
-このStoryは、日次運用で一次情報が薄いSNS要約へ潰れる失敗を減らし、投稿生成・顧客理解・プロダクト思想の再利用率を上げる。
+このStoryは、日次運用で一次情報が薄いSNS要約へ潰れる失敗を減らし、個人判断・投稿生成・顧客理解・プロダクト思想の再利用率を上げる。
 
 ## Business Metric
 
@@ -54,9 +54,11 @@ brainbase SNS運用の価値は、X投稿文をAIで作ることではなく、�
 - agent roleを少なくとも以下に分ける。
   - `meeting_harvester`: minutes/transcript/source metadataを集める。
   - `personal_kg_extractor`: SNS化前の個人KG coreを抽出する。
-  - `sensitivity_reviewer`: private/confidential/sns_allowedを分離する。
+  - `sensitivity_reviewer`: owner_judgment / sns_allowed / team_allowed / org_allowed を分離する。
   - `sns_projection`: SNS生成Contextで使えるcandidateへ投影する。
 - `personal_kg_core` を permission snapshot に明示し、`sns_ready` だけの抽出を禁止する。
+- `personal_kg_core` は判断再現に必要なprivate/confidential detailsを保持してよい。ただしowner-visible、sensitivity tag、retrieval purpose、provenanceを必須にする。
+- `sns_ready` / team / org projection は `personal_kg_core` を上書きせず、redaction/approval済みの別instanceとして作る。
 - transcriptが渡された場合は transcript を一次入力、minutesを補助入力として扱う。
 
 ## Non-goals
@@ -65,6 +67,7 @@ brainbase SNS運用の価値は、X投稿文をAIで作ることではなく、�
 - X投稿、scheduler、SNS UIを変更しない。
 - Graph SSOTへcandidateを直接promoteしない。
 - 私的・医療・相手先未公開情報をSNS素材化しない。
+- `personal_kg_core` の詳細をteam/orgへ自動昇格しない。
 
 ## Acceptance Criteria
 
@@ -72,7 +75,8 @@ brainbase SNS運用の価値は、X投稿文をAIで作ることではなく、�
 - [ ] AC-2: `personal_kg_extractor` は `personal_kg_core` candidateを作り、SNS projection前の記憶単位を残す。
 - [ ] AC-3: `sns_projection` は `personal_kg_core` のうちSNS利用可能なものだけを `sns_ready` candidateとして出す。
 - [ ] AC-4: transcript本文が渡された場合、minutesにないClaude Code/Codex運用思想や「俺の脳で考える」思想をcandidate化できる。
-- [ ] AC-5: sensitivity reviewerはfamily/medical/counterparty confidentialをcandidate bodyから除外し、`rejected` / `needs_review` に理由を残す。
+- [ ] AC-5: sensitivity reviewerはfamily/medical/counterparty confidentialを `personal_kg_core` に保持してよいか、`sns_ready` / team / org projectionから除外すべきかを分離し、`rejected` / `needs_review` に理由を残す。
+- [ ] AC-8: `personal_kg_core` の confidential details は owner-only retrieval では使えるが、SNS/team/org retrieval ではredaction済みprojectionしか返らない。
 - [ ] AC-6: 同じsource_event_idを再処理しても重複candidateを作らない。
 - [ ] AC-7: `/oyasumi` commandはpersonal KG handoffを「Coordinatorがagent fan-out/fan-inする」工程として説明する。
 
@@ -81,4 +85,5 @@ brainbase SNS運用の価値は、X投稿文をAIで作ることではなく、�
 - Unit: transcript-only思想が `personal_kg_core` として抽出される。
 - Unit: `agent_reports` がrole別に出る。
 - Unit: sensitive内容が `sns_ready` へ流れない。
+- Unit: sensitive `personal_kg_core` はowner-only retrievalでのみ返る。
 - Regression: 既存のSalesTailor minutes抽出、重複skip、SNS Generation Context連携が壊れない。
