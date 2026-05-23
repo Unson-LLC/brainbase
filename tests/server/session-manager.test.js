@@ -165,6 +165,74 @@ describe('SessionManager', () => {
     await expect(manager._pauseSessionsForMissingTmux(['session-1'], {})).rejects.toThrow(/reason is required/);
   });
 
+  // story-codex-pane-stale-uptime-recycle (2026-05-22):
+  // codex pane が 10 日稼働で env スナップ凍結 → token 腐敗で「broken」と
+  // 誤判定する事故。 threshold 超過で auto-recycle (kill tmux + paused) する。
+  it('_pauseStaleSessionsByUptime_threshold超過のactive_sessionだけrecycleする', async () => {
+    const manager = createManager();
+    // session-1 は 8 日稼働 (threshold=168h を超過)、 session-2 は 1 時間稼働 (新しい)
+    const nowSec = Math.floor(Date.now() / 1000);
+    const calls = [];
+    vi.spyOn(manager, 'execPromise').mockImplementation(async (cmd) => {
+      calls.push(cmd);
+      if (cmd.includes("tmux display -t 'session-1'")) {
+        return { stdout: String(nowSec - 8 * 86400) };  // 8 日前
+      }
+      if (cmd.includes("tmux display -t 'session-2'")) {
+        return { stdout: String(nowSec - 3600) };  // 1 時間前
+      }
+      return { stdout: '' };
+    });
+    // session-1, session-2 はテスト stateStore で active 状態として初期化
+    const state = manager.stateStore.get();
+    state.sessions = state.sessions.map(s => ({ ...s, intendedState: 'active' }));
+    await manager.stateStore.update(state);
+
+    const result = await manager._pauseStaleSessionsByUptime({ thresholdHours: 168 });
+
+    expect(result.recycled).toHaveLength(1);
+    expect(result.recycled[0].id).toBe('session-1');
+    expect(result.recycled[0].uptimeHours).toBeGreaterThanOrEqual(168);
+    // tmux kill-session が呼ばれた
+    expect(calls.some(c => c.includes("tmux kill-session -t 'session-1'"))).toBe(true);
+    // session-1 は paused に flip
+    const after = manager.stateStore.get();
+    const s1 = after.sessions.find(s => s.id === 'session-1');
+    expect(s1.intendedState).toBe('paused');
+    expect(s1.pausedReason).toBe('stale_uptime_recycle');
+  });
+
+  it('_pauseStaleSessionsByUptime_全session_threshold以下なら_recycleされない', async () => {
+    const manager = createManager();
+    const nowSec = Math.floor(Date.now() / 1000);
+    vi.spyOn(manager, 'execPromise').mockResolvedValue({ stdout: String(nowSec - 3600) });  // 1h
+    const state = manager.stateStore.get();
+    state.sessions = state.sessions.map(s => ({ ...s, intendedState: 'active' }));
+    await manager.stateStore.update(state);
+
+    const result = await manager._pauseStaleSessionsByUptime({ thresholdHours: 168 });
+    expect(result.recycled).toEqual([]);
+  });
+
+  it('_pauseStaleSessionsByUptime_thresholdHours_未指定なら_throw', async () => {
+    const manager = createManager();
+    await expect(manager._pauseStaleSessionsByUptime({})).rejects.toThrow(/thresholdHours must be a positive number/);
+    await expect(manager._pauseStaleSessionsByUptime({ thresholdHours: -1 })).rejects.toThrow(/thresholdHours must be a positive number/);
+    await expect(manager._pauseStaleSessionsByUptime({ thresholdHours: 0 })).rejects.toThrow(/thresholdHours must be a positive number/);
+  });
+
+  it('_pauseStaleSessionsByUptime_archived_session_は対象外', async () => {
+    const manager = createManager();
+    const nowSec = Math.floor(Date.now() / 1000);
+    vi.spyOn(manager, 'execPromise').mockResolvedValue({ stdout: String(nowSec - 30 * 86400) });  // 30 日
+    const state = manager.stateStore.get();
+    state.sessions = state.sessions.map(s => ({ ...s, intendedState: 'archived' }));
+    await manager.stateStore.update(state);
+
+    const result = await manager._pauseStaleSessionsByUptime({ thresholdHours: 168 });
+    expect(result.recycled).toEqual([]);
+  });
+
   it('reportActivity_working_latest_sets_isWorking_true', () => {
     const manager = createManager();
     const now = Date.now();
