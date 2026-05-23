@@ -1,5 +1,19 @@
 import { createBrainbaseActivityRawLedgerRecord } from '../../services/session-core/activity-raw-ledger-adapter.js';
 
+function indexRuntimeInventoryBySessionId(inventory) {
+    const entries = new Map();
+    for (const session of inventory?.sessions || []) {
+        if (!session?.sessionId) continue;
+        entries.set(session.sessionId, {
+            runtimePresence: session.runtimePresence || 'cold',
+            rssKb: Number(session.rssKb || 0),
+            processCount: Number(session.processCount || 0),
+            processesByCategory: session.processesByCategory || {}
+        });
+    }
+    return entries;
+}
+
 export function installActivityHandlers(controller) {
     controller.reportActivity = async (req, res) => {
         const {
@@ -88,9 +102,26 @@ export function installActivityHandlers(controller) {
             return requestedIds.includes(session.id);
         });
 
+        let runtimeInventoryBySessionId = new Map();
+        if (typeof controller.runtimeQuery?.getRuntimeInventory === 'function') {
+            try {
+                runtimeInventoryBySessionId = indexRuntimeInventoryBySessionId(await controller.runtimeQuery.getRuntimeInventory());
+            } catch (error) {
+                console.warn('[runtime-inventory] Failed to include inventory in UI summaries:', error);
+            }
+        }
+
         const entries = await Promise.all(
             sessions.map(async (session) => {
-                const summary = await controller._getCachedSessionUiSummary(session);
+                const summary = {
+                    ...await controller._getCachedSessionUiSummary(session),
+                    runtimeInventory: runtimeInventoryBySessionId.get(session.id) || {
+                        runtimePresence: 'cold',
+                        rssKb: 0,
+                        processCount: 0,
+                        processesByCategory: {}
+                    }
+                };
                 return [session.id, summary];
             })
         );
