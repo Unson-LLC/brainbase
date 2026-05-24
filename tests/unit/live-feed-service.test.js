@@ -237,6 +237,141 @@ describe('LiveFeedService', () => {
         expect(after?.timestamp.toISOString()).toBe(before?.timestamp.toISOString());
     });
 
+    it('C-9: generic heartbeat activityはevent名に依存せず全体時系列の先頭イベントにしない', () => {
+        appStore.setState({
+            sessions: [
+                ...appStore.getState().sessions,
+                {
+                    id: 'session-backoffice',
+                    name: 'バックオフィス',
+                    intendedState: 'active',
+                    taskBrief: '既存タスクの説明',
+                    taskBriefUpdatedAt: '2026-03-25T09:10:00.000Z',
+                    runtimeStatus: { ttydRunning: true }
+                }
+            ].map((session) => session.id === 'session-1'
+                ? {
+                    ...session,
+                    activityHistory: [
+                        {
+                            id: 'prompt-1',
+                            actor: 'user',
+                            kind: 'user_prompt',
+                            text: 'Live Feedの時系列が入れ替わらないようにして',
+                            textSource: 'raw_prompt',
+                            evidenceSource: 'terminal_input',
+                            occurredAt: '2026-03-25T09:59:30.000Z',
+                            dedupeKey: 'prompt-1'
+                        }
+                    ]
+                }
+                : session)
+        });
+        replaceSessionHookStatuses({
+            'session-1': appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+            'session-2': appStore.getState().sessionUi.byId['session-2']?.hookStatus,
+            'session-backoffice': {
+                isWorking: true,
+                isDone: false,
+                lastWorkingAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                lastActivityAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                lastDoneAt: Date.parse('2026-03-25T10:09:59.000Z'),
+                activeTurnCount: 0,
+                lastEventType: 'item/completed',
+                liveActivity: {
+                    activityKind: 'reasoning',
+                    assistantSnippet: null,
+                    assistantSnippetUpdatedAt: 0,
+                    currentStep: '作業中',
+                    latestEvidence: null,
+                    updatedAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                    statusTone: 'working'
+                }
+            }
+        });
+
+        service.start();
+        const history = service.getHistoryEntries({ mode: 'all' });
+
+        expect(history[0].sessionId).toBe('session-1');
+        const backoffice = history.find((entry) => entry.sessionId === 'session-backoffice');
+        expect(backoffice?.text).toBe('既存タスクの説明');
+        expect(backoffice?.timestamp.toISOString()).toBe('2026-03-25T09:10:00.000Z');
+    });
+
+    it.each([
+        '入力待ち',
+        '処理中',
+        '作業中',
+        '回答と方針を組み立て中',
+        'コマンドを実行中',
+        'ファイルを更新中',
+        '依頼を受けて作業開始',
+        'ターンが完了',
+        '作業が一区切り完了',
+        '完了'
+    ])('C-10: carried-forward snippet/evidenceはgeneric heartbeat時刻で昇格しない: %s', (currentStep) => {
+        appStore.setState({
+            sessions: [
+                ...appStore.getState().sessions,
+                {
+                    id: 'session-carried',
+                    name: 'Carried',
+                    intendedState: 'active',
+                    taskBrief: '古いタスク',
+                    taskBriefUpdatedAt: '2026-03-25T09:10:00.000Z',
+                    runtimeStatus: { ttydRunning: true }
+                }
+            ].map((session) => session.id === 'session-1'
+                ? {
+                    ...session,
+                    activityHistory: [
+                        {
+                            id: 'prompt-1',
+                            actor: 'user',
+                            kind: 'user_prompt',
+                            text: 'Live Feedの時系列が入れ替わらないようにして',
+                            textSource: 'raw_prompt',
+                            evidenceSource: 'terminal_input',
+                            occurredAt: '2026-03-25T09:59:30.000Z',
+                            dedupeKey: 'prompt-1'
+                        }
+                    ]
+                }
+                : session)
+        });
+        replaceSessionHookStatuses({
+            'session-1': appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+            'session-2': appStore.getState().sessionUi.byId['session-2']?.hookStatus,
+            'session-carried': {
+                isWorking: true,
+                isDone: false,
+                lastWorkingAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                lastActivityAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                lastDoneAt: Date.parse('2026-03-25T10:09:59.000Z'),
+                activeTurnCount: 0,
+                lastEventType: 'codex/pty-shim-heartbeat',
+                liveActivity: {
+                    activityKind: 'reasoning',
+                    assistantSnippet: '古い応答断片',
+                    assistantSnippetUpdatedAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                    currentStep,
+                    latestEvidence: '古い証跡',
+                    updatedAt: Date.parse('2026-03-25T10:10:00.000Z'),
+                    statusTone: 'working'
+                }
+            }
+        });
+
+        service.start();
+        const history = service.getHistoryEntries({ mode: 'all' });
+        const carried = history.find((entry) => entry.sessionId === 'session-carried');
+
+        expect(history[0].sessionId).toBe('session-1');
+        expect(carried?.text).toBe('古いタスク');
+        expect(carried?.timestamp.toISOString()).toBe('2026-03-25T09:10:00.000Z');
+    });
+
     it('状態変化が起きたセッションを先頭に積む', () => {
         service.start();
         vi.setSystemTime(new Date('2026-03-25T10:01:00.000Z'));
@@ -314,6 +449,8 @@ describe('LiveFeedService', () => {
 
     it('heartbeatだけの更新では行順を変えず内容だけ更新する', () => {
         service.start();
+        const listener = vi.fn();
+        service.onEntry(listener);
 
         replaceSessionHookStatuses({
             'session-1': appStore.getState().sessionUi.byId['session-1']?.hookStatus,
@@ -330,6 +467,7 @@ describe('LiveFeedService', () => {
         const entries = service.getEntries();
         expect(entries.map((entry) => entry.label)).toEqual(['Alpha', 'Beta']);
         expect(entries[1].timestamp.toISOString()).toBe('2026-03-25T10:04:00.000Z');
+        expect(listener).not.toHaveBeenCalled();
     });
 
     it('assistant snippetだけの更新では行順を変えず本文だけ更新する', () => {

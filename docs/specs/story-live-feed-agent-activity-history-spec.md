@@ -47,6 +47,7 @@ updated_at: 2026-05-24
 - C-7: LiveFeedView の default 表示は `getHistoryEntries({ mode: "all" })` を使う。
 - C-8: synthetic live activity event の dedupe key は heartbeat timestamp を含めず、semantic kind と source text を基準にする。
 - C-9: LiveFeedView は display mode toggle を持たず、全体/セッションの切替は session scope filter で行う。
+- C-10: synthetic live activity event は semantic timestamp と non-generic text の両方を持つ場合だけ生成する。`処理中`、`入力待ち`、`待機中` などの generic heartbeat/status text だけでは history event を生成しない。
 
 ## Scenarios
 
@@ -60,6 +61,7 @@ updated_at: 2026-05-24
 - S-8: `PATCH /api/state/sessions/:id` は `activityHistory` を部分更新できるが、missing session は reload retry 後も見つからない場合に既存どおり 404 になる。
 - S-9: Live Feed を開くと、複数セッションの prompt/activity events が timestamp 順に混ざった一覧として見える。
 - S-10: ユーザーが session scope chip を選ぶと、同じ時系列表示が選択セッションの prompt/activity events だけに絞られる。
+- S-11: heartbeat だけで `lastActivityAt` または `liveActivity.updatedAt` が更新されても、全体時系列の先頭行や session scope chip は入れ替わらない。
 
 ## Anti-Patterns
 
@@ -70,6 +72,7 @@ updated_at: 2026-05-24
 - AP-5: model summary を raw evidence と同じ見た目で表示する。
 - AP-6: default Live Feed をセッション別グループや `updatedAt desc` のセッション状態リストとして描画する。
 - AP-7: 全体時系列とセッション絞り込みを別の表示モードとして分断する。
+- AP-8: `updatedAt`、`lastActivityAt`、heartbeat-only `lastWorkingAt` を、ユーザーが思い出すべき activity history の時刻として扱う。
 
 ## Verification
 

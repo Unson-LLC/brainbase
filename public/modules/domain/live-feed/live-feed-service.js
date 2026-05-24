@@ -11,6 +11,25 @@ const MAX_HISTORY_ENTRIES = 200;
 const STALE_WORKING_MS = 3 * 60 * 1000;
 const STALE_REFRESH_MS = 30 * 1000;
 const JAPANESE_TEXT_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
+const GENERIC_ACTIVITY_TEXTS = new Set([
+    '待機中',
+    '入力待ち',
+    '一時停止中',
+    '応答を生成中',
+    '処理を開始中',
+    '処理中',
+    '作業中',
+    'ファイルを更新中',
+    'コマンドを実行中',
+    '回答と方針を組み立て中',
+    '依頼を受けて作業開始',
+    '応答が完了',
+    '完了',
+    '作業が一区切り完了',
+    'ターンが完了',
+    '停止中',
+    'アーカイブ済み'
+]);
 
 function containsReadableJapanese(value) {
     return typeof value === 'string' && JAPANESE_TEXT_PATTERN.test(value);
@@ -55,6 +74,39 @@ function normalizeHistoryText(value, maxLength = 160) {
         .filter(Boolean)
         .join(' / ');
     return truncate(normalized, maxLength);
+}
+
+function isGenericActivityText(value) {
+    return GENERIC_ACTIVITY_TEXTS.has(normalizeHistoryText(value, 180));
+}
+
+function isHeartbeatOnlyLiveActivity(liveActivity, hookStatus) {
+    if (!liveActivity) return true;
+    return isGenericActivityText(liveActivity.currentStep)
+        && !liveActivity.taskBrief
+        && (!liveActivity.assistantSnippet || !(liveActivity.assistantSnippetUpdatedAt > 0))
+        && !liveActivity.latestEvidence;
+}
+
+function selectActivityHistoryText(liveActivity, taskBrief, status, { includeSessionFallback = true, suppressLiveCarryForward = false } = {}) {
+    const assistantSnippet = !suppressLiveCarryForward && liveActivity?.assistantSnippetUpdatedAt > 0
+        ? normalizeHistoryText(liveActivity?.assistantSnippet, 180)
+        : '';
+    if (assistantSnippet) return assistantSnippet;
+
+    const currentStep = normalizeHistoryText(liveActivity?.currentStep, 180);
+    if (!suppressLiveCarryForward && currentStep && !isGenericActivityText(currentStep)) return currentStep;
+
+    const latestEvidence = suppressLiveCarryForward ? '' : normalizeHistoryText(liveActivity?.latestEvidence, 180);
+    if (latestEvidence) return latestEvidence;
+
+    if (includeSessionFallback) {
+        const taskText = normalizeHistoryText(taskBrief, 180);
+        if (taskText) return taskText;
+    }
+
+    const statusText = normalizeHistoryText(status?.text, 180);
+    return statusText && !isGenericActivityText(statusText) ? statusText : '';
 }
 
 function historyKindLabel(kind) {
@@ -249,8 +301,9 @@ function getActivityTimestamp(session, uiState) {
     return timestamp > 0 ? new Date(timestamp) : new Date();
 }
 
-function getActivityEventTimestamp(session, uiState, liveActivity) {
+function getActivityEventTimestamp(session, uiState, liveActivity, { suppressHookTimestamps = false } = {}) {
     const hookStatus = uiState.hookStatus || null;
+    const heartbeatOnly = isHeartbeatOnlyLiveActivity(liveActivity, hookStatus);
     const sessionTaskUpdatedAt = typeof session?.taskBriefUpdatedAt === 'string'
         ? (Date.parse(session.taskBriefUpdatedAt) || 0)
         : (Number(session?.taskBriefUpdatedAt) || 0);
@@ -258,15 +311,17 @@ function getActivityEventTimestamp(session, uiState, liveActivity) {
         ? (Date.parse(session.lastAssistantSnippetAt) || 0)
         : (Number(session?.lastAssistantSnippetAt) || 0);
     const timestamp = Math.max(
-        liveActivity?.assistantSnippetUpdatedAt || 0,
+        heartbeatOnly || suppressHookTimestamps ? 0 : (liveActivity?.assistantSnippetUpdatedAt || 0),
         sessionAssistantSnippetAt,
         sessionTaskUpdatedAt,
-        hookStatus?.lastWorkingAt || 0,
-        hookStatus?.lastDoneAt || 0
+        heartbeatOnly || suppressHookTimestamps ? 0 : (hookStatus?.lastWorkingAt || 0),
+        heartbeatOnly || suppressHookTimestamps ? 0 : (hookStatus?.lastDoneAt || 0)
     );
     if (timestamp > 0) return new Date(timestamp);
-    const fallback = liveActivity?.updatedAt || hookStatus?.lastActivityAt || 0;
-    return fallback > 0 ? new Date(fallback) : getActivityTimestamp(session, uiState);
+    const liveUpdatedAt = liveActivity?.updatedAt || 0;
+    return liveUpdatedAt > 0 && !heartbeatOnly
+        ? new Date(liveUpdatedAt)
+        : null;
 }
 
 function buildHistoryEventFromEnvelope(session, event) {
@@ -299,16 +354,16 @@ function buildHistoryEventFromEnvelope(session, event) {
 
 function buildHistoryEventFromLiveActivity(session, uiState, liveActivity, status, taskBrief) {
     if (!session?.id) return null;
-    const timestamp = getActivityEventTimestamp(session, uiState, liveActivity);
-    const text = normalizeHistoryText(
-        liveActivity?.currentStep
-            || liveActivity?.latestEvidence
-            || liveActivity?.assistantSnippet
-            || taskBrief
-            || status?.text,
-        180
-    );
+    const genericLiveActivity = Boolean(liveActivity && isGenericActivityText(liveActivity.currentStep));
+    const text = selectActivityHistoryText(liveActivity, taskBrief, status, {
+        includeSessionFallback: true,
+        suppressLiveCarryForward: genericLiveActivity
+    });
     if (!text) return null;
+    const timestamp = getActivityEventTimestamp(session, uiState, liveActivity, {
+        suppressHookTimestamps: genericLiveActivity
+    });
+    if (!timestamp) return null;
     const kind = status?.tone === 'waiting'
         ? 'agent_waiting'
         : status?.tone === 'done'
@@ -420,7 +475,6 @@ export class LiveFeedService {
 
             const previousEntry = this.entries.find((item) => item.sessionId === session.id);
             const previousContentKey = previousEntry ? JSON.stringify({
-                timestamp: previousEntry.timestamp?.getTime?.() || 0,
                 icon: previousEntry.icon || '',
                 statusTone: previousEntry.statusTone || '',
                 taskBrief: previousEntry.taskBrief || '',
@@ -429,7 +483,6 @@ export class LiveFeedService {
                 statusText: previousEntry.statusText || ''
             }) : '';
             const nextContentKey = JSON.stringify({
-                timestamp: entry.timestamp.getTime(),
                 icon: entry.icon || '',
                 statusTone: entry.statusTone || '',
                 taskBrief: entry.taskBrief || '',
@@ -445,7 +498,12 @@ export class LiveFeedService {
             this._movementKeys.set(session.id, movementKey);
             entryUpdates.push({
                 entry,
-                shouldMove: initial || !previousMovementKey || previousMovementKey !== movementKey
+                shouldMove: initial || !previousMovementKey || previousMovementKey !== movementKey,
+                shouldNotify: initial
+                    || !previousEntry
+                    || !previousMovementKey
+                    || previousMovementKey !== movementKey
+                    || previousContentKey !== nextContentKey
             });
         }
 
@@ -470,8 +528,10 @@ export class LiveFeedService {
 
     _applyEntryUpdates(entryUpdates) {
         const moveUpdates = [];
+        let shouldNotify = false;
 
         for (const [sourceIndex, update] of entryUpdates.entries()) {
+            shouldNotify = shouldNotify || update.shouldNotify;
             if (update.shouldMove) {
                 moveUpdates.push({ entry: update.entry, sourceIndex });
                 continue;
@@ -497,6 +557,7 @@ export class LiveFeedService {
         if (this.entries.length > MAX_ENTRIES) {
             this.entries.length = MAX_ENTRIES;
         }
+        if (!shouldNotify) return;
         this._notify(moveUpdates[moveUpdates.length - 1]?.entry || entryUpdates[entryUpdates.length - 1]?.entry || null);
     }
 

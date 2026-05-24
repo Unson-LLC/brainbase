@@ -225,16 +225,14 @@ test.describe('story-live-feed-activity-timeline', () => {
                     lastActivityAt: now,
                     liveActivity: {
                         ...betaBefore?.liveActivity,
-                        assistantSnippet: '入力待ちの補足だけが更新されました',
-                        assistantSnippetUpdatedAt: now,
                         updatedAt: now
                     }
                 },
                 'session-gamma': appStore.getState().sessionUi.byId['session-gamma']?.hookStatus
             });
             recordRecentFileOpen('session-beta', 'docs/live-feed.md');
-            const labelsAfterContentOnlyUpdate = labels();
-            const betaTextUpdated = host.textContent?.includes('入力待ちの補足だけが更新されました') || false;
+            const labelsAfterHeartbeatOnlyUpdate = labels();
+            const heartbeatTextPromoted = host.textContent?.includes('docs/live-feed.md') || false;
 
             mergeSessionUiEntry('session-beta', { attention: 'needs-input' });
             replaceSessionHookStatuses({
@@ -257,6 +255,8 @@ test.describe('story-live-feed-activity-timeline', () => {
                 'session-gamma': appStore.getState().sessionUi.byId['session-gamma']?.hookStatus
             });
             const labelsAfterMeaningfulTransition = labels();
+            window.__liveFeedStoryStatusFixture = appStore.getState().sessionUi.byId;
+            window.__liveFeedStorySessionsFixture = appStore.getState().sessions;
 
             const counts = Array.from(host.querySelectorAll('.feed-filter-count')).map((node) => node.textContent || '');
             const actionsDisabled = Array.from(host.querySelectorAll<HTMLButtonElement>('.feed-item-action'))
@@ -273,8 +273,8 @@ test.describe('story-live-feed-activity-timeline', () => {
                 initialTones,
                 hasLiveChrome,
                 archivedVisible,
-                labelsAfterContentOnlyUpdate,
-                betaTextUpdated,
+                labelsAfterHeartbeatOnlyUpdate,
+                heartbeatTextPromoted,
                 labelsAfterMeaningfulTransition,
                 counts,
                 actionsDisabled,
@@ -305,14 +305,15 @@ test.describe('story-live-feed-activity-timeline', () => {
         expect(result.archivedVisible).toBe(false);
         expect(result.initialLabels).toEqual(['Alpha', 'Beta', 'Gamma']);
         expect(result.initialTones).toEqual(['working', 'waiting', 'blocked']);
-        expect(result.labelsAfterContentOnlyUpdate).toEqual(['Alpha', 'Beta', 'Gamma']);
-        expect(result.betaTextUpdated).toBe(true);
+        expect(result.labelsAfterHeartbeatOnlyUpdate).toEqual(['Alpha', 'Beta', 'Gamma']);
+        expect(result.heartbeatTextPromoted).toBe(false);
         expect(result.labelsAfterMeaningfulTransition).toEqual(['Beta', 'Alpha', 'Gamma']);
         expect(result.counts.length).toBe(5);
         expect(result.actionsDisabled).toBe(true);
         expect(result.controlsDisabled).toBe(true);
         expect(result.systemLabels).toEqual(['Gamma']);
-        expect(result.footerText).toContain('表示: システム');
+        expect(result.footerText).toContain('表示: 時系列 / 範囲: 全体 / フィルタ: システム');
+        expect(result.footerText).toContain('最終更新:');
         expect(result.actionCount).toBeGreaterThan(0);
         const desktopFooterClear = await page.evaluate(() => {
             const footerDisplay = document.querySelector('#live-feed-panel .live-feed-footer span:last-child')?.getBoundingClientRect();
@@ -321,8 +322,16 @@ test.describe('story-live-feed-activity-timeline', () => {
             return footerDisplay.right <= widget.left || footerDisplay.bottom <= widget.top || footerDisplay.top >= widget.bottom;
         });
         expect(desktopFooterClear).toBe(true);
-        await page.waitForTimeout(500);
-        await expect(page.locator('#live-feed-panel .feed-item-label')).toHaveCount(3);
+        await page.evaluate(() => {
+            document
+                .querySelector<HTMLButtonElement>('#live-feed-panel .feed-filter-btn[data-filter="all"]')
+                ?.click();
+        });
+        await page.waitForFunction(() => {
+            const labels = Array.from(document.querySelectorAll('#live-feed-panel .feed-item-label'))
+                .map((node) => node.textContent || '');
+            return JSON.stringify(labels) === JSON.stringify(['Beta', 'Alpha', 'Gamma']);
+        });
         await expect(page.locator('#live-feed-panel')).toContainText('Alpha');
         await expect(page.locator('#live-feed-panel')).toContainText('Beta');
         await expect(page.locator('#live-feed-panel')).toContainText('Gamma');
@@ -335,16 +344,26 @@ test.describe('story-live-feed-activity-timeline', () => {
             host?.querySelector<HTMLButtonElement>('.feed-filter-btn[data-filter="system"]')?.click();
             return {
                 labels: Array.from(host?.querySelectorAll('.feed-item-label') || []).map((node) => node.textContent || ''),
+                emptyText: host?.querySelector('.live-feed-empty')?.textContent || '',
                 footerText: host?.querySelector('.live-feed-footer')?.textContent || ''
             };
         });
-        expect(systemSurface.labels.length).toBeGreaterThan(0);
-        expect(systemSurface.footerText).toContain('表示: システム');
+        expect(systemSurface.labels).toEqual(['Gamma']);
+        expect(systemSurface.emptyText).toBe('');
+        expect(systemSurface.footerText).toContain('表示: 時系列 / 範囲: 全体 / フィルタ: システム');
         await page.locator('#live-feed-panel').screenshot({
             path: 'var/test-results/story-live-feed-activity-timeline-system-filter.png'
         });
-        await page.locator('#live-feed-panel .feed-filter-btn[data-filter="all"]').click();
-        await expect(page.locator('#live-feed-panel .feed-item-label')).toHaveCount(3);
+        await page.evaluate(() => {
+            document
+                .querySelector<HTMLButtonElement>('#live-feed-panel .feed-filter-btn[data-filter="all"]')
+                ?.click();
+        });
+        await page.waitForFunction(() => {
+            const labels = Array.from(document.querySelectorAll('#live-feed-panel .feed-item-label'))
+                .map((node) => node.textContent || '');
+            return JSON.stringify(labels) === JSON.stringify(['Beta', 'Alpha', 'Gamma']);
+        });
         const desktopLabelsBeforeMobile = await page.locator('#live-feed-panel .feed-item-label').allTextContents();
 
         await page.setViewportSize({ width: 390, height: 844 });
@@ -377,7 +396,7 @@ test.describe('story-live-feed-activity-timeline', () => {
         expect(mobileSurface.mounted).toBe(true);
         expect(mobileSurface.labels).toEqual(desktopLabelsBeforeMobile);
         expect(mobileSurface.visibleActionCount).toBe(0);
-        expect(mobileSurface.footerText).toContain('表示: すべて');
+        expect(mobileSurface.footerText).toContain('表示: 時系列 / 範囲: 全体');
         expect(mobileSurface.footerBottom).toBeLessThan(800);
         await page.locator('#mobile-tab-content-feed').screenshot({
             path: 'var/test-results/story-live-feed-activity-timeline-mobile.png'

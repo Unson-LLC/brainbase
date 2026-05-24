@@ -334,8 +334,7 @@ test.describe('story-live-feed-agent-activity-history', () => {
             'Live Feedでこのセッションに何を頼んだか一覧で見たい',
             'LLMを常時使わずに活動履歴を作って',
             '全体のエージェント作業順序も見たい',
-            'ActivityHistoryRepositoryを実装中',
-            '入力待ち'
+            'ActivityHistoryRepositoryを実装中'
         ]));
         expect(result.sources).toContain('ユーザー入力');
         expect(result.sources).toContain('活動報告');
@@ -344,7 +343,8 @@ test.describe('story-live-feed-agent-activity-history', () => {
         expect(result.defaultGroupCount).toBe(0);
         expect(result.defaultModeToggleCount).toBe(0);
         expect(result.afterHeartbeatHasGroups).toBe(false);
-        expect(result.afterHeartbeatLabels[0]).toBe('Beta History');
+        expect(result.afterHeartbeatLabels[0]).toBe(result.labels[0]);
+        expect(result.afterHeartbeatLabels.indexOf('Beta History')).toBe(result.labels.indexOf('Beta History'));
         expect(result.focusedLabels.every((label) => label === 'Alpha History')).toBe(true);
         expect(result.focusedText).toContain('LLMを常時使わずに活動履歴を作って');
         expect(result.focusedText).not.toContain('全体のエージェント作業順序も見たい');

@@ -167,6 +167,7 @@ trigger policy:
 - `occurredAt` と deterministic tie-breaker で安定順序にする。
 - event id が安定している場合、source text の変化は既存行の更新として扱う。
 - heartbeat や `liveActivity.updatedAt` だけの更新を、新しい activity event や group reorder として扱わない。
+- `処理中`、`入力待ち`、`待機中` などの generic status text だけでは synthetic history event を作らない。semantic timestamp と具体的な source text がそろった activity だけを時系列に混ぜる。
 
 ### LiveFeedView
 
