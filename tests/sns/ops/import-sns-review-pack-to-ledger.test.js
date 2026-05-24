@@ -10,6 +10,8 @@ describe('import-sns-review-pack-to-ledger', () => {
                 date: '2026-05-13',
                 posts: [{
                     slot: 'peer_quote_1',
+                    time: '18:00',
+                    scheduled_at: '2026-05-13T09:00:00.000Z',
                     lane: 'peer_circle',
                     topic: 'Claude Code',
                     body: 'これ、Claude Codeを会社で使う時も同じだと思ってる',
@@ -29,6 +31,8 @@ describe('import-sns-review-pack-to-ledger', () => {
             id: 'ohayo_2026-05-13_peer_quote_1',
             date: '2026-05-13',
             slot_index: 1,
+            time: '18:00',
+            scheduled_at: '2026-05-13T09:00:00.000Z',
             lane: 'peer_circle',
             format: 'quote_repost_commentary',
             source_type: 'Peer Circle',

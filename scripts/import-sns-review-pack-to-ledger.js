@@ -57,6 +57,8 @@ export function reviewPackToLedgerPayload(input) {
             id: `ohayo_${reviewPack.date}_${post.slot || index + 1}`,
             date: reviewPack.date,
             slot_index: index + 1,
+            time: post.time || null,
+            scheduled_at: post.scheduled_at || null,
             lane: post.lane || null,
             format: post.source_url ? 'quote_repost_commentary' : 'standalone',
             body: post.body || '',

@@ -7,6 +7,7 @@ story_id: str.brainbase.sns-scheduled-publisher
 related_specs:
   - SPEC-sns-posting-engine
 implementation_files:
+  - server/services/sns/posting-ledger-repository.js
   - server/services/sns/sns-scheduled-publisher.js
   - scripts/run-sns-scheduled-posts.js
   - config/com.brainbase.sns-scheduled-publisher.plist
@@ -27,6 +28,8 @@ test_files:
 - **INV-5**: `scheduled_at` の比較はJST/UTCの扱いを実装とテストで明示する。
 - **INV-6**: 投稿失敗はUIで再確認できる状態としてLedgerに残し、黙って破棄しない。
 - **INV-7**: dry-runはdue-post選択だけを検証し、X投稿スクリプトを呼ばない。
+- **INV-8**: review packの `date` と `time` はJSTの壁時計時刻であり、`scheduled_at` が明示されない場合はJSTとしてUTC instantへ変換して保存する。
+- **INV-9**: 修正前に作成済みのmutable Ledger rowは、review pack再インポートで `time` と `scheduled_at` を補正できる。公開済み履歴は上書きしない。
 
 ## Contracts
 
@@ -51,6 +54,33 @@ test_files:
 npm run sns:scheduled-publish -- --dry-run --json
 SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 ```
+
+### Contract-3: Review Pack Time Import
+
+- **input**: review pack draftの `date`, `time`, 任意の `scheduled_at`
+- **output**: SNS Posting Ledger rowの `time`, `scheduled_at`
+- **preconditions**: `date` は `YYYY-MM-DD`、`time` は `HH:mm`。`scheduled_at` がある場合は絶対時刻として有効なISO文字列である。
+- **postconditions**: `scheduled_at` 未指定なら `date + time` をJSTとしてUTC instantへ変換して保存する。`scheduled_at` 指定済みならその絶対時刻を保持する。
+- **error cases**: 不正なdate/time、同一account/date/slotに公開済みimmutable rowがある、重複本文guardに該当する。
+
+### Contract-4: Release Operation Surface
+
+- **input**: 修正前後のLedger行、review pack再インポート、dry-run結果、`SNS_AUTO_PUBLISH_ENABLED`
+- **output**: 本番公開前に判断できるdue post件数と補正済み `scheduled_at`
+- **preconditions**: 公開投稿を有効化する前にdry-runを実行できる。
+- **postconditions**: 既存mutable rowの補正手順がrunbookにあり、公開済みrowを上書きしないことがテストと仕様で確認できる。
+- **error cases**: 既存rowが補正されないまま公開投稿を有効化する、過去時刻のdue postを意図せず即時公開する。
+
+## Regression Surface
+
+このSpecの回帰確認対象は以下である。
+
+- Ledger import: InMemory/JSON継承/Pg insert/Pg updateで `date + time` をJSTとして扱う。
+- Existing data: `posted` / `learning_ready` / `deleted` は再インポートで上書きせず、mutable rowだけ補正する。
+- Runner: `scheduled_at <= now` だけをdue判定に使い、`approved` を自動投稿しない。
+- Publication safety: `SNS_AUTO_PUBLISH_ENABLED=true` がない場合はX投稿を呼ばない。
+- Operational surface: runbookに再インポート、dry-run、即時due時の判断が書かれている。
+- UI/API surface: API routeやUIコンポーネントは変更しない。SNS UIが表示するLedger rowの `time` / `scheduled_at` contractだけを変更対象にする。
 
 ## Scenarios
 
@@ -84,6 +114,18 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - **when**: X投稿スクリプトまたはaccount確認が失敗する。
 - **then**: 失敗理由がLedgerに残り、SNS UIからレビュー/再実行判断ができる。
 
+### S-6: review packのJST slotを保存する
+
+- **given**: review packに `date=2026-05-24`, `time=18:00`, `scheduled_at` なしの投稿候補がある。
+- **when**: Ledgerへimportする。
+- **then**: Ledgerには `time=18:00`, `scheduled_at=2026-05-24T09:00:00.000Z` が保存される。
+
+### S-7: 修正前の既存行を再インポートで補正する
+
+- **given**: 修正前に作られた同じaccount/date/slotのmutable rowがある。
+- **when**: 修正後のreview pack importを再実行する。
+- **then**: rowは新しいJST変換後の `scheduled_at` に更新される。公開済みrowは更新されずskipされる。
+
 ## Anti-patterns
 
 - **AP-1**: runnerが `SnsLedgerPublishService` を迂回してX投稿スクリプトを直接呼ぶ。
@@ -91,6 +133,7 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - **AP-3**: 自動投稿フラグなしで本番投稿する。
 - **AP-4**: 失敗した投稿をUIから見えない状態にする。
 - **AP-5**: JST/UTCを暗黙に扱い、slot時刻と実行時刻がずれる。
+- **AP-6**: デプロイだけで既存Ledger rowの `scheduled_at` が補正されたとみなす。
 
 ## Verification
 
@@ -103,3 +146,5 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 | INV-5, AP-5 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
 | INV-6, S-5, AP-4 | tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js | ✅ |
 | INV-7, S-4 | tests/sns/ops/run-sns-scheduled-posts.test.js | ✅ |
+| INV-8, S-6 | tests/sns/posting-ledger/posting-ledger-repository.test.js, tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts | ✅ |
+| INV-9, S-7, AP-6 | tests/sns/posting-ledger/posting-ledger-repository.test.js, docs/runbooks/sns-scheduled-publisher.md | ✅ |

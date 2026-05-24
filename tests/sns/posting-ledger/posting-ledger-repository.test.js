@@ -83,6 +83,8 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(posts).toHaveLength(1);
         expect(posts[0].body).toBe('edited by generation rerun');
         expect(posts[0].status).toBe('review_needed');
+        expect(posts[0].time).toBe('09:00');
+        expect(posts[0].scheduled_at).toBe('2026-05-18T00:00:00.000Z');
         expect(posts[0].source.type).toBe('Personal KG');
         expect(posts[0].evidence.persona_brain.target_person).toContain('AI導入');
         expect(posts[0].evidence.algorithm_fit).toMatchObject({
@@ -91,6 +93,40 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             graph_edge_goal: 'bookmark_or_profile_visit:trust_balance'
         });
         expect(posts[0].evidence.generation_context_evidence.policy_ref).toBe('generation_policy');
+    });
+
+    it('treats generated date and time as JST when deriving scheduled_at', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                date: '2026-05-24',
+                slot_index: 4,
+                time: '18:00'
+            }]
+        });
+
+        const post = repository.listPosts({})[0];
+        expect(post.time).toBe('18:00');
+        expect(post.scheduled_at).toBe('2026-05-24T09:00:00.000Z');
+    });
+
+    it('preserves an explicit scheduled_at instant instead of reinterpreting it as JST', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                date: '2026-05-24',
+                time: '18:00',
+                scheduled_at: '2026-05-24T18:00:00.000Z'
+            }]
+        });
+
+        expect(repository.listPosts({})[0].scheduled_at).toBe('2026-05-24T18:00:00.000Z');
     });
 
     it('stores body revisions and explicit operational status transitions', () => {
@@ -237,6 +273,8 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             expect(restored).toHaveLength(1);
             expect(restored[0].status).toBe('approved');
             expect(restored[0].body).toContain('Claude Code法人導入');
+            expect(restored[0].time).toBe('09:00');
+            expect(restored[0].scheduled_at).toBe('2026-05-18T00:00:00.000Z');
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -301,10 +339,97 @@ describe('PgSnsPostingLedgerRepository', () => {
 
         expect(result.created).toHaveLength(1);
         expect(result.created[0].date).toBe('2026-05-18');
+        expect(result.created[0].time).toBe('09:00');
+        expect(result.created[0].scheduled_at).toBe('2026-05-18T00:00:00.000Z');
         expect(result.created[0].source.type).toBe('Peer Circle');
         expect(result.created[0].source.url).toBe('https://x.com/near/status/1');
         expect(result.created[0].evidence.persona_brain.target_person).toContain('AI導入');
         expect(result.created[0].evidence.generation_context_evidence.recommended_lanes).toContain('trust_balance');
+        const insertParams = calls.find((call) => call.sql.includes('INSERT INTO sns_posting_ledger_posts'))?.params;
+        expect(insertParams?.[6]).toBe('09:00');
+        expect(insertParams?.[12]).toBe('2026-05-18T00:00:00.000Z');
         expect(calls.some((call) => call.sql.includes('sns_posting_ledger_posts'))).toBe(true);
+    });
+
+    it('updates existing Postgres rows with JST-derived scheduled_at on review-pack reruns', async () => {
+        const existingRow = {
+            id: 'sns_20260524_4_trust_balance',
+            account_id: 'acc_x_sato',
+            account_handle: '@AIBizNavigator',
+            platform: 'x',
+            date: new Date(2026, 4, 24),
+            slot_index: 4,
+            time: '18:00',
+            title: 'old title',
+            status: 'review_needed',
+            lane: 'trust_balance',
+            format: 'standalone',
+            body: 'old body',
+            scheduled_at: '2026-05-24T18:00:00.000Z',
+            posted_at: null,
+            posted_url: null,
+            deleted_at: null,
+            deletion_source: null,
+            deletion_reason: null,
+            source: {},
+            evidence: {},
+            memo: '',
+            learning_candidate_id: null,
+            revisions: [],
+            metrics_snapshots: [],
+            created_at: '2026-05-24T00:00:00.000Z',
+            updated_at: '2026-05-24T00:00:00.000Z'
+        };
+        const calls = [];
+        const pool = {
+            async query(sql, params = []) {
+                calls.push({ sql, params });
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+                if (sql.includes('WHERE account_id = $1 AND date = $2 AND slot_index = $3')) {
+                    return { rows: [existingRow] };
+                }
+                if (sql.includes('status = ANY')) return { rows: [] };
+                if (sql.includes('UPDATE sns_posting_ledger_posts')) {
+                    return {
+                        rows: [{
+                            ...existingRow,
+                            title: params[1],
+                            body: params[2],
+                            lane: params[3],
+                            format: params[4],
+                            account_handle: params[5],
+                            source: JSON.parse(params[6]),
+                            evidence: JSON.parse(params[7]),
+                            time: params[8],
+                            scheduled_at: params[9],
+                            updated_at: '2026-05-24T01:00:00.000Z'
+                        }]
+                    };
+                }
+                throw new Error(`Unexpected SQL: ${sql}`);
+            }
+        };
+
+        const result = await new PgSnsPostingLedgerRepository({ pool }).upsertReviewPack({
+            account_id: 'acc_x_sato',
+            account_handle: '@AIBizNavigator',
+            drafts: [{
+                ...baseDraft,
+                date: '2026-05-24',
+                slot_index: 4,
+                time: '18:00',
+                body: 'rerun body'
+            }]
+        });
+
+        expect(result.updated).toHaveLength(1);
+        expect(result.updated[0]).toMatchObject({
+            id: 'sns_20260524_4_trust_balance',
+            time: '18:00',
+            scheduled_at: '2026-05-24T09:00:00.000Z',
+            body: 'rerun body'
+        });
+        expect(calls.find((call) => call.sql.includes('UPDATE sns_posting_ledger_posts'))?.params.slice(8, 10))
+            .toEqual(['18:00', '2026-05-24T09:00:00.000Z']);
     });
 });
