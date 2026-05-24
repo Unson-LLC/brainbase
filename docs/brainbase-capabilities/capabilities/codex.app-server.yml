@@ -6,10 +6,13 @@ surfaces:
   api: []
   code:
     - server/services/codex-app-server-adapter.js
+    - server/services/codex-app-server-activity-bridge.js
     - tests/server/services/codex-app-server-adapter.test.js
+    - tests/server/services/codex-app-server-activity-bridge.test.js
   data:
     - in-memory Codex App Server process state
     - in-memory JSON-RPC pending request map
+    - existing session hookStatus activity state when an adapter is wired through the activity bridge
 depends_on:
   - session.create
   - terminal.transport
@@ -18,18 +21,24 @@ visibility_rules:
   - Use stdio transport first; WebSocket transport is experimental and out of scope for this capability slice.
   - Initialize with Brainbase client metadata before sending thread or turn requests.
   - Emit app-server notifications as structured events instead of parsing terminal text.
+  - App Server turn notifications may feed the existing activity indicator path only through the activity bridge and `activityService.reportActivity`.
+  - App Server-backed indicator updates must use Brainbase session ids from explicit metadata or bridge context; terminal text must not be used to infer ownership.
   - Do not persist Codex threads or turns until a separate session-state story defines the SSOT.
 verification:
   commands:
     - npm test -- tests/server/services/codex-app-server-adapter.test.js
-    - codex app-server --help
+    - npm run test:run -- tests/server/services/codex-app-server-activity-bridge.test.js
+    - npx -y @openai/codex@latest app-server --help
   expected:
     - Adapter unit tests pass.
-    - Local Codex CLI exposes the app-server command.
+    - Activity bridge tests prove `turn/started` maps to working and `turn/completed` maps to done-unread through existing hookStatus.
+    - Codex CLI exposes the app-server command. If the local global `codex` shim is broken, use `npx -y @openai/codex@latest` as the reproducible CLI entrypoint for this capability check.
     - Existing terminal transport remains unchanged for user-facing sessions.
 common_failures:
   - Sending thread or turn requests before initialize/initialized handshake completes.
   - Treating malformed stdout as fatal instead of emitting parse_error.
+  - Wiring App Server notifications directly to browser state instead of the existing activity service.
+  - Accepting App Server notifications without an explicit Brainbase session id.
   - Exposing WebSocket app-server transport remotely without auth.
   - Persisting app-server events into Graph SSOT directly instead of a defined session/event ledger.
 runbooks: []
