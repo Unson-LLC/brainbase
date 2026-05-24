@@ -332,11 +332,17 @@ test.describe('SNS Growth Cockpit mobile workspace mode', () => {
 
         await page.locator('#mobile-sns-growth-btn').click();
         await expect(page.locator('#sns-growth-overlay.open')).toBeVisible();
-        await page.locator(`.sns-mobile-decision-card[data-post-id="${post.id}"]`).click();
+        const backButton = page.locator('#sns-growth-back-terminal');
+        const backBox = await backButton.boundingBox();
+        expect(backBox?.height).toBeGreaterThanOrEqual(44);
+        expect(backBox?.y).toBeGreaterThanOrEqual(0);
+
+        await page.locator(`.sns-mobile-decision-card[data-post-id="${post.id}"]`).tap();
 
         await expect(page.locator('.sns-growth-detail')).toContainText(body);
         await expect(page.locator('#sns-growth-overlay.open')).toBeVisible();
         await expect(page.locator('#terminal-stage')).toBeHidden();
+        await expect(page.locator('#mobile-live-terminal-modal')).not.toHaveClass(/active/);
         await expect.poll(() => page.evaluate(() => window.__snsLiveTerminalOpens || 0)).toBe(0);
     });
 });
