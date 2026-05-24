@@ -503,6 +503,121 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(terminalFrame.src).toContain('viewerId=viewer-test');
   });
 
+  it('story-brainbase-session-resume-integrity-guard CON-5 recovers ttyd port conflict instead of reusing stale proxyPath', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: '/console/session-b',
+          runtimeState: 'degraded',
+          issues: [{
+            type: 'ttyd_port_conflict',
+            severity: 'critical'
+          }]
+        }
+      }]
+    });
+
+    httpClient.get.mockResolvedValue({
+      runtimeStatus: {
+        ttydRunning: true,
+        proxyPath: '/console/session-b',
+        runtimeState: 'degraded',
+        issues: [{
+          type: 'ttyd_port_conflict',
+          severity: 'critical'
+        }]
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
+    httpClient.post.mockResolvedValue({
+      actions: [{
+        type: 'reconnect_ttyd',
+        reason: 'ttyd_port_conflict',
+        success: true,
+        result: {
+          port: 40123,
+          proxyPath: '/console/session-1'
+        }
+      }]
+    });
+
+    await app.switchSession('session-1');
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/recover', expect.objectContaining({
+      dryRun: false
+    }));
+    expect(terminalFrame.src).toContain('/console/session-1/');
+    expect(terminalFrame.src).not.toContain('/console/session-b');
+  });
+
+  it('story-brainbase-session-resume-integrity-guard CON-6 validates supplied proxyPath before event-driven switch', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    httpClient.get.mockResolvedValue({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null,
+        issues: [{ type: 'ttyd_port_conflict', severity: 'critical' }]
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
+    httpClient.post.mockResolvedValue({
+      actions: [{
+        type: 'reconnect_ttyd',
+        reason: 'ttyd_port_conflict',
+        success: true,
+        result: { proxyPath: '/console/session-1', port: 40123 }
+      }]
+    });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: '/console/session-b',
+          port: 49999,
+          issues: [{ type: 'ttyd_port_conflict', severity: 'critical' }]
+        }
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+
+    await app.switchSession('session-1', { proxyPath: '/console/session-b', port: 49999 });
+
+    expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/recover', { dryRun: false });
+    expect(terminalFrame.src).toContain('/console/session-1');
+    expect(terminalFrame.src).not.toContain('/console/session-b');
+  });
+
   it('CON-8 keeps stale ttyd recovery retryable when terminal recovery fails', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     const terminalFrame = document.getElementById('terminal-frame');
@@ -590,6 +705,61 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(httpClient.get).not.toHaveBeenCalledWith('/api/sessions/session-1/runtime');
     expect(httpClient.post).not.toHaveBeenCalled();
     expect(terminalFrame.src.endsWith('/console/session-1?viewerId=viewer-test')).toBe(true);
+  }, 15000);
+
+  it('reconnect does not reuse unsafe ttyd proxyPath and recovers instead', async () => {
+    await app.start();
+    app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null,
+        issues: [{ type: 'ttyd_port_conflict', severity: 'critical' }]
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
+    httpClient.post.mockResolvedValue({
+      actions: [{
+        type: 'reconnect_ttyd',
+        reason: 'ttyd_port_conflict',
+        result: { proxyPath: '/console/session-1', port: 40123 }
+      }]
+    });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: '/console/session-b',
+          port: 49999,
+          issues: [{ type: 'ttyd_port_conflict', severity: 'critical' }]
+        }
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    terminalFrame.src = 'http://localhost:31013/console/session-b?viewerId=viewer-test';
+    app.reconnectManager.terminalFrame = terminalFrame;
+    app.reconnectManager.setCurrentSession('session-1');
+
+    await app.reconnectManager.reconnect();
+
+    expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/recover', { dryRun: false });
+    expect(terminalFrame.src).toContain('/console/session-1');
+    expect(terminalFrame.src).not.toContain('/console/session-b');
   }, 15000);
 
   it('reconnect ensures ttyd only when runtimeStatus says it is down', async () => {

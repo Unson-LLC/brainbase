@@ -38,6 +38,23 @@ function isTrustedTerminalOrigin(origin) {
     }
 }
 
+function hasRuntimeIssue(runtimeStatus, issueType) {
+    return Array.isArray(runtimeStatus?.issues)
+        && runtimeStatus.issues.some((issue) => issue?.type === issueType);
+}
+
+function hasUnsafeTtydIssue(runtimeStatus) {
+    return hasRuntimeIssue(runtimeStatus, 'stale_ttyd_process')
+        || hasRuntimeIssue(runtimeStatus, 'ttyd_port_conflict');
+}
+
+function getRecoveredProxyPath(actionResult) {
+    const action = (actionResult?.actions || []).find((candidate) => candidate?.result?.proxyPath);
+    return action?.result
+        ? { proxyPath: action.result.proxyPath, port: action.result.port }
+        : { proxyPath: null, port: null };
+}
+
 /**
  * Terminal Reconnect Manager
  * Handles iframe disconnection detection and automatic reconnection
@@ -258,7 +275,12 @@ export class TerminalReconnectManager {
     async _resolveRuntimeStatus(sessionId, fallbackSession) {
         const currentRuntime = fallbackSession?.runtimeStatus;
         const currentAccess = this.terminalAccess;
-        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
+        if (
+            currentRuntime?.ttydRunning
+            && currentRuntime?.proxyPath
+            && currentAccess?.state !== 'blocked'
+            && !hasUnsafeTtydIssue(currentRuntime)
+        ) {
             return {
                 session: fallbackSession || null,
                 runtimeStatus: currentRuntime,
@@ -353,7 +375,7 @@ export class TerminalReconnectManager {
                 return;
             }
 
-            if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
+            if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath && !hasUnsafeTtydIssue(runtimeStatus)) {
                 console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
                 this._reloadTerminalFrame(runtimeStatus.proxyPath, runtimeStatus.port);
                 return;
@@ -365,6 +387,23 @@ export class TerminalReconnectManager {
                 if (this.retryCount >= this.maxRetries) {
                     showError('ターミナル接続に失敗しました。ページをリロードしてください。');
                 }
+                return;
+            }
+
+            if (hasUnsafeTtydIssue(runtimeStatus)) {
+                const res = await httpClient.post(
+                    `/api/sessions/${encodeURIComponent(this.currentSessionId)}/terminal/recover`,
+                    { dryRun: false }
+                );
+                const recovered = getRecoveredProxyPath(res);
+                this.terminalAccess = res?.terminalAccess || this.terminalAccess;
+                if (recovered.proxyPath) {
+                    this._reloadTerminalFrame(recovered.proxyPath, recovered.port);
+                    this.isReconnecting = false;
+                    return;
+                }
+                this.isReconnecting = false;
+                this.handleDisconnect();
                 return;
             }
 

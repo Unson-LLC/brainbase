@@ -331,9 +331,9 @@ test.describe('story-terminal-stale-runtime-auto-recovery', () => {
       'utf8'
     );
 
-    expect(sessionManagementSource).toContain("hasRuntimeIssue(result?.runtimeStatus, 'stale_ttyd_process')");
+    expect(sessionManagementSource).toContain('hasUnsafeTtydIssue(result?.runtimeStatus)');
     expect(sessionManagementSource).toContain('this._clearTerminalFrame(terminalFrame)');
-    expect(sessionManagementSource).toContain('restorePresentation: !staleRecoveryFailed');
+    expect(sessionManagementSource).toContain('restorePresentation: !unsafeRecoveryFailed');
     expect(terminalSwitchSource).toContain('restorePresentation = true');
     expect(terminalSwitchSource).toContain('if (restorePresentation)');
     expect(uiTestSource).toContain('CON-8 keeps stale ttyd recovery retryable when terminal recovery fails');

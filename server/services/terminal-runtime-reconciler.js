@@ -37,6 +37,14 @@ function extractSessionId(command) {
     return null;
 }
 
+function extractTtydPort(command) {
+    if (!command) return null;
+    const match = String(command).match(/\s-p\s+(\d+)/);
+    if (!match) return null;
+    const port = Number(match[1]);
+    return Number.isFinite(port) ? port : null;
+}
+
 function shellQuote(value) {
     return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
@@ -111,7 +119,8 @@ export class TerminalRuntimeReconciler {
             .filter((proc) => /\bttyd\b/.test(proc.command))
             .map((proc) => ({
                 ...proc,
-                sessionId: extractSessionId(proc.command)
+                sessionId: extractSessionId(proc.command),
+                port: extractTtydPort(proc.command)
             }));
 
         const observedSessions = {};
@@ -126,6 +135,7 @@ export class TerminalRuntimeReconciler {
                 engine: session.engine || null,
                 intendedState: session.intendedState || 'active',
                 ttyd: ttydProcesses.filter((proc) => proc.sessionId === sessionId),
+                ttydPortConflict: this._findPersistedTtydConflict(session, ttydProcesses),
                 tmux,
                 pane: this._observePane(sessionId, session?.intendedState, tmux),
                 ownership
@@ -198,7 +208,8 @@ export class TerminalRuntimeReconciler {
                     ttyd: {
                         running: ttyds.length > 0,
                         duplicates: Math.max(0, ttyds.length - 1),
-                        processes: ttyds.map(({ pid, ppid, pgid, command }) => ({ pid, ppid, pgid, command }))
+                        processes: ttyds.map(({ pid, ppid, pgid, port, command }) => ({ pid, ppid, pgid, port, command })),
+                        portConflict: entry.ttydPortConflict || null
                     },
                     ownership: entry.ownership
                 }
@@ -207,16 +218,17 @@ export class TerminalRuntimeReconciler {
             if (recover && entry.intendedState === 'active' && classification.runtimeState === TERMINAL_RUNTIME_STATE.DEGRADED) {
                 const hasPaneErrorFlood = classification.issues.some((issue) => issue.type === 'codex_pane_error_flood');
                 const hasStaleTtydProcess = classification.issues.some((issue) => issue.type === 'stale_ttyd_process');
+                const hasTtydPortConflict = classification.issues.some((issue) => issue.type === 'ttyd_port_conflict');
                 if (hasPaneErrorFlood) {
                     actions.push(await this._restartRuntimeAction({
                         entry,
                         reason: 'codex_pane_error_flood',
                         dryRun
                     }));
-                } else if (hasStaleTtydProcess) {
+                } else if (hasStaleTtydProcess || hasTtydPortConflict) {
                     actions.push(await this._reconnectTtydAction({
                         entry,
-                        reason: 'stale_ttyd_process',
+                        reason: hasTtydPortConflict ? 'ttyd_port_conflict' : 'stale_ttyd_process',
                         dryRun
                     }));
                 } else {
@@ -292,7 +304,8 @@ export class TerminalRuntimeReconciler {
                     ttyd: {
                         running: (entry.ttyd || []).length > 0,
                         duplicates: Math.max(0, (entry.ttyd || []).length - 1),
-                        processes: (entry.ttyd || []).map(({ pid, ppid, pgid, command }) => ({ pid, ppid, pgid, command }))
+                        processes: (entry.ttyd || []).map(({ pid, ppid, pgid, port, command }) => ({ pid, ppid, pgid, port, command })),
+                        portConflict: entry.ttydPortConflict || null
                     },
                     gateway: this._withAge(registryEntry?.observed?.gateway),
                     inputProbe: this._withAge(registryEntry?.observed?.inputProbe),
@@ -408,6 +421,30 @@ export class TerminalRuntimeReconciler {
         return ttyds.find((ttyd) => registeredPids.has(ttyd.pid)) || ttyds[ttyds.length - 1];
     }
 
+    _findPersistedTtydConflict(session, ttydProcesses) {
+        if (!session?.id || !session?.ttydProcess) return null;
+        const persistedPid = Number(session.ttydProcess.pid);
+        const persistedPort = Number(session.ttydProcess.port);
+        if (!Number.isFinite(persistedPid) && !Number.isFinite(persistedPort)) return null;
+
+        const conflict = ttydProcesses.find((proc) => {
+            if (!proc.sessionId || proc.sessionId === session.id) return false;
+            const pidMatches = Number.isFinite(persistedPid) && proc.pid === persistedPid;
+            const portMatches = Number.isFinite(persistedPort) && proc.port === persistedPort;
+            return pidMatches || portMatches;
+        });
+
+        if (!conflict) return null;
+        return {
+            persistedPid: Number.isFinite(persistedPid) ? persistedPid : null,
+            persistedPort: Number.isFinite(persistedPort) ? persistedPort : null,
+            observedPid: conflict.pid,
+            observedPort: conflict.port || null,
+            observedSessionId: conflict.sessionId,
+            command: conflict.command
+        };
+    }
+
     _classifyRuntimeState(entry, registryEntry = null) {
         const issues = [];
         if (entry.intendedState && entry.intendedState !== 'active') {
@@ -418,6 +455,21 @@ export class TerminalRuntimeReconciler {
         }
         if ((entry.ttyd || []).length > 1) {
             issues.push(this._issue('duplicate_ttyd', entry.sessionId, 'critical', 'Multiple ttyd fallback processes are attached to this session.'));
+            return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
+        }
+        if (entry.ttydPortConflict) {
+            const conflict = entry.ttydPortConflict;
+            const details = [
+                Number.isFinite(conflict.persistedPid) ? `pid=${conflict.persistedPid}` : null,
+                Number.isFinite(conflict.persistedPort) ? `port=${conflict.persistedPort}` : null,
+                conflict.observedSessionId ? `observedSession=${conflict.observedSessionId}` : null
+            ].filter(Boolean).join(', ');
+            issues.push(this._issue(
+                'ttyd_port_conflict',
+                entry.sessionId,
+                'critical',
+                `Persisted ttyd runtime belongs to a different session${details ? ` (${details})` : ''}.`
+            ));
             return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
         }
         if (entry.tmux?.exists === null) {

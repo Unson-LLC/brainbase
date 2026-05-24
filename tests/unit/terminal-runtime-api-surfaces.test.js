@@ -70,6 +70,86 @@ describe('terminal runtime recovery API surfaces', () => {
     }));
   });
 
+  it('story-brainbase-session-resume-integrity-guard CON-5 getRuntime strips unsafe proxyPath for ttyd_port_conflict', async () => {
+    const controller = {
+      ownership: {
+        getTerminalAccessState: vi.fn(() => ({ state: 'owner' }))
+      },
+      runtimeRegistry: {
+        getSession: vi.fn(() => null)
+      },
+      runtimeReconciler: {
+        reconcile: vi.fn(async () => ({
+          health: {
+            sessionHealth: [{
+              sessionId: 'session-1',
+              runtimeState: 'degraded',
+              issues: [{
+                type: 'ttyd_port_conflict',
+                severity: 'critical',
+                sessionId: 'session-1'
+              }],
+              observed: {
+                ttyd: {
+                  running: true,
+                  portConflict: {
+                    persistedPort: 40015,
+                    observedSessionId: 'session-b'
+                  }
+                }
+              }
+            }]
+          }
+        }))
+      },
+      _getSessionById: vi.fn(() => ({
+        id: 'session-1',
+        intendedState: 'active',
+        ttydProcess: { pid: 123, port: 40015 },
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: '/console/session-b',
+          runtimeState: 'degraded'
+        }
+      })),
+      _resolveViewerLabel: vi.fn(() => 'Local / Mac'),
+      _withViewerRuntimeStatus: vi.fn((runtimeStatus) => runtimeStatus),
+      _respondError: vi.fn((res, _message, error) => res.status(500).json({ error: error.message }))
+    };
+    installRuntimeHandlers(controller);
+
+    const req = {
+      params: { id: 'session-1' },
+      query: { viewerId: 'viewer-1' }
+    };
+    const res = {
+      statusCode: 200,
+      body: null,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        this.body = payload;
+        return this;
+      }
+    };
+
+    await controller.getRuntime(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.runtimeStatus).toMatchObject({
+      ttydRunning: false,
+      proxyPath: null,
+      interactiveUrl: null,
+      inputReady: false
+    });
+    expect(res.body.runtimeStatus.issues).toContainEqual(expect.objectContaining({
+      type: 'ttyd_port_conflict',
+      severity: 'critical'
+    }));
+  });
+
   it('CON-7 session terminal recovery endpoint exposes reconnect_ttyd actions', async () => {
     const reconcile = vi.fn(async () => ({
       actions: [{
