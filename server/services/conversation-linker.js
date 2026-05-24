@@ -84,6 +84,7 @@ export class ConversationLinker {
         this._codexIndexCache = null;
         this._codexIndexCacheTime = 0;
         this._codexFileMetaCache = new Map();
+        this._codexFileBySessionId = new Map();
         this._linkCursor = 0;
     }
 
@@ -301,6 +302,11 @@ export class ConversationLinker {
      * @returns {Promise<string|null>} cwd
      */
     async getCodexSessionCwd(jsonlPath) {
+        const meta = await this.getCodexSessionMeta(jsonlPath);
+        return meta.cwd || null;
+    }
+
+    async getCodexSessionMeta(jsonlPath) {
         let stream;
         try {
             stream = createReadStream(jsonlPath);
@@ -312,7 +318,18 @@ export class ConversationLinker {
                         const data = JSON.parse(line);
                         if (data.type === 'session_meta' || data.session_meta) {
                             const meta = data.session_meta || data.payload || data;
-                            return meta.cwd || null;
+                            const source = meta.source;
+                            const subagent = source && typeof source === 'object'
+                                ? source.subagent
+                                : null;
+                            return {
+                                id: meta.id || meta.session_id || extractCodexResumeId(path.basename(jsonlPath, '.jsonl')),
+                                cwd: meta.cwd || null,
+                                threadSource: meta.thread_source || null,
+                                agentRole: meta.agent_role || null,
+                                agentNickname: meta.agent_nickname || null,
+                                parentThreadId: subagent?.thread_spawn?.parent_thread_id || null
+                            };
                         }
                     } catch {
                         // Skip malformed lines
@@ -320,13 +337,27 @@ export class ConversationLinker {
                     // Only check first few lines
                     break;
                 }
-                return null;
+                return {
+                    id: extractCodexResumeId(path.basename(jsonlPath, '.jsonl')),
+                    cwd: null,
+                    threadSource: null,
+                    agentRole: null,
+                    agentNickname: null,
+                    parentThreadId: null
+                };
             } finally {
                 rl.close();
                 stream.destroy();
             }
         } catch {
-            return null;
+            return {
+                id: extractCodexResumeId(path.basename(jsonlPath, '.jsonl')),
+                cwd: null,
+                threadSource: null,
+                agentRole: null,
+                agentNickname: null,
+                parentThreadId: null
+            };
         } finally {
             if (stream && !stream.destroyed) stream.destroy();
         }
@@ -369,33 +400,71 @@ export class ConversationLinker {
     }
 
     async getCodexSessionId(jsonlPath) {
+        const meta = await this.getCodexSessionMeta(jsonlPath);
+        return meta.id || extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
+    }
+
+    async getCodexConversationStats(jsonlPath) {
         let stream;
         try {
+            const stat = await fs.stat(jsonlPath);
             stream = createReadStream(jsonlPath);
             const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+            let messageCount = 0;
 
             try {
                 for await (const line of rl) {
-                    try {
-                        const data = JSON.parse(line);
-                        if (data.type === 'session_meta' || data.session_meta) {
-                            const meta = data.session_meta || data.payload || data;
-                            return meta.id || meta.session_id || extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
-                        }
-                    } catch {
-                        // Skip malformed lines
-                    }
-                    break;
+                    if (line.trim()) messageCount++;
                 }
-                return extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
+                return { messageCount, sizeBytes: stat.size, lastActivity: stat.mtime.toISOString() };
             } finally {
                 rl.close();
                 stream.destroy();
             }
         } catch {
-            return extractCodexResumeId(path.basename(jsonlPath, '.jsonl'));
+            return { messageCount: 0, sizeBytes: 0, lastActivity: null };
         } finally {
             if (stream && !stream.destroyed) stream.destroy();
+        }
+    }
+
+    async _buildCodexConversationFromFile(codexFile) {
+        const uuid = path.basename(codexFile, '.jsonl').replace(/^rollout-/, '');
+        const stats = await this.getCodexConversationStats(codexFile);
+        const meta = await this.getCodexSessionMeta(codexFile);
+        const tokenUsage = await this.getCodexTokenUsage(codexFile);
+        return {
+            engine: 'codex',
+            conversationId: uuid,
+            resumeId: meta.id || extractCodexResumeId(uuid),
+            firstPrompt: null,
+            lastActivity: stats.lastActivity,
+            messageCount: stats.messageCount,
+            tokenUsage,
+            threadSource: meta.threadSource,
+            agentRole: meta.agentRole,
+            agentNickname: meta.agentNickname,
+            parentThreadId: meta.parentThreadId,
+            _filePath: codexFile
+        };
+    }
+
+    async _resolveCodexMainConversation(conversation, codexConversations = []) {
+        if (!conversation || conversation.engine !== 'codex') return conversation;
+        if (conversation.threadSource !== 'subagent' || !conversation.parentThreadId) return conversation;
+
+        const inScopeParent = codexConversations.find((candidate) =>
+            candidate.resumeId === conversation.parentThreadId
+            || extractCodexResumeId(candidate.conversationId) === conversation.parentThreadId
+        );
+        if (inScopeParent) return inScopeParent;
+
+        const parentFile = this._codexFileBySessionId.get(conversation.parentThreadId);
+        if (!parentFile || !existsSync(parentFile)) return conversation;
+        try {
+            return await this._buildCodexConversationFromFile(parentFile);
+        } catch {
+            return conversation;
         }
     }
 
@@ -596,20 +665,8 @@ export class ConversationLinker {
         }
         const codexConversations = [];
         for (const codexFile of codexFiles) {
-            const uuid = path.basename(codexFile, '.jsonl').replace(/^rollout-/, '');
             try {
-                const stat = await fs.stat(codexFile);
-                const resumeId = await this.getCodexSessionId(codexFile);
-                const tokenUsage = await this.getCodexTokenUsage(codexFile);
-                codexConversations.push({
-                    engine: 'codex',
-                    conversationId: uuid,
-                    resumeId,
-                    firstPrompt: null, // Codex firstPrompt は history.jsonl から取得する必要がある（重いのでスキップ）
-                    lastActivity: stat.mtime.toISOString(),
-                    messageCount: 0,
-                    tokenUsage
-                });
+                codexConversations.push(await this._buildCodexConversationFromFile(codexFile));
             } catch {
                 // File stat error, skip
             }
@@ -624,7 +681,8 @@ export class ConversationLinker {
             return bTime - aTime;
         });
 
-        const lastConversation = allConversations[0] || null;
+        let lastConversation = allConversations[0] || null;
+        lastConversation = await this._resolveCodexMainConversation(lastConversation, codexConversations);
         const engines = [...new Set(allConversations.map(c => c.engine))];
         const tokenUsage = lastConversation?.tokenUsage || session.conversationSummary?.tokenUsage || null;
         let lastAssistantSnippet = session.lastAssistantSnippet || null;
@@ -641,7 +699,8 @@ export class ConversationLinker {
                 lastAssistantSnippetAt = lastConversation.lastActivity || null;
             }
         } else if (lastConversation?.engine === 'codex') {
-            const codexFile = codexFiles.find((filePath) => path.basename(filePath, '.jsonl').replace(/^rollout-/, '') === lastConversation.conversationId);
+            const codexFile = lastConversation._filePath
+                || codexFiles.find((filePath) => path.basename(filePath, '.jsonl').replace(/^rollout-/, '') === lastConversation.conversationId);
             if (codexFile) {
                 lastAssistantSnippet = await this.getLastCodexAssistantSnippet(codexFile);
                 lastAssistantSnippetAt = lastConversation.lastActivity || null;
@@ -664,7 +723,7 @@ export class ConversationLinker {
         return {
             totalConversations,
             engines,
-            lastConversation,
+            lastConversation: this._serializeConversation(lastConversation),
             tokenUsage,
             codexThreadId,
             lastAssistantSnippet,
@@ -706,6 +765,7 @@ export class ConversationLinker {
         }
 
         const seenFiles = new Set();
+        this._codexFileBySessionId = new Map();
 
         try {
             // ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl を再帰走査
@@ -724,6 +784,10 @@ export class ConversationLinker {
                             const filePath = path.join(dayDir, file);
                             seenFiles.add(filePath);
                             const cwd = await this._getCodexSessionCwdForIndex(filePath);
+                            const meta = await this._getCodexSessionMetaForIndex(filePath);
+                            if (meta?.id) {
+                                this._codexFileBySessionId.set(meta.id, filePath);
+                            }
                             if (cwd) {
                                 const normalized = cwd.replace(/\/+$/, '');
                                 const existing = index.get(normalized) || [];
@@ -750,6 +814,12 @@ export class ConversationLinker {
         return index;
     }
 
+    _serializeConversation(conversation) {
+        if (!conversation) return null;
+        const { _filePath, ...serializable } = conversation;
+        return serializable;
+    }
+
     async _getCodexSessionCwdForIndex(filePath) {
         let stat;
         try {
@@ -768,9 +838,34 @@ export class ConversationLinker {
         this._codexFileMetaCache.set(filePath, {
             size: stat.size,
             mtimeMs: stat.mtimeMs,
-            cwd
+            cwd,
+            meta: { cwd }
         });
         return cwd;
+    }
+
+    async _getCodexSessionMetaForIndex(filePath) {
+        let stat;
+        try {
+            stat = await fs.stat(filePath);
+        } catch {
+            this._codexFileMetaCache.delete(filePath);
+            return null;
+        }
+
+        const cached = this._codexFileMetaCache.get(filePath);
+        if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs && cached.meta?.id) {
+            return cached.meta;
+        }
+
+        const meta = await this.getCodexSessionMeta(filePath);
+        this._codexFileMetaCache.set(filePath, {
+            size: stat.size,
+            mtimeMs: stat.mtimeMs,
+            cwd: meta.cwd || null,
+            meta
+        });
+        return meta;
     }
 
     /**
@@ -836,14 +931,15 @@ export class ConversationLinker {
                 const stat = await fs.stat(filePath);
                 const resumeId = await this.getCodexSessionId(filePath);
                 const workspacePath = await this.getCodexSessionCwd(filePath);
+                const stats = await this.getCodexConversationStats(filePath);
                 conversations.push({
                     engine: 'codex',
                     id: uuid,
                     resumeId,
                     workspacePath,
                     firstPrompt: null,
-                    lastActivity: stat.mtime.toISOString(),
-                    messageCount: 0,
+                    lastActivity: stats.lastActivity || stat.mtime.toISOString(),
+                    messageCount: stats.messageCount,
                     sizeBytes: stat.size
                 });
             } catch {

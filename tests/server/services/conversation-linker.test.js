@@ -15,11 +15,29 @@ async function createJsonlFile(lines) {
   return filePath;
 }
 
-async function createCodexSessionFile(rootDir, { year = '2026', month = '05', day = '07', file = 'rollout-test.jsonl', cwd, id = '019e0000-0000-7000-8000-000000000001' }) {
+async function createCodexSessionFile(rootDir, {
+  year = '2026',
+  month = '05',
+  day = '07',
+  file = 'rollout-test.jsonl',
+  cwd,
+  id = '019e0000-0000-7000-8000-000000000001',
+  threadSource = 'user',
+  source = 'cli',
+  metadataShape = 'typed-payload',
+  extraLines = []
+}) {
   const dayDir = path.join(rootDir, year, month, day);
   await fs.mkdir(dayDir, { recursive: true });
   const filePath = path.join(dayDir, file);
-  await fs.writeFile(filePath, `${JSON.stringify({ type: 'session_meta', payload: { id, cwd } })}\n`, 'utf8');
+  const metadata = { id, cwd, thread_source: threadSource, source };
+  const metadataLine = metadataShape === 'top-level'
+    ? { session_meta: metadata }
+    : { type: 'session_meta', payload: metadata };
+  await fs.writeFile(filePath, [
+    JSON.stringify(metadataLine),
+    ...extraLines
+  ].join('\n') + '\n', 'utf8');
   return filePath;
 }
 
@@ -237,5 +255,117 @@ describe('ConversationLinker', () => {
     expect(updated.conversationSummary.totalConversations).toBe(2);
     expect(updated.conversationSummary.codexLogFiles).toHaveLength(2);
     expect(updated.codexThreadId).toBe('019e359a-c2cc-7a23-99de-e468b147a26b');
+  });
+
+  it('story-brainbase-session-resume-integrity-guard INV-1 最新Codexログがsubagentの場合はparent threadをresume正本にする', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-parent-'));
+    tempDirs.push(codexRoot);
+    const cwd = '/tmp/session-resume-integrity';
+    const parentId = '019e4a2b-48af-7e92-a061-b1f56352857f';
+    const childId = '019e5505-cb1b-73e0-bdc8-d8daa34297f8';
+    const parentFile = await createCodexSessionFile(codexRoot, {
+      day: '21',
+      file: `rollout-2026-05-21T19-53-31-${parentId}.jsonl`,
+      cwd,
+      id: parentId,
+      extraLines: [
+        JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'main work' } }),
+        JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: '本体ログです' } })
+      ]
+    });
+    const childFile = await createCodexSessionFile(codexRoot, {
+      day: '23',
+      file: `rollout-2026-05-23T22-28-23-${childId}.jsonl`,
+      cwd,
+      id: childId,
+      threadSource: 'subagent',
+      source: {
+        subagent: {
+          thread_spawn: {
+            parent_thread_id: parentId
+          }
+        }
+      },
+      extraLines: [
+        JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: '派生ログです' } })
+      ]
+    });
+
+    const parentTime = new Date('2026-05-23T00:00:00.000Z');
+    const childTime = new Date('2026-05-24T00:00:00.000Z');
+    await fs.utimes(parentFile, parentTime, parentTime);
+    await fs.utimes(childFile, childTime, childTime);
+    const session = {
+      id: 'session-resume',
+      path: cwd,
+      worktree: { path: cwd }
+    };
+    const stateStore = {
+      get: vi.fn(() => ({ sessions: [session] })),
+      mutateSessions: vi.fn(async (mutator) => ({ sessions: await mutator([session]) }))
+    };
+    const linker = new ConversationLinker({ stateStore });
+    linker.codexSessionsDir = codexRoot;
+
+    await linker.linkAll();
+    const updated = stateStore.mutateSessions.mock.calls[0][0]([session])[0];
+
+    expect(updated.codexThreadId).toBe(parentId);
+    expect(updated.conversationSummary.lastConversation.resumeId).toBe(parentId);
+    expect(updated.conversationSummary.lastConversation.threadSource).toBe('user');
+    expect(updated.conversationSummary.lastConversation.messageCount).toBe(3);
+  });
+
+  it('story-brainbase-session-resume-integrity-guard CON-1a top-level session_meta形式も読む', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-session-meta-'));
+    tempDirs.push(codexRoot);
+    const cwd = '/tmp/session-meta-compat';
+    const id = '019e6a4d-2ea6-7be9-a3c7-a04b736060c1';
+    const filePath = await createCodexSessionFile(codexRoot, {
+      cwd,
+      id,
+      metadataShape: 'top-level'
+    });
+    const linker = new ConversationLinker({
+      stateStore: { get: () => ({ sessions: [] }), update: async () => ({ sessions: [] }) }
+    });
+
+    await expect(linker.getCodexSessionMeta(filePath)).resolves.toMatchObject({
+      id,
+      cwd,
+      threadSource: 'user'
+    });
+  });
+
+  it('story-brainbase-session-resume-integrity-guard CON-3 API会話一覧でもCodex messageCountがJSONL行数になる', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-api-message-count-'));
+    tempDirs.push(codexRoot);
+    const cwd = '/tmp/session-api-message-count';
+    const id = '019e6a4d-2ea6-7be9-a3c7-a04b736060c2';
+    await createCodexSessionFile(codexRoot, {
+      cwd,
+      id,
+      extraLines: [
+        JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'main work' } }),
+        JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: '本体ログです' } })
+      ]
+    });
+    const session = {
+      id: 'session-api-message-count',
+      path: cwd,
+      worktree: { path: cwd }
+    };
+    const linker = new ConversationLinker({
+      stateStore: { get: () => ({ sessions: [session] }), update: async () => ({ sessions: [session] }) }
+    });
+    linker.codexSessionsDir = codexRoot;
+
+    const result = await linker.getConversationsForSession(session.id);
+    const codexConversation = result.conversations.find((conversation) => conversation.engine === 'codex');
+
+    expect(codexConversation).toMatchObject({
+      resumeId: id,
+      messageCount: 3
+    });
   });
 });

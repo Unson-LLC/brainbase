@@ -8,6 +8,11 @@ function hasRuntimeIssue(runtimeStatus, issueType) {
         && runtimeStatus.issues.some(issue => issue?.type === issueType);
 }
 
+function hasUnsafeTtydIssue(runtimeStatus) {
+    return hasRuntimeIssue(runtimeStatus, 'stale_ttyd_process')
+        || hasRuntimeIssue(runtimeStatus, 'ttyd_port_conflict');
+}
+
 function getRecoveredProxyPath(response) {
     if (response?.proxyPath) {
         return { proxyPath: response.proxyPath, port: response.port };
@@ -25,7 +30,12 @@ export function applySessionManagementMixin(AppClass) {
         async _resolveSessionRuntime(sessionId, session) {
             const currentRuntime = session?.runtimeStatus;
             const currentAccess = this.reconnectManager?.terminalAccess || null;
-            if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
+            if (
+                currentRuntime?.ttydRunning
+                && currentRuntime?.proxyPath
+                && currentAccess?.state !== 'blocked'
+                && !hasUnsafeTtydIssue(currentRuntime)
+            ) {
                 return {
                     runtimeStatus: {
                         ...currentRuntime,
@@ -47,19 +57,19 @@ export function applySessionManagementMixin(AppClass) {
                 ? this._getViewerProxyPath(options.proxyPath, options.port)
                 : null;
 
-            if (proxyPath) {
-                return {
-                    proxyPath,
-                    terminalAccess: this.reconnectManager?.terminalAccess || null
-                };
-            }
-
             const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
             if (terminalAccess?.state === 'blocked') {
                 return { proxyPath: null, terminalAccess };
             }
 
-            if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
+            if (proxyPath && !hasUnsafeTtydIssue(runtimeStatus)) {
+                return {
+                    proxyPath,
+                    terminalAccess
+                };
+            }
+
+            if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath && !hasUnsafeTtydIssue(runtimeStatus)) {
                 return {
                     proxyPath: this._getViewerProxyPath(runtimeStatus.proxyPath, runtimeStatus.port),
                     terminalAccess
@@ -67,7 +77,7 @@ export function applySessionManagementMixin(AppClass) {
             }
 
             let res;
-            if (hasRuntimeIssue(runtimeStatus, 'stale_ttyd_process')) {
+            if (hasUnsafeTtydIssue(runtimeStatus)) {
                 res = await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/recover`, {
                     dryRun: false
                 });
@@ -416,14 +426,14 @@ export function applySessionManagementMixin(AppClass) {
                 }
 
                 if (!result?.proxyPath) {
-                    const staleRecoveryFailed = hasRuntimeIssue(result?.runtimeStatus, 'stale_ttyd_process');
-                    if (staleRecoveryFailed) {
+                    const unsafeRecoveryFailed = hasUnsafeTtydIssue(result?.runtimeStatus);
+                    if (unsafeRecoveryFailed) {
                         this._clearTerminalFrame(terminalFrame);
                     }
                     this._failTerminalSwitch?.(sessionId, switchToken, {
                         previousSessionId,
                         errorMessage: 'ターミナル接続先が見つかりません',
-                        restorePresentation: !staleRecoveryFailed
+                        restorePresentation: !unsafeRecoveryFailed
                     });
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',

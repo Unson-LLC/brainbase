@@ -175,6 +175,78 @@ describe('TerminalRuntimeReconciler', () => {
     expect(health.sessionHealth[0].observed.ttyd.running).toBe(true);
   });
 
+  it('story-brainbase-session-resume-integrity-guard INV-4 persisted ttyd port owned by another session is degraded', async () => {
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-a',
+        name: 'Session A',
+        engine: 'codex',
+        intendedState: 'active',
+        ttydProcess: {
+          pid: 87837,
+          port: 40015,
+          engine: 'codex'
+        }
+      }],
+      dryProcesses: [
+        '62766 33566 33566 ttyd -p 40015 -W -b /console/session-b -I index.html'
+      ].join('\n')
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('degraded');
+    expect(health.issues).toContainEqual(expect.objectContaining({
+      type: 'ttyd_port_conflict',
+      severity: 'critical',
+      sessionId: 'session-a'
+    }));
+    expect(health.sessionHealth[0].observed.ttyd.portConflict).toMatchObject({
+      persistedPort: 40015,
+      observedSessionId: 'session-b'
+    });
+  });
+
+  it('story-brainbase-session-resume-integrity-guard CON-5 recover trueでttyd_port_conflictはttyd再接続に流す', async () => {
+    const startTtyd = vi.fn(async () => ({ port: 40015, proxyPath: '/console/session-a' }));
+    const { reconciler, ensureSessionRuntime } = buildReconciler({
+      sessions: [{
+        id: 'session-a',
+        name: 'Session A',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/project',
+        ttydProcess: {
+          pid: 87837,
+          port: 40015,
+          engine: 'codex'
+        }
+      }],
+      dryProcesses: [
+        '62766 33566 33566 ttyd -p 40015 -W -b /console/session-b -I index.html'
+      ].join('\n'),
+      startTtyd
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(ensureSessionRuntime).not.toHaveBeenCalled();
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-a',
+      cwd: '/tmp/project',
+      engine: 'codex',
+      preferredPort: 40015,
+      forceTtyd: true,
+      preserveTmuxOnFailure: true
+    }));
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      type: 'reconnect_ttyd',
+      reason: 'ttyd_port_conflict',
+      dryRun: false,
+      success: true
+    }));
+  });
+
   it('non dryRun時_duplicate ttydをkillする', async () => {
     const { reconciler, killFn } = buildReconciler({
       dryProcesses: [

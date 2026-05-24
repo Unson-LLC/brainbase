@@ -77,6 +77,22 @@ function hasRuntimeIssue(runtimeStatus, issueType) {
         && runtimeStatus.issues.some((issue) => issue?.type === issueType);
 }
 
+function hasUnsafeTtydIssue(runtimeStatus) {
+    return hasRuntimeIssue(runtimeStatus, 'stale_ttyd_process')
+        || hasRuntimeIssue(runtimeStatus, 'ttyd_port_conflict');
+}
+
+function stripUnsafeTtydRuntime(runtimeStatus = {}) {
+    if (!hasUnsafeTtydIssue(runtimeStatus)) return runtimeStatus;
+    return {
+        ...runtimeStatus,
+        ttydRunning: false,
+        proxyPath: null,
+        interactiveUrl: null,
+        inputReady: false
+    };
+}
+
 function runtimeHealthEntryToObservedRuntime(healthEntry) {
     if (!healthEntry) return null;
     return {
@@ -140,7 +156,7 @@ export function installRuntimeHandlers(controller) {
         if (
             session?.intendedState === 'active'
             && session?.ttydProcess
-            && !hasRuntimeIssue(observedRuntime, 'stale_ttyd_process')
+            && !hasUnsafeTtydIssue(observedRuntime)
             && typeof controller.runtimeReconciler?.reconcile === 'function'
         ) {
             try {
@@ -158,7 +174,7 @@ export function installRuntimeHandlers(controller) {
         }
         const blocked = terminalAccess?.state === 'blocked';
         const runtimeStatus = controller._withViewerRuntimeStatus({
-            ...buildObservedRuntimeStatus(effectiveSession.runtimeStatus || baseRuntimeStatus || {}, observedRuntime),
+            ...stripUnsafeTtydRuntime(buildObservedRuntimeStatus(effectiveSession.runtimeStatus || baseRuntimeStatus || {}, observedRuntime)),
             ...(blocked ? {
                 inputReady: false,
                 interactiveUrl: null,
