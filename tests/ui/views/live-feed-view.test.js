@@ -75,7 +75,7 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-item-dot.working')).toBeTruthy();
         expect(container.querySelector('.feed-item-actions')).toBeTruthy();
         expect(Array.from(container.querySelectorAll('.feed-item-action')).every((button) => button.disabled)).toBe(true);
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: すべて');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション別');
     });
 
     it('フィルタボタン押下時_該当カテゴリだけに絞り込まれる', () => {
@@ -87,7 +87,7 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-filter-btn[data-filter="system"]').getAttribute('aria-pressed')).toBe('true');
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.feed-item-label')?.textContent).toBe('システムイベント');
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: システム');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション別 / フィルタ: システム');
     });
 
     it('該当なしフィルタ押下時_カテゴリ別の空状態を表示する', () => {
@@ -156,14 +156,14 @@ describe('LiveFeedView', () => {
         view.mount(container);
 
         expect(Array.from(container.querySelectorAll('.feed-item-history-text')).some((node) => node.textContent.includes('実装ファイルを確認中'))).toBe(true);
-        expect(Array.from(container.querySelectorAll('.feed-item-source')).some((node) => node.textContent.includes('structured activity'))).toBe(true);
+        expect(Array.from(container.querySelectorAll('.feed-item-source')).some((node) => node.textContent.includes('活動報告'))).toBe(true);
         expect(container.querySelector('.live-feed-session-scope')?.textContent).toContain('Alpha');
 
         container.querySelector('.feed-session-chip[data-session-scope="session-alpha"]').click();
 
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Live Feedで過去の依頼を出して');
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション履歴');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション詳細');
     });
 
     it('INV-11/S-9: default表示はセッションごとの複数行履歴グループを安定順で描画する', () => {
@@ -243,6 +243,8 @@ describe('LiveFeedView', () => {
 
         view.mount(container);
 
+        expect(container.querySelector('.feed-view-mode-btn[data-feed-mode="groups"]')?.textContent).toContain('セッション別');
+        expect(container.querySelector('.feed-view-mode-btn[data-feed-mode="log"]')?.textContent).toContain('時系列');
         const sections = Array.from(container.querySelectorAll('.feed-session-section'));
         expect(sections).toHaveLength(2);
         expect(sections[0].getAttribute('data-session-id')).toBe('session-alpha');

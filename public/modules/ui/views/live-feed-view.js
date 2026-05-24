@@ -123,6 +123,23 @@ export class LiveFeedView {
         return FEED_FILTERS.find((filter) => filter.id === this._activeFilter)?.label || 'すべて';
     }
 
+    _displayModeLabel() {
+        if (this._activeSessionId) return 'セッション詳細';
+        const mode = this._activityDisplayMode === 'log' ? '時系列' : 'セッション別';
+        const filter = this._activeFilterLabel();
+        return this._activeFilter === 'all' ? mode : `${mode} / フィルタ: ${filter}`;
+    }
+
+    _sourceLabel(entry) {
+        const source = entry.provenanceLabel || '';
+        if (entry.textSource === 'raw_prompt' || source === 'raw prompt') return 'ユーザー入力';
+        if (entry.textSource === 'model_summary' || source === 'generated summary') return '要約';
+        if (entry.evidenceSource === 'activity_report' || source === 'structured activity') return '活動報告';
+        if (entry.textSource === 'structured_field' || source === 'structured field') return '作業状況';
+        if (source === 'deterministic') return '抜粋';
+        return source;
+    }
+
     _getDisplayedEntries() {
         if (typeof this.liveFeedService.getHistoryEntries === 'function') {
             return this.liveFeedService.getHistoryEntries(this._activeSessionId
@@ -184,8 +201,8 @@ export class LiveFeedView {
             return '';
         }
         const modes = [
-            { id: 'groups', label: '履歴' },
-            { id: 'log', label: 'ログ' }
+            { id: 'groups', label: 'セッション別' },
+            { id: 'log', label: '時系列' }
         ];
         return `<div class="live-feed-display-mode" aria-label="Live Feed display mode">
             ${modes.map((mode) => {
@@ -261,8 +278,9 @@ export class LiveFeedView {
         const historyText = entry.text
             ? `<div class="feed-item-step feed-item-history-text">${escapeHtml(entry.text)}</div>`
             : '';
-        const provenance = entry.provenanceLabel
-            ? `<span class="feed-item-source">${escapeHtml(entry.provenanceLabel)}</span>`
+        const sourceLabel = this._sourceLabel(entry);
+        const provenance = sourceLabel
+            ? `<span class="feed-item-source">${escapeHtml(sourceLabel)}</span>`
             : '';
         const statusToneClass = entry.statusTone ? ` feed-item-tone-${entry.statusTone}` : '';
         const tone = entry.statusTone || 'idle';
@@ -344,7 +362,7 @@ export class LiveFeedView {
             <div class="live-feed-footer"${footerPadding}>
                 <span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span>
                 <span>最終更新: ${entries[0] ? escapeHtml(this._formatTime(entries[0].timestamp)) : '--:--:--'}</span>
-                <span>表示: ${escapeHtml(this._activeSessionId ? 'セッション履歴' : this._activeFilterLabel())}</span>
+                <span>表示: ${escapeHtml(this._displayModeLabel())}</span>
             </div>
         </div>`;
 

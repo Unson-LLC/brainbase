@@ -65,7 +65,7 @@ function historyKindLabel(kind) {
     if (kind === 'agent_blocked') return '停止';
     if (kind === 'evidence') return '根拠';
     if (kind === 'model_summary') return '生成要約';
-    return 'エージェント活動';
+    return '作業状況';
 }
 
 function historyIcon(actor, kind) {

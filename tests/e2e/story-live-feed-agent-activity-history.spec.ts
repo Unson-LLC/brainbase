@@ -339,8 +339,8 @@ test.describe('story-live-feed-agent-activity-history', () => {
             'ActivityHistoryRepositoryを実装中',
             '入力待ち'
         ]));
-        expect(result.sources).toContain('raw prompt');
-        expect(result.sources).toContain('structured activity');
+        expect(result.sources).toContain('ユーザー入力');
+        expect(result.sources).toContain('活動報告');
         expect(result.modelSummaryVisible).toBe(false);
         expect(result.sessionChips).toEqual(expect.arrayContaining(['全体', 'Alpha History', 'Beta History']));
         expect(result.defaultGroupIds).toEqual(['session-alpha-history', 'session-beta-history']);
@@ -350,7 +350,7 @@ test.describe('story-live-feed-agent-activity-history', () => {
         expect(result.focusedLabels.every((label) => label === 'Alpha History')).toBe(true);
         expect(result.focusedText).toContain('LLMを常時使わずに活動履歴を作って');
         expect(result.focusedText).not.toContain('全体のエージェント作業順序も見たい');
-        expect(result.focusedFooter).toContain('表示: セッション履歴');
+        expect(result.focusedFooter).toContain('表示: セッション詳細');
         expect(result.itemCount).toBeGreaterThanOrEqual(3);
         expect(result.sourceCount).toBeGreaterThanOrEqual(3);
         expect(runtimeIssues).toEqual([]);
@@ -359,9 +359,9 @@ test.describe('story-live-feed-agent-activity-history', () => {
             hasText: 'LLMを常時使わずに活動履歴を作って'
         })).toBeVisible();
         await expect(page.locator('#live-feed-panel .feed-item-source', {
-            hasText: 'raw prompt'
+            hasText: 'ユーザー入力'
         }).first()).toBeVisible();
-        await expect(page.locator('#live-feed-panel .live-feed-footer')).toContainText('表示: セッション履歴');
+        await expect(page.locator('#live-feed-panel .live-feed-footer')).toContainText('表示: セッション詳細');
 
         await page.locator('#live-feed-panel').screenshot({
             path: 'var/test-results/story-live-feed-agent-activity-history.png'
