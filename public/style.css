@@ -19163,6 +19163,7 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
 @media (max-width: 768px) {
     body.sns-growth-mode-active .mobile-tab-bar,
     body.sns-growth-mode-active .mobile-input-dock,
+    body.sns-growth-mode-active #top-banner-stack,
     body.sns-growth-mode-active #terminal-stage,
     body.sns-growth-mode-active .terminal-snapshot-panel,
     body.sns-growth-mode-active > .terminal-snapshot-panel {
@@ -19188,8 +19189,10 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     }
 
     body.sns-growth-mode-active .sns-growth-overlay-header {
-        min-height: 48px;
-        padding: 0 12px;
+        min-height: calc(52px + env(safe-area-inset-top, 0px));
+        padding: env(safe-area-inset-top, 0px) 12px 0;
+        position: relative;
+        z-index: 2;
     }
 
     body.sns-growth-mode-active .sns-growth-overlay-title {
@@ -19202,9 +19205,11 @@ body.sns-growth-mode-active .panel-resize-handle-info-drawer {
     }
 
     body.sns-growth-mode-active .portal-terminal-back {
-        height: 34px;
-        padding: 0 10px;
-        font-size: 11px;
+        min-width: 44px;
+        height: 44px;
+        padding: 0 12px;
+        font-size: 12px;
+        pointer-events: auto;
     }
 
     body.sns-growth-mode-active #sns-growth-overlay-panel {

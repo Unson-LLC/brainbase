@@ -1420,6 +1420,7 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const onConsoleTouchStart = (event) => {
             if (!this._isMobileSnapshotMode()) return;
+            if (!this._isConsoleVisible()) return;
             if (this._isEditableTarget(event.target)) return;
             this._mobileTapTracking = {
                 startX: event.touches?.[0]?.clientX ?? 0,
@@ -1442,6 +1443,10 @@ export function applyTerminalInputUxMixin(AppClass) {
                 this._mobileTapTracking = null;
                 return;
             }
+            if (!this._isConsoleVisible()) {
+                this._mobileTapTracking = null;
+                return;
+            }
             if (this._isEditableTarget(event.target)) {
                 this._mobileTapTracking = null;
                 return;
@@ -1461,6 +1466,7 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const onSnapshotClick = (event) => {
             if (!this._isMobileSnapshotMode()) return;
+            if (!this._isConsoleVisible()) return;
             if (this._isEditableTarget(event.target)) return;
             if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             const overlayState = this._getTerminalOverlayState();
@@ -1473,6 +1479,7 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const onSnapshotTouchStart = (event) => {
             if (!this._isMobileSnapshotMode()) return;
+            if (!this._isConsoleVisible()) return;
             if (this._isEditableTarget(event.target)) return;
             if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             this._mobileTapTracking = {
@@ -1493,6 +1500,10 @@ export function applyTerminalInputUxMixin(AppClass) {
         };
         const onSnapshotTouchEnd = (event) => {
             if (!this._isMobileSnapshotMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            if (!this._isConsoleVisible()) {
                 this._mobileTapTracking = null;
                 return;
             }
