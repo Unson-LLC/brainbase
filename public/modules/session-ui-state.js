@@ -205,7 +205,11 @@ export function deriveSessionUiState(sessionId, options = {}) {
         ? 'archived'
         : session?.intendedState === 'paused'
             ? 'paused'
-            : 'active';
+            : session?.intendedState === 'hibernated'
+                ? 'hibernated'
+                : session?.intendedState === 'broken'
+                    ? 'broken'
+                    : 'active';
 
     const activity = deriveActivityState(hookStatus);
     const waitingForInput = hookStatus?.liveActivity?.statusTone === 'waiting'

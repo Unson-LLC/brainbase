@@ -107,6 +107,7 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         _restartTtydForExistingTmux: shared._restartTtydForExistingTmux,
         ensureTtydForActiveSession: shared.ensureTtydForActiveSession,
         stopTtyd: shared.stopTtyd,
+        stopSessionOwnedProcesses: shared.stopSessionOwnedProcesses,
         cleanupSessionResources: shared.cleanupSessionResources,
         cleanup: shared.cleanup
     };

@@ -1302,6 +1302,8 @@ body::after {
 .add-project-session-btn,
 .merge-session-btn,
 .resume-session-btn,
+.hibernate-session-btn,
+.resume-runtime-btn,
 .rename-session-btn,
 .delete-session-btn,
 .archive-session-btn {
@@ -1326,6 +1328,8 @@ body::after {
     .add-project-session-btn:hover,
     .merge-session-btn:hover,
     .resume-session-btn:hover,
+    .hibernate-session-btn:hover,
+    .resume-runtime-btn:hover,
     .rename-session-btn:hover,
     .delete-session-btn:hover,
     .archive-session-btn:hover {
@@ -1341,6 +1345,8 @@ body::after {
 .add-project-session-btn:active,
 .merge-session-btn:active,
 .resume-session-btn:active,
+.hibernate-session-btn:active,
+.resume-runtime-btn:active,
 .rename-session-btn:active,
 .delete-session-btn:active,
 .archive-session-btn:active {
@@ -1365,6 +1371,8 @@ body::after {
 
 .add-project-session-btn i,
 .merge-session-btn i,
+.hibernate-session-btn i,
+.resume-runtime-btn i,
 .rename-session-btn i,
 .delete-session-btn i,
 .archive-session-btn i {

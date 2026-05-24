@@ -2,6 +2,7 @@ import { appStore } from '../core/store.js';
 import { httpClient } from '../core/http-client.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { buildSessionRuntimeUrl } from '../core/terminal-viewer.js';
+import { showError } from '../toast.js';
 
 function hasRuntimeIssue(runtimeStatus, issueType) {
     return Array.isArray(runtimeStatus?.issues)
@@ -125,6 +126,31 @@ export function applySessionManagementMixin(AppClass) {
             return { ok: true, proxyPath, terminalAccess };
         },
 
+        async _resumeSuspendedRuntimeIfNeeded(session) {
+            if (!session || session.intendedState !== 'hibernated') {
+                if (session?.intendedState === 'broken') {
+                    return {
+                        ok: false,
+                        error: new Error('Runtime is broken and requires explicit recovery')
+                    };
+                }
+                return { ok: true, session };
+            }
+            try {
+                await this.sessionService.resumeRuntime(session.id);
+                const updatedSession = this._getSessionById(session.id) || {
+                    ...session,
+                    intendedState: 'active',
+                    runtimeState: 'hot',
+                    resumeFailureReason: null
+                };
+                return { ok: true, session: updatedSession };
+            } catch (error) {
+                this._setCurrentSessionUiState?.({ transport: 'disconnected', attention: 'warning' });
+                return { ok: false, error };
+            }
+        },
+
         async openMobileLiveTerminal(sessionId) {
             if (!this.mobileLiveTerminalModalEl) {
                 this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
@@ -136,6 +162,12 @@ export function applySessionManagementMixin(AppClass) {
 
             const session = this._getSessionById(sessionId);
             if (!session || session.intendedState === 'archived') return;
+
+            const resumeResult = await this._resumeSuspendedRuntimeIfNeeded(session);
+            if (!resumeResult.ok) {
+                showError(`Runtime再開に失敗しました: ${resumeResult.error?.message || resumeResult.error || '原因不明'}`);
+                return;
+            }
 
             const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl, { forceTtyd: true });
             if (!result.ok) {
@@ -200,6 +232,17 @@ export function applySessionManagementMixin(AppClass) {
                     return { ok: true, archived: true };
                 }
 
+                const resumeResult = await this._resumeSuspendedRuntimeIfNeeded(session);
+                if (!resumeResult.ok) {
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        error: resumeResult.error,
+                        errorMessage: '休止中Runtimeの再開に失敗しました'
+                    });
+                    return { ok: false, reason: 'resume-runtime-failed' };
+                }
+                const activeSession = resumeResult.session || session;
+
                 if (appStore.getState().currentSessionId !== sessionId) {
                     appStore.setState({ currentSessionId: sessionId });
                 }
@@ -214,7 +257,7 @@ export function applySessionManagementMixin(AppClass) {
                     surface: this.isMobile() ? 'mobile' : 'desktop'
                 });
 
-                if (this._isSessionStartupShell?.(session)) {
+                if (this._isSessionStartupShell?.(activeSession)) {
                     this.terminalTransportClient?.disconnect?.({ preserveView: false });
                     this.terminalTransportClient?.hide?.();
                     this._terminalTransportStatus = null;
@@ -224,30 +267,30 @@ export function applySessionManagementMixin(AppClass) {
                     this.showTerminalLoadingOverlay?.({
                         startup: true,
                         sessionId,
-                        message: session.startupStatus === 'failed'
+                        message: activeSession.startupStatus === 'failed'
                             ? 'セッション起動に失敗しました'
-                            : (session.startupMessage || 'ワークスペースを準備中...'),
-                        hint: session.startupStatus === 'failed'
+                            : (activeSession.startupMessage || 'ワークスペースを準備中...'),
+                        hint: activeSession.startupStatus === 'failed'
                             ? '入力内容は残っています。設定を確認して再試行してください。'
                             : '入力できます。送信すると起動完了後に実行します。',
-                        failed: session.startupStatus === 'failed'
+                        failed: activeSession.startupStatus === 'failed'
                     });
                     this._finishTerminalSwitch?.(sessionId, switchToken, {
-                        state: session.startupStatus === 'failed' ? 'startup_failed' : 'startup_pending',
+                        state: activeSession.startupStatus === 'failed' ? 'startup_failed' : 'startup_pending',
                         hideOverlay: false
                     });
                     this._setCurrentSessionUiState?.({
-                        transport: session.startupStatus === 'failed' ? 'disconnected' : 'reconnecting',
-                        attention: session.startupStatus === 'failed' ? 'warning' : 'none'
+                        transport: activeSession.startupStatus === 'failed' ? 'disconnected' : 'reconnecting',
+                        attention: activeSession.startupStatus === 'failed' ? 'warning' : 'none'
                     });
                     return {
                         ok: true,
-                        mode: session.startupStatus === 'failed' ? 'startup_failed' : 'startup_pending'
+                        mode: activeSession.startupStatus === 'failed' ? 'startup_failed' : 'startup_pending'
                     };
                 }
 
                 if (this.isMobile()) {
-                    const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+                    const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, activeSession);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
                     let snapshot = cachedSnapshot;
@@ -318,7 +361,7 @@ export function applySessionManagementMixin(AppClass) {
                     // ── Step 1: スナップショット即表示（overlay不要）──
                     // xterm hostは隠さない（display:noneにするとfitAddonがサイズ取得できない）
                     // snapshot panelはposition:absolute+z-indexでxterm hostの上に重なる
-                    const sessionTitle = session?.name || 'Terminal';
+                    const sessionTitle = activeSession?.name || 'Terminal';
                     const cachedSnapshot = this._terminalSnapshotCache?.get(sessionId) || null;
                     this._renderTerminalSnapshotPanel?.({
                         visible: true,
@@ -341,10 +384,10 @@ export function applySessionManagementMixin(AppClass) {
                         transport: 'reconnecting',
                         attention: 'none'
                     });
-                    const initialRuntime = await this._resolveSessionRuntime(sessionId, session);
+                    const initialRuntime = await this._resolveSessionRuntime(sessionId, activeSession);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     try {
-                        await this._ensureDesktopTerminalRuntime(session, initialRuntime?.runtimeStatus || null);
+                        await this._ensureDesktopTerminalRuntime(activeSession, initialRuntime?.runtimeStatus || null);
                         if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     } catch (error) {
                         // エラー時: スナップショット表示を維持（真っ黒にしない）
@@ -358,7 +401,7 @@ export function applySessionManagementMixin(AppClass) {
                         return { ok: true, mode: 'snapshot_fallback' };
                     }
 
-                    const transportResult = await this._connectXtermTransport(session, { deferDisplay: true });
+                    const transportResult = await this._connectXtermTransport(activeSession, { deferDisplay: true });
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) {
                         this.terminalTransportClient?.disconnect({ preserveView: false });
                         return { ok: false, reason: 'stale' };
@@ -408,7 +451,7 @@ export function applySessionManagementMixin(AppClass) {
                     return { ok: true, mode: 'snapshot_fallback' };
                 }
 
-                const result = await this._resolveTtydProxyPath(sessionId, session, options);
+                const result = await this._resolveTtydProxyPath(sessionId, activeSession, options);
                 if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
 
                 if (result?.terminalAccess?.state === 'blocked') {

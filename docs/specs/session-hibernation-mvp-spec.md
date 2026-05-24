@@ -5,15 +5,21 @@ status: draft
 date: 2026-05-23
 story_id: story-session-hibernation-mvp
 related_adrs:
-  - ADR-session-hibernation-mvp
+  - docs/architecture/session-hibernation-mvp-architecture.md
+  - docs/architecture/ADR-012-session-hibernation-runtime-lifecycle.md
 implementation_files:
   - server/services/session-runtime
   - server/controllers/session/runtime-handlers.js
   - server/controllers/state-controller.js
+  - server/routes/sessions.js
+  - public/modules/domain/session/session-service.js
   - public/modules/app/session-management-mixin.js
+  - public/modules/session-list-renderer.js
+  - public/modules/ui/views/session-view.js
 test_files:
   - tests/server/session-runtime-inventory.test.js
   - tests/unit/session-list-renderer.test.js
+  - tests/unit/session-service-hibernation.test.js
   - tests/e2e/story-session-hibernation-mvp-phase1.spec.ts
 ---
 
@@ -49,11 +55,10 @@ Allowed values:
 
 ### HibernationMetadata
 
-Required fields when `runtimeStatus = hibernated`:
+Required fields when persisted `runtimeState = hibernated`:
 
 - `hibernatedAt`
 - `hibernateReason`
-- `lastRuntimeSnapshot`
 - `runtimeInventorySummary`
 - `restoreStrategy`
 - `restoreCommand`
@@ -62,6 +67,7 @@ Optional fields:
 
 - `codexConversationId`
 - `codexThreadId`
+- `lastRuntimeSnapshot` (required when terminal snapshot capture is available; otherwise persist `null`)
 - `lastTurnId`
 - `appServerThreadStatus`
 - `resumeFailureReason`
@@ -70,14 +76,17 @@ Optional fields:
 
 - **INV-1**: A session with active turn, pending startup, pending input, or active owner input must not be hibernated.
 - **INV-2**: Manual hibernation must stop only processes attributed to the target session.
-- **INV-3**: Ambiguous or shared processes must be reported and left alive.
-- **INV-4**: Hibernation must not remove the session record, worktree, conversation id, or project mapping.
-- **INV-5**: A hibernated session must remain visible in the session list.
-- **INV-6**: Resume must not create a duplicate worktree or duplicate Brainbase session.
-- **INV-7**: Resume failure must move the session to `broken` and preserve recovery metadata.
-- **INV-8**: Auto hibernation must be disabled by default until manual hibernate/resume is proven.
-- **INV-9**: Auto hibernation must never apply to `running`, `pinned`, pending startup, or actively viewed sessions.
-- **INV-10**: App Server-backed history display must not require loading the thread runtime.
+- **INV-3**: Phase 2 manual hibernation applies only to Codex sessions with restore metadata. Other engines remain ineligible until their restore contract is specified.
+- **INV-4**: Ambiguous or shared processes must be reported and left alive.
+- **INV-5**: Hibernation must not remove the session record, worktree, conversation id, or project mapping.
+- **INV-6**: A hibernated session must remain visible in the session list.
+- **INV-7**: Resume must not create a duplicate worktree or duplicate Brainbase session.
+- **INV-8**: Resume failure must move the session to `broken` and preserve recovery metadata.
+- **INV-9**: Auto hibernation must be disabled by default until manual hibernate/resume is proven.
+- **INV-10**: Auto hibernation must never apply to `running`, `pinned`, pending startup, or actively viewed sessions.
+- **INV-11**: App Server-backed history display must not require loading the thread runtime.
+- **INV-12**: Server runtime handlers are the source of truth for hibernation/resume state; clients must not re-persist lifecycle state with a second generic state patch after a lifecycle API succeeds.
+- **INV-13**: Lifecycle API error enrichment must preserve the existing `HttpClient` authentication behavior; configured auth tokens continue to populate `Authorization` when the caller did not supply one.
 
 ## Contracts
 
@@ -153,6 +162,9 @@ Blocking reasons:
 - `pending_input`
 - `active_owner`
 - `pinned`
+- `unsupported_engine`
+- `inactive_session_state`
+- `weak_process_ownership`
 - `missing_restore_metadata`
 - `unknown_process_ownership`
 
@@ -167,7 +179,7 @@ Rules:
 - Must run eligibility check first.
 - Must capture final snapshot when terminal snapshot is available.
 - Must stop session-owned runtime processes.
-- Must update session runtime status to `hibernated`.
+- Must update session `intendedState` and persisted `runtimeState` to `hibernated`.
 - Must return process stop summary.
 
 ### Contract-4: Manual Resume
@@ -180,11 +192,19 @@ Rules:
 
 - Must only apply to `hibernated` or `broken` sessions.
 - Must use existing terminal/Codex resume path in Phase 2.
+- Must reject sessions whose engine or metadata do not satisfy the Phase 2 Codex restore contract.
 - Must not create a new worktree.
-- Must set status to `hot` or `running` when ready.
-- Must set status to `broken` if restore fails.
+- Must set session `intendedState` to `active` and persisted `runtimeState` to `hot` when ready.
+- Must set session `intendedState` and persisted `runtimeState` to `broken` if restore fails.
 
-### Contract-5: Auto Hibernate
+### Contract-5: Lifecycle HTTP Errors
+
+Rules:
+
+- Hibernation and resume errors may expose structured response fields such as `blockers`, `intendedState`, `runtimeState`, and `resumeFailureReason` to the client.
+- Structured error propagation must not bypass or change the existing auth-token branch in `HttpClient`; if no `Authorization` header is provided and an auth token exists, the client still injects it.
+
+### Contract-6: Auto Hibernate
 
 Auto hibernation is Phase 3 only.
 
@@ -204,7 +224,7 @@ Rules:
 - Must log decisions with reason codes.
 - Must prefer least-recently-visible idle sessions.
 
-### Contract-6: App Server Loaded/NotLoaded
+### Contract-7: App Server Loaded/NotLoaded
 
 Phase 4 only.
 

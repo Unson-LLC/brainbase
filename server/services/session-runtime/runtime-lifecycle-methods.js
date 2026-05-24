@@ -484,6 +484,87 @@ export const runtimeLifecycleMethods = {
         return true;
     },
 
+    async stopSessionOwnedProcesses(sessionId, processes = []) {
+        const uniqueProcesses = [];
+        const seen = new Set();
+        for (const processInfo of processes || []) {
+            const pid = Number(processInfo?.pid);
+            if (!Number.isFinite(pid) || pid <= 1 || seen.has(pid)) continue;
+            seen.add(pid);
+            uniqueProcesses.push({ ...processInfo, pid });
+        }
+
+        this._clearPromptBuffer(sessionId);
+        const ownPid = Number(process.pid || 0);
+        const killed = [];
+        const skipped = [];
+        const warnings = [];
+        const pidSet = new Set(uniqueProcesses.map(processInfo => Number(processInfo.pid)));
+        const ordered = uniqueProcesses.slice().sort((a, b) => {
+            const aPid = Number(a.pid);
+            const bPid = Number(b.pid);
+            if (Number(a.ppid) === bPid) return -1;
+            if (Number(b.ppid) === aPid) return 1;
+            return bPid - aPid;
+        });
+
+        for (const processInfo of ordered) {
+            const pid = Number(processInfo.pid);
+            if (pid === ownPid) {
+                skipped.push({ pid, reason: 'server_process' });
+                continue;
+            }
+
+            try {
+                if (!this._isProcessRunning(pid)) {
+                    skipped.push({ pid, reason: 'already_exited' });
+                    continue;
+                }
+                process.kill(pid, 'SIGTERM');
+                await new Promise(resolve => setTimeout(resolve, 250));
+                if (this._isProcessRunning(pid)) {
+                    process.kill(pid, 'SIGKILL');
+                    killed.push({ pid, category: processInfo.category || null, signal: 'SIGKILL' });
+                } else {
+                    killed.push({ pid, category: processInfo.category || null, signal: 'SIGTERM' });
+                }
+            } catch (error) {
+                if (error?.code === 'ESRCH') {
+                    skipped.push({ pid, reason: 'already_exited' });
+                } else {
+                    warnings.push({ pid, message: error?.message || String(error) });
+                }
+            }
+        }
+
+        if (warnings.length > 0) {
+            const detail = warnings.map(warning => `${warning.pid}: ${warning.message}`).join('; ');
+            const error = new Error(`Failed to stop one or more session-owned processes: ${detail}`);
+            error.code = 'HIBERNATION_PROCESS_STOP_FAILED';
+            error.warnings = warnings;
+            error.killed = killed;
+            error.skipped = skipped;
+            throw error;
+        }
+
+        const activeEntry = this.activeSessions.get(sessionId);
+        const activePid = Number(activeEntry?.process?.pid || activeEntry?.pid || 0);
+        if (activePid && pidSet.has(activePid)) {
+            await this._clearTtydProcessInfoIfMatches(sessionId, activePid);
+        } else {
+            await this._clearTtydProcessInfo(sessionId);
+        }
+        this.activeSessions.delete(sessionId);
+        this.releaseTerminalOwnership(sessionId, null, { force: true });
+
+        return {
+            requested: uniqueProcesses.length,
+            killed,
+            skipped,
+            warnings
+        };
+    },
+
     async cleanupSessionResources(sessionId) {
         this._clearPromptBuffer(sessionId);
         let processesKilled = 0;

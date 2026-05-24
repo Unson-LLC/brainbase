@@ -2,7 +2,7 @@ import { refreshIcons } from './ui-helpers.js';
 
 // Toast notification module
 
-const toastContainer = document.getElementById('toast-container');
+let toastContainer = document.getElementById('toast-container');
 
 const ICONS = {
     success: 'check-circle',
@@ -17,6 +17,14 @@ const ICONS = {
  * @param {number} duration - Duration in ms (default 3000)
  */
 export function showToast(message, type = 'info', duration = 3000) {
+    if (!toastContainer) {
+        toastContainer = document.getElementById('toast-container');
+    }
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        document.body.appendChild(toastContainer);
+    }
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     // XSS対策: DOMメソッドで構築

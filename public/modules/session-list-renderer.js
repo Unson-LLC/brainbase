@@ -125,7 +125,11 @@ export function renderSessionRowHTML(session, options = {}) {
 
   // 意図的な一時停止状態かどうか（intendedStateで判定）
   const isPaused = session.intendedState === 'paused';
+  const isHibernated = session.intendedState === 'hibernated';
+  const isBroken = session.intendedState === 'broken';
   const pausedClass = isPaused ? ' paused' : '';
+  const hibernatedClass = isHibernated ? ' hibernated' : '';
+  const brokenClass = isBroken ? ' broken' : '';
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
@@ -218,6 +222,18 @@ export function renderSessionRowHTML(session, options = {}) {
       title: buildRuntimeInventoryTitle(runtimeInventory)
     }));
   }
+  if (isHibernated) {
+    summaryChips.push(renderChip('hibernated', {
+      className: 'chip-runtime-hibernated',
+      title: session.hibernatedAt ? `Hibernated ${formatRelativeTime(session.hibernatedAt)}` : 'Runtime hibernated'
+    }));
+  }
+  if (isBroken) {
+    summaryChips.push(renderChip('broken', {
+      className: 'chip-runtime-broken',
+      title: session.resumeFailureReason || 'Runtime resume failed'
+    }));
+  }
   if (recentFile?.label) {
     summaryChips.push(renderChip(`file: ${recentFile.label}`, {
       className: 'chip-file',
@@ -247,18 +263,31 @@ export function renderSessionRowHTML(session, options = {}) {
   const resumeButton = isPaused
     ? '<button class="resume-session-btn" title="再開"><i data-lucide="play-circle"></i></button>'
     : '';
+  const resumeRuntimeButton = (isHibernated || isBroken)
+    ? '<button class="resume-runtime-btn" title="Runtimeを再開"><i data-lucide="rotate-cw"></i></button>'
+    : '';
 
   // 一時停止ボタン: 作業中（paused以外）の場合に表示
-  const pauseButton = !isPaused && session.intendedState !== 'archived'
+  const canHibernate = engine === 'codex' && !isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived';
+  const pauseButton = !isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived'
     ? '<button class="pause-session-btn" title="一時停止"><i data-lucide="pause-circle"></i></button>'
+    : '';
+  const hibernateButton = canHibernate
+    ? '<button class="hibernate-session-btn" title="休止"><i data-lucide="power"></i></button>'
     : '';
 
   // ドロップダウンメニュー項目
   const resumePauseMenuItem = isPaused
     ? '<button class="dropdown-item resume-session-btn"><i data-lucide="play-circle"></i>再開</button>'
-    : (!isPaused && session.intendedState !== 'archived'
+    : (!isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived'
         ? '<button class="dropdown-item pause-session-btn"><i data-lucide="pause-circle"></i>一時停止</button>'
         : '');
+  const hibernateMenuItem = canHibernate
+    ? '<button class="dropdown-item hibernate-session-btn"><i data-lucide="power"></i>休止</button>'
+    : '';
+  const resumeRuntimeMenuItem = (isHibernated || isBroken)
+    ? '<button class="dropdown-item resume-runtime-btn"><i data-lucide="rotate-cw"></i>Runtimeを再開</button>'
+    : '';
 
   const archiveLabel = session.intendedState === 'archived' ? '復元' : 'アーカイブ';
   const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
@@ -266,7 +295,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const favoriteMenuItem = `<button class="dropdown-item favorite-session-btn${isFavorite ? ' active' : ''}" aria-pressed="${isFavorite ? 'true' : 'false'}"><i data-lucide="star"></i>${favoriteTitle}</button>`;
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${transportClass}${attentionClass}${favoriteClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="false">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${hibernatedClass}${brokenClass}${transportClass}${attentionClass}${favoriteClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="false">
       <span class="drag-handle" title="Drag to reorder" draggable="${draggableAttr}"><i data-lucide="grip-vertical"></i></span>
       ${activityIndicator}
       <div class="session-row-main">
@@ -293,6 +322,8 @@ export function renderSessionRowHTML(session, options = {}) {
           <button class="dropdown-item rename-session-btn"><i data-lucide="edit-2"></i>名前を変更</button>
           ${favoriteMenuItem}
           <div class="dropdown-divider"></div>
+          ${resumeRuntimeMenuItem}
+          ${hibernateMenuItem}
           ${resumePauseMenuItem}
           <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
           <div class="dropdown-divider"></div>
@@ -305,6 +336,8 @@ export function renderSessionRowHTML(session, options = {}) {
           <i data-lucide="${session.intendedState === 'archived' ? 'archive-restore' : 'archive'}"></i>
         </button>
         ${resumeButton}
+        ${resumeRuntimeButton}
+        ${hibernateButton}
         ${pauseButton}
         <button class="delete-session-btn" title="削除"><i data-lucide="trash-2"></i></button>
       </div>

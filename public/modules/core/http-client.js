@@ -257,15 +257,23 @@ export class HttpClient {
 
                 // Try to parse error message from response body
                 let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`;
+                let errorData = null;
                 try {
-                    const errorData = await response.json();
+                    errorData = await response.json();
                     if (errorData.error) {
                         errorMessage = errorData.error;
                     }
                 } catch (parseError) {
                     // If JSON parsing fails, use status text
                 }
-                throw new Error(errorMessage);
+                const error = /** @type {Error & { isHttpError?: boolean, status?: number, statusText?: string }} */ (new Error(errorMessage));
+                error.isHttpError = true;
+                error.status = response.status;
+                error.statusText = response.statusText;
+                if (errorData && typeof errorData === 'object') {
+                    Object.assign(error, errorData);
+                }
+                throw error;
             }
 
             if (elapsed > 500) {
@@ -283,10 +291,11 @@ export class HttpClient {
                 throw new Error(`Request timeout after ${timeoutMs}ms: ${method} ${url}`);
             }
 
-            if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to') || error.message.includes('Authentication required')) {
-                throw error;
+            const requestError = /** @type {Error & { isHttpError?: boolean }} */ (error);
+            if (requestError.isHttpError || requestError.message.startsWith('HTTP Error:') || requestError.message.includes('Failed to') || requestError.message.includes('Authentication required')) {
+                throw requestError;
             }
-            throw new Error(`Network Error: ${error.message}`);
+            throw new Error(`Network Error: ${requestError.message}`);
         }
     }
 

@@ -102,6 +102,68 @@ function runtimeHealthEntryToObservedRuntime(healthEntry) {
     };
 }
 
+function isSuspendedRuntimeState(session) {
+    return session?.intendedState === 'hibernated' || session?.intendedState === 'broken';
+}
+
+function buildRuntimeInventorySummary(eligibility, stopResult = null) {
+    return {
+        runtimePresence: eligibility?.runtimePresence || 'unknown',
+        rssKb: Number(eligibility?.rssKb || 0),
+        processCount: Number(eligibility?.processCount || 0),
+        processesByCategory: eligibility?.processesByCategory || {},
+        ...(stopResult ? { stopResult } : {})
+    };
+}
+
+function buildRestoreCommand(session, restoreMetadata = {}) {
+    if (session?.engine === 'codex' && restoreMetadata?.codexResumeId) {
+        return `codex resume ${restoreMetadata.codexResumeId}`;
+    }
+    return session?.initialCommand || '';
+}
+
+function sanitizeHibernationEligibility(eligibility) {
+    if (!eligibility || typeof eligibility !== 'object') return eligibility;
+    const {
+        ownedProcesses: _ownedProcesses,
+        processes: _processes,
+        restoreMetadata,
+        ...publicEligibility
+    } = eligibility;
+    return {
+        ...publicEligibility,
+        restoreMetadata: restoreMetadata
+            ? { restoreStrategy: restoreMetadata.restoreStrategy || null }
+            : undefined,
+        ownedProcessCount: Array.isArray(eligibility.ownedProcesses)
+            ? eligibility.ownedProcesses.length
+            : 0
+    };
+}
+
+async function captureHibernateSnapshot(controller, sessionId) {
+    try {
+        if (typeof controller.snapshot?.getVisibleContent === 'function') {
+            const text = await controller.snapshot.getVisibleContent(sessionId);
+            return {
+                text: typeof text === 'string' ? text : '',
+                capturedAt: new Date().toISOString()
+            };
+        }
+        if (typeof controller.snapshot?.getOutput === 'function') {
+            const text = await controller.snapshot.getOutput(sessionId);
+            return {
+                text: typeof text === 'string' ? text : '',
+                capturedAt: new Date().toISOString()
+            };
+        }
+    } catch (error) {
+        logger.warn(`[hibernation] Snapshot capture skipped for ${sessionId}: ${error.message}`);
+    }
+    return null;
+}
+
 export function installRuntimeHandlers(controller) {
     controller.get = async (req, res) => {
         const { id } = req.params;
@@ -231,10 +293,257 @@ export function installRuntimeHandlers(controller) {
                 return res.status(404).json({ error: 'Session not found' });
             }
 
-            return res.json(eligibility);
+            return res.json(sanitizeHibernationEligibility(eligibility));
         } catch (error) {
             logger.error('[hibernation] Failed to evaluate eligibility:', error);
             return res.status(500).json({ error: 'Failed to evaluate hibernation eligibility' });
+        }
+    };
+
+    controller.hibernate = async (req, res) => {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: 'Session ID is required' });
+        if (typeof controller.runtimeQuery?.getHibernationEligibility !== 'function') {
+            return res.status(501).json({ error: 'Runtime hibernation is not available' });
+        }
+        if (typeof controller.runtimeLifecycle?.stopSessionOwnedProcesses !== 'function') {
+            return res.status(501).json({ error: 'Runtime hibernation lifecycle is not available' });
+        }
+
+        const session = controller._findSessionOrFail(id, res);
+        if (!session) return;
+        const intendedState = session.intendedState || 'active';
+        if (intendedState !== 'active') {
+            return res.status(409).json({
+                error: 'Only active idle sessions can be hibernated',
+                intendedState
+            });
+        }
+
+        try {
+            const activityStatus = controller.activity?.getSessionStatus?.()?.[id] || null;
+            const owner = controller.ownership?.getTerminalOwnerSnapshot?.(id) || null;
+            const pendingInput = controller.activity?.promptBuffers?.get?.(id) || '';
+            const eligibility = await controller.runtimeQuery.getHibernationEligibility(id, {
+                activityStatus,
+                owner,
+                pendingInput
+            });
+            if (!eligibility) return res.status(404).json({ error: 'Session not found' });
+            if (!eligibility.eligible) {
+                return res.status(409).json({
+                    error: 'Session is not eligible for hibernation',
+                    ...sanitizeHibernationEligibility(eligibility)
+                });
+            }
+
+            const now = new Date().toISOString();
+            const snapshot = await captureHibernateSnapshot(controller, id);
+            const restoreCommand = buildRestoreCommand(session, eligibility.restoreMetadata);
+            const preStopInventorySummary = buildRuntimeInventorySummary(eligibility);
+
+            await controller._updateStateWithRetry((state) => {
+                const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
+                    ? {
+                        ...entry,
+                        intendedState: 'hibernated',
+                        runtimeState: 'hibernated',
+                        hibernatedAt: now,
+                        hibernateReason: req.body?.reason || 'manual',
+                        lastRuntimeSnapshot: snapshot,
+                        runtimeInventorySummary: preStopInventorySummary,
+                        restoreStrategy: eligibility.restoreMetadata?.restoreStrategy || null,
+                        restoreCommand,
+                        resumeFailureReason: null,
+                        updatedAt: now
+                    }
+                    : entry);
+                return { ...state, sessions: updatedSessions };
+            });
+
+            const finalActivityStatus = controller.activity?.getSessionStatus?.()?.[id] || null;
+            const finalOwner = controller.ownership?.getTerminalOwnerSnapshot?.(id) || null;
+            const finalPendingInput = controller.activity?.promptBuffers?.get?.(id) || '';
+            const finalEligibility = await controller.runtimeQuery.getHibernationEligibility(id, {
+                activityStatus: finalActivityStatus,
+                owner: finalOwner,
+                pendingInput: finalPendingInput,
+                sessionOverride: session
+            });
+            if (!finalEligibility || !finalEligibility.eligible) {
+                const revertedAt = new Date().toISOString();
+                await controller._updateStateWithRetry((state) => {
+                    const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
+                        ? {
+                            ...entry,
+                            intendedState: 'active',
+                            runtimeState: 'hot',
+                            hibernatedAt: null,
+                            hibernateReason: null,
+                            lastRuntimeSnapshot: null,
+                            runtimeInventorySummary: null,
+                            restoreStrategy: null,
+                            restoreCommand: null,
+                            resumeFailureReason: null,
+                            updatedAt: revertedAt
+                        }
+                        : entry);
+                    return { ...state, sessions: updatedSessions };
+                });
+                return res.status(409).json({
+                    error: 'Session is not eligible for hibernation',
+                    ...sanitizeHibernationEligibility(finalEligibility || { eligible: false, blockers: ['session_not_found'] })
+                });
+            }
+
+            let stopResult;
+            try {
+                stopResult = await controller.runtimeLifecycle.stopSessionOwnedProcesses(id, finalEligibility.ownedProcesses || []);
+            } catch (stopError) {
+                const failedAt = new Date().toISOString();
+                await controller._updateStateWithRetry((state) => {
+                    const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
+                        ? {
+                            ...entry,
+                            intendedState: 'broken',
+                            runtimeState: 'broken',
+                            resumeFailureReason: stopError?.message || String(stopError),
+                            resumeFailedAt: failedAt,
+                            updatedAt: failedAt
+                        }
+                        : entry);
+                    return { ...state, sessions: updatedSessions };
+                });
+                throw stopError;
+            }
+
+            const runtimeInventorySummary = buildRuntimeInventorySummary(finalEligibility, stopResult);
+            await controller._updateStateWithRetry((state) => {
+                const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
+                    ? {
+                        ...entry,
+                        runtimeInventorySummary,
+                        updatedAt: new Date().toISOString()
+                    }
+                    : entry);
+                return { ...state, sessions: updatedSessions };
+            });
+
+            return res.json({
+                success: true,
+                sessionId: id,
+                intendedState: 'hibernated',
+                runtimeState: 'hibernated',
+                hibernatedAt: now,
+                runtimeInventorySummary,
+                restoreMetadata: {
+                    ...(eligibility.restoreMetadata || {}),
+                    restoreCommand
+                }
+            });
+        } catch (error) {
+            logger.error(`[hibernation] Failed to hibernate session ${id}:`, error);
+            return res.status(500).json({ error: 'Failed to hibernate session', detail: error.message });
+        }
+    };
+
+    controller.resumeRuntime = async (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.body?.viewerId === 'string' ? req.body.viewerId.trim() : '';
+        if (!id) return res.status(400).json({ error: 'Session ID is required' });
+        const session = controller._findSessionOrFail(id, res);
+        if (!session) return;
+        if (!isSuspendedRuntimeState(session)) {
+            return res.status(400).json({ error: 'Session runtime is not hibernated or broken' });
+        }
+
+        try {
+            const engine = session.engine || 'claude';
+            const codexResumeId = getCodexResumeId(session, engine);
+            if (engine !== 'codex' || !codexResumeId) {
+                return res.status(409).json({
+                    error: 'Session runtime cannot be resumed safely',
+                    blocker: engine !== 'codex' ? 'unsupported_engine' : 'missing_restore_metadata'
+                });
+            }
+            const resolvedCwd = await controller._resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
+            let result;
+            try {
+                result = await controller.runtimeLifecycle.startTtyd({
+                    sessionId: id,
+                    cwd: resolvedCwd || session.path || session.cwd,
+                    initialCommand: '',
+                    engine,
+                    codexResumeId
+                });
+            } catch (runtimeError) {
+                const failedAt = new Date().toISOString();
+                await controller._updateStateWithRetry((state) => {
+                    const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
+                        ? {
+                            ...entry,
+                            intendedState: 'broken',
+                            runtimeState: 'broken',
+                            resumeFailureReason: runtimeError?.message || String(runtimeError),
+                            resumeFailedAt: failedAt,
+                            updatedAt: failedAt
+                        }
+                        : entry);
+                    return { ...state, sessions: updatedSessions };
+                });
+                logger.error(`[hibernation] Failed to resume runtime for ${id}:`, runtimeError);
+                return res.status(500).json({
+                    error: 'Failed to resume hibernated runtime',
+                    detail: runtimeError?.message || String(runtimeError),
+                    intendedState: 'broken',
+                    runtimeState: 'broken',
+                    resumeFailureReason: runtimeError?.message || String(runtimeError),
+                    resumeFailedAt: failedAt
+                });
+            }
+            const now = new Date().toISOString();
+
+            try {
+                await controller._updateStateWithRetry((state) => {
+                    const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
+                        ? {
+                            ...entry,
+                            intendedState: 'active',
+                            runtimeState: 'hot',
+                            resumedAt: now,
+                            resumeFailureReason: null,
+                            updatedAt: now
+                        }
+                        : entry);
+                    return { ...state, sessions: updatedSessions };
+                });
+            } catch (stateError) {
+                if (typeof controller.runtimeLifecycle?.stopTtyd === 'function') {
+                    await controller.runtimeLifecycle.stopTtyd(id, { preserveTmux: true }).catch(() => {});
+                }
+                logger.error(`[hibernation] Failed to persist resumed runtime state for ${id}:`, stateError);
+                return res.status(500).json({
+                    error: 'Failed to persist resumed runtime state',
+                    detail: stateError?.message || String(stateError)
+                });
+            }
+
+            return res.json({
+                success: true,
+                sessionId: id,
+                intendedState: 'active',
+                runtimeState: 'hot',
+                resumedAt: now,
+                port: result.port,
+                proxyPath: controller._appendViewerIdToProxyPath(result.proxyPath, viewerId)
+            });
+        } catch (error) {
+            logger.error(`[hibernation] Failed to resume runtime for ${id}:`, error);
+            return res.status(500).json({
+                error: 'Failed to resume hibernated runtime',
+                detail: error?.message || String(error),
+                intendedState: session.intendedState
+            });
         }
     };
 
@@ -245,6 +554,12 @@ export function installRuntimeHandlers(controller) {
         if (!session) return;
         if (session.intendedState === 'archived') {
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+        if (isSuspendedRuntimeState(session)) {
+            return res.status(409).json({
+                error: 'Session runtime is hibernated or broken. Use resume-runtime to restore it.',
+                intendedState: session.intendedState
+            });
         }
         if (isStartupShell(session)) {
             return res.status(409).json({
@@ -534,6 +849,13 @@ export function installRuntimeHandlers(controller) {
         if (targetSession?.intendedState === 'archived') {
             logger.info(`[start] Rejected: session ${sessionId} is archived`);
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+        if (isSuspendedRuntimeState(targetSession)) {
+            logger.info(`[start] Rejected: session ${sessionId} is ${targetSession.intendedState}`);
+            return res.status(409).json({
+                error: 'Session runtime is hibernated or broken. Use resume-runtime to restore it.',
+                intendedState: targetSession.intendedState
+            });
         }
         if (isStartupShell(targetSession)) {
             logger.info(`[start] Rejected: session ${sessionId} startup is not ready`);

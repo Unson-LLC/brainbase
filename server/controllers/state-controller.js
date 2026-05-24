@@ -45,6 +45,9 @@ const ALLOWED_SESSION_FIELDS = [
     'updatedAt', 'taskBrief', 'taskBriefUpdatedAt', 'lastAssistantSnippet', 'lastAssistantSnippetAt', 'activityHistory',
     // Schema v2 追加フィールド
     'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',
+    'runtimeState', 'hibernatedAt', 'hibernateReason', 'lastRuntimeSnapshot',
+    'runtimeInventorySummary', 'restoreStrategy', 'restoreCommand', 'resumedAt',
+    'resumeFailureReason', 'resumeFailedAt',
     // Schema v3 追加フィールド
     'ttydProcess',
     // Recovery / binding fields

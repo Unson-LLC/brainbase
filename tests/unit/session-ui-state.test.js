@@ -85,6 +85,26 @@ describe('session-ui-state', () => {
         expect(uiState.attention).toBe('needs-input');
     });
 
+    it('hibernated と broken を active lifecycle として扱わない', () => {
+        appStore.setState({
+            sessions: [
+                { id: 'session-hibernated', intendedState: 'hibernated', runtimeStatus: { ttydRunning: true } },
+                { id: 'session-broken', intendedState: 'broken', runtimeStatus: { ttydRunning: true } }
+            ],
+            currentSessionId: 'session-hibernated',
+            sessionUi: { byId: {} }
+        });
+
+        expect(deriveSessionUiState('session-hibernated')).toMatchObject({
+            lifecycle: 'hibernated',
+            transport: 'disconnected'
+        });
+        expect(deriveSessionUiState('session-broken')).toMatchObject({
+            lifecycle: 'broken',
+            transport: 'disconnected'
+        });
+    });
+
     it('recent file を記録して localStorage に保持する', () => {
         recordRecentFileOpen('session-1', 'src/app.js');
         recordRecentFileOpen('session-1', 'README.md');

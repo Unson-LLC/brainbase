@@ -45,29 +45,33 @@ function classifyRuntimeProcess(command) {
 }
 
 function buildSessionRuntimeIdentifiers(session) {
-    const values = new Set();
-    const add = (value) => {
-        if (typeof value === 'string' && value.trim()) values.add(value.trim());
+    const identifiers = [];
+    const add = (value, strength) => {
+        if (typeof value === 'string' && value.trim()) {
+            identifiers.push({ value: value.trim(), strength });
+        }
     };
 
-    add(session?.id);
-    add(session?.name);
-    add(session?.path);
-    add(session?.worktree?.path);
-    add(session?.codexThreadId);
-    add(session?.conversationSummary?.codexThreadId);
-    add(session?.conversationSummary?.lastConversation?.resumeId);
-    add(session?.conversationSummary?.lastConversation?.conversationId);
+    add(session?.id, 'weak');
+    add(session?.name, 'weak');
+    add(session?.path, 'strong');
+    add(session?.worktree?.path, 'strong');
+    add(session?.codexThreadId, 'strong');
+    add(session?.conversationSummary?.codexThreadId, 'strong');
+    add(session?.conversationSummary?.lastConversation?.resumeId, 'strong');
+    add(session?.conversationSummary?.lastConversation?.conversationId, 'strong');
 
-    return [...values];
+    return identifiers;
 }
 
-function findMatchingSessionIds(processInfo, sessions) {
+function findMatchingSessions(processInfo, sessions) {
     const command = processInfo?.command || '';
-    return sessions
-        .filter(session => buildSessionRuntimeIdentifiers(session).some(identifier => command.includes(identifier)))
-        .map(session => session.id)
-        .filter(Boolean);
+    return sessions.flatMap((session) => {
+        const matches = buildSessionRuntimeIdentifiers(session).filter(identifier => command.includes(identifier.value));
+        if (matches.length === 0 || !session.id) return [];
+        const strength = matches.some(match => match.strength === 'strong') ? 'strong' : 'weak';
+        return [{ sessionId: session.id, strength }];
+    });
 }
 
 function buildProcessMatchMap(processRows, sessions) {
@@ -76,7 +80,7 @@ function buildProcessMatchMap(processRows, sessions) {
 
     for (const processInfo of processRows) {
         matchMap.set(processInfo.pid, {
-            sessionIds: findMatchingSessionIds(processInfo, sessions),
+            matches: findMatchingSessions(processInfo, sessions),
             source: 'command'
         });
     }
@@ -86,13 +90,13 @@ function buildProcessMatchMap(processRows, sessions) {
         changed = false;
         for (const processInfo of processRows) {
             const current = matchMap.get(processInfo.pid);
-            if (current?.sessionIds?.length) continue;
+            if (current?.matches?.length) continue;
 
             const parent = rowsByPid.get(processInfo.ppid);
             const parentMatch = parent ? matchMap.get(parent.pid) : null;
-            if (parentMatch?.sessionIds?.length === 1) {
+            if (parentMatch?.matches?.length === 1) {
                 matchMap.set(processInfo.pid, {
-                    sessionIds: parentMatch.sessionIds,
+                    matches: parentMatch.matches,
                     source: 'parent'
                 });
                 changed = true;
@@ -145,8 +149,20 @@ export function buildHibernationEligibility({
     const processCount = Number(inventorySession?.processCount || 0);
     const rssKb = Number(inventorySession?.rssKb || 0);
     const processesByCategory = inventorySession?.processesByCategory || {};
+    const processes = Array.isArray(inventorySession?.processes) ? inventorySession.processes : [];
+    const ownedProcesses = processes.filter(processInfo => (
+        processInfo?.ownershipStrength === 'strong'
+        && processInfo?.category !== 'tmux'
+    ));
+    const weakStoppableProcesses = processes.filter(processInfo => (
+        processInfo?.category !== 'tmux'
+        && processInfo?.ownershipStrength !== 'strong'
+    ));
     const codexResumeId = getCodexResumeId(session);
 
+    if (session.intendedState && session.intendedState !== 'active') {
+        blockers.push('inactive_session_state');
+    }
     if (activityStatus?.isWorking || Number(activityStatus?.activeTurnCount || 0) > 0) {
         blockers.push('active_turn');
     }
@@ -162,11 +178,17 @@ export function buildHibernationEligibility({
     if (session.runtimePinned === true) {
         blockers.push('pinned');
     }
+    if (session.engine !== 'codex') {
+        blockers.push('unsupported_engine');
+    }
     if (session.engine === 'codex' && !codexResumeId) {
         blockers.push('missing_restore_metadata');
     }
     if (Number(processesByCategory.unknown_child || 0) > 0 || ambiguousProcesses.length > 0) {
         blockers.push('unknown_process_ownership');
+    }
+    if (weakStoppableProcesses.length > 0) {
+        blockers.push('weak_process_ownership');
     }
 
     if (runtimePresence !== 'hot' || processCount === 0) {
@@ -185,9 +207,10 @@ export function buildHibernationEligibility({
         rssKb,
         processCount,
         processesByCategory,
+        ownedProcesses,
         ambiguousProcessCount: ambiguousProcesses.length,
         restoreMetadata: {
-            restoreStrategy: session.engine === 'codex' ? 'codex_resume' : 'terminal_resume',
+            restoreStrategy: session.engine === 'codex' ? 'codex_resume' : 'unsupported',
             codexResumeId,
             codexThreadId: session.codexThreadId || session.conversationSummary?.codexThreadId || null
         }
@@ -216,16 +239,18 @@ export function buildRuntimeInventory({ sessions = [], activeSessions = new Map(
 
     for (const processInfo of processRows) {
         const category = classifyRuntimeProcess(processInfo.command);
-        const match = processMatchMap.get(processInfo.pid) || { sessionIds: [] };
-        const matchingSessionIds = match.sessionIds || [];
+        const match = processMatchMap.get(processInfo.pid) || { matches: [] };
+        const matches = match.matches || [];
+        const matchingSessionIds = matches.map(candidate => candidate.sessionId).filter(Boolean);
 
         if (matchingSessionIds.length === 1 && sessionSummaries.has(matchingSessionIds[0])) {
             const summary = sessionSummaries.get(matchingSessionIds[0]);
+            const ownershipStrength = matches[0]?.strength || 'weak';
             summary.runtimePresence = 'hot';
             summary.rssKb += processInfo.rssKb;
             summary.processCount += 1;
             summary.processesByCategory[category] = (summary.processesByCategory[category] || 0) + 1;
-            summary.processes.push({ ...processInfo, category, attribution: match.source || 'command' });
+            summary.processes.push({ ...processInfo, category, attribution: match.source || 'command', ownershipStrength });
             continue;
         }
 
@@ -433,10 +458,11 @@ export const runtimeQueryMethods = {
     async getHibernationEligibility(sessionId, {
         activityStatus = null,
         owner = null,
-        pendingInput = ''
+        pendingInput = '',
+        sessionOverride = null
     } = {}) {
         const state = this.stateStore.get();
-        const session = (state.sessions || []).find(candidate => candidate.id === sessionId) || null;
+        const session = sessionOverride || (state.sessions || []).find(candidate => candidate.id === sessionId) || null;
         if (!session) return null;
 
         const inventory = await this.getRuntimeInventory();

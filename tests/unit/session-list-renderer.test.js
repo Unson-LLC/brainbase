@@ -150,6 +150,40 @@ describe('session-list-renderer', () => {
       expect(html).not.toContain('paused-label');
     });
 
+    it('should render hibernated sessions with explicit resume-runtime action', () => {
+      const session = {
+        id: 'session-hibernated',
+        name: 'Hibernated Session',
+        intendedState: 'hibernated',
+        hibernatedAt: new Date().toISOString()
+      };
+
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
+
+      expect(html).toContain('session-child-row hibernated');
+      expect(html).toContain('hibernated');
+      expect(html).toContain('resume-runtime-btn');
+      expect(html).not.toContain('hibernate-session-btn');
+    });
+
+    it('should render manual hibernate action only for active Codex sessions', () => {
+      const codexSession = {
+        id: 'session-codex',
+        name: 'Codex Session',
+        engine: 'codex',
+        intendedState: 'active'
+      };
+      const claudeSession = {
+        id: 'session-claude',
+        name: 'Claude Session',
+        engine: 'claude',
+        intendedState: 'active'
+      };
+
+      expect(renderSessionRowHTML(codexSession, { isActive: false, project: 'general' })).toContain('hibernate-session-btn');
+      expect(renderSessionRowHTML(claudeSession, { isActive: false, project: 'general' })).not.toContain('hibernate-session-btn');
+    });
+
     it('should render summary chips and transport badge when sessionUiState is provided', () => {
       const session = {
         id: 'session-rich',

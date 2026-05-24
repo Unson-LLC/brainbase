@@ -1,39 +1,55 @@
 id: session.hibernation
 name: Session hibernation
-purpose: Let Brainbase evaluate whether an idle session runtime can be safely hibernated before any process-stopping behavior is introduced.
+purpose: Let Brainbase evaluate, manually hibernate, and intentionally resume idle Codex session runtimes while preserving reviewable recovery metadata.
 surfaces:
   ui:
     - session list runtime memory chips
+    - session list hibernate and resume-runtime actions
   api:
     - GET /api/sessions/runtime/inventory
     - GET /api/sessions/:id/hibernate/eligibility
+    - POST /api/sessions/:id/hibernate
+    - POST /api/sessions/:id/resume-runtime
   code:
     - server/services/session-runtime/runtime-query-methods.js
+    - server/services/session-runtime/runtime-lifecycle-methods.js
     - server/controllers/session/runtime-handlers.js
     - server/routes/sessions.js
     - public/modules/session-list-renderer.js
+    - public/modules/domain/session/session-service.js
+    - public/modules/ui/views/session-view.js
+    - public/modules/app/session-management-mixin.js
   data:
     - session runtime process inventory
     - session hibernation eligibility blockers
+    - hibernation metadata on session state
 depends_on:
   - terminal.transport
   - runtime.launchd
 visibility_rules:
   - Runtime inventory is read-only and must not mutate session lifecycle state.
-  - Hibernation eligibility is read-only in Phase 1.5; it must explain blockers before any process is stopped.
-  - Hibernation eligibility is API/diagnostics-only in Phase 1.5; user-facing hibernate controls start in Phase 2.
+  - Manual hibernation must run eligibility first and explain blockers before any process is stopped.
+  - User-facing hibernate controls are explicit manual actions; automatic hibernation starts no earlier than Phase 3.
   - Child processes may be attributed through a uniquely matched session parent.
-  - Ambiguous or unknown process ownership must block hibernation eligibility.
-  - Active turns, pending startup, pending input, active terminal owner, pinned sessions, and missing restore metadata must block hibernation eligibility.
+  - Ambiguous, unknown, or weak process ownership must block hibernation eligibility.
+  - Active turns, pending startup, pending input, active terminal owner, pinned sessions, unsupported engines, and missing restore metadata must block hibernation eligibility.
+  - Hibernation may stop only process ids attributed to the target session inventory.
+  - Resume failure must preserve hibernation metadata and mark the session `broken`.
 verification:
   commands:
-    - npm test -- tests/server/session-runtime-inventory.test.js
+    - npm run test:run -- tests/server/session-runtime-inventory.test.js
+    - npm run test:run -- tests/unit/session-list-renderer.test.js tests/unit/session-service-hibernation.test.js
+    - npm run typecheck
     - curl -s http://127.0.0.1:31013/api/sessions/runtime/inventory
     - curl -s http://127.0.0.1:31013/api/sessions/<session-id>/hibernate/eligibility
+    - "Safe mutating smoke, only for a disposable idle Codex session with verified ownership: POST /api/sessions/<session-id>/hibernate then POST /api/sessions/<session-id>/resume-runtime"
   expected:
     - Inventory includes per-session RSS and process categories.
     - Child processes under a uniquely matched runtime parent are attributed to the same session.
-    - Eligibility returns explicit blockers and does not stop any process.
+    - Eligibility returns explicit blockers before process stopping.
+    - Manual hibernation persists `hibernatedAt`, optional snapshot, process summary, and restore metadata.
+    - Resume-runtime marks success active/hot and failed restores broken.
+    - Public eligibility and ineligible hibernate responses summarize owned process count without returning full command lines or process arrays.
 common_failures:
   - Treating unknown child processes as safe to stop.
   - Treating a cold session as needing hibernation.

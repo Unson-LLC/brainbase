@@ -74,6 +74,8 @@ export class SessionService {
                     startupStatus: s.startupStatus, startupPhase: s.startupPhase,
                     startupMessage: s.startupMessage,
                     engine: s.engine,
+                    runtimeState: s.runtimeState, hibernatedAt: s.hibernatedAt,
+                    resumeFailureReason: s.resumeFailureReason,
                     worktree: s.worktree, createdAt: s.createdAt,
                     archivedAt: s.archivedAt, pausedReason: s.pausedReason
                 })),
@@ -992,6 +994,67 @@ export class SessionService {
 
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
         return { success: true, sessionId, eventResult };
+    }
+
+    async getHibernateEligibility(sessionId) {
+        return await this.httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/hibernate/eligibility`);
+    }
+
+    _mergeSessionState(sessionId, updates = {}) {
+        const sessions = this.store.getState().sessions || [];
+        this.store.setState({
+            sessions: sessions.map((session) =>
+                session.id === sessionId ? { ...session, ...updates } : session
+            )
+        });
+    }
+
+    async hibernateSession(sessionId) {
+        const result = await this.httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/hibernate`, {
+            reason: 'manual'
+        });
+        this._mergeSessionState(sessionId, {
+            intendedState: result?.intendedState || 'hibernated',
+            runtimeState: result?.runtimeState || 'hibernated',
+            hibernatedAt: result?.hibernatedAt || new Date().toISOString(),
+            hibernateReason: 'manual',
+            runtimeInventorySummary: result?.runtimeInventorySummary || null,
+            restoreStrategy: result?.restoreMetadata?.restoreStrategy || null,
+            restoreCommand: result?.restoreMetadata?.restoreCommand || null,
+            resumeFailureReason: null
+        });
+        await this.refreshSessionUiSummaries([sessionId]);
+        return { success: true, sessionId, result };
+    }
+
+    async resumeRuntime(sessionId) {
+        let result;
+        try {
+            result = await this.httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/resume-runtime`, {
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
+            });
+        } catch (error) {
+            if (error?.intendedState === 'broken' || error?.runtimeState === 'broken') {
+                this._mergeSessionState(sessionId, {
+                    intendedState: 'broken',
+                    runtimeState: 'broken',
+                    resumeFailureReason: error.resumeFailureReason || error.detail || error.message || String(error),
+                    resumeFailedAt: error.resumeFailedAt || new Date().toISOString()
+                });
+                await this.refreshSessionUiSummaries([sessionId]);
+            }
+            throw error;
+        }
+        this._mergeSessionState(sessionId, {
+            intendedState: result?.intendedState || 'active',
+            runtimeState: result?.runtimeState || 'hot',
+            resumedAt: result?.resumedAt || new Date().toISOString(),
+            resumeFailureReason: null
+        });
+        await this.refreshSessionUiSummaries([sessionId]);
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
+        return { success: true, sessionId, result, eventResult };
     }
 
     /**

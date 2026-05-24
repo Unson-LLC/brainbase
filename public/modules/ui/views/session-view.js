@@ -13,6 +13,39 @@ const SESSION_FAVORITES_STORAGE_KEY = 'brainbase.sessionFavorites.v1';
 const SESSION_MENU_DEBUG_MAX_ENTRIES = 120;
 const SESSION_MENU_DEBUG_ENDPOINT = '/api/client-diagnostics/session-menu';
 
+const HIBERNATION_BLOCKER_LABELS = {
+    active_turn: '実行中の応答があります',
+    pending_startup: '起動処理が完了していません',
+    pending_input: '未送信の入力があります',
+    active_owner: 'ほかの表示がターミナルを操作中です',
+    pinned: 'ピン留めされています',
+    unsupported_engine: 'このエンジンはまだ休止に対応していません',
+    weak_process_ownership: '停止対象プロセスの所有判定が弱いため安全に休止できません',
+    missing_restore_metadata: '再開に必要なCodex復元情報がありません',
+    unknown_process_ownership: '所有者不明のプロセスがあるため安全に休止できません'
+};
+
+export function formatHibernationBlockers(blockers = []) {
+    if (!Array.isArray(blockers) || blockers.length === 0) return '';
+    return blockers
+        .map(blocker => HIBERNATION_BLOCKER_LABELS[blocker] || blocker)
+        .join(' / ');
+}
+
+export function classifySessionsForGroupedList(sessions = []) {
+    return {
+        activeSessions: sessions.filter(s =>
+            s.intendedState !== 'archived' &&
+            s.intendedState !== 'paused' &&
+            s.intendedState !== 'hibernated' &&
+            s.intendedState !== 'broken' &&
+            (!s.intendedState || s.intendedState === 'active')
+        ),
+        pausedSessions: sessions.filter(s => s.intendedState === 'paused'),
+        hibernatedSessions: sessions.filter(s => s.intendedState === 'hibernated' || s.intendedState === 'broken')
+    };
+}
+
 function describeSessionMenuElement(element) {
     if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
     const rect = element.getBoundingClientRect?.();
@@ -663,12 +696,7 @@ export class SessionView {
             this.container.appendChild(timelineList);
         } else {
             // 状態別にセッションを分類（アーカイブを除く）
-            const activeSessions = visibleSessions.filter(s =>
-                s.intendedState !== 'archived' &&
-                s.intendedState !== 'paused' &&
-                (!s.intendedState || s.intendedState === 'active')
-            );
-            const pausedSessions = visibleSessions.filter(s => s.intendedState === 'paused');
+            const { activeSessions, pausedSessions, hibernatedSessions } = classifySessionsForGroupedList(visibleSessions);
 
             // 作業中セクション
             if (activeSessions.length > 0) {
@@ -680,6 +708,11 @@ export class SessionView {
             if (pausedSessions.length > 0) {
                 const pausedSection = this._renderSection('一時停止', this._sortFavoriteSessionsFirst(pausedSessions), currentSessionId, false);
                 this.container.appendChild(pausedSection);
+            }
+
+            if (hibernatedSessions.length > 0) {
+                const hibernatedSection = this._renderSection('休止中', this._sortFavoriteSessionsFirst(hibernatedSessions), currentSessionId, false);
+                this.container.appendChild(hibernatedSection);
             }
         }
 
@@ -1408,6 +1441,38 @@ export class SessionView {
                 e.stopPropagation();
                 closeDropdown();
                 await this.sessionService.resumeSession(session.id);
+            });
+        }
+
+        const hibernateBtn = row.querySelector('.hibernate-session-btn');
+        if (hibernateBtn) {
+            hibernateBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                closeDropdown();
+                try {
+                    await this.sessionService.hibernateSession(session.id);
+                    showSuccess('セッションを休止しました');
+                } catch (error) {
+                    const blockers = formatHibernationBlockers(error?.blockers);
+                    const detail = blockers
+                        ? `: ${blockers}`
+                        : '';
+                    showError(`休止に失敗しました${detail}`);
+                }
+            });
+        }
+
+        const resumeRuntimeBtn = row.querySelector('.resume-runtime-btn');
+        if (resumeRuntimeBtn) {
+            resumeRuntimeBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                closeDropdown();
+                try {
+                    await this.sessionService.resumeRuntime(session.id);
+                    showSuccess('Runtimeを再開しました');
+                } catch (error) {
+                    showError(`Runtime再開に失敗しました: ${error?.message || error}`);
+                }
             });
         }
 

@@ -8,6 +8,9 @@ architecture_docs:
   - path: docs/architecture/session-hibernation-mvp-architecture.md
     status: created
     reason: Hibernation changes session runtime ownership, process lifecycle, and restore semantics.
+  - path: docs/architecture/ADR-012-session-hibernation-runtime-lifecycle.md
+    status: accepted
+    reason: Phase 2 lifecycle mutation keeps the server runtime boundary as the state source of truth.
 related_tasks:
   - task_source: VibePro
     task_ids: [story-session-hibernation-mvp]
@@ -104,12 +107,19 @@ Scope:
 
 Acceptance Criteria:
 
-- [ ] Idle Codex sessions can be manually hibernated.
-- [ ] Running sessions, pending startup sessions, and sessions with unsent input are rejected with a clear reason.
-- [ ] Hibernation records `hibernatedAt`, `lastRuntimeSnapshot`, process inventory summary, and restore command metadata.
-- [ ] Hibernated sessions stay visible in the session list with a clear status.
-- [ ] Opening a hibernated session can resume the runtime without creating a duplicate worktree.
-- [ ] If resume fails, the session becomes `broken` and preserves recovery metadata.
+- [x] Idle Codex sessions can be manually hibernated.
+- [x] Running sessions, pending startup sessions, and sessions with unsent input are rejected with a clear reason.
+- [x] Hibernation records `hibernatedAt`, process inventory summary, restore command metadata, and `lastRuntimeSnapshot` when terminal snapshot capture is available.
+- [x] Hibernated sessions stay visible in the session list with a clear status.
+- [x] Opening a hibernated session can resume the runtime without creating a duplicate worktree.
+- [x] If resume fails, the session becomes `broken` and preserves recovery metadata.
+
+Phase 2 implementation slice:
+
+- `POST /api/sessions/:id/hibernate` persists hibernation state and kills only inventory-attributed process ids.
+- `POST /api/sessions/:id/resume-runtime` uses the existing terminal runtime start path and marks failed resumes as `broken`.
+- Session list exposes `Hibernate session` and `Resume runtime` actions while preserving hibernated sessions in both timeline and grouped list modes.
+- Shared HTTP client changes for lifecycle errors must preserve the existing auth-token injection path while carrying structured blocker and recovery metadata to the UI.
 
 ### Phase 3: Auto Hibernate And Hot Session Budget
 
