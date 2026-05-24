@@ -35,6 +35,21 @@ ADR-unnecessary decision: approved.
 
 ただし実装PRでは、runnerの責務境界をSpecに従って明示する。特に、Ledgerのdue-post選択、X投稿の実行、二重投稿防止、JST/UTC変換、失敗時のUI表示、公開投稿フラグの責務を混ぜない。
 
+## Implementation Surfaces
+
+このStoryのPRでは、実行コードだけでなく、運用時に同じ契約で判断する面を同一PRに含める。
+
+- Ledger import: review packの `date` / `time` をJST壁時計時刻として `scheduled_at` UTC instantへ変換する。
+- Scheduled runner: 永続化済み `scheduled_at` と現在時刻の比較だけでdue判定する。
+- Runbook: AC-8の成果物として、既存Ledger行の補正手順、dry-run確認、公開投稿有効化前の判断を明示する。
+- Spec: JST/UTC変換、既存mutable rowの再インポート補正、公開済みrow不変を要求契約として固定する。
+
+runbookは別PRに分けない。既存行の `scheduled_at` はデプロイだけでは補正されないため、運用手順が実装と同時に入らないと本番時刻ずれのrelease riskが残る。
+
+## Regression Surfaces
+
+このStoryの回帰確認対象は、SNS Posting Ledgerのimport、Pg update path、JSON/in-memory fallback、scheduled publisher、launchd plist、review-pack import script、SNS UIが読むLedger rowである。API routeやUIコンポーネント自体は変更しないが、UI表示の元になる `time` / `scheduled_at` contractはE2Eとrepository testsで確認する。
+
 ## Acceptance Criteria
 
 - [ ] AC-1: due-post runnerが、SNS Posting Ledgerから `status=scheduled` かつ `scheduled_at <= now` の投稿を取得できる。

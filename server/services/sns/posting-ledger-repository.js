@@ -97,6 +97,15 @@ function timeFromDraft(draft) {
     return DEFAULT_TIMES_BY_SLOT[Math.max(0, slot - 1)] || '09:00';
 }
 
+function scheduledAtFromDraft(draft, date, time) {
+    if (draft.scheduled_at) return draft.scheduled_at;
+    const match = String(time || '').match(/^(\d{2}):(\d{2})$/u);
+    if (!match) throw new SnsPostValidationError('time must be HH:mm');
+    const [, hour, minute] = match;
+    const [year, month, day] = date.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day, Number(hour) - 9, Number(minute), 0, 0)).toISOString();
+}
+
 function sourceTypeFromDraft(draft) {
     if (draft.signal?.kind === 'peer_post') return 'Peer Circle';
     if (draft.signal?.kind === 'news') return 'News';
@@ -214,7 +223,7 @@ function draftToRecord(draft, defaults = {}) {
         lane: draft.lane || null,
         format: draft.format || 'standalone',
         body,
-        scheduled_at: draft.scheduled_at || `${date}T${time}:00.000Z`,
+        scheduled_at: scheduledAtFromDraft(draft, date, time),
         posted_at: draft.posted_at || null,
         posted_url: draft.posted_url || null,
         deleted_at: draft.deleted_at || null,
@@ -289,8 +298,10 @@ export class InMemorySnsPostingLedgerRepository {
                 ...existing,
                 title: next.title,
                 body: next.body,
+                time: next.time,
                 lane: next.lane,
                 format: next.format,
+                scheduled_at: next.scheduled_at,
                 account_handle: next.account_handle,
                 source: next.source,
                 evidence: next.evidence,
@@ -484,6 +495,8 @@ export class PgSnsPostingLedgerRepository {
                          account_handle = $6,
                          source = $7::jsonb,
                          evidence = $8::jsonb,
+                         time = $9,
+                         scheduled_at = $10,
                          updated_at = NOW()
                      WHERE id = $1
                      RETURNING *`,
@@ -495,7 +508,9 @@ export class PgSnsPostingLedgerRepository {
                         next.format,
                         next.account_handle,
                         JSON.stringify(next.source),
-                        JSON.stringify(next.evidence)
+                        JSON.stringify(next.evidence),
+                        next.time,
+                        next.scheduled_at
                     ]
                 );
                 updated.push(normalizeRecord(updatedRow.rows[0]));
