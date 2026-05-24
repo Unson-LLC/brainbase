@@ -17444,34 +17444,6 @@ body.sns-growth-mode-active .terminal-header {
     border-left: 1px solid rgba(191, 201, 214, 0.1);
 }
 
-.command-center-theme .live-feed-display-mode {
-    display: inline-grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2px;
-    height: 28px;
-    padding: 2px;
-    border: 1px solid rgba(191, 201, 214, 0.14);
-    border-radius: 4px;
-    background: rgba(9, 13, 17, 0.72);
-}
-
-.command-center-theme .feed-view-mode-btn {
-    min-width: 62px;
-    height: 22px;
-    padding: 0 8px;
-    border: 0;
-    border-radius: 3px;
-    background: transparent;
-    color: #8b98a8;
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.command-center-theme .feed-view-mode-btn.active {
-    background: rgba(47, 128, 255, 0.18);
-    color: #d8eaff;
-}
-
 .command-center-theme .live-feed-session-scope {
     display: flex;
     gap: 6px;

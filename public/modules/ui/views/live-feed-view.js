@@ -20,7 +20,6 @@ export class LiveFeedView {
         this._unsubEntry = null;
         this._activeFilter = 'all';
         this._activeSessionId = null;
-        this._activityDisplayMode = 'groups';
     }
 
     mount(container) {
@@ -124,10 +123,12 @@ export class LiveFeedView {
     }
 
     _displayModeLabel() {
-        if (this._activeSessionId) return 'セッション詳細';
-        const mode = this._activityDisplayMode === 'log' ? '時系列' : 'セッション別';
+        const scope = this._activeSessionId
+            ? this._sessionOptions(this._getDisplayedEntries()).find((session) => session.id === this._activeSessionId)?.label || '選択セッション'
+            : '全体';
         const filter = this._activeFilterLabel();
-        return this._activeFilter === 'all' ? mode : `${mode} / フィルタ: ${filter}`;
+        const scoped = `時系列 / 範囲: ${scope}`;
+        return this._activeFilter === 'all' ? scoped : `${scoped} / フィルタ: ${filter}`;
     }
 
     _sourceLabel(entry) {
@@ -147,17 +148,6 @@ export class LiveFeedView {
                 : { mode: 'all' });
         }
         return this.liveFeedService.getEntries();
-    }
-
-    _getSessionHistoryGroups() {
-        if (
-            this._activeSessionId
-            || this._activityDisplayMode !== 'groups'
-            || typeof this.liveFeedService.getSessionHistoryGroups !== 'function'
-        ) {
-            return null;
-        }
-        return this.liveFeedService.getSessionHistoryGroups({ limitPerSession: 5 });
     }
 
     _sessionOptions(entries) {
@@ -196,22 +186,6 @@ export class LiveFeedView {
         </div>`;
     }
 
-    _renderDisplayModeToggle() {
-        if (this._activeSessionId || typeof this.liveFeedService.getSessionHistoryGroups !== 'function') {
-            return '';
-        }
-        const modes = [
-            { id: 'groups', label: 'セッション別' },
-            { id: 'log', label: '時系列' }
-        ];
-        return `<div class="live-feed-display-mode" aria-label="Live Feed display mode">
-            ${modes.map((mode) => {
-                const active = mode.id === this._activityDisplayMode;
-                return `<button class="feed-view-mode-btn${active ? ' active' : ''}" type="button" data-feed-mode="${mode.id}" aria-pressed="${active ? 'true' : 'false'}">${mode.label}</button>`;
-            }).join('')}
-        </div>`;
-    }
-
     _renderGroups(entries) {
         if (entries.length === 0) {
             const label = escapeHtml(this._activeFilterLabel());
@@ -232,36 +206,6 @@ export class LiveFeedView {
             <div class="feed-section-label">${label}</div>
             ${items.map((entry) => this._renderEntry(entry)).join('')}
         </section>`).join('');
-    }
-
-    _renderSessionGroups(groups) {
-        const visibleGroups = groups
-            .map((group) => ({
-                ...group,
-                entries: this._filterEntries(group.entries)
-            }))
-            .filter((group) => group.entries.length > 0);
-
-        if (visibleGroups.length === 0) {
-            const label = escapeHtml(this._activeFilterLabel());
-            return `<div class="live-feed-empty">
-                <i data-lucide="radio"></i>
-                <p>${label}の更新はありません</p>
-                <span>別のフィルタを選ぶと他の更新を確認できます。</span>
-            </div>`;
-        }
-
-        return visibleGroups.map((group) => {
-            const latestTime = group.latestTimestamp ? this._formatTime(group.latestTimestamp) : '--:--:--';
-            return `<section class="feed-section feed-session-section" data-session-id="${escapeHtml(group.sessionId)}">
-                <div class="feed-section-label feed-session-section-label">
-                    <span>${escapeHtml(group.label)}</span>
-                    <span>${escapeHtml(group.sessionId)}</span>
-                    <span>${escapeHtml(latestTime)}</span>
-                </div>
-                ${group.entries.map((entry) => this._renderEntry(entry)).join('')}
-            </section>`;
-        }).join('');
     }
 
     _renderEntry(entry) {
@@ -314,12 +258,6 @@ export class LiveFeedView {
         if (!this._container) return;
         const list = this._container.querySelector('.live-feed-list');
         if (!list) return;
-        const sessionGroups = this._getSessionHistoryGroups();
-        if (sessionGroups) {
-            list.innerHTML = this._renderSessionGroups(sessionGroups);
-            refreshIcons({ nodes: [list] });
-            return;
-        }
         const entries = this._getDisplayedEntries();
         list.innerHTML = this._renderGroups(this._filterEntries(entries));
         refreshIcons({ nodes: [list] });
@@ -329,11 +267,8 @@ export class LiveFeedView {
         if (!this._container) return;
 
         const entries = this._getDisplayedEntries();
-        const sessionGroups = this._getSessionHistoryGroups();
         const filteredEntries = this._filterEntries(entries);
-        const entriesHtml = sessionGroups
-            ? this._renderSessionGroups(sessionGroups)
-            : this._renderGroups(filteredEntries);
+        const entriesHtml = this._renderGroups(filteredEntries);
         const isMobileSurface = Boolean(this._container.closest?.('.mobile-tab-content'));
         const surfacePadding = isMobileSurface
             ? ' style="padding-bottom: 72px; box-sizing: border-box;"'
@@ -351,7 +286,6 @@ export class LiveFeedView {
                     ${this._renderFilters(entries)}
                 </div>
                 <div class="live-feed-controls">
-                    ${this._renderDisplayModeToggle()}
                     <button class="feed-control-btn" type="button" aria-label="一時停止" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="pause"></i></button>
                     <button class="feed-control-btn" type="button" aria-label="更新" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="refresh-cw"></i></button>
                     <button class="feed-control-btn" type="button" aria-label="フィルタ" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="sliders-horizontal"></i></button>
@@ -368,7 +302,6 @@ export class LiveFeedView {
 
         this._bindFilterEvents();
         this._bindSessionScopeEvents();
-        this._bindDisplayModeEvents();
         refreshIcons({ nodes: [this._container] });
     }
 
@@ -393,18 +326,6 @@ export class LiveFeedView {
                 if (nextSessionId === this._activeSessionId) return;
                 this._activeSessionId = nextSessionId;
                 this._activeFilter = 'all';
-                this._render();
-            });
-        });
-    }
-
-    _bindDisplayModeEvents() {
-        if (!this._container) return;
-        this._container.querySelectorAll('.feed-view-mode-btn[data-feed-mode]').forEach((button) => {
-            button.addEventListener('click', () => {
-                const mode = button.dataset.feedMode || 'groups';
-                if (mode === this._activityDisplayMode) return;
-                this._activityDisplayMode = mode === 'log' ? 'log' : 'groups';
                 this._render();
             });
         });

@@ -50,7 +50,7 @@ Live Feed はセッション状態リストではなく、活動履歴の面に�
 ## スコープ
 
 - Live Feed に、セッション 1 行の状態表示ではなく、時系列の活動履歴を表示するモードまたはセクションを追加する。
-- デフォルト表示は、セッションごとの安定した履歴グループにする。全体 activity log は同じ Live Feed 内の切替可能な projection として残すが、初期表示をセッションリスト風の active ranking にしない。
+- デフォルト表示は、全セッションの活動イベントを timestamp 順に混ぜた時系列にする。セッションごとの確認は別モードではなく、同じ時系列を session scope filter で絞り込む。
 - startup prompt と、その後に観測できるユーザー送信 prompt を、セッションごとの履歴として表示する。
 - working、waiting、done、blocked/stale、task switch、current step、latest evidence などの構造化イベントを表示する。
 - 「このセッションは何をやっていたか」を思い出せる session-focused view を提供する。
@@ -61,10 +61,9 @@ Live Feed はセッション状態リストではなく、活動履歴の面に�
 ## 受け入れ条件
 
 - [ ] Live Feed を開くと、履歴が存在するアクティブセッションについて、1 セッション 1 行ではなく複数イベントの活動履歴が見える。
-- [ ] Live Feed のデフォルト表示では、heartbeat や `liveActivity.updatedAt` だけの更新で既存セッショングループの並びが変わらない。
+- [ ] Live Feed のデフォルト表示では、全セッションのユーザー入力イベントとエージェント活動イベントが timestamp 順に混ざって見える。
 - [ ] session-focused filter で、そのセッションに対する過去のユーザー入力が時系列で見える。
-- [ ] all-sessions view で、ユーザー入力イベントとエージェント活動イベントが timestamp 順に混ざって見える。
-- [ ] all-sessions activity log は、デフォルトの session-grouped view から明示的に切り替えられる。
+- [ ] 全体表示と session-focused 表示は、別モードではなく同じ時系列 view のスコープ切替として扱われる。
 - [ ] 活動行は user prompt、agent work、waiting-for-input、done、blocked/stale、system event を区別できる。
 - [ ] 行の本文は、raw prompt 抜粋、構造化 `taskBrief`、`currentStep`、`latestEvidence`、既存 assistant snippet のいずれかの source-backed text を使う。
 - [ ] 通常の Live Feed 表示、polling、filtering、row update では LLM/SLM call が不要である。

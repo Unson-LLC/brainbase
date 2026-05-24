@@ -264,7 +264,8 @@ test.describe('story-live-feed-agent-activity-history', () => {
             const labels = Array.from(host.querySelectorAll('.feed-item-label')).map((node) => node.textContent || '');
             const modelSummaryVisible = text.includes('generated summary') || text.includes('生成要約');
             const sessionChips = Array.from(host.querySelectorAll('.feed-session-chip')).map((node) => node.textContent || '');
-            const defaultGroupIds = Array.from(host.querySelectorAll('.feed-session-section')).map((node) => node.getAttribute('data-session-id') || '');
+            const defaultGroupCount = host.querySelectorAll('.feed-session-section').length;
+            const defaultModeToggleCount = host.querySelectorAll('.feed-view-mode-btn').length;
 
             replaceSessionHookStatuses({
                 'session-alpha-history': {
@@ -298,11 +299,8 @@ test.describe('story-live-feed-agent-activity-history', () => {
                 }
             });
             await new Promise((resolve) => setTimeout(resolve, 0));
-            const afterHeartbeatGroupIds = Array.from(host.querySelectorAll('.feed-session-section')).map((node) => node.getAttribute('data-session-id') || '');
-
-            host.querySelector<HTMLButtonElement>('.feed-view-mode-btn[data-feed-mode="log"]')?.click();
-            const logModeLabels = Array.from(host.querySelectorAll('.feed-item-label')).map((node) => node.textContent || '');
-            const logModeHasGroups = host.querySelectorAll('.feed-session-section').length > 0;
+            const afterHeartbeatLabels = Array.from(host.querySelectorAll('.feed-item-label')).map((node) => node.textContent || '');
+            const afterHeartbeatHasGroups = host.querySelectorAll('.feed-session-section').length > 0;
 
             host.querySelector<HTMLButtonElement>('.feed-session-chip[data-session-scope="session-alpha-history"]')?.click();
             const focusedText = host.textContent || '';
@@ -316,10 +314,10 @@ test.describe('story-live-feed-agent-activity-history', () => {
                 labels,
                 modelSummaryVisible,
                 sessionChips,
-                defaultGroupIds,
-                afterHeartbeatGroupIds,
-                logModeLabels,
-                logModeHasGroups,
+                defaultGroupCount,
+                defaultModeToggleCount,
+                afterHeartbeatLabels,
+                afterHeartbeatHasGroups,
                 focusedText,
                 focusedLabels,
                 focusedFooter,
@@ -343,14 +341,14 @@ test.describe('story-live-feed-agent-activity-history', () => {
         expect(result.sources).toContain('活動報告');
         expect(result.modelSummaryVisible).toBe(false);
         expect(result.sessionChips).toEqual(expect.arrayContaining(['全体', 'Alpha History', 'Beta History']));
-        expect(result.defaultGroupIds).toEqual(['session-alpha-history', 'session-beta-history']);
-        expect(result.afterHeartbeatGroupIds).toEqual(['session-alpha-history', 'session-beta-history']);
-        expect(result.logModeHasGroups).toBe(false);
-        expect(result.logModeLabels[0]).toBe('Beta History');
+        expect(result.defaultGroupCount).toBe(0);
+        expect(result.defaultModeToggleCount).toBe(0);
+        expect(result.afterHeartbeatHasGroups).toBe(false);
+        expect(result.afterHeartbeatLabels[0]).toBe('Beta History');
         expect(result.focusedLabels.every((label) => label === 'Alpha History')).toBe(true);
         expect(result.focusedText).toContain('LLMを常時使わずに活動履歴を作って');
         expect(result.focusedText).not.toContain('全体のエージェント作業順序も見たい');
-        expect(result.focusedFooter).toContain('表示: セッション詳細');
+        expect(result.focusedFooter).toContain('表示: 時系列 / 範囲: Alpha History');
         expect(result.itemCount).toBeGreaterThanOrEqual(3);
         expect(result.sourceCount).toBeGreaterThanOrEqual(3);
         expect(runtimeIssues).toEqual([]);
@@ -361,7 +359,7 @@ test.describe('story-live-feed-agent-activity-history', () => {
         await expect(page.locator('#live-feed-panel .feed-item-source', {
             hasText: 'ユーザー入力'
         }).first()).toBeVisible();
-        await expect(page.locator('#live-feed-panel .live-feed-footer')).toContainText('表示: セッション詳細');
+        await expect(page.locator('#live-feed-panel .live-feed-footer')).toContainText('表示: 時系列 / 範囲: Alpha History');
 
         await page.locator('#live-feed-panel').screenshot({
             path: 'var/test-results/story-live-feed-agent-activity-history.png'

@@ -553,29 +553,11 @@ export class LiveFeedService {
 
         events.sort((a, b) => {
             const timestampDiff = b.timestamp.getTime() - a.timestamp.getTime();
-            if (timestampDiff !== 0) return mode === 'session' ? -timestampDiff : timestampDiff;
+            if (timestampDiff !== 0) return timestampDiff;
             return String(a.id).localeCompare(String(b.id));
         });
 
         return events.slice(0, MAX_HISTORY_ENTRIES);
     }
 
-    getSessionHistoryGroups({ limitPerSession = 5 } = {}) {
-        const state = this.store.getState();
-        const sessions = Array.isArray(state.sessions) ? state.sessions : [];
-        return sessions
-            .filter((session) => session?.id && session.intendedState !== 'archived')
-            .map((session) => {
-                const entries = this.getHistoryEntries({ mode: 'session', sessionId: session.id })
-                    .slice(-limitPerSession);
-                return {
-                    sessionId: session.id,
-                    label: session.name || session.id,
-                    entries,
-                    latestTimestamp: entries[entries.length - 1]?.timestamp || null
-                };
-            })
-            .filter((group) => group.entries.length > 0)
-            .slice(0, MAX_HISTORY_ENTRIES);
-    }
 }

@@ -75,7 +75,7 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-item-dot.working')).toBeTruthy();
         expect(container.querySelector('.feed-item-actions')).toBeTruthy();
         expect(Array.from(container.querySelectorAll('.feed-item-action')).every((button) => button.disabled)).toBe(true);
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション別');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体');
     });
 
     it('フィルタボタン押下時_該当カテゴリだけに絞り込まれる', () => {
@@ -87,7 +87,7 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-filter-btn[data-filter="system"]').getAttribute('aria-pressed')).toBe('true');
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.feed-item-label')?.textContent).toBe('システムイベント');
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション別 / フィルタ: システム');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体 / フィルタ: システム');
     });
 
     it('該当なしフィルタ押下時_カテゴリ別の空状態を表示する', () => {
@@ -163,10 +163,10 @@ describe('LiveFeedView', () => {
 
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Live Feedで過去の依頼を出して');
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション詳細');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: Alpha');
     });
 
-    it('INV-11/S-9: default表示はセッションごとの複数行履歴グループを安定順で描画する', () => {
+    it('S-9/S-10: default表示は全体時系列で、セッションchipで同じ時系列を絞り込む', () => {
         service.getHistoryEntries = vi.fn(() => [
             {
                 id: 'beta-activity',
@@ -191,71 +191,16 @@ describe('LiveFeedView', () => {
                 provenanceLabel: 'raw prompt',
             },
         ]);
-        service.getSessionHistoryGroups = vi.fn(() => [
-            {
-                sessionId: 'session-alpha',
-                label: 'Alpha',
-                latestTimestamp: new Date('2026-05-07T11:31:00.000Z'),
-                entries: [
-                    {
-                        id: 'alpha-startup',
-                        sessionId: 'session-alpha',
-                        timestamp: new Date('2026-05-07T11:29:00.000Z'),
-                        label: 'Alpha',
-                        icon: 'message-square',
-                        statusTone: 'prompt',
-                        statusText: '初回依頼',
-                        text: 'Live Feedを直して',
-                        provenanceLabel: 'raw prompt',
-                    },
-                    {
-                        id: 'alpha-prompt',
-                        sessionId: 'session-alpha',
-                        timestamp: new Date('2026-05-07T11:30:00.000Z'),
-                        label: 'Alpha',
-                        icon: 'message-square',
-                        statusTone: 'prompt',
-                        statusText: 'ユーザー入力',
-                        text: 'UIを確認して',
-                        provenanceLabel: 'raw prompt',
-                    },
-                ],
-            },
-            {
-                sessionId: 'session-beta',
-                label: 'Beta',
-                latestTimestamp: new Date('2026-05-07T11:35:00.000Z'),
-                entries: [
-                    {
-                        id: 'beta-activity',
-                        sessionId: 'session-beta',
-                        timestamp: new Date('2026-05-07T11:35:00.000Z'),
-                        label: 'Beta',
-                        icon: 'activity',
-                        statusTone: 'working',
-                        statusText: 'エージェント活動',
-                        text: 'heartbeatで更新中',
-                        provenanceLabel: 'structured activity',
-                    },
-                ],
-            },
-        ]);
 
         view.mount(container);
 
-        expect(container.querySelector('.feed-view-mode-btn[data-feed-mode="groups"]')?.textContent).toContain('セッション別');
-        expect(container.querySelector('.feed-view-mode-btn[data-feed-mode="log"]')?.textContent).toContain('時系列');
-        const sections = Array.from(container.querySelectorAll('.feed-session-section'));
-        expect(sections).toHaveLength(2);
-        expect(sections[0].getAttribute('data-session-id')).toBe('session-alpha');
-        expect(sections[0].querySelectorAll('.feed-item')).toHaveLength(2);
-        expect(sections[1].getAttribute('data-session-id')).toBe('session-beta');
-        expect(container.querySelector('.feed-section-label')?.textContent).toContain('Alpha');
-
-        container.querySelector('.feed-view-mode-btn[data-feed-mode="log"]').click();
-
-        expect(container.querySelector('.feed-view-mode-btn[data-feed-mode="log"]').classList.contains('active')).toBe(true);
+        expect(container.querySelector('.feed-view-mode-btn')).toBeNull();
         expect(container.querySelectorAll('.feed-session-section')).toHaveLength(0);
         expect(Array.from(container.querySelectorAll('.feed-item-label')).map((node) => node.textContent)).toEqual(['Beta', 'Alpha']);
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体');
+
+        container.querySelector('.feed-session-chip[data-session-scope="session-alpha"]').click();
+
+        expect(service.getHistoryEntries).toHaveBeenLastCalledWith({ mode: 'session', sessionId: 'session-alpha' });
     });
 });
