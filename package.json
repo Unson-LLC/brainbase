@@ -60,6 +60,7 @@
     "sns:generation-context": "node scripts/build-sns-generation-context.js",
     "oyasumi:meeting-personal-kg": "node scripts/oyasumi-meeting-personal-kg.js",
     "oyasumi:meeting-personal-kg:all": "node scripts/oyasumi-meeting-personal-kg.js --all-repos",
+    "oyasumi:conversation-personal-kg": "node scripts/oyasumi-conversation-personal-kg.js",
     "oyasumi:project-sns-ready": "node scripts/project-oyasumi-sns-ready.js",
     "sns:ohayo-brief": "node scripts/generate-sns-ohayo-brief.js",
     "sns:weekly-pack": "node scripts/generate-personal-kg-sns-weekly-pack.js",

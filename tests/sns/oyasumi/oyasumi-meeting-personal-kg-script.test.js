@@ -1,4 +1,5 @@
 // @ts-check
+import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -50,5 +51,24 @@ describe('oyasumi meeting personal KG script', () => {
 
         expect(matchProjectEntity(projectIndex, 'unson-board').entity.id).toBe('prj_unson');
         expect(matchProjectEntity(projectIndex, 'yakumokai').entity.id).toBe('prj_unson');
+    });
+
+    it('does not keep OpenRouter or OpenAI-compatible semantic fallback code paths', () => {
+        const script = fs.readFileSync('scripts/oyasumi-meeting-personal-kg.js', 'utf8');
+        const manaRoutes = fs.readFileSync('server/routes/brainbase/mana-capture-routes.js', 'utf8');
+        const source = `${script}\n${manaRoutes}`;
+
+        expect(source).not.toMatch(/OPENROUTER|openrouter|OpenRouter|LLM_OPENAI_COMPATIBLE/u);
+        expect(source).not.toContain('createOpenAiCompatibleSemanticClient');
+        expect(source).not.toContain('invokeOpenRouter');
+    });
+
+    it('keeps Codex semantic subagent output in private temp artifacts', () => {
+        const script = fs.readFileSync('scripts/oyasumi-meeting-personal-kg.js', 'utf8');
+
+        expect(script).toContain("fs.mkdtempSync(path.join(os.tmpdir(), 'oyasumi-personal-kg-agent-'))");
+        expect(script).toContain('fs.chmodSync(outputDir, 0o700)');
+        expect(script).toContain("fs.openSync(outputPath, 'w', 0o600)");
+        expect(script).toContain('cleanupOutputArtifacts');
     });
 });
