@@ -1252,12 +1252,12 @@ body::after {
     opacity: 0.7;
 }
 
-/* Paused Session (一時停止中) */
+/* Paused Session (stopped legacy state) */
 .session-child-row.paused {
     border-left: 2px solid var(--warning-color, #f59e0b);
 }
 
-/* 一時停止セッションの名前とアイコンのみを薄く表示 */
+/* 停止中セッションの名前とアイコンのみを薄く表示 */
 .session-child-row.paused .session-name-container {
     opacity: 0.6;
 }

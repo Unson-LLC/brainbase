@@ -827,15 +827,9 @@ describe('SessionView', () => {
             }
         });
 
-        it('should pause session from dropdown actions', async () => {
-            mockSessionService.pauseSession.mockResolvedValue();
-
-            const pauseButton = container.querySelector('.session-dropdown-menu .pause-session-btn');
-            pauseButton.click();
-
-            await vi.waitFor(() => {
-                expect(mockSessionService.pauseSession).toHaveBeenCalledWith('session-1');
-            });
+        it('should not render legacy pause actions in the session list', () => {
+            expect(container.querySelector('.session-dropdown-menu .pause-session-btn')).toBeNull();
+            expect(container.textContent).not.toContain('一時停止');
         });
 
         it('should close menus and switch session on row click', async () => {

@@ -704,9 +704,8 @@ export class SessionView {
                 this.container.appendChild(workingSection);
             }
 
-            // 一時停止セクション
             if (pausedSessions.length > 0) {
-                const pausedSection = this._renderSection('一時停止', this._sortFavoriteSessionsFirst(pausedSessions), currentSessionId, false);
+                const pausedSection = this._renderSection('停止中', this._sortFavoriteSessionsFirst(pausedSessions), currentSessionId, false);
                 this.container.appendChild(pausedSection);
             }
 
@@ -1424,7 +1423,7 @@ export class SessionView {
             });
         }
 
-        // Pause button (for active sessions)
+        // Legacy pause buttons are no longer rendered in the session list.
         const pauseBtn = row.querySelector('.pause-session-btn');
         if (pauseBtn) {
             pauseBtn.addEventListener('click', async (e) => {

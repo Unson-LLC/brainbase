@@ -97,7 +97,8 @@ describe('session-list-renderer', () => {
 
       expect(html).toContain('名前を変更');
       expect(html).toContain('お気に入りに追加');
-      expect(html).toContain('一時停止');
+      expect(html).not.toContain('一時停止');
+      expect(html).not.toContain('pause-session-btn');
       expect(html).toContain('アーカイブ');
       expect(html).toContain('削除');
       expect(html).not.toContain('Commit tree');

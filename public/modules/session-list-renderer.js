@@ -123,7 +123,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const favoriteClass = isFavorite ? ' favorite' : '';
   const draggableAttr = isDraggable ? 'true' : 'false';
 
-  // 意図的な一時停止状態かどうか（intendedStateで判定）
+  // 旧paused状態かどうか（intendedStateで判定）
   const isPaused = session.intendedState === 'paused';
   const isHibernated = session.intendedState === 'hibernated';
   const isBroken = session.intendedState === 'broken';
@@ -259,7 +259,7 @@ export function renderSessionRowHTML(session, options = {}) {
     })
     : '';
 
-  // 再開ボタン: 一時停止中の場合に表示
+  // 再開ボタン: 停止中の場合に表示
   const resumeButton = isPaused
     ? '<button class="resume-session-btn" title="再開"><i data-lucide="play-circle"></i></button>'
     : '';
@@ -267,11 +267,8 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="resume-runtime-btn" title="再開"><i data-lucide="rotate-cw"></i></button>'
     : '';
 
-  // 一時停止ボタン: 作業中（paused以外）の場合に表示
   const canHibernate = engine === 'codex' && !isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived';
-  const pauseButton = !isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived'
-    ? '<button class="pause-session-btn" title="一時停止"><i data-lucide="pause-circle"></i></button>'
-    : '';
+  const pauseButton = '';
   const hibernateButton = canHibernate
     ? '<button class="hibernate-session-btn" title="スリープ"><i data-lucide="power"></i></button>'
     : '';
@@ -279,9 +276,7 @@ export function renderSessionRowHTML(session, options = {}) {
   // ドロップダウンメニュー項目
   const resumePauseMenuItem = isPaused
     ? '<button class="dropdown-item resume-session-btn"><i data-lucide="play-circle"></i>再開</button>'
-    : (!isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived'
-        ? '<button class="dropdown-item pause-session-btn"><i data-lucide="pause-circle"></i>一時停止</button>'
-        : '');
+    : '';
   const hibernateMenuItem = canHibernate
     ? '<button class="dropdown-item hibernate-session-btn"><i data-lucide="power"></i>スリープ</button>'
     : '';

@@ -82,13 +82,9 @@ test.describe('session list actions', () => {
             await expect(row(originalName)).toBeVisible({ timeout: 30000 });
             console.log('created session');
 
-            await domClick(originalName, '.session-dropdown-menu .pause-session-btn');
-            await expect(row(originalName)).toHaveClass(/paused/);
-            console.log('paused session');
-
-            await domClick(originalName, '.session-dropdown-menu .resume-session-btn');
-            await expect(row(originalName)).not.toHaveClass(/paused/, { timeout: 15000 });
-            console.log('resumed session');
+            await expect(row(originalName).locator('.session-dropdown-menu .pause-session-btn')).toHaveCount(0);
+            await expect(row(originalName)).not.toContainText('一時停止');
+            console.log('legacy pause action hidden');
 
             await domClick(originalName, '.session-dropdown-menu .archive-session-btn');
             await expect(row(originalName)).toHaveCount(0);

@@ -8,7 +8,7 @@ import { refreshIcons } from './ui-helpers.js';
 import { eventBus, EVENTS } from './core/event-bus.js';
 
 /**
- * セクションヘッダー（「作業中」「一時停止」）の展開/折りたたみハンドラーを設定
+ * セクションヘッダー（「作業中」「停止中」）の展開/折りたたみハンドラーを設定
  * @param {HTMLElement} container - セッションリストのコンテナ要素
  */
 export function attachSectionHeaderHandlers(container) {
