@@ -59,6 +59,8 @@ function buildObservedRuntimeStatus(baseRuntimeStatus = {}, observedRuntime = nu
     return {
         ...(baseRuntimeStatus || {}),
         ...(observedRuntime?.runtimeState ? { runtimeState: observedRuntime.runtimeState } : {}),
+        ...(Array.isArray(observedRuntime?.issues) ? { issues: observedRuntime.issues } : {}),
+        ...(observedRuntime?.observed?.ttyd ? { observedTtyd: observedRuntime.observed.ttyd } : {}),
         ...(observedRuntime?.observed?.inputProbe ? {
             inputProbe: observedRuntime.observed.inputProbe,
             inputReady: observedRuntime.observed.inputProbe.status === 'passed'
@@ -68,6 +70,20 @@ function buildObservedRuntimeStatus(baseRuntimeStatus = {}, observedRuntime = nu
 
 function isStartupShell(session) {
     return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
+}
+
+function hasRuntimeIssue(runtimeStatus, issueType) {
+    return Array.isArray(runtimeStatus?.issues)
+        && runtimeStatus.issues.some((issue) => issue?.type === issueType);
+}
+
+function runtimeHealthEntryToObservedRuntime(healthEntry) {
+    if (!healthEntry) return null;
+    return {
+        runtimeState: healthEntry.runtimeState,
+        issues: healthEntry.issues || [],
+        observed: healthEntry.observed || null
+    };
 }
 
 export function installRuntimeHandlers(controller) {
@@ -120,15 +136,29 @@ export function installRuntimeHandlers(controller) {
         const terminalAccess = controller.ownership.getTerminalAccessState(id, viewerId);
         let effectiveSession = session;
         let baseRuntimeStatus = session.runtimeStatus || {};
-        const observedRuntime = controller.runtimeRegistry?.getSession?.(id) || null;
+        let observedRuntime = controller.runtimeRegistry?.getSession?.(id) || null;
+        if (
+            session?.intendedState === 'active'
+            && session?.ttydProcess
+            && !hasRuntimeIssue(observedRuntime, 'stale_ttyd_process')
+            && typeof controller.runtimeReconciler?.reconcile === 'function'
+        ) {
+            try {
+                const reconcileResult = await controller.runtimeReconciler.reconcile({
+                    sessionId: id,
+                    dryRun: true,
+                    recover: false
+                });
+                observedRuntime = runtimeHealthEntryToObservedRuntime(
+                    (reconcileResult?.health?.sessionHealth || []).find((entry) => entry.sessionId === id)
+                ) || controller.runtimeRegistry?.getSession?.(id) || observedRuntime;
+            } catch (error) {
+                logger.warn(`[runtime] Failed to refresh observed runtime for ${id}:`, error);
+            }
+        }
         const blocked = terminalAccess?.state === 'blocked';
         const runtimeStatus = controller._withViewerRuntimeStatus({
-            ...(effectiveSession.runtimeStatus || baseRuntimeStatus || {}),
-            ...(observedRuntime?.runtimeState ? { runtimeState: observedRuntime.runtimeState } : {}),
-            ...(observedRuntime?.observed?.inputProbe ? {
-                inputProbe: observedRuntime.observed.inputProbe,
-                inputReady: observedRuntime.observed.inputProbe.status === 'passed'
-            } : {}),
+            ...buildObservedRuntimeStatus(effectiveSession.runtimeStatus || baseRuntimeStatus || {}, observedRuntime),
             ...(blocked ? {
                 inputReady: false,
                 interactiveUrl: null,
@@ -447,6 +477,18 @@ export function installRuntimeHandlers(controller) {
         const { id } = req.params;
         const dryRun = req.body?.dryRun === true;
         if (!id) return res.status(400).json({ error: 'Session ID is required' });
+        const session = controller._getSessionById?.(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        if (isStartupShell(session)) {
+            return res.status(409).json({
+                error: 'Session startup is not ready for terminal recovery.',
+                startupStatus: session.startupStatus,
+                startupPhase: session.startupPhase || null,
+                startupMessage: session.startupMessage || null
+            });
+        }
         if (!controller.runtimeReconciler?.reconcile) {
             return res.status(503).json({ error: 'Terminal runtime reconciler is not available' });
         }

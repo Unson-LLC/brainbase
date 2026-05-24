@@ -375,9 +375,7 @@ export const runtimeQueryMethods = {
         const intendedState = session?.intendedState;
         const activeEntry = this.activeSessions.get(session?.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
-        const persistedPid = session?.ttydProcess?.pid;
-        const pidToCheck = activePid || persistedPid;
-        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
+        const ttydRunning = activePid ? this._isProcessRunning(activePid) : false;
         const needsRestart = intendedState === 'active' && !ttydRunning;
         const port = activeEntry?.port || session?.ttydProcess?.port || null;
         const interactiveTransport = ttydRunning ? 'ttyd' : 'none';

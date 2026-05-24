@@ -74,7 +74,7 @@ export const runtimeLifecycleMethods = {
         throw new Error(`tmux session did not become ready: ${sessionId}`);
     },
 
-    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, forceTtyd = false, codexResumeId = null }) {
+    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, forceTtyd = false, codexResumeId = null, preserveTmuxOnFailure = false }) {
         await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine, codexResumeId });
 
         if (this._isXtermOnlyMode() && !forceTtyd) {
@@ -87,7 +87,7 @@ export const runtimeLifecycleMethods = {
             return await this.startLocks.get(sessionId);
         }
 
-        const promise = this._doStartTtyd({ sessionId, cwd, initialCommand, engine, preferredPort, codexResumeId });
+        const promise = this._doStartTtyd({ sessionId, cwd, initialCommand, engine, preferredPort, codexResumeId, preserveTmuxOnFailure });
         this.startLocks.set(sessionId, promise);
         try {
             return await promise;
@@ -96,7 +96,7 @@ export const runtimeLifecycleMethods = {
         }
     },
 
-    async _doStartTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, codexResumeId = null }) {
+    async _doStartTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, codexResumeId = null, preserveTmuxOnFailure = false }) {
         if (!['claude', 'codex'].includes(engine)) {
             throw new Error('engine must be "claude" or "codex"');
         }
@@ -247,7 +247,8 @@ export const runtimeLifecycleMethods = {
         logger.info(`[ttyd:${sessionId}] Command: ${ttydPath}`);
         logger.info(`[ttyd:${sessionId}] Args: ${JSON.stringify(args)}`);
         logger.info(`[ttyd:${sessionId}] CWD: ${spawnOptions.cwd || 'default'}`);
-        const ttyd = spawn(ttydPath, args, spawnOptions);
+        const spawnTtydProcess = this.spawnTtydProcess || spawn;
+        const ttyd = spawnTtydProcess(ttydPath, args, spawnOptions);
 
         ttyd.stdout.on('data', (data) => {
             logger.info(`[ttyd:${sessionId}] ${data}`);
@@ -310,14 +311,14 @@ export const runtimeLifecycleMethods = {
             logger.info(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
         } catch (error) {
             logger.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
-            await this.stopTtyd(sessionId);
+            await this.stopTtyd(sessionId, { preserveTmux: Boolean(preserveTmuxOnFailure) });
             throw new Error(`ttyd startup timeout: ${error instanceof Error ? error.message : String(error)}`);
         }
 
         return { port, proxyPath: basePath, startedExisting: false };
     },
 
-    async _restartTtydForExistingTmux(sessionId, preferredPort, engine = 'claude') {
+    async _restartTtydForExistingTmux(sessionId, preferredPort, engine = 'claude', options = {}) {
         const tmuxRunning = await this._isTmuxSessionRunning(sessionId);
         if (!tmuxRunning) {
             throw new Error(`TMUX session ${sessionId} not found. Cannot reconnect ttyd.`);
@@ -325,13 +326,28 @@ export const runtimeLifecycleMethods = {
 
         logger.info(`[_restartTtydForExistingTmux] Reconnecting ttyd to existing tmux: ${sessionId}`);
 
-        return await this.startTtyd({
-            sessionId,
-            cwd: null,
-            initialCommand: '',
-            engine,
-            preferredPort
-        });
+        try {
+            return await this.startTtyd({
+                sessionId,
+                cwd: options.cwd || null,
+                initialCommand: '',
+                engine,
+                preferredPort,
+                forceTtyd: true,
+                preserveTmuxOnFailure: true,
+                codexResumeId: options.codexResumeId
+            });
+        } catch (error) {
+            const previous = options.previousTtydProcess;
+            if (Number.isFinite(previous?.pid) && Number.isFinite(previous?.port)) {
+                await this._saveTtydProcessInfo(sessionId, {
+                    port: previous.port,
+                    pid: previous.pid,
+                    engine: previous.engine || engine
+                });
+            }
+            throw error;
+        }
     },
 
     async ensureTtydForActiveSession(session, { forceTtyd = false } = {}) {
@@ -379,9 +395,13 @@ export const runtimeLifecycleMethods = {
         const preferredPort = Number.isFinite(session?.ttydProcess?.port)
             ? session.ttydProcess.port
             : undefined;
+        const cwd = session.worktree?.path || session.path || session.cwd || null;
 
         logger.warn(`[ensureTtydForActiveSession] Restarting dead ttyd for active session ${session.id}`);
-        const result = await this._restartTtydForExistingTmux(session.id, preferredPort, engine);
+        const result = await this._restartTtydForExistingTmux(session.id, preferredPort, engine, {
+            cwd,
+            previousTtydProcess: session.ttydProcess
+        });
         const updatedSession = this.getSession(session.id) || {
             ...session,
             ttydProcess: {

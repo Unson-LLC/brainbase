@@ -23,7 +23,8 @@ describe('TerminalRuntimeReconciler', () => {
     sessions = [{ id: 'session-1', name: 'Session 1', engine: 'claude', intendedState: 'active' }],
     ensureSessionRuntime = vi.fn(),
     stopTtyd = vi.fn(),
-    startTtyd = vi.fn()
+    startTtyd = vi.fn(),
+    restartTtydForExistingTmux = undefined
   } = {}) {
     const registry = {
       getAll: vi.fn(() => ({ sessions: {} })),
@@ -41,13 +42,13 @@ describe('TerminalRuntimeReconciler', () => {
       runtimeQuery: {
         _isTmuxSessionRunningSync: vi.fn(() => tmuxRunning)
       },
-      runtimeLifecycle: { ensureSessionRuntime, stopTtyd, startTtyd },
+      runtimeLifecycle: { ensureSessionRuntime, stopTtyd, startTtyd, _restartTtydForExistingTmux: restartTtydForExistingTmux },
       ownershipService: ownership,
       runtimeRegistry: registry,
       execSyncFn: vi.fn((command) => String(command).startsWith('tmux capture-pane') ? paneOutput : dryProcesses),
       killFn
     });
-    return { reconciler, registry, killFn, ownership, ensureSessionRuntime, stopTtyd, startTtyd };
+    return { reconciler, registry, killFn, ownership, ensureSessionRuntime, stopTtyd, startTtyd, restartTtydForExistingTmux };
   }
 
   it('activeかつtmuxとfresh probeがある場合_interactive_readyになる', async () => {
@@ -127,6 +128,53 @@ describe('TerminalRuntimeReconciler', () => {
     expect(killFn).not.toHaveBeenCalled();
   });
 
+  it('CON-7 observed ttyd process parsing supports full console session ids', async () => {
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-12345-abcd',
+        name: 'Session 12345',
+        engine: 'codex',
+        intendedState: 'active',
+        ttydProcess: {
+          pid: 100,
+          port: 40101,
+          engine: 'codex'
+        }
+      }],
+      dryProcesses: '100 1 100 ttyd -p 40101 -b /console/session-12345-abcd tmux attach -t session-12345-abcd'
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('healthy');
+    expect(health.sessionHealth[0].observed.ttyd.running).toBe(true);
+    expect(health.issues).not.toContainEqual(expect.objectContaining({
+      type: 'stale_ttyd_process'
+    }));
+  });
+
+  it('CON-7 malformed encoded console session ids do not crash observation', async () => {
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-%E0%A4%A',
+        name: 'Malformed encoded session',
+        engine: 'codex',
+        intendedState: 'active',
+        ttydProcess: {
+          pid: 100,
+          port: 40101,
+          engine: 'codex'
+        }
+      }],
+      dryProcesses: '100 1 100 ttyd -p 40101 -b /console/session-%E0%A4%A tmux attach -t session-%E0%A4%A'
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('healthy');
+    expect(health.sessionHealth[0].observed.ttyd.running).toBe(true);
+  });
+
   it('non dryRun時_duplicate ttydをkillする', async () => {
     const { reconciler, killFn } = buildReconciler({
       dryProcesses: [
@@ -191,6 +239,316 @@ describe('TerminalRuntimeReconciler', () => {
     expect(ensureSessionRuntime).toHaveBeenCalledWith({ sessionId: 'session-1' });
   });
 
+  it('INV-1 active tmuxかつpersisted ttydProcessがあるが実ttydなしの場合_degradedになる', async () => {
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }]
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('degraded');
+    expect(health.sessions.degraded).toBe(1);
+    expect(health.issues).toContainEqual(expect.objectContaining({
+      type: 'stale_ttyd_process',
+      severity: 'critical',
+      sessionId: 'session-1'
+    }));
+  });
+
+  it('CON-9 startup pending shellはpersisted ttydProcessがあってもstale ttyd扱いしない', async () => {
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-startup-pending',
+        name: 'Startup Pending',
+        engine: 'codex',
+        intendedState: 'active',
+        startupStatus: 'pending',
+        startupPhase: 'worktree',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          engine: 'codex'
+        }
+      }]
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('healthy');
+    expect(health.sessions.snapshotOnly).toBe(1);
+    expect(health.issues).not.toContainEqual(expect.objectContaining({
+      type: 'stale_ttyd_process',
+      sessionId: 'session-startup-pending'
+    }));
+  });
+
+  it('CON-3 recover trueでstale ttydの場合_tmuxを維持してttydだけ再接続する', async () => {
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler, ensureSessionRuntime, stopTtyd } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/project',
+        codexThreadId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }],
+      startTtyd
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(ensureSessionRuntime).not.toHaveBeenCalled();
+    expect(stopTtyd).not.toHaveBeenCalled();
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/project',
+      engine: 'codex',
+      preferredPort: 40020,
+      forceTtyd: true,
+      preserveTmuxOnFailure: true,
+      initialCommand: '',
+      codexResumeId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291'
+    }));
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      type: 'reconnect_ttyd',
+      reason: 'stale_ttyd_process',
+      dryRun: false,
+      success: true
+    }));
+  });
+
+  it('AP-2 fallback startTtyd失敗時も前回ttydProcessを復元する', async () => {
+    const previousTtydProcess = {
+      pid: 12345,
+      port: 40020,
+      startedAt: '2026-04-17T11:50:00.000Z',
+      engine: 'codex'
+    };
+    const startTtyd = vi.fn(async () => {
+      throw new Error('ttyd startup timeout');
+    });
+    const { reconciler, registry } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/project',
+        ttydProcess: previousTtydProcess
+      }],
+      startTtyd
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/project',
+      engine: 'codex',
+      preferredPort: 40020,
+      forceTtyd: true,
+      preserveTmuxOnFailure: true
+    }));
+    expect(registry.updateSession).toHaveBeenCalledWith('session-1', {
+      ttydProcess: previousTtydProcess
+    });
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      type: 'reconnect_ttyd',
+      reason: 'stale_ttyd_process',
+      success: false,
+      error: 'ttyd startup timeout'
+    }));
+  });
+
+  it('AP-2 recover trueでstale ttyd再接続に失敗した場合_前回ttydProcessを保持できるhelper経由にする', async () => {
+    const previousTtydProcess = {
+      pid: 12345,
+      port: 40020,
+      startedAt: '2026-04-17T11:50:00.000Z',
+      engine: 'codex'
+    };
+    const restartTtydForExistingTmux = vi.fn(async () => {
+      throw new Error('ttyd startup timeout');
+    });
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/project',
+        codexThreadId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291',
+        ttydProcess: previousTtydProcess
+      }],
+      startTtyd,
+      restartTtydForExistingTmux
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(startTtyd).not.toHaveBeenCalled();
+    expect(restartTtydForExistingTmux).toHaveBeenCalledWith(
+      'session-1',
+      40020,
+      'codex',
+      expect.objectContaining({
+        cwd: '/tmp/project',
+        codexResumeId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291',
+        previousTtydProcess
+      })
+    );
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      type: 'reconnect_ttyd',
+      reason: 'stale_ttyd_process',
+      success: false,
+      error: 'ttyd startup timeout'
+    }));
+  });
+
+  it('CON-3 stale ttyd reconnectはworktree pathをsession.pathより優先する', async () => {
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/session-path',
+        cwd: '/tmp/session-cwd',
+        worktree: { path: '/tmp/worktree-path' },
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }],
+      startTtyd
+    });
+
+    await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: '/tmp/worktree-path'
+    }));
+  });
+
+  it('CON-6 stale ttyd reconnectはsession.pathをsession.cwdより優先する', async () => {
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/session-path',
+        cwd: '/tmp/session-cwd',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }],
+      startTtyd
+    });
+
+    await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: '/tmp/session-path'
+    }));
+  });
+
+  it('CON-6 stale ttyd reconnectはpathがない場合session.cwdを使う', async () => {
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler } = buildReconciler({
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        cwd: '/tmp/session-cwd',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }],
+      startTtyd
+    });
+
+    await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: '/tmp/session-cwd'
+    }));
+  });
+
+  it('INV-1 stale ttydは所有状態より優先してcritical issueになる', async () => {
+    const { reconciler } = buildReconciler({
+      ownerSnapshot: {
+        ownerViewerId: 'viewer-1',
+        ownerViewerLabel: 'Old browser',
+        claimedAt: '2026-04-17T11:50:00.000Z',
+        lastSeenAt: '2026-04-17T11:59:30.000Z'
+      },
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }]
+    });
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('degraded');
+    expect(health.sessionHealth[0].runtimeState).toBe('degraded');
+    expect(health.issues).toContainEqual(expect.objectContaining({
+      type: 'stale_ttyd_process',
+      severity: 'critical'
+    }));
+  });
+
+  it('INV-3 persisted ttydProcessがないactive tmuxはsnapshot_onlyのままにする', async () => {
+    const { reconciler } = buildReconciler();
+
+    const health = await reconciler.getHealth();
+
+    expect(health.status).toBe('healthy');
+    expect(health.sessions.snapshotOnly).toBe(1);
+    expect(health.issues).not.toContainEqual(expect.objectContaining({
+      type: 'stale_ttyd_process'
+    }));
+  });
+
   it('Codex paneがMallocStackLogging floodの場合_degraded issueになる', async () => {
     const { reconciler } = buildReconciler({
       paneOutput: Array.from({ length: 20 }, (_, index) =>
@@ -246,6 +604,60 @@ describe('TerminalRuntimeReconciler', () => {
       type: 'restart_terminal_runtime',
       reason: 'codex_pane_error_flood',
       success: true
+    }));
+  });
+
+  it('S-3 stale ttydとCodex pane floodが同時に起きた場合_tmuxごと再起動する', async () => {
+    const stopTtyd = vi.fn(async () => true);
+    const startTtyd = vi.fn(async () => ({ port: 40020 }));
+    const { reconciler, ensureSessionRuntime } = buildReconciler({
+      paneOutput: Array.from({ length: 20 }, (_, index) =>
+        `codex(${index}) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.`
+      ).join('\n'),
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        engine: 'codex',
+        intendedState: 'active',
+        path: '/tmp/project',
+        codexThreadId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291',
+        ttydProcess: {
+          pid: 12345,
+          port: 40020,
+          startedAt: '2026-04-17T11:50:00.000Z',
+          engine: 'codex'
+        }
+      }],
+      stopTtyd,
+      startTtyd
+    });
+
+    const health = await reconciler.getHealth();
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(health.issues).toContainEqual(expect.objectContaining({
+      type: 'codex_pane_error_flood',
+      severity: 'critical'
+    }));
+    expect(health.issues).not.toContainEqual(expect.objectContaining({
+      type: 'stale_ttyd_process'
+    }));
+    expect(ensureSessionRuntime).not.toHaveBeenCalled();
+    expect(stopTtyd).toHaveBeenCalledWith('session-1', { preserveTmux: false });
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/project',
+      engine: 'codex',
+      forceTtyd: true,
+      codexResumeId: '019e4ec7-0b5e-7ef3-8c97-3b57823b9291'
+    }));
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      type: 'restart_terminal_runtime',
+      reason: 'codex_pane_error_flood',
+      success: true
+    }));
+    expect(result.actions).not.toContainEqual(expect.objectContaining({
+      type: 'reconnect_ttyd'
     }));
   });
 });

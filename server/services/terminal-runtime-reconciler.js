@@ -25,7 +25,13 @@ function parsePsLine(line) {
 function extractSessionId(command) {
     if (!command) return null;
     const consoleMatch = command.match(/\/console\/([^/\s?]+)/);
-    if (consoleMatch) return decodeURIComponent(consoleMatch[1]);
+    if (consoleMatch) {
+        try {
+            return decodeURIComponent(consoleMatch[1]);
+        } catch {
+            return consoleMatch[1];
+        }
+    }
     const tmuxMatch = command.match(/tmux\s+new-session\s+.*?-s\s+["']?([^"'\s]+)/);
     if (tmuxMatch) return tmuxMatch[1];
     return null;
@@ -200,10 +206,17 @@ export class TerminalRuntimeReconciler {
 
             if (recover && entry.intendedState === 'active' && classification.runtimeState === TERMINAL_RUNTIME_STATE.DEGRADED) {
                 const hasPaneErrorFlood = classification.issues.some((issue) => issue.type === 'codex_pane_error_flood');
+                const hasStaleTtydProcess = classification.issues.some((issue) => issue.type === 'stale_ttyd_process');
                 if (hasPaneErrorFlood) {
                     actions.push(await this._restartRuntimeAction({
                         entry,
                         reason: 'codex_pane_error_flood',
+                        dryRun
+                    }));
+                } else if (hasStaleTtydProcess) {
+                    actions.push(await this._reconnectTtydAction({
+                        entry,
+                        reason: 'stale_ttyd_process',
                         dryRun
                     }));
                 } else {
@@ -400,6 +413,9 @@ export class TerminalRuntimeReconciler {
         if (entry.intendedState && entry.intendedState !== 'active') {
             return { runtimeState: TERMINAL_RUNTIME_STATE.STOPPED, issues };
         }
+        if (entry.session?.startupStatus === 'pending' || entry.session?.startupStatus === 'failed') {
+            return { runtimeState: TERMINAL_RUNTIME_STATE.SNAPSHOT_ONLY, issues };
+        }
         if ((entry.ttyd || []).length > 1) {
             issues.push(this._issue('duplicate_ttyd', entry.sessionId, 'critical', 'Multiple ttyd fallback processes are attached to this session.'));
             return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
@@ -412,13 +428,6 @@ export class TerminalRuntimeReconciler {
             issues.push(this._issue('tmux_missing', entry.sessionId, 'critical', 'Active session has no tmux runtime.'));
             return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
         }
-        if (entry.ownership?.stale) {
-            issues.push(this._issue('stale_ownership', entry.sessionId, 'warning', 'Terminal owner heartbeat is stale.'));
-            return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
-        }
-        if (entry.ownership?.state === 'owned') {
-            return { runtimeState: TERMINAL_RUNTIME_STATE.BLOCKED_BY_OWNER, issues };
-        }
         if (entry.pane?.stuck) {
             issues.push(this._issue(
                 'codex_pane_error_flood',
@@ -428,7 +437,28 @@ export class TerminalRuntimeReconciler {
             ));
             return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
         }
-
+        if (entry.session?.ttydProcess && (entry.ttyd || []).length === 0) {
+            const persistedPid = entry.session.ttydProcess?.pid;
+            const persistedPort = entry.session.ttydProcess?.port;
+            const details = [
+                Number.isFinite(persistedPid) ? `pid=${persistedPid}` : null,
+                Number.isFinite(persistedPort) ? `port=${persistedPort}` : null
+            ].filter(Boolean).join(', ');
+            issues.push(this._issue(
+                'stale_ttyd_process',
+                entry.sessionId,
+                'critical',
+                `Active session has tmux but no observed ttyd for persisted runtime${details ? ` (${details})` : ''}.`
+            ));
+            return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
+        }
+        if (entry.ownership?.stale) {
+            issues.push(this._issue('stale_ownership', entry.sessionId, 'warning', 'Terminal owner heartbeat is stale.'));
+            return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
+        }
+        if (entry.ownership?.state === 'owned') {
+            return { runtimeState: TERMINAL_RUNTIME_STATE.BLOCKED_BY_OWNER, issues };
+        }
         const inputProbe = registryEntry?.observed?.inputProbe;
         if (inputProbe?.status === 'passed') {
             const ageMs = this._probeAgeMs(inputProbe);
@@ -472,6 +502,69 @@ export class TerminalRuntimeReconciler {
         };
         if (!dryRun) {
             action.success = Boolean(this.ownershipService?.releaseTerminalOwnership?.(sessionId, ownerViewerId, { force: true }));
+        }
+        return action;
+    }
+
+    async _reconnectTtydAction({ entry, reason, dryRun }) {
+        const session = entry.session || {};
+        const engine = session.engine || session?.ttydProcess?.engine || entry.engine || 'claude';
+        const cwd = session.worktree?.path || session.path || session.cwd || undefined;
+        const preferredPort = Number.isFinite(session?.ttydProcess?.port)
+            ? session.ttydProcess.port
+            : undefined;
+        const action = {
+            sessionId: entry.sessionId,
+            type: 'reconnect_ttyd',
+            reason,
+            dryRun
+        };
+        if (!dryRun) {
+            try {
+                const startOptions = {
+                    sessionId: entry.sessionId,
+                    cwd,
+                    initialCommand: '',
+                    engine,
+                    preferredPort,
+                    forceTtyd: true,
+                    preserveTmuxOnFailure: true
+                };
+                const codexResumeId = getCodexResumeId(session, engine);
+                if (codexResumeId) {
+                    startOptions.codexResumeId = codexResumeId;
+                }
+                if (typeof this.runtimeLifecycle?._restartTtydForExistingTmux === 'function') {
+                    action.result = await this.runtimeLifecycle._restartTtydForExistingTmux(
+                        entry.sessionId,
+                        preferredPort,
+                        engine,
+                        {
+                            cwd,
+                            previousTtydProcess: session.ttydProcess,
+                            codexResumeId
+                        }
+                    );
+                } else {
+                    try {
+                        action.result = await this.runtimeLifecycle?.startTtyd?.(startOptions);
+                    } catch (error) {
+                        if (
+                            session?.ttydProcess
+                            && typeof this.runtimeRegistry?.updateSession === 'function'
+                        ) {
+                            this.runtimeRegistry.updateSession(entry.sessionId, {
+                                ttydProcess: session.ttydProcess
+                            });
+                        }
+                        throw error;
+                    }
+                }
+                action.success = true;
+            } catch (error) {
+                action.success = false;
+                action.error = error instanceof Error ? error.message : String(error);
+            }
         }
         return action;
     }

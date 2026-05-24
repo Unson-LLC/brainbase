@@ -264,6 +264,10 @@ ttyd iframe
 Fallback constraints:
 
 - It must not be auto-restored for desktop sessions unless explicitly requested.
+- A persisted `ttydProcess` marker on an active session is the explicit request to
+  keep the fallback transport recoverable across boot restore, watchdog, and
+  operator recovery. If tmux is still alive but the matching ttyd process is not
+  observed, reconnect only ttyd and preserve the tmux/Codex process.
 - It must be reconciled by generation.
 - It must not hold independent ownership semantics.
 - It must not become a second control plane.

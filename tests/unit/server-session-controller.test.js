@@ -730,6 +730,167 @@ describe('SessionController (Server)', () => {
       });
     });
 
+    it('CON-7 runtime取得時_observedRuntimeのstale issueとttyd観測を返す', async () => {
+      const sessionId = 'session-runtime-stale-ttyd';
+      mockSessionManager.getSessionById.mockReturnValue({
+        id: sessionId,
+        runtimeStatus: {
+          ttydRunning: false,
+          needsRestart: true,
+          proxyPath: null,
+          port: 40123
+        }
+      });
+      mockSessionManager.getObservedRuntime.mockReturnValue({
+        runtimeState: 'degraded',
+        issues: [{
+          type: 'stale_ttyd_process',
+          severity: 'critical',
+          reason: 'active tmux has no observed ttyd process'
+        }],
+        observed: {
+          ttyd: {
+            running: false,
+            expectedPort: 40123
+          },
+          inputProbe: {
+            status: 'failed',
+            error: 'ttyd process missing'
+          }
+        }
+      });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.getRuntime({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', viewerLabel: 'Local / Mac' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        runtimeStatus: {
+          interactiveUrl: null,
+          ttydRunning: false,
+          needsRestart: true,
+          proxyPath: null,
+          port: 40123,
+          runtimeState: 'degraded',
+          issues: [{
+            type: 'stale_ttyd_process',
+            severity: 'critical',
+            reason: 'active tmux has no observed ttyd process'
+          }],
+          observedTtyd: {
+            running: false,
+            expectedPort: 40123
+          },
+          inputProbe: {
+            status: 'failed',
+            error: 'ttyd process missing'
+          },
+          inputReady: false
+        },
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+    });
+
+    it('CON-7 cold registryのruntime取得時_dry-run reconcileでstale issueを返す', async () => {
+      const sessionId = 'session-runtime-cold-stale-ttyd';
+      mockSessionManager.getSessionById.mockReturnValue({
+        id: sessionId,
+        intendedState: 'active',
+        ttydProcess: {
+          pid: 12345,
+          port: 40123,
+          engine: 'codex'
+        },
+        runtimeStatus: {
+          ttydRunning: false,
+          needsRestart: true,
+          proxyPath: null,
+          port: 40123
+        }
+      });
+      mockSessionManager.getObservedRuntime.mockReturnValue(null);
+      mockSessionManager.reconcileTerminalRuntime.mockResolvedValue({
+        health: {
+          sessionHealth: [{
+            sessionId,
+            runtimeState: 'degraded',
+            issues: [{
+              type: 'stale_ttyd_process',
+              severity: 'critical',
+              reason: 'active tmux has no observed ttyd process'
+            }],
+            observed: {
+              ttyd: {
+                running: false,
+                expectedPort: 40123
+              },
+              inputProbe: {
+                status: 'failed',
+                error: 'ttyd process missing'
+              }
+            }
+          }]
+        }
+      });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.getRuntime({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', viewerLabel: 'Local / Mac' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.reconcileTerminalRuntime).toHaveBeenCalledWith({
+        sessionId,
+        dryRun: true,
+        recover: false
+      });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        runtimeStatus: expect.objectContaining({
+          runtimeState: 'degraded',
+          issues: [expect.objectContaining({
+            type: 'stale_ttyd_process',
+            severity: 'critical'
+          })],
+          observedTtyd: {
+            running: false,
+            expectedPort: 40123
+          },
+          inputProbe: {
+            status: 'failed',
+            error: 'ttyd process missing'
+          },
+          inputReady: false
+        }),
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+    });
+
     it('存在しないセッションのruntime取得時_404を返す', async () => {
       mockSessionManager.getSessionById.mockReturnValue(null);
 

@@ -1,6 +1,17 @@
 import { logger } from '../../utils/logger.js';
 import { SessionHealthMonitor } from '../session-health-monitor.js';
 
+function extractConsoleSessionId(command) {
+    if (!command) return null;
+    const match = String(command).match(/\/console\/([^/\s?]+)/);
+    if (!match) return null;
+    try {
+        return decodeURIComponent(match[1]);
+    } catch {
+        return match[1];
+    }
+}
+
 export const runtimeMaintenanceMethods = {
     async restoreActiveSessions() {
         try {
@@ -40,8 +51,7 @@ export const runtimeMaintenanceMethods = {
                     const pid = parseInt(parts[1], 10);
                     if (!Number.isFinite(pid)) continue;
 
-                    const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
-                    const sessionId = sessionMatch ? sessionMatch[1] : null;
+                    const sessionId = extractConsoleSessionId(line);
                     if (!sessionId) continue;
 
                     const portMatch = line.match(/-p\s+(\d+)/);
@@ -60,7 +70,10 @@ export const runtimeMaintenanceMethods = {
                 const sessionId = session.id;
                 const engine = session.engine || 'claude';
                 const initialCommand = session.initialCommand || '';
-                const cwd = await this.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+                const cwd = session.worktree?.path
+                    || session.path
+                    || session.cwd
+                    || await this.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
                     || this._getStoredWorkspacePath(session);
 
                 const hasTmux = tmuxSessions.has(sessionId);
@@ -89,10 +102,11 @@ export const runtimeMaintenanceMethods = {
                 const persistedPort = session?.ttydProcess?.port;
 
                 let keep = null;
-                if (Number.isFinite(persistedPid) && this._isProcessRunning(persistedPid)) {
+                const persistedCandidate = candidates.find(p => p.pid === persistedPid);
+                if (Number.isFinite(persistedPid) && persistedCandidate && this._isProcessRunning(persistedPid)) {
                     const port = Number.isFinite(persistedPort)
                         ? persistedPort
-                        : candidates.find(p => p.pid === persistedPid)?.port;
+                        : persistedCandidate.port;
                     if (Number.isFinite(port)) {
                         keep = { pid: persistedPid, port };
                     }
@@ -126,15 +140,19 @@ export const runtimeMaintenanceMethods = {
                     continue;
                 }
 
-                if (session.ttydProcess) {
-                    await this._clearTtydProcessInfo(sessionId);
+                if (!session.ttydProcess) {
+                    logger.info(`[restoreActiveSessions] ${sessionId} has live tmux but no persisted ttyd; leaving it lazy/snapshot-only until opened`);
+                    continue;
                 }
 
                 try {
                     const preferredPort = session?.ttydProcess?.port;
                     logger.info(`[restoreActiveSessions] Reconnecting ttyd for ${sessionId} (preferredPort: ${preferredPort}, engine: ${engine})`);
 
-                    await this._restartTtydForExistingTmux(sessionId, preferredPort, engine);
+                    await this._restartTtydForExistingTmux(sessionId, preferredPort, engine, {
+                        cwd,
+                        previousTtydProcess: session.ttydProcess
+                    });
                     logger.info(`[restoreActiveSessions] Successfully reconnected ttyd for ${sessionId}`);
                 } catch (err) {
                     logger.error(`[restoreActiveSessions] Failed to reconnect ttyd for ${sessionId}:`, err);
@@ -361,8 +379,7 @@ export const runtimeMaintenanceMethods = {
                 const pid = parseInt(parts[1], 10);
                 if (!Number.isFinite(pid)) continue;
 
-                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
-                const sessionId = sessionMatch ? sessionMatch[1] : null;
+                const sessionId = extractConsoleSessionId(line);
                 if (!sessionId) continue;
 
                 const portMatch = line.match(/-p\s+(\d+)/);
@@ -509,6 +526,14 @@ export const runtimeMaintenanceMethods = {
                 result.skipped += 1;
                 continue;
             }
+            if (!session.ttydProcess) {
+                result.skipped += 1;
+                continue;
+            }
+            if (session.startupStatus === 'pending' || session.startupStatus === 'failed') {
+                result.skipped += 1;
+                continue;
+            }
 
             try {
                 const repair = await this.ensureTtydForActiveSession(session);
@@ -567,11 +592,19 @@ export const runtimeMaintenanceMethods = {
 
                 if (typeof this.runtimeReconciler?.reconcile === 'function') {
                     const reconcileResult = await this.runtimeReconciler.reconcile({ dryRun: false, recover: true });
+                    const isRecoveryAction = (action) =>
+                        action.type === 'restart_terminal_runtime' || action.type === 'reconnect_ttyd';
                     const recoveryActions = (reconcileResult.actions || []).filter((action) =>
-                        action.type === 'restart_terminal_runtime' || action.success === true
+                        isRecoveryAction(action) && action.success === true
+                    );
+                    const failedRecoveryActions = (reconcileResult.actions || []).filter((action) =>
+                        isRecoveryAction(action) && action.success === false
                     );
                     if (recoveryActions.length > 0) {
                         logger.warn(`[PTY Watchdog] Runtime reconciliation recovered ${recoveryActions.length} issue(s)`);
+                    }
+                    if (failedRecoveryActions.length > 0) {
+                        logger.error(`[PTY Watchdog] Runtime reconciliation failed for ${failedRecoveryActions.length} issue(s)`);
                     }
                 }
 

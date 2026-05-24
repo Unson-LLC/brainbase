@@ -449,7 +449,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(appStore.getState().currentSessionId).toBe('session-current');
   });
 
-  it('forces ttyd startup when ttyd frame needs a runtime', async () => {
+  it('CON-7 uses terminal recovery and opens iframe when runtime reports stale_ttyd_process', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
 
     appStore.setState({
@@ -466,7 +466,12 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     httpClient.get.mockResolvedValue({
       runtimeStatus: {
         ttydRunning: false,
-        proxyPath: null
+        proxyPath: null,
+        runtimeState: 'degraded',
+        issues: [{
+          type: 'stale_ttyd_process',
+          severity: 'critical'
+        }]
       },
       terminalAccess: {
         state: 'owner',
@@ -475,15 +480,81 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
         canTakeover: false
       }
     });
+    httpClient.post.mockResolvedValue({
+      actions: [{
+        type: 'reconnect_ttyd',
+        reason: 'stale_ttyd_process',
+        success: true,
+        result: {
+          port: 40123,
+          proxyPath: '/console/session-1'
+        }
+      }]
+    });
 
     await app.switchSession('session-1');
 
+    const terminalFrame = document.getElementById('terminal-frame');
     expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
-    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/ensure', expect.objectContaining({
-      engine: 'codex',
-      viewerId: 'viewer-test',
-      forceTtyd: true
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/recover', expect.objectContaining({
+      dryRun: false
     }));
+    expect(terminalFrame.src).toContain('/console/session-1/');
+    expect(terminalFrame.src).toContain('viewerId=viewer-test');
+  });
+
+  it('CON-8 keeps stale ttyd recovery retryable when terminal recovery fails', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    const terminalFrame = document.getElementById('terminal-frame');
+    terminalFrame.src = '/console/session-1/?viewerId=viewer-test';
+    terminalFrame.classList.remove('hidden');
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    httpClient.get.mockResolvedValue({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null,
+        runtimeState: 'degraded',
+        issues: [{
+          type: 'stale_ttyd_process',
+          severity: 'critical'
+        }]
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
+    httpClient.post.mockResolvedValue({
+      status: 'degraded',
+      actions: [{
+        type: 'reconnect_ttyd',
+        reason: 'stale_ttyd_process',
+        success: false,
+        error: 'ttyd startup timeout'
+      }]
+    });
+
+    const result = await app.switchSession('session-1');
+
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/recover', expect.objectContaining({
+      dryRun: false
+    }));
+    expect(result).toEqual({ ok: false, reason: 'missing-proxy-path' });
+    expect(terminalFrame.src).toBe('about:blank');
+    expect(terminalFrame.classList.contains('terminal-frame-clearing')).toBe(true);
   });
 
   it('reconnect reuses existing proxyPath without triggering takeover', async () => {

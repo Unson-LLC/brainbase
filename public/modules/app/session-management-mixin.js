@@ -3,6 +3,23 @@ import { httpClient } from '../core/http-client.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { buildSessionRuntimeUrl } from '../core/terminal-viewer.js';
 
+function hasRuntimeIssue(runtimeStatus, issueType) {
+    return Array.isArray(runtimeStatus?.issues)
+        && runtimeStatus.issues.some(issue => issue?.type === issueType);
+}
+
+function getRecoveredProxyPath(response) {
+    if (response?.proxyPath) {
+        return { proxyPath: response.proxyPath, port: response.port };
+    }
+    const action = Array.isArray(response?.actions)
+        ? response.actions.find(item => item?.type === 'reconnect_ttyd' && item?.success && item?.result?.proxyPath)
+        : null;
+    return action?.result
+        ? { proxyPath: action.result.proxyPath, port: action.result.port }
+        : { proxyPath: null, port: null };
+}
+
 export function applySessionManagementMixin(AppClass) {
     Object.assign(AppClass.prototype, {
         async _resolveSessionRuntime(sessionId, session) {
@@ -49,16 +66,25 @@ export function applySessionManagementMixin(AppClass) {
                 };
             }
 
-            const res = await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
-                initialCommand: session.initialCommand || '',
-                cwd: session.path,
-                engine: session.engine || 'claude',
-                viewerId: this.viewerId,
-                forceTtyd: true
-            });
+            let res;
+            if (hasRuntimeIssue(runtimeStatus, 'stale_ttyd_process')) {
+                res = await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/recover`, {
+                    dryRun: false
+                });
+            } else {
+                res = await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
+                    initialCommand: session.initialCommand || '',
+                    cwd: session.path,
+                    engine: session.engine || 'claude',
+                    viewerId: this.viewerId,
+                    forceTtyd: true
+                });
+            }
+            const recovered = getRecoveredProxyPath(res);
             return {
-                proxyPath: res?.proxyPath ? this._getViewerProxyPath(res.proxyPath, res.port) : null,
-                terminalAccess: res?.terminalAccess || terminalAccess || null
+                proxyPath: recovered.proxyPath ? this._getViewerProxyPath(recovered.proxyPath, recovered.port) : null,
+                terminalAccess: res?.terminalAccess || terminalAccess || null,
+                runtimeStatus
             };
         },
 
@@ -390,9 +416,14 @@ export function applySessionManagementMixin(AppClass) {
                 }
 
                 if (!result?.proxyPath) {
+                    const staleRecoveryFailed = hasRuntimeIssue(result?.runtimeStatus, 'stale_ttyd_process');
+                    if (staleRecoveryFailed) {
+                        this._clearTerminalFrame(terminalFrame);
+                    }
                     this._failTerminalSwitch?.(sessionId, switchToken, {
                         previousSessionId,
-                        errorMessage: 'ターミナル接続先が見つかりません'
+                        errorMessage: 'ターミナル接続先が見つかりません',
+                        restorePresentation: !staleRecoveryFailed
                     });
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',

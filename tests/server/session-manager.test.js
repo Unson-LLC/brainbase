@@ -47,6 +47,7 @@ const createManager = () => createSessionServices({
 describe('SessionManager', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it('getRuntimeStatus_paused_session_does_not_probe_tmux', () => {
@@ -61,7 +62,7 @@ describe('SessionManager', () => {
       ttydProcess: { pid: 12345 }
     });
 
-    expect(processSpy).toHaveBeenCalledWith(12345);
+    expect(processSpy).not.toHaveBeenCalled();
     expect(tmuxSpy).not.toHaveBeenCalled();
     expect(runtimeStatus.needsRestart).toBe(false);
     expect(runtimeStatus.interactiveTransport).toBe('none');
@@ -85,6 +86,26 @@ describe('SessionManager', () => {
     expect(runtimeStatus.needsRestart).toBe(true);
   });
 
+  it('getRuntimeStatus_active_session_does_not_trust_persisted_live_pid_without_active_ttyd', () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    const manager = createManager();
+    const processSpy = vi.spyOn(manager, '_isProcessRunning').mockReturnValue(true);
+
+    const runtimeStatus = manager.getRuntimeStatus({
+      id: 'session-1',
+      intendedState: 'active',
+      ttydProcess: { pid: 12345, port: 40123 }
+    });
+
+    expect(processSpy).not.toHaveBeenCalled();
+    expect(runtimeStatus.ttydRunning).toBe(false);
+    expect(runtimeStatus.interactiveTransport).toBe('none');
+    expect(runtimeStatus.interactiveReady).toBe(false);
+    expect(runtimeStatus.needsRestart).toBe(true);
+    expect(runtimeStatus.proxyPath).toBe(null);
+    expect(runtimeStatus.port).toBe(40123);
+  });
+
   it('ensureTtydForActiveSession_active_tmux_without_ttyd_restarts_existing_tmux', async () => {
     vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
     const manager = createManager();
@@ -99,13 +120,120 @@ describe('SessionManager', () => {
       id: 'session-1',
       intendedState: 'active',
       engine: 'claude',
+      path: '/tmp/session-path',
+      cwd: '/tmp/session-cwd',
       ttydProcess: { pid: 12345, port: 40123 }
     });
 
-    expect(restartSpy).toHaveBeenCalledWith('session-1', 40123, 'claude');
+    expect(restartSpy).toHaveBeenCalledWith('session-1', 40123, 'claude', {
+      cwd: '/tmp/session-path',
+      previousTtydProcess: { pid: 12345, port: 40123 }
+    });
     expect(result.restarted).toBe(true);
     expect(result.runtimeStatus.ttydRunning).toBe(true);
     expect(result.runtimeStatus.proxyPath).toBe('/console/session-1');
+  });
+
+  it('_restartTtydForExistingTmux_uses_forceTtyd_and_cwd', async () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    const manager = createManager();
+    vi.spyOn(manager, '_isTmuxSessionRunning').mockResolvedValue(true);
+    const startTtyd = vi.spyOn(manager, 'startTtyd').mockResolvedValue({
+      port: 40123,
+      proxyPath: '/console/session-1'
+    });
+
+    const result = await manager._restartTtydForExistingTmux(
+      'session-1',
+      40123,
+      'codex',
+      { cwd: '/tmp/session-path' }
+    );
+
+    expect(startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/session-path',
+      initialCommand: '',
+      engine: 'codex',
+      preferredPort: 40123,
+      preserveTmuxOnFailure: true,
+      forceTtyd: true
+    }));
+    expect(result).toEqual({
+      port: 40123,
+      proxyPath: '/console/session-1'
+    });
+  });
+
+  it('_restartTtydForExistingTmux_restores_previous_ttydProcess_when_startTtyd_fails', async () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    const manager = createManager();
+    const startError = new Error('ttyd startup timeout');
+    vi.spyOn(manager, '_isTmuxSessionRunning').mockResolvedValue(true);
+    vi.spyOn(manager, 'startTtyd').mockRejectedValue(startError);
+    const saveSpy = vi.spyOn(manager, '_saveTtydProcessInfo').mockResolvedValue();
+
+    await expect(manager._restartTtydForExistingTmux(
+      'session-1',
+      40123,
+      'codex',
+      {
+        cwd: '/tmp',
+        previousTtydProcess: {
+          pid: 12345,
+          port: 40123,
+          engine: 'codex'
+        }
+      }
+    )).rejects.toThrow('ttyd startup timeout');
+
+    expect(saveSpy).toHaveBeenCalledWith('session-1', {
+      port: 40123,
+      pid: 12345,
+      engine: 'codex'
+    });
+  });
+
+  it('_restartTtydForExistingTmux_preserves_tmux_when_ttyd_readiness_times_out', async () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    vi.stubEnv('TTYD_PATH', '/usr/local/bin/ttyd');
+    const manager = createManager();
+    vi.spyOn(manager, '_isTmuxSessionRunning').mockResolvedValue(true);
+    manager.uiPort = 31013;
+    vi.spyOn(manager, 'findFreePort').mockResolvedValue(40123);
+    vi.spyOn(manager, 'waitForTtydReady').mockRejectedValue(new Error('not listening'));
+    vi.spyOn(manager, '_saveTtydProcessInfo').mockResolvedValue();
+    vi.spyOn(manager, '_clearTtydProcessInfoIfMatches').mockResolvedValue();
+    vi.spyOn(manager, 'releaseTerminalOwnership').mockImplementation(() => {});
+    const cleanupSpy = vi.spyOn(manager, 'cleanupSessionResources').mockResolvedValue();
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
+    vi.spyOn(fs, 'existsSync').mockImplementation((target) => (
+      target === '/usr/local/bin/ttyd' || target === '/tmp' || String(target).endsWith('custom_ttyd_index.html')
+    ));
+    manager.spawnTtydProcess = vi.fn(() => ({
+      pid: 56789,
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: vi.fn()
+    }));
+
+    await expect(manager._restartTtydForExistingTmux(
+      'session-1',
+      40123,
+      'codex',
+      {
+        cwd: '/tmp',
+        previousTtydProcess: {
+          pid: 12345,
+          port: 40123,
+          engine: 'codex'
+        }
+      }
+    )).rejects.toThrow('ttyd startup timeout: not listening');
+
+    expect(cleanupSpy).not.toHaveBeenCalled();
+    expect(killSpy).toHaveBeenCalledWith(56789, 'SIGTERM');
   });
 
   // story-tmux-missing-runtime-pause regression test (2026-05-21):

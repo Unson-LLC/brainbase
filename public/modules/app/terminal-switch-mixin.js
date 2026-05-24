@@ -72,7 +72,8 @@ export function applyTerminalSwitchMixin(AppClass) {
     AppClass.prototype._failTerminalSwitch = function(sessionId, switchToken = null, {
         previousSessionId = null,
         error = null,
-        errorMessage = 'セッションの切替に失敗しました'
+        errorMessage = 'セッションの切替に失敗しました',
+        restorePresentation = true
     } = {}) {
         const pending = this._pendingTerminalSwitch;
         if (!pending) return false;
@@ -80,7 +81,9 @@ export function applyTerminalSwitchMixin(AppClass) {
         if (sessionId && pending.toSessionId !== sessionId) return false;
 
         const fallbackSessionId = previousSessionId || pending.fromSessionId || this._terminalPresentationSessionId || null;
-        this._restoreTerminalPresentation?.(pending.presentation || null);
+        if (restorePresentation) {
+            this._restoreTerminalPresentation?.(pending.presentation || null);
+        }
         if (fallbackSessionId && appStore.getState().currentSessionId === pending.toSessionId) {
             appStore.setState({ currentSessionId: fallbackSessionId });
             this._setActiveSessionRow(fallbackSessionId);
