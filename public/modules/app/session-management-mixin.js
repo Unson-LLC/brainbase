@@ -165,7 +165,7 @@ export function applySessionManagementMixin(AppClass) {
 
             const resumeResult = await this._resumeSuspendedRuntimeIfNeeded(session);
             if (!resumeResult.ok) {
-                showError(`Runtime再開に失敗しました: ${resumeResult.error?.message || resumeResult.error || '原因不明'}`);
+                showError(`再開に失敗しました: ${resumeResult.error?.message || resumeResult.error || '原因不明'}`);
                 return;
             }
 
@@ -237,7 +237,7 @@ export function applySessionManagementMixin(AppClass) {
                     this._failTerminalSwitch?.(sessionId, switchToken, {
                         previousSessionId,
                         error: resumeResult.error,
-                        errorMessage: '休止中Runtimeの再開に失敗しました'
+                        errorMessage: 'スリープ中セッションの再開に失敗しました'
                     });
                     return { ok: false, reason: 'resume-runtime-failed' };
                 }

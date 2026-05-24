@@ -62,9 +62,10 @@ describe('SessionView hibernation grouping', () => {
   });
 
   it('formats hibernation blockers as human-readable text', () => {
-    const text = formatHibernationBlockers(['pending_input', 'missing_restore_metadata']);
+    const text = formatHibernationBlockers(['pending_input', 'unsupported_engine', 'missing_restore_metadata']);
 
     expect(text).toContain('未送信の入力があります');
+    expect(text).toContain('このエンジンはまだスリープに対応していません');
     expect(text).toContain('再開に必要なCodex復元情報がありません');
     expect(text).not.toContain('pending_input');
   });

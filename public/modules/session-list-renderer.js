@@ -223,9 +223,9 @@ export function renderSessionRowHTML(session, options = {}) {
     }));
   }
   if (isHibernated) {
-    summaryChips.push(renderChip('hibernated', {
+    summaryChips.push(renderChip('スリープ中', {
       className: 'chip-runtime-hibernated',
-      title: session.hibernatedAt ? `Hibernated ${formatRelativeTime(session.hibernatedAt)}` : 'Runtime hibernated'
+      title: session.hibernatedAt ? `スリープ ${formatRelativeTime(session.hibernatedAt)}` : 'スリープ中'
     }));
   }
   if (isBroken) {
@@ -264,7 +264,7 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="resume-session-btn" title="再開"><i data-lucide="play-circle"></i></button>'
     : '';
   const resumeRuntimeButton = (isHibernated || isBroken)
-    ? '<button class="resume-runtime-btn" title="Runtimeを再開"><i data-lucide="rotate-cw"></i></button>'
+    ? '<button class="resume-runtime-btn" title="再開"><i data-lucide="rotate-cw"></i></button>'
     : '';
 
   // 一時停止ボタン: 作業中（paused以外）の場合に表示
@@ -273,7 +273,7 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="pause-session-btn" title="一時停止"><i data-lucide="pause-circle"></i></button>'
     : '';
   const hibernateButton = canHibernate
-    ? '<button class="hibernate-session-btn" title="休止"><i data-lucide="power"></i></button>'
+    ? '<button class="hibernate-session-btn" title="スリープ"><i data-lucide="power"></i></button>'
     : '';
 
   // ドロップダウンメニュー項目
@@ -283,10 +283,10 @@ export function renderSessionRowHTML(session, options = {}) {
         ? '<button class="dropdown-item pause-session-btn"><i data-lucide="pause-circle"></i>一時停止</button>'
         : '');
   const hibernateMenuItem = canHibernate
-    ? '<button class="dropdown-item hibernate-session-btn"><i data-lucide="power"></i>休止</button>'
+    ? '<button class="dropdown-item hibernate-session-btn"><i data-lucide="power"></i>スリープ</button>'
     : '';
   const resumeRuntimeMenuItem = (isHibernated || isBroken)
-    ? '<button class="dropdown-item resume-runtime-btn"><i data-lucide="rotate-cw"></i>Runtimeを再開</button>'
+    ? '<button class="dropdown-item resume-runtime-btn"><i data-lucide="rotate-cw"></i>再開</button>'
     : '';
 
   const archiveLabel = session.intendedState === 'archived' ? '復元' : 'アーカイブ';

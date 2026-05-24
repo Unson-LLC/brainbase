@@ -161,12 +161,13 @@ describe('session-list-renderer', () => {
       const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
       expect(html).toContain('session-child-row hibernated');
-      expect(html).toContain('hibernated');
+      expect(html).toContain('スリープ中');
+      expect(html).toContain('再開');
       expect(html).toContain('resume-runtime-btn');
       expect(html).not.toContain('hibernate-session-btn');
     });
 
-    it('should render manual hibernate action only for active Codex sessions', () => {
+    it('should render manual sleep action only for active Codex sessions', () => {
       const codexSession = {
         id: 'session-codex',
         name: 'Codex Session',
@@ -180,7 +181,9 @@ describe('session-list-renderer', () => {
         intendedState: 'active'
       };
 
-      expect(renderSessionRowHTML(codexSession, { isActive: false, project: 'general' })).toContain('hibernate-session-btn');
+      const codexHtml = renderSessionRowHTML(codexSession, { isActive: false, project: 'general' });
+      expect(codexHtml).toContain('hibernate-session-btn');
+      expect(codexHtml).toContain('スリープ');
       expect(renderSessionRowHTML(claudeSession, { isActive: false, project: 'general' })).not.toContain('hibernate-session-btn');
     });
 

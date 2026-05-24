@@ -135,7 +135,7 @@ describe('session management hibernation resume path', () => {
     await app.openMobileLiveTerminal('session-hibernated');
 
     expect(app._openSessionInTtydFrame).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain('Runtime再開に失敗しました');
+    expect(document.body.textContent).toContain('再開に失敗しました');
     expect(document.body.textContent).toContain('resume failed');
   });
 });

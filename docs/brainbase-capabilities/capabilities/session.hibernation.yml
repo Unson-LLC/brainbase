@@ -4,7 +4,7 @@ purpose: Let Brainbase evaluate, manually hibernate, and intentionally resume id
 surfaces:
   ui:
     - session list runtime memory chips
-    - session list hibernate and resume-runtime actions
+    - session list sleep and resume actions backed by hibernate/resume-runtime APIs
   api:
     - GET /api/sessions/runtime/inventory
     - GET /api/sessions/:id/hibernate/eligibility
@@ -29,7 +29,8 @@ depends_on:
 visibility_rules:
   - Runtime inventory is read-only and must not mutate session lifecycle state.
   - Manual hibernation must run eligibility first and explain blockers before any process is stopped.
-  - User-facing hibernate controls are explicit manual actions; automatic hibernation starts no earlier than Phase 3.
+  - User-facing labels should say sleep / sleeping / resume; internal API and state names remain hibernate / hibernated.
+  - User-facing sleep controls are explicit manual actions; automatic hibernation starts no earlier than Phase 3.
   - Child processes may be attributed through a uniquely matched session parent.
   - Ambiguous, unknown, or weak process ownership must block hibernation eligibility.
   - Active turns, pending startup, pending input, active terminal owner, pinned sessions, unsupported engines, and missing restore metadata must block hibernation eligibility.

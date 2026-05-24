@@ -121,5 +121,6 @@ test('story-session-hibernation-mvp phase 2 hibernate/resume UI contract', async
   }, { project: 'brainbase' });
   expect(hibernatedHtml).toContain('session-child-row hibernated');
   expect(hibernatedHtml).toContain('resume-runtime-btn');
-  expect(hibernatedHtml).toContain('hibernated');
+  expect(hibernatedHtml).toContain('スリープ中');
+  expect(hibernatedHtml).toContain('再開');
 });

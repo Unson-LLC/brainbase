@@ -19,10 +19,10 @@ const HIBERNATION_BLOCKER_LABELS = {
     pending_input: '未送信の入力があります',
     active_owner: 'ほかの表示がターミナルを操作中です',
     pinned: 'ピン留めされています',
-    unsupported_engine: 'このエンジンはまだ休止に対応していません',
-    weak_process_ownership: '停止対象プロセスの所有判定が弱いため安全に休止できません',
+    unsupported_engine: 'このエンジンはまだスリープに対応していません',
+    weak_process_ownership: '停止対象プロセスの所有判定が弱いため安全にスリープできません',
     missing_restore_metadata: '再開に必要なCodex復元情報がありません',
-    unknown_process_ownership: '所有者不明のプロセスがあるため安全に休止できません'
+    unknown_process_ownership: '所有者不明のプロセスがあるため安全にスリープできません'
 };
 
 export function formatHibernationBlockers(blockers = []) {
@@ -711,7 +711,7 @@ export class SessionView {
             }
 
             if (hibernatedSessions.length > 0) {
-                const hibernatedSection = this._renderSection('休止中', this._sortFavoriteSessionsFirst(hibernatedSessions), currentSessionId, false);
+                const hibernatedSection = this._renderSection('スリープ中', this._sortFavoriteSessionsFirst(hibernatedSessions), currentSessionId, false);
                 this.container.appendChild(hibernatedSection);
             }
         }
@@ -1451,13 +1451,13 @@ export class SessionView {
                 closeDropdown();
                 try {
                     await this.sessionService.hibernateSession(session.id);
-                    showSuccess('セッションを休止しました');
+                    showSuccess('セッションをスリープしました');
                 } catch (error) {
                     const blockers = formatHibernationBlockers(error?.blockers);
                     const detail = blockers
                         ? `: ${blockers}`
                         : '';
-                    showError(`休止に失敗しました${detail}`);
+                    showError(`スリープに失敗しました${detail}`);
                 }
             });
         }
@@ -1469,9 +1469,9 @@ export class SessionView {
                 closeDropdown();
                 try {
                     await this.sessionService.resumeRuntime(session.id);
-                    showSuccess('Runtimeを再開しました');
+                    showSuccess('セッションを再開しました');
                 } catch (error) {
-                    showError(`Runtime再開に失敗しました: ${error?.message || error}`);
+                    showError(`再開に失敗しました: ${error?.message || error}`);
                 }
             });
         }
