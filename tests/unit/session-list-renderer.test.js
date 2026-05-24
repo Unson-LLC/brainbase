@@ -184,6 +184,7 @@ describe('session-list-renderer', () => {
 
       const codexHtml = renderSessionRowHTML(codexSession, { isActive: false, project: 'general' });
       expect(codexHtml).toContain('hibernate-session-btn');
+      expect(codexHtml).toContain('session-lifecycle-action');
       expect(codexHtml).toContain('スリープ');
       expect(renderSessionRowHTML(claudeSession, { isActive: false, project: 'general' })).not.toContain('hibernate-session-btn');
     });

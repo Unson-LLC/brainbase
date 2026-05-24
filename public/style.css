@@ -1380,6 +1380,18 @@ body::after {
     height: 13px;
 }
 
+.session-lifecycle-action {
+    gap: 4px;
+    padding: 5px 7px;
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.session-lifecycle-action span {
+    display: inline-block;
+}
+
 /* Contextual Visibility for Buttons */
 .add-project-session-btn {
     display: none;

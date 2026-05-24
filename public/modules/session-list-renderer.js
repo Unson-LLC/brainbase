@@ -264,13 +264,13 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="resume-session-btn" title="再開"><i data-lucide="play-circle"></i></button>'
     : '';
   const resumeRuntimeButton = (isHibernated || isBroken)
-    ? '<button class="resume-runtime-btn" title="再開"><i data-lucide="rotate-cw"></i></button>'
+    ? '<button class="resume-runtime-btn session-lifecycle-action" title="再開"><i data-lucide="rotate-cw"></i><span>再開</span></button>'
     : '';
 
   const canHibernate = engine === 'codex' && !isPaused && !isHibernated && !isBroken && session.intendedState !== 'archived';
   const pauseButton = '';
   const hibernateButton = canHibernate
-    ? '<button class="hibernate-session-btn" title="スリープ"><i data-lucide="power"></i></button>'
+    ? '<button class="hibernate-session-btn session-lifecycle-action" title="スリープ"><i data-lucide="power"></i><span>スリープ</span></button>'
     : '';
 
   // ドロップダウンメニュー項目
