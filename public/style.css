@@ -17444,6 +17444,34 @@ body.sns-growth-mode-active .terminal-header {
     border-left: 1px solid rgba(191, 201, 214, 0.1);
 }
 
+.command-center-theme .live-feed-display-mode {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    height: 28px;
+    padding: 2px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 4px;
+    background: rgba(9, 13, 17, 0.72);
+}
+
+.command-center-theme .feed-view-mode-btn {
+    min-width: 38px;
+    height: 22px;
+    padding: 0 7px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #8b98a8;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.command-center-theme .feed-view-mode-btn.active {
+    background: rgba(47, 128, 255, 0.18);
+    color: #d8eaff;
+}
+
 .command-center-theme .live-feed-session-scope {
     display: flex;
     gap: 6px;
@@ -17485,6 +17513,33 @@ body.sns-growth-mode-active .terminal-header {
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.04em;
+}
+
+.command-center-theme .feed-session-section-label {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 22px;
+}
+
+.command-center-theme .feed-session-section-label span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .feed-session-section-label span:first-child {
+    color: #dce4ee;
+    font-size: 13px;
+}
+
+.command-center-theme .feed-session-section-label span:not(:first-child) {
+    color: #8b98a8;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0;
 }
 
 .command-center-theme .feed-item {

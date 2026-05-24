@@ -42,7 +42,7 @@ optional cached model summaries
   -> ActivityHistoryRepository
   -> ActivityHistoryProjector
   -> LiveFeedService history mode
-  -> LiveFeedView: all-sessions activity log + session-focused history
+  -> LiveFeedView: stable session history groups + all-sessions activity log + session-focused history
 ```
 
 ## データソース
@@ -164,16 +164,20 @@ trigger policy:
 
 - 既存 consumer 向けの compact status rows は維持する。
 - history mode として `ActivityHistoryEvent[]` を返す。
+- default UI 向けに、session state order を基準にした stable session history groups を返す。
 - `occurredAt` と deterministic tie-breaker で安定順序にする。
 - event id が安定している場合、source text の変化は既存行の更新として扱う。
+- heartbeat や `liveActivity.updatedAt` だけの更新を、新しい activity event や group reorder として扱わない。
 
 ### LiveFeedView
 
 責務:
 
 - 2 つの mental model を明確に分けて表示する:
+  - stable session history groups
   - all-sessions activity log
   - session-focused history
+- default は stable session history groups にし、all-sessions activity log は表示モード切替で到達可能にする。
 - row provenance を短い label で表示する:
   - user prompt
   - agent activity
@@ -219,6 +223,8 @@ Live Feed を block しない
 ## ordering contract
 
 - `all` mode は `occurredAt desc`、次に stable event id で並べる。
+- default view は session history groups を session state order で描画し、live heartbeat だけで group order を変えない。
+- all-sessions activity log mode は `getHistoryEntries({ mode: "all" })` を使い、cross-session event order を見せる。
 - `session` mode は chronological / reverse-chronological を user-visible toggle で選べる。
 - history event が追加されても、既存 status rows はそれだけで reorder しない。
 - prompt event と agent event は別 row にする。deterministic turn id がある場合だけ関連付ける。

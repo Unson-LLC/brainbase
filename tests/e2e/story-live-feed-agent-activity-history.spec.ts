@@ -264,6 +264,45 @@ test.describe('story-live-feed-agent-activity-history', () => {
             const labels = Array.from(host.querySelectorAll('.feed-item-label')).map((node) => node.textContent || '');
             const modelSummaryVisible = text.includes('generated summary') || text.includes('生成要約');
             const sessionChips = Array.from(host.querySelectorAll('.feed-session-chip')).map((node) => node.textContent || '');
+            const defaultGroupIds = Array.from(host.querySelectorAll('.feed-session-section')).map((node) => node.getAttribute('data-session-id') || '');
+
+            replaceSessionHookStatuses({
+                'session-alpha-history': {
+                    isWorking: true,
+                    isDone: false,
+                    lastWorkingAt: now - 60000,
+                    lastActivityAt: now - 60000,
+                    lastDoneAt: 0,
+                    activeTurnCount: 1,
+                    liveActivity: {
+                        activityKind: 'editing_file',
+                        currentStep: 'ActivityHistoryRepositoryを実装中',
+                        latestEvidence: 'public/modules/domain/live-feed/live-feed-service.js',
+                        updatedAt: now - 60000,
+                        statusTone: 'working'
+                    }
+                },
+                'session-beta-history': {
+                    isWorking: false,
+                    isDone: false,
+                    lastWorkingAt: 0,
+                    lastActivityAt: now + 30000,
+                    lastDoneAt: 0,
+                    activeTurnCount: 0,
+                    liveActivity: {
+                        activityKind: 'waiting_input',
+                        currentStep: '入力待ち',
+                        updatedAt: now + 30000,
+                        statusTone: 'waiting'
+                    }
+                }
+            });
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const afterHeartbeatGroupIds = Array.from(host.querySelectorAll('.feed-session-section')).map((node) => node.getAttribute('data-session-id') || '');
+
+            host.querySelector<HTMLButtonElement>('.feed-view-mode-btn[data-feed-mode="log"]')?.click();
+            const logModeLabels = Array.from(host.querySelectorAll('.feed-item-label')).map((node) => node.textContent || '');
+            const logModeHasGroups = host.querySelectorAll('.feed-session-section').length > 0;
 
             host.querySelector<HTMLButtonElement>('.feed-session-chip[data-session-scope="session-alpha-history"]')?.click();
             const focusedText = host.textContent || '';
@@ -277,6 +316,10 @@ test.describe('story-live-feed-agent-activity-history', () => {
                 labels,
                 modelSummaryVisible,
                 sessionChips,
+                defaultGroupIds,
+                afterHeartbeatGroupIds,
+                logModeLabels,
+                logModeHasGroups,
                 focusedText,
                 focusedLabels,
                 focusedFooter,
@@ -300,6 +343,10 @@ test.describe('story-live-feed-agent-activity-history', () => {
         expect(result.sources).toContain('structured activity');
         expect(result.modelSummaryVisible).toBe(false);
         expect(result.sessionChips).toEqual(expect.arrayContaining(['全体', 'Alpha History', 'Beta History']));
+        expect(result.defaultGroupIds).toEqual(['session-alpha-history', 'session-beta-history']);
+        expect(result.afterHeartbeatGroupIds).toEqual(['session-alpha-history', 'session-beta-history']);
+        expect(result.logModeHasGroups).toBe(false);
+        expect(result.logModeLabels[0]).toBe('Beta History');
         expect(result.focusedLabels.every((label) => label === 'Alpha History')).toBe(true);
         expect(result.focusedText).toContain('LLMを常時使わずに活動履歴を作って');
         expect(result.focusedText).not.toContain('全体のエージェント作業順序も見たい');

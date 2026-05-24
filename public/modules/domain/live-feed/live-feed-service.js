@@ -249,6 +249,26 @@ function getActivityTimestamp(session, uiState) {
     return timestamp > 0 ? new Date(timestamp) : new Date();
 }
 
+function getActivityEventTimestamp(session, uiState, liveActivity) {
+    const hookStatus = uiState.hookStatus || null;
+    const sessionTaskUpdatedAt = typeof session?.taskBriefUpdatedAt === 'string'
+        ? (Date.parse(session.taskBriefUpdatedAt) || 0)
+        : (Number(session?.taskBriefUpdatedAt) || 0);
+    const sessionAssistantSnippetAt = typeof session?.lastAssistantSnippetAt === 'string'
+        ? (Date.parse(session.lastAssistantSnippetAt) || 0)
+        : (Number(session?.lastAssistantSnippetAt) || 0);
+    const timestamp = Math.max(
+        liveActivity?.assistantSnippetUpdatedAt || 0,
+        sessionAssistantSnippetAt,
+        sessionTaskUpdatedAt,
+        hookStatus?.lastWorkingAt || 0,
+        hookStatus?.lastDoneAt || 0
+    );
+    if (timestamp > 0) return new Date(timestamp);
+    const fallback = liveActivity?.updatedAt || hookStatus?.lastActivityAt || 0;
+    return fallback > 0 ? new Date(fallback) : getActivityTimestamp(session, uiState);
+}
+
 function buildHistoryEventFromEnvelope(session, event) {
     const text = normalizeHistoryText(event?.text, 180);
     if (!session?.id || !text) return null;
@@ -279,7 +299,7 @@ function buildHistoryEventFromEnvelope(session, event) {
 
 function buildHistoryEventFromLiveActivity(session, uiState, liveActivity, status, taskBrief) {
     if (!session?.id) return null;
-    const timestamp = getActivityTimestamp(session, uiState);
+    const timestamp = getActivityEventTimestamp(session, uiState, liveActivity);
     const text = normalizeHistoryText(
         liveActivity?.currentStep
             || liveActivity?.latestEvidence
@@ -300,7 +320,7 @@ function buildHistoryEventFromLiveActivity(session, uiState, liveActivity, statu
         session.id,
         liveActivity ? 'activity_report' : 'session_status',
         liveActivity?.activityKind || '',
-        liveActivity?.updatedAt || timestamp.getTime(),
+        kind,
         stableHash(text)
     ].join(':');
     return {
@@ -538,5 +558,24 @@ export class LiveFeedService {
         });
 
         return events.slice(0, MAX_HISTORY_ENTRIES);
+    }
+
+    getSessionHistoryGroups({ limitPerSession = 5 } = {}) {
+        const state = this.store.getState();
+        const sessions = Array.isArray(state.sessions) ? state.sessions : [];
+        return sessions
+            .filter((session) => session?.id && session.intendedState !== 'archived')
+            .map((session) => {
+                const entries = this.getHistoryEntries({ mode: 'session', sessionId: session.id })
+                    .slice(-limitPerSession);
+                return {
+                    sessionId: session.id,
+                    label: session.name || session.id,
+                    entries,
+                    latestTimestamp: entries[entries.length - 1]?.timestamp || null
+                };
+            })
+            .filter((group) => group.entries.length > 0)
+            .slice(0, MAX_HISTORY_ENTRIES);
     }
 }

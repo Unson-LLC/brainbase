@@ -165,4 +165,95 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Live Feedで過去の依頼を出して');
         expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション履歴');
     });
+
+    it('INV-11/S-9: default表示はセッションごとの複数行履歴グループを安定順で描画する', () => {
+        service.getHistoryEntries = vi.fn(() => [
+            {
+                id: 'beta-activity',
+                sessionId: 'session-beta',
+                timestamp: new Date('2026-05-07T11:35:00.000Z'),
+                label: 'Beta',
+                icon: 'activity',
+                statusTone: 'working',
+                statusText: 'エージェント活動',
+                text: 'heartbeatで更新中',
+                provenanceLabel: 'structured activity',
+            },
+            {
+                id: 'alpha-prompt',
+                sessionId: 'session-alpha',
+                timestamp: new Date('2026-05-07T11:30:00.000Z'),
+                label: 'Alpha',
+                icon: 'message-square',
+                statusTone: 'prompt',
+                statusText: 'ユーザー入力',
+                text: 'UIを確認して',
+                provenanceLabel: 'raw prompt',
+            },
+        ]);
+        service.getSessionHistoryGroups = vi.fn(() => [
+            {
+                sessionId: 'session-alpha',
+                label: 'Alpha',
+                latestTimestamp: new Date('2026-05-07T11:31:00.000Z'),
+                entries: [
+                    {
+                        id: 'alpha-startup',
+                        sessionId: 'session-alpha',
+                        timestamp: new Date('2026-05-07T11:29:00.000Z'),
+                        label: 'Alpha',
+                        icon: 'message-square',
+                        statusTone: 'prompt',
+                        statusText: '初回依頼',
+                        text: 'Live Feedを直して',
+                        provenanceLabel: 'raw prompt',
+                    },
+                    {
+                        id: 'alpha-prompt',
+                        sessionId: 'session-alpha',
+                        timestamp: new Date('2026-05-07T11:30:00.000Z'),
+                        label: 'Alpha',
+                        icon: 'message-square',
+                        statusTone: 'prompt',
+                        statusText: 'ユーザー入力',
+                        text: 'UIを確認して',
+                        provenanceLabel: 'raw prompt',
+                    },
+                ],
+            },
+            {
+                sessionId: 'session-beta',
+                label: 'Beta',
+                latestTimestamp: new Date('2026-05-07T11:35:00.000Z'),
+                entries: [
+                    {
+                        id: 'beta-activity',
+                        sessionId: 'session-beta',
+                        timestamp: new Date('2026-05-07T11:35:00.000Z'),
+                        label: 'Beta',
+                        icon: 'activity',
+                        statusTone: 'working',
+                        statusText: 'エージェント活動',
+                        text: 'heartbeatで更新中',
+                        provenanceLabel: 'structured activity',
+                    },
+                ],
+            },
+        ]);
+
+        view.mount(container);
+
+        const sections = Array.from(container.querySelectorAll('.feed-session-section'));
+        expect(sections).toHaveLength(2);
+        expect(sections[0].getAttribute('data-session-id')).toBe('session-alpha');
+        expect(sections[0].querySelectorAll('.feed-item')).toHaveLength(2);
+        expect(sections[1].getAttribute('data-session-id')).toBe('session-beta');
+        expect(container.querySelector('.feed-section-label')?.textContent).toContain('Alpha');
+
+        container.querySelector('.feed-view-mode-btn[data-feed-mode="log"]').click();
+
+        expect(container.querySelector('.feed-view-mode-btn[data-feed-mode="log"]').classList.contains('active')).toBe(true);
+        expect(container.querySelectorAll('.feed-session-section')).toHaveLength(0);
+        expect(Array.from(container.querySelectorAll('.feed-item-label')).map((node) => node.textContent)).toEqual(['Beta', 'Alpha']);
+    });
 });

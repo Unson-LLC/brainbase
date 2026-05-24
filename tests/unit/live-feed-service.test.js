@@ -214,6 +214,101 @@ describe('LiveFeedService', () => {
         expect(history[0].timestamp.getTime()).toBeLessThanOrEqual(history[history.length - 1].timestamp.getTime());
     });
 
+    it('INV-11/C-7: default用のセッショングループはheartbeat更新で並び替えない', () => {
+        appStore.setState({
+            sessions: appStore.getState().sessions.map((session) => {
+                if (session.id === 'session-1') {
+                    return {
+                        ...session,
+                        activityHistory: [
+                            {
+                                id: 'alpha-startup',
+                                actor: 'user',
+                                kind: 'startup_prompt',
+                                text: 'Alphaの初回依頼',
+                                textSource: 'raw_prompt',
+                                evidenceSource: 'session_initial_command',
+                                occurredAt: '2026-03-25T09:50:00.000Z',
+                                dedupeKey: 'alpha-startup'
+                            },
+                            {
+                                id: 'alpha-prompt',
+                                actor: 'user',
+                                kind: 'user_prompt',
+                                text: 'Alphaの追加依頼',
+                                textSource: 'raw_prompt',
+                                evidenceSource: 'terminal_input',
+                                occurredAt: '2026-03-25T09:51:00.000Z',
+                                dedupeKey: 'alpha-prompt'
+                            }
+                        ]
+                    };
+                }
+                if (session.id === 'session-2') {
+                    return {
+                        ...session,
+                        activityHistory: [
+                            {
+                                id: 'beta-startup',
+                                actor: 'user',
+                                kind: 'startup_prompt',
+                                text: 'Betaの初回依頼',
+                                textSource: 'raw_prompt',
+                                evidenceSource: 'session_initial_command',
+                                occurredAt: '2026-03-25T09:52:00.000Z',
+                                dedupeKey: 'beta-startup'
+                            }
+                        ]
+                    };
+                }
+                return session;
+            })
+        });
+
+        service.start();
+        const before = service.getSessionHistoryGroups({ limitPerSession: 5 });
+        expect(before.map((group) => group.label)).toEqual(['Alpha', 'Beta']);
+        expect(before[0].entries.map((entry) => entry.text)).toContain('Alphaの初回依頼');
+        expect(before[0].entries.map((entry) => entry.text)).toContain('Alphaの追加依頼');
+
+        replaceSessionHookStatuses({
+            'session-1': appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+            'session-2': {
+                ...appStore.getState().sessionUi.byId['session-2']?.hookStatus,
+                liveActivity: {
+                    ...appStore.getState().sessionUi.byId['session-2']?.hookStatus?.liveActivity,
+                    updatedAt: Date.parse('2026-03-25T10:08:00.000Z')
+                }
+            }
+        });
+
+        const after = service.getSessionHistoryGroups({ limitPerSession: 5 });
+        expect(after.map((group) => group.label)).toEqual(['Alpha', 'Beta']);
+    });
+
+    it('C-8: liveActivity heartbeatだけではsynthetic history eventを別event化しない', () => {
+        service.start();
+        const before = service.getHistoryEntries({ mode: 'session', sessionId: 'session-1' })
+            .find((entry) => entry.evidenceSource === 'activity_report');
+
+        replaceSessionHookStatuses({
+            'session-1': {
+                ...appStore.getState().sessionUi.byId['session-1']?.hookStatus,
+                liveActivity: {
+                    ...appStore.getState().sessionUi.byId['session-1']?.hookStatus?.liveActivity,
+                    updatedAt: Date.parse('2026-03-25T10:08:00.000Z')
+                }
+            },
+            'session-2': appStore.getState().sessionUi.byId['session-2']?.hookStatus
+        });
+
+        const after = service.getHistoryEntries({ mode: 'session', sessionId: 'session-1' })
+            .find((entry) => entry.evidenceSource === 'activity_report');
+
+        expect(after?.id).toBe(before?.id);
+        expect(after?.timestamp.toISOString()).toBe(before?.timestamp.toISOString());
+    });
+
     it('状態変化が起きたセッションを先頭に積む', () => {
         service.start();
         vi.setSystemTime(new Date('2026-03-25T10:01:00.000Z'));
