@@ -168,6 +168,23 @@ describe('session-list-renderer', () => {
       expect(html).not.toContain('hibernate-session-btn');
     });
 
+    it('should expose hibernate failure detail on broken session chips', () => {
+      const session = {
+        id: 'session-broken',
+        name: 'Broken Session',
+        intendedState: 'broken',
+        runtimeState: 'broken',
+        hibernateFailureReason: 'partial stop'
+      };
+
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
+
+      expect(html).toContain('chip-runtime-broken');
+      expect(html).toContain('復旧必要');
+      expect(html).toContain('スリープ失敗: partial stop');
+      expect(html).not.toContain('Runtime resume failed');
+    });
+
     it('should render manual sleep action only for active Codex sessions', () => {
       const codexSession = {
         id: 'session-codex',

@@ -6,7 +6,7 @@ import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../sessio
 import { deriveSessionUiState } from '../../session-ui-state.js';
 import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm } from '../../confirm-modal.js';
-import { showError, showInfo, showSuccess } from '../../toast.js';
+import { dismissToast, showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 const SESSION_FAVORITES_STORAGE_KEY = 'brainbase.sessionFavorites.v1';
@@ -30,6 +30,13 @@ export function formatHibernationBlockers(blockers = []) {
     return blockers
         .map(blocker => HIBERNATION_BLOCKER_LABELS[blocker] || blocker)
         .join(' / ');
+}
+
+export function buildHibernationFailureMessage(detail = '') {
+    const guidance = '確認: 入力中の端末・進行中タスク・所有者不明プロセスを閉じてから再試行してください';
+    return detail
+        ? `スリープできません: ${detail}。${guidance}`
+        : `スリープできません。${guidance}`;
 }
 
 export function classifySessionsForGroupedList(sessions = []) {
@@ -467,17 +474,20 @@ export class SessionView {
         const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
             const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
             const sessionIds = event.detail?.sessionIds;
+            const hasTargetSessionIds = Array.isArray(sessionIds) && sessionIds.length > 0;
 
             if (sessionListView === 'timeline') {
                 // 差分更新 → 必要なら並び替え（フルrenderしない）
-                if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                if (hasTargetSessionIds) {
                     this._refreshSessionRows(sessionIds);
+                } else {
+                    this._scheduleRender();
                 }
                 this._reorderTimelineRows();
                 return;
             }
 
-            if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+            if (hasTargetSessionIds) {
                 this._refreshSessionRows(sessionIds);
                 return;
             }
@@ -1443,26 +1453,39 @@ export class SessionView {
             });
         }
 
-        const hibernateBtn = row.querySelector('.hibernate-session-btn');
-        if (hibernateBtn) {
+        const hibernateBtns = row.querySelectorAll('.hibernate-session-btn');
+        hibernateBtns.forEach((hibernateBtn) => {
             hibernateBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
+                hibernateBtns.forEach(button => {
+                    button.disabled = true;
+                    button.setAttribute('aria-busy', 'true');
+                });
+                const pendingToast = showInfo('スリープ判定中...');
                 try {
                     await this.sessionService.hibernateSession(session.id);
-                    showSuccess('セッションをスリープしました');
+                    dismissToast(pendingToast);
+                    showSuccess('セッションをスリープしました。次に開くと再開します');
                 } catch (error) {
+                    dismissToast(pendingToast);
                     const blockers = formatHibernationBlockers(error?.blockers);
                     const detail = blockers
-                        ? `: ${blockers}`
-                        : '';
-                    showError(`スリープに失敗しました${detail}`);
+                        || error?.detail
+                        || error?.message
+                        || String(error || '');
+                    showError(buildHibernationFailureMessage(detail));
+                } finally {
+                    hibernateBtns.forEach(button => {
+                        button.disabled = false;
+                        button.removeAttribute('aria-busy');
+                    });
                 }
             });
-        }
+        });
 
-        const resumeRuntimeBtn = row.querySelector('.resume-runtime-btn');
-        if (resumeRuntimeBtn) {
+        const resumeRuntimeBtns = row.querySelectorAll('.resume-runtime-btn');
+        resumeRuntimeBtns.forEach((resumeRuntimeBtn) => {
             resumeRuntimeBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
@@ -1473,7 +1496,7 @@ export class SessionView {
                     showError(`再開に失敗しました: ${error?.message || error}`);
                 }
             });
-        }
+        });
 
         const favoriteBtn = row.querySelector('.favorite-session-btn');
         if (favoriteBtn) {

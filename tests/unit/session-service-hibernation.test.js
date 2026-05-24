@@ -7,7 +7,13 @@ describe('SessionService hibernation actions', () => {
     const service = new SessionService();
     service.store = {
       getState: vi.fn(() => ({
-        sessions: [{ id: 'session-alpha', name: 'Alpha', intendedState: 'active' }]
+        sessions: [{
+          id: 'session-alpha',
+          name: 'Alpha',
+          intendedState: 'active',
+          hibernateFailureReason: 'old failure',
+          hibernatePartialStop: true
+        }]
       })),
       setState: vi.fn()
     };
@@ -25,6 +31,7 @@ describe('SessionService hibernation actions', () => {
     };
     service.updateSession = vi.fn(async () => ({ success: true }));
     service.refreshSessionUiSummaries = vi.fn(async () => ({}));
+    service.eventBus = { emit: vi.fn(async () => ({})) };
 
     const result = await service.hibernateSession('session-alpha');
 
@@ -38,10 +45,16 @@ describe('SessionService hibernation actions', () => {
         intendedState: 'hibernated',
         runtimeState: 'hibernated',
         restoreStrategy: 'codex_resume',
-        restoreCommand: 'codex resume thread-alpha'
+        restoreCommand: 'codex resume thread-alpha',
+        hibernateFailureReason: null,
+        hibernatePartialStop: false
       })]
     });
     expect(service.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-alpha']);
+    expect(service.eventBus.emit).toHaveBeenCalledWith('session:updated', {
+      sessionId: 'session-alpha',
+      updates: expect.objectContaining({ intendedState: 'hibernated' })
+    });
     expect(result).toMatchObject({ success: true, sessionId: 'session-alpha' });
   });
 
@@ -51,7 +64,13 @@ describe('SessionService hibernation actions', () => {
     service.viewerLabel = 'Reviewer';
     service.store = {
       getState: vi.fn(() => ({
-        sessions: [{ id: 'session-alpha', name: 'Alpha', intendedState: 'hibernated' }]
+        sessions: [{
+          id: 'session-alpha',
+          name: 'Alpha',
+          intendedState: 'hibernated',
+          hibernateFailureReason: 'old failure',
+          hibernatePartialStop: true
+        }]
       })),
       setState: vi.fn()
     };
@@ -79,7 +98,9 @@ describe('SessionService hibernation actions', () => {
         id: 'session-alpha',
         intendedState: 'active',
         runtimeState: 'hot',
-        resumeFailureReason: null
+        resumeFailureReason: null,
+        hibernateFailureReason: null,
+        hibernatePartialStop: false
       })]
     });
     expect(result).toMatchObject({ success: true, sessionId: 'session-alpha' });
@@ -108,6 +129,7 @@ describe('SessionService hibernation actions', () => {
       })
     };
     service.refreshSessionUiSummaries = vi.fn(async () => ({}));
+    service.eventBus = { emit: vi.fn(async () => ({})) };
 
     await expect(service.resumeRuntime('session-alpha')).rejects.toThrow('Failed to resume hibernated runtime');
 
@@ -120,5 +142,142 @@ describe('SessionService hibernation actions', () => {
       })]
     });
     expect(service.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-alpha']);
+    expect(service.eventBus.emit).toHaveBeenCalledWith('session:updated', {
+      sessionId: 'session-alpha',
+      updates: expect.objectContaining({ intendedState: 'broken' })
+    });
+  });
+
+  it('keeps local display state active when hibernate stop returns retryable failure metadata', async () => {
+    const service = new SessionService();
+    service.store = {
+      getState: vi.fn(() => ({
+        sessions: [{ id: 'session-alpha', name: 'Alpha', intendedState: 'active' }]
+      })),
+      setState: vi.fn()
+    };
+    const error = new Error('Failed to hibernate session');
+    Object.assign(error, {
+      intendedState: 'active',
+      runtimeState: 'hot',
+      hibernateFailureReason: 'EPERM',
+      hibernateFailedAt: '2026-05-23T00:00:00.000Z',
+      hibernatePartialStop: false
+    });
+    service.httpClient = {
+      post: vi.fn(async () => {
+        throw error;
+      })
+    };
+    service.refreshSessionUiSummaries = vi.fn(async () => ({}));
+    service.eventBus = { emit: vi.fn(async () => ({})) };
+
+    await expect(service.hibernateSession('session-alpha')).rejects.toThrow('Failed to hibernate session');
+
+    expect(service.store.setState).toHaveBeenCalledWith({
+      sessions: [expect.objectContaining({
+        id: 'session-alpha',
+        intendedState: 'active',
+        runtimeState: 'hot',
+        hibernateFailureReason: 'EPERM',
+        hibernatePartialStop: false
+      })]
+    });
+    expect(service.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-alpha']);
+    expect(service.eventBus.emit).toHaveBeenCalledWith('session:updated', {
+      sessionId: 'session-alpha',
+      updates: expect.objectContaining({ intendedState: 'active' })
+    });
+  });
+
+  it('marks local display state broken when hibernate stop partially killed runtime processes', async () => {
+    const service = new SessionService();
+    service.store = {
+      getState: vi.fn(() => ({
+        sessions: [{ id: 'session-alpha', name: 'Alpha', intendedState: 'active' }]
+      })),
+      setState: vi.fn()
+    };
+    const error = new Error('Failed to hibernate session');
+    Object.assign(error, {
+      intendedState: 'broken',
+      runtimeState: 'broken',
+      hibernateFailureReason: 'partial stop',
+      hibernateFailedAt: '2026-05-23T00:00:00.000Z',
+      hibernatePartialStop: true
+    });
+    service.httpClient = {
+      post: vi.fn(async () => {
+        throw error;
+      })
+    };
+    service.refreshSessionUiSummaries = vi.fn(async () => ({}));
+    service.eventBus = { emit: vi.fn(async () => ({})) };
+
+    await expect(service.hibernateSession('session-alpha')).rejects.toThrow('Failed to hibernate session');
+
+    expect(service.store.setState).toHaveBeenCalledWith({
+      sessions: [expect.objectContaining({
+        id: 'session-alpha',
+        intendedState: 'broken',
+        runtimeState: 'broken',
+        hibernateFailureReason: 'partial stop',
+        hibernatePartialStop: true
+      })]
+    });
+    expect(service.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-alpha']);
+    expect(service.eventBus.emit).toHaveBeenCalledWith('session:updated', {
+      sessionId: 'session-alpha',
+      updates: expect.objectContaining({ intendedState: 'broken' })
+    });
+  });
+
+  it('keeps hibernate failure metadata in the stale session cache', () => {
+    const writes = new Map();
+    const originalLocalStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        setItem: vi.fn((key, value) => writes.set(key, value)),
+        getItem: vi.fn((key) => writes.get(key) || null)
+      }
+    });
+
+    try {
+      const service = new SessionService();
+      service.store = {
+        getState: vi.fn(() => ({
+          sessions: [{
+            id: 'session-alpha',
+            name: 'Alpha',
+            intendedState: 'broken',
+            runtimeState: 'broken',
+            hibernateFailureReason: 'partial stop',
+            hibernateFailedAt: '2026-05-23T00:00:00.000Z',
+            hibernatePartialStop: true
+          }],
+          testMode: false,
+          preferences: {},
+          currentSessionId: 'session-alpha'
+        }))
+      };
+
+      service._saveToCache();
+
+      const cached = JSON.parse(writes.get('bb:session-state-cache:v1'));
+      expect(cached.sessions[0]).toMatchObject({
+        id: 'session-alpha',
+        intendedState: 'broken',
+        runtimeState: 'broken',
+        hibernateFailureReason: 'partial stop',
+        hibernateFailedAt: '2026-05-23T00:00:00.000Z',
+        hibernatePartialStop: true
+      });
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage
+      });
+    }
   });
 });

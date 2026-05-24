@@ -87,6 +87,9 @@ Optional fields:
 - **INV-11**: App Server-backed history display must not require loading the thread runtime.
 - **INV-12**: Server runtime handlers are the source of truth for hibernation/resume state; clients must not re-persist lifecycle state with a second generic state patch after a lifecycle API succeeds.
 - **INV-13**: Lifecycle API error enrichment must preserve the existing `HttpClient` authentication behavior; configured auth tokens continue to populate `Authorization` when the caller did not supply one.
+- **INV-14**: Session UI state change events may use a `sessionIds` array for targeted row refresh; if the payload is missing, not an array, or empty, the client must use the existing full-render path instead of assuming a partial update is sufficient.
+- **INV-15**: A stop failure before any owned process is killed is a retryable `active`/`hot` hibernation failure. A stop failure after one or more owned processes were killed must move the session to `broken` because the runtime may be partially stopped.
+- **INV-16**: Runtime inventory must not treat broad workspace or project paths as strong ownership evidence. Path-based ownership is allowed only for specific session/worktree runtime paths; otherwise the process must remain unattributed or weak/non-stoppable.
 
 ## Contracts
 
@@ -137,6 +140,7 @@ Rules:
 - Unknown process categories must be included as `unknown_child`.
 - Unmatched or ambiguous processes must be visible in top-level `unattributed`.
 - The endpoint must not infer eligibility by RSS alone.
+- A `unknown_child` command may be considered stoppable only when ownership is strongly attributed through a Brainbase-owned runtime parent; weak, ambiguous, or unattributed unknown ownership remains ineligible.
 - Phase 1.5 eligibility is API/diagnostics-only; the user-facing hibernate action and blocker remediation UX begin in Phase 2.
 
 ### Contract-2: Hibernation Eligibility
@@ -167,6 +171,12 @@ Blocking reasons:
 - `weak_process_ownership`
 - `missing_restore_metadata`
 - `unknown_process_ownership`
+
+Eligibility invariants:
+
+- Active turn, pending startup, pending input, active terminal owner, pinned state, unsupported engine, inactive state, missing restore metadata, weak ownership, and ambiguous/unattributed ownership must block.
+- Strong ownership requires command evidence such as `/console/<session-id>`, session worktree path, Codex resume id, or an equivalent strong runtime identifier. A stale `activeSessions` PID alone is not strong ownership.
+- Strongly attributed child processes under a Brainbase-owned runtime inherit that ownership even when the child command category is `unknown_child`.
 
 ### Contract-3: Manual Hibernate
 
@@ -203,6 +213,19 @@ Rules:
 
 - Hibernation and resume errors may expose structured response fields such as `blockers`, `intendedState`, `runtimeState`, and `resumeFailureReason` to the client.
 - Structured error propagation must not bypass or change the existing auth-token branch in `HttpClient`; if no `Authorization` header is provided and an auth token exists, the client still injects it.
+- Manual hibernation clicks must show immediate visible feedback while eligibility is evaluated, then show either success or human-readable blocker reasons.
+- Failure feedback must include a human next step: close active terminal/input/running work or ownership blockers, then retry.
+- Successful hibernation feedback must be visible in browser UI and the row must transition to `スリープ中` with resume available and sleep unavailable.
+- The toast container is part of this contract because sleep feedback uses it as a shared live region; it must remain accessible and must not be hidden behind the Mana chat widget.
+
+### Contract-5b: Session UI State Refresh
+
+Rules:
+
+- Lifecycle and runtime UI events may include `sessionIds` when only known session rows changed.
+- A non-empty `sessionIds` array permits targeted row refresh in timeline or grouped session list views.
+- Missing, empty, or non-array `sessionIds` must fall back to a scheduled full render.
+- Timeline mode may reorder rows after a targeted refresh so runtime status changes do not leave sessions in the wrong visual order.
 
 ### Contract-6: Auto Hibernate
 
@@ -248,7 +271,7 @@ Rules:
 
 - [ ] Inventory attributes child processes through a uniquely matched session parent.
 - [ ] `GET /api/sessions/:id/hibernate/eligibility` returns read-only blocker reasons.
-- [ ] Unknown or ambiguous process ownership blocks hibernation eligibility.
+- [ ] Ambiguous, weak, or unattributed process ownership blocks hibernation eligibility.
 - [ ] Eligibility does not stop processes or mutate session state.
 - [ ] Eligibility is not represented as a completed user-facing control before Phase 2.
 

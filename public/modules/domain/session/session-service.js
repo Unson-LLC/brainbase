@@ -76,6 +76,9 @@ export class SessionService {
                     engine: s.engine,
                     runtimeState: s.runtimeState, hibernatedAt: s.hibernatedAt,
                     resumeFailureReason: s.resumeFailureReason,
+                    hibernateFailureReason: s.hibernateFailureReason,
+                    hibernateFailedAt: s.hibernateFailedAt,
+                    hibernatePartialStop: s.hibernatePartialStop,
                     worktree: s.worktree, createdAt: s.createdAt,
                     archivedAt: s.archivedAt, pausedReason: s.pausedReason
                 })),
@@ -1010,10 +1013,27 @@ export class SessionService {
     }
 
     async hibernateSession(sessionId) {
-        const result = await this.httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/hibernate`, {
-            reason: 'manual'
-        });
-        this._mergeSessionState(sessionId, {
+        let result;
+        try {
+            result = await this.httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/hibernate`, {
+                reason: 'manual'
+            });
+        } catch (error) {
+            if (error?.intendedState || error?.runtimeState) {
+                const updates = {
+                    intendedState: error.intendedState || 'active',
+                    runtimeState: error.runtimeState || 'hot',
+                    hibernateFailureReason: error.hibernateFailureReason || error.detail || error.message || String(error),
+                    hibernateFailedAt: error.hibernateFailedAt || new Date().toISOString(),
+                    hibernatePartialStop: error.hibernatePartialStop === true
+                };
+                this._mergeSessionState(sessionId, updates);
+                await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
+                await this.refreshSessionUiSummaries([sessionId]);
+            }
+            throw error;
+        }
+        const updates = {
             intendedState: result?.intendedState || 'hibernated',
             runtimeState: result?.runtimeState || 'hibernated',
             hibernatedAt: result?.hibernatedAt || new Date().toISOString(),
@@ -1021,8 +1041,14 @@ export class SessionService {
             runtimeInventorySummary: result?.runtimeInventorySummary || null,
             restoreStrategy: result?.restoreMetadata?.restoreStrategy || null,
             restoreCommand: result?.restoreMetadata?.restoreCommand || null,
-            resumeFailureReason: null
-        });
+            resumeFailureReason: null,
+            resumeFailedAt: null,
+            hibernateFailureReason: null,
+            hibernateFailedAt: null,
+            hibernatePartialStop: false
+        };
+        this._mergeSessionState(sessionId, updates);
+        await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
         await this.refreshSessionUiSummaries([sessionId]);
         return { success: true, sessionId, result };
     }
@@ -1036,12 +1062,14 @@ export class SessionService {
             });
         } catch (error) {
             if (error?.intendedState === 'broken' || error?.runtimeState === 'broken') {
-                this._mergeSessionState(sessionId, {
+                const updates = {
                     intendedState: 'broken',
                     runtimeState: 'broken',
                     resumeFailureReason: error.resumeFailureReason || error.detail || error.message || String(error),
                     resumeFailedAt: error.resumeFailedAt || new Date().toISOString()
-                });
+                };
+                this._mergeSessionState(sessionId, updates);
+                await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
                 await this.refreshSessionUiSummaries([sessionId]);
             }
             throw error;
@@ -1050,7 +1078,11 @@ export class SessionService {
             intendedState: result?.intendedState || 'active',
             runtimeState: result?.runtimeState || 'hot',
             resumedAt: result?.resumedAt || new Date().toISOString(),
-            resumeFailureReason: null
+            resumeFailureReason: null,
+            resumeFailedAt: null,
+            hibernateFailureReason: null,
+            hibernateFailedAt: null,
+            hibernatePartialStop: false
         });
         await this.refreshSessionUiSummaries([sessionId]);
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });

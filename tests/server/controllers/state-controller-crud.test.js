@@ -349,6 +349,44 @@ describe('StateController CRUD session routes', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('GET /api/state preserves hibernate failure metadata for broken sleep sessions', async () => {
+    const state = {
+      sessions: [
+        {
+          id: 'session-sleep-broken',
+          name: 'sleep broken',
+          intendedState: 'broken',
+          runtimeState: 'broken',
+          hibernateFailureReason: 'partial stop',
+          hibernateFailedAt: '2026-05-23T00:00:00.000Z',
+          hibernatePartialStop: true
+        }
+      ]
+    };
+    stateStore.get.mockReturnValue(state);
+    const res = createRes();
+    const next = vi.fn();
+
+    controller.get({}, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      sessions: [
+        expect.objectContaining({
+          id: 'session-sleep-broken',
+          intendedState: 'broken',
+          runtimeState: 'broken',
+          hibernateFailureReason: 'partial stop',
+          hibernateFailedAt: '2026-05-23T00:00:00.000Z',
+          hibernatePartialStop: true
+        })
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('GET /api/state returns archive finalizer fields', async () => {
     const state = {
       sessions: [

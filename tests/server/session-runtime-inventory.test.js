@@ -205,9 +205,350 @@ describe('session runtime inventory', () => {
             'active_turn',
             'pending_input',
             'active_owner',
-            'pinned',
-            'unknown_process_ownership'
+            'pinned'
         ]);
+    });
+
+    it('allows strongly attributed unknown child processes under a Brainbase runtime', () => {
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-alpha',
+                    engine: 'codex',
+                    codexThreadId: 'thread-alpha'
+                }
+            ],
+            activeSessions: new Map([['session-alpha', { pid: 501 }]]),
+            psOutput: [
+                '501 1 12000 ttyd -p 40001 -b /console/session-alpha',
+                '502 501 3000 opaque-helper-without-session-token'
+            ].join('\n')
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-alpha');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-alpha',
+                engine: 'codex',
+                codexThreadId: 'thread-alpha'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession.processes).toEqual([
+            expect.objectContaining({
+                pid: 501,
+                category: 'ttyd',
+                attribution: 'command',
+                ownershipStrength: 'strong'
+            }),
+            expect.objectContaining({
+                pid: 502,
+                category: 'unknown_child',
+                attribution: 'parent',
+                ownershipStrength: 'strong'
+            })
+        ]);
+        expect(eligibility).toMatchObject({
+            eligible: true,
+            blockers: []
+        });
+        expect(eligibility.ownedProcesses.map(process => process.pid)).toEqual([501, 502]);
+    });
+
+    it('does not trust a stale active session pid without command evidence', () => {
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-alpha',
+                    engine: 'codex',
+                    codexThreadId: 'thread-alpha'
+                }
+            ],
+            activeSessions: new Map([['session-alpha', { pid: 601 }]]),
+            psOutput: [
+                '601 1 9000 unrelated-long-running-process',
+                '602 601 3000 unrelated-child-process'
+            ].join('\n')
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-alpha');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-alpha',
+                engine: 'codex',
+                codexThreadId: 'thread-alpha'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession).toMatchObject({
+            runtimePresence: 'hot',
+            processCount: 0,
+            rssKb: 0
+        });
+        expect(inventory.unattributed.map(process => process.pid)).toEqual([601, 602]);
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.ownedProcesses).toEqual([]);
+    });
+
+    it('does not treat broad workspace paths as strong session ownership evidence', () => {
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'brainbase',
+                    name: 'brainbase',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: '/Users/ksato/workspace'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: [
+                '200 1 2048 npm run typecheck --prefix /Users/ksato/workspace/code/brainbase',
+                '201 1 1024 node /Users/ksato/workspace/code/vibepro/src/cli.js'
+            ].join('\n')
+        });
+
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'brainbase');
+        expect(inventorySession.processCount).toBe(0);
+        expect(inventory.unattributed.map(process => process.pid)).toEqual([200, 201]);
+    });
+
+    it('does not treat project root paths as strong session ownership evidence', () => {
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'brainbase',
+                    name: 'brainbase',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: '/Users/ksato/workspace/code/brainbase',
+                    codexThreadId: '00000000-0000-4000-8000-000000000001'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: '205 1 2048 npm run typecheck --prefix /Users/ksato/workspace/code/brainbase'
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'brainbase');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'brainbase',
+                engine: 'codex',
+                intendedState: 'active',
+                codexThreadId: '00000000-0000-4000-8000-000000000001'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession.processCount).toBe(0);
+        expect(inventory.unattributed.map(process => process.pid)).toEqual([205]);
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.ownedProcesses).toEqual([]);
+    });
+
+    it('does not treat ordinary project names containing session as strong runtime paths', () => {
+        const projectPath = '/Users/ksato/workspace/code/customer-session-service';
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-customer',
+                    name: 'Customer Session Service',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: projectPath,
+                    codexThreadId: '00000000-0000-4000-8000-000000000002'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: `206 1 2048 npm run typecheck --prefix ${projectPath}`
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-customer');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-customer',
+                engine: 'codex',
+                intendedState: 'active',
+                codexThreadId: '00000000-0000-4000-8000-000000000002'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession.processCount).toBe(0);
+        expect(inventory.unattributed.map(process => process.pid)).toEqual([206]);
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.ownedProcesses).toEqual([]);
+    });
+
+    it('does not treat ordinary project names containing worktree as strong runtime paths', () => {
+        const projectPath = '/Users/ksato/workspace/code/customer-worktree-service';
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-worktree-project',
+                    name: 'Customer Worktree Service',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: projectPath,
+                    codexThreadId: '00000000-0000-4000-8000-000000000003'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: `207 1 2048 npm run typecheck --prefix ${projectPath}`
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-worktree-project');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-worktree-project',
+                engine: 'codex',
+                intendedState: 'active',
+                codexThreadId: '00000000-0000-4000-8000-000000000003'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession.processCount).toBe(0);
+        expect(inventory.unattributed.map(process => process.pid)).toEqual([207]);
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.ownedProcesses).toEqual([]);
+    });
+
+    it('does not treat generic worktrees project roots as strong runtime paths', () => {
+        const projectPath = '/Users/ksato/workspace/code/worktrees/customer-worktree-service';
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-generic-worktree',
+                    name: 'Generic Worktree Project',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: projectPath,
+                    codexThreadId: '00000000-0000-4000-8000-000000000004'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: `208 1 2048 npm run typecheck --prefix ${projectPath}`
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-generic-worktree');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-generic-worktree',
+                engine: 'codex',
+                intendedState: 'active',
+                codexThreadId: '00000000-0000-4000-8000-000000000004'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession.processCount).toBe(0);
+        expect(inventory.unattributed.map(process => process.pid)).toEqual([208]);
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.ownedProcesses).toEqual([]);
+    });
+
+    it('does not treat generic worktrees session-named project roots as strong stoppable paths', () => {
+        const projectPath = '/Users/ksato/workspace/code/worktrees/session-service';
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-service',
+                    name: 'Session Service',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: projectPath,
+                    codexThreadId: '00000000-0000-4000-8000-000000000005'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: `211 1 2048 npm run typecheck --prefix ${projectPath}`
+        });
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-service');
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-service',
+                engine: 'codex',
+                intendedState: 'active',
+                codexThreadId: '00000000-0000-4000-8000-000000000005'
+            },
+            inventorySession
+        });
+
+        expect(inventorySession.processCount).toBe(1);
+        expect(inventorySession.processes[0]).toMatchObject({
+            pid: 211,
+            ownershipStrength: 'weak'
+        });
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.blockers).toContain('weak_process_ownership');
+        expect(eligibility.ownedProcesses).toEqual([]);
+    });
+
+    it('keeps canonical UNSON drive brainbase worktree session paths as strong ownership evidence', () => {
+        const worktreePath = '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-alpha';
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-alpha',
+                    name: 'Alpha',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: worktreePath
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: `209 1 2048 node ${worktreePath}/.claude/mcp/server.js`
+        });
+
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-alpha');
+        expect(inventorySession.processCount).toBe(1);
+        expect(inventorySession.processes[0]).toMatchObject({
+            pid: 209,
+            ownershipStrength: 'strong'
+        });
+    });
+
+    it('keeps specific session worktree paths as strong ownership evidence', () => {
+        const inventory = buildRuntimeInventory({
+            sessions: [
+                {
+                    id: 'session-alpha',
+                    name: 'Alpha',
+                    engine: 'codex',
+                    intendedState: 'active',
+                    path: '/Users/ksato/workspace/code/brainbase-worktrees-session-alpha'
+                }
+            ],
+            activeSessions: new Map(),
+            psOutput: '210 1 2048 node /Users/ksato/workspace/code/brainbase-worktrees-session-alpha/.claude/mcp/server.js'
+        });
+
+        const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-alpha');
+        expect(inventorySession.processCount).toBe(1);
+        expect(inventorySession.processes[0]).toMatchObject({
+            pid: 210,
+            ownershipStrength: 'strong'
+        });
+    });
+
+    it('keeps weak unknown child ownership blocked', () => {
+        const eligibility = buildHibernationEligibility({
+            session: {
+                id: 'session-alpha',
+                engine: 'codex',
+                codexThreadId: 'thread-alpha'
+            },
+            inventorySession: {
+                runtimePresence: 'hot',
+                rssKb: 3000,
+                processCount: 1,
+                processesByCategory: { unknown_child: 1 },
+                processes: [
+                    { pid: 1003, category: 'unknown_child', ownershipStrength: 'weak' }
+                ]
+            }
+        });
+
+        expect(eligibility.eligible).toBe(false);
+        expect(eligibility.blockers).toContain('unknown_process_ownership');
+        expect(eligibility.blockers).toContain('weak_process_ownership');
     });
 
     it('blocks hibernation for pending startup, missing restore metadata, and ambiguous processes', () => {
@@ -293,7 +634,7 @@ describe('session runtime inventory', () => {
                 }
             ],
             activeSessions: new Map(),
-            psOutput: '901 1 5120 node build-tool-for-another-project.js'
+            psOutput: '901 1 5120 node session-alpha-helper-for-another-project.js'
         });
         const inventorySession = inventory.sessions.find(session => session.sessionId === 'session-alpha');
         const eligibility = buildHibernationEligibility({
@@ -720,15 +1061,99 @@ describe('session runtime inventory', () => {
             }
         }, null, { get: () => state, update }));
 
-        await request(app)
+        const response = await request(app)
             .post('/api/sessions/session-alpha/hibernate')
             .send({})
             .expect(500);
 
+        expect(response.body).toMatchObject({
+            error: 'Failed to hibernate session',
+            intendedState: 'active',
+            runtimeState: 'hot',
+            hibernateFailureReason: 'EPERM'
+        });
+        expect(state.sessions[0]).toMatchObject({
+            intendedState: 'active',
+            runtimeState: 'hot',
+            hibernateFailureReason: 'EPERM',
+            lastRuntimeSnapshot: null,
+            runtimeInventorySummary: null,
+            restoreStrategy: null,
+            restoreCommand: null,
+            resumeFailureReason: null
+        });
+    });
+
+    it('marks a session broken when owned process stopping fails after a partial stop', async () => {
+        let state = {
+            sessions: [{
+                id: 'session-alpha',
+                name: 'Alpha',
+                engine: 'codex',
+                intendedState: 'active',
+                path: '/tmp/session-alpha',
+                codexThreadId: 'thread-alpha'
+            }]
+        };
+        const update = vi.fn(async (nextState) => {
+            state = nextState;
+            return state;
+        });
+        const stopSessionOwnedProcesses = vi.fn(async () => {
+            const error = new Error('Failed to stop one or more session-owned processes: 456: EPERM');
+            error.code = 'HIBERNATION_PROCESS_STOP_FAILED';
+            error.killed = [{ pid: 123, category: 'codex', signal: 'SIGTERM' }];
+            error.warnings = [{ pid: 456, message: 'EPERM' }];
+            throw error;
+        });
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sessions', createSessionRouter({
+            activity: { promptBuffers: new Map(), getSessionStatus: vi.fn(() => ({})) },
+            ownership: { getTerminalOwnerSnapshot: vi.fn(() => null) },
+            runtime: {
+                query: {
+                    getHibernationEligibility: vi.fn(async () => ({
+                        sessionId: 'session-alpha',
+                        eligible: true,
+                        reasons: ['idle_runtime_can_hibernate'],
+                        blockers: [],
+                        runtimePresence: 'hot',
+                        rssKb: 2048,
+                        processCount: 2,
+                        processesByCategory: { codex: 1, unknown_child: 1 },
+                        ownedProcesses: [
+                            { pid: 123, category: 'codex' },
+                            { pid: 456, category: 'unknown_child' }
+                        ],
+                        restoreMetadata: { restoreStrategy: 'codex_resume', codexResumeId: 'thread-alpha' }
+                    })),
+                    getSessionById: vi.fn((sessionId) => state.sessions.find(session => session.id === sessionId))
+                },
+                lifecycle: { stopSessionOwnedProcesses }
+            },
+            terminal: {
+                snapshot: {
+                    getVisibleContent: vi.fn(async () => 'visible terminal output')
+                }
+            }
+        }, null, { get: () => state, update }));
+
+        const response = await request(app)
+            .post('/api/sessions/session-alpha/hibernate')
+            .send({})
+            .expect(500);
+
+        expect(response.body).toMatchObject({
+            error: 'Failed to hibernate session',
+            intendedState: 'broken',
+            runtimeState: 'broken',
+            hibernatePartialStop: true
+        });
         expect(state.sessions[0]).toMatchObject({
             intendedState: 'broken',
             runtimeState: 'broken',
-            resumeFailureReason: 'EPERM'
+            hibernatePartialStop: true
         });
     });
 
@@ -953,7 +1378,9 @@ describe('session runtime inventory', () => {
                 engine: 'codex',
                 intendedState: 'hibernated',
                 path: '/tmp/session-alpha',
-                codexThreadId: 'thread-alpha'
+                codexThreadId: 'thread-alpha',
+                hibernateFailureReason: 'old hibernate failure',
+                hibernatePartialStop: true
             }]
         };
         const update = vi.fn(async (nextState) => {
@@ -987,6 +1414,13 @@ describe('session runtime inventory', () => {
             intendedState: 'active',
             runtimeState: 'hot',
             proxyPath: '/console/session-alpha/?viewerId=viewer-1'
+        });
+        expect(state.sessions[0]).toMatchObject({
+            intendedState: 'active',
+            runtimeState: 'hot',
+            resumeFailureReason: null,
+            hibernateFailureReason: null,
+            hibernatePartialStop: false
         });
     });
 

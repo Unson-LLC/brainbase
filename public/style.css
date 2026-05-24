@@ -1353,6 +1353,27 @@ body::after {
     transform: translateY(0) scale(0.98);
 }
 
+.icon-btn:disabled,
+.add-session-btn-icon:disabled,
+.add-project-session-btn:disabled,
+.merge-session-btn:disabled,
+.resume-session-btn:disabled,
+.hibernate-session-btn:disabled,
+.resume-runtime-btn:disabled,
+.rename-session-btn:disabled,
+.delete-session-btn:disabled,
+.archive-session-btn:disabled,
+.hibernate-session-btn[aria-busy="true"] {
+    cursor: wait;
+    opacity: 0.58;
+    transform: none;
+}
+
+.hibernate-session-btn[aria-busy="true"] {
+    border-color: rgba(245, 158, 11, 0.48);
+    color: var(--warning-color);
+}
+
 /* Merge button special color */
 .merge-session-btn {
     color: var(--success-color);
@@ -5445,11 +5466,11 @@ body.resizing iframe {
 /* Toast Notifications */
 #toast-container {
     position: fixed;
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     right: calc(20px + env(safe-area-inset-right, 0px));
     left: env(safe-area-inset-left, 0px);
     pointer-events: none;
-    z-index: 10000;
+    z-index: 10002;
     display: flex;
     flex-direction: column;
     align-items: flex-end;

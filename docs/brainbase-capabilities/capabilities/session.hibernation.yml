@@ -29,11 +29,13 @@ depends_on:
 visibility_rules:
   - Runtime inventory is read-only and must not mutate session lifecycle state.
   - Manual hibernation must run eligibility first and explain blockers before any process is stopped.
+  - Manual sleep actions must give immediate visible feedback while eligibility is checked and show blocker reasons when rejected.
   - User-facing labels should say sleep / sleeping / resume; internal API and state names remain hibernate / hibernated.
   - Session list must not show the legacy pause action next to sleep; existing paused sessions may be shown as stopped with resume only.
   - User-facing sleep controls are explicit manual actions; automatic hibernation starts no earlier than Phase 3.
   - Child processes may be attributed through a uniquely matched session parent.
-  - Ambiguous, unknown, or weak process ownership must block hibernation eligibility.
+  - Strongly attributed child processes under a Brainbase-owned runtime may be stopped even when their command category is unknown.
+  - Ambiguous, weak, or unattributed process ownership must block hibernation eligibility.
   - Active turns, pending startup, pending input, active terminal owner, pinned sessions, unsupported engines, and missing restore metadata must block hibernation eligibility.
   - Hibernation may stop only process ids attributed to the target session inventory.
   - Resume failure must preserve hibernation metadata and mark the session `broken`.
@@ -53,9 +55,10 @@ verification:
     - Resume-runtime marks success active/hot and failed restores broken.
     - Public eligibility and ineligible hibernate responses summarize owned process count without returning full command lines or process arrays.
 common_failures:
-  - Treating unknown child processes as safe to stop.
+  - Treating weak, ambiguous, or unattributed unknown child processes as safe to stop.
   - Treating a cold session as needing hibernation.
   - Treating Codex sessions without resume metadata as resumable.
   - Forgetting that active terminal ownership can mean a human is looking at or typing into the session.
-runbooks: []
+runbooks:
+  - ../runbooks/session-hibernation-mutating-smoke.md
 troubleshooting: []

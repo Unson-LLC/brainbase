@@ -355,6 +355,10 @@ export function installRuntimeHandlers(controller) {
                         restoreStrategy: eligibility.restoreMetadata?.restoreStrategy || null,
                         restoreCommand,
                         resumeFailureReason: null,
+                        resumeFailedAt: null,
+                        hibernateFailureReason: null,
+                        hibernateFailedAt: null,
+                        hibernatePartialStop: false,
                         updatedAt: now
                     }
                     : entry);
@@ -401,14 +405,29 @@ export function installRuntimeHandlers(controller) {
                 stopResult = await controller.runtimeLifecycle.stopSessionOwnedProcesses(id, finalEligibility.ownedProcesses || []);
             } catch (stopError) {
                 const failedAt = new Date().toISOString();
+                const killedProcesses = Array.isArray(stopError?.killed) ? stopError.killed : [];
+                const partiallyStopped = killedProcesses.length > 0;
+                stopError.intendedState = partiallyStopped ? 'broken' : 'active';
+                stopError.runtimeState = partiallyStopped ? 'broken' : 'hot';
+                stopError.hibernateFailureReason = stopError?.message || String(stopError);
+                stopError.hibernateFailedAt = failedAt;
+                stopError.hibernatePartialStop = partiallyStopped;
                 await controller._updateStateWithRetry((state) => {
                     const updatedSessions = (state.sessions || []).map((entry) => entry.id === id
                         ? {
                             ...entry,
-                            intendedState: 'broken',
-                            runtimeState: 'broken',
-                            resumeFailureReason: stopError?.message || String(stopError),
-                            resumeFailedAt: failedAt,
+                            intendedState: stopError.intendedState,
+                            runtimeState: stopError.runtimeState,
+                            hibernatedAt: partiallyStopped ? entry.hibernatedAt || failedAt : null,
+                            hibernateReason: null,
+                            lastRuntimeSnapshot: partiallyStopped ? entry.lastRuntimeSnapshot || null : null,
+                            runtimeInventorySummary: partiallyStopped ? entry.runtimeInventorySummary || null : null,
+                            restoreStrategy: partiallyStopped ? entry.restoreStrategy || null : null,
+                            restoreCommand: partiallyStopped ? entry.restoreCommand || null : null,
+                            resumeFailureReason: null,
+                            hibernateFailureReason: stopError.hibernateFailureReason,
+                            hibernateFailedAt: failedAt,
+                            hibernatePartialStop: partiallyStopped,
                             updatedAt: failedAt
                         }
                         : entry);
@@ -443,7 +462,15 @@ export function installRuntimeHandlers(controller) {
             });
         } catch (error) {
             logger.error(`[hibernation] Failed to hibernate session ${id}:`, error);
-            return res.status(500).json({ error: 'Failed to hibernate session', detail: error.message });
+            return res.status(500).json({
+                error: 'Failed to hibernate session',
+                detail: error.message,
+                intendedState: error.intendedState,
+                runtimeState: error.runtimeState,
+                hibernateFailureReason: error.hibernateFailureReason,
+                hibernateFailedAt: error.hibernateFailedAt,
+                hibernatePartialStop: error.hibernatePartialStop === true
+            });
         }
     };
 
@@ -512,6 +539,10 @@ export function installRuntimeHandlers(controller) {
                             runtimeState: 'hot',
                             resumedAt: now,
                             resumeFailureReason: null,
+                            resumeFailedAt: null,
+                            hibernateFailureReason: null,
+                            hibernateFailedAt: null,
+                            hibernatePartialStop: false,
                             updatedAt: now
                         }
                         : entry);

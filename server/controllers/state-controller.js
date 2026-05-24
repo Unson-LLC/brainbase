@@ -48,6 +48,7 @@ const ALLOWED_SESSION_FIELDS = [
     'runtimeState', 'hibernatedAt', 'hibernateReason', 'lastRuntimeSnapshot',
     'runtimeInventorySummary', 'restoreStrategy', 'restoreCommand', 'resumedAt',
     'resumeFailureReason', 'resumeFailedAt',
+    'hibernateFailureReason', 'hibernateFailedAt', 'hibernatePartialStop',
     // Schema v3 追加フィールド
     'ttydProcess',
     // Recovery / binding fields

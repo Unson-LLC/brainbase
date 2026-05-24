@@ -3,6 +3,7 @@ import { refreshIcons } from './ui-helpers.js';
 // Toast notification module
 
 let toastContainer = document.getElementById('toast-container');
+const toastTimers = new WeakMap();
 
 const ICONS = {
     success: 'check-circle',
@@ -17,7 +18,7 @@ const ICONS = {
  * @param {number} duration - Duration in ms (default 3000)
  */
 export function showToast(message, type = 'info', duration = 3000) {
-    if (!toastContainer) {
+    if (!toastContainer || !toastContainer.isConnected) {
         toastContainer = document.getElementById('toast-container');
     }
     if (!toastContainer) {
@@ -25,6 +26,9 @@ export function showToast(message, type = 'info', duration = 3000) {
         toastContainer.id = 'toast-container';
         document.body.appendChild(toastContainer);
     }
+    toastContainer.setAttribute('role', 'status');
+    toastContainer.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    toastContainer.setAttribute('aria-atomic', 'true');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     // XSS対策: DOMメソッドで構築
@@ -40,29 +44,41 @@ export function showToast(message, type = 'info', duration = 3000) {
     refreshIcons({ icons: { [ICONS[type]]: true }, nameAttr: 'data-lucide' });
 
     // Auto remove
-    setTimeout(() => {
+    const timer = setTimeout(() => {
         toast.classList.add('toast-out');
         setTimeout(() => toast.remove(), 300);
     }, duration);
+    toastTimers.set(toast, timer);
+    return toast;
+}
+
+export function dismissToast(toast) {
+    if (!toast) return;
+    const timer = toastTimers.get(toast);
+    if (timer) {
+        clearTimeout(timer);
+        toastTimers.delete(toast);
+    }
+    toast.remove();
 }
 
 /**
  * Show success toast
  */
 export function showSuccess(message, duration = 3000) {
-    showToast(message, 'success', duration);
+    return showToast(message, 'success', duration);
 }
 
 /**
  * Show error toast
  */
 export function showError(message, duration = 4000) {
-    showToast(message, 'error', duration);
+    return showToast(message, 'error', duration);
 }
 
 /**
  * Show info toast
  */
 export function showInfo(message, duration = 3000) {
-    showToast(message, 'info', duration);
+    return showToast(message, 'info', duration);
 }

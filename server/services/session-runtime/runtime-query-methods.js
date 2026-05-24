@@ -51,11 +51,21 @@ function buildSessionRuntimeIdentifiers(session) {
             identifiers.push({ value: value.trim(), strength });
         }
     };
+    const addWeakSessionId = (value) => {
+        if (isSpecificSessionIdentifier(value)) {
+            add(value, 'weak');
+        }
+    };
+    const addRuntimePath = (value) => {
+        if (isSpecificRuntimePath(value, session)) {
+            add(path.resolve(value.trim()), 'strong');
+        }
+    };
 
-    add(session?.id, 'weak');
-    add(session?.name, 'weak');
-    add(session?.path, 'strong');
-    add(session?.worktree?.path, 'strong');
+    addWeakSessionId(session?.id);
+    if (session?.id) add(`/console/${session.id}`, 'strong');
+    addRuntimePath(session?.path);
+    addRuntimePath(session?.worktree?.path);
     add(session?.codexThreadId, 'strong');
     add(session?.conversationSummary?.codexThreadId, 'strong');
     add(session?.conversationSummary?.lastConversation?.resumeId, 'strong');
@@ -64,8 +74,60 @@ function buildSessionRuntimeIdentifiers(session) {
     return identifiers;
 }
 
-function findMatchingSessions(processInfo, sessions) {
+function isSpecificSessionIdentifier(value) {
+    if (typeof value !== 'string' || !value.trim()) return false;
+    const text = value.trim();
+    return /^session[-_]/i.test(text)
+        || /(^|[-_])session[-_]/i.test(text)
+        || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)
+        || /^sess[-_]/i.test(text)
+        || /^codex[-_]/i.test(text);
+}
+
+function isSpecificRuntimePath(value, session = {}) {
+    if (typeof value !== 'string' || !value.trim()) return false;
+    const resolved = path.resolve(value.trim());
+    const normalized = resolved.replace(/\\/g, '/');
+    const broadWorkspaceRoots = new Set([
+        '/Users/ksato',
+        '/Users/ksato/workspace',
+        '/Users/ksato/workspace/code',
+        '/Volumes/UNSON-DRIVE',
+        '/Volumes/UNSON-DRIVE/brainbase'
+    ]);
+    if (broadWorkspaceRoots.has(normalized)) return false;
+
+    return /\/brainbase-worktrees-session[-_/][^/]+/i.test(normalized)
+        || /\/worktrees-session[-_/][^/]+/i.test(normalized)
+        || /\/brainbase-worktrees\/session[-_][^/]+/i.test(normalized);
+}
+
+function getActiveSessionPidMap(activeSessions = new Map()) {
+    const pidMap = new Map();
+    if (!activeSessions || typeof activeSessions.forEach !== 'function') return pidMap;
+
+    activeSessions.forEach((entry, sessionId) => {
+        const pid = Number(entry?.process?.pid || entry?.pid);
+        if (sessionId && Number.isFinite(pid) && pid > 0) {
+            pidMap.set(pid, sessionId);
+        }
+    });
+
+    return pidMap;
+}
+
+function findMatchingSessions(processInfo, sessions, activePidMap = new Map()) {
+    const activeSessionId = activePidMap.get(Number(processInfo?.pid));
     const command = processInfo?.command || '';
+    if (activeSessionId) {
+        const activeSession = sessions.find(session => session?.id === activeSessionId);
+        const hasStrongCommandEvidence = buildSessionRuntimeIdentifiers(activeSession)
+            .some(identifier => identifier.strength === 'strong' && command.includes(identifier.value));
+        if (hasStrongCommandEvidence) {
+            return [{ sessionId: activeSessionId, strength: 'strong' }];
+        }
+    }
+
     return sessions.flatMap((session) => {
         const matches = buildSessionRuntimeIdentifiers(session).filter(identifier => command.includes(identifier.value));
         if (matches.length === 0 || !session.id) return [];
@@ -74,13 +136,14 @@ function findMatchingSessions(processInfo, sessions) {
     });
 }
 
-function buildProcessMatchMap(processRows, sessions) {
+function buildProcessMatchMap(processRows, sessions, activeSessions = new Map()) {
     const rowsByPid = new Map(processRows.map(processInfo => [processInfo.pid, processInfo]));
+    const activePidMap = getActiveSessionPidMap(activeSessions);
     const matchMap = new Map();
 
     for (const processInfo of processRows) {
         matchMap.set(processInfo.pid, {
-            matches: findMatchingSessions(processInfo, sessions),
+            matches: findMatchingSessions(processInfo, sessions, activePidMap),
             source: 'command'
         });
     }
@@ -158,6 +221,10 @@ export function buildHibernationEligibility({
         processInfo?.category !== 'tmux'
         && processInfo?.ownershipStrength !== 'strong'
     ));
+    const weakUnknownProcesses = processes.filter(processInfo => (
+        processInfo?.category === 'unknown_child'
+        && processInfo?.ownershipStrength !== 'strong'
+    ));
     const codexResumeId = getCodexResumeId(session);
 
     if (session.intendedState && session.intendedState !== 'active') {
@@ -184,7 +251,7 @@ export function buildHibernationEligibility({
     if (session.engine === 'codex' && !codexResumeId) {
         blockers.push('missing_restore_metadata');
     }
-    if (Number(processesByCategory.unknown_child || 0) > 0 || ambiguousProcesses.length > 0) {
+    if (weakUnknownProcesses.length > 0 || ambiguousProcesses.length > 0) {
         blockers.push('unknown_process_ownership');
     }
     if (weakStoppableProcesses.length > 0) {
@@ -220,7 +287,7 @@ export function buildHibernationEligibility({
 export function buildRuntimeInventory({ sessions = [], activeSessions = new Map(), psOutput = '' } = {}) {
     const sessionSummaries = new Map();
     const processRows = parsePsOutput(psOutput);
-    const processMatchMap = buildProcessMatchMap(processRows, sessions);
+    const processMatchMap = buildProcessMatchMap(processRows, sessions, activeSessions);
     const unattributed = [];
 
     for (const session of sessions || []) {

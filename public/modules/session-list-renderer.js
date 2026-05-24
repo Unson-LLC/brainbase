@@ -229,9 +229,12 @@ export function renderSessionRowHTML(session, options = {}) {
     }));
   }
   if (isBroken) {
-    summaryChips.push(renderChip('broken', {
+    const brokenTitle = session.hibernateFailureReason
+      ? `スリープ失敗: ${session.hibernateFailureReason}`
+      : session.resumeFailureReason || 'Runtime resume failed';
+    summaryChips.push(renderChip('復旧必要', {
       className: 'chip-runtime-broken',
-      title: session.resumeFailureReason || 'Runtime resume failed'
+      title: brokenTitle
     }));
   }
   if (recentFile?.label) {

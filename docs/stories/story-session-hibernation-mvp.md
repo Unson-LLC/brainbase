@@ -80,7 +80,7 @@ Scope:
 - Attribute child processes through a uniquely matched session parent.
 - Add a read-only `Hibernate eligibility` endpoint for a single session as an API/diagnostics dry run.
 - Return explicit blocker reasons without stopping processes or mutating session state.
-- Treat unknown, ambiguous, or shared process ownership as not eligible.
+- Treat ambiguous, weak, or unattributed process ownership as not eligible. Unknown child commands are eligible only when they are strongly attributed through a Brainbase-owned runtime parent.
 - Do not add a user-facing hibernate control yet; Phase 2 owns the visible action and remediation UX.
 
 Acceptance Criteria:
@@ -88,7 +88,7 @@ Acceptance Criteria:
 - [ ] Child processes under one session-owned parent are counted in that session's runtime inventory.
 - [ ] Unmatched `unknown_child` processes are visible in the unattributed list.
 - [ ] `GET /api/sessions/:id/hibernate/eligibility` returns `eligible`, `reasons`, and `blockers`.
-- [ ] Active turns, pending startup, pending input, active terminal owner, pinned sessions, missing restore metadata, and unknown process ownership block eligibility.
+- [ ] Active turns, pending startup, pending input, active terminal owner, pinned sessions, missing restore metadata, and ambiguous/weak/unattributed process ownership block eligibility.
 - [ ] No process is stopped and no session lifecycle state is mutated.
 - [ ] Eligibility remains API/diagnostics-only until Phase 2 introduces manual hibernate and user remediation.
 
@@ -119,6 +119,9 @@ Phase 2 implementation slice:
 - `POST /api/sessions/:id/hibernate` persists hibernation state and kills only inventory-attributed process ids.
 - `POST /api/sessions/:id/resume-runtime` uses the existing terminal runtime start path and marks failed resumes as `broken`.
 - Session list exposes `Hibernate session` and `Resume runtime` actions while preserving hibernated sessions in both timeline and grouped list modes.
+- Manual sleep feedback owns the shared toast/live-region surface: pending feedback, success feedback, blocker reasons, and recovery guidance must be visible without colliding with the Mana chat widget.
+- Broken hibernation/resume outcomes must be visible as a recovery-required state, not only as a hidden title tooltip.
+- Session list state updates may refresh only the rows named by a `sessionIds` array when a lifecycle event identifies changed sessions; events without a usable `sessionIds` array must fall back to a full render so stale row state is not left behind.
 - Shared HTTP client changes for lifecycle errors must preserve the existing auth-token injection path while carrying structured blocker and recovery metadata to the UI.
 
 ### Phase 3: Auto Hibernate And Hot Session Budget
@@ -133,13 +136,13 @@ Scope:
 - Prefer hibernating least-recently-visible idle sessions.
 - Log every automatic decision with reason codes.
 
-Acceptance Criteria:
+Future validation notes, outside this Phase 2 PR:
 
-- [ ] Auto hibernation only applies to idle eligible sessions.
-- [ ] `running`, `pinned`, pending startup, and sessions with active terminal owners are not auto-hibernated.
-- [ ] Hot session budget is configurable and defaults conservatively.
-- [ ] The user can see why a session was hibernated.
-- [ ] Auto hibernation can be disabled globally for rollback.
+Auto hibernation should only apply to idle eligible sessions. `running`, `pinned`,
+pending startup, and sessions with active terminal owners should remain hot.
+The hot session budget should be configurable and conservative by default.
+Users should be able to see why a session was hibernated, and auto hibernation
+should have a global rollback switch.
 
 ### Phase 4: App Server Loaded/NotLoaded Model
 
@@ -153,13 +156,14 @@ Scope:
 - Use `thread/unsubscribe` and `thread/loaded/list` to align Brainbase hot/cold state with Codex loaded/notLoaded state.
 - Keep terminal transport as a compatibility path until App Server event rendering is stable.
 
-Acceptance Criteria:
+Future validation notes, outside this Phase 2 PR:
 
-- [ ] Brainbase can show stored Codex thread metadata without loading the thread runtime.
-- [ ] Hibernated App Server-backed sessions can display enough history for review without starting a turn.
-- [ ] Opening a hibernated App Server-backed session resumes the thread intentionally.
-- [ ] App Server loaded/notLoaded status is reflected in Brainbase session runtime status.
-- [ ] Terminal snapshot is no longer required as the only way to know whether a Codex session exists.
+Brainbase should be able to show stored Codex thread metadata without loading
+the thread runtime. Hibernated App Server-backed sessions should display enough
+history for review without starting a turn, and opening one should resume the
+thread intentionally. App Server loaded/notLoaded status should be reflected in
+Brainbase session runtime status, and terminal snapshots should stop being the
+only way to know whether a Codex session exists.
 
 ## Out Of Scope
 
