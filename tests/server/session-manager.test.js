@@ -1529,6 +1529,15 @@ describe('SessionManager', () => {
 
     expect(state.sessions[0].taskBrief).toBe('Live Feedで何の作業をしているか分かるようにして');
     expect(state.sessions[0].taskBriefUpdatedAt).toBeTruthy();
+    expect(state.sessions[0].activityHistory).toEqual([
+      expect.objectContaining({
+        actor: 'user',
+        kind: 'user_prompt',
+        text: 'Live Feedで何の作業をしているか分かるようにして',
+        textSource: 'raw_prompt',
+        evidenceSource: 'terminal_input'
+      })
+    ]);
   });
 
   it('reportActivity呼び出し時_assistantSnippetをsessionに保存する', () => {

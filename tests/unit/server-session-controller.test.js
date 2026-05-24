@@ -1376,6 +1376,7 @@ describe('SessionController (Server)', () => {
           sessionId: 'session-new',
           repoPath: staleRepoPath,
           name: 'New Session',
+          initialCommand: 'Live Feedで起動時の依頼を残して',
           engine: 'codex',
           project: 'tech-knight',
           viewerId: 'viewer-1'
@@ -1408,6 +1409,15 @@ describe('SessionController (Server)', () => {
             id: 'session-new',
             startupStatus: 'pending',
             startupPhase: 'ttyd',
+            activityHistory: [
+              expect.objectContaining({
+                actor: 'user',
+                kind: 'startup_prompt',
+                text: 'Live Feedで起動時の依頼を残して',
+                textSource: 'raw_prompt',
+                evidenceSource: 'session_initial_command'
+              })
+            ],
             worktree: expect.objectContaining({
               repo: fallbackRepoPath,
               path: worktreePath

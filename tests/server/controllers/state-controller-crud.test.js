@@ -143,6 +143,54 @@ describe('StateController CRUD session routes', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('persists activityHistory through PATCH without bypassing reload recovery', async () => {
+    const history = [
+      {
+        id: 'prompt-1',
+        actor: 'user',
+        kind: 'user_prompt',
+        text: 'Live Feedに送信済みpromptを残して',
+        textSource: 'raw_prompt',
+        evidenceSource: 'terminal_input',
+        occurredAt: '2026-05-24T03:00:00.000Z',
+        dedupeKey: 'session-2:user_prompt:prompt-1'
+      }
+    ];
+    const reloadedState = {
+      sessions: [
+        { id: 'session-2', name: 'recovered', intendedState: 'active', activityHistory: [] }
+      ]
+    };
+    stateStore.get.mockReturnValueOnce({ sessions: [] });
+    stateStore.reloadFromDisk.mockResolvedValue(reloadedState);
+    stateStore.patchSession.mockResolvedValue({
+      sessions: [
+        { ...reloadedState.sessions[0], activityHistory: history }
+      ]
+    });
+    const res = createRes();
+    const next = vi.fn();
+
+    controller.patch({
+      params: { sessionId: 'session-2' },
+      body: { activityHistory: history }
+    }, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(stateStore.reloadFromDisk).toHaveBeenCalledTimes(1);
+    expect(stateStore.patchSession).toHaveBeenCalledWith('session-2', expect.objectContaining({
+      id: 'session-2',
+      activityHistory: history
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'session-2',
+      activityHistory: history
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('reorders authoritative sessions and preserves unknown ids by appending', async () => {
     const sessions = [
       { id: 'session-a', name: 'A' },

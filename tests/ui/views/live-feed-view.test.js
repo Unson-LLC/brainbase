@@ -112,4 +112,57 @@ describe('LiveFeedView', () => {
         expect(container.querySelectorAll('.feed-item')).toHaveLength(0);
         expect(container.querySelector('.live-feed-empty')?.textContent).toContain('Wikiの更新はありません');
     });
+
+    it('S-5/S-6: activity historyを主表示しsession-focused filterで履歴を絞り込む', () => {
+        service.getHistoryEntries = vi.fn((options = {}) => {
+            const entries = [
+                {
+                    id: 'prompt-alpha',
+                    sessionId: 'session-alpha',
+                    timestamp: new Date('2026-05-07T11:30:00.000Z'),
+                    label: 'Alpha',
+                    icon: 'message-square',
+                    statusTone: 'prompt',
+                    statusText: 'ユーザー入力',
+                    actor: 'user',
+                    kind: 'user_prompt',
+                    text: 'Live Feedで過去の依頼を出して',
+                    textSource: 'raw_prompt',
+                    evidenceSource: 'terminal_input',
+                    provenanceLabel: 'raw prompt',
+                },
+                {
+                    id: 'activity-beta',
+                    sessionId: 'session-beta',
+                    timestamp: new Date('2026-05-07T11:31:00.000Z'),
+                    label: 'Beta',
+                    icon: 'activity',
+                    statusTone: 'working',
+                    statusText: 'エージェント活動',
+                    actor: 'agent',
+                    kind: 'agent_working',
+                    text: '実装ファイルを確認中',
+                    textSource: 'structured_field',
+                    evidenceSource: 'activity_report',
+                    provenanceLabel: 'structured activity',
+                },
+            ];
+            if (options.mode === 'session' && options.sessionId) {
+                return entries.filter((entry) => entry.sessionId === options.sessionId);
+            }
+            return entries;
+        });
+
+        view.mount(container);
+
+        expect(Array.from(container.querySelectorAll('.feed-item-history-text')).some((node) => node.textContent.includes('実装ファイルを確認中'))).toBe(true);
+        expect(Array.from(container.querySelectorAll('.feed-item-source')).some((node) => node.textContent.includes('structured activity'))).toBe(true);
+        expect(container.querySelector('.live-feed-session-scope')?.textContent).toContain('Alpha');
+
+        container.querySelector('.feed-session-chip[data-session-scope="session-alpha"]').click();
+
+        expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
+        expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Live Feedで過去の依頼を出して');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: セッション履歴');
+    });
 });

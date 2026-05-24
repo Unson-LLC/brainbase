@@ -2,6 +2,45 @@
 import { logger } from '../../utils/logger.js';
 import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 
+const MAX_SESSION_ACTIVITY_HISTORY = 40;
+
+function stableHash(value) {
+    const text = String(value || '');
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+    }
+    return Math.abs(hash).toString(36);
+}
+
+function normalizePromptExcerpt(prompt) {
+    if (typeof prompt !== 'string') return '';
+    const normalized = prompt
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join('\n');
+    if (!normalized) return '';
+    return normalized.length > 240 ? `${normalized.slice(0, 239)}…` : normalized;
+}
+
+function buildStartupPromptHistory(initialCommand, occurredAt) {
+    const text = normalizePromptExcerpt(initialCommand);
+    if (!text) return [];
+    const dedupeKey = `startup_prompt:${stableHash(text)}:${occurredAt}`;
+    return [{
+        id: `startup_prompt-${stableHash(dedupeKey)}`,
+        actor: 'user',
+        kind: 'startup_prompt',
+        text,
+        textSource: 'raw_prompt',
+        evidenceSource: 'session_initial_command',
+        occurredAt,
+        dedupeKey
+    }].slice(-MAX_SESSION_ACTIVITY_HISTORY);
+}
+
 function extractCodexResumeId(value) {
     if (typeof value !== 'string') return null;
     const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
@@ -101,6 +140,7 @@ export function installWorktreeHandlers(controller) {
 
             const now = new Date().toISOString();
             const taskBrief = deriveTaskBriefFromPrompt(initialCommand);
+            const activityHistory = buildStartupPromptHistory(initialCommand, now);
             const newSession = {
                 id: sessionId,
                 name: name || sessionId,
@@ -124,6 +164,7 @@ export function installWorktreeHandlers(controller) {
                 startupPhase: 'ttyd',
                 startupMessage: 'ターミナルを起動中...',
                 ...(taskBrief ? { taskBrief, taskBriefUpdatedAt: now } : {}),
+                ...(activityHistory.length > 0 ? { activityHistory } : {}),
                 createdAt: now,
                 updatedAt: now
             };

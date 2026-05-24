@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 
 const PROMPT_BUFFER_MAX_LENGTH = 4000;
+const MAX_SESSION_ACTIVITY_HISTORY = 40;
 const PANE_TITLE_SPINNER_CHARS = new Set(Array.from('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿'));
 const PANE_TITLE_SPINNER_STALE_TIMEOUT = 30 * 1000;
 const PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT = 30 * 1000;
@@ -15,6 +16,27 @@ function trimPromptBuffer(value) {
     return value.length > PROMPT_BUFFER_MAX_LENGTH
         ? value.slice(value.length - PROMPT_BUFFER_MAX_LENGTH)
         : value;
+}
+
+function stableHash(value) {
+    const text = String(value || '');
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+    }
+    return Math.abs(hash).toString(36);
+}
+
+function normalizePromptExcerpt(prompt) {
+    if (typeof prompt !== 'string') return '';
+    const normalized = prompt
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join('\n');
+    if (!normalized) return '';
+    return normalized.length > 240 ? `${normalized.slice(0, 239)}…` : normalized;
 }
 
 export const activityServiceMethods = {
@@ -109,12 +131,63 @@ export const activityServiceMethods = {
         return this._persistSessionLiveSummary(sessionId, { assistantSnippet }, timestamp);
     },
 
+    async _appendSessionActivityHistoryEvent(sessionId, event, timestamp = Date.now()) {
+        if (!sessionId || !event?.text) return false;
+        const currentState = this.stateStore.get();
+        const occurredAt = event.occurredAt || new Date(timestamp).toISOString();
+        const dedupeKey = event.dedupeKey || `${event.kind || 'event'}:${stableHash(`${event.text}:${occurredAt}`)}`;
+        const id = event.id || `${event.kind || 'event'}-${stableHash(`${sessionId}:${dedupeKey}`)}`;
+        let changed = false;
+
+        const updatedSessions = (currentState.sessions || []).map((session) => {
+            if (session.id !== sessionId) return session;
+            const previousHistory = Array.isArray(session.activityHistory) ? session.activityHistory : [];
+            if (previousHistory.some((item) => item?.dedupeKey === dedupeKey || item?.id === id)) {
+                return session;
+            }
+            changed = true;
+            return {
+                ...session,
+                activityHistory: [
+                    ...previousHistory,
+                    {
+                        id,
+                        actor: event.actor || 'user',
+                        kind: event.kind || 'user_prompt',
+                        text: event.text,
+                        textSource: event.textSource || 'raw_prompt',
+                        evidenceSource: event.evidenceSource || 'terminal_input',
+                        occurredAt,
+                        dedupeKey
+                    }
+                ].slice(-MAX_SESSION_ACTIVITY_HISTORY),
+                updatedAt: occurredAt
+            };
+        });
+
+        if (changed) {
+            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
+        return changed;
+    },
+
     async _finalizePromptBuffer(sessionId, timestamp = Date.now()) {
         const prompt = (this.promptBuffers.get(sessionId) || '').trim();
         this.promptBuffers.delete(sessionId);
         if (!prompt) return null;
 
         const taskBrief = deriveTaskBriefFromPrompt(prompt);
+        const promptExcerpt = normalizePromptExcerpt(prompt);
+        if (promptExcerpt) {
+            await this._appendSessionActivityHistoryEvent(sessionId, {
+                actor: 'user',
+                kind: 'user_prompt',
+                text: promptExcerpt,
+                textSource: 'raw_prompt',
+                evidenceSource: 'terminal_input',
+                dedupeKey: `user_prompt:${stableHash(promptExcerpt)}:${timestamp}`
+            }, timestamp);
+        }
         if (!taskBrief) return null;
 
         await this._persistSessionTaskBrief(sessionId, taskBrief, timestamp);
