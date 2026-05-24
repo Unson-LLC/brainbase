@@ -7,6 +7,7 @@ import { appStore } from '../../core/store.js';
 import { deriveSessionUiState } from '../../session-ui-state.js';
 
 const MAX_ENTRIES = 200;
+const MAX_HISTORY_ENTRIES = 200;
 const STALE_WORKING_MS = 3 * 60 * 1000;
 const STALE_REFRESH_MS = 30 * 1000;
 const JAPANESE_TEXT_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
@@ -24,6 +25,74 @@ function truncate(value, maxLength = 96) {
     if (!value) return '';
     if (value.length <= maxLength) return value;
     return `${value.slice(0, maxLength - 1)}…`;
+}
+
+function stableHash(value) {
+    const text = String(value || '');
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+    }
+    return Math.abs(hash).toString(36);
+}
+
+function normalizeTimestamp(value, fallback = Date.now()) {
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+}
+
+function normalizeHistoryText(value, maxLength = 160) {
+    if (typeof value !== 'string') return '';
+    const normalized = value
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join(' / ');
+    return truncate(normalized, maxLength);
+}
+
+function historyKindLabel(kind) {
+    if (kind === 'startup_prompt') return '初回依頼';
+    if (kind === 'user_prompt') return 'ユーザー入力';
+    if (kind === 'agent_waiting') return '入力待ち';
+    if (kind === 'agent_done') return '完了';
+    if (kind === 'agent_blocked') return '停止';
+    if (kind === 'evidence') return '根拠';
+    if (kind === 'model_summary') return '生成要約';
+    return 'エージェント活動';
+}
+
+function historyIcon(actor, kind) {
+    if (actor === 'user') return 'message-square';
+    if (kind === 'agent_done') return 'check-circle';
+    if (kind === 'agent_waiting') return 'circle-help';
+    if (kind === 'agent_blocked') return 'circle-alert';
+    if (kind === 'evidence') return 'file-text';
+    if (kind === 'model_summary') return 'sparkles';
+    return 'activity';
+}
+
+function historyTone(actor, kind) {
+    if (actor === 'user') return 'prompt';
+    if (kind === 'agent_done') return 'done';
+    if (kind === 'agent_waiting') return 'waiting';
+    if (kind === 'agent_blocked') return 'blocked';
+    if (kind === 'model_summary') return 'summary';
+    return 'working';
+}
+
+function provenanceLabel(textSource, evidenceSource) {
+    if (textSource === 'raw_prompt') return 'raw prompt';
+    if (textSource === 'model_summary') return 'generated summary';
+    if (evidenceSource === 'activity_report') return 'structured activity';
+    if (textSource === 'structured_field') return 'structured field';
+    return 'deterministic';
 }
 
 function buildStatus(uiState, timestampMs) {
@@ -178,6 +247,78 @@ function getActivityTimestamp(session, uiState) {
         hookStatus?.lastDoneAt || 0
     );
     return timestamp > 0 ? new Date(timestamp) : new Date();
+}
+
+function buildHistoryEventFromEnvelope(session, event) {
+    const text = normalizeHistoryText(event?.text, 180);
+    if (!session?.id || !text) return null;
+    const occurredAtMs = normalizeTimestamp(event.occurredAt || event.timestamp || event.updatedAt, Date.now());
+    const actor = event.actor || 'user';
+    const kind = event.kind || (actor === 'user' ? 'user_prompt' : 'agent_working');
+    const textSource = event.textSource || (actor === 'user' ? 'raw_prompt' : 'structured_field');
+    const evidenceSource = event.evidenceSource || 'session_state';
+    const dedupeKey = event.dedupeKey || `${session.id}:${kind}:${stableHash(`${text}:${occurredAtMs}`)}`;
+
+    return {
+        id: event.id || `history-${stableHash(`${session.id}:${dedupeKey}`)}`,
+        sessionId: session.id,
+        timestamp: new Date(occurredAtMs),
+        label: session.name || session.id,
+        icon: historyIcon(actor, kind),
+        statusTone: historyTone(actor, kind),
+        statusText: historyKindLabel(kind),
+        actor,
+        kind,
+        text,
+        textSource,
+        evidenceSource,
+        provenanceLabel: provenanceLabel(textSource, evidenceSource),
+        dedupeKey
+    };
+}
+
+function buildHistoryEventFromLiveActivity(session, uiState, liveActivity, status, taskBrief) {
+    if (!session?.id) return null;
+    const timestamp = getActivityTimestamp(session, uiState);
+    const text = normalizeHistoryText(
+        liveActivity?.currentStep
+            || liveActivity?.latestEvidence
+            || liveActivity?.assistantSnippet
+            || taskBrief
+            || status?.text,
+        180
+    );
+    if (!text) return null;
+    const kind = status?.tone === 'waiting'
+        ? 'agent_waiting'
+        : status?.tone === 'done'
+            ? 'agent_done'
+            : status?.tone === 'blocked'
+                ? 'agent_blocked'
+                : 'agent_working';
+    const dedupeKey = [
+        session.id,
+        liveActivity ? 'activity_report' : 'session_status',
+        liveActivity?.activityKind || '',
+        liveActivity?.updatedAt || timestamp.getTime(),
+        stableHash(text)
+    ].join(':');
+    return {
+        id: `activity-${stableHash(dedupeKey)}`,
+        sessionId: session.id,
+        timestamp,
+        label: session.name || session.id,
+        icon: historyIcon('agent', kind),
+        statusTone: historyTone('agent', kind),
+        statusText: historyKindLabel(kind),
+        actor: 'agent',
+        kind,
+        text,
+        textSource: 'structured_field',
+        evidenceSource: liveActivity ? 'activity_report' : 'session_state',
+        provenanceLabel: provenanceLabel('structured_field', liveActivity ? 'activity_report' : 'session_state'),
+        dedupeKey
+    };
 }
 
 export class LiveFeedService {
@@ -358,5 +499,44 @@ export class LiveFeedService {
 
     getEntries() {
         return this.entries;
+    }
+
+    getHistoryEntries({ mode = 'all', sessionId = null } = {}) {
+        const state = this.store.getState();
+        const sessions = Array.isArray(state.sessions) ? state.sessions : [];
+        const events = [];
+        const seen = new Set();
+
+        for (const session of sessions) {
+            if (!session?.id || session.intendedState === 'archived') continue;
+            if (mode === 'session' && sessionId && session.id !== sessionId) continue;
+
+            const uiState = deriveSessionUiState(session.id);
+            const liveActivity = uiState.hookStatus?.liveActivity || null;
+            const status = buildStatus(uiState, getActivityTimestamp(session, uiState).getTime());
+            const taskBrief = buildTaskBrief(session, uiState, liveActivity);
+            const sourceEvents = Array.isArray(session.activityHistory) ? session.activityHistory : [];
+
+            for (const sourceEvent of sourceEvents) {
+                const event = buildHistoryEventFromEnvelope(session, sourceEvent);
+                if (!event || seen.has(event.dedupeKey)) continue;
+                seen.add(event.dedupeKey);
+                events.push(event);
+            }
+
+            const activityEvent = buildHistoryEventFromLiveActivity(session, uiState, liveActivity, status, taskBrief);
+            if (activityEvent && !seen.has(activityEvent.dedupeKey)) {
+                seen.add(activityEvent.dedupeKey);
+                events.push(activityEvent);
+            }
+        }
+
+        events.sort((a, b) => {
+            const timestampDiff = b.timestamp.getTime() - a.timestamp.getTime();
+            if (timestampDiff !== 0) return mode === 'session' ? -timestampDiff : timestampDiff;
+            return String(a.id).localeCompare(String(b.id));
+        });
+
+        return events.slice(0, MAX_HISTORY_ENTRIES);
     }
 }

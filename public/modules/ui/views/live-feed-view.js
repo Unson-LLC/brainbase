@@ -19,6 +19,7 @@ export class LiveFeedView {
         this._container = container || null;
         this._unsubEntry = null;
         this._activeFilter = 'all';
+        this._activeSessionId = null;
     }
 
     mount(container) {
@@ -53,6 +54,8 @@ export class LiveFeedView {
             entry.taskBrief,
             entry.currentStep,
             entry.latestEvidence,
+            entry.text,
+            entry.provenanceLabel,
             entry.statusText,
             entry.icon,
         ].filter(Boolean).join(' ');
@@ -119,6 +122,24 @@ export class LiveFeedView {
         return FEED_FILTERS.find((filter) => filter.id === this._activeFilter)?.label || 'すべて';
     }
 
+    _getDisplayedEntries() {
+        if (typeof this.liveFeedService.getHistoryEntries === 'function') {
+            return this.liveFeedService.getHistoryEntries(this._activeSessionId
+                ? { mode: 'session', sessionId: this._activeSessionId }
+                : { mode: 'all' });
+        }
+        return this.liveFeedService.getEntries();
+    }
+
+    _sessionOptions(entries) {
+        const byId = new Map();
+        for (const entry of entries) {
+            if (!entry?.sessionId) continue;
+            byId.set(entry.sessionId, entry.label || entry.sessionId);
+        }
+        return Array.from(byId.entries()).map(([id, label]) => ({ id, label }));
+    }
+
     _renderFilters(entries) {
         const counts = this._filterCounts(entries);
         return FEED_FILTERS.map((filter) => {
@@ -128,6 +149,22 @@ export class LiveFeedView {
                 <span class="feed-filter-count">${counts[filter.id] || 0}</span>
             </button>`;
         }).join('');
+    }
+
+    _renderSessionScope(entries) {
+        const scopeEntries = typeof this.liveFeedService.getHistoryEntries === 'function'
+            ? this.liveFeedService.getHistoryEntries({ mode: 'all' })
+            : entries;
+        const sessions = this._sessionOptions(scopeEntries);
+        if (sessions.length <= 1) return '';
+        const allActive = !this._activeSessionId;
+        return `<div class="live-feed-session-scope" aria-label="Live Feed session scope">
+            <button class="feed-session-chip${allActive ? ' active' : ''}" type="button" data-session-scope="all" aria-pressed="${allActive ? 'true' : 'false'}">全体</button>
+            ${sessions.map((session) => {
+                const active = session.id === this._activeSessionId;
+                return `<button class="feed-session-chip${active ? ' active' : ''}" type="button" data-session-scope="${escapeHtml(session.id)}" aria-pressed="${active ? 'true' : 'false'}">${escapeHtml(session.label)}</button>`;
+            }).join('')}
+        </div>`;
     }
 
     _renderGroups(entries) {
@@ -163,6 +200,12 @@ export class LiveFeedView {
         const latestEvidence = entry.latestEvidence
             ? `<div class="feed-item-evidence">${escapeHtml(entry.latestEvidence)}</div>`
             : '';
+        const historyText = entry.text
+            ? `<div class="feed-item-step feed-item-history-text">${escapeHtml(entry.text)}</div>`
+            : '';
+        const provenance = entry.provenanceLabel
+            ? `<span class="feed-item-source">${escapeHtml(entry.provenanceLabel)}</span>`
+            : '';
         const statusToneClass = entry.statusTone ? ` feed-item-tone-${entry.statusTone}` : '';
         const tone = entry.statusTone || 'idle';
         const status = escapeHtml(entry.statusText || this._toneLabel(tone));
@@ -178,7 +221,9 @@ export class LiveFeedView {
                 <div class="feed-item-meta-line">
                     ${taskBrief}
                     <span class="feed-item-session">${escapeHtml(entry.sessionId || '')}</span>
+                    ${provenance}
                 </div>
+                ${historyText}
                 ${currentStep}
                 ${latestEvidence}
             </div>
@@ -193,7 +238,7 @@ export class LiveFeedView {
         if (!this._container) return;
         const list = this._container.querySelector('.live-feed-list');
         if (!list) return;
-        const entries = this.liveFeedService.getEntries();
+        const entries = this._getDisplayedEntries();
         list.innerHTML = this._renderGroups(this._filterEntries(entries));
         refreshIcons({ nodes: [list] });
     }
@@ -201,7 +246,7 @@ export class LiveFeedView {
     _render() {
         if (!this._container) return;
 
-        const entries = this.liveFeedService.getEntries();
+        const entries = this._getDisplayedEntries();
         const filteredEntries = this._filterEntries(entries);
         const entriesHtml = this._renderGroups(filteredEntries);
         const isMobileSurface = Boolean(this._container.closest?.('.mobile-tab-content'));
@@ -226,15 +271,17 @@ export class LiveFeedView {
                     <button class="feed-control-btn" type="button" aria-label="フィルタ" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="sliders-horizontal"></i></button>
                 </div>
             </div>
+            ${this._renderSessionScope(entries)}
             <div class="live-feed-list">${entriesHtml}</div>
             <div class="live-feed-footer"${footerPadding}>
                 <span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span>
                 <span>最終更新: ${entries[0] ? escapeHtml(this._formatTime(entries[0].timestamp)) : '--:--:--'}</span>
-                <span>表示: ${escapeHtml(this._activeFilterLabel())}</span>
+                <span>表示: ${escapeHtml(this._activeSessionId ? 'セッション履歴' : this._activeFilterLabel())}</span>
             </div>
         </div>`;
 
         this._bindFilterEvents();
+        this._bindSessionScopeEvents();
         refreshIcons({ nodes: [this._container] });
     }
 
@@ -245,6 +292,20 @@ export class LiveFeedView {
                 const filter = button.dataset.filter || 'all';
                 if (filter === this._activeFilter) return;
                 this._activeFilter = filter;
+                this._render();
+            });
+        });
+    }
+
+    _bindSessionScopeEvents() {
+        if (!this._container) return;
+        this._container.querySelectorAll('.feed-session-chip[data-session-scope]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const scope = button.dataset.sessionScope || 'all';
+                const nextSessionId = scope === 'all' ? null : scope;
+                if (nextSessionId === this._activeSessionId) return;
+                this._activeSessionId = nextSessionId;
+                this._activeFilter = 'all';
                 this._render();
             });
         });

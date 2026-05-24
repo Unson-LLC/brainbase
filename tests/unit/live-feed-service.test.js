@@ -105,6 +105,115 @@ describe('LiveFeedService', () => {
         expect(entries[1].currentStep).toBe('');
     });
 
+    it('INV-1/S-3: activityHistoryとstructured activityからモデル呼び出しなしで履歴を投影する', () => {
+        appStore.setState({
+            sessions: appStore.getState().sessions.map((session) => session.id === 'session-1'
+                ? {
+                    ...session,
+                    activityHistory: [
+                        {
+                            id: 'startup-1',
+                            actor: 'user',
+                            kind: 'startup_prompt',
+                            text: 'Live Feedで過去の依頼を見られるようにして',
+                            textSource: 'raw_prompt',
+                            evidenceSource: 'session_initial_command',
+                            occurredAt: '2026-03-25T09:58:00.000Z',
+                            dedupeKey: 'startup-1'
+                        },
+                        {
+                            id: 'prompt-1',
+                            actor: 'user',
+                            kind: 'user_prompt',
+                            text: 'コストをかけずに活動履歴を出して',
+                            textSource: 'raw_prompt',
+                            evidenceSource: 'terminal_input',
+                            occurredAt: '2026-03-25T09:59:30.000Z',
+                            dedupeKey: 'prompt-1'
+                        }
+                    ]
+                }
+                : session)
+        });
+
+        service.start();
+        const history = service.getHistoryEntries({ mode: 'all' });
+
+        expect(history.map((entry) => entry.text)).toContain('Live Feedで過去の依頼を見られるようにして');
+        expect(history.map((entry) => entry.text)).toContain('コストをかけずに活動履歴を出して');
+        expect(history.some((entry) => entry.actor === 'agent' && entry.evidenceSource === 'activity_report')).toBe(true);
+        expect(history.every((entry) => entry.textSource !== 'model_summary')).toBe(true);
+    });
+
+    it('既存status rowだけのセッションもhistory projectionで空にしない', () => {
+        replaceSessionHookStatuses({
+            'session-1': {
+                isWorking: false,
+                isDone: false,
+                lastWorkingAt: 0,
+                lastActivityAt: 0,
+                lastDoneAt: 0,
+                activeTurnCount: 0,
+                liveActivity: null
+            },
+            'session-2': {
+                isWorking: false,
+                isDone: false,
+                lastWorkingAt: 0,
+                lastActivityAt: 0,
+                lastDoneAt: 0,
+                activeTurnCount: 0,
+                liveActivity: null
+            }
+        });
+
+        service.start();
+        const history = service.getHistoryEntries({ mode: 'all' });
+
+        expect(history.some((entry) => entry.sessionId === 'session-2')).toBe(true);
+        expect(history.map((entry) => entry.text)).toContain('サーバが落ちる原因を調べる');
+        expect(history.find((entry) => entry.sessionId === 'session-2')?.evidenceSource).toBe('session_state');
+    });
+
+    it('C-5/S-4: session-focused履歴は指定セッションだけを時系列に返し重複を除外する', () => {
+        appStore.setState({
+            sessions: appStore.getState().sessions.map((session) => session.id === 'session-1'
+                ? {
+                    ...session,
+                    activityHistory: [
+                        {
+                            id: 'duplicate-a',
+                            actor: 'user',
+                            kind: 'user_prompt',
+                            text: '同じ依頼',
+                            textSource: 'raw_prompt',
+                            evidenceSource: 'terminal_input',
+                            occurredAt: '2026-03-25T09:57:00.000Z',
+                            dedupeKey: 'same-prompt'
+                        },
+                        {
+                            id: 'duplicate-b',
+                            actor: 'user',
+                            kind: 'user_prompt',
+                            text: '同じ依頼',
+                            textSource: 'raw_prompt',
+                            evidenceSource: 'terminal_input',
+                            occurredAt: '2026-03-25T09:58:00.000Z',
+                            dedupeKey: 'same-prompt'
+                        }
+                    ]
+                }
+                : session)
+        });
+
+        service.start();
+        const history = service.getHistoryEntries({ mode: 'session', sessionId: 'session-1' });
+
+        expect(history.filter((entry) => entry.dedupeKey === 'same-prompt')).toHaveLength(1);
+        expect(history.every((entry) => entry.sessionId === 'session-1')).toBe(true);
+        expect(history[0].timestamp.getTime()).toBeLessThanOrEqual(history[history.length - 1].timestamp.getTime());
+    });
+
     it('状態変化が起きたセッションを先頭に積む', () => {
         service.start();
         vi.setSystemTime(new Date('2026-03-25T10:01:00.000Z'));

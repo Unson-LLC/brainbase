@@ -17403,6 +17403,36 @@ body.sns-growth-mode-active .terminal-header {
     border-left: 1px solid rgba(191, 201, 214, 0.1);
 }
 
+.command-center-theme .live-feed-session-scope {
+    display: flex;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+}
+
+.command-center-theme .feed-session-chip {
+    flex: 0 0 auto;
+    height: 26px;
+    max-width: 180px;
+    padding: 0 9px;
+    border: 1px solid rgba(191, 201, 214, 0.14);
+    border-radius: 4px;
+    background: rgba(9, 13, 17, 0.72);
+    color: #aeb8c5;
+    font-size: 11px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-center-theme .feed-session-chip.active {
+    border-color: rgba(47, 128, 255, 0.58);
+    background: rgba(47, 128, 255, 0.14);
+    color: #d8eaff;
+}
+
 .command-center-theme .feed-section {
     padding: 10px 16px 0;
     border-bottom: 1px solid rgba(191, 201, 214, 0.11);
@@ -17477,6 +17507,8 @@ body.sns-growth-mode-active .terminal-header {
 .command-center-theme .feed-item-dot.done { background: #2f80ff; }
 .command-center-theme .feed-item-dot.blocked { background: #f35d5d; }
 .command-center-theme .feed-item-dot.paused { background: #c069d8; }
+.command-center-theme .feed-item-dot.prompt { background: #67b3ff; }
+.command-center-theme .feed-item-dot.summary { background: #c069d8; }
 
 .command-center-theme .feed-item-icon {
     width: 24px;
@@ -17518,6 +17550,7 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme .feed-item-task,
 .command-center-theme .feed-item-session,
+.command-center-theme .feed-item-source,
 .command-center-theme .feed-item-step,
 .command-center-theme .feed-item-evidence {
     min-width: 0;
@@ -17527,6 +17560,10 @@ body.sns-growth-mode-active .terminal-header {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.command-center-theme .feed-item-source {
+    color: #67b3ff;
 }
 
 .command-center-theme .feed-item-step {
