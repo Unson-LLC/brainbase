@@ -77,11 +77,54 @@ function buildSessionMemoryPolicy(req, session) {
     };
 }
 
+// Short TTL cache for getContext output.
+//
+// VibePro story-session-switch-performance evidence:
+// /api/sessions/:id/context p95 was 5179ms (cold switch). The hot work is
+// worktreeService.getStatus(), which shells out to git/jj per call. The
+// payload only changes when commits/merges happen, which doesn't need to be
+// reflected within the same second the user clicks a session row.
+//
+// 5s TTL gives a near-instant hit for the burst of /context calls a single
+// switch fires, while keeping the staleness bounded.
+const CONTEXT_CACHE_TTL_MS = 5000;
+const contextResponseCache = new Map(); // sessionId -> { expiresAt, payload }
+
+function getCachedContext(sessionId) {
+    const entry = contextResponseCache.get(sessionId);
+    if (!entry) return null;
+    if (Date.now() >= entry.expiresAt) {
+        contextResponseCache.delete(sessionId);
+        return null;
+    }
+    return entry.payload;
+}
+
+function setCachedContext(sessionId, payload) {
+    contextResponseCache.set(sessionId, {
+        expiresAt: Date.now() + CONTEXT_CACHE_TTL_MS,
+        payload
+    });
+}
+
+export function invalidateContextCache(sessionId) {
+    if (sessionId) {
+        contextResponseCache.delete(sessionId);
+    } else {
+        contextResponseCache.clear();
+    }
+}
+
 export function installContextHandlers(controller) {
     controller.getContext = async (req, res) => {
         const { id } = req.params;
         const session = controller._findSessionOrFail(id, res);
         if (!session) return;
+
+        const cached = getCachedContext(id);
+        if (cached) {
+            return res.json(cached);
+        }
 
         const repoPath = session.worktree?.repo || null;
         const workspacePath = await controller._resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
@@ -119,6 +162,7 @@ export function installContextHandlers(controller) {
         };
 
         if (!repoPath) {
+            setCachedContext(id, context);
             return res.json(context);
         }
 
@@ -140,7 +184,7 @@ export function installContextHandlers(controller) {
                 ? 'merged'
                 : (changesNotPushed > 0 || status.bookmarkPushed ? 'open_or_pending' : 'none');
 
-            res.json({
+            const responsePayload = {
                 ...context,
                 repo: status.repoName || context.repo,
                 bookmark: status.bookmarkName || context.bookmark,
@@ -156,7 +200,9 @@ export function installContextHandlers(controller) {
                 prStatus,
                 baseBranch: status.mainBranch || null,
                 currentDirectory: context.currentDirectory || status.worktreePath || null
-            });
+            };
+            setCachedContext(id, responsePayload);
+            res.json(responsePayload);
         } catch (error) {
             logger.error('Failed to get session context:', error);
             res.json(context);
