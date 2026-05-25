@@ -529,12 +529,37 @@ export class App {
         this._terminalInputUxCleanup.push(() => window.removeEventListener('pagehide', onPageHide));
 
         // 7. Start session activity WebSocket (with polling fallback)
+        //
+        // Performance: status change storms (e.g. cold session switch) used to
+        // fire 13 GET /api/state in ~8s. Debounce + in-flight coalesce keeps the
+        // reload count to 1-2 per burst. Measured via VibePro story
+        // story-session-switch-performance (api-state-polling-cumulative metric).
+        let reloadInFlight = null;
+        let reloadPending = false;
+        let reloadDebounceTimer = null;
+        const RELOAD_DEBOUNCE_MS = 400;
+        const triggerSessionReload = async () => {
+            if (reloadInFlight) {
+                reloadPending = true;
+                return;
+            }
+            do {
+                reloadPending = false;
+                reloadInFlight = this.sessionService.loadSessions({ silent: true });
+                try { await reloadInFlight; } finally { reloadInFlight = null; }
+            } while (reloadPending);
+        };
+        const scheduleSessionReload = () => {
+            if (reloadDebounceTimer) clearTimeout(reloadDebounceTimer);
+            reloadDebounceTimer = setTimeout(() => {
+                reloadDebounceTimer = null;
+                void triggerSessionReload();
+            }, RELOAD_DEBOUNCE_MS);
+        };
         this.pollingIntervalId = startActivityWs(
             () => appStore.getState().currentSessionId,
             3000,
-            async () => {
-                await this.sessionService.loadSessions({ silent: true });
-            }
+            scheduleSessionReload
         );
 
         // 8. Start periodic refresh (every 5 minutes)
