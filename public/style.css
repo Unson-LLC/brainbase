@@ -11937,6 +11937,7 @@ body.resizing iframe {
     pointer-events: none;
 }
 
+.session-launch-picker,
 .inline-session-draft {
     position: absolute;
     inset: 0;
@@ -11949,12 +11950,14 @@ body.resizing iframe {
     backdrop-filter: blur(3px);
 }
 
+.session-launch-picker.hidden,
 .inline-session-draft.hidden {
     display: none;
 }
 
+.session-launch-picker-panel,
 .inline-session-draft-panel {
-    width: min(720px, 100%);
+    width: min(560px, 100%);
     max-height: 100%;
     overflow: auto;
     border: 1px solid rgba(148, 163, 184, 0.28);
@@ -11964,6 +11967,7 @@ body.resizing iframe {
     padding: 22px;
 }
 
+.session-launch-picker-header,
 .inline-session-draft-header {
     display: flex;
     align-items: flex-start;
@@ -11972,6 +11976,7 @@ body.resizing iframe {
     margin-bottom: 18px;
 }
 
+.session-launch-picker-header h3,
 .inline-session-draft-header h3 {
     margin: 0;
     color: #f8fafc;
@@ -11979,6 +11984,7 @@ body.resizing iframe {
     line-height: 1.2;
 }
 
+.session-launch-picker-kicker,
 .inline-session-draft-kicker {
     margin: 0 0 4px 0;
     color: #60a5fa;
@@ -11988,6 +11994,7 @@ body.resizing iframe {
     text-transform: uppercase;
 }
 
+.session-launch-icon-btn,
 .inline-session-icon-btn {
     width: 36px;
     height: 36px;
@@ -12001,17 +12008,20 @@ body.resizing iframe {
     cursor: pointer;
 }
 
+.session-launch-icon-btn:hover,
 .inline-session-icon-btn:hover {
     color: #f8fafc;
     border-color: rgba(96, 165, 250, 0.7);
 }
 
+.session-launch-picker-grid,
 .inline-session-draft-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 14px;
 }
 
+.session-launch-field,
 .inline-session-field {
     min-width: 0;
     display: flex;
@@ -12022,14 +12032,17 @@ body.resizing iframe {
     font-weight: 700;
 }
 
+.session-launch-field-full,
 .inline-session-field-full {
     grid-column: 1 / -1;
 }
 
+.session-launch-radio-group,
 .inline-session-radio-group {
     flex-wrap: wrap;
 }
 
+.session-launch-picker-actions,
 .inline-session-draft-actions {
     display: flex;
     justify-content: flex-end;
@@ -12038,15 +12051,18 @@ body.resizing iframe {
 }
 
 @media (max-width: 640px) {
+    .session-launch-picker,
     .inline-session-draft {
         padding: 14px;
         align-items: stretch;
     }
 
+    .session-launch-picker-panel,
     .inline-session-draft-panel {
         padding: 16px;
     }
 
+    .session-launch-picker-grid,
     .inline-session-draft-grid {
         grid-template-columns: 1fr;
     }
@@ -12067,6 +12083,27 @@ body.resizing iframe {
 
 .session-startup-composer.hidden {
     display: none;
+}
+
+.session-startup-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.session-startup-chip {
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.86);
+    color: #cbd5e1;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .session-startup-prompt-input {

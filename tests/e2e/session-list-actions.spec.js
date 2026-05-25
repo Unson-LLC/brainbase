@@ -9,8 +9,7 @@ const BASE_URL = process.env.BRAINBASE_BASE_URL
 test.describe('session list actions', () => {
     test('should handle current session row quick actions', async ({ page, request }) => {
         test.setTimeout(60000);
-        const stamp = Date.now();
-        const originalName = `pw-session-${stamp}`;
+        const originalName = 'New general Session';
 
         const row = (name) => page.locator('.session-child-row').filter({
             has: page.locator('.session-name', { hasText: name })
@@ -72,13 +71,12 @@ test.describe('session list actions', () => {
 
             await page.locator('#add-session-btn').click();
             await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
-            await expect(page.locator('#inline-session-draft')).not.toHaveClass(/hidden/);
-            await page.locator('#inline-session-name-input').fill(originalName);
-            const useWorktreeCheckbox = page.locator('#inline-use-worktree-checkbox');
+            await expect(page.locator('#session-launch-picker')).not.toHaveClass(/hidden/);
+            const useWorktreeCheckbox = page.locator('#session-launch-use-worktree-checkbox');
             if (await useWorktreeCheckbox.isChecked()) {
                 await useWorktreeCheckbox.uncheck();
             }
-            await page.locator('#inline-session-create').click();
+            await page.locator('#session-launch-start').click();
             await expect(row(originalName)).toBeVisible({ timeout: 30000 });
             console.log('created session');
 

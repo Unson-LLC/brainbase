@@ -140,25 +140,25 @@ export function applySessionCreationMixin(AppClass) {
             }
         },
 
-        async openInlineSessionDraft(project = 'general') {
-            console.log('Opening inline session draft for project:', project);
+        async openSessionLaunchPicker(project = 'general') {
+            console.log('Opening session launch picker for project:', project);
 
-            const draft = document.getElementById('inline-session-draft');
+            const picker = document.getElementById('session-launch-picker') || document.getElementById('inline-session-draft');
             const modal = document.getElementById('create-session-modal');
-            const nameInput = document.getElementById('inline-session-name-input');
-            const commandInput = document.getElementById('inline-session-command-input');
-            const projectSelect = document.getElementById('inline-session-project-select');
-            const worktreeCheckbox = document.getElementById('inline-use-worktree-checkbox');
-            const worktreeHint = document.getElementById('inline-worktree-hint');
-            const worktreeLabel = document.getElementById('inline-worktree-label');
-            const createBtn = document.getElementById('inline-session-create');
+            const projectSelect = document.getElementById('session-launch-project-select') || document.getElementById('inline-session-project-select');
+            const worktreeCheckbox = document.getElementById('session-launch-use-worktree-checkbox') || document.getElementById('inline-use-worktree-checkbox');
+            const worktreeHint = document.getElementById('session-launch-worktree-hint') || document.getElementById('inline-worktree-hint');
+            const worktreeLabel = document.getElementById('session-launch-worktree-label') || document.getElementById('inline-worktree-label');
+            const startBtn = document.getElementById('session-launch-start') || document.getElementById('inline-session-create');
             const cancelButtons = [
+                document.getElementById('session-launch-cancel'),
+                document.getElementById('session-launch-discard'),
                 document.getElementById('inline-session-cancel'),
                 document.getElementById('inline-session-discard')
             ].filter(Boolean);
 
-            if (!draft || !nameInput || !projectSelect || !createBtn) {
-                console.error('Inline session draft elements not found');
+            if (!picker || !projectSelect || !startBtn) {
+                console.error('Session launch picker elements not found');
                 return;
             }
 
@@ -167,8 +167,6 @@ export function applySessionCreationMixin(AppClass) {
             this.closeMobileSessionsSheet?.();
             this._teardownInlineSessionDraft?.();
 
-            nameInput.value = `New ${project} Session`;
-            if (commandInput) commandInput.value = '';
             await this._populateSessionProjectSelect(projectSelect, project);
             await this._updateSessionDraftWorktreeAvailability(projectSelect.value || project, worktreeCheckbox, worktreeHint, worktreeLabel);
 
@@ -177,48 +175,47 @@ export function applySessionCreationMixin(AppClass) {
             };
             projectSelect?.addEventListener('change', handleProjectChange);
 
-            const closeDraft = () => {
-                draft.classList.add('hidden');
+            const closePicker = () => {
+                picker.classList.add('hidden');
                 this._teardownInlineSessionDraft?.();
             };
 
-            const handleCreate = async () => {
-                const name = nameInput.value.trim();
-                if (!name) {
-                    nameInput.focus();
-                    return;
-                }
-
+            const handleStart = async () => {
                 const selectedProject = projectSelect?.value || project;
-                const engine = document.querySelector('input[name="inline-session-engine"]:checked')?.value || 'claude';
-                const initialCommand = commandInput?.value || '';
+                const engine = document.querySelector('input[name="session-launch-engine"]:checked')?.value
+                    || document.querySelector('input[name="inline-session-engine"]:checked')?.value
+                    || 'claude';
                 const useWorktree = worktreeCheckbox?.checked && !worktreeCheckbox.disabled;
+                const name = `New ${selectedProject} Session`;
 
-                closeDraft();
-                await this.createSession(selectedProject, name, initialCommand, useWorktree, engine);
+                closePicker();
+                await this.createSession(selectedProject, name, '', useWorktree, engine);
             };
 
-            createBtn.addEventListener('click', handleCreate);
-            cancelButtons.forEach((button) => button.addEventListener('click', closeDraft));
+            startBtn.addEventListener('click', handleStart);
+            cancelButtons.forEach((button) => button.addEventListener('click', closePicker));
             this._teardownInlineSessionDraft = () => {
-                createBtn.removeEventListener('click', handleCreate);
+                startBtn.removeEventListener('click', handleStart);
                 projectSelect?.removeEventListener('change', handleProjectChange);
-                cancelButtons.forEach((button) => button.removeEventListener('click', closeDraft));
+                cancelButtons.forEach((button) => button.removeEventListener('click', closePicker));
                 this._teardownInlineSessionDraft = null;
             };
 
-            draft.classList.remove('hidden');
+            picker.classList.remove('hidden');
             window.lucide?.createIcons?.();
-            nameInput.focus();
-            nameInput.select();
+            projectSelect.focus();
+        },
+
+        async openInlineSessionDraft(project = 'general') {
+            return this.openSessionLaunchPicker(project);
         },
 
         /**
-         * Backward-compatible entrypoint. The primary flow is inline, not modal.
+         * Backward-compatible entrypoint. The primary flow is the launch picker, not modal.
          * @param {string} project - Project name
          */
         openCreateSessionModal(project = 'general') {
-            return this.openInlineSessionDraft(project);
+            return this.openSessionLaunchPicker(project);
         },
 
         /**
@@ -755,6 +752,7 @@ export function applySessionCreationMixin(AppClass) {
         showSessionStartupComposer(sessionId, { failed = false } = {}) {
             this._ensureSessionStartupComposerBound();
             this._hydrateSessionStartupPromptState(sessionId);
+            this._updateSessionStartupComposerMeta(sessionId);
             const composer = document.getElementById('session-startup-composer');
             const input = document.getElementById('session-startup-prompt-input');
             const sendBtn = document.getElementById('session-startup-prompt-send');
@@ -771,10 +769,28 @@ export function applySessionCreationMixin(AppClass) {
             this._setSessionStartupPromptStatus(
                 failed
                     ? '起動に失敗しました。入力内容は保持されています。'
-                    : (this._sessionStartupPromptQueue?.has(sessionId) ? '起動完了後に送信します' : '起動中も入力できます'),
+                    : (this._sessionStartupPromptQueue?.has(sessionId) ? '送信予約済み。準備完了後に実行します。' : '起動中。送信すると準備完了後に実行します。'),
                 failed ? 'failed' : (this._sessionStartupPromptQueue?.has(sessionId) ? 'queued' : 'idle')
             );
             window.setTimeout(() => input.focus(), 0);
+        },
+
+        _updateSessionStartupComposerMeta(sessionId) {
+            const projectChip = document.getElementById('session-startup-project-chip');
+            const engineChip = document.getElementById('session-startup-engine-chip');
+            const workspaceChip = document.getElementById('session-startup-workspace-chip');
+            if (!projectChip && !engineChip && !workspaceChip) return;
+
+            const session = this._getSessionStartupPromptSession?.(sessionId);
+            const project = session?.project || 'general';
+            const engine = session?.engine === 'codex' ? 'OpenAI Codex' : 'Claude Code';
+            const workspace = session?.worktree || session?.startupStatus === 'pending' || session?.startupStatus === 'failed'
+                ? 'jj workspace'
+                : 'main workspace';
+
+            if (projectChip) projectChip.textContent = project;
+            if (engineChip) engineChip.textContent = engine;
+            if (workspaceChip) workspaceChip.textContent = workspace;
         },
 
         hideSessionStartupComposer() {

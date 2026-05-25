@@ -1,10 +1,10 @@
 id: project.selector
 name: Session creation project selector
-purpose: Decide which projects appear in the Create Session project dropdown.
+purpose: Decide which projects appear in the Session Launch Picker project dropdown.
 surfaces:
   ui:
-    - "#inline-session-project-select"
-    - "#inline-session-draft"
+    - "#session-launch-project-select"
+    - "#session-launch-picker"
   api:
     - GET /api/config
   code:

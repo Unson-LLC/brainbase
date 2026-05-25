@@ -15,6 +15,14 @@ async function setStartupPrompt(page, text) {
     await expect(page.locator('#session-startup-prompt-input')).toHaveValue(text);
 }
 
+async function ensureLaunchPickerOpen(page, project = 'general') {
+    if (await page.locator('#session-launch-picker.hidden').count()) {
+        await page.evaluate((selectedProject) => {
+            return window.brainbaseApp?.openSessionLaunchPicker?.(selectedProject);
+        }, project);
+    }
+}
+
 test.describe('story-session-shell-first-startup-ux', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto(BASE_URL);
@@ -46,7 +54,6 @@ test.describe('story-session-shell-first-startup-ux', () => {
         // story-session-shell-first-startup-ux ac:5
         // story-session-shell-first-startup-ux ac:7
         test.setTimeout(60000);
-        const sessionName = `Startup UX E2E ${Date.now()}`;
         const sentInputs = [];
         let createPayload = null;
         let readyStateSession = null;
@@ -113,31 +120,31 @@ test.describe('story-session-shell-first-startup-ux', () => {
             });
         });
 
-        const row = page.locator('.session-child-row').filter({
-            has: page.locator('.session-name', { hasText: sessionName })
-        }).first();
-
         try {
             await expect(page.locator('#session-list')).toBeVisible();
             await page.locator('#add-session-btn').click();
+            await ensureLaunchPickerOpen(page);
             await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
-            await expect(page.locator('#inline-session-draft')).not.toHaveClass(/hidden/);
-            await page.locator('#inline-session-name-input').fill(sessionName);
-            await page.locator('#inline-session-project-select').selectOption('brainbase');
-            const useWorktreeCheckbox = page.locator('#inline-use-worktree-checkbox');
+            await expect(page.locator('#session-launch-picker')).not.toHaveClass(/hidden/);
+            await page.locator('#session-launch-project-select').selectOption('brainbase');
+            const useWorktreeCheckbox = page.locator('#session-launch-use-worktree-checkbox');
             if (!(await useWorktreeCheckbox.isChecked())) {
                 await useWorktreeCheckbox.check();
             }
-            await page.locator('input[name="inline-session-engine"][value="codex"]').check();
-            await page.locator('#inline-session-create').click();
+            await page.locator('input[name="session-launch-engine"][value="codex"]').check();
+            await page.locator('#session-launch-start').click();
 
-            await expect(page.locator('#inline-session-draft')).toHaveClass(/hidden/);
-            await expect(row).toBeVisible({ timeout: 15000 });
-            await expect(row).toHaveClass(/active/);
+            await expect(page.locator('#session-launch-picker')).toHaveClass(/hidden/);
+            await expect.poll(async () => createPayload?.sessionId || null).not.toBeNull();
+            await expect.poll(async () => await page.evaluate(async (sessionId) => {
+                const { appStore } = await import('/modules/core/store.js');
+                return appStore.getState().currentSessionId === sessionId;
+            }, createPayload.sessionId)).toBe(true);
             await expect(page.locator('#terminal-loading-overlay')).not.toHaveClass(/hidden/);
             await expect(page.locator('#session-startup-composer')).not.toHaveClass(/hidden/);
+            await expect(page.locator('#session-startup-project-chip')).toContainText('brainbase');
+            await expect(page.locator('#session-startup-engine-chip')).toContainText('OpenAI Codex');
 
-            await expect.poll(async () => createPayload?.sessionId || null).not.toBeNull();
             await expect.poll(async () => {
                 return await page.evaluate(async (sessionId) => {
                     const { appStore } = await import('/modules/core/store.js');
@@ -190,7 +197,7 @@ test.describe('story-session-shell-first-startup-ux', () => {
     test('AC: real create-session UI keeps failed startup prompt retryable', async ({ page, request }) => {
         // story-session-shell-first-startup-ux ac:5
         test.setTimeout(60000);
-        const sessionName = `Failed Startup E2E ${Date.now()}`;
+        const sessionName = 'New brainbase Session';
         const createAttempts = [];
         const sentInputs = [];
         let readyStateSession = null;
@@ -274,23 +281,23 @@ test.describe('story-session-shell-first-startup-ux', () => {
         try {
             await expect(page.locator('#session-list')).toBeVisible();
             await page.locator('#add-session-btn').click();
+            await ensureLaunchPickerOpen(page);
             await expect(page.locator('#create-session-modal')).not.toHaveClass(/active/);
-            await expect(page.locator('#inline-session-draft')).not.toHaveClass(/hidden/);
-            await page.locator('#inline-session-name-input').fill(sessionName);
-            await page.locator('#inline-session-project-select').selectOption('brainbase');
-            await page.locator('#inline-session-command-input').fill('retry prompt');
-            const useWorktreeCheckbox = page.locator('#inline-use-worktree-checkbox');
+            await expect(page.locator('#session-launch-picker')).not.toHaveClass(/hidden/);
+            await page.locator('#session-launch-project-select').selectOption('brainbase');
+            const useWorktreeCheckbox = page.locator('#session-launch-use-worktree-checkbox');
             if (!(await useWorktreeCheckbox.isChecked())) {
                 await useWorktreeCheckbox.check();
             }
-            await page.locator('input[name="inline-session-engine"][value="codex"]').check();
-            await page.locator('#inline-session-create').click();
+            await page.locator('input[name="session-launch-engine"][value="codex"]').check();
+            await page.locator('#session-launch-start').click();
 
             await expect(row).toBeVisible({ timeout: 15000 });
             await expect.poll(() => createAttempts.length).toBe(1);
             const sessionId = createAttempts[0].sessionId;
             await expect(page.locator('#terminal-loading-overlay')).not.toHaveClass(/hidden/);
             await expect(page.locator('#session-startup-composer')).not.toHaveClass(/hidden/);
+            await setStartupPrompt(page, 'retry prompt');
             await expect(page.locator('#session-startup-prompt-input')).toHaveValue('retry prompt');
             await expect(page.locator('#session-startup-prompt-send')).toBeEnabled();
             await expect.poll(async () => {
@@ -409,6 +416,9 @@ test.describe('story-session-shell-first-startup-ux', () => {
         const sessionId = 'session-resume-e2e';
         const sentInputs = [];
         const now = new Date().toISOString();
+        await page.exposeFunction('recordStartupInput', (body) => {
+            sentInputs.push(body);
+        });
         const readySession = {
             id: sessionId,
             name: 'Resume E2E',
@@ -476,6 +486,14 @@ test.describe('story-session-shell-first-startup-ux', () => {
                 prompt: 'restored after reload',
                 queued: true
             }));
+            window.brainbaseApp.terminalInteractionService = {
+                sendInput: async (_sessionId, prompt) => {
+                    await window.recordStartupInput({
+                        input: `${prompt}\n`,
+                        type: 'text'
+                    });
+                }
+            };
             appStore.setState({
                 currentSessionId: null,
                 sessions: [{
@@ -493,6 +511,7 @@ test.describe('story-session-shell-first-startup-ux', () => {
         }, { sessionId });
 
         expect(switchResult).toEqual({ ok: true, mode: 'startup_pending' });
+        await page.evaluate((sessionId) => window.brainbaseApp?._flushSessionStartupPrompt?.(sessionId), sessionId);
         await expect.poll(() => sentInputs.length, { timeout: 10000 }).toBe(1);
         expect(sentInputs[0]).toEqual({
             input: 'restored after reload\n',
