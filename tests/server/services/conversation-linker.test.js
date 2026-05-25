@@ -316,6 +316,43 @@ describe('ConversationLinker', () => {
     expect(updated.conversationSummary.lastConversation.messageCount).toBe(3);
   });
 
+  it('linkAll再実行時_未変更のCodexログは全ファイル走査をスキップしてキャッシュを再利用する', async () => {
+    const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-skip-'));
+    tempDirs.push(codexRoot);
+    const cwd = '/tmp/session-skip-unchanged';
+    const id = '019e7000-0000-7000-8000-000000000099';
+    await createCodexSessionFile(codexRoot, {
+      cwd,
+      id,
+      extraLines: [
+        JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'main work' } }),
+        JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: '本体ログです' } })
+      ]
+    });
+
+    const session = { id: 'session-skip', path: cwd, worktree: { path: cwd } };
+    let current = [session];
+    const stateStore = {
+      get: vi.fn(() => ({ sessions: current })),
+      mutateSessions: vi.fn(async (mutator) => {
+        current = await mutator(current);
+        return { sessions: current };
+      })
+    };
+    const linker = new ConversationLinker({ stateStore });
+    linker.codexSessionsDir = codexRoot;
+    const buildSpy = vi.spyOn(linker, '_buildCodexConversationFromFile');
+
+    await linker.linkAll();
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+
+    // 2回目: ファイルは未変更なので _buildCodexConversationFromFile は呼ばれない
+    await linker.linkAll();
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+
+    expect(current[0].conversationSummary.lastConversation.messageCount).toBe(3);
+  });
+
   it('story-brainbase-session-resume-integrity-guard CON-1a top-level session_meta形式も読む', async () => {
     const codexRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-codex-session-meta-'));
     tempDirs.push(codexRoot);

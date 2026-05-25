@@ -663,9 +663,30 @@ export class ConversationLinker {
                 }
             }
         }
+        // Claude 側と同様に、前回 link 以降に変更がないファイルは
+        // 巨大ログ（170MB 級の rollout-*.jsonl）の再走査を避けて
+        // キャッシュ済みの会話情報を再利用する
+        const existingCodexConversations = session.conversationSummary
+            ? [
+                session.conversationSummary.lastConversation,
+                ...(session.conversationSummary._cachedConversations || [])
+            ].filter(c => c && c.engine === 'codex')
+            : [];
+
         const codexConversations = [];
         for (const codexFile of codexFiles) {
+            const uuid = path.basename(codexFile, '.jsonl').replace(/^rollout-/, '');
             try {
+                const stat = await fs.stat(codexFile);
+                const mtime = stat.mtime.toISOString();
+
+                // 前回の lastActivity(=mtime) と一致すれば全ファイル走査をスキップ
+                const existingConv = existingCodexConversations.find(c => c.conversationId === uuid);
+                if (existingConv && existingConv.lastActivity === mtime) {
+                    codexConversations.push({ ...existingConv, _filePath: codexFile });
+                    continue;
+                }
+
                 codexConversations.push(await this._buildCodexConversationFromFile(codexFile));
             } catch {
                 // File stat error, skip
@@ -724,6 +745,9 @@ export class ConversationLinker {
             totalConversations,
             engines,
             lastConversation: this._serializeConversation(lastConversation),
+            // 次回 link 時に未変更ファイルの再走査をスキップするためのキャッシュ。
+            // 各会話の lastActivity(=mtime) と現ファイルの mtime を突き合わせて再利用する。
+            _cachedConversations: allConversations.map(c => this._serializeConversation(c)),
             tokenUsage,
             codexThreadId,
             lastAssistantSnippet,
