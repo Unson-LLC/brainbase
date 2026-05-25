@@ -347,8 +347,13 @@ export function applySessionCreationMixin(AppClass) {
                         && this._sessionStartupPromptQueue?.get(result.sessionId) === initialCommand) {
                         this._clearSessionStartupPromptState(result.sessionId);
                     }
-                    await this._flushSessionStartupPrompt(result.sessionId);
-                    if (shouldPresentSession) {
+                    const hadQueuedPrompt = this._sessionStartupPromptQueue?.has(result.sessionId) === true;
+                    if (hadQueuedPrompt) {
+                        await this._flushSessionStartupPrompt(result.sessionId);
+                    } else if (this._isSessionStartupComposerForSession(result.sessionId)) {
+                        this._setSessionStartupPromptStatus('準備できました。送信すると実行します。', 'ready');
+                    }
+                    if (shouldPresentSession && hadQueuedPrompt) {
                         await eventBus.emit(EVENTS.SESSION_CHANGED, {
                             sessionId: result.sessionId,
                             previousSessionId,
@@ -357,10 +362,6 @@ export function applySessionCreationMixin(AppClass) {
                     }
                 }
 
-                if (!this._sessionStartupPromptQueue?.has(result.sessionId)
-                    && this._isSessionStartupComposerForSession(result.sessionId)) {
-                    this.hideSessionStartupComposer();
-                }
                 this._sessionStartupParams?.delete(result.sessionId);
                 this._sessionStartupFailed?.delete(result.sessionId);
                 this._sessionStartupRetryRequested?.delete(result.sessionId);
@@ -443,17 +444,18 @@ export function applySessionCreationMixin(AppClass) {
                     if (!this._isSessionStartupShell(session)) {
                         this._sessionStartupResumeWatchers.delete(sessionId);
                         const previousSessionId = appStore.getState().currentSessionId || null;
-                        await this._flushSessionStartupPrompt(sessionId);
-                        if (previousSessionId === sessionId) {
+                        const hadQueuedPrompt = this._sessionStartupPromptQueue?.has(sessionId) === true;
+                        if (hadQueuedPrompt) {
+                            await this._flushSessionStartupPrompt(sessionId);
+                        } else if (this._isSessionStartupComposerForSession(sessionId)) {
+                            this._setSessionStartupPromptStatus('準備できました。送信すると実行します。', 'ready');
+                        }
+                        if (previousSessionId === sessionId && hadQueuedPrompt) {
                             await eventBus.emit(EVENTS.SESSION_CHANGED, {
                                 sessionId,
                                 previousSessionId,
                                 resumedStartup: true
                             });
-                        }
-                        if (!this._sessionStartupPromptQueue?.has(sessionId)
-                            && this._isSessionStartupComposerForSession(sessionId)) {
-                            this.hideSessionStartupComposer();
                         }
                         return;
                     }
@@ -663,7 +665,7 @@ export function applySessionCreationMixin(AppClass) {
             if (!input || !sendBtn) return;
             this._sessionStartupComposerBound = true;
 
-            const queueCurrentPrompt = () => {
+            const queueCurrentPrompt = async () => {
                 const currentInput = document.getElementById('session-startup-prompt-input') || input;
                 const sessionId = currentInput.dataset.sessionId || appStore.getState().currentSessionId;
                 if (!sessionId) return;
@@ -684,7 +686,14 @@ export function applySessionCreationMixin(AppClass) {
                     return;
                 }
                 if (this._isSessionStartupPromptReadyToSend(sessionId)) {
-                    void this._flushSessionStartupPrompt(sessionId);
+                    await this._flushSessionStartupPrompt(sessionId);
+                    if (appStore.getState().currentSessionId === sessionId) {
+                        await eventBus.emit(EVENTS.SESSION_CHANGED, {
+                            sessionId,
+                            previousSessionId: sessionId,
+                            startupComposerSubmitted: true
+                        });
+                    }
                 }
             };
             this._queueCurrentSessionStartupPrompt = queueCurrentPrompt;
@@ -695,7 +704,7 @@ export function applySessionCreationMixin(AppClass) {
                     if (!event.target?.closest?.('#session-startup-prompt-send')) return;
                     event.preventDefault();
                     event.stopPropagation();
-                    this._queueCurrentSessionStartupPrompt?.();
+                    void this._queueCurrentSessionStartupPrompt?.();
                 }, true);
             }
 
@@ -704,13 +713,13 @@ export function applySessionCreationMixin(AppClass) {
                 if (!sessionId) return;
                 this._sessionStartupPromptDrafts.set(sessionId, input.value);
                 if (this._isSessionStartupPromptWaitingForStartup(sessionId)) {
-                    if (input.value.trim()) {
-                        this._sessionStartupPromptQueue.set(sessionId, input.value);
-                        this._setSessionStartupPromptStatus('起動完了後に送信します', 'queued');
-                    } else {
-                        this._sessionStartupPromptQueue.delete(sessionId);
-                        this._setSessionStartupPromptStatus('入力待ち', 'idle');
-                    }
+                    if (!input.value.trim()) this._sessionStartupPromptQueue.delete(sessionId);
+                    this._setSessionStartupPromptStatus(
+                        input.value.trim()
+                            ? '入力内容は保持されています。送信すると実行します。'
+                            : '入力待ち',
+                        'idle'
+                    );
                     this._persistSessionStartupPromptState(sessionId);
                     return;
                 }
@@ -730,11 +739,11 @@ export function applySessionCreationMixin(AppClass) {
             input.onkeydown = (event) => {
                 if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
                 event.preventDefault();
-                queueCurrentPrompt();
+                void queueCurrentPrompt();
             };
             sendBtn.onclick = (event) => {
                 event?.preventDefault?.();
-                queueCurrentPrompt();
+                void queueCurrentPrompt();
             };
         },
 

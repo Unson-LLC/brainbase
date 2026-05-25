@@ -302,7 +302,7 @@ describe('applySessionCreationMixin', () => {
         expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
     });
 
-    it('startup composer draft typed during pending startup is queued and sent when ready', async () => {
+    it('startup composer draft typed during pending startup stays visible until send', async () => {
         document.body.innerHTML = `
             <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
                 <div class="loading-content">
@@ -371,9 +371,16 @@ describe('applySessionCreationMixin', () => {
         const input = document.getElementById('session-startup-prompt-input');
         input.value = 'draft only';
         input.dispatchEvent(new Event('input'));
-        expect(app._sessionStartupPromptQueue.get(result.sessionId)).toBe('draft only');
+        expect(app._sessionStartupPromptDrafts.get(result.sessionId)).toBe('draft only');
+        expect(app._sessionStartupPromptQueue.has(result.sessionId)).toBe(false);
 
         resolveStartup({ sessionId: result.sessionId, proxyPath: `/console/${result.sessionId}` });
+        await vi.waitFor(() => expect(app._sessionStartupInFlight.has(result.sessionId)).toBe(false));
+        expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
+        expect(document.getElementById('session-startup-composer').classList.contains('hidden')).toBe(false);
+        expect(document.getElementById('session-startup-prompt-status').textContent).toContain('準備できました');
+
+        document.getElementById('session-startup-prompt-send').click();
         await vi.waitFor(() => {
             expect(terminalInteractionService.sendInput).toHaveBeenCalledWith(result.sessionId, 'draft only');
         });

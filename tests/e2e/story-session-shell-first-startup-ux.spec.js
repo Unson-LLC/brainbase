@@ -155,12 +155,17 @@ test.describe('story-session-shell-first-startup-ux', () => {
 
             await setStartupPrompt(page, 'queued first prompt');
             await page.waitForTimeout(250);
-            // Typing while startup is pending should queue automatically before startup is released.
+            // Typing while startup is pending should remain a draft until the user submits it.
             await expect.poll(async () => (
                 await page.evaluate((sessionId) => (
-                    window.brainbaseApp?._sessionStartupPromptQueue?.get(sessionId) || null
+                    window.brainbaseApp?._sessionStartupPromptDrafts?.get(sessionId) || null
                 ), createPayload.sessionId)
             ), { timeout: 5000 }).toBe('queued first prompt');
+            await expect.poll(async () => (
+                await page.evaluate((sessionId) => (
+                    window.brainbaseApp?._sessionStartupPromptQueue?.has(sessionId) || false
+                ), createPayload.sessionId)
+            ), { timeout: 5000 }).toBe(false);
             expect(sentInputs).toEqual([]);
             await page.route('**/api/state', async (route) => {
                 await route.fulfill({
@@ -180,6 +185,10 @@ test.describe('story-session-shell-first-startup-ux', () => {
             });
 
             releaseWorktreeStartup();
+            await page.waitForTimeout(250);
+            expect(sentInputs).toEqual([]);
+            await expect(page.locator('#session-startup-composer')).not.toHaveClass(/hidden/);
+            await page.locator('#session-startup-prompt-send').click();
             await expect.poll(() => sentInputs.length, { timeout: 10000 }).toBe(1);
             expect(sentInputs[0].url).toContain(`/api/sessions/${createPayload.sessionId}/input`);
             expect(sentInputs[0].body).toEqual({
