@@ -7,15 +7,20 @@ surfaces:
   code:
     - server/services/codex-app-server-adapter.js
     - server/services/codex-app-server-activity-bridge.js
+    - server/services/codex-app-server-session-state.js
+    - server/services/session-runtime/runtime-query-methods.js
     - docs/stories/story-codex-appserver-session-state-ssot.md
     - docs/architecture/codex-appserver-session-state-ssot-architecture.md
     - docs/specs/codex-appserver-session-state-ssot-spec.md
     - tests/server/services/codex-app-server-adapter.test.js
     - tests/server/services/codex-app-server-activity-bridge.test.js
+    - tests/server/services/codex-app-server-session-state.test.js
+    - tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
   data:
     - in-memory Codex App Server process state
     - in-memory JSON-RPC pending request map
     - existing session hookStatus activity state when an adapter is wired through the activity bridge
+    - session.codexAppServer durable metadata for Codex-only App Server thread, turn, and restore identity
 depends_on:
   - session.create
   - terminal.transport
@@ -26,17 +31,20 @@ visibility_rules:
   - Emit app-server notifications as structured events instead of parsing terminal text.
   - App Server turn notifications may feed the existing activity indicator path only through the activity bridge and `activityService.reportActivity`.
   - App Server-backed indicator updates must use Brainbase session ids from explicit metadata or bridge context; terminal text must not be used to infer ownership.
-  - Do not persist Codex threads or turns until a separate session-state story defines the SSOT.
-  - The session-state SSOT story for App Server thread, turn, and restore metadata is `story-codex-appserver-session-state-ssot`.
+  - Persist only the App Server thread, active turn, lifecycle, and restore metadata defined by `story-codex-appserver-session-state-ssot`.
+  - Keep full App Server event item persistence out of scope unless a separate ledger story defines ownership and retention.
   - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
   commands:
     - npm test -- tests/server/services/codex-app-server-adapter.test.js
     - npm run test:run -- tests/server/services/codex-app-server-activity-bridge.test.js
+    - npm run test:run -- tests/server/services/codex-app-server-session-state.test.js tests/server/session-runtime-inventory.test.js
+    - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
     - npx -y @openai/codex@latest app-server --help
   expected:
     - Adapter unit tests pass.
     - Activity bridge tests prove `turn/started` maps to working and `turn/completed` maps to done-unread through existing hookStatus.
+    - Session-state tests prove Codex-only App Server metadata persistence, restore selection, explicit missing-metadata fallback, and Claude Code non-mutation.
     - Codex CLI exposes the app-server command. If the local global `codex` shim is broken, use `npx -y @openai/codex@latest` as the reproducible CLI entrypoint for this capability check.
     - Existing terminal transport remains unchanged for user-facing sessions.
 common_failures:
@@ -46,5 +54,6 @@ common_failures:
   - Accepting App Server notifications without an explicit Brainbase session id.
   - Exposing WebSocket app-server transport remotely without auth.
   - Persisting app-server events into Graph SSOT directly instead of a defined session/event ledger.
+  - Reading session.codexAppServer metadata for Claude Code sessions.
 runbooks: []
 troubleshooting: []

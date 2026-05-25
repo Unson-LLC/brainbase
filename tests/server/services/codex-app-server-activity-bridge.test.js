@@ -43,44 +43,55 @@ function createHarness() {
 
 describe('CodexAppServerActivityBridge', () => {
     it('maps turn/started notifications to working hook status with app-server turn id', () => {
-        const { adapter, services, broadcasts } = createHarness();
+        const { adapter, stateStore, services, broadcasts } = createHarness();
         const bridge = new CodexAppServerActivityBridge({
             adapter,
             activityService: services.activity,
+            stateStore,
             now: () => Date.now()
         }).attach();
 
-        adapter.emit('notification', {
+        const result = bridge.handleNotification({
             method: 'turn/started',
             params: {
+                thread: { id: 'thread_app_1' },
                 turn: {
                     id: 'turn_app_1',
                     metadata: { sessionId: 'session-codex' }
                 }
             }
         });
+        return result.stateUpdate.then(() => {
+            expect(stateStore.get().sessions[0].codexAppServer).toMatchObject({
+                threadId: 'thread_app_1',
+                activeTurnId: 'turn_app_1',
+                lifecycle: 'turn_started',
+                status: 'working',
+                source: 'codex_app_server'
+            });
 
-        const status = services.activity.getSessionStatus()['session-codex'];
-        expect(status).toMatchObject({
-            state: 'starting',
-            isWorking: true,
-            isDone: false,
-            activeTurnCount: 1,
-            lastEventType: 'turn/started',
-            liveActivity: {
-                activityKind: 'task_started',
-                currentStep: 'Codex App Serverで作業開始',
-                latestEvidence: 'codex app-server notification',
-                statusTone: 'working'
-            }
+            const status = services.activity.getSessionStatus()['session-codex'];
+            expect(status).toMatchObject({
+                state: 'starting',
+                isWorking: true,
+                isDone: false,
+                activeTurnCount: 1,
+                lastEventType: 'turn/started',
+                liveActivity: {
+                    activityKind: 'task_started',
+                    currentStep: 'Codex App Serverで作業開始',
+                    latestEvidence: 'codex app-server notification',
+                    statusTone: 'working'
+                }
+            });
+            expect(services.shared.hookStatus.get('session-codex').activeTurnIds).toEqual(['turn_app_1']);
+            expect(broadcasts).toHaveLength(1);
+            expect(broadcasts[0]).toMatchObject({
+                sessionId: 'session-codex',
+                hookStatus: { isWorking: true, activeTurnCount: 1 }
+            });
+            bridge.detach();
         });
-        expect(services.shared.hookStatus.get('session-codex').activeTurnIds).toEqual(['turn_app_1']);
-        expect(broadcasts).toHaveLength(1);
-        expect(broadcasts[0]).toMatchObject({
-            sessionId: 'session-codex',
-            hookStatus: { isWorking: true, activeTurnCount: 1 }
-        });
-        bridge.detach();
     });
 
     it('maps turn/completed notifications to done-unread and clears the matching turn id', () => {

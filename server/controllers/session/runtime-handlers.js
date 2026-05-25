@@ -4,30 +4,13 @@ import { promisify } from 'util';
 
 import { logger } from '../../utils/logger.js';
 import { TAKEOVER_COOLDOWN_MS } from './constants.js';
+import { getCodexResumeId } from '../../services/codex-app-server-session-state.js';
 
 const execAsync = promisify(exec);
 
 function isMissingTmuxPaneError(error) {
     const message = error instanceof Error ? error.message : String(error || '');
     return message.includes("can't find pane") || message.includes('no server running on');
-}
-
-function extractCodexResumeId(value) {
-    if (typeof value !== 'string') return null;
-    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
-    return match ? match[1] : null;
-}
-
-function getCodexResumeId(session, engine) {
-    const selectedEngine = typeof engine === 'string' && engine.trim()
-        ? engine
-        : session?.engine;
-    if (!session || selectedEngine !== 'codex') return null;
-    return session.codexThreadId
-        || session.conversationSummary?.codexThreadId
-        || session.conversationSummary?.lastConversation?.resumeId
-        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
-        || null;
 }
 
 async function repairCollapsedTerminalGeometry(controller, sessionId, reason) {

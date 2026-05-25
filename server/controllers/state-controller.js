@@ -53,6 +53,7 @@ const ALLOWED_SESSION_FIELDS = [
     'ttydProcess',
     // Recovery / binding fields
     'claudeResumeId', 'codexThreadId', 'bindingSource', 'bindingUpdatedAt',
+    'codexAppServer',
     'lastKnownGoodPath', 'recoveryState', 'recoveryReason', 'lastHealthyAt',
     // 状態管理フィールド
     'hookStatus',

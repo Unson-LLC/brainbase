@@ -3,6 +3,10 @@ import fs from 'fs';
 import net from 'net';
 import path from 'path';
 import { logger } from '../../utils/logger.js';
+import {
+    buildCodexAppServerRestoreMetadata,
+    getCodexAppServerThreadId
+} from '../codex-app-server-session-state.js';
 
 const PROCESS_CATEGORIES = [
     'codex',
@@ -66,6 +70,7 @@ function buildSessionRuntimeIdentifiers(session) {
     if (session?.id) add(`/console/${session.id}`, 'strong');
     addRuntimePath(session?.path);
     addRuntimePath(session?.worktree?.path);
+    add(getCodexAppServerThreadId(session), 'strong');
     add(session?.codexThreadId, 'strong');
     add(session?.conversationSummary?.codexThreadId, 'strong');
     add(session?.conversationSummary?.lastConversation?.resumeId, 'strong');
@@ -170,21 +175,6 @@ function buildProcessMatchMap(processRows, sessions, activeSessions = new Map())
     return matchMap;
 }
 
-function extractCodexResumeId(value) {
-    if (typeof value !== 'string') return null;
-    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
-    return match ? match[1] : null;
-}
-
-function getCodexResumeId(session) {
-    if (!session || session.engine !== 'codex') return null;
-    return session.codexThreadId
-        || session.conversationSummary?.codexThreadId
-        || session.conversationSummary?.lastConversation?.resumeId
-        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
-        || null;
-}
-
 function isStartupPending(session) {
     return session?.startupStatus === 'pending' || session?.startupStatus === 'failed';
 }
@@ -225,7 +215,8 @@ export function buildHibernationEligibility({
         processInfo?.category === 'unknown_child'
         && processInfo?.ownershipStrength !== 'strong'
     ));
-    const codexResumeId = getCodexResumeId(session);
+    const restoreMetadata = buildCodexAppServerRestoreMetadata(session);
+    const codexResumeId = restoreMetadata.codexResumeId;
 
     if (session.intendedState && session.intendedState !== 'active') {
         blockers.push('inactive_session_state');
@@ -277,9 +268,12 @@ export function buildHibernationEligibility({
         ownedProcesses,
         ambiguousProcessCount: ambiguousProcesses.length,
         restoreMetadata: {
-            restoreStrategy: session.engine === 'codex' ? 'codex_resume' : 'unsupported',
+            restoreStrategy: restoreMetadata.restoreStrategy,
             codexResumeId,
-            codexThreadId: session.codexThreadId || session.conversationSummary?.codexThreadId || null
+            codexThreadId: session.codexThreadId || session.conversationSummary?.codexThreadId || null,
+            codexAppServerThreadId: restoreMetadata.codexAppServerThreadId,
+            source: restoreMetadata.source,
+            blocker: restoreMetadata.blocker
         }
     };
 }

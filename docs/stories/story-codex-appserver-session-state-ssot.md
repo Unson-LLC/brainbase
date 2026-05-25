@@ -66,6 +66,8 @@ Without that contract, later App Server wiring can accidentally mix terminal-der
 - [ ] Existing xterm/tmux terminal transport files remain unchanged unless a separate terminal story approves that work.
 - [ ] Capability Map documents the new session-state boundary and the Codex-only visibility rule.
 - [ ] Unit or contract tests cover Codex session metadata persistence, Codex restore selection, Claude Code non-mutation, and stale metadata handling.
+- [ ] App Server notifications or session-state writes without a resolvable Brainbase session id return an explicit non-mutating outcome.
+- [ ] Runtime process rows that cannot be matched to a Brainbase session id do not create or infer App Server session ownership.
 
 ## スコープ外
 
@@ -75,6 +77,7 @@ Without that contract, later App Server wiring can accidentally mix terminal-der
 - Writing App Server events directly into Graph SSOT.
 - Exposing remote WebSocket App Server transport.
 - Changing OpenAI model selection, auth policy, or approval UX.
+- Creating session records from App Server notifications whose Brainbase session id is missing or unknown.
 
 ---
 
