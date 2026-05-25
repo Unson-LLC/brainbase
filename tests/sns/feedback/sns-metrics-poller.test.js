@@ -8,13 +8,17 @@ import {
     SnsMetricsPoller
 } from '../../../server/services/sns/sns-metrics-poller.js';
 
-function makePostedLedger({ status = 'posted', posted_url = 'https://x.com/AIBizNavigator/status/2055000000000000001' } = {}) {
+function makePostedLedger({
+    status = 'posted',
+    date = '2026-05-15',
+    posted_url = 'https://x.com/AIBizNavigator/status/2055000000000000001'
+} = {}) {
     const ledgerRepository = new InMemorySnsPostingLedgerRepository();
     ledgerRepository.upsertReviewPack({
         account_id: 'acc_x_sato',
         account_handle: '@AIBizNavigator',
         drafts: [{
-            date: '2026-05-15',
+            date,
             slot_index: 1,
             lane: 'learn_in_public',
             body: '投稿後の反応をLedgerに戻す'
@@ -39,6 +43,31 @@ function makePostedLedger({ status = 'posted', posted_url = 'https://x.com/AIBiz
         }, { actor_person_id: 'sato_keigo' });
     }
     return { ledgerRepository, post };
+}
+
+function addPostedLedgerPost(ledgerRepository, {
+    date = '2026-05-16',
+    slot_index = 2,
+    posted_url = 'https://x.com/AIBizNavigator/status/2055000000000000002'
+} = {}) {
+    ledgerRepository.upsertReviewPack({
+        account_id: 'acc_x_sato',
+        account_handle: '@AIBizNavigator',
+        drafts: [{
+            date,
+            slot_index,
+            lane: 'learn_in_public',
+            body: `投稿後の反応をLedgerに戻す ${slot_index}`
+        }]
+    });
+    let post = ledgerRepository.listPosts({ startDate: date, endDate: date })[0];
+    post = ledgerRepository.updatePost(post.id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+    post = ledgerRepository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+    return ledgerRepository.updatePost(post.id, {
+        status: 'posted',
+        posted_url,
+        posted_at: `${date}T03:00:00.000Z`
+    }, { actor_person_id: 'sato_keigo' });
 }
 
 function makeAccountRepository() {
@@ -119,6 +148,167 @@ describe('SnsMetricsPoller', () => {
 
         expect(result.scanned).toBe(0);
         expect(result.polled).toBe(0);
+    });
+
+    it('surfaces posted records without posted_url as skipped instead of hiding them from scanned counts', async () => {
+        const { ledgerRepository, post } = makePostedLedger({ posted_url: null });
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository(),
+            xClient: { fetchTweetMetrics: vi.fn() }
+        });
+
+        const result = await poller.run({ date: '2026-05-15', mark_learning_ready: true });
+
+        expect(result).toMatchObject({
+            scanned: 1,
+            polled: 0,
+            failed: 0,
+            skipped: 1,
+            skipped_posts: [{
+                post_id: post.id,
+                reason: 'missing_posted_url'
+            }]
+        });
+    });
+
+    it('scopes polling to the requested Ledger date', async () => {
+        const { ledgerRepository, post } = makePostedLedger({ date: '2026-05-15' });
+        addPostedLedgerPost(ledgerRepository, {
+            date: '2026-05-16',
+            slot_index: 2,
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000002'
+        });
+        const xClient = {
+            fetchTweetMetrics: vi.fn(async () => ({
+                impressions: 120,
+                likes: 8,
+                reposts: 1,
+                replies: 2,
+                bookmarks: 3
+            }))
+        };
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository(),
+            xClient
+        });
+
+        const result = await poller.run({ limit: 10, date: '2026-05-15' });
+
+        expect(result).toMatchObject({
+            date: '2026-05-15',
+            scanned: 1,
+            polled: 1,
+            failed: 0,
+            learning_ready: {
+                before: 0,
+                promoted: 0,
+                after: 0
+            }
+        });
+        expect(result.polled_posts.map((entry) => entry.post_id)).toEqual([post.id]);
+        expect(xClient.fetchTweetMetrics).toHaveBeenCalledTimes(1);
+    });
+
+    it('can promote successfully polled posted records to learning_ready', async () => {
+        const { ledgerRepository, post } = makePostedLedger();
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository(),
+            xClient: {
+                fetchTweetMetrics: vi.fn(async () => ({
+                    impressions: 300,
+                    likes: 12,
+                    reposts: 2,
+                    replies: 1,
+                    bookmarks: 5
+                }))
+            },
+            now: () => new Date('2026-05-15T12:00:00.000Z')
+        });
+
+        const result = await poller.run({ limit: 10, mark_learning_ready: true });
+
+        expect(result.polled_posts[0]).toMatchObject({
+            post_id: post.id,
+            previous_status: 'posted',
+            status: 'learning_ready'
+        });
+        expect(result.learning_ready).toEqual({
+            before: 0,
+            promoted: 1,
+            after: 1
+        });
+        const updated = ledgerRepository.findById(post.id);
+        expect(updated.status).toBe('learning_ready');
+        expect(updated.metrics_snapshots).toHaveLength(1);
+    });
+
+    it('does not mutate metrics or status during dry_run even with mark_learning_ready', async () => {
+        const { ledgerRepository, post } = makePostedLedger();
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository(),
+            xClient: {
+                fetchTweetMetrics: vi.fn(async () => ({
+                    impressions: 300,
+                    likes: 12,
+                    reposts: 2,
+                    replies: 1,
+                    bookmarks: 5
+                }))
+            }
+        });
+
+        const result = await poller.run({ limit: 10, dry_run: true, mark_learning_ready: true });
+
+        expect(result).toMatchObject({
+            dry_run: true,
+            mark_learning_ready: true,
+            polled: 1,
+            learning_ready: {
+                before: 0,
+                promoted: 0,
+                after: 0
+            }
+        });
+        const updated = ledgerRepository.findById(post.id);
+        expect(updated.status).toBe('posted');
+        expect(updated.metrics_snapshots).toHaveLength(0);
+    });
+
+    it('surfaces fetch failures without promoting or hiding them as zero reactions', async () => {
+        const { ledgerRepository, post } = makePostedLedger();
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository(),
+            xClient: {
+                fetchTweetMetrics: vi.fn(async () => {
+                    const error = new Error('X API response missing tweet data');
+                    error.code = 'missing_tweet_data';
+                    throw error;
+                })
+            }
+        });
+
+        const result = await poller.run({ limit: 10, mark_learning_ready: true });
+
+        expect(result).toMatchObject({
+            scanned: 1,
+            polled: 0,
+            failed: 1,
+            learning_ready: {
+                before: 0,
+                promoted: 0,
+                after: 0
+            },
+            failed_posts: [{
+                post_id: post.id,
+                code: 'missing_tweet_data'
+            }]
+        });
+        expect(ledgerRepository.findById(post.id).status).toBe('posted');
     });
 
     it('fires anomaly notifier when reply ratio crosses the configured threshold', async () => {

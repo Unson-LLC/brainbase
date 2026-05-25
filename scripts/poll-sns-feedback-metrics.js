@@ -18,12 +18,20 @@ const { Pool } = pg;
 export function parseArgs(argv) {
     const args = {
         limit: 20,
+        date: null,
+        markLearningReady: false,
         dryRun: false,
         json: false
     };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
         if (arg === '--limit') args.limit = Number(argv[++i]);
+        if (arg === '--date') {
+            const value = argv[++i];
+            args.date = value && !value.startsWith('--') ? value : '';
+            if (value?.startsWith('--')) i -= 1;
+        }
+        if (arg === '--mark-learning-ready') args.markLearningReady = true;
         if (arg === '--dry-run') args.dryRun = true;
         if (arg === '--json') args.json = true;
     }
@@ -34,10 +42,27 @@ export function validateArgs(args) {
     if (!Number.isInteger(args.limit) || args.limit < 1) {
         throw new Error('--limit must be a positive integer');
     }
+    if (args.date === '') {
+        throw new Error('--date requires YYYY-MM-DD');
+    }
+    if (!args.dryRun && !args.date) {
+        throw new Error('--date is required for non-dry-run metrics polling');
+    }
+    if (args.date && !/^\d{4}-\d{2}-\d{2}$/u.test(args.date)) {
+        throw new Error('--date must be YYYY-MM-DD');
+    }
 }
 
 export function resolveMetricsPollingEnabled(env = process.env) {
     return ['true', '1', 'yes'].includes(String(env.SNS_METRICS_POLLING_ENABLED || '').toLowerCase());
+}
+
+export function buildMetricsPollingDisabledResult() {
+    return {
+        skipped: true,
+        reason: 'metrics_polling_disabled',
+        hint: 'Set SNS_METRICS_POLLING_ENABLED=true or run with --dry-run.'
+    };
 }
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
@@ -48,6 +73,10 @@ export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
 
 export function resolveSnsPostingLedgerFile(env = process.env, cwd = process.cwd()) {
     return env.SNS_POSTING_LEDGER_FILE || path.join(cwd, 'var', 'sns-posting-ledger.json');
+}
+
+export function formatSummary(result) {
+    return `SNS metrics poller: date=${result.date || '-'} scanned=${result.scanned} polled=${result.polled} failed=${result.failed} skipped=${result.skipped} learning_ready=${result.learning_ready?.after ?? 0} anomalies=${result.anomalies.length} mark_learning_ready=${result.mark_learning_ready} dry_run=${result.dry_run}`;
 }
 
 function consoleAnomalyNotifier(info) {
@@ -63,11 +92,8 @@ async function main() {
     validateArgs(args);
     const enabled = resolveMetricsPollingEnabled();
     if (!enabled && !args.dryRun) {
-        console.log(JSON.stringify({
-            skipped: true,
-            reason: 'metrics_polling_disabled',
-            hint: 'Set SNS_METRICS_POLLING_ENABLED=true or run with --dry-run.'
-        }, null, 2));
+        console.log(JSON.stringify(buildMetricsPollingDisabledResult(), null, 2));
+        process.exitCode = 1;
         return;
     }
 
@@ -100,15 +126,20 @@ async function main() {
             xClient: new XApiClient(),
             anomalyNotifier: consoleAnomalyNotifier
         });
-        const result = await poller.run({ limit: args.limit, dry_run: args.dryRun });
+        const result = await poller.run({
+            limit: args.limit,
+            date: args.date,
+            dry_run: args.dryRun,
+            mark_learning_ready: args.markLearningReady
+        });
         const output = JSON.stringify(result, null, 2);
         if (args.json) {
             console.log(output);
         } else {
-            console.log(`SNS metrics poller: scanned=${result.scanned} polled=${result.polled} failed=${result.failed} anomalies=${result.anomalies.length} dry_run=${result.dry_run}`);
+            console.log(formatSummary(result));
             console.log(output);
         }
-        if (result.failed > 0) process.exitCode = 1;
+        if (result.failed > 0 || result.skipped > 0) process.exitCode = 1;
     } finally {
         await pool?.end();
     }

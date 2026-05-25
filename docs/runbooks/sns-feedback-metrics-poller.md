@@ -9,14 +9,16 @@ Graph SSOT へ raw metrics は書かない。Graph へ戻す場合は `learning_
 ## 手動実行
 
 ```bash
-npm run sns:poll-metrics -- --dry-run --json
+npm run sns:poll-metrics -- --date YYYY-MM-DD --dry-run --json
 ```
 
 本番反映:
 
 ```bash
-SNS_METRICS_POLLING_ENABLED=true npm run sns:poll-metrics -- --json
+SNS_METRICS_POLLING_ENABLED=true npm run sns:poll-metrics -- --date YYYY-MM-DD --json
 ```
+
+`--date` は本番反映時に必須。省略すると複数日の Ledger record を poll / 更新し得るため、CLI は non-dry-run の日付未指定を失敗させる。
 
 必要な環境変数:
 
@@ -32,6 +34,7 @@ config/com.brainbase.sns-feedback-metrics-poller.plist
 ```
 
 安全側の初期値は `SNS_METRICS_POLLING_ENABLED=false`。有効化する場合は、ユーザーの LaunchAgents 側で true に変える。
+テンプレートは実行日の `--date "$(date +%F)"` を渡すため、scheduled polling も日付スコープ外の Ledger record を更新しない。
 
 ログ:
 

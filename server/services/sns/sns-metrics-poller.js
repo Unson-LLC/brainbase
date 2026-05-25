@@ -60,20 +60,32 @@ export class SnsMetricsPoller {
         this.now = now;
     }
 
-    async run({ limit = DEFAULT_LIMIT, dry_run = false } = {}) {
-        const candidates = await this._candidatePosts(limit);
+    async run({ limit = DEFAULT_LIMIT, dry_run = false, date = null, mark_learning_ready = false } = {}) {
+        const candidates = await this._candidatePosts(limit, { date });
         const result = {
+            date,
             scanned: candidates.length,
             polled: 0,
             failed: 0,
             skipped: 0,
             dry_run,
+            mark_learning_ready,
+            learning_ready: {
+                before: candidates.filter((post) => post.status === 'learning_ready').length,
+                promoted: 0,
+                after: candidates.filter((post) => post.status === 'learning_ready').length
+            },
             polled_posts: [],
             failed_posts: [],
             skipped_posts: [],
             anomalies: []
         };
         for (const post of candidates) {
+            if (!post.posted_url) {
+                result.skipped += 1;
+                result.skipped_posts.push({ post_id: post.id, reason: 'missing_posted_url' });
+                continue;
+            }
             const tweetId = extractTweetIdFromUrl(post.posted_url);
             if (!tweetId) {
                 result.skipped += 1;
@@ -93,15 +105,24 @@ export class SnsMetricsPoller {
                 const snapshot = withCaptureMetadata(metrics, { tweetId, capturedAt, anomaly });
                 let updated = post;
                 if (!dry_run) {
-                    updated = await this.ledgerRepository.updatePost(post.id, {
+                    const patch = {
                         metrics_snapshot: snapshot
-                    }, { actor_person_id: 'sns_metrics_poller' });
+                    };
+                    if (mark_learning_ready && post.status === 'posted') {
+                        patch.status = 'learning_ready';
+                    }
+                    updated = await this.ledgerRepository.updatePost(post.id, patch, { actor_person_id: 'sns_metrics_poller' });
+                }
+                if (post.status !== 'learning_ready' && updated.status === 'learning_ready') {
+                    result.learning_ready.promoted += 1;
+                    result.learning_ready.after += 1;
                 }
                 result.polled += 1;
                 result.polled_posts.push({
                     post_id: post.id,
                     tweet_id: tweetId,
                     metrics,
+                    previous_status: post.status,
                     status: updated.status
                 });
                 if (anomaly) {
@@ -130,11 +151,12 @@ export class SnsMetricsPoller {
         return result;
     }
 
-    async _candidatePosts(limit) {
-        const posted = await this.ledgerRepository.listPosts({ status: 'posted' });
-        const learningReady = await this.ledgerRepository.listPosts({ status: 'learning_ready' });
+    async _candidatePosts(limit, { date = null } = {}) {
+        const dateFilter = date ? { startDate: date, endDate: date } : {};
+        const posted = await this.ledgerRepository.listPosts({ ...dateFilter, status: 'posted' });
+        const learningReady = await this.ledgerRepository.listPosts({ ...dateFilter, status: 'learning_ready' });
         return [...posted, ...learningReady]
-            .filter((post) => post.posted_url && post.status !== 'deleted')
+            .filter((post) => post.status !== 'deleted')
             .sort((a, b) => String(a.posted_at || a.scheduled_at || '').localeCompare(String(b.posted_at || b.scheduled_at || '')))
             .slice(0, limit);
     }
