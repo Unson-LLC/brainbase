@@ -10,9 +10,14 @@ describe('LiveFeedView', () => {
     let service;
     let view;
     let container;
+    let store;
 
     beforeEach(() => {
         container = document.createElement('div');
+        store = {
+            getState: vi.fn(() => ({ currentSessionId: 'session-1' })),
+            subscribeToSelector: vi.fn(() => vi.fn()),
+        };
         service = {
             start: vi.fn(),
             stop: vi.fn(),
@@ -56,7 +61,7 @@ describe('LiveFeedView', () => {
                 },
             ]),
         };
-        view = new LiveFeedView({ liveFeedService: service });
+        view = new LiveFeedView({ liveFeedService: service, store });
     });
 
     afterEach(() => {
@@ -67,34 +72,35 @@ describe('LiveFeedView', () => {
         view.mount(container);
 
         expect(container.querySelector('.live-feed-status')?.textContent).toContain('LIVE');
-        expect(container.querySelector('.live-feed-filter-group')?.textContent).toContain('Wiki');
-        expect(container.querySelector('.feed-filter-btn[data-filter="task"] .feed-filter-count')?.textContent).toBe('2');
-        expect(container.querySelector('.feed-section-label')?.textContent).toBe('NOW');
+        expect(container.querySelector('.live-feed-scope-group')?.textContent).toContain('このセッション');
+        expect(container.querySelector('.feed-scope-btn[data-scope="current"] .feed-scope-count')?.textContent).toBe('1');
+        expect(container.querySelector('.feed-section-label')?.textContent).toBe('新しい更新');
         expect(container.querySelector('.feed-item')).toBeTruthy();
         expect(container.querySelector('.feed-item-rail')).toBeTruthy();
         expect(container.querySelector('.feed-item-dot.working')).toBeTruthy();
         expect(container.querySelector('.feed-item-actions')).toBeTruthy();
         expect(Array.from(container.querySelectorAll('.feed-item-action')).every((button) => button.disabled)).toBe(true);
+        expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: このセッション');
+        expect(store.subscribeToSelector).toHaveBeenCalled();
+    });
+
+    it('全体ボタン押下時_全セッションの更新に切り替わる', () => {
+        view.mount(container);
+
+        container.querySelector('.feed-scope-btn[data-scope="all"]').click();
+
+        expect(container.querySelector('.feed-scope-btn[data-scope="all"]').classList.contains('active')).toBe(true);
+        expect(container.querySelector('.feed-scope-btn[data-scope="all"]').getAttribute('aria-pressed')).toBe('true');
+        expect(container.querySelectorAll('.feed-item')).toHaveLength(3);
         expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体');
     });
 
-    it('フィルタボタン押下時_該当カテゴリだけに絞り込まれる', () => {
-        view.mount(container);
-
-        container.querySelector('.feed-filter-btn[data-filter="system"]').click();
-
-        expect(container.querySelector('.feed-filter-btn[data-filter="system"]').classList.contains('active')).toBe(true);
-        expect(container.querySelector('.feed-filter-btn[data-filter="system"]').getAttribute('aria-pressed')).toBe('true');
-        expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
-        expect(container.querySelector('.feed-item-label')?.textContent).toBe('システムイベント');
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体 / フィルタ: システム');
-    });
-
-    it('該当なしフィルタ押下時_カテゴリ別の空状態を表示する', () => {
+    it('現在セッションに更新がない場合_全体への切り替えを案内する', () => {
         service.getEntries = vi.fn(() => [
             {
-                id: 'session-1',
-                sessionId: 'session-1',
+                id: 'session-2',
+                sessionId: 'session-2',
                 timestamp: new Date('2026-05-07T11:34:52.000Z'),
                 label: 'タスク完了',
                 icon: 'check-circle',
@@ -107,13 +113,25 @@ describe('LiveFeedView', () => {
         ]);
         view.mount(container);
 
-        container.querySelector('.feed-filter-btn[data-filter="wiki"]').click();
-
         expect(container.querySelectorAll('.feed-item')).toHaveLength(0);
-        expect(container.querySelector('.live-feed-empty')?.textContent).toContain('Wikiの更新はありません');
+        expect(container.querySelector('.live-feed-empty')?.textContent).toContain('このセッションの更新はありません');
     });
 
-    it('S-5/S-6: activity historyを主表示しsession-focused filterで履歴を絞り込む', () => {
+    it('currentSessionIdがない場合_全体表示としてscope controlを選択する', () => {
+        store.getState = vi.fn(() => ({ currentSessionId: null }));
+
+        view.mount(container);
+
+        expect(container.querySelector('.feed-scope-btn[data-scope="current"]')?.disabled).toBe(true);
+        expect(container.querySelector('.feed-scope-btn[data-scope="current"]')?.getAttribute('aria-pressed')).toBe('false');
+        expect(container.querySelector('.feed-scope-btn[data-scope="all"]')?.classList.contains('active')).toBe(true);
+        expect(container.querySelector('.feed-scope-btn[data-scope="all"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect(container.querySelectorAll('.feed-item')).toHaveLength(3);
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体');
+    });
+
+    it('S-5/S-6: activity historyを主表示し現在セッション範囲で履歴を絞り込む', () => {
+        store.getState = vi.fn(() => ({ currentSessionId: 'session-alpha' }));
         service.getHistoryEntries = vi.fn((options = {}) => {
             const entries = [
                 {
@@ -155,19 +173,21 @@ describe('LiveFeedView', () => {
 
         view.mount(container);
 
-        expect(Array.from(container.querySelectorAll('.feed-item-history-text')).some((node) => node.textContent.includes('実装ファイルを確認中'))).toBe(true);
-        expect(Array.from(container.querySelectorAll('.feed-item-source')).some((node) => node.textContent.includes('活動報告'))).toBe(true);
-        expect(container.querySelector('.live-feed-session-scope')?.textContent).toContain('Alpha');
-
-        container.querySelector('.feed-session-chip[data-session-scope="session-alpha"]').click();
-
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Live Feedで過去の依頼を出して');
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: Alpha');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: このセッション');
+        expect(service.getHistoryEntries).toHaveBeenCalledWith({ mode: 'session', sessionId: 'session-alpha' });
+
+        container.querySelector('.feed-scope-btn[data-scope="all"]').click();
+
+        expect(Array.from(container.querySelectorAll('.feed-item-history-text')).some((node) => node.textContent.includes('実装ファイルを確認中'))).toBe(true);
+        expect(Array.from(container.querySelectorAll('.feed-item-source')).some((node) => node.textContent.includes('活動報告'))).toBe(true);
     });
 
-    it('S-9/S-10: default表示は全体時系列で、セッションchipで同じ時系列を絞り込む', () => {
-        service.getHistoryEntries = vi.fn(() => [
+    it('S-9/S-10: default表示は現在セッションで、全体ボタンで同じ時系列を横断表示する', () => {
+        store.getState = vi.fn(() => ({ currentSessionId: 'session-alpha' }));
+        service.getHistoryEntries = vi.fn((options = {}) => {
+            const entries = [
             {
                 id: 'beta-activity',
                 sessionId: 'session-beta',
@@ -190,17 +210,74 @@ describe('LiveFeedView', () => {
                 text: 'UIを確認して',
                 provenanceLabel: 'raw prompt',
             },
-        ]);
+            ];
+            if (options.mode === 'session' && options.sessionId) {
+                return entries.filter((entry) => entry.sessionId === options.sessionId);
+            }
+            return entries;
+        });
 
         view.mount(container);
 
         expect(container.querySelector('.feed-view-mode-btn')).toBeNull();
         expect(container.querySelectorAll('.feed-session-section')).toHaveLength(0);
+        expect(Array.from(container.querySelectorAll('.feed-item-label')).map((node) => node.textContent)).toEqual(['Alpha']);
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: このセッション');
+
+        container.querySelector('.feed-scope-btn[data-scope="all"]').click();
+
         expect(Array.from(container.querySelectorAll('.feed-item-label')).map((node) => node.textContent)).toEqual(['Beta', 'Alpha']);
-        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: 全体');
+    });
 
-        container.querySelector('.feed-session-chip[data-session-scope="session-alpha"]').click();
+    it('currentSessionId変更時_現在セッション範囲を再描画する', () => {
+        let currentSessionId = 'session-alpha';
+        let selectorCallback;
+        store.getState = vi.fn(() => ({ currentSessionId }));
+        store.subscribeToSelector = vi.fn((selector, callback) => {
+            selectorCallback = callback;
+            return vi.fn();
+        });
+        service.getHistoryEntries = vi.fn((options = {}) => {
+            const entries = [
+                {
+                    id: 'alpha-prompt',
+                    sessionId: 'session-alpha',
+                    timestamp: new Date('2026-05-07T11:30:00.000Z'),
+                    label: 'Alpha',
+                    icon: 'message-square',
+                    statusTone: 'prompt',
+                    statusText: 'ユーザー入力',
+                    text: 'Alphaの依頼履歴',
+                    provenanceLabel: 'raw prompt',
+                },
+                {
+                    id: 'beta-prompt',
+                    sessionId: 'session-beta',
+                    timestamp: new Date('2026-05-07T11:31:00.000Z'),
+                    label: 'Beta',
+                    icon: 'message-square',
+                    statusTone: 'prompt',
+                    statusText: 'ユーザー入力',
+                    text: 'Betaの依頼履歴',
+                    provenanceLabel: 'raw prompt',
+                },
+            ];
+            if (options.mode === 'session' && options.sessionId) {
+                return entries.filter((entry) => entry.sessionId === options.sessionId);
+            }
+            return entries;
+        });
 
-        expect(service.getHistoryEntries).toHaveBeenLastCalledWith({ mode: 'session', sessionId: 'session-alpha' });
+        view.mount(container);
+
+        expect(Array.from(container.querySelectorAll('.feed-item-label')).map((node) => node.textContent)).toEqual(['Alpha']);
+
+        currentSessionId = 'session-beta';
+        selectorCallback?.({ value: 'session-beta', oldValue: 'session-alpha' });
+
+        expect(service.getHistoryEntries).toHaveBeenLastCalledWith({ mode: 'session', sessionId: 'session-beta' });
+        expect(Array.from(container.querySelectorAll('.feed-item-label')).map((node) => node.textContent)).toEqual(['Beta']);
+        expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Betaの依頼履歴');
+        expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: このセッション');
     });
 });

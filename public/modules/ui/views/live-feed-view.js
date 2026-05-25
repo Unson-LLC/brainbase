@@ -4,22 +4,21 @@
  * セッション横断で現在のAIアクティビティを時系列表示する。
  */
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { appStore } from '../../core/store.js';
 
-const FEED_FILTERS = [
-    { id: 'all', label: 'すべて' },
-    { id: 'task', label: 'タスク' },
-    { id: 'wiki', label: 'Wiki' },
-    { id: 'session', label: 'セッション' },
-    { id: 'system', label: 'システム' },
+const FEED_SCOPES = [
+    { id: 'current', label: 'このセッション' },
+    { id: 'all', label: '全体' },
 ];
 
 export class LiveFeedView {
-    constructor({ liveFeedService, service, eventBus, container }) {
+    constructor({ liveFeedService, service, eventBus, container, store }) {
         this.liveFeedService = liveFeedService || service;
+        this.store = store || this.liveFeedService?.store || appStore;
         this._container = container || null;
         this._unsubEntry = null;
-        this._activeFilter = 'all';
-        this._activeSessionId = null;
+        this._unsubCurrentSession = null;
+        this._activeScope = 'current';
     }
 
     mount(container) {
@@ -29,6 +28,10 @@ export class LiveFeedView {
         this._unsubEntry = this.liveFeedService.onEntry(() => {
             this._render();
         });
+        this._unsubCurrentSession = this.store?.subscribeToSelector?.(
+            state => state.currentSessionId,
+            () => this._render()
+        ) || null;
     }
 
     _formatTime(date) {
@@ -47,88 +50,21 @@ export class LiveFeedView {
         return '待機';
     }
 
-    _entryText(entry) {
-        return [
-            entry.label,
-            entry.sessionId,
-            entry.taskBrief,
-            entry.currentStep,
-            entry.latestEvidence,
-            entry.text,
-            entry.provenanceLabel,
-            entry.statusText,
-            entry.icon,
-        ].filter(Boolean).join(' ');
-    }
-
-    _entryCategories(entry) {
-        const text = this._entryText(entry).toLowerCase();
-        const categories = new Set();
-
-        if (entry.taskBrief || /(^|\s)#?p\d\b/i.test(text) || text.includes('task') || text.includes('タスク') || text.includes('nocodb') || text.includes('bug-')) {
-            categories.add('task');
-        }
-
-        if (text.includes('wiki') || text.includes('ウィキ') || text.includes('記事') || entry.icon === 'file-text' || entry.icon === 'book-open') {
-            categories.add('wiki');
-        }
-
-        if (
-            entry.statusTone === 'blocked'
-            || entry.statusTone === 'paused'
-            || ['square', 'settings', 'alert-triangle', 'circle-alert'].includes(entry.icon)
-            || text.includes('system')
-            || text.includes('システム')
-            || text.includes('auto-update')
-            || text.includes('エラー')
-            || text.includes('停止')
-        ) {
-            categories.add('system');
-        }
-
-        if (
-            categories.size === 0
-            || text.includes('session')
-            || text.includes('セッション')
-            || text.includes('応答')
-            || text.includes('入力待ち')
-            || text.includes('待機')
-            || text.includes('完了')
-            || entry.sessionId
-        ) {
-            categories.add('session');
-        }
-
-        return categories;
-    }
-
     _filterEntries(entries) {
-        if (this._activeFilter === 'all') return entries;
-        return entries.filter((entry) => this._entryCategories(entry).has(this._activeFilter));
+        return entries;
     }
 
-    _filterCounts(entries) {
-        const counts = { all: entries.length, task: 0, wiki: 0, session: 0, system: 0 };
-        for (const entry of entries) {
-            const categories = this._entryCategories(entry);
-            for (const category of categories) {
-                if (category in counts) counts[category] += 1;
-            }
-        }
-        return counts;
+    _currentSessionId() {
+        return this.store?.getState?.()?.currentSessionId || null;
     }
 
-    _activeFilterLabel() {
-        return FEED_FILTERS.find((filter) => filter.id === this._activeFilter)?.label || 'すべて';
+    _activeScopeLabel() {
+        if (this._activeScope === 'current' && !this._currentSessionId()) return '全体';
+        return FEED_SCOPES.find((scope) => scope.id === this._activeScope)?.label || '全体';
     }
 
     _displayModeLabel() {
-        const scope = this._activeSessionId
-            ? this._sessionOptions(this._getDisplayedEntries()).find((session) => session.id === this._activeSessionId)?.label || '選択セッション'
-            : '全体';
-        const filter = this._activeFilterLabel();
-        const scoped = `時系列 / 範囲: ${scope}`;
-        return this._activeFilter === 'all' ? scoped : `${scoped} / フィルタ: ${filter}`;
+        return `時系列 / 範囲: ${this._activeScopeLabel()}`;
     }
 
     _sourceLabel(entry) {
@@ -142,12 +78,16 @@ export class LiveFeedView {
     }
 
     _getDisplayedEntries() {
+        const currentSessionId = this._currentSessionId();
         if (typeof this.liveFeedService.getHistoryEntries === 'function') {
-            return this.liveFeedService.getHistoryEntries(this._activeSessionId
-                ? { mode: 'session', sessionId: this._activeSessionId }
-                : { mode: 'all' });
+            return this._activeScope === 'current' && currentSessionId
+                ? this.liveFeedService.getHistoryEntries({ mode: 'session', sessionId: currentSessionId })
+                : this.liveFeedService.getHistoryEntries({ mode: 'all' });
         }
-        return this.liveFeedService.getEntries();
+        const entries = this.liveFeedService.getEntries();
+        return this._activeScope === 'current' && currentSessionId
+            ? entries.filter((entry) => entry.sessionId === currentSessionId)
+            : entries;
     }
 
     _sessionOptions(entries) {
@@ -159,47 +99,36 @@ export class LiveFeedView {
         return Array.from(byId.entries()).map(([id, label]) => ({ id, label }));
     }
 
-    _renderFilters(entries) {
-        const counts = this._filterCounts(entries);
-        return FEED_FILTERS.map((filter) => {
-            const active = filter.id === this._activeFilter;
-            return `<button class="feed-filter-btn${active ? ' active' : ''}" type="button" data-filter="${filter.id}" aria-pressed="${active ? 'true' : 'false'}">
-                <span>${filter.label}</span>
-                <span class="feed-filter-count">${counts[filter.id] || 0}</span>
+    _renderScopeControls(allEntries) {
+        const currentSessionId = this._currentSessionId();
+        const effectiveActiveScope = this._activeScope === 'current' && !currentSessionId ? 'all' : this._activeScope;
+        const currentCount = currentSessionId
+            ? allEntries.filter((entry) => entry.sessionId === currentSessionId).length
+            : 0;
+        const counts = { current: currentCount, all: allEntries.length };
+        return FEED_SCOPES.map((scope) => {
+            const disabled = scope.id === 'current' && !currentSessionId;
+            const active = scope.id === effectiveActiveScope;
+            return `<button class="feed-scope-btn${active ? ' active' : ''}" type="button" data-scope="${scope.id}" aria-pressed="${active ? 'true' : 'false'}" ${disabled ? 'disabled' : ''}>
+                <span>${scope.label}</span>
+                <span class="feed-scope-count">${counts[scope.id] || 0}</span>
             </button>`;
         }).join('');
     }
 
-    _renderSessionScope(entries) {
-        const scopeEntries = typeof this.liveFeedService.getHistoryEntries === 'function'
-            ? this.liveFeedService.getHistoryEntries({ mode: 'all' })
-            : entries;
-        const sessions = this._sessionOptions(scopeEntries);
-        if (sessions.length <= 1) return '';
-        const allActive = !this._activeSessionId;
-        return `<div class="live-feed-session-scope" aria-label="Live Feed session scope">
-            <button class="feed-session-chip${allActive ? ' active' : ''}" type="button" data-session-scope="all" aria-pressed="${allActive ? 'true' : 'false'}">全体</button>
-            ${sessions.map((session) => {
-                const active = session.id === this._activeSessionId;
-                return `<button class="feed-session-chip${active ? ' active' : ''}" type="button" data-session-scope="${escapeHtml(session.id)}" aria-pressed="${active ? 'true' : 'false'}">${escapeHtml(session.label)}</button>`;
-            }).join('')}
-        </div>`;
-    }
-
     _renderGroups(entries) {
         if (entries.length === 0) {
-            const label = escapeHtml(this._activeFilterLabel());
+            const label = escapeHtml(this._activeScopeLabel());
             return `<div class="live-feed-empty">
                 <i data-lucide="radio"></i>
                 <p>${label}の更新はありません</p>
-                <span>別のフィルタを選ぶと他の更新を確認できます。</span>
+                <span>全体に切り替えると他セッションの更新を確認できます。</span>
             </div>`;
         }
 
         const groups = [
-            ['NOW', entries.slice(0, 3)],
-            ['RECENT', entries.slice(3, 8)],
-            ['EARLIER', entries.slice(8)],
+            ['新しい更新', entries.slice(0, 6)],
+            ['前の更新', entries.slice(6)],
         ].filter(([, items]) => items.length > 0);
 
         return groups.map(([label, items]) => `<section class="feed-section">
@@ -211,7 +140,7 @@ export class LiveFeedView {
     _renderEntry(entry) {
         const time = this._formatTime(entry.timestamp);
         const taskBrief = entry.taskBrief
-            ? `<span class="feed-item-task">${escapeHtml(entry.taskBrief)}</span>`
+            ? `<div class="feed-item-task">${escapeHtml(entry.taskBrief)}</div>`
             : '';
         const currentStep = entry.currentStep
             ? `<div class="feed-item-step">${escapeHtml(entry.currentStep)}</div>`
@@ -239,10 +168,11 @@ export class LiveFeedView {
                     <span class="feed-item-status">${status}</span>
                 </div>
                 <div class="feed-item-meta-line">
-                    ${taskBrief}
                     <span class="feed-item-session">${escapeHtml(entry.sessionId || '')}</span>
+                    <span class="feed-item-time-inline">${time}</span>
                     ${provenance}
                 </div>
+                ${taskBrief}
                 ${historyText}
                 ${currentStep}
                 ${latestEvidence}
@@ -266,6 +196,9 @@ export class LiveFeedView {
     _render() {
         if (!this._container) return;
 
+        const allEntries = typeof this.liveFeedService.getHistoryEntries === 'function'
+            ? this.liveFeedService.getHistoryEntries({ mode: 'all' })
+            : this.liveFeedService.getEntries();
         const entries = this._getDisplayedEntries();
         const filteredEntries = this._filterEntries(entries);
         const entriesHtml = this._renderGroups(filteredEntries);
@@ -282,8 +215,8 @@ export class LiveFeedView {
                 <div class="live-feed-status-wrap">
                     <span class="live-feed-status active"><span class="live-feed-status-dot"></span>LIVE</span>
                 </div>
-                <div class="live-feed-filter-group" aria-label="Live Feed filters">
-                    ${this._renderFilters(entries)}
+                <div class="live-feed-scope-group" aria-label="Live Feed scope">
+                    ${this._renderScopeControls(allEntries)}
                 </div>
                 <div class="live-feed-controls">
                     <button class="feed-control-btn" type="button" aria-label="一時停止" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="pause"></i></button>
@@ -291,41 +224,25 @@ export class LiveFeedView {
                     <button class="feed-control-btn" type="button" aria-label="フィルタ" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="sliders-horizontal"></i></button>
                 </div>
             </div>
-            ${this._renderSessionScope(entries)}
             <div class="live-feed-list">${entriesHtml}</div>
             <div class="live-feed-footer"${footerPadding}>
                 <span><span class="live-feed-footer-dot"></span>リアルタイム接続中</span>
-                <span>最終更新: ${entries[0] ? escapeHtml(this._formatTime(entries[0].timestamp)) : '--:--:--'}</span>
+                <span>最終更新: ${allEntries[0] ? escapeHtml(this._formatTime(allEntries[0].timestamp)) : '--:--:--'}</span>
                 <span>表示: ${escapeHtml(this._displayModeLabel())}</span>
             </div>
         </div>`;
 
-        this._bindFilterEvents();
-        this._bindSessionScopeEvents();
+        this._bindScopeEvents();
         refreshIcons({ nodes: [this._container] });
     }
 
-    _bindFilterEvents() {
+    _bindScopeEvents() {
         if (!this._container) return;
-        this._container.querySelectorAll('.feed-filter-btn[data-filter]').forEach((button) => {
+        this._container.querySelectorAll('.feed-scope-btn[data-scope]').forEach((button) => {
             button.addEventListener('click', () => {
-                const filter = button.dataset.filter || 'all';
-                if (filter === this._activeFilter) return;
-                this._activeFilter = filter;
-                this._render();
-            });
-        });
-    }
-
-    _bindSessionScopeEvents() {
-        if (!this._container) return;
-        this._container.querySelectorAll('.feed-session-chip[data-session-scope]').forEach((button) => {
-            button.addEventListener('click', () => {
-                const scope = button.dataset.sessionScope || 'all';
-                const nextSessionId = scope === 'all' ? null : scope;
-                if (nextSessionId === this._activeSessionId) return;
-                this._activeSessionId = nextSessionId;
-                this._activeFilter = 'all';
+                const scope = button.dataset.scope || 'current';
+                if (scope === this._activeScope || button.disabled) return;
+                this._activeScope = scope;
                 this._render();
             });
         });
@@ -335,6 +252,10 @@ export class LiveFeedView {
         if (this._unsubEntry) {
             this._unsubEntry();
             this._unsubEntry = null;
+        }
+        if (this._unsubCurrentSession) {
+            this._unsubCurrentSession();
+            this._unsubCurrentSession = null;
         }
         this.liveFeedService.stop();
         if (this._container) this._container.innerHTML = '';
