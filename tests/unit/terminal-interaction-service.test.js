@@ -290,6 +290,41 @@ describe('TerminalInteractionService', () => {
         expect(httpClient.post).not.toHaveBeenCalled();
     });
 
+    it('read-only displayではpaste/upload/key系入力を送信しない', async () => {
+        const httpClient = { post: vi.fn(async () => {}) };
+        const transport = {
+            canSendInput: vi.fn(() => true),
+            sendText: vi.fn(async () => {}),
+            sendPasteText: vi.fn(async () => {}),
+            sendKey: vi.fn(async () => {})
+        };
+        const service = new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => transport,
+            shouldUseXtermTransport: () => true,
+            isTerminalReadOnly: (sessionId) => sessionId === 'session-app-server'
+        });
+
+        expect(service.getAvailability('session-app-server')).toEqual({
+            canSend: false,
+            reason: 'read-only'
+        });
+        await expect(service.sendText('session-app-server', '/tmp/image.png')).rejects.toMatchObject({
+            code: 'TERMINAL_READ_ONLY'
+        });
+        await expect(service.sendPasteText('session-app-server', 'hello')).rejects.toMatchObject({
+            code: 'TERMINAL_READ_ONLY'
+        });
+        await expect(service.sendKey('session-app-server', 'Enter')).rejects.toMatchObject({
+            code: 'TERMINAL_READ_ONLY'
+        });
+
+        expect(transport.sendText).not.toHaveBeenCalled();
+        expect(transport.sendPasteText).not.toHaveBeenCalled();
+        expect(transport.sendKey).not.toHaveBeenCalled();
+        expect(httpClient.post).not.toHaveBeenCalled();
+    });
+
     it('ttyd系fallback時も送信可能と判定する', () => {
         const service = new TerminalInteractionService({
             httpClient: { post: vi.fn() },

@@ -834,6 +834,274 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(overlay.classList.contains('hidden')).toBe(true);
   });
 
+  it('Codex App Server display route switches to the App Server panel without starting terminal runtime', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+    app._resolveSessionRuntime = vi.fn();
+    app._ensureDesktopTerminalRuntime = vi.fn();
+    app._connectXtermTransport = vi.fn();
+    app._resolveTtydProxyPath = vi.fn();
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server',
+        name: 'App Server Session',
+        path: '/tmp/session-app-server',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    const result = await app.switchSession('session-app-server');
+    const panel = document.getElementById('codex-app-server-display-panel');
+
+    expect(result).toMatchObject({ ok: true, mode: 'codex_app_server' });
+    expect(app._resolveSessionRuntime).not.toHaveBeenCalled();
+    expect(app._ensureDesktopTerminalRuntime).not.toHaveBeenCalled();
+    expect(app._connectXtermTransport).not.toHaveBeenCalled();
+    expect(app._resolveTtydProxyPath).not.toHaveBeenCalled();
+    expect(panel.classList.contains('hidden')).toBe(false);
+    expect(panel.dataset.sessionId).toBe('session-app-server');
+    expect(panel.dataset.codexAppServerThreadId).toBe('thread-app');
+    expect(panel.textContent).toContain('thread-app');
+    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-frame').src).toBe('about:blank');
+    expect(document.getElementById('terminal-transport-switcher-label').textContent).toBe('App Server');
+    expect(document.getElementById('terminal-input-status').textContent).toBe('表示: App Server (read-only)');
+    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-snapshot-meta').classList.contains('hidden')).toBe(true);
+    expect(appStore.getState().sessionUi.byId['session-app-server']).toMatchObject({
+      transport: 'connected',
+      attention: 'none'
+    });
+  });
+
+  it('Codex App Server display route remains read-only for legacy terminal controls', async () => {
+    app.reconnectManager = {
+      setCurrentSession: vi.fn(),
+      wsConnected: false,
+      isReconnecting: false,
+      handleDisconnect: vi.fn()
+    };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      reconnect: vi.fn(),
+      sendText: vi.fn(),
+      sendPasteText: vi.fn(),
+      sendKey: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+    app._resolveSessionRuntime = vi.fn();
+    app._ensureDesktopTerminalRuntime = vi.fn();
+    app._connectXtermTransport = vi.fn();
+    app._resolveTtydProxyPath = vi.fn();
+    app.initServices();
+    app.setupTerminalInputUx();
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server',
+        name: 'App Server Session',
+        path: '/tmp/session-app-server',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    await app.switchSession('session-app-server');
+    vi.clearAllMocks();
+
+    document.getElementById('terminal-input-status')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    document.getElementById('transport-opt-reconnect')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    document.getElementById('console-area')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await expect(app.terminalInteractionService.sendText('session-app-server', '/tmp/pasted-image.png'))
+      .rejects.toMatchObject({ code: 'TERMINAL_READ_ONLY' });
+    await expect(app.terminalInteractionService.sendPasteText('session-app-server', 'pasted text'))
+      .rejects.toMatchObject({ code: 'TERMINAL_READ_ONLY' });
+    await expect(app.terminalInteractionService.sendKey('session-app-server', 'M-Enter'))
+      .rejects.toMatchObject({ code: 'TERMINAL_READ_ONLY' });
+
+    expect(app.reconnectManager.handleDisconnect).not.toHaveBeenCalled();
+    expect(app.terminalTransportClient.reconnect).not.toHaveBeenCalled();
+    expect(app.terminalTransportClient.sendText).not.toHaveBeenCalled();
+    expect(app.terminalTransportClient.sendPasteText).not.toHaveBeenCalled();
+    expect(app.terminalTransportClient.sendKey).not.toHaveBeenCalled();
+    expect(app._resolveSessionRuntime).not.toHaveBeenCalled();
+    expect(app._ensureDesktopTerminalRuntime).not.toHaveBeenCalled();
+    expect(app._connectXtermTransport).not.toHaveBeenCalled();
+    expect(app._resolveTtydProxyPath).not.toHaveBeenCalled();
+    expect(httpClient.post).not.toHaveBeenCalled();
+    expect(app.focusTerminal).not.toHaveBeenCalledWith('type-to-focus');
+    expect(app.focusTerminal).not.toHaveBeenCalledWith('console-click');
+  });
+
+  it('Claude Code sessions with stray App Server metadata still use the xterm fallback path', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
+    app._resolveSessionRuntime = vi.fn().mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    app._ensureDesktopTerminalRuntime = vi.fn().mockResolvedValue({ ok: true });
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-claude',
+        name: 'Claude Session',
+        path: '/tmp/session-claude',
+        engine: 'claude',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-ignored'
+        }
+      }]
+    });
+
+    const result = await app.switchSession('session-claude');
+
+    expect(result).toMatchObject({ ok: true, mode: 'xterm' });
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-claude' }), { deferDisplay: true });
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
+  });
+
+  it('Codex sessions with missing App Server metadata stay on the xterm fallback path', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
+    app._resolveSessionRuntime = vi.fn().mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    app._ensureDesktopTerminalRuntime = vi.fn().mockResolvedValue({ ok: true });
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-codex-missing',
+        name: 'Codex Missing App Server',
+        path: '/tmp/session-codex-missing',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {}
+      }]
+    });
+
+    const result = await app.switchSession('session-codex-missing');
+
+    expect(result).toMatchObject({ ok: true, mode: 'xterm' });
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-codex-missing' }), { deferDisplay: true });
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
+  });
+
+  it('Codex sessions with stale App Server metadata stay on the xterm fallback path', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
+    app._resolveSessionRuntime = vi.fn().mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    app._ensureDesktopTerminalRuntime = vi.fn().mockResolvedValue({ ok: true });
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-codex-stale',
+        name: 'Codex Stale App Server',
+        path: '/tmp/session-codex-stale',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-stale',
+          stale: true
+        }
+      }]
+    });
+
+    const result = await app.switchSession('session-codex-stale');
+
+    expect(result).toMatchObject({ ok: true, mode: 'xterm' });
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-codex-stale' }), { deferDisplay: true });
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
+  });
+
+  it('restores the Codex App Server panel when the next terminal switch fails', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server',
+        name: 'App Server Session',
+        path: '/tmp/session-app-server',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app',
+          status: 'turn_completed'
+        }
+      }, {
+        id: 'session-claude',
+        name: 'Claude Session',
+        path: '/tmp/session-claude',
+        engine: 'claude',
+        intendedState: 'active'
+      }]
+    });
+
+    await app.switchSession('session-app-server');
+    app._resolveTtydProxyPath = vi.fn().mockResolvedValue({ proxyPath: null, terminalAccess: null, runtimeStatus: null });
+
+    const result = await app.switchSession('session-claude');
+    const panel = document.getElementById('codex-app-server-display-panel');
+
+    expect(result).toMatchObject({ ok: false, reason: 'missing-proxy-path' });
+    expect(appStore.getState().currentSessionId).toBe('session-app-server');
+    expect(panel.classList.contains('hidden')).toBe(false);
+    expect(panel.dataset.sessionId).toBe('session-app-server');
+    expect(panel.dataset.codexAppServerThreadId).toBe('thread-app');
+    expect(panel.textContent).toContain('turn_completed');
+    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(true);
+  });
+
   it('desktop xtermではruntime完了後にensureしてからconnectする', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
@@ -1196,7 +1464,10 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
         name: 'Session 1',
         path: '/tmp/session-1',
         engine: 'codex',
-        intendedState: 'active'
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-mobile'
+        }
       }]
     });
 
@@ -1209,6 +1480,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(terminalFrame.src).toBe('about:blank');
     expect(terminalFrame.classList.contains('hidden')).toBe(true);
     expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(true);
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
     expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 

@@ -9,6 +9,7 @@ export function applyTerminalSwitchMixin(AppClass) {
         const frameEl = this.terminalFrame || document.getElementById('terminal-frame');
         const xtermHost = this.terminalXtermHost || document.getElementById('terminal-xterm-host');
         const snapshotPanel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        const codexAppServerPanel = this._getCodexAppServerDisplayPanel?.() || document.getElementById('codex-app-server-display-panel');
         const mobileModal = this.mobileLiveTerminalModalEl || document.getElementById('mobile-live-terminal-modal');
 
         return {
@@ -16,8 +17,15 @@ export function applyTerminalSwitchMixin(AppClass) {
             frameHidden: Boolean(frameEl?.classList.contains('hidden')),
             xtermHidden: Boolean(xtermHost?.classList.contains('hidden')),
             snapshotHidden: Boolean(snapshotPanel?.classList.contains('hidden')),
+            codexAppServerHidden: Boolean(codexAppServerPanel?.classList.contains('hidden')),
+            codexAppServerSessionId: codexAppServerPanel?.dataset?.sessionId || '',
+            codexAppServerThreadId: codexAppServerPanel?.dataset?.codexAppServerThreadId || '',
+            codexAppServerStatusText: codexAppServerPanel?.querySelector?.('[data-codex-app-server-status]')?.textContent || '',
+            codexAppServerSessionText: codexAppServerPanel?.querySelector?.('[data-codex-app-server-session-id]')?.textContent || '',
+            codexAppServerThreadText: codexAppServerPanel?.querySelector?.('[data-codex-app-server-thread-label]')?.textContent || '',
             usingXterm: Boolean(consoleArea?.classList.contains('using-xterm')),
             usingSnapshot: Boolean(consoleArea?.classList.contains('using-snapshot')),
+            usingCodexAppServer: Boolean(consoleArea?.classList.contains('using-codex-app-server')),
             mobileTerminalMode: this._mobileTerminalMode,
             mobileLiveTerminalSessionId: this._mobileLiveTerminalSessionId,
             mobileModalActive: Boolean(mobileModal?.classList.contains('active'))
@@ -108,11 +116,13 @@ export function applyTerminalSwitchMixin(AppClass) {
         const frameEl = this.terminalFrame || document.getElementById('terminal-frame');
         const xtermHost = this.terminalXtermHost || document.getElementById('terminal-xterm-host');
         const snapshotPanel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        const codexAppServerPanel = this._getCodexAppServerDisplayPanel?.() || document.getElementById('codex-app-server-display-panel');
         const mobileModal = this.mobileLiveTerminalModalEl || document.getElementById('mobile-live-terminal-modal');
 
         if (consoleArea) {
             consoleArea.classList.toggle('using-xterm', presentation.usingXterm);
             consoleArea.classList.toggle('using-snapshot', presentation.usingSnapshot);
+            consoleArea.classList.toggle('using-codex-app-server', Boolean(presentation.usingCodexAppServer));
         }
         if (xtermHost) {
             xtermHost.classList.toggle('hidden', presentation.xtermHidden);
@@ -126,6 +136,25 @@ export function applyTerminalSwitchMixin(AppClass) {
         }
         if (snapshotPanel) {
             snapshotPanel.classList.toggle('hidden', presentation.snapshotHidden);
+        }
+        if (codexAppServerPanel) {
+            codexAppServerPanel.classList.toggle('hidden', Boolean(presentation.codexAppServerHidden));
+            if (presentation.codexAppServerSessionId) {
+                codexAppServerPanel.dataset.sessionId = presentation.codexAppServerSessionId;
+            } else {
+                codexAppServerPanel.removeAttribute('data-session-id');
+            }
+            if (presentation.codexAppServerThreadId) {
+                codexAppServerPanel.dataset.codexAppServerThreadId = presentation.codexAppServerThreadId;
+            } else {
+                codexAppServerPanel.removeAttribute('data-codex-app-server-thread-id');
+            }
+            const statusEl = codexAppServerPanel.querySelector('[data-codex-app-server-status]');
+            const sessionEl = codexAppServerPanel.querySelector('[data-codex-app-server-session-id]');
+            const threadEl = codexAppServerPanel.querySelector('[data-codex-app-server-thread-label]');
+            if (statusEl) statusEl.textContent = presentation.codexAppServerStatusText || '';
+            if (sessionEl) sessionEl.textContent = presentation.codexAppServerSessionText || '';
+            if (threadEl) threadEl.textContent = presentation.codexAppServerThreadText || '';
         }
 
         this._mobileTerminalMode = presentation.mobileTerminalMode || 'snapshot';

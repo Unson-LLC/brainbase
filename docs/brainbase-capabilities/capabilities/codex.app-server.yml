@@ -4,6 +4,7 @@ purpose: Provide a structured JSON-RPC integration path for Codex threads, turns
 surfaces:
   ui:
     - session display-route state for Codex App Server thread sessions
+    - Codex App Server display panel for routed thread sessions
   api:
     - /api/sessions/report_activity
     - /api/state/sessions/:sessionId
@@ -15,7 +16,12 @@ surfaces:
     - scripts/codex-app-repl.mjs
     - scripts/lib/codex-app-server-activity-client.mjs
     - public/modules/domain/session/session-display-route.js
+    - public/modules/app/codex-app-server-display-mixin.js
+    - public/modules/app/session-management-mixin.js
     - public/modules/session-ui-state.js
+    - docs/stories/story-codex-appserver-display-route-consumer.md
+    - docs/architecture/codex-appserver-display-route-consumer-architecture.md
+    - docs/specs/codex-appserver-display-route-consumer-spec.md
     - docs/stories/story-codex-appserver-thread-session-foundation.md
     - docs/stories/story-codex-appserver-session-state-ssot.md
     - docs/stories/story-codex-appserver-repl-activity-bridge.md
@@ -31,6 +37,8 @@ surfaces:
     - tests/unit/codex-app-server-activity-client.test.js
     - tests/domain/session/session-display-route.test.js
     - tests/unit/session-ui-state.test.js
+    - tests/ui/integration/app-switch-session-runtime.test.js
+    - tests/e2e/story-codex-appserver-display-route-consumer-contract.spec.ts
     - tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
     - tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
     - tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
@@ -55,6 +63,8 @@ visibility_rules:
   - Codex sessions without App Server thread metadata and all Claude Code sessions remain on the xterm display route.
   - Stale App Server metadata must remain distinguishable from missing metadata in display-route reasons.
   - App Server display-route state is read-only until a separate transcript-rendering story owns the browser panel and input path.
+  - App Server display-route consumers may show a read-only App Server display panel for routed Codex thread sessions without starting xterm.
+  - App Server display-route consumers must preserve xterm/ttyd fallback for Claude Code and Codex sessions without usable App Server metadata.
   - Keep full App Server event item persistence out of scope unless a separate ledger story defines ownership and retention.
   - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
@@ -64,7 +74,9 @@ verification:
     - npm run test:run -- tests/server/services/codex-app-server-session-state.test.js tests/server/session-runtime-inventory.test.js
     - npm run test:run -- tests/unit/codex-app-server-activity-client.test.js
     - npm run test:run -- tests/domain/session/session-display-route.test.js tests/unit/session-ui-state.test.js
+    - npm run test:run -- tests/ui/integration/app-switch-session-runtime.test.js
     - npm run test:e2e -- tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
+    - npm run test:e2e -- tests/e2e/story-codex-appserver-display-route-consumer-contract.spec.ts
     - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
     - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
     - npx -y @openai/codex@latest app-server --help
@@ -74,6 +86,7 @@ verification:
     - Session-state tests prove Codex-only App Server metadata persistence, restore selection, explicit missing-metadata fallback, and Claude Code non-mutation.
     - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches; port 31013 live-runtime proof still requires post-merge smoke evidence.
     - Display route tests prove Codex App Server metadata selects the App Server route and Claude Code stays on xterm.
+    - Session switching tests prove routed Codex App Server sessions show the App Server panel without starting xterm, while Claude Code fallback still uses xterm.
     - Display-route contract E2E covers the Story acceptance criteria through Story/ADR/Spec/code/test anchors.
     - Codex CLI exposes the app-server command. If the local global `codex` shim is broken, use `npx -y @openai/codex@latest` as the reproducible CLI entrypoint for this capability check.
     - Existing terminal transport remains unchanged for user-facing sessions.

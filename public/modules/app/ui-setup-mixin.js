@@ -131,7 +131,11 @@ export function applyUiSetupMixin(AppClass) {
                 return this.reconnectManager?.terminalAccess || null;
             },
             shouldUseXtermTransport: () => this._shouldUseXtermTransport(),
-            getSessionEngine: (sessionId) => this._getSessionEngine(sessionId)
+            getSessionEngine: (sessionId) => this._getSessionEngine(sessionId),
+            isTerminalReadOnly: (sessionId) => (
+                appStore.getState().currentSessionId === sessionId
+                && this._isCodexAppServerDisplayActive?.()
+            )
         }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());

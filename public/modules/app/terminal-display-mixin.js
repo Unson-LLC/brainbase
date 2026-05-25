@@ -114,6 +114,7 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showXtermTransport = function() {
+        this._hideCodexAppServerDisplay?.();
         this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
@@ -121,6 +122,7 @@ export function applyTerminalDisplayMixin(AppClass) {
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.add('using-xterm');
         consoleArea?.classList.remove('using-snapshot');
+        consoleArea?.classList.remove('using-codex-app-server');
     };
 
     AppClass.prototype._clearTerminalFrame = function(frameEl) {
@@ -137,6 +139,7 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showTtydIframe = function() {
+        this._hideCodexAppServerDisplay?.();
         this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
@@ -144,6 +147,7 @@ export function applyTerminalDisplayMixin(AppClass) {
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
         consoleArea?.classList.remove('using-snapshot');
+        consoleArea?.classList.remove('using-codex-app-server');
     };
 
     AppClass.prototype._restoreSnapshotPanelPosition = function() {
@@ -173,10 +177,12 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showSnapshotDisplay = function(sessionId, { title = 'Terminal display', snapshot = null } = {}) {
+        this._hideCodexAppServerDisplay?.();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.remove('using-codex-app-server');
         if (this.isMobile()) {
             consoleArea?.classList.add('using-snapshot');
             // iOS Safari: overflow:hidden ancestors clip fixed-position text rendering.

@@ -22,6 +22,7 @@ import { applyTerminalDisplayMixin } from './modules/app/terminal-display-mixin.
 import { applyTerminalMobileMixin } from './modules/app/terminal-mobile-mixin.js';
 import { applyTerminalInputUxMixin } from './modules/app/terminal-input-ux-mixin.js';
 import { applyTerminalSwitchMixin } from './modules/app/terminal-switch-mixin.js';
+import { applyCodexAppServerDisplayMixin } from './modules/app/codex-app-server-display-mixin.js';
 import { applySessionManagementMixin } from './modules/app/session-management-mixin.js';
 import { applySessionCreationMixin } from './modules/app/session-creation-mixin.js';
 import { applyEventListenersMixin } from './modules/app/event-listeners-mixin.js';
@@ -274,7 +275,11 @@ export class App {
                 return this.reconnectManager?.terminalAccess || null;
             },
             shouldUseXtermTransport: () => this._shouldUseXtermTransport(),
-            getSessionEngine: (sessionId) => this._getSessionEngine(sessionId)
+            getSessionEngine: (sessionId) => this._getSessionEngine(sessionId),
+            isTerminalReadOnly: (sessionId) => (
+                appStore.getState().currentSessionId === sessionId
+                && this._isCodexAppServerDisplayActive?.()
+            )
         }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
@@ -677,6 +682,7 @@ applyTerminalDisplayMixin(App);
 applyTerminalMobileMixin(App);
 applyTerminalInputUxMixin(App);
 applyTerminalSwitchMixin(App);
+applyCodexAppServerDisplayMixin(App);
 applySessionManagementMixin(App);
 applySessionCreationMixin(App);
 applyEventListenersMixin(App);

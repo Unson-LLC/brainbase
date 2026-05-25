@@ -289,6 +289,30 @@ export function applySessionManagementMixin(AppClass) {
                     };
                 }
 
+                if (this._shouldUseCodexAppServerDisplay?.(activeSession, options)) {
+                    const displayRoute = this._getSessionDisplayRoute?.(activeSession);
+                    const shown = this._showCodexAppServerDisplay?.(activeSession, displayRoute);
+                    if (!shown) {
+                        this._failTerminalSwitch?.(sessionId, switchToken, {
+                            previousSessionId,
+                            errorMessage: 'Codex App Server 表示の準備に失敗しました'
+                        });
+                        this._setCurrentSessionUiState({
+                            transport: 'disconnected',
+                            attention: 'warning'
+                        });
+                        return { ok: false, reason: 'codex-app-server-display-missing' };
+                    }
+                    this.reconnectManager?.setCurrentSession(sessionId);
+                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_codex_app_server' });
+                    this._setCurrentSessionUiState({
+                        transport: 'connected',
+                        attention: 'none'
+                    });
+                    this._updateTerminalInputStatus?.();
+                    return { ok: true, mode: 'codex_app_server', displayRoute };
+                }
+
                 if (this.isMobile()) {
                     const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, activeSession);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };

@@ -5,7 +5,8 @@ export class TerminalInteractionService {
         getTerminalTransportClient = null,
         getFallbackTerminalAccess = null,
         shouldUseXtermTransport = null,
-        getSessionEngine = null
+        getSessionEngine = null,
+        isTerminalReadOnly = null
     }) {
         this.httpClient = httpClient;
         this.getTerminalTransportClient = typeof getTerminalTransportClient === 'function'
@@ -20,6 +21,9 @@ export class TerminalInteractionService {
         this.getSessionEngine = typeof getSessionEngine === 'function'
             ? getSessionEngine
             : () => null;
+        this.isTerminalReadOnly = typeof isTerminalReadOnly === 'function'
+            ? isTerminalReadOnly
+            : () => false;
     }
 
     getAvailability(sessionId) {
@@ -29,6 +33,10 @@ export class TerminalInteractionService {
 
         if (this._isBlocked(sessionId)) {
             return { canSend: false, reason: 'blocked' };
+        }
+
+        if (this.isTerminalReadOnly(sessionId)) {
+            return { canSend: false, reason: 'read-only' };
         }
 
         return { canSend: true, reason: 'ready' };
@@ -165,10 +173,16 @@ export class TerminalInteractionService {
         const availability = this.getAvailability(sessionId);
         if (availability.canSend) return;
 
-        const error = /** @type {Error & { code?: string }} */ (new Error(availability.reason === 'blocked'
-            ? 'Terminal is blocked by another viewer'
-            : 'Terminal input is unavailable'));
-        error.code = availability.reason === 'blocked' ? 'TERMINAL_BLOCKED' : 'TERMINAL_INPUT_UNAVAILABLE';
+        const messages = {
+            blocked: 'Terminal is blocked by another viewer',
+            'read-only': 'Terminal display is read-only'
+        };
+        const error = /** @type {Error & { code?: string }} */ (new Error(messages[availability.reason] || 'Terminal input is unavailable'));
+        error.code = availability.reason === 'blocked'
+            ? 'TERMINAL_BLOCKED'
+            : availability.reason === 'read-only'
+                ? 'TERMINAL_READ_ONLY'
+                : 'TERMINAL_INPUT_UNAVAILABLE';
         throw error;
     }
 

@@ -444,6 +444,10 @@ export function applyTerminalInputUxMixin(AppClass) {
         return this._getCurrentTokenStatusSession(sessionId)?.engine === 'codex';
     };
 
+    AppClass.prototype._isCodexAppServerDisplayActive = function() {
+        return document.getElementById('console-area')?.classList.contains('using-codex-app-server') === true;
+    };
+
     AppClass.prototype._updateTerminalTokenStatus = function(sessionId = appStore.getState().currentSessionId) {
         const el = this.terminalTokenStatusEl;
         if (!el) return;
@@ -543,7 +547,9 @@ export function applyTerminalInputUxMixin(AppClass) {
     AppClass.prototype._updateTransportSwitcher = function({ xtermActive, presentationMode, transportState }) {
         if (!this.terminalTransportSwitcherEl) return;
 
-        const label = presentationMode === 'snapshot'
+        const label = presentationMode === 'codex_app_server'
+            ? 'App Server'
+            : presentationMode === 'snapshot'
             ? 'Snapshot'
             : (xtermActive ? 'xterm' : 'ttyd');
 
@@ -925,6 +931,7 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const overlayState = this._getTerminalOverlayState();
         const consoleArea = document.getElementById('console-area');
+        const usingCodexAppServer = consoleArea?.classList.contains('using-codex-app-server');
         const usingDesktopSnapshot = !usingMobileSnapshot && consoleArea?.classList.contains('using-snapshot');
         const isFocused = xtermActive
             ? Boolean(xtermStatus?.isFocused)
@@ -959,7 +966,15 @@ export function applyTerminalInputUxMixin(AppClass) {
         let snapshotTitle = 'Snapshot fallback';
         let ownerLabel = '';
 
-        if (usingMobileSnapshot) {
+        if (usingCodexAppServer) {
+            stateClass = 'blocked';
+            transportState = 'connected';
+            attentionState = 'none';
+            presentationMode = 'codex_app_server';
+            snapshotVisible = false;
+            text = '表示: App Server (read-only)';
+            title = `session=${sessionId} codex app server display read-only`;
+        } else if (usingMobileSnapshot) {
             presentationMode = 'snapshot';
             snapshotVisible = true;
             snapshotTitle = 'Terminal display';
@@ -1385,6 +1400,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         // Click-to-focus: clicking on the console background (including the menu overlay) should restore focus.
         const onConsoleClick = (e) => {
             if (!this._isConsoleVisible()) return;
+            if (this._isCodexAppServerDisplayActive()) return;
             if (this._isEditableTarget(e.target)) return;
 
             const overlayState = this._getTerminalOverlayState();
@@ -1566,6 +1582,10 @@ export function applyTerminalInputUxMixin(AppClass) {
         // Status badge click: focus, and if disconnected, trigger reconnect.
         const onStatusClick = (e) => {
             e.preventDefault();
+            if (this._isCodexAppServerDisplayActive()) {
+                this._updateTerminalInputStatus();
+                return;
+            }
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
 
@@ -1629,6 +1649,10 @@ export function applyTerminalInputUxMixin(AppClass) {
 
             const sessionId = appStore.getState().currentSessionId;
             if (!sessionId) return;
+            if (this._isCodexAppServerDisplayActive()) {
+                this._updateTerminalInputStatus();
+                return;
+            }
 
             if (btn.id === 'transport-opt-reconnect') {
                 if (this._isMobileSnapshotMode()) {
@@ -1691,6 +1715,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             if (e.isComposing) return;
             if (e.metaKey || e.ctrlKey || e.altKey) return;
             if (this._isEditableTarget(e.target)) return;
+            if (this._isCodexAppServerDisplayActive()) return;
 
             const sessionId = appStore.getState().currentSessionId;
             if (!sessionId) return;

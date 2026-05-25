@@ -114,6 +114,19 @@ async function sendTextToTerminal(sessionId, text) {
     });
 }
 
+async function sendKeyToTerminal(sessionId, key) {
+    const terminalInteractionService = getTerminalInteractionService?.();
+    if (terminalInteractionService?.sendKey) {
+        await terminalInteractionService.sendKey(sessionId, key);
+        return;
+    }
+
+    await httpClient.post(`/api/sessions/${sessionId}/input`, {
+        input: key,
+        type: 'key'
+    });
+}
+
 /**
  * Upload file and paste path to terminal
  * @param {FileList|File[]} files - Files to upload
@@ -130,6 +143,11 @@ async function handleFiles(files) {
     if (!currentSessionId) {
         console.warn('[file-upload] No current session — aborting upload');
         showError('セッションを選択してからアップロードしてね');
+        return;
+    }
+    if (!canInteractWithTerminal(currentSessionId)) {
+        console.warn('[file-upload] Terminal display is read-only — aborting upload');
+        showError('この表示ではターミナル入力できないためアップロードを中止したよ');
         return;
     }
     showInfo(`アップロード中: ${file.name}`);
@@ -377,7 +395,8 @@ async function pasteTextToTerminal(sessionId, text) {
     try {
         // 注: forcePaste:true は Codex で会話中断を起こすため使わない。
         // 通常のテキスト入力経路で即時に送る。
-        if (typeof terminalInteractionService.sendPasteText === 'function') {
+        const terminalInteractionService = getTerminalInteractionService?.();
+        if (typeof terminalInteractionService?.sendPasteText === 'function') {
             await terminalInteractionService.sendPasteText(sessionId, text);
         } else {
             await sendTextToTerminal(sessionId, text);
@@ -396,10 +415,7 @@ function setupKeyHandling() {
             if (currentSessionId) {
                 console.log('Received SHIFT_ENTER from iframe, sending M-Enter to session');
                 try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'M-Enter',
-                        type: 'key'
-                    });
+                    await sendKeyToTerminal(currentSessionId, 'M-Enter');
                 } catch (error) {
                     console.error('Failed to send key command:', error);
                 }
@@ -411,10 +427,7 @@ function setupKeyHandling() {
             if (currentSessionId) {
                 console.log('Received CMD_BACKSPACE from iframe, sending C-u to session');
                 try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'C-u',
-                        type: 'key'
-                    });
+                    await sendKeyToTerminal(currentSessionId, 'C-u');
                 } catch (error) {
                     console.error('Failed to send key command:', error);
                 }
@@ -440,7 +453,7 @@ function setupKeyHandling() {
 
         if (event.data && event.data.type === 'TMUX_SELECT_PANE') {
             const currentSessionId = getSessionId?.();
-            if (currentSessionId) {
+            if (currentSessionId && canInteractWithTerminal(currentSessionId)) {
                 const direction = event.data.direction;
                 if (['U', 'D', 'L', 'R'].includes(direction)) {
                     try {
@@ -454,7 +467,7 @@ function setupKeyHandling() {
 
         if (event.data && event.data.type === 'TERMINAL_INTERACT') {
             const currentSessionId = getSessionId?.();
-            if (currentSessionId) {
+            if (currentSessionId && canInteractWithTerminal(currentSessionId)) {
                 try {
                     await httpClient.post(`/api/sessions/${currentSessionId}/exit_copy_mode`, {});
                 } catch (error) {
@@ -519,6 +532,12 @@ function isTrustedTerminalMessage(event) {
 function getTrustedMessageSessionId(sessionId) {
     if (typeof sessionId !== 'string') return null;
     return sessionId.startsWith('session-') ? sessionId : null;
+}
+
+function canInteractWithTerminal(sessionId) {
+    const terminalInteractionService = getTerminalInteractionService?.();
+    if (typeof terminalInteractionService?.getAvailability !== 'function') return true;
+    return terminalInteractionService.getAvailability(sessionId).canSend === true;
 }
 
 // --- Public API ---
