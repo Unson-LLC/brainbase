@@ -7,6 +7,9 @@ surfaces:
   code:
     - server/services/codex-app-server-adapter.js
     - server/services/codex-app-server-activity-bridge.js
+    - docs/stories/story-codex-appserver-session-state-ssot.md
+    - docs/architecture/codex-appserver-session-state-ssot-architecture.md
+    - docs/specs/codex-appserver-session-state-ssot-spec.md
     - tests/server/services/codex-app-server-adapter.test.js
     - tests/server/services/codex-app-server-activity-bridge.test.js
   data:
@@ -24,6 +27,8 @@ visibility_rules:
   - App Server turn notifications may feed the existing activity indicator path only through the activity bridge and `activityService.reportActivity`.
   - App Server-backed indicator updates must use Brainbase session ids from explicit metadata or bridge context; terminal text must not be used to infer ownership.
   - Do not persist Codex threads or turns until a separate session-state story defines the SSOT.
+  - The session-state SSOT story for App Server thread, turn, and restore metadata is `story-codex-appserver-session-state-ssot`.
+  - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
   commands:
     - npm test -- tests/server/services/codex-app-server-adapter.test.js
