@@ -5,6 +5,13 @@ import readline from 'node:readline';
 import process from 'node:process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  buildActivityReportPayload,
+  buildCodexAppServerStatePatch,
+  createActivityReportFailureWarner,
+  resolveAppServerThreadId,
+  resolveAppServerTurnId
+} from './lib/codex-app-server-activity-client.mjs';
 
 const args = process.argv.slice(2);
 const getArgValue = (name) => {
@@ -20,7 +27,7 @@ const approvalPolicy = getArgValue('--approval') || process.env.CODEX_APPROVAL_P
 const sandboxMode = getArgValue('--sandbox') || process.env.CODEX_SANDBOX_MODE || 'danger-full-access';
 const networkAccess = (process.env.CODEX_NETWORK_ACCESS || 'enabled') === 'enabled';
 
-const server = spawn('codex', ['app-server', '-c', 'features.codex_hooks=true'], {
+const server = spawn('codex', ['app-server'], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: {
     ...process.env,
@@ -39,6 +46,9 @@ let sawDelta = false;
 let resolvedPort = null;
 let csrfToken = null;
 let csrfTokenFetchedAt = 0;
+const warnPostFailure = createActivityReportFailureWarner((message) => {
+  process.stderr.write(message);
+});
 
 const serverReader = readline.createInterface({
   input: server.stdout,
@@ -119,9 +129,8 @@ function resolveBrainbasePort() {
   return resolvedPort;
 }
 
-async function reportActivity(status) {
+async function postJson(port, pathname, body, method = 'POST') {
   if (!sessionId) return;
-  const port = resolveBrainbasePort();
   try {
     const token = await getCsrfToken(port);
     const headers = {
@@ -129,17 +138,52 @@ async function reportActivity(status) {
       'X-Session-Id': sessionId
     };
     if (token) headers['X-CSRF-Token'] = token;
-    await fetch(`http://localhost:${port}/api/sessions/report_activity`, {
-      method: 'POST',
+    const response = await fetch(`http://localhost:${port}${pathname}`, {
+      method,
       headers,
-      body: JSON.stringify({
-        sessionId,
-        status,
-        reportedAt: Date.now()
-      })
+      body: JSON.stringify(body)
     });
-  } catch {
-    // ignore
+    if (!response.ok) {
+      warnPostFailure(port, pathname, method, `HTTP ${response.status}`);
+    }
+  } catch (err) {
+    warnPostFailure(port, pathname, method, err?.message || 'request failed');
+  }
+}
+
+async function reportAppServerActivity(method, params = {}, options = {}) {
+  if (!sessionId) return;
+  const reportedAt = options.reportedAt || Date.now();
+  const fallbackTurnId = options.fallbackTurnId ?? activeTurnId;
+  const fallbackThreadId = options.fallbackThreadId ?? threadId;
+  const port = resolveBrainbasePort();
+
+  const activity = buildActivityReportPayload({
+    sessionId,
+    method,
+    params,
+    reportedAt,
+    fallbackTurnId
+  });
+  if (activity.mutates) {
+    await postJson(port, '/api/sessions/report_activity', activity.payload);
+  }
+
+  const statePatch = buildCodexAppServerStatePatch({
+    sessionId,
+    method,
+    params,
+    reportedAt,
+    fallbackTurnId,
+    fallbackThreadId
+  });
+  if (statePatch.mutates) {
+    await postJson(
+      port,
+      `/api/state/sessions/${encodeURIComponent(statePatch.sessionId)}`,
+      statePatch.patch,
+      'PATCH'
+    );
   }
 }
 
@@ -178,33 +222,39 @@ function extractText(payload) {
 
 function handleNotification(method, params) {
   if (method === 'codex/event/task_complete') {
+    const completedTurnId = resolveAppServerTurnId(params, activeTurnId);
     inTurn = false;
+    reportAppServerActivity(method, params, { fallbackTurnId: completedTurnId });
     activeTurnId = null;
-    reportActivity('done');
     process.stdout.write('\n');
     stdinReader.prompt();
     return;
   }
 
   if (method === 'error' || method === 'codex/event/error') {
+    const completedTurnId = activeTurnId;
     inTurn = false;
+    reportAppServerActivity(method, params, { fallbackTurnId: completedTurnId });
     activeTurnId = null;
-    reportActivity('done');
     process.stdout.write('\n');
     stdinReader.prompt();
     return;
   }
 
   if (method === 'turn/started') {
-    activeTurnId = params?.turn?.id || params?.turnId || activeTurnId;
+    threadId = resolveAppServerThreadId(params, threadId) || threadId;
+    activeTurnId = resolveAppServerTurnId(params, activeTurnId) || activeTurnId;
     inTurn = true;
     sawDelta = false;
-    reportActivity('working');
+    reportAppServerActivity(method, params, { fallbackTurnId: activeTurnId, fallbackThreadId: threadId });
     return;
   }
 
   if (method === 'turn/completed') {
+    const completedTurnId = resolveAppServerTurnId(params, activeTurnId);
+    threadId = resolveAppServerThreadId(params, threadId) || threadId;
     inTurn = false;
+    reportAppServerActivity(method, params, { fallbackTurnId: completedTurnId, fallbackThreadId: threadId });
     activeTurnId = null;
     if (!sawDelta) {
       const items = params?.turn?.items || [];
@@ -226,18 +276,20 @@ function handleNotification(method, params) {
     method === 'waiting-for-user-input' ||
     method === 'waiting_for_user_input'
   ) {
+    const completedTurnId = activeTurnId;
     inTurn = false;
+    reportAppServerActivity(method, params, { fallbackTurnId: completedTurnId });
     activeTurnId = null;
-    reportActivity('done');
     process.stdout.write('\n');
     stdinReader.prompt();
     return;
   }
 
   if (method === 'turn/failed' || method === 'turn/interrupted') {
+    const completedTurnId = resolveAppServerTurnId(params, activeTurnId);
     inTurn = false;
+    reportAppServerActivity(method, params, { fallbackTurnId: completedTurnId });
     activeTurnId = null;
-    reportActivity('done');
     process.stdout.write('\n');
     stdinReader.prompt();
     return;
@@ -312,7 +364,9 @@ async function startTurn(text) {
   }
   inTurn = true;
   sawDelta = false;
-  await reportActivity('working');
+  await reportAppServerActivity('turn/started', {
+    thread: { id: threadId }
+  }, { fallbackThreadId: threadId });
 
   try {
     const sandboxPolicy = mapSandboxPolicy(sandboxMode);
@@ -325,10 +379,17 @@ async function startTurn(text) {
       model
     });
     activeTurnId = response?.turn?.id || activeTurnId;
+    if (inTurn && activeTurnId) {
+      await reportAppServerActivity('turn/started', {
+        thread: { id: threadId },
+        turn: { id: activeTurnId }
+      }, { fallbackTurnId: activeTurnId, fallbackThreadId: threadId });
+    }
   } catch (err) {
+    const completedTurnId = activeTurnId;
     inTurn = false;
     process.stdout.write(`\n[error] ${err?.message || 'failed to start turn'}\n`);
-    reportActivity('done');
+    reportAppServerActivity('turn/failed', {}, { fallbackTurnId: completedTurnId, fallbackThreadId: threadId });
     stdinReader.prompt();
   }
 }
@@ -396,8 +457,9 @@ process.on('SIGINT', async () => {
       // ignore
     }
     inTurn = false;
+    const completedTurnId = activeTurnId;
     activeTurnId = null;
-    reportActivity('done');
+    reportAppServerActivity('turn/interrupted', {}, { fallbackTurnId: completedTurnId, fallbackThreadId: threadId });
     stdinReader.prompt();
     return;
   }
