@@ -1,3 +1,5 @@
+import { recordCodexAppServerSessionState } from './codex-app-server-session-state.js';
+
 const START_METHODS = new Set([
     'turn/started',
     'task_started'
@@ -51,6 +53,18 @@ function resolveTurnId(params = {}) {
         || null;
 }
 
+function resolveThreadId(params = {}) {
+    return normalizeString(params.threadId)
+        || normalizeString(params.thread_id)
+        || normalizeString(params.thread?.id)
+        || normalizeString(params.turn?.threadId)
+        || normalizeString(params.turn?.thread_id)
+        || normalizeString(params.turn?.thread?.id)
+        || normalizeString(params.task?.threadId)
+        || normalizeString(params.task?.thread_id)
+        || null;
+}
+
 function resolveReportedAt(params = {}, now) {
     const numeric = Number(params.reportedAt ?? params.timestamp ?? params.createdAt);
     if (Number.isFinite(numeric) && numeric > 0) return numeric;
@@ -78,6 +92,7 @@ export class CodexAppServerActivityBridge {
         activityService,
         sessionId = null,
         sessionIdResolver = defaultSessionIdResolver,
+        stateStore = null,
         now = Date.now,
         logger = noopLogger()
     } = {}) {
@@ -92,6 +107,7 @@ export class CodexAppServerActivityBridge {
         this.activityService = activityService;
         this.sessionId = normalizeString(sessionId);
         this.sessionIdResolver = sessionIdResolver;
+        this.stateStore = stateStore;
         this.now = typeof now === 'function' ? now : Date.now;
         this.logger = logger || noopLogger();
         this.attached = false;
@@ -134,6 +150,7 @@ export class CodexAppServerActivityBridge {
 
         const isStart = START_METHODS.has(method);
         const turnId = resolveTurnId(params);
+        const threadId = resolveThreadId(params);
         const reportedAt = resolveReportedAt(params, this.now);
         const status = isStart ? 'working' : 'done';
         const lifecycle = isStart ? 'turn_started' : 'turn_completed';
@@ -149,13 +166,33 @@ export class CodexAppServerActivityBridge {
             latestEvidence: 'codex app-server notification'
         });
 
+        const stateUpdate = recordCodexAppServerSessionState({
+            stateStore: this.stateStore,
+            sessionId: resolvedSessionId,
+            threadId,
+            turnId,
+            lifecycle,
+            eventType: method,
+            reportedAt,
+            status
+        }).catch((error) => {
+            this.logger.warn?.('[CodexAppServerActivityBridge] Failed to persist session-state metadata', {
+                sessionId: resolvedSessionId,
+                method,
+                error: error?.message || String(error)
+            });
+            return { updated: false, reason: 'persist_failed' };
+        });
+
         return {
             handled: true,
             method,
             sessionId: resolvedSessionId,
             status,
             lifecycle,
-            turnId
+            turnId,
+            threadId,
+            stateUpdate
         };
     }
 }

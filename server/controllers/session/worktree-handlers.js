@@ -1,6 +1,7 @@
 // @ts-check
 import { logger } from '../../utils/logger.js';
 import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
+import { getCodexResumeId } from '../../services/codex-app-server-session-state.js';
 
 const MAX_SESSION_ACTIVITY_HISTORY = 40;
 
@@ -39,21 +40,6 @@ function buildStartupPromptHistory(initialCommand, occurredAt) {
         occurredAt,
         dedupeKey
     }].slice(-MAX_SESSION_ACTIVITY_HISTORY);
-}
-
-function extractCodexResumeId(value) {
-    if (typeof value !== 'string') return null;
-    const match = value.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
-    return match ? match[1] : null;
-}
-
-function getCodexResumeId(session) {
-    if (!session || session.engine !== 'codex') return null;
-    return session.codexThreadId
-        || session.conversationSummary?.codexThreadId
-        || session.conversationSummary?.lastConversation?.resumeId
-        || extractCodexResumeId(session.conversationSummary?.lastConversation?.conversationId)
-        || null;
 }
 
 export function installWorktreeHandlers(controller) {
