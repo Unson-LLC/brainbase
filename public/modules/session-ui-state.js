@@ -1,5 +1,6 @@
 import { appStore } from './core/store.js';
 import { deriveActivityState } from './core/session-activity-state.js';
+import { deriveSessionDisplayRoute } from './domain/session/session-display-route.js';
 
 const RECENT_FILES_STORAGE_KEY = 'bb:session-recent-files:v1';
 const MAX_STORED_RECENT_FILES = 10;
@@ -235,6 +236,7 @@ export function deriveSessionUiState(sessionId, options = {}) {
         activity,
         transport,
         attention,
+        displayRoute: deriveSessionDisplayRoute(session),
         summary: entry.summary || null,
         recentFile: Array.isArray(entry.recentFiles) ? entry.recentFiles[0] || null : null,
         recentFiles: Array.isArray(entry.recentFiles) ? entry.recentFiles : [],

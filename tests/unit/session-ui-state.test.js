@@ -85,6 +85,53 @@ describe('session-ui-state', () => {
         expect(uiState.attention).toBe('needs-input');
     });
 
+    it('Codex App Server thread metadata から display route を導出する', () => {
+        appStore.setState({
+            sessions: [{
+                id: 'session-codex',
+                engine: 'codex',
+                intendedState: 'active',
+                codexAppServer: {
+                    threadId: 'thread-123'
+                }
+            }],
+            currentSessionId: 'session-codex',
+            sessionUi: { byId: {} }
+        });
+
+        const uiState = deriveSessionUiState('session-codex');
+
+        expect(uiState.displayRoute).toMatchObject({
+            mode: 'codex_app_server',
+            reason: 'codex_app_server_thread',
+            codexAppServerThreadId: 'thread-123',
+            terminalFallback: true
+        });
+    });
+
+    it('Claude Code session は Codex App Server metadata があっても xterm route のままにする', () => {
+        appStore.setState({
+            sessions: [{
+                id: 'session-claude',
+                engine: 'claude',
+                intendedState: 'active',
+                codexAppServer: {
+                    threadId: 'thread-ignored'
+                }
+            }],
+            currentSessionId: 'session-claude',
+            sessionUi: { byId: {} }
+        });
+
+        const uiState = deriveSessionUiState('session-claude');
+
+        expect(uiState.displayRoute).toMatchObject({
+            mode: 'terminal_xterm',
+            reason: 'non_codex_session',
+            codexAppServerThreadId: null
+        });
+    });
+
     it('hibernated と broken を active lifecycle として扱わない', () => {
         appStore.setState({
             sessions: [
