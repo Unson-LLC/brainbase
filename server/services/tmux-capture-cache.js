@@ -1,5 +1,16 @@
 // @ts-check
-const DEFAULT_CAPTURE_TTL_MS = 3000;
+//
+// VibePro story-session-switch-performance evidence: cold session switch
+// fires multiple GET /api/sessions/:id/terminal/snapshot for the same session
+// within seconds (sidebar prefetch + click + xterm bootstrap). With a 3s TTL
+// every reorder/scroll burst was missing cache and re-shelling tmux.
+//
+// 10s TTL is safe because captureCache.invalidate() is called proactively on:
+//   - WS reconnect (_sendInitialSnapshot)
+//   - Every user keystroke sent via terminal-transport-service
+// So an active typing session never returns stale data; only idle / paused
+// sessions ride the cache, which is exactly the cold-switch hot path.
+const DEFAULT_CAPTURE_TTL_MS = 10000;
 const MAX_CAPTURE_LINES = 5000;
 
 /**
