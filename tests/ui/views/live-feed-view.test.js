@@ -78,8 +78,7 @@ describe('LiveFeedView', () => {
         expect(container.querySelector('.feed-item')).toBeTruthy();
         expect(container.querySelector('.feed-item-rail')).toBeTruthy();
         expect(container.querySelector('.feed-item-dot.working')).toBeTruthy();
-        expect(container.querySelector('.feed-item-actions')).toBeTruthy();
-        expect(Array.from(container.querySelectorAll('.feed-item-action')).every((button) => button.disabled)).toBe(true);
+        expect(container.querySelector('.feed-item-actions')).toBeNull();
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: このセッション');
         expect(store.subscribeToSelector).toHaveBeenCalled();
@@ -175,6 +174,8 @@ describe('LiveFeedView', () => {
 
         expect(container.querySelectorAll('.feed-item')).toHaveLength(1);
         expect(container.querySelector('.feed-item-history-text')?.textContent).toContain('Live Feedで過去の依頼を出して');
+        expect(container.querySelector('.feed-item-session')).toBeNull();
+        expect(container.querySelector('.feed-item-source')).toBeNull();
         expect(container.querySelector('.live-feed-footer')?.textContent).toContain('表示: 時系列 / 範囲: このセッション');
         expect(service.getHistoryEntries).toHaveBeenCalledWith({ mode: 'session', sessionId: 'session-alpha' });
 
@@ -182,6 +183,7 @@ describe('LiveFeedView', () => {
 
         expect(Array.from(container.querySelectorAll('.feed-item-history-text')).some((node) => node.textContent.includes('実装ファイルを確認中'))).toBe(true);
         expect(Array.from(container.querySelectorAll('.feed-item-source')).some((node) => node.textContent.includes('活動報告'))).toBe(true);
+        expect(Array.from(container.querySelectorAll('.feed-item-session')).map((node) => node.textContent)).toEqual(['session-alpha', 'session-beta']);
     });
 
     it('S-9/S-10: default表示は現在セッションで、全体ボタンで同じ時系列を横断表示する', () => {

@@ -77,6 +77,14 @@ export class LiveFeedView {
         return source;
     }
 
+    _isCurrentScope() {
+        return this._activeScope === 'current' && Boolean(this._currentSessionId());
+    }
+
+    _normalizedLabel(value) {
+        return String(value || '').replace(/\s+/g, '').trim();
+    }
+
     _getDisplayedEntries() {
         const currentSessionId = this._currentSessionId();
         if (typeof this.liveFeedService.getHistoryEntries === 'function') {
@@ -139,6 +147,7 @@ export class LiveFeedView {
 
     _renderEntry(entry) {
         const time = this._formatTime(entry.timestamp);
+        const isCurrentScope = this._isCurrentScope();
         const taskBrief = entry.taskBrief
             ? `<div class="feed-item-task">${escapeHtml(entry.taskBrief)}</div>`
             : '';
@@ -152,12 +161,17 @@ export class LiveFeedView {
             ? `<div class="feed-item-step feed-item-history-text">${escapeHtml(entry.text)}</div>`
             : '';
         const sourceLabel = this._sourceLabel(entry);
-        const provenance = sourceLabel
+        const tone = entry.statusTone || 'idle';
+        const statusText = entry.statusText || this._toneLabel(tone);
+        const status = escapeHtml(statusText);
+        const showSource = sourceLabel && this._normalizedLabel(sourceLabel) !== this._normalizedLabel(statusText);
+        const provenance = showSource
             ? `<span class="feed-item-source">${escapeHtml(sourceLabel)}</span>`
             : '';
+        const sessionMeta = isCurrentScope
+            ? ''
+            : `<span class="feed-item-session">${escapeHtml(entry.sessionId || '')}</span>`;
         const statusToneClass = entry.statusTone ? ` feed-item-tone-${entry.statusTone}` : '';
-        const tone = entry.statusTone || 'idle';
-        const status = escapeHtml(entry.statusText || this._toneLabel(tone));
         return `<div class="feed-item" data-tone="${escapeHtml(tone)}">
             <div class="feed-item-time">${time}</div>
             <div class="feed-item-rail"><span class="feed-item-dot ${escapeHtml(tone)}"></span></div>
@@ -168,18 +182,14 @@ export class LiveFeedView {
                     <span class="feed-item-status">${status}</span>
                 </div>
                 <div class="feed-item-meta-line">
-                    <span class="feed-item-session">${escapeHtml(entry.sessionId || '')}</span>
                     <span class="feed-item-time-inline">${time}</span>
+                    ${sessionMeta}
                     ${provenance}
                 </div>
                 ${taskBrief}
                 ${historyText}
                 ${currentStep}
                 ${latestEvidence}
-            </div>
-            <div class="feed-item-actions">
-                <button class="feed-item-action" type="button" aria-label="詳細を開く" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="external-link"></i></button>
-                <button class="feed-item-action" type="button" aria-label="コピー" aria-disabled="true" disabled title="未対応" style="cursor: not-allowed; opacity: 0.55;"><i data-lucide="copy"></i></button>
             </div>
         </div>`;
     }
@@ -210,7 +220,8 @@ export class LiveFeedView {
             ? ' style="padding-right: 96px;"'
             : '';
 
-        this._container.innerHTML = `<div class="live-feed-container"${surfacePadding}>
+        const scopeClass = this._isCurrentScope() ? ' live-feed-scope-current' : ' live-feed-scope-all';
+        this._container.innerHTML = `<div class="live-feed-container${scopeClass}"${surfacePadding}>
             <div class="live-feed-header">
                 <div class="live-feed-status-wrap">
                     <span class="live-feed-status active"><span class="live-feed-status-dot"></span>LIVE</span>

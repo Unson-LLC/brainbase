@@ -17348,7 +17348,8 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme .live-feed-header {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(184px, 1fr) auto;
+    column-gap: 10px;
     padding-right: 12px;
     padding-left: 12px;
 }
@@ -17389,13 +17390,23 @@ body.sns-growth-mode-active .terminal-header {
 }
 
 .command-center-theme .feed-scope-btn {
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 112px;
     gap: 8px;
     padding: 0 12px;
     border-radius: 0;
     border-right: 0;
     color: #aeb8c5;
     font-size: 12px;
+    white-space: nowrap;
+}
+
+.command-center-theme .feed-scope-btn span:first-child {
+    display: inline-block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .command-center-theme .feed-scope-count {
@@ -17411,6 +17422,10 @@ body.sns-growth-mode-active .terminal-header {
     font-family: var(--font-mono);
     font-size: 10px;
     font-weight: 700;
+}
+
+.command-center-theme .feed-scope-btn[data-scope="all"] {
+    min-width: 76px;
 }
 
 .command-center-theme .feed-scope-btn:first-child {
@@ -17521,11 +17536,11 @@ body.sns-growth-mode-active .terminal-header {
 
 .command-center-theme .feed-item {
     display: grid;
-    grid-template-columns: 16px 20px minmax(0, 1fr) 52px;
-    gap: 10px;
+    grid-template-columns: 14px 20px minmax(0, 1fr);
+    gap: 9px;
     align-items: start;
-    min-height: 74px;
-    padding: 10px 0;
+    min-height: 66px;
+    padding: 9px 0;
     border-bottom: 1px solid rgba(191, 201, 214, 0.1);
     background: transparent;
     animation: none;
@@ -17596,7 +17611,7 @@ body.sns-growth-mode-active .terminal-header {
 .command-center-theme .feed-item-meta-line {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -17617,6 +17632,11 @@ body.sns-growth-mode-active .terminal-header {
     white-space: nowrap;
 }
 
+.command-center-theme .live-feed-scope-current .feed-item-status {
+    margin-left: 0;
+    color: #9fb0c4;
+}
+
 .command-center-theme .feed-item-task,
 .command-center-theme .feed-item-session,
 .command-center-theme .feed-item-source,
@@ -17632,50 +17652,29 @@ body.sns-growth-mode-active .terminal-header {
     white-space: nowrap;
 }
 
+.command-center-theme .live-feed-scope-current .feed-item-meta-line {
+    margin-top: 1px;
+}
+
+.command-center-theme .live-feed-scope-current .feed-item-time-inline {
+    color: #7f8da0;
+}
+
 .command-center-theme .feed-item-source {
     color: #67b3ff;
 }
 
 .command-center-theme .feed-item-step {
     display: -webkit-box;
-    margin-top: 6px;
+    margin-top: 5px;
     color: #c8d2df;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
     line-height: 1.45;
     white-space: normal;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-}
-
-.command-center-theme .feed-item-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    margin-top: 0;
-}
-
-.command-center-theme .feed-item-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 0;
-    background: transparent;
-    color: #8b98a8;
-    cursor: pointer;
-}
-
-.command-center-theme .feed-item-action svg {
-    width: 15px;
-    height: 15px;
-}
-
-.command-center-theme .feed-item-action:hover {
-    color: #f4f7fb;
 }
 
 .command-center-theme .live-feed-footer {
@@ -17696,6 +17695,10 @@ body.sns-growth-mode-active .terminal-header {
     align-items: center;
     gap: 8px;
     white-space: nowrap;
+}
+
+.command-center-theme .live-feed-footer[style] {
+    padding-right: 112px !important;
 }
 
 .command-center-theme .live-feed-footer span:last-child {
@@ -17748,10 +17751,6 @@ body.sns-growth-mode-active .terminal-header {
 
     .command-center-theme .feed-item {
         grid-template-columns: 16px 20px minmax(0, 1fr);
-    }
-
-    .command-center-theme .feed-item-actions {
-        display: none;
     }
 }
 
