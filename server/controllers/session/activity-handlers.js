@@ -92,6 +92,35 @@ export function installActivityHandlers(controller) {
         res.json({ success: true });
     };
 
+    // Short TTL cache for getRuntimeInventory(): the inventory aggregates
+    // process/RSS info across all sessions and is the bottleneck inside
+    // GET /api/sessions/ui-summaries (VibePro story-session-switch-performance
+    // measured 1.3s p95). It rarely changes within a single session-switch
+    // burst, so caching for 3s coalesces the typical 5-10 calls a switch fires.
+    const RUNTIME_INVENTORY_CACHE_TTL_MS = 3000;
+    let runtimeInventoryCacheExpiresAt = 0;
+    let runtimeInventoryCachePromise = null;
+    async function getRuntimeInventoryCached() {
+        if (typeof controller.runtimeQuery?.getRuntimeInventory !== 'function') {
+            return null;
+        }
+        if (runtimeInventoryCachePromise && Date.now() < runtimeInventoryCacheExpiresAt) {
+            return runtimeInventoryCachePromise;
+        }
+        runtimeInventoryCacheExpiresAt = Date.now() + RUNTIME_INVENTORY_CACHE_TTL_MS;
+        runtimeInventoryCachePromise = (async () => {
+            try {
+                return await controller.runtimeQuery.getRuntimeInventory();
+            } catch (error) {
+                console.warn('[runtime-inventory] Failed to include inventory in UI summaries:', error);
+                runtimeInventoryCachePromise = null;
+                runtimeInventoryCacheExpiresAt = 0;
+                return null;
+            }
+        })();
+        return runtimeInventoryCachePromise;
+    }
+
     controller.getUiSummaries = async (req, res) => {
         const state = controller.stateStore.get();
         const requestedIds = typeof req.query.ids === 'string' && req.query.ids.trim()
@@ -103,12 +132,9 @@ export function installActivityHandlers(controller) {
         });
 
         let runtimeInventoryBySessionId = new Map();
-        if (typeof controller.runtimeQuery?.getRuntimeInventory === 'function') {
-            try {
-                runtimeInventoryBySessionId = indexRuntimeInventoryBySessionId(await controller.runtimeQuery.getRuntimeInventory());
-            } catch (error) {
-                console.warn('[runtime-inventory] Failed to include inventory in UI summaries:', error);
-            }
+        const cachedInventory = await getRuntimeInventoryCached();
+        if (cachedInventory) {
+            runtimeInventoryBySessionId = indexRuntimeInventoryBySessionId(cachedInventory);
         }
 
         const entries = await Promise.all(
