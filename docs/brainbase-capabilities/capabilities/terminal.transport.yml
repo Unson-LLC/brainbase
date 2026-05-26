@@ -10,6 +10,8 @@ surfaces:
   code:
     - public/modules/core/terminal-transport-client.js
     - public/modules/app/terminal-display-mixin.js
+    - server/services/terminal-transport-service.js
+    - server/services/tmux-control-client.js
     - scripts/codex-pty-shim.py
     - server/services/session-runtime
   data:
@@ -36,6 +38,8 @@ verification:
     - npm test -- tests/unit/codex-pty-shim.test.js
     - inspect /api/version to confirm canonical runtime sha
   expected:
+    - Safe streaming text/key input logs route=control-mode and avoids terminal-io mutation latency.
+    - Paste, multiline, or unsupported control-mode input falls back to route=terminal-io.
     - Pure Enter input takes the fast path.
     - Table snapshots remain stable across prompt/polling transitions.
     - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
@@ -51,6 +55,8 @@ verification:
     - Multiline paste is sent as one `paste` input and reaches tmux through `paste-buffer -p -r`.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
+  - Streaming output is active but input silently falls back to terminal-io, causing per-character lag.
+  - Browser local echo duplicates Claude Code/TUI redraws when IME committed text or ANSI-prefixed echo is treated as plain text.
   - Snapshot preservation regresses after develop sync if the fix is not merged.
   - Focus reporting bytes or focus loss disrupt input order.
   - Mobile workspace overlays inside console-area can look like terminal taps unless terminal-stage visibility is checked.

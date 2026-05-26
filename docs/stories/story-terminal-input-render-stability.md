@@ -28,6 +28,7 @@ Brainbase renders Claude Code and Codex through xterm. Recent fixes improved ind
 - Keep local echo and pending snapshot reconciliation from racing each other.
 - Preserve fast user feedback for Enter, Backspace, and normal typing.
 - Keep focus recovery/type-to-focus behavior aligned with the xterm transport key contract.
+- Send streaming terminal input through the existing tmux control-mode client when the input is safe to inline.
 - Ignore stale deferred session-switch work when a newer terminal switch token exists.
 - Add regression tests that fail when the visible input/render contract breaks.
 
@@ -37,6 +38,8 @@ Brainbase renders Claude Code and Codex through xterm. Recent fixes improved ind
 - [x] Snapshot repaint cannot clear or duplicate pending local input while the user is typing.
 - [x] Shift+Enter uses the same repo `S-Enter` prompt-newline key contract in both xterm key handling and type-to-focus recovery.
 - [x] Backspace remains immediate for locally echoed ASCII input, and IME commit text remains visible after composition confirmation without duplicate PTY echo rendering.
+- [x] Streaming text/key input uses control-mode fast path when safe, and falls back to terminal-io only for paste or unsupported input.
+- [x] Submit newline feedback does not clear pending ASCII echo before the PTY echo can be consumed.
 - [x] Focus reporting/control responses do not enter local echo or normal text batching.
 - [x] Browser/server transport treats bare `[I` and `[O` as user text unless they complete a held split focus report; the Codex PTY shim drops bare focus fragments only as outer-terminal response sanitization.
 - [x] Deferred session-switch work with an old switch token cannot apply stale terminal focus or render state after the active session changes.

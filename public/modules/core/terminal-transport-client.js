@@ -2235,17 +2235,12 @@ export class TerminalTransportClient {
     _applySubmitFeedback(text) {
         if (!this.terminal || !this._hasSubmitText(text) || this.status.mode !== 'live') return;
         this._clearImeCursorState();
-        this._writeToTerminal('\r\n', null, {
-            afterWrite: () => {
-                this._clearPendingEchoState();
-            }
-        });
+        this._writeToTerminal('\r\n');
     }
 
     _canOptimisticallyEcho(text) {
         if (typeof text !== 'string' || !text) return false;
-        if (/^[\t\x20-\x7e]+$/.test(text)) return true;
-        return this._isImeCommitText(text);
+        return /^[\t\x20-\x7e]+$/.test(text);
     }
 
     _normalizeEchoText(text) {
@@ -2258,14 +2253,57 @@ export class TerminalTransportClient {
         text = this._consumePendingBackspaceEcho(text);
         if (!text) return '';
         if (!this._pendingEchoText) return text;
-        if (!text.startsWith(this._pendingEchoText)) {
+        const pendingEcho = this._pendingEchoText;
+        if (text.startsWith(pendingEcho)) {
+            const remaining = text.slice(pendingEcho.length);
+            ttcDebug('[TTC-PROBE][local-echo] consumed', {
+                echoLen: pendingEcho.length,
+                remainingLen: remaining.length,
+                mode: 'direct'
+            });
             this._clearPendingEchoState();
-            return text;
+            return remaining;
         }
 
-        const remaining = text.slice(this._pendingEchoText.length);
+        const prefix = this._getNonPrintingPrefix(text);
+        if (prefix && text.slice(prefix.length).startsWith(pendingEcho)) {
+            const remaining = prefix + text.slice(prefix.length + pendingEcho.length);
+            ttcDebug('[TTC-PROBE][local-echo] consumed', {
+                echoLen: pendingEcho.length,
+                remainingLen: remaining.length,
+                mode: 'non-printing-prefix'
+            });
+            this._clearPendingEchoState();
+            return remaining;
+        }
+
+        ttcDebug('[TTC-PROBE][local-echo] mismatch', {
+            echoLen: pendingEcho.length,
+            outputLen: text.length,
+            outputPrefix: text.slice(0, 24)
+        });
         this._clearPendingEchoState();
-        return remaining;
+        return text;
+    }
+
+    _getNonPrintingPrefix(text) {
+        if (typeof text !== 'string' || !text) return '';
+        let offset = 0;
+        while (offset < text.length) {
+            const rest = text.slice(offset);
+            const sgr = rest.match(/^\x1b\[[0-9;?]*m/);
+            if (sgr) {
+                offset += sgr[0].length;
+                continue;
+            }
+            const osc = rest.match(/^\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/);
+            if (osc) {
+                offset += osc[0].length;
+                continue;
+            }
+            break;
+        }
+        return offset > 0 ? text.slice(0, offset) : '';
     }
 
     _consumePendingBackspaceEcho(text) {

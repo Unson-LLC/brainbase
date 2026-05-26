@@ -843,7 +843,7 @@ describe('terminal-transport-client', () => {
     expect(client.terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
   });
 
-  it('inputReady=falseの送信Enter時_直前のbuffer本文もqueueせず送信し描画待ちechoを解除する', async () => {
+  it('inputReady=falseの送信Enter時_直前のbuffer本文を送信しpending echoはPTY echo消費まで保持する', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -876,7 +876,7 @@ describe('terminal-transport-client', () => {
     );
     expect(client._messageQueue.size()).toBe(0);
     expect(client._pendingTextBuffer).toBe('');
-    expect(client._pendingEchoText).toBe('');
+    expect(client._pendingEchoText).toBe('生成して');
     expect(send).toHaveBeenCalledTimes(2);
     expect(JSON.parse(send.mock.calls[0][0])).toEqual({
       type: 'input',
@@ -889,6 +889,8 @@ describe('terminal-transport-client', () => {
       value: '\r'
     });
     expect(terminal.write).toHaveBeenCalledWith('\r\n', expect.any(Function));
+    expect(client._consumePendingEcho('生成して\r\n')).toBe('\r\n');
+    expect(client._pendingEchoText).toBe('');
   });
 
   it('ws切断中の即時textはinputReady=falseでもdropせずqueueする', async () => {
@@ -1227,7 +1229,7 @@ describe('terminal-transport-client', () => {
     expect(client._pendingBackspaceEchoCount).toBe(0);
   });
 
-  it('日本語IME確定文字は確定直後にローカルエコーする', async () => {
+  it('日本語IME確定文字はPTYの描画に任せる', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('WebSocket', { OPEN: 1 });
 
@@ -1245,8 +1247,8 @@ describe('terminal-transport-client', () => {
 
     await client.sendText('生成して');
 
-    expect(client.terminal.write).toHaveBeenCalledWith('生成して', expect.any(Function));
-    expect(client._pendingEchoText).toBe('生成して');
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingEchoText).toBe('');
   });
 
   it('日本語IME確定文字のPTY echoは二重描画しない', () => {
@@ -2105,6 +2107,23 @@ describe('terminal-transport-client', () => {
     expect(client._pendingEchoText).toBe('');
   });
 
+  it('SGR prefix付きのサーバーechoはローカルエコー部分を二重描画しない', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = 'abc';
+    client._applyOutput('\x1b[32mabc\x1b[0m!');
+
+    expect(terminal.write).toHaveBeenCalledWith('\x1b[32m\x1b[0m!', expect.any(Function));
+    expect(client._pendingEchoText).toBe('');
+  });
+
   it('INV-1: xterm writeはlocal/output/snapshotで直列化される', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
@@ -2201,7 +2220,7 @@ describe('terminal-transport-client', () => {
     expect(client._terminalWriteQueue).toHaveLength(0);
   });
 
-  it('INV-3: submit feedbackはnewline描画完了後にpending echoをclearする', () => {
+  it('INV-3: submit feedbackはnewline描画後もpending echoを保持してPTY echoを消費できる', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -2227,6 +2246,8 @@ describe('terminal-transport-client', () => {
 
     callbacks.shift()();
 
+    expect(client._pendingEchoText).toBe('draft');
+    expect(client._consumePendingEcho('draft\r\nnext prompt')).toBe('\r\nnext prompt');
     expect(client._pendingEchoText).toBe('');
   });
 
