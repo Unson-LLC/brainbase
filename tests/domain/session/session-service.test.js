@@ -47,6 +47,8 @@ describe('SessionService', () => {
     let mockSessions;
 
     beforeEach(() => {
+        window.localStorage.clear();
+
         Object.defineProperty(window, 'sessionStorage', {
             value: {
                 getItem: vi.fn(() => 'viewer-test'),
@@ -99,6 +101,36 @@ describe('SessionService', () => {
     });
 
     describe('loadSessions', () => {
+        it('Codex App Server metadataをキャッシュ復元後も保持する', () => {
+            appStore.setState({
+                sessions: [{
+                    id: 'session-codex-appserver',
+                    name: 'Codex App Server',
+                    project: 'project-a',
+                    path: '/path/a',
+                    engine: 'codex',
+                    codexAppServer: {
+                        threadId: 'thread-cache-1',
+                        stale: false
+                    }
+                }],
+                currentSessionId: 'session-codex-appserver',
+                testMode: false,
+                preferences: {}
+            });
+
+            sessionService._saveToCache();
+            appStore.setState({ sessions: [], currentSessionId: null });
+
+            const restored = sessionService.restoreFromCache();
+
+            expect(restored).toBe(true);
+            expect(appStore.getState().sessions[0].codexAppServer).toEqual({
+                threadId: 'thread-cache-1',
+                stale: false
+            });
+        });
+
         it('should fetch sessions from API and update store', async () => {
             httpClient.get.mockResolvedValue({ sessions: mockSessions });
 
@@ -168,6 +200,24 @@ describe('SessionService', () => {
             expect(addSession).toHaveBeenCalled();
             expect(httpClient.get).toHaveBeenCalledWith('/api/state');
             expect(result.proxyPath).toBe('/console/session-new');
+        });
+
+        it('Codex通常セッション作成時はApp Server起動を要求する', async () => {
+            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            httpClient.post.mockResolvedValue({ proxyPath: '/console/session-codex' });
+            addSession.mockResolvedValue();
+
+            await sessionService.createSession({
+                name: 'Codex Session',
+                project: 'project-a',
+                engine: 'codex'
+            });
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+                engine: 'codex',
+                codexAppServer: true,
+                viewerId: 'viewer-test'
+            }));
         });
 
         it('should emit SESSION_CREATED event', async () => {

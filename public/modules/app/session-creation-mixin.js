@@ -2,6 +2,7 @@ import { appStore } from '../core/store.js';
 import { httpClient } from '../core/http-client.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { createSessionId } from '../session-manager.js';
+import { showError } from '../toast.js';
 
 export function applySessionCreationMixin(AppClass) {
     Object.assign(AppClass.prototype, {
@@ -289,13 +290,13 @@ export function applySessionCreationMixin(AppClass) {
                 if (result.sessionId) {
                     const previousSessionId = appStore.getState().currentSessionId || null;
                     appStore.setState({ currentSessionId: result.sessionId });
-                    eventBus.emit(EVENTS.SESSION_CHANGED, {
+                    await eventBus.emit(EVENTS.SESSION_CHANGED, {
                         sessionId: result.sessionId,
                         previousSessionId,
                         proxyPath: result.proxyPath || null
                     });
 
-                    if (useWorktree) {
+                    if (useWorktree && !result.session?.codexAppServer?.threadId) {
                         this.showTerminalLoadingOverlay();
                         this._waitForClaudeInitialization(result.sessionId);
                     }
@@ -313,7 +314,12 @@ export function applySessionCreationMixin(AppClass) {
                 if (useWorktree) {
                     this.hideProgressModal();
                 }
-                this.showError('セッションの作成に失敗しました');
+                const detail = error?.message || '';
+                const appServerMetadataFailed = engine === 'codex'
+                    && /Codex App Server metadata was not persisted/i.test(detail);
+                showError(appServerMetadataFailed
+                    ? 'Codex App Serverの起動情報を確認できませんでした。セッションを作り直してください。'
+                    : 'セッションの作成に失敗しました');
             }
         },
 
@@ -353,7 +359,7 @@ export function applySessionCreationMixin(AppClass) {
                     } else if (this._isSessionStartupComposerForSession(result.sessionId)) {
                         this._setSessionStartupPromptStatus('準備できました。送信すると実行します。', 'ready');
                     }
-                    if (shouldPresentSession && hadQueuedPrompt) {
+                    if (shouldPresentSession) {
                         await eventBus.emit(EVENTS.SESSION_CHANGED, {
                             sessionId: result.sessionId,
                             previousSessionId,
@@ -385,7 +391,9 @@ export function applySessionCreationMixin(AppClass) {
                         hint: '入力内容は残っています。設定を確認して再試行してください。',
                         failed: true
                     });
-                    this.showError('セッションの起動に失敗しました');
+                    showError(/Codex App Server metadata was not persisted/i.test(message)
+                        ? 'Codex App Serverの起動情報を確認できませんでした。設定を確認して再試行してください。'
+                        : 'セッションの起動に失敗しました');
                 }
             } finally {
                 this._sessionStartupInFlight?.delete(sessionId);
@@ -450,7 +458,7 @@ export function applySessionCreationMixin(AppClass) {
                         } else if (this._isSessionStartupComposerForSession(sessionId)) {
                             this._setSessionStartupPromptStatus('準備できました。送信すると実行します。', 'ready');
                         }
-                        if (previousSessionId === sessionId && hadQueuedPrompt) {
+                        if (previousSessionId === sessionId) {
                             await eventBus.emit(EVENTS.SESSION_CHANGED, {
                                 sessionId,
                                 previousSessionId,

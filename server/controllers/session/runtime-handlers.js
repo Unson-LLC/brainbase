@@ -5,6 +5,10 @@ import { promisify } from 'util';
 import { logger } from '../../utils/logger.js';
 import { TAKEOVER_COOLDOWN_MS } from './constants.js';
 import { getCodexResumeId } from '../../services/codex-app-server-session-state.js';
+import {
+    shouldStartCodexAppServerSession,
+    waitForCodexAppServerSessionMetadata
+} from './codex-app-server-startup.js';
 
 const execAsync = promisify(exec);
 
@@ -846,7 +850,7 @@ export function installRuntimeHandlers(controller) {
     };
 
     controller.start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false, forceTtyd = false } = req.body;
+        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false, forceTtyd = false, codexAppServer = false } = req.body;
         const viewerLabel = controller._resolveViewerLabel(req, req.body?.viewerLabel);
         logger.debug(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         logger.debug('[DEBUG] Request stack:', new Error().stack?.split('\n').slice(1, 4).join(' <- '));
@@ -892,6 +896,7 @@ export function installRuntimeHandlers(controller) {
             });
         }
 
+        let shouldCleanupCodexAppServerRuntime = false;
         try {
             controller.activity.clearDoneStatus(sessionId);
 
@@ -962,10 +967,22 @@ export function installRuntimeHandlers(controller) {
             if (codexResumeId) {
                 startOptions.codexResumeId = codexResumeId;
             }
+            const shouldUseCodexAppServer = shouldStartCodexAppServerSession(startOptions.engine, codexAppServer);
+            if (shouldUseCodexAppServer) {
+                startOptions.codexAppServer = true;
+            }
             if (forceTtyd) startOptions.forceTtyd = true;
 
             const result = await controller.runtimeLifecycle.startTtyd(startOptions);
+            shouldCleanupCodexAppServerRuntime = shouldUseCodexAppServer;
             controller._recentSessionStarts.set(sessionId, Date.now());
+            const codexAppServerMetadata = shouldUseCodexAppServer
+                ? await waitForCodexAppServerSessionMetadata(controller, sessionId, {
+                    timeoutMs: controller.codexAppServerMetadataTimeoutMs,
+                    intervalMs: controller.codexAppServerMetadataIntervalMs
+                })
+                : null;
+            shouldCleanupCodexAppServerRuntime = false;
 
             await controller._updateStateWithRetry((state) => {
                 const updatedSessions = (state.sessions || []).map((session) => {
@@ -990,9 +1007,21 @@ export function installRuntimeHandlers(controller) {
                     ),
                     viewerId
                 ),
-                terminalAccess: ownership.terminalAccess
+                terminalAccess: ownership.terminalAccess,
+                ...(codexAppServerMetadata ? {
+                    codexAppServer: {
+                        threadId: codexAppServerMetadata.threadId
+                    }
+                } : {})
             });
         } catch (error) {
+            if (shouldCleanupCodexAppServerRuntime) {
+                try {
+                    await controller.runtimeLifecycle.stopTtyd(sessionId);
+                } catch (cleanupError) {
+                    logger.error(`[start] Failed to cleanup Codex App Server runtime after metadata failure for ${sessionId}:`, cleanupError);
+                }
+            }
             controller._respondError(res, 'Failed to start session:', error);
         }
     };

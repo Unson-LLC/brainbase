@@ -63,4 +63,70 @@ describe('SessionManager env', () => {
     const [, , spawnOptions] = spawnMock.mock.calls[0];
     expect(spawnOptions.env.BRAINBASE_PORT).toBe('31013');
   });
+
+  it('Codex App Server起動時_BRAINBASE_CODEX_APP_SERVERが環境変数に設定される', async () => {
+    const mockProcess = {
+      pid: 12345,
+      unref: vi.fn(),
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: vi.fn()
+    };
+    spawnMock.mockReturnValue(mockProcess);
+
+    await manager.startTtyd({
+      sessionId: 'session-1',
+      cwd: '/tmp',
+      initialCommand: '',
+      engine: 'codex',
+      codexAppServer: true
+    });
+
+    const [, , spawnOptions] = spawnMock.mock.calls[0];
+    expect(spawnOptions.env.BRAINBASE_CODEX_APP_SERVER).toBe('1');
+  });
+
+  it('Claude Code起動時はCodex App Server要求があっても環境変数に設定しない', async () => {
+    const mockProcess = {
+      pid: 12345,
+      unref: vi.fn(),
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: vi.fn()
+    };
+    spawnMock.mockReturnValue(mockProcess);
+
+    await manager.startTtyd({
+      sessionId: 'session-1',
+      cwd: '/tmp',
+      initialCommand: '',
+      engine: 'claude',
+      codexAppServer: true
+    });
+
+    const [, , spawnOptions] = spawnMock.mock.calls[0];
+    expect(spawnOptions.env.BRAINBASE_CODEX_APP_SERVER).toBeUndefined();
+  });
+
+  it('legacy Codex起動時は明示要求なしならCodex App Server環境変数に設定しない', async () => {
+    const mockProcess = {
+      pid: 12345,
+      unref: vi.fn(),
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: vi.fn()
+    };
+    spawnMock.mockReturnValue(mockProcess);
+
+    await manager.startTtyd({
+      sessionId: 'session-1',
+      cwd: '/tmp',
+      initialCommand: '',
+      engine: 'codex',
+      codexAppServer: false
+    });
+
+    const [, , spawnOptions] = spawnMock.mock.calls[0];
+    expect(spawnOptions.env.BRAINBASE_CODEX_APP_SERVER).toBeUndefined();
+  });
 });

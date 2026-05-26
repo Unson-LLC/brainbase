@@ -1,3 +1,5 @@
+import { httpClient } from './core/http-client.js';
+
 /**
  * State API操作のヘルパー関数
  * DRY: 複数箇所で使われていたfetch/api/state処理を一元化
@@ -11,8 +13,7 @@ const STATE_ENDPOINT = '/api/state';
  */
 export async function fetchState() {
   try {
-    const res = await fetch(STATE_ENDPOINT);
-    return await res.json();
+    return await httpClient.get(STATE_ENDPOINT);
   } catch (error) {
     console.error('Failed to fetch state:', error);
     return { sessions: [] };
@@ -70,11 +71,7 @@ export async function saveState(state) {
     sessions: (state.sessions || []).map(sanitizeSession)
   };
 
-  await fetch(STATE_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sanitizedState)
-  });
+  await httpClient.post(STATE_ENDPOINT, sanitizedState);
 }
 
 /**
@@ -83,11 +80,7 @@ export async function saveState(state) {
  * @param {Object} updates - 更新内容
  */
 export async function updateSession(sessionId, updates) {
-  await fetch(`${STATE_ENDPOINT}/sessions/${encodeURIComponent(sessionId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates)
-  });
+  await httpClient.patch(`${STATE_ENDPOINT}/sessions/${encodeURIComponent(sessionId)}`, updates);
 }
 
 /**
@@ -96,12 +89,7 @@ export async function updateSession(sessionId, updates) {
  * @returns {Promise<Object>}
  */
 export async function createSession(session) {
-  const res = await fetch(`${STATE_ENDPOINT}/sessions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sanitizeSession(session))
-  });
-  return await res.json();
+  return await httpClient.post(`${STATE_ENDPOINT}/sessions`, sanitizeSession(session));
 }
 
 /**
@@ -109,9 +97,7 @@ export async function createSession(session) {
  * @param {string} sessionId - セッションID
  */
 export async function removeSession(sessionId) {
-  await fetch(`${STATE_ENDPOINT}/sessions/${encodeURIComponent(sessionId)}`, {
-    method: 'DELETE'
-  });
+  await httpClient.delete(`${STATE_ENDPOINT}/sessions/${encodeURIComponent(sessionId)}`);
 }
 
 /**
@@ -128,10 +114,5 @@ export async function addSession(session) {
  * @returns {Promise<Object>}
  */
 export async function saveSessionOrder(orderedIds) {
-  const res = await fetch(`${STATE_ENDPOINT}/sessions/reorder`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orderedIds })
-  });
-  return await res.json();
+  return await httpClient.post(`${STATE_ENDPOINT}/sessions/reorder`, { orderedIds });
 }

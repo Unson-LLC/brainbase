@@ -279,6 +279,124 @@ describe('SessionController (Server)', () => {
       }));
     });
 
+    it('新規Codex App Server startはmetadata永続化後に成功を返す', async () => {
+      const sessionId = 'session-codex-appserver';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/session-codex-appserver',
+          intendedState: 'active',
+          engine: 'codex',
+          codexAppServer: {
+            threadId: 'thread-appserver-1',
+            stale: false
+          }
+        }]
+      });
+      mockStateStore.update.mockResolvedValue({
+        sessions: [{
+          id: sessionId,
+          intendedState: 'active',
+          engine: 'codex',
+          codexAppServer: {
+            threadId: 'thread-appserver-1',
+            stale: false
+          }
+        }]
+      });
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40102,
+        proxyPath: `/console/${sessionId}`
+      });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.start({
+        body: {
+          sessionId,
+          engine: 'codex',
+          viewerId: 'viewer-1',
+          codexAppServer: true
+        },
+        headers: { referer: 'http://localhost:31013/', 'user-agent': 'Mozilla/5.0' }
+      }, mockRes);
+
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        engine: 'codex',
+        codexAppServer: true
+      }));
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        port: 40102,
+        proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
+        codexAppServer: {
+          threadId: 'thread-appserver-1'
+        }
+      }));
+    });
+
+    it('新規Codex App Server startでmetadata永続化に失敗した場合_runtimeをcleanupして成功を返さない', async () => {
+      const sessionId = 'session-codex-appserver-missing-metadata';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/session-codex-appserver-missing-metadata',
+          intendedState: 'active',
+          engine: 'codex'
+        }]
+      });
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40103,
+        proxyPath: `/console/${sessionId}`
+      });
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      sessionController.codexAppServerMetadataTimeoutMs = 10;
+      sessionController.codexAppServerMetadataIntervalMs = 1;
+
+      await sessionController.start({
+        body: {
+          sessionId,
+          engine: 'codex',
+          viewerId: 'viewer-1',
+          codexAppServer: true
+        },
+        headers: { referer: 'http://localhost:31013/', 'user-agent': 'Mozilla/5.0' }
+      }, mockRes);
+
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        engine: 'codex',
+        codexAppServer: true
+      }));
+      expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith(sessionId);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Codex App Server metadata was not persisted')
+      }));
+    });
+
     it('別viewerのstart呼び出し時_409 blockedを返す', async () => {
       const sessionId = 'session-blocked';
       mockStateStore.get.mockReturnValue({
@@ -1352,9 +1470,23 @@ describe('SessionController (Server)', () => {
         mockState = nextState;
         return mockState;
       });
-      mockSessionManager.startTtyd.mockResolvedValue({
+      mockSessionManager.startTtyd.mockImplementation(async () => {
+        mockState = {
+          ...mockState,
+          sessions: (mockState.sessions || []).map((session) => session.id === 'session-new'
+            ? {
+                ...session,
+                codexAppServer: {
+                  threadId: 'thread-session-new',
+                  stale: false
+                }
+              }
+            : session)
+        };
+        return {
         port: 40124,
         proxyPath: '/console/session-new'
+        };
       });
       mockSessionManager.forceTerminalOwnership.mockReturnValue({
         terminalAccess: {
@@ -1401,7 +1533,8 @@ describe('SessionController (Server)', () => {
       expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 'session-new',
         cwd: worktreePath,
-        engine: 'codex'
+        engine: 'codex',
+        codexAppServer: true
       }));
       expect(mockStateStore.update).toHaveBeenCalledWith(expect.objectContaining({
         sessions: expect.arrayContaining([
@@ -1431,6 +1564,10 @@ describe('SessionController (Server)', () => {
             id: 'session-new',
             startupStatus: 'ready',
             startupPhase: 'done',
+            codexAppServer: expect.objectContaining({
+              threadId: 'thread-session-new',
+              stale: false
+            }),
             worktree: expect.objectContaining({
               repo: fallbackRepoPath,
               path: worktreePath
@@ -1440,7 +1577,10 @@ describe('SessionController (Server)', () => {
       }));
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
-        proxyPath: '/console/session-new/?viewerId=viewer-1'
+        proxyPath: '/console/session-new/?viewerId=viewer-1',
+        codexAppServer: expect.objectContaining({
+          threadId: 'thread-session-new'
+        })
       }));
     });
 
@@ -1490,6 +1630,8 @@ describe('SessionController (Server)', () => {
       const worktreePath = path.join(tempDir, 'worktrees', 'session-runtime-fail');
       const controller = new SessionController(buildControllerDeps());
       let state = { sessions: [] };
+      controller.codexAppServerMetadataTimeoutMs = 10;
+      controller.codexAppServerMetadataIntervalMs = 1;
       let resolveCleanup;
 
       await fs.mkdir(repoPath, { recursive: true });
@@ -1534,6 +1676,62 @@ describe('SessionController (Server)', () => {
           startupStatus: 'failed',
           startupPhase: 'error',
           startupMessage: 'ttyd failed'
+        })
+      ]);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+    });
+
+    it('Codex App Server worktreeでmetadata永続化に失敗した場合_runtimeとworktreeをcleanupする', async () => {
+      const repoPath = path.join(tempDir, 'repo-appserver-metadata-fail');
+      const worktreePath = path.join(tempDir, 'worktrees', 'session-appserver-metadata-fail');
+      const controller = new SessionController(buildControllerDeps());
+      let state = { sessions: [] };
+      controller.codexAppServerMetadataTimeoutMs = 10;
+      controller.codexAppServerMetadataIntervalMs = 1;
+
+      await fs.mkdir(repoPath, { recursive: true });
+      await fs.mkdir(worktreePath, { recursive: true });
+
+      mockWorktreeService.create.mockResolvedValue({
+        worktreePath,
+        branchName: 'session/session-appserver-metadata-fail',
+        startCommit: 'abc123'
+      });
+      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40125,
+        proxyPath: '/console/session-appserver-metadata-fail'
+      });
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
+      controller._updateStateWithRetry = vi.fn(async (mutator) => {
+        state = mutator(state);
+        return state;
+      });
+
+      await controller.createWithWorktree({
+        body: {
+          sessionId: 'session-appserver-metadata-fail',
+          repoPath,
+          name: 'App Server Metadata Fail',
+          engine: 'codex',
+          viewerId: 'viewer-1'
+        },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-appserver-metadata-fail',
+        engine: 'codex',
+        codexAppServer: true
+      }));
+      expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith('session-appserver-metadata-fail');
+      expect(mockWorktreeService.remove).toHaveBeenCalledWith('session-appserver-metadata-fail', repoPath);
+      expect(state.sessions).toEqual([
+        expect.objectContaining({
+          id: 'session-appserver-metadata-fail',
+          startupStatus: 'failed',
+          startupPhase: 'error',
+          startupMessage: expect.stringContaining('Codex App Server metadata was not persisted')
         })
       ]);
       expect(mockRes.status).toHaveBeenCalledWith(500);

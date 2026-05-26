@@ -79,6 +79,7 @@ export class SessionService {
                     hibernateFailureReason: s.hibernateFailureReason,
                     hibernateFailedAt: s.hibernateFailedAt,
                     hibernatePartialStop: s.hibernatePartialStop,
+                    codexAppServer: s.codexAppServer,
                     worktree: s.worktree, createdAt: s.createdAt,
                     archivedAt: s.archivedAt, pausedReason: s.pausedReason
                 })),
@@ -341,6 +342,7 @@ export class SessionService {
                 initialCommand,
                 cwd: repoPath,
                 engine,
+                codexAppServer: engine === 'codex',
                 viewerId: this.viewerId,
                 viewerLabel: this.viewerLabel
             });

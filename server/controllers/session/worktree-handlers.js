@@ -2,6 +2,10 @@
 import { logger } from '../../utils/logger.js';
 import { deriveTaskBriefFromPrompt } from '../../utils/task-brief.js';
 import { getCodexResumeId } from '../../services/codex-app-server-session-state.js';
+import {
+    shouldStartCodexAppServerSession,
+    waitForCodexAppServerSessionMetadata
+} from './codex-app-server-startup.js';
 
 const MAX_SESSION_ACTIVITY_HISTORY = 40;
 
@@ -184,16 +188,31 @@ export function installWorktreeHandlers(controller) {
             }
 
             let result;
+            let codexAppServerMetadata = null;
             try {
                 controller._updateProgress(sessionId, 'ttyd', 80, 'ターミナルを起動中...');
                 result = await controller.runtimeLifecycle.startTtyd({
                     sessionId,
                     cwd: worktreePath,
                     initialCommand,
-                    engine
+                    engine,
+                    codexAppServer: shouldStartCodexAppServerSession(engine, true)
                 });
+                if (shouldStartCodexAppServerSession(engine, true)) {
+                    codexAppServerMetadata = await waitForCodexAppServerSessionMetadata(controller, sessionId, {
+                        timeoutMs: controller.codexAppServerMetadataTimeoutMs,
+                        intervalMs: controller.codexAppServerMetadataIntervalMs
+                    });
+                }
             } catch (ttydError) {
                 controller._updateProgress(sessionId, 'error', 0, 'ターミナル起動に失敗');
+                if (result) {
+                    try {
+                        await controller.runtimeLifecycle.stopTtyd(sessionId);
+                    } catch (cleanupError) {
+                        logger.error('[createWithWorktree] Runtime cleanup after Codex App Server metadata failure failed:', cleanupError);
+                    }
+                }
                 try {
                     await controller._updateStateWithRetry((state) => ({
                         ...state,
@@ -242,7 +261,12 @@ export function installWorktreeHandlers(controller) {
                 proxyPath: controller._appendViewerIdToProxyPath(result.proxyPath, viewerId),
                 terminalAccess: ownership.terminalAccess,
                 worktreePath,
-                branchName
+                branchName,
+                ...(codexAppServerMetadata ? {
+                    codexAppServer: {
+                        threadId: codexAppServerMetadata.threadId
+                    }
+                } : {})
             });
         } catch (error) {
             logger.error('Failed to create session with worktree:', error);

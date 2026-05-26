@@ -405,6 +405,11 @@ async function initialize() {
   send({ method: 'initialized', params: {} });
   const thread = await request('thread/start', { model });
   threadId = thread?.thread?.id || thread?.threadId || thread?.id;
+  if (threadId) {
+    await reportAppServerActivity('thread/started', {
+      thread: { id: threadId }
+    }, { fallbackThreadId: threadId });
+  }
 }
 
 async function run() {

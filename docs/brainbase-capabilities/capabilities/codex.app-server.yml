@@ -19,6 +19,9 @@ surfaces:
     - public/modules/app/codex-app-server-display-mixin.js
     - public/modules/app/session-management-mixin.js
     - public/modules/session-ui-state.js
+    - docs/stories/story-codex-appserver-session-create.md
+    - docs/architecture/codex-appserver-session-create-architecture.md
+    - docs/specs/codex-appserver-session-create-spec.md
     - docs/stories/story-codex-appserver-display-route-consumer.md
     - docs/architecture/codex-appserver-display-route-consumer-architecture.md
     - docs/specs/codex-appserver-display-route-consumer-spec.md
@@ -42,6 +45,7 @@ surfaces:
     - tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
     - tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
     - tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
+    - tests/e2e/story-codex-appserver-session-create-contract.spec.ts
   data:
     - in-memory Codex App Server process state
     - in-memory JSON-RPC pending request map
@@ -65,6 +69,8 @@ visibility_rules:
   - App Server display-route state is read-only until a separate transcript-rendering story owns the browser panel and input path.
   - App Server display-route consumers may show a read-only App Server display panel for routed Codex thread sessions without starting xterm.
   - App Server display-route consumers must preserve xterm/ttyd fallback for Claude Code and Codex sessions without usable App Server metadata.
+  - New Codex session creation requests the App Server REPL path and must persist non-stale `session.codexAppServer` thread metadata before reporting creation success.
+  - Existing Codex sessions without App Server metadata keep terminal fallback unless an explicit creation/start request opts into Codex App Server.
   - Keep full App Server event item persistence out of scope unless a separate ledger story defines ownership and retention.
   - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
@@ -77,6 +83,7 @@ verification:
     - npm run test:run -- tests/ui/integration/app-switch-session-runtime.test.js
     - npm run test:e2e -- tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
     - npm run test:e2e -- tests/e2e/story-codex-appserver-display-route-consumer-contract.spec.ts
+    - npm run test:e2e -- tests/e2e/story-codex-appserver-session-create-contract.spec.ts
     - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
     - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
     - npx -y @openai/codex@latest app-server --help
@@ -86,6 +93,7 @@ verification:
     - Session-state tests prove Codex-only App Server metadata persistence, restore selection, explicit missing-metadata fallback, and Claude Code non-mutation.
     - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches; port 31013 live-runtime proof still requires post-merge smoke evidence.
     - Display route tests prove Codex App Server metadata selects the App Server route and Claude Code stays on xterm.
+    - Session creation tests prove new Codex sessions request App Server startup and wait for durable thread metadata.
     - Session switching tests prove routed Codex App Server sessions show the App Server panel without starting xterm, while Claude Code fallback still uses xterm.
     - Display-route contract E2E covers the Story acceptance criteria through Story/ADR/Spec/code/test anchors.
     - Codex CLI exposes the app-server command. If the local global `codex` shim is broken, use `npx -y @openai/codex@latest` as the reproducible CLI entrypoint for this capability check.
@@ -100,5 +108,6 @@ common_failures:
   - Persisting app-server events into Graph SSOT directly instead of a defined session/event ledger.
   - Reading session.codexAppServer metadata for Claude Code sessions.
   - Treating Codex App Server display-route eligibility as permission to remove xterm fallback.
+  - Reporting Codex session creation success before the App Server REPL has persisted thread metadata, causing immediate xterm fallback.
 runbooks: []
 troubleshooting: []

@@ -3,6 +3,10 @@ const START_METHODS = new Set([
   'task_started'
 ]);
 
+const THREAD_START_METHODS = new Set([
+  'thread/started'
+]);
+
 const COMPLETE_METHODS = new Set([
   'turn/completed',
   'task_complete',
@@ -71,6 +75,15 @@ export function resolveAppServerThreadId(params = {}, fallbackThreadId = null) {
 
 export function classifyAppServerNotification(method) {
   const normalized = normalizeString(method);
+  if (THREAD_START_METHODS.has(normalized)) {
+    return {
+      supported: true,
+      status: 'done',
+      lifecycle: 'thread_started',
+      activityKind: 'task_completed',
+      currentStep: 'Codex App Serverのスレッドを準備'
+    };
+  }
   if (START_METHODS.has(normalized)) {
     return {
       supported: true,
@@ -152,6 +165,7 @@ export function buildCodexAppServerStatePatch({
   const reportedAtIso = new Date(reportedAt).toISOString();
   const lifecycle = classification.lifecycle;
   const status = classification.status;
+  const activeTurnId = lifecycle === 'turn_started' ? turnId : null;
 
   return {
     mutates: true,
@@ -160,7 +174,7 @@ export function buildCodexAppServerStatePatch({
       codexAppServer: {
         source: 'codex_app_server',
         ...(threadId ? { threadId } : {}),
-        activeTurnId: lifecycle === 'turn_started' ? turnId : null,
+        activeTurnId,
         lastTurnId: turnId || null,
         lifecycle,
         status,

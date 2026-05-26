@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger.js';
 import { gracefulCleanup } from '../../lib/graceful-cleanup.js';
 
 export const runtimeLifecycleMethods = {
-    async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude', codexResumeId = null }) {
+    async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude', codexResumeId = null, codexAppServer = false }) {
         if (!sessionId || typeof sessionId !== 'string') {
             throw new Error('sessionId is required');
         }
@@ -45,6 +45,9 @@ export const runtimeLifecycleMethods = {
         if (codexResumeId && engine === 'codex') {
             spawnOptions.env.BRAINBASE_CODEX_RESUME_ID = codexResumeId;
         }
+        if (engine === 'codex' && codexAppServer === true) {
+            spawnOptions.env.BRAINBASE_CODEX_APP_SERVER = '1';
+        }
 
         await new Promise((resolve, reject) => {
             const child = spawn('bash', [scriptPath, sessionId, initialCommand || '', engine], spawnOptions);
@@ -74,8 +77,8 @@ export const runtimeLifecycleMethods = {
         throw new Error(`tmux session did not become ready: ${sessionId}`);
     },
 
-    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, forceTtyd = false, codexResumeId = null, preserveTmuxOnFailure = false }) {
-        await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine, codexResumeId });
+    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, forceTtyd = false, codexResumeId = null, codexAppServer = false, preserveTmuxOnFailure = false }) {
+        await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine, codexResumeId, codexAppServer });
 
         if (this._isXtermOnlyMode() && !forceTtyd) {
             logger.info(`[startTtyd] xterm-only mode: skipping ttyd for ${sessionId}`);
@@ -87,7 +90,7 @@ export const runtimeLifecycleMethods = {
             return await this.startLocks.get(sessionId);
         }
 
-        const promise = this._doStartTtyd({ sessionId, cwd, initialCommand, engine, preferredPort, codexResumeId, preserveTmuxOnFailure });
+        const promise = this._doStartTtyd({ sessionId, cwd, initialCommand, engine, preferredPort, codexResumeId, codexAppServer, preserveTmuxOnFailure });
         this.startLocks.set(sessionId, promise);
         try {
             return await promise;
@@ -96,7 +99,7 @@ export const runtimeLifecycleMethods = {
         }
     },
 
-    async _doStartTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, codexResumeId = null, preserveTmuxOnFailure = false }) {
+    async _doStartTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, codexResumeId = null, codexAppServer = false, preserveTmuxOnFailure = false }) {
         if (!['claude', 'codex'].includes(engine)) {
             throw new Error('engine must be "claude" or "codex"');
         }
@@ -226,6 +229,9 @@ export const runtimeLifecycleMethods = {
         }
         if (codexResumeId && engine === 'codex') {
             spawnOptions.env.BRAINBASE_CODEX_RESUME_ID = codexResumeId;
+        }
+        if (engine === 'codex' && codexAppServer === true) {
+            spawnOptions.env.BRAINBASE_CODEX_APP_SERVER = '1';
         }
 
         const resolveTtydPath = () => {
