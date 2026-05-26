@@ -1735,40 +1735,54 @@ export function applyTerminalInputUxMixin(AppClass) {
                     hasDomFocus,
                     activeEl: document.activeElement?.tagName
                 });
-                this.focusTerminal('type-to-focus');
+                const consumeRecoveredKey = () => {
+                    e.preventDefault();
+                    e.stopPropagation?.();
+                };
                 if (key === 'Enter' && e.shiftKey) {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendKey('S-Enter').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'Enter') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendKey('Enter').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'Tab' && e.shiftKey) {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendKey('BTab').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'Tab') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendKey('Tab').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'ArrowLeft') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendText('\x1b[D').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'ArrowRight') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendText('\x1b[C').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'ArrowUp') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendText('\x1b[A').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'ArrowDown') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendText('\x1b[B').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'Escape') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendKey('Escape').catch(() => {});
-                    e.preventDefault();
                 } else if (key === 'Backspace') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendText('\x7f').catch(() => {});
-                    e.preventDefault();
                 } else if (typeof key === 'string' && key.length === 1 && key !== ' ') {
+                    consumeRecoveredKey();
+                    this.focusTerminal('type-to-focus');
                     this.terminalTransportClient.sendText(key).catch(() => {});
-                    e.preventDefault();
                 }
                 return;
             }
