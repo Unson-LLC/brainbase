@@ -143,6 +143,7 @@ test.describe('story-terminal-input-render-stability', () => {
             applyTerminalInputUxMixin(TestApp);
             const sentKeys = [];
             const sentText = [];
+            const outsideKeydownKeys = [];
             const app = new TestApp();
             app.terminalFrame = document.getElementById('terminal-frame');
             app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -177,13 +178,23 @@ test.describe('story-terminal-input-render-stability', () => {
                     sentText.push(value);
                 }
             };
+            document
+                .getElementById('story-terminal-input-render-stability-outside-focus')
+                .addEventListener('keydown', (event) => {
+                    outsideKeydownKeys.push(event.key);
+                });
 
             appStore.setState({
                 currentSessionId: 'session-1',
                 sessions: [{ id: 'session-1', engine: 'codex' }]
             });
             app.setupTerminalInputUx();
-            window.__storyTerminalInputRenderStability = { sentKeys, sentText, app };
+            window.__storyTerminalInputRenderStability = {
+                sentKeys,
+                sentText,
+                app,
+                getOutsideKeydownKeys: () => outsideKeydownKeys
+            };
         });
 
         await page.locator('#story-terminal-input-render-stability-outside-focus').focus();
@@ -194,11 +205,15 @@ test.describe('story-terminal-input-render-stability', () => {
         const result = await page.evaluate(() => ({
             sentKeys: window.__storyTerminalInputRenderStability.sentKeys,
             sentText: window.__storyTerminalInputRenderStability.sentText,
+            outsideKeydownKeys: window.__storyTerminalInputRenderStability.getOutsideKeydownKeys(),
             focusReason: window.__storyTerminalInputRenderStability.app.lastFocusReason
         }));
 
-        expect(result.sentText).toContain('a');
+        expect(result.sentText.filter(value => value === 'a')).toHaveLength(1);
         expect(result.sentText).toContain('\x7f');
+        expect(result.outsideKeydownKeys).not.toContain('a');
+        expect(result.outsideKeydownKeys).not.toContain('Backspace');
+        expect(result.outsideKeydownKeys).not.toContain('Enter');
         expect(result.sentKeys).toContain('S-Enter');
         expect(result.sentKeys).not.toContain('M-Enter');
         expect(result.focusReason).toBe('type-to-focus');
