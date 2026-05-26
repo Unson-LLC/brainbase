@@ -810,6 +810,8 @@ export function applySessionCreationMixin(AppClass) {
         _setSessionStartupPromptStatus(text, state = 'idle') {
             const status = document.getElementById('session-startup-prompt-status');
             const sendBtn = document.getElementById('session-startup-prompt-send');
+            const overlay = document.getElementById('terminal-loading-overlay');
+            overlay?.classList.toggle('startup-composer-ready', state === 'ready');
             if (status) {
                 status.textContent = text || '';
                 status.dataset.state = state;

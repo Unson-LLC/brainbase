@@ -12175,6 +12175,12 @@ body.resizing iframe {
     margin: 0 auto 1rem;
 }
 
+.terminal-loading-overlay.startup-composer-ready .spinner,
+.terminal-loading-overlay.startup-composer-ready .loading-message,
+.terminal-loading-overlay.startup-composer-ready .loading-hint {
+    display: none;
+}
+
 .loading-message {
     font-size: 1.2rem;
     font-weight: bold;

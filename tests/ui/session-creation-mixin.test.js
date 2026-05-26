@@ -373,12 +373,14 @@ describe('applySessionCreationMixin', () => {
         input.dispatchEvent(new Event('input'));
         expect(app._sessionStartupPromptDrafts.get(result.sessionId)).toBe('draft only');
         expect(app._sessionStartupPromptQueue.has(result.sessionId)).toBe(false);
+        expect(document.getElementById('terminal-loading-overlay').classList.contains('startup-composer-ready')).toBe(false);
 
         resolveStartup({ sessionId: result.sessionId, proxyPath: `/console/${result.sessionId}` });
         await vi.waitFor(() => expect(app._sessionStartupInFlight.has(result.sessionId)).toBe(false));
         expect(terminalInteractionService.sendInput).not.toHaveBeenCalled();
         expect(document.getElementById('session-startup-composer').classList.contains('hidden')).toBe(false);
         expect(document.getElementById('session-startup-prompt-status').textContent).toContain('準備できました');
+        expect(document.getElementById('terminal-loading-overlay').classList.contains('startup-composer-ready')).toBe(true);
 
         document.getElementById('session-startup-prompt-send').click();
         await vi.waitFor(() => {
