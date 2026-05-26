@@ -20,10 +20,37 @@
 // Exclusion patterns (false positive — 監査の母集団から外す)
 // ──────────────────────────────────────────────────────────────────────────────
 
-// VibePro reviewer subagent. 「VibePro review task.」「VibePro final ...」
-// 「You are performing (the final)? VibePro ... parallel review」「You are reviewing STR-...」など。
-const EXCLUDE_VIBEPRO_REVIEWER_RE =
-  /^(VibePro review task\.|VibePro final|You are performing (?:the final )?VibePro|You are reviewing\s+STR-)/i;
+// VibePro reviewer subagent. v6 (2026-05-24/25) で多種の prefix を網羅。
+// 2026-05-24/25 監査で漏れた pattern: Read-only VibePro Agent Review / VibePro
+// required agent review / VibePro parallel review / VibePro Agent Review for /
+// Read `.vibepro/reviews/... / Read `/abs/path/.vibepro/reviews/ /
+// In <path>, read .vibepro/reviews/ / In <path>, perform only the VibePro /
+// Worktree: ... Review role|task / Aitle repo review task / Re-review STR- /
+// You are doing a VibePro required review / You are reviewing <Project> PR readiness など。
+// `^` anchor で「途中で VibePro と言及するだけの legit meta prompt」は除外しない。
+const EXCLUDE_VIBEPRO_REVIEWER_RE = new RegExp(
+  [
+    // VibePro 系列 (review / Review / final / task / gate / parallel / required / Agent Review)
+    String.raw`^(?:Read-only\s+)?VibePro\s+(?:review|Review|final|task|gate|parallel|required|Agent\s+Review)`,
+    // You are performing (the final)? VibePro
+    String.raw`^You\s+are\s+performing\s+(?:the\s+final\s+)?VibePro`,
+    // You are doing a VibePro
+    String.raw`^You\s+are\s+doing\s+a\s+VibePro`,
+    // You are reviewing STR- / You are reviewing <Project> PR readiness for VibePro
+    String.raw`^You\s+are\s+reviewing\s+(?:STR-|\S+\s+PR\s+readiness\s+for\s+VibePro)`,
+    // Re-review STR-
+    String.raw`^Re-review\s+STR-`,
+    // Aitle repo review task
+    String.raw`^Aitle\s+repo\s+review\s+task`,
+    // Read `<.vibepro/reviews/ or /abs/.../.vibepro/reviews/> (backtick/single/double quote)
+    String.raw`^Read\s*[\x60'"](?:\.|\/[^\x60'"]+\/)\.?vibepro\/reviews\/`,
+    // In <path>, read .vibepro/reviews/  または  In <path>, perform only the VibePro
+    String.raw`^In\s+\S+,\s+(?:read\s+\.?vibepro\/reviews\/|perform\s+only\s+the\s+VibePro)`,
+    // Worktree: ... Review role|task
+    String.raw`^Worktree:.+Review\s+(?:role|task)`,
+  ].join("|"),
+  "i",
+);
 
 // 監査タスク自身。daily cron が送るプロンプトの特徴句で識別。
 const EXCLUDE_AUDIT_META_RE =

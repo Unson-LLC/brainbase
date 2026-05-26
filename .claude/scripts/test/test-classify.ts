@@ -213,6 +213,116 @@ const EXCLUDED: Case[] = [
     expectKg: false,
     expectExcluded: "learning-extractor",
   },
+  // v6: 2026-05-24 監査で発見された未除外 reviewer prefix を fixture 追加 (9種)
+  {
+    label: "excluded v6: Read-only VibePro Agent Review.",
+    prompt:
+      "Read-only VibePro Agent Review. Do not edit files. Workdir: /Volumes/UNSON-DRIVE/brainbase-worktrees/session-XXX. Story: STR-099.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: Read-only VibePro agent review (lowercase)",
+    prompt:
+      "Read-only VibePro agent review. Repo: /Users/ksato/workspace/code/brainbase. Stage: planning_spec.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: VibePro required agent review.",
+    prompt:
+      "VibePro required agent review. Worktree: /tmp/brainbase-terminal-stable.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: VibePro parallel review.",
+    prompt:
+      "VibePro parallel review. Worktree: /tmp/brainbase-terminal-state.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: VibePro Agent Review for Brainbase.",
+    prompt:
+      "VibePro Agent Review for Brainbase. Worktree: /tmp/brainbase-XXX.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: VibePro gate review for...",
+    prompt:
+      "VibePro gate review for STR-099 in /tmp/brainbase. Read .vibepro/reviews/STR-099/...",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: Aitle repo review task for VibePro story",
+    prompt:
+      "Aitle repo review task for VibePro story story-ai-search-llm. Do not edit files.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: Read `.vibepro/reviews/<...>",
+    prompt:
+      "Read `.vibepro/reviews/oyasumi-conversation-personal-kg/gate.md` and produce a verdict.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: In <path>, read .vibepro/reviews/",
+    prompt:
+      "In /Users/ksato/workspace/code/brainbase, read .vibepro/reviews/story-foo/...",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  {
+    label: "excluded v6: Worktree: ... Review role",
+    prompt:
+      "Worktree: /tmp/brainbase-live-feed-stable-order. Review role: architect. Do not edit files.",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: "vibepro-reviewer",
+  },
+  // v6 陰性: 「途中で VibePro と言及するだけの legit meta prompt」は除外しない
+  // (CAPMAP_KEYWORDS_RE に "VibePro" は無いので capmap も false。anchor ^ 担保)
+  {
+    label: "v6 not excluded: VibePro に関する meta question (途中言及)",
+    prompt:
+      "直近でさまざまな開発をVibeProを使って行なっているが、実際にその結果をきちんと確認してVibeProのプロダクトとしての価値を出せているか不安",
+    expectGraph: false,
+    expectCapmap: false,
+    expectKg: false,
+    expectExcluded: null, // anchor ^ で除外されないことを担保 (途中言及)
+  },
+  {
+    label: "v6 not excluded: VibePro installation status question",
+    prompt: "VibePro はすでに SalesTailor に入ってるんだっけ?",
+    expectGraph: true, // SalesTailor 顧客名
+    expectCapmap: false, // CAPMAP_KEYWORDS_RE には VibePro 無し
+    expectKg: false,
+    expectExcluded: null, // "VibePro\s+" の後に「は」(non-space) なので reviewer regex に hit しない
+  },
 ];
 
 function runCases(label: string, cases: Case[]): void {
