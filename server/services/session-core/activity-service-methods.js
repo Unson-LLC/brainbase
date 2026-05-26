@@ -1071,6 +1071,12 @@ export const activityServiceMethods = {
         if (normalizedEventType.startsWith('codex/hook/')) {
             return lifecycle === 'turn_started' || lifecycle === 'heartbeat';
         }
+        // Claude Code の activity-bridge は post-tool-use / user-prompt-submit /
+        // post-tool-bootstrap などを turn_started / heartbeat lifecycle で投げる。
+        // ハートビートが届いている間は indicator を保ちたいので強い working signal として扱う。
+        if (normalizedEventType.startsWith('claude/')) {
+            return lifecycle === 'turn_started' || lifecycle === 'heartbeat';
+        }
         return [
             'task_started',
             'running_command',
