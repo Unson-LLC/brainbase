@@ -26,5 +26,6 @@ Use it for SalesTailor NocoDB work, including:
 - Before writing to NocoDB, confirm the actual table schema and select options.
 - Do not overwrite SingleSelect/MultiSelect options programmatically.
 - Do not print NocoDB tokens or administrator passwords.
-- Include source evidence where possible, such as Slack channel/thread timestamps, PR numbers, or meeting/minutes paths.
+- For SalesTailor `バグ` and `インシデント`, record the originating Slack thread in the dedicated `発端SlackスレッドURL` column when the issue came from Slack. Do not leave the only Slack evidence buried in comments/timeline text.
+- Include source evidence where possible, such as Slack channel/thread URLs, PR numbers, or meeting/minutes paths.
 - For SalesTailor, use the table IDs and URL format defined in the Claude skill.

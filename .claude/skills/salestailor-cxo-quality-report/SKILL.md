@@ -59,12 +59,13 @@ Rules:
 2. Fetch NocoDB bug and incident records.
 3. Fetch merged PRs from GitHub.
 4. Search Slack and minutes for status evidence when a bug/incident state is ambiguous.
-5. Normalize data into `data/YYYY-MM-DD.json`.
-6. Generate `reports/YYYY-MM-DD.html`.
-7. Update `index.html` date tabs and default latest view.
-8. Validate HTML and JavaScript.
-9. Deploy to Vercel production.
-10. Verify the public URL returns HTTP 200 and the expected title.
+5. For Slack-originated bugs/incidents, verify NocoDB has `発端SlackスレッドURL`. If missing, backfill the originating thread URL before generating the report.
+6. Normalize data into `data/YYYY-MM-DD.json`.
+7. Generate `reports/YYYY-MM-DD.html`.
+8. Update `index.html` date tabs and default latest view.
+9. Validate HTML and JavaScript.
+10. Deploy to Vercel production.
+11. Verify the public URL returns HTTP 200 and the expected title.
 
 ## PR Classification
 
@@ -90,26 +91,28 @@ The report must avoid showing all bugs as resolved on the cleanup/shelf date.
 For each bug:
 
 1. Created date: `発生日時` -> `CreatedAt` -> `登録日時`.
-2. Resolved date for closed/resolved statuses:
+2. Source evidence: prefer `発端SlackスレッドURL` for Slack-originated reports. If empty but Slack evidence exists in `進捗コメント`, backfill the dedicated column.
+3. Resolved date for closed/resolved statuses:
    - If `修正完了日` is a cleanup date such as `2026-05-19` and the comment contains `Codex整理`, do not trust it first.
    - Prefer related PR merge date from `PR` or `進捗コメント`.
    - Then use the earliest date in `進捗コメント`.
    - Then use `修正完了日`.
    - Last fallback: `UpdatedAt`.
-3. Active bug count per week = bugs created before week end and not resolved before week end.
-4. Keep the bug chart right-axis upper bound at `50` unless the data exceeds it materially.
+4. Active bug count per week = bugs created before week end and not resolved before week end.
+5. Keep the bug chart right-axis upper bound at `50` unless the data exceeds it materially.
 
 ## Incident Curve Rules
 
 For each incident:
 
 1. Created date: `発生日時` -> `検知日時` -> `CreatedAt`.
-2. Resolved date only for `✅ 収束` or `🏁 クローズ`:
+2. Source evidence: prefer `発端SlackスレッドURL` for Slack-originated incidents. If empty but Slack evidence exists in `タイムライン` or `関連URL`, backfill the dedicated column.
+3. Resolved date only for `✅ 収束` or `🏁 クローズ`:
    - `収束日時`
    - latest relevant date in `タイムライン`
    - `UpdatedAt`
-3. Active incident count per week = incidents created before week end and not resolved before week end.
-4. Show incident chart separately from PR/bug chart because the count range is much smaller.
+4. Active incident count per week = incidents created before week end and not resolved before week end.
+5. Show incident chart separately from PR/bug chart because the count range is much smaller.
 
 ## Required Visuals
 

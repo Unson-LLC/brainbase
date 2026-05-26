@@ -25,5 +25,6 @@ The skill is for updating SalesTailor's CxO meeting KPI spreadsheet:
 - Do not use the generic `05_kpi.md` workflow for this task.
 - Do not update KPI cells from NocoDB alone. Slack and merged PRs are required context.
 - If Slack and NocoDB disagree, follow the source priority described in the Claude skill.
+- Before writing CxO KPI summaries, backfill `発端SlackスレッドURL` in SalesTailor NocoDB `バグ` / `インシデント` records for Slack-originated issues when it is missing.
 - Use `SLACK_BOT_TOKEN_SALESTAILOR`, not the Unson workspace token.
 - Confirm the target month column before writing to the spreadsheet.
