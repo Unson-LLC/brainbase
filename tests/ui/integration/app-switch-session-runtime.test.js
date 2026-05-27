@@ -89,6 +89,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
 
   afterEach(() => {
     app?.destroy?.();
+    delete window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__;
     vi.restoreAllMocks();
   });
 
@@ -834,7 +835,40 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(overlay.classList.contains('hidden')).toBe(true);
   });
 
-  it('Codex App Server display route switches to the App Server panel without starting terminal runtime', async () => {
+  it('Codex App Server sessions default to the xterm fallback so the operator can keep working', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
+    app._resolveSessionRuntime = vi.fn().mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    app._ensureDesktopTerminalRuntime = vi.fn().mockResolvedValue({ ok: true });
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server-default',
+        name: 'App Server Session',
+        path: '/tmp/session-app-server-default',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    const result = await app.switchSession('session-app-server-default');
+
+    expect(result).toMatchObject({ ok: true, mode: 'xterm' });
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-app-server-default' }), { deferDisplay: true });
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(false);
+  });
+
+  it('Codex App Server display route can opt into the read-only App Server panel without starting terminal runtime', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -890,7 +924,8 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     });
   });
 
-  it('Codex App Server display route remains read-only for legacy terminal controls', async () => {
+  it('Codex App Server display route remains read-only for legacy terminal controls when enabled', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
     app.reconnectManager = {
       setCurrentSession: vi.fn(),
       wsConnected: false,
@@ -1054,6 +1089,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
   });
 
   it('restores the Codex App Server panel when the next terminal switch fails', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => false);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');

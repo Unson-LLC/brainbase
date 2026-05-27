@@ -1,5 +1,7 @@
 import { SESSION_DISPLAY_MODES, deriveSessionDisplayRoute } from '../domain/session/session-display-route.js';
 
+const CODEX_APP_SERVER_DISPLAY_OPT_IN_FLAG = '__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__';
+
 function setText(root, selector, value) {
     const element = root?.querySelector?.(selector);
     if (element) element.textContent = value || '';
@@ -10,8 +12,13 @@ export function applyCodexAppServerDisplayMixin(AppClass) {
         return session?.displayRoute || deriveSessionDisplayRoute(session);
     };
 
+    AppClass.prototype._isCodexAppServerDisplayEnabled = function() {
+        return window?.[CODEX_APP_SERVER_DISPLAY_OPT_IN_FLAG] === true;
+    };
+
     AppClass.prototype._shouldUseCodexAppServerDisplay = function(session, options = {}) {
         if (options.forceTtyd || this.isMobile?.()) return false;
+        if (!this._isCodexAppServerDisplayEnabled?.()) return false;
         return this._getSessionDisplayRoute(session)?.mode === SESSION_DISPLAY_MODES.CODEX_APP_SERVER;
     };
 

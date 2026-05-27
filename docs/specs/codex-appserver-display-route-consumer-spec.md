@@ -2,11 +2,12 @@
 
 ## Clauses
 
-- `display-route-consumer.codex-app-server`: For `engine === "codex"` sessions with `displayRoute.mode === "codex_app_server"`, `switchSession()` MUST show the App Server display panel.
+- `display-route-consumer.codex-app-server`: For `engine === "codex"` sessions with `displayRoute.mode === "codex_app_server"`, `switchSession()` MUST keep the interactive xterm/ttyd terminal path by default.
+- `display-route-consumer.codex-app-server-diagnostic`: The App Server display panel MUST only take over the terminal stage when an explicit diagnostic browser flag enables it.
 - `display-route-consumer.ui-wiring`: The same slice MUST include mixin registration in `public/app.js`, panel markup in `public/index.html`, and panel styling in `public/style.css`; otherwise the display route is not reachable or inspectable.
-- `display-route-consumer.no-terminal-start`: App Server-routed sessions MUST NOT resolve or ensure terminal runtime during the display switch.
+- `display-route-consumer.no-terminal-start`: Diagnostic App Server display sessions MUST NOT resolve or ensure terminal runtime during the display switch.
 - `display-route-consumer.metadata-visible`: The display panel MUST expose the Brainbase session id and Codex App Server thread id in DOM text or data attributes.
-- `display-route-consumer.read-only-controls`: App Server-routed sessions MUST present the panel as read-only and MUST NOT let legacy terminal status, reconnect, click-to-focus, or type-to-focus controls send terminal input or reconnect/start terminal runtime while the panel is active.
+- `display-route-consumer.read-only-controls`: Diagnostic App Server display sessions MUST present the panel as read-only and MUST NOT let legacy terminal status, reconnect, click-to-focus, or type-to-focus controls send terminal input or reconnect/start terminal runtime while the panel is active.
 - `display-route-consumer.claude-fallback`: Claude Code sessions MUST continue through the terminal display route.
 - `display-route-consumer.codex-missing-fallback`: Codex sessions without usable App Server metadata MUST continue through the terminal display route.
 - `display-route-consumer.mobile-unchanged`: Mobile switching MUST continue to use the existing snapshot behavior in this slice.
