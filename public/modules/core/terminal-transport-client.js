@@ -30,14 +30,19 @@ const OSC_SEQUENCE_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*?(?:\x07|\x1b\\)/
 const BARE_OSC_COLOR_RESPONSE_PATTERN = /\]1[012];rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/gi;
 const FOCUS_REPORT_PATTERN = /\x1b\[(?:I|O)/g;
 
+// Custom close code: ownership was taken over by another viewer
+const WS_CLOSE_BLOCKED = 4001;
+// Custom close code: superseded by another tab of the same viewer (multi-tab).
+// 同一viewerの新しいタブが接続を引き継いだ場合。所有権は同一viewerのままなので
+// blocked扱いにはせず、旧タブが再接続して引き継ぎ合戦になるのも避けるため再接続しない。
+const WS_CLOSE_SUPERSEDED = 4002;
+
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
     1000, // Normal Closure
     1001, // Going Away (browser navigation)
+    WS_CLOSE_SUPERSEDED, // 同一viewerの別タブに引き継がれた
 ]);
-
-// Custom close code: ownership was taken over by another viewer
-const WS_CLOSE_BLOCKED = 4001;
 
 function isTtcDebugEnabled() {
     if (typeof window === 'undefined') return false;

@@ -13,7 +13,8 @@ const INITIAL_FRAME_FALLBACK_MS = 150;
 const INPUT_SNAPSHOT_REFRESH_DEBOUNCE_MS = 80;
 const STREAMING_INLINE_TEXT_MAX_BYTES = 1024;
 const MAX_SCROLL_STEPS = 8;
-const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
+const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over by another viewer
+const WS_CLOSE_SUPERSEDED = 4002; // Custom close code: superseded by another tab of the same viewer
 const MIN_TERMINAL_COLS = 40;
 const MIN_TERMINAL_ROWS = 12;
 const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape', 'M-Enter', 'S-Enter']);
@@ -155,9 +156,23 @@ export class TerminalTransportService {
         }
 
         const existing = this.activeConnections.get(sessionId);
-        if (existing && existing.viewerId !== viewerId && existing.ws.readyState === 1) {
-            logger.info(`[TerminalTransport] closing superseded active connection: session=${sessionId}, oldViewer=${existing.viewerId}, newViewer=${viewerId}`);
-            if (existing.ws.readyState === 1) {
+        if (existing && existing.ws !== ws && existing.ws.readyState === 1) {
+            // 1セッションにつきアクティブ接続は1つ、という不変条件を維持する。
+            // viewerId 化で同一ブラウザの複数タブが同じ viewerId を共有するようになったため、
+            // 別viewer だけでなく同一viewer の旧タブも明示的に閉じて orphan WebSocket を残さない。
+            // 先に map から旧接続を消すことで、旧接続の close ハンドラ（current.ws === ws の時だけ
+            // ownership を解放する）が新接続の ownership を誤って解放するのを防ぐ。
+            const sameViewer = existing.viewerId === viewerId;
+            this.activeConnections.delete(sessionId);
+            if (sameViewer) {
+                logger.info(`[TerminalTransport] superseding same-viewer connection (multi-tab): session=${sessionId}, viewer=${viewerId}`);
+                existing.ws.send(JSON.stringify({
+                    type: 'superseded',
+                    reason: 'session_superseded_same_viewer'
+                }));
+                existing.ws.close(WS_CLOSE_SUPERSEDED, 'session_superseded_same_viewer');
+            } else {
+                logger.info(`[TerminalTransport] closing superseded active connection: session=${sessionId}, oldViewer=${existing.viewerId}, newViewer=${viewerId}`);
                 existing.ws.send(JSON.stringify({
                     type: 'blocked',
                     reason: 'session_taken_over',
@@ -165,7 +180,6 @@ export class TerminalTransportService {
                 }));
                 existing.ws.close(WS_CLOSE_BLOCKED, 'session_taken_over');
             }
-            this.activeConnections.delete(sessionId);
         }
 
         if (ws.readyState !== 1) {
@@ -904,4 +918,4 @@ export function getTerminalTransportRequestInfo(request) {
     return buildTerminalWsMatch(request?.url || request?.originalUrl || '');
 }
 
-export { READY_TIMEOUT_MS, WS_CLOSE_BLOCKED };
+export { READY_TIMEOUT_MS, WS_CLOSE_BLOCKED, WS_CLOSE_SUPERSEDED };

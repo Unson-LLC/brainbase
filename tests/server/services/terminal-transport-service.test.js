@@ -696,9 +696,12 @@ describe('TerminalTransportService', () => {
             expect(service.activeConnections.get('session-1').viewerId).toBe('viewer-1');
         });
 
-        it('同一viewerIdで再接続時_既存接続はcloseされない', async () => {
+        it('同一viewerIdで2つ目のタブが接続時_旧タブはblockedにせずsuperseded(4002)で閉じる', async () => {
+            // viewerId が localStorage 単位（端末単位）になり、同一ブラウザの複数タブが
+            // 同じ viewerId を共有する。旧実装では同一viewerの supersede が発火せず、
+            // 1つ目のタブの WebSocket が activeConnections から外れたまま閉じられず orphan 化した。
             const { service, sessionManager } = buildService();
-            sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });
+            sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true, terminalAccess: { state: 'owner' } });
 
             const ws1 = buildMockWs();
             const ws2 = buildMockWs();
@@ -710,12 +713,39 @@ describe('TerminalTransportService', () => {
                 sessionId: 'session-1', viewerId: 'viewer-1', viewerLabel: 'Mac'
             });
 
-            // 同一viewerなのでblocked送信されない
-            const blockedCall = ws1.send.mock.calls.find(call => {
-                const msg = JSON.parse(call[0]);
-                return msg.type === 'blocked';
-            });
+            // 同一viewerなので blocked ではなく superseded を送る
+            const blockedCall = ws1.send.mock.calls.find(call => JSON.parse(call[0]).type === 'blocked');
             expect(blockedCall).toBeUndefined();
+            const supersededCall = ws1.send.mock.calls.find(call => JSON.parse(call[0]).type === 'superseded');
+            expect(supersededCall).toBeTruthy();
+            expect(JSON.parse(supersededCall[0]).reason).toBe('session_superseded_same_viewer');
+
+            // 旧タブは明示的に閉じられる（再接続を誘発しない 4002）
+            expect(ws1.close).toHaveBeenCalledWith(4002, 'session_superseded_same_viewer');
+        });
+
+        it('同一viewerIdで2つ目のタブが接続時_orphanを残さず新タブがactive connectionになる', async () => {
+            const { service, sessionManager } = buildService();
+            sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true, terminalAccess: { state: 'owner' } });
+
+            const ws1 = buildMockWs();
+            const ws2 = buildMockWs();
+
+            await service._handleConnection(ws1, {}, {
+                sessionId: 'session-1', viewerId: 'viewer-1', viewerLabel: 'Mac'
+            });
+            await service._handleConnection(ws2, {}, {
+                sessionId: 'session-1', viewerId: 'viewer-1', viewerLabel: 'Mac'
+            });
+
+            // activeConnections は新タブ(ws2)を指す。旧タブ(ws1)は orphan として残らない
+            const active = service.activeConnections.get('session-1');
+            expect(active).toBeTruthy();
+            expect(active.ws).toBe(ws2);
+            expect(ws2.close).not.toHaveBeenCalled();
+
+            // 新タブが ownership を保持し続ける（旧タブの close で誤解放されない）
+            expect(sessionManager.releaseTerminalOwnership).not.toHaveBeenCalled();
         });
 
         it('接続close時にactiveConnectionsから削除される', async () => {
