@@ -134,7 +134,7 @@ test('story-codex-appserver-metadata-timeout ac:7 acceptance marker', () => {
 test('story-codex-appserver-metadata-timeout ac:8 acceptance marker', () => {
   const story = read('docs/stories/story-codex-appserver-session-create.md');
   const displayMixin = read('public/modules/app/codex-app-server-display-mixin.js');
-  expect(story).toContain(`AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id drives the Codex App Server display panel.`);
+  expect(story).toContain(`AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id is stored while the user-facing terminal remains interactive.`);
   expect(displayMixin).toContain('codexAppServerThreadId');
 });
 

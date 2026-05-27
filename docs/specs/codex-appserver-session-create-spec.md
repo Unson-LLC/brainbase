@@ -17,8 +17,8 @@
 
 ## Workflow Scenarios
 
-- **S-1 regular-codex-create**: Browser launch picker -> `SessionService._createRegularSession()` -> `/api/sessions/start` -> `runtimeLifecycle.startTtyd({ engine: "codex", codexAppServer: true })` -> persisted non-stale App Server thread metadata -> success response with `codexAppServer.threadId` -> session switch resolves to the Codex App Server display route.
-- **S-2 worktree-codex-create**: Browser launch picker with worktree -> `/api/sessions/create-with-worktree` -> pending startup shell -> `runtimeLifecycle.startTtyd({ engine: "codex", codexAppServer: true })` -> persisted non-stale App Server thread metadata -> ready startup state -> session switch resolves to the Codex App Server display route.
+- **S-1 regular-codex-create**: Browser launch picker -> `SessionService._createRegularSession()` -> `/api/sessions/start` -> `runtimeLifecycle.startTtyd({ engine: "codex", codexAppServer: true })` -> persisted non-stale App Server thread metadata -> success response with `codexAppServer.threadId` -> session switch keeps the interactive terminal route by default.
+- **S-2 worktree-codex-create**: Browser launch picker with worktree -> `/api/sessions/create-with-worktree` -> pending startup shell -> `runtimeLifecycle.startTtyd({ engine: "codex", codexAppServer: true })` -> persisted non-stale App Server thread metadata -> ready startup state -> session switch keeps the interactive terminal route by default.
 - **S-3 metadata-timeout-cleanup**: `startTtyd()` succeeds but no non-stale App Server thread id is persisted -> controller calls `stopTtyd(sessionId)` -> regular creation returns failure before success; worktree creation marks startup failed and removes the worktree.
 - **S-4 claude-fallback**: Browser or server creation with `engine === "claude"` never sets `BRAINBASE_CODEX_APP_SERVER` and keeps the xterm/ttyd display path.
 - **S-5 legacy-codex-fallback**: Codex runtime startup without explicit App Server request never sets `BRAINBASE_CODEX_APP_SERVER`; Codex sessions without usable App Server metadata keep terminal fallback.
@@ -33,6 +33,6 @@
 - Unit: runtime lifecycle sets `BRAINBASE_CODEX_APP_SERVER=1` for Codex App Server startup.
 - Unit: metadata timeout after runtime startup calls `stopTtyd()` before returning failure.
 - Unit: controller metadata wait defaults and env overrides are stable.
-- E2E: regular Codex launch picker creation reaches the Codex App Server display panel with the persisted thread id.
-- E2E: worktree Codex launch picker creation uses the worktree route and reaches the Codex App Server display panel with the persisted thread id.
+- E2E: regular Codex launch picker creation persists the App Server thread id and keeps the user-facing terminal interactive.
+- E2E: worktree Codex launch picker creation uses the worktree route, persists the App Server thread id, and keeps the user-facing terminal interactive.
 - Contract: Story, spec, runtime, session service, and capability map all mention the creation boundary.

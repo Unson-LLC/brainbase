@@ -18,6 +18,105 @@ async function ensureLaunchPickerOpen(page, project = 'general') {
   }
 }
 
+function attachRuntimeIssueCollector(page, options: {
+  allowConsole?: (text: string) => boolean;
+  allowResponse?: (url: string, status: number) => boolean;
+} = {}) {
+  const issues: string[] = [];
+  page.on('console', (message) => {
+    const text = message.text();
+    if (message.type() === 'error' && !options.allowConsole?.(text)) {
+      issues.push(`console:error:${text}`);
+    }
+  });
+  page.on('pageerror', (error) => {
+    issues.push(`pageerror:${error.message}`);
+  });
+  page.on('requestfailed', (request) => {
+    issues.push(`requestfailed:${request.method()}:${request.url()}:${request.failure()?.errorText || 'unknown'}`);
+  });
+  page.on('response', (response) => {
+    const status = response.status();
+    if (status >= 400 && !options.allowResponse?.(response.url(), status)) {
+      issues.push(`response:${status}:${response.url()}`);
+    }
+  });
+  return {
+    issues,
+    clear() {
+      issues.length = 0;
+    },
+    assertNoIssues() {
+      expect(issues).toEqual([]);
+    }
+  };
+}
+
+async function installBenignRuntimeRoutes(page) {
+  await page.route('**/api/auth/verify', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ authenticated: true })
+    });
+  });
+  await page.route('**/api/sessions/*/context', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ context: null })
+    });
+  });
+  await page.route('**/api/sessions/*/terminal/snapshot**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: '', lines: [], cursor: null })
+    });
+  });
+}
+
+async function installTerminalReadyRoutes(page) {
+  await installBenignRuntimeRoutes(page);
+  await page.route('**/api/sessions/*/runtime?**', async (route) => {
+    const sessionId = new URL(route.request().url()).pathname.split('/')[3] || 'mock-session';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: `/console/${sessionId}`
+        },
+        terminalAccess: { state: 'ready' }
+      })
+    });
+  });
+  await page.route('**/api/sessions/*/terminal/ensure', async (route) => {
+    const sessionId = new URL(route.request().url()).pathname.split('/')[3] || 'mock-session';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, proxyPath: `/console/${sessionId}` })
+    });
+  });
+  await page.route('**/console/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><html><body><pre id="terminal-proof">Terminal fallback ready</pre></body></html>'
+    });
+  });
+}
+
+async function waitForSessionsInStore(page, expectedIds: string[]) {
+  await page.waitForFunction(async (ids) => {
+    const { appStore } = await import('/modules/core/store.js');
+    const currentIds = new Set((appStore.getState().sessions || []).map((session) => session.id));
+    return ids.every((id) => currentIds.has(id));
+  }, expectedIds);
+}
+
 test('ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 story-codex-appserver-session-create traceability contract', async () => {
   const story = read('docs/stories/story-codex-appserver-session-create.md');
   const spec = read('docs/specs/codex-appserver-session-create-spec.md');
@@ -42,7 +141,7 @@ test('ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 story-codex-appserver-session-crea
   // story-codex-appserver-session-create ac:7
   expect(story).toContain('AC-7: If App Server metadata is not persisted after runtime startup, the just-started runtime is stopped before creation failure is reported.');
   // story-codex-appserver-session-create ac:8
-  expect(story).toContain('AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id drives the Codex App Server display panel.');
+  expect(story).toContain('AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id is stored while the user-facing terminal remains interactive.');
   expect(story).toContain('persist App Server thread metadata before creation is reported successful');
   expect(spec).toContain('REQ-1');
   expect(spec).toContain('REQ-11');
@@ -134,6 +233,10 @@ test('ac:5 ac:6 Claude Code and legacy Codex stay on fallback runtime unless exp
 });
 
 test('ac:5 ac:6 visual qa: Claude and legacy Codex sessions stay on terminal fallback display', async ({ page }) => {
+  const runtimeIssues = attachRuntimeIssueCollector(page, {
+    allowConsole: (text) => text.startsWith('Session not found:')
+  });
+  await installBenignRuntimeRoutes(page);
   const claudeSessionId = 'story-claude-terminal-fallback';
   const legacyCodexSessionId = 'story-legacy-codex-terminal-fallback';
   const consoleRequests: string[] = [];
@@ -196,6 +299,14 @@ test('ac:5 ac:6 visual qa: Claude and legacy Codex sessions stay on terminal fal
       body: JSON.stringify({ success: true })
     });
   });
+  await page.route('**/api/sessions/*/terminal/ensure', async (route) => {
+    const sessionId = new URL(route.request().url()).pathname.split('/')[3] || claudeSessionId;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, proxyPath: `/console/${sessionId}` })
+    });
+  });
   await page.route('**/console/**', async (route) => {
     consoleRequests.push(route.request().url());
     await route.fulfill({
@@ -208,6 +319,8 @@ test('ac:5 ac:6 visual qa: Claude and legacy Codex sessions stay on terminal fal
   await page.goto('/');
   await page.waitForLoadState('domcontentloaded');
   await page.evaluate(() => document.getElementById('app-loading-splash')?.remove());
+  await waitForSessionsInStore(page, [claudeSessionId, legacyCodexSessionId]);
+  runtimeIssues.clear();
 
   await page.evaluate(async (sessionId) => {
     await window.brainbaseApp?.switchSession?.(sessionId, {
@@ -230,6 +343,7 @@ test('ac:5 ac:6 visual qa: Claude and legacy Codex sessions stay on terminal fal
   await expect.poll(async () => page.locator('#terminal-frame').getAttribute('src')).toContain(`/console/${legacyCodexSessionId}`);
   expect(consoleRequests.some((url) => url.includes(`/console/${claudeSessionId}`))).toBe(true);
   expect(consoleRequests.some((url) => url.includes(`/console/${legacyCodexSessionId}`))).toBe(true);
+  runtimeIssues.assertNoIssues();
 
   await page.screenshot({
     path: '.vibepro/verification/story-codex-appserver-session-create/terminal-fallback-display.png',
@@ -238,6 +352,11 @@ test('ac:5 ac:6 visual qa: Claude and legacy Codex sessions stay on terminal fal
 });
 
 test('ac:7 visual qa: metadata startup failure is visible as App Server-specific feedback', async ({ page }) => {
+  const runtimeIssues = attachRuntimeIssueCollector(page, {
+    allowConsole: (text) => text.includes('status of 500') || text.includes('Codex App Server metadata was not persisted'),
+    allowResponse: (url, status) => status === 500 && url.includes('/api/sessions/start')
+  });
+  await installBenignRuntimeRoutes(page);
   const startCalls: unknown[] = [];
 
   await page.route('**/api/state', async (route) => {
@@ -262,6 +381,7 @@ test('ac:7 visual qa: metadata startup failure is visible as App Server-specific
   await page.goto('/');
   await page.waitForLoadState('domcontentloaded');
   await page.evaluate(() => document.getElementById('app-loading-splash')?.remove());
+  runtimeIssues.clear();
 
   await page.waitForFunction(() => Boolean(window.brainbaseApp?.openSessionLaunchPicker));
   await page.locator('#add-session-btn').click();
@@ -274,6 +394,7 @@ test('ac:7 visual qa: metadata startup failure is visible as App Server-specific
   await expect.poll(() => startCalls.length).toBe(1);
   await expect(page.locator('#toast-container')).toContainText('Codex App Serverの起動情報を確認できませんでした');
   await expect(page.locator('#codex-app-server-display-panel')).toHaveClass(/hidden/);
+  runtimeIssues.assertNoIssues();
 
   await page.screenshot({
     path: '.vibepro/verification/story-codex-appserver-session-create/metadata-failure-toast.png',
@@ -282,11 +403,14 @@ test('ac:7 visual qa: metadata startup failure is visible as App Server-specific
 });
 
 test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent through /api/sessions/start', async ({ page }) => {
+  const runtimeIssues = attachRuntimeIssueCollector(page);
+  await installTerminalReadyRoutes(page);
   const startCalls: unknown[] = [];
   const worktreeCalls: unknown[] = [];
   const stateSessionWrites: unknown[] = [];
   const sessionId = 'story-codex-appserver-session-create';
   const threadId = 'thread-story-codex-appserver-session-create';
+  let createdSessionId = sessionId;
   fs.mkdirSync('.vibepro/verification/story-codex-appserver-session-create', { recursive: true });
 
   await page.route('**/api/state', async (route) => {
@@ -296,9 +420,9 @@ test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent 
       contentType: 'application/json',
       body: JSON.stringify({
         sessions: [{
-          id: sessionId,
+          id: createdSessionId,
           name: 'Codex App Server Story',
-          path: '/tmp/story-codex-appserver-session-create',
+          path: `/tmp/${createdSessionId}`,
           project: 'general',
           engine: 'codex',
           intendedState: 'active',
@@ -307,7 +431,7 @@ test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent 
             stale: false
           }
         }],
-        currentSessionId: sessionId
+        currentSessionId: createdSessionId
       })
     });
   });
@@ -336,13 +460,16 @@ test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent 
     });
   });
   await page.route('**/api/sessions/start', async (route) => {
-    startCalls.push(route.request().postDataJSON());
+    const payload = route.request().postDataJSON();
+    startCalls.push(payload);
+    createdSessionId = payload.sessionId || sessionId;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        proxyPath: `/console/${sessionId}`,
+        sessionId: createdSessionId,
+        proxyPath: `/console/${createdSessionId}`,
         codexAppServer: {
           threadId,
           stale: false
@@ -354,6 +481,7 @@ test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent 
   await page.goto('/');
   await page.waitForLoadState('domcontentloaded');
   await page.evaluate(() => document.getElementById('app-loading-splash')?.remove());
+  runtimeIssues.clear();
 
   await page.waitForFunction(() => Boolean(window.brainbaseApp?.openSessionLaunchPicker));
   await page.locator('#add-session-btn').click();
@@ -377,11 +505,10 @@ test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent 
   });
   expect(worktreeCalls).toHaveLength(0);
   await expect.poll(() => stateSessionWrites.length).toBeGreaterThan(0);
-  await expect(page.locator('#codex-app-server-display-panel')).not.toHaveClass(/hidden/);
-  await expect(page.locator('#console-area')).toHaveClass(/using-codex-app-server/);
-  await expect(page.locator('#terminal-frame')).toHaveClass(/hidden/);
-  await expect(page.locator('[data-codex-app-server-session-id]')).toHaveText(sessionId);
-  await expect(page.locator('[data-codex-app-server-thread-label]')).toHaveText(threadId);
+  await expect(page.locator('#codex-app-server-display-panel')).toHaveClass(/hidden/);
+  await expect(page.locator('#console-area')).not.toHaveClass(/using-codex-app-server/);
+  await expect(page.locator('#terminal-frame')).not.toHaveClass(/hidden/);
+  runtimeIssues.assertNoIssues();
 
   await page.screenshot({
     path: '.vibepro/verification/story-codex-appserver-session-create/launch-picker-codex-after-start.png',
@@ -390,6 +517,10 @@ test('ac:2 ac:8 visual qa: launch picker sends Codex App Server creation intent 
 });
 
 test('ac:3 ac:4 ac:8 visual qa: Codex worktree launch waits for App Server metadata and reaches display route', async ({ page }) => {
+  const runtimeIssues = attachRuntimeIssueCollector(page, {
+    allowConsole: (text) => text.startsWith('Session not found:')
+  });
+  await installTerminalReadyRoutes(page);
   const worktreeCalls: unknown[] = [];
   const startCalls: unknown[] = [];
   const stateSessionWrites: unknown[] = [];
@@ -475,6 +606,7 @@ test('ac:3 ac:4 ac:8 visual qa: Codex worktree launch waits for App Server metad
   await page.goto('/');
   await page.waitForLoadState('domcontentloaded');
   await page.evaluate(() => document.getElementById('app-loading-splash')?.remove());
+  runtimeIssues.clear();
 
   await page.waitForFunction(() => Boolean(window.brainbaseApp?.openSessionLaunchPicker));
   await page.locator('#add-session-btn').click();
@@ -507,11 +639,10 @@ test('ac:3 ac:4 ac:8 visual qa: Codex worktree launch waits for App Server metad
     threadId
   });
 
-  await expect(page.locator('#codex-app-server-display-panel')).not.toHaveClass(/hidden/);
-  await expect(page.locator('#console-area')).toHaveClass(/using-codex-app-server/);
-  await expect(page.locator('#terminal-frame')).toHaveClass(/hidden/);
-  await expect(page.locator('[data-codex-app-server-session-id]')).toHaveText(sessionId);
-  await expect(page.locator('[data-codex-app-server-thread-label]')).toHaveText(threadId);
+  await expect(page.locator('#codex-app-server-display-panel')).toHaveClass(/hidden/);
+  await expect(page.locator('#console-area')).not.toHaveClass(/using-codex-app-server/);
+  await expect(page.locator('#terminal-frame')).not.toHaveClass(/hidden/);
+  runtimeIssues.assertNoIssues();
 
   await page.screenshot({
     path: '.vibepro/verification/story-codex-appserver-session-create/launch-picker-codex-worktree-after-start.png',

@@ -2,11 +2,11 @@
 
 ## Context
 
-Brainbase can already persist `session.codexAppServer` metadata and route Codex sessions with non-stale App Server thread metadata to the Codex App Server display panel. A live check of the new `OSS化` Codex session on port 31013 showed that normal session creation still starts the legacy `codex/pty-shim-heartbeat` path and leaves `session.codexAppServer` unset.
+Brainbase can already persist `session.codexAppServer` metadata and derive a Codex App Server display route for Codex sessions with non-stale App Server thread metadata. A live check of the new `OSS化` Codex session on port 31013 showed that normal session creation still starts the legacy `codex/pty-shim-heartbeat` path and leaves `session.codexAppServer` unset.
 
 ## User Story
 
-As a Brainbase user creating a new Codex session, I want the session creation path to start Codex through the App Server REPL and persist App Server thread metadata before creation is reported successful, so switching to that session uses the App Server display route instead of silently falling back to xterm.
+As a Brainbase user creating a new Codex session, I want the session creation path to start Codex through the App Server REPL and persist App Server thread metadata before creation is reported successful, so App Server identity and activity are available while the interactive xterm route remains usable until native App Server input exists.
 
 ## Scope
 
@@ -25,7 +25,7 @@ As a Brainbase user creating a new Codex session, I want the session creation pa
 - [x] AC-5: Claude Code sessions do not set `BRAINBASE_CODEX_APP_SERVER` and keep the existing terminal path.
 - [x] AC-6: Existing Codex sessions without App Server metadata keep terminal fallback unless they are explicitly started through this creation request.
 - [x] AC-7: If App Server metadata is not persisted after runtime startup, the just-started runtime is stopped before creation failure is reported.
-- [x] AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id drives the Codex App Server display panel.
+- [x] AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id is stored while the user-facing terminal remains interactive.
 - [x] AC-9: Cold Codex App Server startup is allowed enough time to persist `thread/started` metadata before the controller reports metadata failure.
 
 ## Verification Mapping
@@ -42,8 +42,8 @@ As a Brainbase user creating a new Codex session, I want the session creation pa
 
 ## Production Path Matrix
 
-- Regular Codex creation: launch picker calls `/api/sessions/start` with `codexAppServer: true`; server waits for thread metadata; browser switches to the Codex App Server display panel.
-- Worktree Codex creation: launch picker calls `/api/sessions/create-with-worktree`; server starts the pending shell, waits for thread metadata, marks startup ready, and browser switches to the Codex App Server display panel.
+- Regular Codex creation: launch picker calls `/api/sessions/start` with `codexAppServer: true`; server waits for thread metadata; browser keeps the interactive terminal path while App Server metadata is stored.
+- Worktree Codex creation: launch picker calls `/api/sessions/create-with-worktree`; server starts the pending shell, waits for thread metadata, marks startup ready, and browser keeps the interactive terminal path while App Server metadata is stored.
 - Metadata timeout: regular and worktree controllers stop the started runtime before surfacing failure; worktree cleanup also removes the created worktree and marks startup failed.
 - Cold App Server startup: controller defaults wait up to 45 seconds for metadata, with `BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS` and `BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS` available for operations tuning.
 - Claude Code creation: no App Server env flag or display route change.
