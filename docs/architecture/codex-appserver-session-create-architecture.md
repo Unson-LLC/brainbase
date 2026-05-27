@@ -6,6 +6,8 @@ New Codex session creation becomes the explicit boundary that opts into the exis
 
 The start handler waits for durable `session.codexAppServer` thread metadata before returning success for an App Server-requested Codex session. Without that wait, the UI can reload state before the REPL posts metadata and incorrectly route the newly created session to xterm.
 
+Cold App Server startup can exceed a short fixed wait. The controller therefore owns explicit metadata wait defaults: 45 seconds timeout and 250ms polling interval, with `BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS` and `BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS` as operational overrides. This keeps the failure contract loud while avoiding false failure during normal cold startup.
+
 ## Boundaries
 
 - `codexAppServer: true` is an explicit creation/start intent, not a blanket rule for every legacy Codex terminal ensure.

@@ -8,6 +8,14 @@ import { installSharedMethods } from './session/shared-methods.js';
 import { installTerminalIoHandlers } from './session/terminal-io-handlers.js';
 import { installWorktreeHandlers } from './session/worktree-handlers.js';
 
+const DEFAULT_CODEX_APP_SERVER_METADATA_TIMEOUT_MS = 45_000;
+const DEFAULT_CODEX_APP_SERVER_METADATA_INTERVAL_MS = 250;
+
+function resolvePositiveIntegerEnv(name, fallback) {
+    const value = Number.parseInt(process.env[name] || '', 10);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export class SessionController {
     /**
      * @param {{
@@ -54,6 +62,14 @@ export class SessionController {
         this.progressMap = new Map();
         this._uiSummaryCache = new Map();
         this._recentSessionStarts = new Map();
+        this.codexAppServerMetadataTimeoutMs = resolvePositiveIntegerEnv(
+            'BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS',
+            DEFAULT_CODEX_APP_SERVER_METADATA_TIMEOUT_MS
+        );
+        this.codexAppServerMetadataIntervalMs = resolvePositiveIntegerEnv(
+            'BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS',
+            DEFAULT_CODEX_APP_SERVER_METADATA_INTERVAL_MS
+        );
 
         installSharedMethods(this);
         installActivityHandlers(this);

@@ -26,6 +26,7 @@ As a Brainbase user creating a new Codex session, I want the session creation pa
 - [x] AC-6: Existing Codex sessions without App Server metadata keep terminal fallback unless they are explicitly started through this creation request.
 - [x] AC-7: If App Server metadata is not persisted after runtime startup, the just-started runtime is stopped before creation failure is reported.
 - [x] AC-8: Regular and worktree Codex creation paths have browser evidence that the persisted App Server thread id drives the Codex App Server display panel.
+- [x] AC-9: Cold Codex App Server startup is allowed enough time to persist `thread/started` metadata before the controller reports metadata failure.
 
 ## Verification Mapping
 
@@ -37,12 +38,14 @@ As a Brainbase user creating a new Codex session, I want the session creation pa
 - AC-6: `tests/server/session-manager-env.test.js`, `tests/server/controllers/codex-app-server-startup.test.js`, and `tests/e2e/story-codex-appserver-session-create-contract.spec.ts`.
 - AC-7: `tests/unit/server-session-controller.test.js`.
 - AC-8: `tests/e2e/story-codex-appserver-session-create-contract.spec.ts`.
+- AC-9: `tests/unit/server-session-controller.test.js` verifies the controller metadata wait defaults and env overrides.
 
 ## Production Path Matrix
 
 - Regular Codex creation: launch picker calls `/api/sessions/start` with `codexAppServer: true`; server waits for thread metadata; browser switches to the Codex App Server display panel.
 - Worktree Codex creation: launch picker calls `/api/sessions/create-with-worktree`; server starts the pending shell, waits for thread metadata, marks startup ready, and browser switches to the Codex App Server display panel.
 - Metadata timeout: regular and worktree controllers stop the started runtime before surfacing failure; worktree cleanup also removes the created worktree and marks startup failed.
+- Cold App Server startup: controller defaults wait up to 45 seconds for metadata, with `BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS` and `BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS` available for operations tuning.
 - Claude Code creation: no App Server env flag or display route change.
 - Legacy Codex fallback: Codex startup without explicit App Server opt-in and Codex sessions without usable metadata remain on terminal/xterm fallback.
 

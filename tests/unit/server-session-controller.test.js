@@ -162,6 +162,37 @@ describe('SessionController (Server)', () => {
     vi.clearAllMocks();
   });
 
+  describe('constructor', () => {
+    it('Codex App Server metadata待機時間に冷間起動向けのデフォルトを設定する', () => {
+      expect(sessionController.codexAppServerMetadataTimeoutMs).toBe(45_000);
+      expect(sessionController.codexAppServerMetadataIntervalMs).toBe(250);
+    });
+
+    it('Codex App Server metadata待機時間を環境変数で上書きできる', () => {
+      const previousTimeout = process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS;
+      const previousInterval = process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS;
+      process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS = '60000';
+      process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS = '500';
+
+      try {
+        const controller = new SessionController(buildControllerDeps());
+        expect(controller.codexAppServerMetadataTimeoutMs).toBe(60_000);
+        expect(controller.codexAppServerMetadataIntervalMs).toBe(500);
+      } finally {
+        if (previousTimeout === undefined) {
+          delete process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS;
+        } else {
+          process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_TIMEOUT_MS = previousTimeout;
+        }
+        if (previousInterval === undefined) {
+          delete process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS;
+        } else {
+          process.env.BRAINBASE_CODEX_APP_SERVER_METADATA_INTERVAL_MS = previousInterval;
+        }
+      }
+    });
+  });
+
   describe('start', () => {
     it('短時間の連続start呼び出し時_takeoverせず既存proxyを返す', async () => {
       const sessionId = 'session-hot';

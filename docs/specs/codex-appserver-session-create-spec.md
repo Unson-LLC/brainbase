@@ -13,6 +13,7 @@
 - **REQ-9**: Existing client-side session selection, stopped-to-paused migration, previous-session patch comparison, session filtering, and current-session fallback behavior MUST remain unchanged.
 - **REQ-10**: Existing runtime binary resolution MUST remain unchanged, including Windows `USERPROFILE`, `fs.existsSync(userGit)`, Git Bash, and ttyd lookup branches.
 - **REQ-11**: If Codex App Server metadata is not persisted after runtime startup, the controller MUST stop the just-started runtime before reporting failure.
+- **REQ-12**: Codex App Server metadata wait defaults MUST tolerate cold startup latency; the timeout and polling interval MUST be configurable by environment variables for local operations.
 
 ## Workflow Scenarios
 
@@ -22,6 +23,7 @@
 - **S-4 claude-fallback**: Browser or server creation with `engine === "claude"` never sets `BRAINBASE_CODEX_APP_SERVER` and keeps the xterm/ttyd display path.
 - **S-5 legacy-codex-fallback**: Codex runtime startup without explicit App Server request never sets `BRAINBASE_CODEX_APP_SERVER`; Codex sessions without usable App Server metadata keep terminal fallback.
 - **S-6 cache-display-preservation**: Cached or reloaded sessions retain `session.codexAppServer` metadata so display-route derivation remains stable after state reload.
+- **S-7 cold-start-wait**: A requested Codex App Server session may take longer than five seconds to emit `thread/started`; controller defaults wait 45 seconds and polls every 250ms before treating metadata as failed.
 
 ## Verification
 
@@ -30,6 +32,7 @@
 - Unit: session service preserves `codexAppServer` metadata through localStorage cache restore.
 - Unit: runtime lifecycle sets `BRAINBASE_CODEX_APP_SERVER=1` for Codex App Server startup.
 - Unit: metadata timeout after runtime startup calls `stopTtyd()` before returning failure.
+- Unit: controller metadata wait defaults and env overrides are stable.
 - E2E: regular Codex launch picker creation reaches the Codex App Server display panel with the persisted thread id.
 - E2E: worktree Codex launch picker creation uses the worktree route and reaches the Codex App Server display panel with the persisted thread id.
 - Contract: Story, spec, runtime, session service, and capability map all mention the creation boundary.
