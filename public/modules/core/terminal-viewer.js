@@ -19,15 +19,36 @@ function generateViewerId() {
     return `viewer-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// localStorage を優先し、端末単位で viewerId を永続化する。
+// sessionStorage はタブ単位で、タブを閉じる/モバイルで OS にアプリを殺されると消える。
+// その場合 viewerId が変わり、直前の viewerId が TERMINAL_OWNER_TTL_MS（10分）の間
+// terminal ownership を握ったままになるため、同一端末で開き直すと「別の viewer が使用中」
+// で自分自身にブロックされる。localStorage はタブを跨いで残るので再オープンで同じ owner に戻る。
+function getViewerIdStore() {
+    if (typeof window === 'undefined') return null;
+    try {
+        if (window.localStorage) return window.localStorage;
+    } catch {
+        // localStorage がブロックされている（プライベートモード等）
+    }
+    try {
+        if (window.sessionStorage) return window.sessionStorage;
+    } catch {
+        // 何も使えない
+    }
+    return null;
+}
+
 export function getTerminalViewerId() {
-    if (typeof window === 'undefined' || !window.sessionStorage) {
+    const store = getViewerIdStore();
+    if (!store) {
         return 'viewer-server';
     }
 
-    let viewerId = window.sessionStorage.getItem(VIEWER_ID_STORAGE_KEY);
+    let viewerId = store.getItem(VIEWER_ID_STORAGE_KEY);
     if (!viewerId) {
         viewerId = generateViewerId();
-        window.sessionStorage.setItem(VIEWER_ID_STORAGE_KEY, viewerId);
+        store.setItem(VIEWER_ID_STORAGE_KEY, viewerId);
     }
     return viewerId;
 }
