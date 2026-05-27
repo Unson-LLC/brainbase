@@ -16,7 +16,7 @@ related_tasks:
     task_ids: [story-terminal-open-scroll-bottom]
 status: active
 created_at: 2026-05-21
-updated_at: 2026-05-23
+updated_at: 2026-05-27
 ---
 
 # Open terminal at latest output
@@ -25,11 +25,12 @@ updated_at: 2026-05-23
 
 Brainbase keeps xterm scrollback so Claude Code and Codex history can be inspected after switching or reconnecting. Some Claude Code sessions have enough scrollback that the first snapshot after opening the terminal can leave the viewport at the oldest retained lines. The user then has to manually scroll to the newest output before continuing work.
 
-The xterm reset/full-snapshot path already pins resets to the latest output. The remaining failure is the desktop snapshot panel used during session switch: it reused the previous panel scroll position, so a previously top-scrolled panel could render a newly selected Claude Code session at the oldest retained lines.
+The xterm reset/full-snapshot path already pins resets to the latest output. The remaining failure is the desktop open handoff: the WebSocket `ready` event can arrive before the first full/reset snapshot is written to xterm, so the UI can reveal the previous xterm buffer or an oldest-history viewport before the latest snapshot lands.
 
 ## Scope
 
 - Treat the first full snapshot after session open, session switch, reconnect, or explicit terminal reset as a "show latest output" operation.
+- Do not reveal deferred desktop xterm UI for a newly opened session until the first reset snapshot write has completed, with a bounded timeout fallback so the terminal cannot hang forever.
 - Treat snapshot panel renders triggered by session switch as "show latest output" operations, even when the previous session's panel was scrolled up.
 - Keep normal snapshot updates from stealing the user's viewport when they have intentionally scrolled up.
 - Preserve xterm scrollback contents and tmux snapshot contracts.
@@ -38,6 +39,8 @@ The xterm reset/full-snapshot path already pins resets to the latest output. The
 ## Acceptance Criteria
 
 - [x] A reset/full snapshot applied during terminal open or reconnect ends with xterm pinned to the latest output.
+- [x] A deferred desktop xterm open waits for the first reset snapshot write callback before showing xterm, even when WebSocket `ready` arrives first.
+- [x] If the first reset snapshot never arrives, the deferred open falls back to live display after a bounded timeout instead of hanging.
 - [x] A session-switch snapshot panel render ends at the latest output even if the previous panel was top-scrolled.
 - [x] A normal snapshot applied while the user is scrolled up restores the previous distance from the bottom.
 - [x] The fix uses the existing serialized terminal write path and does not introduce direct `terminal.write()` calls.
@@ -55,7 +58,7 @@ vibepro story diagnose . --id story-terminal-open-scroll-bottom --run-graphify
 npm run test:run -- tests/unit/terminal-transport-client.test.js
 npm run test:run -- tests/ui/integration/app-switch-session-runtime.test.js tests/unit/terminal-transport-client.test.js
 npm run typecheck
-BRAINBASE_E2E_PORT=31014 BRAINBASE_PORT=31014 PORT=31014 npx playwright test tests/e2e/story-terminal-open-scroll-bottom-xterm.spec.ts --project=chromium
+BRAINBASE_E2E_PORT=31017 BRAINBASE_PORT=31017 PORT=31017 npm run test:e2e -- tests/e2e/story-terminal-open-scroll-bottom-xterm.spec.ts --project=chromium
 ```
 
-Regression coverage must reproduce a top-scrolled viewport before snapshot application.
+Regression coverage must reproduce both a top-scrolled viewport before snapshot application and a `ready`-before-snapshot open sequence.

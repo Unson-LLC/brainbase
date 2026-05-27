@@ -14,6 +14,7 @@ const MAX_RECONNECT_RETRIES = 10;
 const BASE_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
+const INITIAL_RESET_SNAPSHOT_WAIT_MS = 1500;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 64 * 1024;
 const FOCUS_ESCAPE_GRACE_MS = 12;
@@ -607,7 +608,11 @@ export class TerminalTransportClient {
             });
     }
 
-    async connect(sessionId, { skipInitialResize = false } = {}) {
+    async connect(sessionId, {
+        skipInitialResize = false,
+        waitForInitialResetSnapshot = false,
+        initialResetSnapshotTimeoutMs = INITIAL_RESET_SNAPSHOT_WAIT_MS
+    } = {}) {
         const switchingSessions = Boolean(this.sessionId && this.sessionId !== sessionId);
         const prevToken = this._connectToken;
         this._connectToken += 1;
@@ -679,13 +684,53 @@ export class TerminalTransportClient {
         this.ws = ws;
 
         return await new Promise((resolve, reject) => {
+            let readyReceived = false;
+            let connectSettled = false;
+            let initialResetSnapshotApplied = false;
+            let initialResetSnapshotTimerId = null;
             const timeoutId = setTimeout(() => {
                 if (this._connectToken !== connectToken) return;
-                reject(new Error('Terminal transport connect timeout'));
+                settle('reject', new Error('Terminal transport connect timeout'));
             }, CONNECT_TIMEOUT_MS);
 
             const cleanup = () => {
                 clearTimeout(timeoutId);
+                if (initialResetSnapshotTimerId != null) {
+                    clearTimeout(initialResetSnapshotTimerId);
+                    initialResetSnapshotTimerId = null;
+                }
+            };
+            const settle = (type, value) => {
+                if (connectSettled || this._connectToken !== connectToken) return;
+                connectSettled = true;
+                cleanup();
+                if (type === 'reject') {
+                    reject(value);
+                    return;
+                }
+                resolve(value);
+            };
+            const maybeResolveLive = (initialResetSnapshot = null) => {
+                if (!readyReceived) return;
+                if (!waitForInitialResetSnapshot || initialResetSnapshotApplied) {
+                    settle('resolve', initialResetSnapshot
+                        ? { mode: 'live', initialResetSnapshot }
+                        : { mode: 'live' });
+                    return;
+                }
+                if (initialResetSnapshotTimerId != null) return;
+                const timeoutMs = Number.isFinite(initialResetSnapshotTimeoutMs)
+                    ? Math.max(0, initialResetSnapshotTimeoutMs)
+                    : INITIAL_RESET_SNAPSHOT_WAIT_MS;
+                initialResetSnapshotTimerId = setTimeout(() => {
+                    if (this._connectToken !== connectToken) return;
+                    settle('resolve', { mode: 'live', initialResetSnapshot: 'timeout' });
+                }, timeoutMs);
+            };
+            const markInitialResetSnapshotApplied = () => {
+                if (initialResetSnapshotApplied) return;
+                initialResetSnapshotApplied = true;
+                maybeResolveLive('applied');
             };
 
             ws.addEventListener('message', (event) => {
@@ -695,7 +740,7 @@ export class TerminalTransportClient {
 
                 switch (message.type) {
                     case 'ready':
-                        cleanup();
+                        readyReceived = true;
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
@@ -710,16 +755,18 @@ export class TerminalTransportClient {
                         void this.verifyInputReady().then(() => {
                             this._flushMessageQueue();
                         });
-                        resolve({ mode: 'live' });
+                        maybeResolveLive();
                         break;
                     case 'snapshot': {
                         const snapshotLen = (message.colorText || message.text || '').length;
                         ttcDebug(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
+                        const resolvesInitialResetSnapshot = waitForInitialResetSnapshot && this._resetTerminalOnNextSnapshot;
                         this._queueOrApplySnapshot(message.colorText || message.text || '', message.cursor || null, {
                             plainText: message.text || '',
                             visibleText: message.visibleColorText || message.visibleText || null,
                             visiblePlainText: message.visibleText || null,
-                            screenOnly: message.screenOnly === true
+                            screenOnly: message.screenOnly === true,
+                            afterWrite: resolvesInitialResetSnapshot ? markInitialResetSnapshotApplied : null
                         });
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
@@ -749,7 +796,6 @@ export class TerminalTransportClient {
                         this._emitStatus();
                         break;
                     case 'blocked':
-                        cleanup();
                         this.status.mode = 'blocked';
                         this.status.blockedAccess = message.terminalAccess || null;
                         this.status.terminalAccess = message.terminalAccess || null;
@@ -758,14 +804,13 @@ export class TerminalTransportClient {
                         this.status.connected = false;
                         this.status.transport = 'snapshot';
                         this._emitStatus();
-                        resolve({ mode: 'blocked', terminalAccess: message.terminalAccess || null });
+                        settle('resolve', { mode: 'blocked', terminalAccess: message.terminalAccess || null });
                         break;
                     case 'error': {
-                        cleanup();
                         this._manualClose = true;
                         const error = /** @type {Error & { code?: string }} */ (new Error(message.message || 'Terminal transport error'));
                         error.code = message.code || 'TERMINAL_TRANSPORT_ERROR';
-                        reject(error);
+                        settle('reject', error);
                         break;
                     }
                     default:
@@ -1537,7 +1582,8 @@ export class TerminalTransportClient {
         if (!deferred || !this.terminal) return;
         this._applySnapshot(deferred.text, {
             resetTerminal: deferred.resetTerminal,
-            screenOnly: deferred.screenOnly
+            screenOnly: deferred.screenOnly,
+            afterWrite: deferred.afterWrite
         });
     }
 
@@ -1939,7 +1985,7 @@ export class TerminalTransportClient {
         if (!this._isViewportPinnedToBottom || !this._pendingSnapshotText) return;
 
         const nextSnapshot = this._pendingSnapshotText;
-        const pendingOptions = this._pendingSnapshotOptions || { screenOnly: false };
+        const pendingOptions = this._pendingSnapshotOptions || { screenOnly: false, afterWrite: null };
         this._pendingSnapshotText = null;
         this._pendingSnapshotOptions = null;
         this._applySnapshot(nextSnapshot, {
@@ -1948,7 +1994,8 @@ export class TerminalTransportClient {
                 wasPinnedToBottom: true
             },
             resetTerminal: this._resetTerminalOnNextSnapshot,
-            screenOnly: pendingOptions.screenOnly === true
+            screenOnly: pendingOptions.screenOnly === true,
+            afterWrite: pendingOptions.afterWrite
         });
     }
 
@@ -1965,7 +2012,8 @@ export class TerminalTransportClient {
             this._deferredSnapshotWhileEchoPending = {
                 text: normalizedText,
                 resetTerminal: this._resetTerminalOnNextSnapshot,
-                screenOnly: options.screenOnly === true
+                screenOnly: options.screenOnly === true,
+                afterWrite: options.afterWrite
             };
             ttcWarn('[TTC-PROBE] snapshot deferred while local echo pending', {
                 echoLen: this._pendingEchoText.length,
@@ -1982,7 +2030,8 @@ export class TerminalTransportClient {
             this._applySnapshot(normalizedText, {
                 forceViewportState: this._createPinnedViewportState(),
                 resetTerminal: true,
-                screenOnly: options.screenOnly === true
+                screenOnly: options.screenOnly === true,
+                afterWrite: options.afterWrite
             });
             return;
         }
@@ -1994,7 +2043,8 @@ export class TerminalTransportClient {
             this._applySnapshot(normalizedText, {
                 forceViewportState: this._createPinnedViewportState(),
                 resetTerminal: true,
-                screenOnly: options.screenOnly === true
+                screenOnly: options.screenOnly === true,
+                afterWrite: options.afterWrite
             });
             return;
         }
@@ -2002,7 +2052,10 @@ export class TerminalTransportClient {
         if (!this._computeIsViewportPinnedToBottom()) {
             this._isViewportPinnedToBottom = false;
             this._pendingSnapshotText = normalizedText;
-            this._pendingSnapshotOptions = { screenOnly: options.screenOnly === true };
+            this._pendingSnapshotOptions = {
+                screenOnly: options.screenOnly === true,
+                afterWrite: options.afterWrite
+            };
             return;
         }
 
@@ -2011,7 +2064,8 @@ export class TerminalTransportClient {
         this._pendingSnapshotOptions = null;
         this._applySnapshot(normalizedText, {
             resetTerminal: this._resetTerminalOnNextSnapshot,
-            screenOnly: options.screenOnly === true
+            screenOnly: options.screenOnly === true,
+            afterWrite: options.afterWrite
         });
     }
 
@@ -2177,7 +2231,8 @@ export class TerminalTransportClient {
         const clearSequence = options.screenOnly === true ? '\x1b[2J\x1b[H' : '\x1b[2J\x1b[3J\x1b[H';
         this._writeToTerminal(clearSequence + normalizedText, viewportState, {
             resetTerminal: shouldResetTerminal,
-            renderRefresh: 'all'
+            renderRefresh: 'all',
+            afterWrite: options.afterWrite
         });
     }
 

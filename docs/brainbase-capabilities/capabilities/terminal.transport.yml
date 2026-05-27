@@ -32,6 +32,7 @@ visibility_rules:
   - Bare `[I` or `[O` that arrives without a held ESC is ordinary user text in the browser/server transport path.
   - Codex PTY shim may still drop bare `[I` or `[O` only when sanitizing outer-terminal generated responses before they reach Codex stdin.
   - Multiline paste must use a single bracketed paste transport instead of per-line `S-Enter` key simulation.
+  - Deferred desktop xterm display must wait for the first reset/full snapshot write to complete before revealing a newly opened session; WebSocket ready alone is transport-ready, not visual-ready.
 verification:
   commands:
     - npm test -- tests/unit/terminal-transport-client.test.js
@@ -53,6 +54,7 @@ verification:
     - Split focus reports (`ESC` then `[I`/`[O`) are dropped before either fragment reaches local echo or stdin.
     - Browser-to-PTY canary verifies typed text through tmux snapshot capture, not only xterm local buffer state.
     - Multiline paste is sent as one `paste` input and reaches tmux through `paste-buffer -p -r`.
+    - Opening a deferred xterm session with ready-before-snapshot does not reveal the old buffer before the first reset snapshot write callback completes.
 common_failures:
   - Enter appears delayed because xterm is not repainted even though the backend received input.
   - Streaming output is active but input silently falls back to terminal-io, causing per-character lag.
@@ -67,6 +69,7 @@ common_failures:
   - `[I` or `[O` appears when `ESC[I`/`ESC[O` is split across xterm `onData` events and the leading ESC is sent before the bare suffix arrives.
   - Long multiline paste is slow when each line is sent as text and each newline is converted into an awaited `S-Enter` key message.
   - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
+  - A Claude Code session opens at the oldest retained log because the UI revealed xterm on WebSocket ready before the initial reset/full snapshot finished rendering.
 runbooks:
   - ../runbooks/verify-31013-source.md
 troubleshooting:

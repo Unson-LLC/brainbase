@@ -175,7 +175,10 @@ export function applyTerminalInputUxMixin(AppClass) {
         }
 
         try {
-            const firstAttempt = await this.terminalTransportClient.connect(session.id, { skipInitialResize: deferDisplay });
+            const firstAttempt = await this.terminalTransportClient.connect(session.id, {
+                skipInitialResize: deferDisplay,
+                waitForInitialResetSnapshot: deferDisplay
+            });
             if (firstAttempt?.mode === 'blocked') {
                 return { ok: false, blocked: true, terminalAccess: firstAttempt.terminalAccess || null };
             }

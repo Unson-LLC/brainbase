@@ -507,6 +507,157 @@ describe('terminal-transport-client', () => {
     expect(client.status.mode).toBe('live');
   });
 
+  it('初回reset snapshot待ち指定ではready後もsnapshot描画完了までconnectをresolveしない', async () => {
+    let socket = null;
+    let writeCallback = null;
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor() {
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+        socket = this;
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send() {}
+
+      close() {}
+
+      emit(message) {
+        this._emit('message', { data: JSON.stringify(message) });
+      }
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.fitAddon = { fit: vi.fn() };
+    client.terminal = {
+      cols: 98,
+      rows: 32,
+      write: vi.fn((text, callback) => {
+        writeCallback = callback;
+      }),
+      reset: vi.fn(),
+      scrollToBottom: vi.fn(),
+      refresh: vi.fn()
+    };
+
+    let settled = false;
+    const connectPromise = client.connect('session-1', {
+      skipInitialResize: true,
+      waitForInitialResetSnapshot: true,
+      initialResetSnapshotTimeoutMs: 1000
+    }).then((result) => {
+      settled = true;
+      return result;
+    });
+    await flushMicrotasks();
+
+    socket.emit({ type: 'ready', sessionId: 'session-1', inputReady: true, terminalAccess: { state: 'owner' } });
+    await flushMicrotasks();
+    expect(settled).toBe(false);
+
+    socket.emit({ type: 'snapshot', text: 'latest output', capturedAt: new Date().toISOString() });
+    await flushMicrotasks();
+    expect(settled).toBe(false);
+    expect(client.terminal.write).toHaveBeenCalledWith(expect.stringContaining('latest output'), expect.any(Function));
+
+    writeCallback();
+    await expect(connectPromise).resolves.toEqual({ mode: 'live', initialResetSnapshot: 'applied' });
+    expect(settled).toBe(true);
+    expect(client.terminal.reset).toHaveBeenCalled();
+    expect(client.terminal.scrollToBottom).toHaveBeenCalled();
+  });
+
+  it('初回reset snapshot待ち指定でもsnapshotが来なければtimeoutでlive接続を返す', async () => {
+    vi.useFakeTimers();
+    let socket = null;
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor() {
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+        socket = this;
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send() {}
+
+      close() {}
+
+      emit(message) {
+        this._emit('message', { data: JSON.stringify(message) });
+      }
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.fitAddon = { fit: vi.fn() };
+    client.terminal = {
+      cols: 98,
+      rows: 32,
+      write: vi.fn(),
+      reset: vi.fn(),
+      scrollToBottom: vi.fn(),
+      refresh: vi.fn()
+    };
+
+    const connectPromise = client.connect('session-1', {
+      skipInitialResize: true,
+      waitForInitialResetSnapshot: true,
+      initialResetSnapshotTimeoutMs: 25
+    });
+    await flushMicrotasks();
+
+    socket.emit({ type: 'ready', sessionId: 'session-1', inputReady: true, terminalAccess: { state: 'owner' } });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(25);
+
+    await expect(connectPromise).resolves.toEqual({ mode: 'live', initialResetSnapshot: 'timeout' });
+  });
+
   it('Shift+Enter押下時_S-Enterとして送信する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

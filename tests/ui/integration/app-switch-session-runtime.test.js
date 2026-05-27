@@ -867,6 +867,32 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(false);
   });
 
+  it('deferDisplayのxterm接続は初回reset snapshot描画完了を待ってから表示する', async () => {
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalFrame.classList.remove('hidden');
+    app.terminalTransportClient = {
+      connect: vi.fn().mockResolvedValue({ mode: 'live', initialResetSnapshot: 'applied' }),
+      show: vi.fn(),
+      disconnect: vi.fn(),
+      destroy: vi.fn(),
+      syncViewportSize: vi.fn().mockResolvedValue(undefined)
+    };
+    app.hideTerminalLoadingOverlay = vi.fn();
+
+    const result = await app._connectXtermTransport({ id: 'session-1' }, { deferDisplay: true });
+
+    expect(result).toEqual({ ok: true });
+    expect(app.terminalTransportClient.connect).toHaveBeenCalledWith('session-1', {
+      skipInitialResize: true,
+      waitForInitialResetSnapshot: true
+    });
+    expect(app.terminalTransportClient.show).toHaveBeenCalled();
+    expect(app.terminalTransportClient.syncViewportSize).toHaveBeenCalled();
+    expect(app.terminalFrame.classList.contains('hidden')).toBe(true);
+    expect(app.hideTerminalLoadingOverlay).toHaveBeenCalled();
+  });
+
   it('Codex App Server display route can opt into the read-only App Server panel without starting terminal runtime', async () => {
     window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
     app.reconnectManager = { setCurrentSession: vi.fn() };
