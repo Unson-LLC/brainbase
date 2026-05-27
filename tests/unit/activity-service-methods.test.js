@@ -102,5 +102,46 @@ describe('activity-service-methods', () => {
             expect(done.lastDoneAt).toBe(2000);
             expect(done.status).toBe('done');
         });
+
+        it('claude/post-tool-use_heartbeat_空状態でworkingに復活する', () => {
+            // bridge は activeTurnId をローカル state.json で保持し続けて
+            // heartbeat だけ投げ続けるケース。server 側で activeTurnIds が
+            // 空になっていても claude/post-tool-use heartbeat は強い working
+            // signal として扱い、indicator を消さない。
+            svc.reportActivity('s1', 'working', 5000, {
+                lifecycle: 'heartbeat',
+                eventType: 'claude/post-tool-use',
+                turnId: 'claude-5000-aaaa',
+                activityKind: 'reasoning'
+            });
+            const after = svc.hookStatus.get('s1');
+            expect(after.status).toBe('working');
+            expect(after.lastWorkingAt).toBe(5000);
+            expect(after.lastEventType).toBe('claude/post-tool-use');
+        });
+
+        it('claude/_heartbeat_done済みでも復活してindicatorを保つ', () => {
+            // 実例: Stop hook で server 側が done 状態に落ちたあと、bridge が
+            // bootstrap した turn_started を受け取り損ねたまま heartbeat だけ
+            // 届くと indicator が消えていた。Claude prefix の heartbeat を
+            // 強い working signal にして復活させる。
+            svc.reportActivity('s1', 'done', 1000, {
+                lifecycle: 'turn_completed',
+                eventType: 'turn/completed',
+                turnId: 'claude-900-aaaa'
+            });
+            const beforeRevival = svc.hookStatus.get('s1');
+            expect(beforeRevival.status).toBe('done');
+
+            svc.reportActivity('s1', 'working', 2000, {
+                lifecycle: 'heartbeat',
+                eventType: 'claude/post-tool-use',
+                turnId: 'claude-1500-bbbb',
+                activityKind: 'reasoning'
+            });
+            const after = svc.hookStatus.get('s1');
+            expect(after.status).toBe('working');
+            expect(after.lastWorkingAt).toBe(2000);
+        });
     });
 });
