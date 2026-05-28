@@ -313,7 +313,7 @@ export const runtimeLifecycleMethods = {
         });
 
         try {
-            await this.waitForTtydReady(port, 3000, 50);
+            await this.waitForTtydReady(port, 10000, 50);
             logger.info(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
         } catch (error) {
             logger.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);

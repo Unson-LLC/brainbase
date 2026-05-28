@@ -234,6 +234,7 @@ describe('SessionManager', () => {
 
     expect(cleanupSpy).not.toHaveBeenCalled();
     expect(killSpy).toHaveBeenCalledWith(56789, 'SIGTERM');
+    expect(manager.waitForTtydReady).toHaveBeenCalledWith(40123, 10000, 50);
   });
 
   // story-tmux-missing-runtime-pause regression test (2026-05-21):
