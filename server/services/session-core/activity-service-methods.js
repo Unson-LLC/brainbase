@@ -317,6 +317,13 @@ export const activityServiceMethods = {
 
     _buildStatusForSession(hookData) {
         const WORKING_TIMEOUT = 5 * 60 * 1000;
+        // Claude の activity-bridge は PostToolUse でしか heartbeat を送らない。
+        // ツール呼び出しを伴わない区間 (深い思考 / 長文生成 / 子エージェント待ち) は
+        // 5 分を超えても正当に working であり続けるため、明示的な claude の working
+        // turn が開いている間は 5 分ではなく 30 分 (restoreHookStatus / _isStaleCodexPtyTurn
+        // と同じ STALE_TURN_TIMEOUT) を staleness の基準にする。これを過ぎたら turn は
+        // 死んだとみなして indicator を消す。Codex (codex/hook・codex-pty turn) は従来通り。
+        const CLAUDE_WORKING_TIMEOUT = 30 * 60 * 1000;
         const now = Date.now();
         const normalized = this._normalizeHookData(hookData);
         if (!normalized) return null;
@@ -328,10 +335,16 @@ export const activityServiceMethods = {
         const hasDone = normalized.lastDoneAt > 0;
         if (!hasWorking && !hasDone && activeTurnCount === 0) return null;
 
-        const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
-        const isWorkingStale = lastActiveAt > 0 && (now - lastActiveAt > WORKING_TIMEOUT);
-        if (isWorkingStale && activeTurnCount === 0 && !hasDone) return null;
         const hasOpenWorking = normalized.lastWorkingAt > normalized.lastDoneAt;
+        const isClaudeWorking = hasOpenWorking && (
+            normalized.activeTurnIds.some((tid) => typeof tid === 'string' && tid.startsWith('claude-'))
+            || (typeof normalized.lastEventType === 'string' && normalized.lastEventType.startsWith('claude/'))
+        );
+        const workingTimeout = isClaudeWorking ? CLAUDE_WORKING_TIMEOUT : WORKING_TIMEOUT;
+
+        const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
+        const isWorkingStale = lastActiveAt > 0 && (now - lastActiveAt > workingTimeout);
+        if (isWorkingStale && activeTurnCount === 0 && !hasDone) return null;
         if (this._isTransportReadyEvent(normalized.lastEventType) && activeTurnCount === 0 && !hasOpenWorking) {
             return null;
         }

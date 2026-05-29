@@ -17,13 +17,21 @@ describe('activity-service-methods', () => {
             hookStatus: new Map(),
             promptBuffers: new Map(),
             sessions: [],
+            paneTitleSuppressedSessionIds: new Set(),
             _activityWsBroadcast: null,
             _persistHookStatus: () => Promise.resolve(),
-            _persistSessionLiveSummary: () => Promise.resolve()
+            _persistSessionLiveSummary: () => Promise.resolve(),
+            _listTmuxPaneTitles: () => []
         };
         for (const [name, fn] of Object.entries(activityServiceMethods)) {
             svc[name] = fn.bind(svc);
         }
+        // bind ループが activityServiceMethods 内の実 _persistHookStatus 等で
+        // stub を上書きするため、永続化系は loop の後に no-op で固定する
+        // (stateStore 無しの実装が patchSession で落ちる副作用を排除)。
+        svc._persistHookStatus = () => Promise.resolve();
+        svc._persistSessionLiveSummary = () => Promise.resolve();
+        svc._activityWsBroadcast = null;
     });
 
     describe('reportActivity', () => {
@@ -118,6 +126,108 @@ describe('activity-service-methods', () => {
             expect(after.status).toBe('working');
             expect(after.lastWorkingAt).toBe(5000);
             expect(after.lastEventType).toBe('claude/post-tool-use');
+        });
+
+        it('claude_開いたturnは5分heartbeat無しでもindicatorを保つ', () => {
+            // Claude の bridge は PostToolUse でしか heartbeat を投げないため、
+            // ツール呼び出しを伴わない区間 (深い思考 / 長文生成 / 子エージェント待ち)
+            // では 5 分を超えて heartbeat が来ない。5 分の WORKING_TIMEOUT で
+            // indicator を消すと作業中なのに消える (= 報告された不具合)。
+            const now = Date.now();
+            const SIX_MIN = 6 * 60 * 1000;
+            svc.reportActivity('s1', 'working', now - SIX_MIN, {
+                lifecycle: 'turn_started',
+                eventType: 'claude/user-prompt-submit',
+                turnId: `claude-${now - SIX_MIN}-aaaa`,
+                activityKind: 'task_started'
+            });
+            const status = svc.getSessionStatus();
+            expect(status.s1, '6分heartbeat無しのclaude turnはindicatorを保つ').toBeDefined();
+            expect(status.s1.isWorking).toBe(true);
+        });
+
+        it('claude_開いたturnは29分(30分窓内)ではまだworkingを保つ_30分境界を固定', () => {
+            // 上限境界の固定: pre-fix の 5 分窓ではここで null になる (fix-sensitive)。
+            // 31 分で消えるテストと対で 30 分 (CLAUDE_WORKING_TIMEOUT) の値そのものを
+            // 検証する。窓を 10 分や 60 分に変えるとこのどちらかが落ちる。
+            const now = Date.now();
+            const TWENTY_NINE_MIN = 29 * 60 * 1000;
+            svc.reportActivity('s1', 'working', now - TWENTY_NINE_MIN, {
+                lifecycle: 'turn_started',
+                eventType: 'claude/user-prompt-submit',
+                turnId: `claude-${now - TWENTY_NINE_MIN}-aaaa`,
+                activityKind: 'task_started'
+            });
+            const status = svc.getSessionStatus();
+            expect(status.s1, '29分(30分窓内)の claude turn は working を保つ').toBeDefined();
+            expect(status.s1.isWorking).toBe(true);
+        });
+
+        it('claude_lastEventTypeがclaude/のみ(turnId無し)でも30分窓が効く_OR分岐を固定', () => {
+            // isClaudeWorking の OR 第2分岐 (lastEventType startsWith 'claude/') を
+            // 単独で固定する。activeTurnIds に claude- turn が無い heartbeat-only 状態
+            // (server 再起動後など) でも 6 分で消えない。
+            const now = Date.now();
+            const SIX_MIN = 6 * 60 * 1000;
+            svc.reportActivity('s1', 'working', now - SIX_MIN, {
+                lifecycle: 'heartbeat',
+                eventType: 'claude/post-tool-use',
+                turnId: `claude-${now - SIX_MIN}-aaaa`,
+                activityKind: 'reasoning'
+            });
+            // server が turn を見失った状況を再現: activeTurnIds を空にする
+            const entry = svc.hookStatus.get('s1');
+            entry.activeTurnIds = [];
+            const status = svc.getSessionStatus();
+            expect(status.s1, 'claude/ event のみ(turnId無し)でも 6 分で消えない').toBeDefined();
+            expect(status.s1.isWorking).toBe(true);
+        });
+
+        it('claude_開いたturnは30分超で死んだとみなしindicatorを消す', () => {
+            const now = Date.now();
+            const THIRTY_ONE_MIN = 31 * 60 * 1000;
+            svc.reportActivity('s1', 'working', now - THIRTY_ONE_MIN, {
+                lifecycle: 'turn_started',
+                eventType: 'claude/user-prompt-submit',
+                turnId: `claude-${now - THIRTY_ONE_MIN}-aaaa`,
+                activityKind: 'task_started'
+            });
+            const status = svc.getSessionStatus();
+            // STALE_TURN_TIMEOUT (30分) を過ぎたら turn は死んだとみなす
+            expect(status.s1).toBeUndefined();
+        });
+
+        it('codex_開いたturnは5分heartbeat無しで消える_非回帰', () => {
+            // Codex は codex/hook が密に届き pane-title spinner も効くため、
+            // 5 分の WORKING_TIMEOUT を維持する。claude 拡張の巻き込み回帰を防ぐ。
+            const now = Date.now();
+            const SIX_MIN = 6 * 60 * 1000;
+            svc.reportActivity('x1', 'working', now - SIX_MIN, {
+                lifecycle: 'turn_started',
+                eventType: 'codex/hook/UserPromptSubmit',
+                turnId: `codex-pty-turn-${now - SIX_MIN}-1234`
+            });
+            const status = svc.getSessionStatus();
+            expect(status.x1, 'codex の 5分 staleness は据え置き').toBeUndefined();
+        });
+
+        it('claude_完了後はworkingではなくdoneのまま_30分窓を誤適用しない', () => {
+            const now = Date.now();
+            const SIX_MIN = 6 * 60 * 1000;
+            svc.reportActivity('s1', 'working', now - SIX_MIN, {
+                lifecycle: 'turn_started',
+                eventType: 'claude/user-prompt-submit',
+                turnId: `claude-${now - SIX_MIN}-aaaa`
+            });
+            svc.reportActivity('s1', 'done', now - (SIX_MIN - 1000), {
+                lifecycle: 'turn_completed',
+                eventType: 'turn/completed',
+                turnId: `claude-${now - SIX_MIN}-aaaa`
+            });
+            const status = svc.getSessionStatus();
+            expect(status.s1).toBeDefined();
+            expect(status.s1.isWorking).toBe(false);
+            expect(status.s1.isDone).toBe(true);
         });
 
         it('claude/_heartbeat_done済みでも復活してindicatorを保つ', () => {
