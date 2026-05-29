@@ -13,20 +13,8 @@ import {
 
 import { getMembers, getMember, getProjects, getDailySummaries, getTimeEntries, getHourEntries, getTrackedTimeReport, type Person } from './client.js';
 
-const server = new Server(
-  {
-    name: 'jibble',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
-
 // Define available tools
-server.setRequestHandler(ListToolsRequestSchema, async () => {
+const handleListTools = async () => {
   return {
     tools: [
       {
@@ -146,10 +134,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
     ],
   };
-});
+};
 
 // Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+const handleCallTool = async (request: { params: { name: string; arguments?: Record<string, unknown> } }) => {
   const { name, arguments: args } = request.params;
 
   try {
@@ -310,13 +298,94 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       isError: true,
     };
   }
-});
+};
+
+// Build a fresh Server instance with handlers registered.
+// A factory (rather than a module-level singleton) is required for the
+// stateless Streamable HTTP transport, which connects a new Server per request
+// so concurrent clients never share a single Server's transport ref.
+function createServer(): Server {
+  const server = new Server(
+    {
+      name: 'jibble',
+      version: '1.0.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+  server.setRequestHandler(ListToolsRequestSchema, handleListTools);
+  server.setRequestHandler(CallToolRequestSchema, handleCallTool);
+  return server;
+}
+
+// Streamable HTTP transport: one persistent process serves many MCP clients,
+// so brainbase sessions connect via url= instead of each spawning their own
+// stdio copy. Stateless mode (sessionIdGenerator: undefined) creates a short
+// Server per request. Bound to 127.0.0.1 only (carries Jibble credentials).
+async function startHttpServer(port: number): Promise<void> {
+  const http = await import('node:http');
+  const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+  const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
+
+  const httpServer = http.createServer(async (req, res) => {
+    if (req.method === 'GET' && req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('ok');
+      return;
+    }
+    if (!req.url || !req.url.startsWith('/mcp')) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+
+    let body: unknown;
+    if (req.method === 'POST') {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      if (chunks.length > 0) {
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null }));
+          return;
+        }
+      }
+    }
+
+    const server = createServer();
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on('close', () => {
+      void transport.close();
+      void server.close();
+    });
+    await server.connect(transport);
+    await transport.handleRequest(req, res, body);
+  });
+
+  await new Promise<void>((resolve) => {
+    httpServer.listen(port, host, () => {
+      console.error(`Jibble MCP Server running on http://${host}:${port}/mcp`);
+      resolve();
+    });
+  });
+}
 
 // Start the server
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('Jibble MCP Server running on stdio');
+  const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
+  if (httpPort && Number.isFinite(httpPort)) {
+    await startHttpServer(httpPort);
+  } else {
+    const server = createServer();
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('Jibble MCP Server running on stdio');
+  }
 }
 
 main().catch((error) => {

@@ -20,12 +20,8 @@
       }
     },
     "jibble": {
-      "command": "npx",
-      "args": ["tsx", "mcp/jibble/src/index.ts"],
-      "env": {
-        "JIBBLE_CLIENT_ID": "b013484f-3d05-4fb7-aae5-f5f417a87ac4",
-        "JIBBLE_CLIENT_SECRET": "m9JpWnqrWOdOwYjtMl0IMZd57VJsH0O1FeAE-rAgdk7dtTvM"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:39001/mcp"
     },
     "loki": {
       "command": "/Volumes/UNSON-DRIVE/monitoring/tools/loki-mcp/server",
