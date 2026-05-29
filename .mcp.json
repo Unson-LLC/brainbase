@@ -24,19 +24,16 @@
       }
     },
     "slack-unson": {
-      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh",
-      "args": ["unson"],
-      "env": {}
+      "type": "http",
+      "url": "http://127.0.0.1:13082/mcp"
     },
     "slack-salestailor": {
-      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh",
-      "args": ["salestailor"],
-      "env": {}
+      "type": "http",
+      "url": "http://127.0.0.1:13081/mcp"
     },
     "slack-techknight": {
-      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh",
-      "args": ["techknight"],
-      "env": {}
+      "type": "http",
+      "url": "http://127.0.0.1:13083/mcp"
     }
   }
 }

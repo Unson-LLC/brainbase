@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.brainbase.mcp-slack-techknight</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh</string>
+    <string>techknight</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SLACK_MCP_TRANSPORT</key>
+    <string>http</string>
+    <key>INFISICAL_BIN</key>
+    <string>/Users/ksato/.local/bin/infisical</string>
+    <key>PATH</key>
+    <string>/Users/ksato/.nvm/versions/node/v22.22.0/bin:/Users/ksato/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/ksato</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ksato/Library/Logs/brainbase-mcp-slack-techknight.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ksato/Library/Logs/brainbase-mcp-slack-techknight.error.log</string>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

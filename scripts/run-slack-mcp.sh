@@ -157,10 +157,17 @@ RUN_SCRIPT="$CHECK_SCRIPT"'
   export SLACK_MCP_XOXD_TOKEN="${!xoxd_key}"
   export SLACK_MCP_HOST=127.0.0.1
   export SLACK_MCP_PORT="${PORT}"
-  exec "${SLACK_MCP_BIN}"
+  # SLACK_MCP_TRANSPORT=http -> one shared Streamable HTTP service per workspace
+  # (endpoint http://127.0.0.1:${PORT}/mcp). Default stdio = legacy per-session spawn.
+  if [ "${SLACK_MCP_TRANSPORT:-stdio}" = "http" ]; then
+    exec "${SLACK_MCP_BIN}" -t http
+  else
+    exec "${SLACK_MCP_BIN}"
+  fi
 '
 
-export WS_UPPER PORT SLACK_MCP_BIN INFISICAL_DISABLE_UPDATE_CHECK=true
+SLACK_MCP_TRANSPORT="${SLACK_MCP_TRANSPORT:-stdio}"
+export WS_UPPER PORT SLACK_MCP_BIN SLACK_MCP_TRANSPORT INFISICAL_DISABLE_UPDATE_CHECK=true
 if [ -n "$INFISICAL_TOKEN_VALUE" ]; then
   export INFISICAL_TOKEN="$INFISICAL_TOKEN_VALUE"
 else
