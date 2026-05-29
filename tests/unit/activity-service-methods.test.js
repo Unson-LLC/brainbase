@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import { activityServiceMethods } from '../../server/services/session-core/activity-service-methods.js';
 
 /**
@@ -252,6 +252,99 @@ describe('activity-service-methods', () => {
             const after = svc.hookStatus.get('s1');
             expect(after.status).toBe('working');
             expect(after.lastWorkingAt).toBe(2000);
+        });
+    });
+
+    describe('_getPaneTitleActivityStatuses (pane-title spinner fallback)', () => {
+        let paneSvc;
+        let nowRef;
+        let paneRows;
+
+        // Prime the module (import transform + V8 JIT of _getPaneTitleActivityStatuses)
+        // once before the timed assertions so the first test isn't subject to a
+        // cold-load race. Uses an isolated throwaway svc; touches no shared state.
+        beforeAll(() => {
+            const warm = {
+                paneTitleActivityCache: new Map(),
+                paneTitleSuppressedSessionIds: new Set(),
+                hookStatus: new Map(),
+                stateStore: { get: () => ({ sessions: [] }) },
+                _now: () => 1,
+                _listTmuxPaneTitles: () => ['session-warm\t⠂ Claude Code']
+            };
+            for (const [name, fn] of Object.entries(activityServiceMethods)) {
+                warm[name] = fn.bind(warm);
+            }
+            warm._now = () => 1;
+            warm._listTmuxPaneTitles = () => ['session-warm\t⠂ Claude Code'];
+            warm._getPaneTitleActivityStatuses();
+        });
+
+        beforeEach(() => {
+            nowRef = { t: 1_000_000_000_000 };
+            paneRows = [];
+            paneSvc = {
+                paneTitleActivityCache: new Map(),
+                paneTitleSuppressedSessionIds: new Set(),
+                hookStatus: new Map(),
+                stateStore: { get: () => ({ sessions: [] }) },
+                _now: () => nowRef.t,
+                _listTmuxPaneTitles: () => paneRows
+            };
+            for (const [name, fn] of Object.entries(activityServiceMethods)) {
+                paneSvc[name] = fn.bind(paneSvc);
+            }
+            paneSvc._now = () => nowRef.t;
+            paneSvc._listTmuxPaneTitles = () => paneRows;
+        });
+
+        const MIN = 60 * 1000;
+
+        it('claude_braille文字が30s以上未変化でも30分以内ならworkingを保つ_誤ドロップ防止', () => {
+            // Claude の braille スピナーは pane title 上でゆっくりしか進まない。
+            // 同一タイトルが続いても 30 分以内なら working。pre-fix(30s) では消えていた。
+            paneRows = ['session-1\t⠂ Claude Code'];
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']?.isWorking).toBe(true);
+
+            // 5 分後、タイトル未変化（braille が進んでいない）でも working を保つ
+            nowRef.t += 5 * MIN;
+            const s = paneSvc._getPaneTitleActivityStatuses()['session-1'];
+            expect(s, '5分未変化でも working を保つ (旧30sでは消えていた)').toBeDefined();
+            expect(s.isWorking).toBe(true);
+            expect(s.confidence).toBe('fallback');
+        });
+
+        it('claude_braille文字が30分超で未変化ならフリーズとみなし落とす', () => {
+            paneRows = ['session-1\t⠂ Claude Code'];
+            paneSvc._getPaneTitleActivityStatuses(); // first seen
+            nowRef.t += 31 * MIN; // 未変化のまま 31 分
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']).toBeUndefined();
+        });
+
+        it('braille文字が進めば(変化すれば)タイマーがリセットされ長時間workingを保つ', () => {
+            paneRows = ['session-1\t⠂ Claude Code'];
+            paneSvc._getPaneTitleActivityStatuses();
+            nowRef.t += 20 * MIN;
+            paneRows = ['session-1\t⠴ Claude Code']; // braille が進んだ = 変化
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']?.isWorking).toBe(true);
+            nowRef.t += 20 * MIN; // 変化から 20 分（合計 40 分だが直近変化から 20 分）
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']?.isWorking).toBe(true);
+        });
+
+        it('スピナー文字が消えた(idle/done タイトル)ら即落とす', () => {
+            paneRows = ['session-1\t⠂ Claude Code'];
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']).toBeDefined();
+            nowRef.t += 1 * MIN;
+            paneRows = ['session-1\t✳ Claude Code']; // ✳ は spinner set 外 = idle/waiting
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']).toBeUndefined();
+        });
+
+        it('pane が見えなくなったら STALE_TIMEOUT(30s) で落とす', () => {
+            paneRows = ['session-1\t⠂ Claude Code'];
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']).toBeDefined();
+            nowRef.t += 31 * 1000; // 31s
+            paneRows = []; // pane が一覧から消えた
+            expect(paneSvc._getPaneTitleActivityStatuses()['session-1']).toBeUndefined();
         });
     });
 });

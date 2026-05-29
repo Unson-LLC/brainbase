@@ -7,7 +7,14 @@ const PROMPT_BUFFER_MAX_LENGTH = 4000;
 const MAX_SESSION_ACTIVITY_HISTORY = 40;
 const PANE_TITLE_SPINNER_CHARS = new Set(Array.from('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠁⠂⠄⡀⢀⠠⠐⠈⠉⠛⠿⣿'));
 const PANE_TITLE_SPINNER_STALE_TIMEOUT = 30 * 1000;
-const PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT = 30 * 1000;
+// pane が見えなくなったら 30s で cache を落とす（上の STALE）が、pane が見え続けて
+// いる間にスピナー文字が「変化しない」ことを根拠に落とすのは Claude では誤判定になる。
+// Claude の braille スピナー (⠂⠐…) は pane title 上ではゆっくりしか進まず、思考 /
+// 長文生成 / ツール待ちの静止区間で 30s 超の未変化が普通に起きる。そこで未変化での
+// 打ち切りは「真にフリーズ（ハング）した」とみなせる 30 分まで延ばし、explicit hook の
+// staleness (CLAUDE_WORKING_TIMEOUT / STALE_TURN_TIMEOUT) と揃える。pane が消える /
+// スピナー文字が消える（idle/done のタイトルに変わる）場合は従来どおり即落とす。
+const PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT = 30 * 60 * 1000;
 const PANE_TITLE_SUPPRESSION_TIMEOUT = 5 * 60 * 1000;
 const TMUX_PANE_TITLE_ROWS_CACHE_TTL = 1000;
 
@@ -424,6 +431,9 @@ export const activityServiceMethods = {
             };
             cache.set(sessionId, entry);
 
+            // スピナー文字が出ている＝CLI はビジー。未変化が UNCHANGED_TIMEOUT(30分)
+            // を超えて初めて「フリーズ」とみなして落とす。Claude の遅い braille 進行で
+            // working 中の indicator が 30s で消える誤判定を防ぐ。
             if (!titleChanged && now - entry.lastChangedAt > PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT) {
                 continue;
             }
