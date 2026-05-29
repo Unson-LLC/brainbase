@@ -574,7 +574,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     entityIndex = createEmptyIndex();
   }
 
-  // Create the MCP server
+  // Create the MCP server.
+  // Factory (not a singleton) so the stateless Streamable HTTP transport can
+  // build one Server per request — the heavy shared state (entityIndex,
+  // brainbaseApiUrl) lives at module scope and is built once above.
+  function createServer() {
   const server = new Server(
     {
       name: 'brainbase',
@@ -663,9 +667,67 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     }
   });
 
-  // Connect via stdio
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+    return server;
+  }
 
-  console.error('[brainbase] Server started');
+  // Streamable HTTP transport: one persistent process serves many MCP clients,
+  // so brainbase sessions connect via url= instead of each spawning their own
+  // stdio copy. Stateless mode builds a short-lived Server per request.
+  // Bound to 127.0.0.1 only. Enabled when MCP_HTTP_PORT is set.
+  const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
+  if (httpPort && Number.isFinite(httpPort)) {
+    const http = await import('node:http');
+    const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+    const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
+
+    const httpServer = http.createServer(async (req, res) => {
+      if (req.method === 'GET' && req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ok');
+        return;
+      }
+      if (!req.url || !req.url.startsWith('/mcp')) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+
+      let body: unknown;
+      if (req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
+        if (chunks.length > 0) {
+          try {
+            body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          } catch {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null }));
+            return;
+          }
+        }
+      }
+
+      const server = createServer();
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on('close', () => {
+        void transport.close();
+        void server.close();
+      });
+      await server.connect(transport);
+      await transport.handleRequest(req, res, body);
+    });
+
+    await new Promise<void>((resolve) => {
+      httpServer.listen(httpPort, host, () => {
+        console.error(`[brainbase] Server started on http://${host}:${httpPort}/mcp`);
+        resolve();
+      });
+    });
+  } else {
+    // Connect via stdio (default)
+    const server = createServer();
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('[brainbase] Server started');
+  }
 }

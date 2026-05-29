@@ -5,11 +5,8 @@
       "args": ["-y", "chrome-devtools-mcp@latest"]
     },
     "brainbase": {
-      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-brainbase-mcp.sh",
-      "env": {
-        "BRAINBASE_ENTITY_SOURCE": "graphapi",
-        "BRAINBASE_WIKI_API_URL": "http://localhost:31013"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:39002/mcp"
     },
     "nocodb": {
       "command": "npx",
