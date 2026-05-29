@@ -52,12 +52,17 @@ class NocoDBServer {
     // Error handling
     this.server.onerror = (error) => console.error("[MCP Error]", error);
 
-    // Signal handling
-    process.on("SIGINT", async () => {
-      await this.server.close();
-      process.exit(0);
-    });
+    // Signal handling (registered once; HTTP mode builds a server per request,
+    // so guard against accumulating SIGINT listeners).
+    if (!NocoDBServer.sigintRegistered) {
+      NocoDBServer.sigintRegistered = true;
+      process.on("SIGINT", () => {
+        process.exit(0);
+      });
+    }
   }
+
+  private static sigintRegistered = false;
 
   private setupToolHandlers() {
     // List available tools
@@ -414,6 +419,10 @@ class NocoDBServer {
     });
   }
 
+  getServer(): Server {
+    return this.server;
+  }
+
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
@@ -421,9 +430,73 @@ class NocoDBServer {
   }
 }
 
+// Streamable HTTP transport: one persistent process serves many MCP clients,
+// so brainbase sessions connect via url= instead of each spawning their own
+// stdio copy. Stateless mode builds a fresh NocoDBServer per request (the
+// NocoDBClient is just a url+token holder, cheap to construct). 127.0.0.1 only.
+async function startHttpServer(port: number): Promise<void> {
+  const http = await import("node:http");
+  const { StreamableHTTPServerTransport } = await import(
+    "@modelcontextprotocol/sdk/server/streamableHttp.js"
+  );
+  const host = process.env.MCP_HTTP_HOST || "127.0.0.1";
+
+  const httpServer = http.createServer(async (req, res) => {
+    if (req.method === "GET" && req.url === "/health") {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("ok");
+      return;
+    }
+    if (!req.url || !req.url.startsWith("/mcp")) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+
+    let body: unknown;
+    if (req.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      if (chunks.length > 0) {
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32700, message: "Parse error" }, id: null }));
+          return;
+        }
+      }
+    }
+
+    const server = new NocoDBServer().getServer();
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on("close", () => {
+      void transport.close();
+      void server.close();
+    });
+    await server.connect(transport);
+    await transport.handleRequest(req, res, body);
+  });
+
+  await new Promise<void>((resolve) => {
+    httpServer.listen(port, host, () => {
+      console.error(`NocoDB MCP server running on http://${host}:${port}/mcp`);
+      resolve();
+    });
+  });
+}
+
 // Start server
-const server = new NocoDBServer();
-server.run().catch((error) => {
+async function main() {
+  const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
+  if (httpPort && Number.isFinite(httpPort)) {
+    await startHttpServer(httpPort);
+  } else {
+    await new NocoDBServer().run();
+  }
+}
+
+main().catch((error) => {
   console.error("Server error:", error);
   process.exit(1);
 });
