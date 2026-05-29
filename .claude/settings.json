@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/capability-map-reminder.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/ssot-self-assessment.ts",
             "timeout": 3000
           },
           {
