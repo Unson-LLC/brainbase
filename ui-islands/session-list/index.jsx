@@ -28,15 +28,15 @@ if (islandEnabled()) {
 }
 
 // Mobile bottom-sheet island (Phase K, staged migration to a single renderer).
-// Flag-gated OFF: opt IN with ?mobile-island=1 or localStorage bb:mobile-island='1'.
+// Default ON (Phase K2). Opt OUT with ?mobile-island=0 or localStorage bb:mobile-island='0'.
 // When mounted, mobile-navigation-mixin skips its vanilla renderInto path.
 function mobileIslandEnabled() {
   try {
     const p = new URLSearchParams(location.search);
-    if (p.get('mobile-island') === '1') return true;
     if (p.get('mobile-island') === '0') return false;
-    return localStorage.getItem('bb:mobile-island') === '1';
-  } catch { return false; }
+    if (p.has('mobile-island')) return true;
+    return localStorage.getItem('bb:mobile-island') !== '0';
+  } catch { return true; }
 }
 
 if (mobileIslandEnabled()) {
