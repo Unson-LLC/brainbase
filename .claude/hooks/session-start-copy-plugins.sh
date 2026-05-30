@@ -57,6 +57,37 @@ if [ -d "$L2_NODE_MODULES" ]; then
   fi
 fi
 
+# hook 登録 + 実行基盤の補完（brainbase 以外のプロジェクト worktree 対策）
+#
+# brainbase 自身の worktree では settings.json / run-hook.sh / 事前バンドル .mjs は
+# git tracked で既に存在するため何もしない。しかし brainbase 以外のプロジェクト worktree
+# (例: *-dialog_ai_infra) では brainbase の hook 登録ファイルが存在せず、activity-bridge
+# フックが登録・実行されない → 稼働インジケータが永久に無印になる(2026-05-31 判明)。
+#
+# settings.json が無い場合のみ L2 から補完する。settings.json をガードに使うことで
+# brainbase worktree(git tracked で存在)を上書きせず、過去の "dirty 1000件" 退行を避ける。
+if [ ! -f ".claude/settings.json" ] && [ -f "$L2_CLAUDE/settings.json" ]; then
+  cp "$L2_CLAUDE/settings.json" ".claude/settings.json" 2>/dev/null \
+    && echo "  ✅ settings.json 補完 (hook 登録)" || true
+
+  # 実行基盤 run-hook.sh を補完
+  if [ -f "$L2_CLAUDE/scripts/run-hook.sh" ]; then
+    mkdir -p ".claude/scripts"
+    cp "$L2_CLAUDE/scripts/run-hook.sh" ".claude/scripts/run-hook.sh" 2>/dev/null \
+      && chmod +x ".claude/scripts/run-hook.sh" 2>/dev/null || true
+  fi
+
+  # activity-bridge 事前バンドル .mjs を補完(無ければ run-hook.sh は tsx に fallback)
+  for hk in post-tool-use user-prompt-submit stop; do
+    src="$L2_CLAUDE/scripts/hooks/$hk/activity-bridge.mjs"
+    if [ -f "$src" ]; then
+      mkdir -p ".claude/scripts/hooks/$hk"
+      cp "$src" ".claude/scripts/hooks/$hk/activity-bridge.mjs" 2>/dev/null || true
+    fi
+  done
+  echo "  ✅ hook 実行基盤 (run-hook.sh + bundles) 補完"
+fi
+
 # mcp/<server>/package.json がある独立MCP serverの依存を確保
 # (L2 node_modules は brainbase本体専用なので mcp/* 配下の axios 等は別途解決が必要)
 if [ -d "./mcp" ]; then
