@@ -44,6 +44,9 @@ export function applyMobileNavigationMixin(AppClass) {
 
         const renderMobileSessionList = () => {
             if (!mobileSessionList) return;
+            // When the React mobile island owns the sheet (flag on), it renders reactively
+            // from the live appStore — skip the vanilla renderInto path entirely.
+            if (mobileSessionList.dataset.islandOwned === '1') return;
             try {
                 // Render the ORIGINAL vanilla session list straight into the mobile
                 // sheet. The desktop #session-list is now owned by the React island, so
