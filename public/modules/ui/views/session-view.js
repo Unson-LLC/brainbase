@@ -79,10 +79,15 @@ function describeSessionMenuElement(element) {
 export class SessionView {
     // Flag read by both the vanilla renderer (to bail) and the React island (to mount).
     static _sessionListIslandEnabled() {
+        // Default ON. Opt OUT with ?island=0 or localStorage bb:session-list-island='0'.
+        // Mirrors ui-islands/session-list/index.jsx islandEnabled().
         try {
-            return new URLSearchParams(location.search).has('island')
-                || localStorage.getItem('bb:session-list-island') === '1';
-        } catch { return false; }
+            const p = new URLSearchParams(location.search);
+            if (p.get('island') === '0') return false;
+            if (p.has('island')) return true;
+            if (localStorage.getItem('bb:session-list-island') === '0') return false;
+            return true;
+        } catch { return true; }
     }
 
     constructor({ sessionService, fileViewerService }) {
