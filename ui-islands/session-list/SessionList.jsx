@@ -7,6 +7,7 @@ import { getProjectConfig } from '/modules/project-mapping.js';
 import { classifySessionsForGroupedList } from '/modules/ui/views/session-view.js';
 import { groupSessionsByProject } from '/modules/session-manager.js';
 import SessionRowFull from './SessionRowFull.jsx';
+import SessionToolbar, { filterSessions } from './SessionToolbar.jsx';
 
 // Parity with session-view _getActivitySortPriority: attention/working=1, done-unread=2, idle=3.
 function sortPriority(ui) {
@@ -103,20 +104,34 @@ export default function SessionList() {
   const sessions = useAppState((st) => st.sessions);
   const currentId = useAppState((st) => st.currentSessionId);
   const view = useAppState((st) => st.ui?.sessionListView) || 'timeline';
-  const list = (sessions || []).filter((s) => s.intendedState !== 'archived');
+  const [query, setQuery] = useState('');
+  const [favOnly, setFavOnly] = useState(false);
 
-  if (view === 'project') {
+  const all = (sessions || []).filter((s) => s.intendedState !== 'archived');
+  const favoriteCount = all.filter(isFavorite).length;
+  const list = filterSessions(all, query, favOnly);
+
+  const toolbar = (
+    <SessionToolbar query={query} onQuery={setQuery}
+      favOnly={favOnly} onToggleFav={() => setFavOnly((v) => !v)} favoriteCount={favoriteCount} />
+  );
+
+  let body;
+  if (list.length === 0) {
+    body = <div className="empty-state session-list-empty">{favOnly ? 'お気に入りのセッションはありません' : '一致するセッションがありません'}</div>;
+  } else if (view === 'project') {
     const { activeSessions, pausedSessions, hibernatedSessions } = classifySessionsForGroupedList(list);
-    return (
+    body = (
       <>
         {activeSessions.length > 0 && <Section title="作業中" sessions={activeSessions} currentId={currentId} />}
         {pausedSessions.length > 0 && <Section title="停止中" sessions={pausedSessions} currentId={currentId} defaultCollapsed />}
         {hibernatedSessions.length > 0 && <Section title="スリープ中" sessions={hibernatedSessions} currentId={currentId} defaultCollapsed />}
       </>
     );
+  } else {
+    // timeline (default): flat favorite -> priority -> timestamp desc
+    body = orderSessions(list, currentId).map((s) => <SessionRowFull key={s.id} s={s} currentId={currentId} />);
   }
 
-  // timeline (default): flat favorite -> priority -> timestamp desc
-  const ordered = orderSessions(list, currentId);
-  return <>{ordered.map((s) => <SessionRowFull key={s.id} s={s} currentId={currentId} />)}</>;
+  return <>{toolbar}{body}</>;
 }

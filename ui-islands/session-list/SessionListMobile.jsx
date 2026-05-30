@@ -5,7 +5,7 @@ import { getProjectFromSession, getProjectConfig } from '/modules/project-mappin
 import { classifySessionsForGroupedList } from '/modules/ui/views/session-view.js';
 import { groupSessionsByProject } from '/modules/session-manager.js';
 import SessionRowFull from './SessionRowFull.jsx';
-import { SearchIcon, StarIcon } from './icons.jsx';
+import SessionToolbar, { filterSessions } from './SessionToolbar.jsx';
 
 // Mobile bottom-sheet session list. Reproduces the vanilla mobile design (toolbar +
 // spacious rows + "Live" pill) while rendering via React from the live appStore.
@@ -93,28 +93,11 @@ export default function SessionListMobile() {
 
   const all = (sessions || []).filter((s) => s.intendedState !== 'archived');
   const favoriteCount = all.filter(isFavorite).length;
-  const q = query.trim().toLowerCase();
-  const list = all.filter((s) => {
-    if (favOnly && !isFavorite(s)) return false;
-    if (q && !(`${s.name || ''} ${getProjectFromSession(s)}`.toLowerCase().includes(q))) return false;
-    return true;
-  });
+  const list = filterSessions(all, query, favOnly);
 
   const toolbar = (
-    <div className="session-list-toolbar">
-      <label className="session-search-wrap">
-        <SearchIcon size={16} />
-        <input className="session-search-input" type="search" value={query}
-          placeholder="セッションを検索" aria-label="セッションを検索"
-          onChange={(e) => setQuery(e.target.value)} />
-      </label>
-      <button className={`session-favorites-filter-btn${favOnly ? ' active' : ''}`} type="button"
-        aria-pressed={favOnly} title="お気に入りのみ" aria-label="お気に入りのみ"
-        onClick={() => setFavOnly((v) => !v)}>
-        <StarIcon size={16} />
-        <span className="session-favorites-count">{favoriteCount}</span>
-      </button>
-    </div>
+    <SessionToolbar query={query} onQuery={setQuery}
+      favOnly={favOnly} onToggleFav={() => setFavOnly((v) => !v)} favoriteCount={favoriteCount} />
   );
 
   let body;
