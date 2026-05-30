@@ -5,10 +5,47 @@ import { showSuccess, showError, showInfo } from '../toast.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 import { recordRecentFileOpen } from '../session-ui-state.js';
 import { getTaskDeadline } from '../ui-helpers.js';
+import { showConfirm } from '../confirm-modal.js';
 
 export function applyEventListenersMixin(AppClass) {
     AppClass.prototype.setupEventListeners = async function() {
         this._cacheTerminalUiElements?.();
+
+        // Bridge: React session-list island delegates row actions here so the
+        // sessionService stays the single source of truth (no logic duplication).
+        const onIslandSessionAction = async (e) => {
+            const { action, sessionId } = e.detail || {};
+            const svc = this.sessionService;
+            if (!svc || !sessionId) return;
+            try {
+                switch (action) {
+                    case 'archive': await svc.archiveSession(sessionId); break;
+                    case 'unarchive': await svc.unarchiveSession(sessionId); break;
+                    case 'hibernate': await svc.hibernateSession(sessionId); break;
+                    case 'resume': await svc.resumeSession(sessionId); break;
+                    case 'resumeRuntime': await svc.resumeRuntime(sessionId); break;
+                    case 'delete': {
+                        const ok = await showConfirm('このセッションを削除しますか？この操作は取り消せません。', { danger: true });
+                        if (!ok) return;
+                        await svc.deleteSession(sessionId);
+                        break;
+                    }
+                    case 'favorite': {
+                        const sess = (appStore.getState().sessions || []).find((x) => x.id === sessionId);
+                        const next = !(sess && sess.favorite);
+                        if (typeof svc.setSessionFavorite === 'function') await svc.setSessionFavorite(sessionId, next);
+                        else if (typeof svc.updateSession === 'function') await svc.updateSession(sessionId, { favorite: next });
+                        break;
+                    }
+                    default: return;
+                }
+            } catch (err) {
+                console.error('[island-session-action]', action, err);
+                showError('操作に失敗しました');
+            }
+        };
+        document.addEventListener('island:session-action', onIslandSessionAction);
+        this.unsubscribers.push(() => document.removeEventListener('island:session-action', onIslandSessionAction));
 
         const restoreTerminalAfterPageReturn = (reason) => {
             scheduleAfterNextPaint(() => {
