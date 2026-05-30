@@ -1273,6 +1273,9 @@
     </div>
 
     <script type="module" src="app.js?v=202605092305"></script>
+    <!-- React island (flag-gated: ?island=1 or localStorage bb:session-list-island=1).
+         Imports the live /modules/core/store.js singleton at runtime (shared state). -->
+    <script type="module" src="/dist/session-list-island.js?v=202605300100"></script>
     <script>
         // defer scripts (lucide等) のロード後に実行
         if (typeof lucide !== 'undefined') {

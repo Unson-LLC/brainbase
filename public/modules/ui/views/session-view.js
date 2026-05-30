@@ -77,6 +77,14 @@ function describeSessionMenuElement(element) {
  * 現行版と同じ構造でプロジェクトグループ表示
  */
 export class SessionView {
+    // Flag read by both the vanilla renderer (to bail) and the React island (to mount).
+    static _sessionListIslandEnabled() {
+        try {
+            return new URLSearchParams(location.search).has('island')
+                || localStorage.getItem('bb:session-list-island') === '1';
+        } catch { return false; }
+    }
+
     constructor({ sessionService, fileViewerService }) {
         this.sessionService = sessionService;
         this.folderTreeView = new FolderTreeView({ sessionService, fileViewerService });
@@ -346,6 +354,8 @@ export class SessionView {
 
     _refreshSessionRows(sessionIds = []) {
         if (!this.container || !Array.isArray(sessionIds) || sessionIds.length === 0) return;
+        // Island owns #session-list rows; vanilla per-row refresh must not touch them.
+        if (SessionView._sessionListIslandEnabled()) return;
 
         const { sessions, currentSessionId } = appStore.getState();
         for (const sessionId of sessionIds) {
@@ -663,6 +673,13 @@ export class SessionView {
      */
     render() {
         if (!this.container) return;
+
+        // Coexistence guard: when the React session-list island is enabled
+        // (flag-gated, Spec: story-session-list-react-island), the vanilla renderer
+        // must not touch #session-list. Read the SAME flag the island reads
+        // (deterministic, mount-order independent) — otherwise both fight over the
+        // container and lucide refreshIcons() churns 800+ SVGs per poll.
+        if (SessionView._sessionListIslandEnabled()) return;
 
         this._closeAllMenus('render-start');
 

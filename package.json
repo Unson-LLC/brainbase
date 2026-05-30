@@ -71,8 +71,7 @@
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh",
     "prepare": "husky",
-    "sns:poll-metrics": "node scripts/poll-sns-feedback-metrics.js",
-    "build:hooks": "node .claude/scripts/build-activity-bridge-hooks.mjs"
+    "sns:poll-metrics": "node scripts/poll-sns-feedback-metrics.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1022.0",
@@ -102,10 +101,13 @@
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "@vitest/coverage-v8": "^4.0.16",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.4",
     "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
     "jsdom": "^27.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
