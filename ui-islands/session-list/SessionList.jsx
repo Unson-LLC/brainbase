@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppState, useStatusBump, appStore } from './useAppStore.js';
+import { useAppState, useStatusBump, appStore, eventBus, EVENTS } from './useAppStore.js';
 import { deriveSessionUiState } from '/modules/session-ui-state.js';
 
 // Parity with vanilla renderSessionRowHTML activity indicator:
@@ -16,8 +16,12 @@ function SessionRow({ s, currentId }) {
   const active = s.id === currentId;
   const ind = indicatorClass(ui);
   const onClick = () => {
+    // Real terminal switch: same path as sessionService.switchSession(id)
+    // (setState currentSessionId + emit SESSION_CHANGED -> app loads the terminal).
+    const prev = appStore.getState().currentSessionId;
+    if (prev === s.id) return;
     appStore.setState({ currentSessionId: s.id });
-    document.dispatchEvent(new CustomEvent('island:switch-session', { detail: { id: s.id } }));
+    eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: s.id, previousSessionId: prev });
   };
   return (
     <div
