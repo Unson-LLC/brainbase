@@ -16,7 +16,21 @@ export function applyEventListenersMixin(AppClass) {
         const onIslandSessionAction = async (e) => {
             const { action, sessionId } = e.detail || {};
             const svc = this.sessionService;
-            if (!svc || !sessionId) return;
+            if (!svc) return;
+            // Reorder persistence carries no sessionId: the island already applied the
+            // optimistic order to appStore; persist the current store order via the service.
+            if (action === 'persistOrder') {
+                try {
+                    if (typeof svc.saveSessionOrder === 'function') {
+                        await svc.saveSessionOrder(appStore.getState().sessions || []);
+                    }
+                } catch (err) {
+                    console.error('[island-session-action] persistOrder', err);
+                    showError('並び順の保存に失敗しました');
+                }
+                return;
+            }
+            if (!sessionId) return;
             try {
                 switch (action) {
                     case 'archive': await svc.archiveSession(sessionId); break;
