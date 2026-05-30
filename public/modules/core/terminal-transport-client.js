@@ -789,15 +789,18 @@ export class TerminalTransportClient {
                     case 'output': {
                         const outputData = typeof message.data === 'string' ? message.data : '';
                         // One-shot: the first live output after a session-switch snapshot
-                        // repaints the screen (tmux attach). Fully RESET the terminal first
-                        // (not just \x1b[2J\x1b[3J\x1b[H): a partial clear leaves cursor/mode/
-                        // alternate-screen state from the snapshot preview, so an interactive
-                        // TUI's relative-cursor redraw misaligns and stacks a duplicate menu.
-                        // terminal.reset() gives the live repaint a truly clean slate; tmux
-                        // re-establishes the correct mode on attach. Only fires once per switch.
+                        // repaints the screen (tmux attach). Clear the snapshot preview first
+                        // so a shorter repaint cannot leave ghost rows below it (duplicated
+                        // menus / ruler lines). Only fires once per switch.
+                        //
+                        // NOTE: do NOT use terminal.reset() here. reset() exits the alternate
+                        // screen; when the live app is an alt-screen TUI and its first output
+                        // is a partial delta (not a full repaint), the screen blanks out
+                        // (regression from #911, reverted). A partial clear keeps the buffer
+                        // mode the snapshot established, which the live repaint expects.
                         if (this._liveResetPendingAfterSnapshot && outputData) {
                             this._liveResetPendingAfterSnapshot = false;
-                            this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H', null, { resetTerminal: true });
+                            this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H');
                         }
                         this._applyOutput(outputData);
                         break;
