@@ -44,6 +44,12 @@ export function applyEventListenersMixin(AppClass) {
                         await svc.deleteSession(sessionId);
                         break;
                     }
+                    case 'rename': {
+                        // Reuse the existing rename modal via the public RENAME_SESSION event.
+                        const sess = (appStore.getState().sessions || []).find((x) => x.id === sessionId);
+                        if (sess) eventBus.emit(EVENTS.RENAME_SESSION, { session: sess });
+                        break;
+                    }
                     case 'favorite': {
                         const sess = (appStore.getState().sessions || []).find((x) => x.id === sessionId);
                         const next = !(sess && sess.favorite);

@@ -35,6 +35,8 @@ export default function SessionRowMenu({ s, favorite }) {
             ★ {favorite ? 'お気に入りから外す' : 'お気に入りに追加'}
           </button>
           <div className="dropdown-divider" />
+          <button className="dropdown-item rename-session-btn" onClick={run('rename')}>✎ 名前を変更</button>
+          <div className="dropdown-divider" />
           {isHibernated && <button className="dropdown-item" onClick={run('resumeRuntime')}>↻ 再開</button>}
           {isActive && <button className="dropdown-item" onClick={run('hibernate')}>⏻ スリープ</button>}
           {isPaused && <button className="dropdown-item" onClick={run('resume')}>▶ 再開</button>}
