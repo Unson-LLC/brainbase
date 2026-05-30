@@ -86,4 +86,16 @@ process.on('exit', removePidFile);
 process.on('SIGINT', () => { removePidFile(); process.exit(0); });
 process.on('SIGTERM', () => { removePidFile(); process.exit(0); });
 
+// --- Deploy-time build of the React session-list island bundle ---
+// public/dist/session-list-island.js is no longer committed; the runtime checkout's
+// `git clean -fd` removes it on every boot, so rebuild it here before server.js serves
+// static assets. esbuild/react are devDeps already present after `npm ci`.
+try {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync(process.execPath, ['scripts/build-ui-islands.mjs'], { cwd: __dirname, stdio: 'inherit' });
+} catch (err) {
+    console.error('[island-build] FAILED to build session-list island bundle:', err?.message || err);
+    console.error('[island-build] #session-list may render empty until this is resolved.');
+}
+
 await import('./server.js');
