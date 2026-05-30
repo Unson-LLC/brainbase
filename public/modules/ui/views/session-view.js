@@ -576,6 +576,13 @@ export class SessionView {
             }
             const overlay = target?.closest?.('#menu-overlay') || null;
             if (!row && !menuToggle && !dropdownMenu && !overlay) return;
+
+            // The React session-list island owns its own menu (React onClick). This
+            // capture handler retargets/suppresses real pointer sequences for the
+            // vanilla menus, which would swallow the island toggle's click and stop the
+            // menu opening. Never intercept toggles inside the island-owned container.
+            const islandHost = menuToggle || dropdownMenu || row;
+            if (islandHost?.closest?.('[data-island-owned="1"]')) return;
             this._logSessionMenuDebug(`document-capture:${e.type}`, {
                 event: e,
                 row,
@@ -685,6 +692,35 @@ export class SessionView {
         // (deterministic, mount-order independent) — otherwise both fight over the
         // container and lucide refreshIcons() churns 800+ SVGs per poll.
         if (SessionView._sessionListIslandEnabled()) return;
+
+        this._renderListBody();
+    }
+
+    /**
+     * Render the vanilla session list into an arbitrary container.
+     * Used by the mobile bottom-sheet (#mobile-session-list), which must keep its
+     * original vanilla design even when the desktop #session-list is owned by the
+     * React island. We temporarily retarget this.container so the existing render
+     * body (which builds rows WITH their action/menu/drag handlers) writes into the
+     * target, then restore it. Synchronous, so no other code observes the swap.
+     */
+    renderInto(targetEl) {
+        if (!targetEl) return;
+        const saved = this.container;
+        this.container = targetEl;
+        try {
+            this._renderListBody();
+        } finally {
+            this.container = saved;
+        }
+    }
+
+    /**
+     * The actual vanilla session-list render (no island guard). Writes into
+     * this.container, so callers set/restore it (render() / renderInto()).
+     */
+    _renderListBody() {
+        if (!this.container) return;
 
         this._closeAllMenus('render-start');
 
