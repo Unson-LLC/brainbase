@@ -33,7 +33,12 @@ export function applyTerminalSwitchMixin(AppClass) {
     };
 
     AppClass.prototype._setActiveSessionRow = function(sessionId) {
+        // The React session-list island manages its own row active state declaratively
+        // (from appStore.currentSessionId). Skip island-owned rows so this imperative
+        // toggle does not fight React; still update the vanilla rows (mobile sheet /
+        // ?island=0 opt-out desktop).
         document.querySelectorAll('.session-child-row').forEach((row) => {
+            if (row.closest('[data-island-owned="1"]')) return;
             row.classList.toggle('active', row.dataset.id === sessionId);
         });
     };

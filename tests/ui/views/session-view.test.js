@@ -73,6 +73,12 @@ describe('SessionView', () => {
 
         vi.clearAllMocks();
 
+        // These tests exercise the VANILLA SessionView renderer — the path used by the
+        // ?island=0 opt-out and by the mobile #mobile-session-list (via renderInto).
+        // The React session-list island is default-on, which makes render() bail; force
+        // the vanilla path so these DOM assertions are meaningful.
+        vi.spyOn(SessionView, '_sessionListIslandEnabled').mockReturnValue(false);
+
         // ストア初期化
         __resetSessionIndicatorStateForTests();
         appStore.setState({
