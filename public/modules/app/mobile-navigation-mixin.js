@@ -1,12 +1,6 @@
 import { appStore } from '../core/store.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { refreshIcons } from '../ui-helpers.js';
-import {
-    attachSectionHeaderHandlers,
-    attachGroupHeaderHandlers,
-    attachSessionRowClickHandlers,
-    attachAddProjectSessionHandlers
-} from '../session-handlers.js';
 import { setupTaskTabs } from '../ui/task-tabs.js';
 import { MobileInputController } from '../ui/mobile-input-controller.js';
 
@@ -49,49 +43,32 @@ export function applyMobileNavigationMixin(AppClass) {
         };
 
         const renderMobileSessionList = () => {
-            const sessionList = document.getElementById('session-list');
-            const sessionListContent = sessionList?.innerHTML || '';
-
-            if (mobileSessionList) {
-                mobileSessionList.innerHTML = sessionListContent;
-
-                // Re-attach all handlers using dedicated functions
-                try {
-                    const refreshMobileSessions = () => {
-                        renderMobileSessionList();
-                    };
-
-                    this.views.sessionView?.attachToolbarHandlersToContainer(mobileSessionList, {
-                        afterRender: refreshMobileSessions,
-                        focusRoot: () => mobileSessionList
-                    });
-
-                    // セッション行クリックハンドラ
-                    attachSessionRowClickHandlers(mobileSessionList, (sessionId) => {
-                        eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
-                        closeSessionsSheet();
-                    });
-
-                    // プロジェクト追加ボタンハンドラ
-                    attachAddProjectSessionHandlers(mobileSessionList, (project) => {
-                        eventBus.emit(EVENTS.CREATE_SESSION, { project });
-                        closeSessionsSheet();
-                    });
-
-                    // セクション・グループヘッダー展開ハンドラ
-                    attachSectionHeaderHandlers(mobileSessionList);
-                    attachGroupHeaderHandlers(mobileSessionList);
-
-                    // セッションアクションハンドラ（リネーム、削除、アーカイブ等）
-                    this.views.sessionView?.attachActionHandlersToContainer(mobileSessionList, {
-                        enableDrag: false,
-                        afterRender: refreshMobileSessions
-                    });
-                } catch (error) {
-                    console.error('Error attaching handlers:', error);
-                }
+            if (!mobileSessionList) return;
+            try {
+                // Render the ORIGINAL vanilla session list straight into the mobile
+                // sheet. The desktop #session-list is now owned by the React island, so
+                // cloning its DOM produced a broken/empty mobile list. renderInto builds
+                // vanilla rows WITH their full handlers (switch / menu / section+group
+                // toggle), so no manual re-attach is needed.
+                this.views.sessionView?.renderInto(mobileSessionList);
+                // Touch sheet: disable drag (parity with the previous mobile behaviour).
+                mobileSessionList.querySelectorAll('[draggable="true"]').forEach((el) => {
+                    el.setAttribute('draggable', 'false');
+                });
+                refreshIcons({ root: mobileSessionList });
+            } catch (error) {
+                console.error('Error rendering mobile session list:', error);
             }
         };
+
+        // Selecting or creating a session should dismiss the sheet. Decoupled from the
+        // row handlers (which now come from the vanilla renderer via renderInto), and
+        // scoped to when the sheet is open so desktop navigation is unaffected.
+        const closeSheetOnNavigate = () => {
+            if (sessionsBottomSheet?.classList.contains('active')) closeSessionsSheet();
+        };
+        this.unsubscribers.push(eventBus.on(EVENTS.SESSION_CHANGED, closeSheetOnNavigate));
+        this.unsubscribers.push(eventBus.on(EVENTS.CREATE_SESSION, closeSheetOnNavigate));
 
         // Open Sessions bottom sheet
         const openSessionsSheet = () => {
