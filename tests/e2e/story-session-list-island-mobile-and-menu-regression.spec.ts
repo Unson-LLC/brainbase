@@ -73,7 +73,7 @@ test.describe('session-list island mobile + menu regression', () => {
     await expect(menu).toHaveCount(1);
   });
 
-  test('mobile sheet renders the original vanilla list (not an empty clone)', async ({ page }) => {
+  test('mobile sheet renders the session list (now via the island, not an empty clone)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page);
     await seedSession(page, session);
@@ -89,14 +89,16 @@ test.describe('session-list island mobile + menu regression', () => {
       return {
         rows: el?.querySelectorAll('.session-child-row').length || 0,
         hasMenuToggle: !!el?.querySelector('.session-menu-toggle'),
-        islandOwned: el?.dataset?.islandOwned === '1', // must be false: the sheet is vanilla
+        // Phase K3b: the mobile sheet is the React island (the vanilla renderInto path
+        // was retired), so the sheet is island-owned.
+        islandOwned: el?.dataset?.islandOwned === '1',
         seededPresent: !!el?.querySelector(`.session-child-row[data-id="${sid}"]`),
       };
     }, SID);
 
     expect(msl.rows).toBeGreaterThan(0);
     expect(msl.hasMenuToggle).toBe(true);
-    expect(msl.islandOwned).toBe(false);
+    expect(msl.islandOwned).toBe(true);
     expect(msl.seededPresent).toBe(true);
   });
 });
