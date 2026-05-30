@@ -4,7 +4,7 @@ import { deriveSessionUiState } from '/modules/session-ui-state.js';
 import { getProjectFromSession, getProjectConfig } from '/modules/project-mapping.js';
 import { classifySessionsForGroupedList } from '/modules/ui/views/session-view.js';
 import { groupSessionsByProject } from '/modules/session-manager.js';
-import SessionRowMobile from './SessionRowMobile.jsx';
+import SessionRowFull from './SessionRowFull.jsx';
 import { SearchIcon, StarIcon } from './icons.jsx';
 
 // Mobile bottom-sheet session list. Reproduces the vanilla mobile design (toolbar +
@@ -55,7 +55,7 @@ function MobileProjectGroup({ project, sessions, currentId }) {
       </div>
       {!collapsed && (
         <div className="session-project-children">
-          {sessions.map((s) => <SessionRowMobile key={s.id} s={s} currentId={currentId} />)}
+          {sessions.map((s) => <SessionRowFull key={s.id} s={s} currentId={currentId} />)}
         </div>
       )}
     </div>
@@ -130,7 +130,7 @@ export default function SessionListMobile() {
       </>
     );
   } else {
-    body = orderTimeline(list, currentId).map((s) => <SessionRowMobile key={s.id} s={s} currentId={currentId} />);
+    body = orderTimeline(list, currentId).map((s) => <SessionRowFull key={s.id} s={s} currentId={currentId} />);
   }
 
   return <>{toolbar}{body}</>;
