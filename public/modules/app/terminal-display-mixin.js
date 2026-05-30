@@ -114,6 +114,7 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showXtermTransport = function() {
+        this._terminalSurface = 'xterm';
         this._hideCodexAppServerDisplay?.();
         this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.remove('hidden');
@@ -139,6 +140,7 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showTtydIframe = function() {
+        this._terminalSurface = 'ttyd';
         this._hideCodexAppServerDisplay?.();
         this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.add('hidden');
@@ -177,6 +179,7 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showSnapshotDisplay = function(sessionId, { title = 'Terminal display', snapshot = null } = {}) {
+        this._terminalSurface = 'snapshot';
         this._hideCodexAppServerDisplay?.();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');

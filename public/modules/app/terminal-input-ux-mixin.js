@@ -767,6 +767,18 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._cacheTerminalUiElements();
         if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
 
+        // Terminal surface invariant (single source of truth: this._terminalSurface).
+        // The terminal shows exactly ONE surface (xterm | ttyd | snapshot). A deferred or
+        // stale snapshot render must never REVEAL the snapshot panel over a live xterm/ttyd
+        // surface — that was the measured "duplication" (two surfaces visible) where the
+        // stale snapshot hides the live xterm so typed input appears invisible. Only honour
+        // a visible:true request when 'snapshot' is the active surface; otherwise keep hidden.
+        if (visible && this._terminalSurface && this._terminalSurface !== 'snapshot') {
+            this.terminalSnapshotPanelEl.classList.add('hidden');
+            this._lastSnapshotPanelKey = 'hidden';
+            return;
+        }
+
         // 前回と同じ内容ならDOM操作スキップ
         const snapshotKey = visible
             ? `v|${title}|${snapshot?.capturedAt || ''}|${snapshot?.colorText?.length || snapshot?.text?.length || 0}|${pinToBottom ? 'pin' : 'sticky'}`
