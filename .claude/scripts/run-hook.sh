@@ -23,6 +23,17 @@ else
   HOOK_PATH="$REPO_ROOT/$HOOK_SCRIPT"
 fi
 
+# 事前バンドル済み .mjs があれば node で直接実行する（tsx の毎回コンパイルを回避）。
+# tsx は cold start 約 400〜900ms（CPU 飽和時はさらに増大）かかり、PostToolUse の
+# 3 秒 timeout 内で kill されて heartbeat が失われることがあった。node + bundle は
+# 約 65〜150ms で確実に収まる。.mjs が無い旧 worktree や node 不在時は tsx に fallback。
+if [[ "$HOOK_PATH" == *.ts ]]; then
+  HOOK_BUNDLE="${HOOK_PATH%.ts}.mjs"
+  if [ -f "$HOOK_BUNDLE" ] && command -v node >/dev/null 2>&1; then
+    exec node "$HOOK_BUNDLE" "$@"
+  fi
+fi
+
 TOOL_ROOTS=("$REPO_ROOT")
 
 if [ -n "$CANONICAL_REPO_ROOT" ]; then

@@ -70,13 +70,68 @@ const STATE_FILE = path.join(
 );
 
 // CSRF token cache: port -> { token, fetchedAt }
+// 各フックは独立した一発プロセス（node bundle / npx tsx）なので、in-memory cache は
+// プロセス内でしか効かず毎回 GET /api/csrf-token していた。1往復ぶんネットワークを
+// ホットパス（PostToolUse は 3 秒 timeout）から削るため、token をディスクにも保存する。
+// staleness（サーバ再起動で CSRF secret が変わると古い token が 403 になる）は
+// postActivity が 403 を検知して invalidate + 再取得する（invalidateCsrfToken）。
 const csrfCache = new Map<string, { token: string; fetchedAt: number }>();
 const CSRF_TTL = 50 * 60 * 1000; // 50分（サーバー側1時間TTLより短め）
+const CSRF_CACHE_FILE = path.join(
+  process.cwd(),
+  ".claude",
+  "hooks",
+  "data",
+  "activity-bridge",
+  "csrf-cache.json",
+);
 
-async function getCsrfToken(port: string, sessionId: string): Promise<string | null> {
-  const cached = csrfCache.get(port);
-  if (cached && Date.now() - cached.fetchedAt < CSRF_TTL) {
-    return cached.token;
+function readCsrfDiskCache(): Record<string, { token: string; fetchedAt: number }> {
+  try {
+    if (!fs.existsSync(CSRF_CACHE_FILE)) return {};
+    const parsed = JSON.parse(fs.readFileSync(CSRF_CACHE_FILE, "utf-8"));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeCsrfDiskCache(cache: Record<string, { token: string; fetchedAt: number }>): void {
+  try {
+    fs.mkdirSync(path.dirname(CSRF_CACHE_FILE), { recursive: true });
+    fs.writeFileSync(CSRF_CACHE_FILE, JSON.stringify(cache));
+  } catch {
+    // best-effort: ディスクキャッシュ失敗時はメモリのみで継続
+  }
+}
+
+function invalidateCsrfToken(port: string): void {
+  csrfCache.delete(port);
+  try {
+    const disk = readCsrfDiskCache();
+    if (disk[port]) {
+      delete disk[port];
+      writeCsrfDiskCache(disk);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+async function getCsrfToken(
+  port: string,
+  sessionId: string,
+  forceRefresh = false,
+): Promise<string | null> {
+  const now = Date.now();
+  if (!forceRefresh) {
+    const mem = csrfCache.get(port);
+    if (mem && now - mem.fetchedAt < CSRF_TTL) return mem.token;
+    const disk = readCsrfDiskCache()[port];
+    if (disk && typeof disk.token === "string" && now - disk.fetchedAt < CSRF_TTL) {
+      csrfCache.set(port, disk);
+      return disk.token;
+    }
   }
   try {
     const response = await fetch(`http://localhost:${port}/api/csrf-token`, {
@@ -87,7 +142,11 @@ async function getCsrfToken(port: string, sessionId: string): Promise<string | n
     if (!response.ok) return null;
     const data = await response.json() as { token?: string };
     if (typeof data?.token !== "string") return null;
-    csrfCache.set(port, { token: data.token, fetchedAt: Date.now() });
+    const entry = { token: data.token, fetchedAt: Date.now() };
+    csrfCache.set(port, entry);
+    const disk = readCsrfDiskCache();
+    disk[port] = entry;
+    writeCsrfDiskCache(disk);
     return data.token;
   } catch {
     return null;
@@ -267,8 +326,11 @@ async function resolvePort(): Promise<string | null> {
   return envPort || String(process.env.BRAINBASE_FALLBACK_PORT || 31013);
 }
 
-async function postActivity(port: string, payload: ReportPayload): Promise<void> {
-  const csrfToken = await getCsrfToken(port, payload.sessionId);
+async function postReportActivity(
+  port: string,
+  payload: ReportPayload,
+  csrfToken: string | null,
+): Promise<Response | null> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Session-Id": payload.sessionId,
@@ -276,12 +338,30 @@ async function postActivity(port: string, payload: ReportPayload): Promise<void>
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
   }
-  await fetch(`http://localhost:${port}/api/sessions/report_activity`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(1000),
-  });
+  try {
+    return await fetch(`http://localhost:${port}/api/sessions/report_activity`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(1000),
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function postActivity(port: string, payload: ReportPayload): Promise<void> {
+  const csrfToken = await getCsrfToken(port, payload.sessionId);
+  const response = await postReportActivity(port, payload, csrfToken);
+  // ディスクキャッシュした token はサーバ再起動で CSRF secret が変わると 403 になる。
+  // 403 を検知したら token を破棄して fresh fetch + 1 回だけリトライする。
+  if (response && response.status === 403) {
+    invalidateCsrfToken(port);
+    const freshToken = await getCsrfToken(port, payload.sessionId, true);
+    if (freshToken) {
+      await postReportActivity(port, payload, freshToken);
+    }
+  }
 }
 
 async function getSessionOutput(port: string, sessionId: string): Promise<OutputResponse> {
