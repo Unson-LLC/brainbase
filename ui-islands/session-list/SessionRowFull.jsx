@@ -5,9 +5,12 @@ import { getProjectFromSession, getProjectConfig } from '/modules/project-mappin
 import SessionRowMenu from './SessionRowMenu.jsx';
 import { GripVerticalIcon, MessageSquareIcon, TerminalSquareIcon } from './icons.jsx';
 
-// Faithful JSX port of the vanilla mobile session row (session-list-renderer.js
-// renderSessionRowHTML): .session-row-main > .session-name-container + .session-summary-row
-// with the transport "Live" pill. Same CSS classes -> same look, but React-owned.
+// The single, faithful session row used by BOTH the desktop sidebar (#session-list) and
+// the mobile bottom-sheet (#mobile-session-list). Faithful JSX port of the vanilla row
+// (session-list-renderer.js renderSessionRowHTML): .session-row-main > .session-name-container
+// + .session-summary-row with the transport "Live" pill, engine SVG, conversation badge,
+// summary chips and activity indicator. Same CSS classes -> same look, React-owned.
+// `draggable` enables the desktop grouped-view drag-reorder.
 
 const TRANSPORT_LABEL = {
   connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
@@ -51,11 +54,51 @@ function activityIndicatorClass(activity) {
   return 'idle';
 }
 
-export default function SessionRowMobile({ s, currentId }) {
+// Transient drag state kept OUTSIDE React (module-level) so dragging causes no re-render
+// churn; the highlight is toggled imperatively. Desktop grouped view only.
+const dragState = { id: null, project: null };
+function onHandleDragStart(e, s, project) {
+  dragState.id = s.id; dragState.project = project;
+  const row = e.currentTarget.closest('.session-child-row');
+  if (row) row.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', s.id);
+  if (row) e.dataTransfer.setDragImage(row, 0, 0);
+}
+function onHandleDragEnd() {
+  dragState.id = null; dragState.project = null;
+  document.querySelectorAll('.session-child-row.dragging, .session-child-row.drag-over')
+    .forEach((el) => el.classList.remove('dragging', 'drag-over'));
+}
+function onRowDragOver(e, s, project) {
+  e.preventDefault(); e.stopPropagation();
+  if (dragState.id && dragState.project === project && dragState.id !== s.id) {
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('drag-over');
+  }
+}
+function onRowDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); }
+function onRowDrop(e, s, project) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const draggedId = dragState.id, draggedProject = dragState.project;
+  if (!draggedId || draggedProject !== project || draggedId === s.id) return;
+  const { sessions } = appStore.getState();
+  const di = sessions.findIndex((x) => x.id === draggedId);
+  const ti = sessions.findIndex((x) => x.id === s.id);
+  if (di === -1 || ti === -1) return;
+  const reordered = [...sessions];
+  const [dragged] = reordered.splice(di, 1);
+  const adj = di < ti ? ti - 1 : ti; // target index shifts after removal
+  reordered.splice(adj, 0, dragged);
+  appStore.setState({ sessions: reordered });
+  document.dispatchEvent(new CustomEvent('island:session-action', { detail: { action: 'persistOrder' } }));
+}
+
+export default function SessionRowFull({ s, currentId, draggable = false }) {
   const ui = deriveSessionUiState(s.id, { currentSessionId: currentId });
   const project = getProjectFromSession(s);
-  const cfg = getProjectConfig(project);
-  const emoji = cfg?.emoji || '';
+  const emoji = getProjectConfig(project)?.emoji || '';
   const engine = s.engine || 'claude';
   const active = s.id === currentId;
 
@@ -94,10 +137,16 @@ export default function SessionRowMobile({ s, currentId }) {
   };
 
   return (
-    <div className={cls} data-id={s.id} data-project={project} data-engine={engine} draggable="false"
+    <div className={cls} data-id={s.id} data-project={project} data-engine={engine} data-state={activity}
       role="button" tabIndex={0} onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}>
-      <span className="drag-handle" title="Drag to reorder" draggable="false"><GripVerticalIcon /></span>
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
+      onDragOver={draggable ? (e) => onRowDragOver(e, s, project) : undefined}
+      onDragLeave={draggable ? onRowDragLeave : undefined}
+      onDrop={draggable ? (e) => onRowDrop(e, s, project) : undefined}>
+      <span className="drag-handle" title="ドラッグで並び替え" draggable={draggable}
+        onDragStart={draggable ? (e) => onHandleDragStart(e, s, project) : undefined}
+        onDragEnd={draggable ? onHandleDragEnd : undefined}
+        onClick={draggable ? (e) => e.stopPropagation() : undefined}><GripVerticalIcon /></span>
       <span className={`session-activity-indicator ${activityIndicatorClass(activity)}`} aria-hidden="true" />
       <div className="session-row-main">
         <div className="session-name-container">
