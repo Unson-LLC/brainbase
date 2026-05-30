@@ -2,6 +2,7 @@ import React from 'react';
 import { useAppState, useStatusBump, appStore, eventBus, EVENTS } from './useAppStore.js';
 import { deriveSessionUiState } from '/modules/session-ui-state.js';
 import { getProjectFromSession, getProjectConfig } from '/modules/project-mapping.js';
+import SessionRowMenu from './SessionRowMenu.jsx';
 
 function indicatorClass(ui) {
   if (ui.attention === 'needs-input' || ui.activity === 'waiting') return 'waiting';
@@ -56,6 +57,7 @@ function SessionRow({ s, currentId }) {
         {s.worktree && <span className="session-worktree-chip" title="Worktree session">⑂</span>}
         {ind && <span className={`session-activity-indicator ${ind}`} title={ind} />}
       </span>
+      <SessionRowMenu s={s} favorite={isFavorite(s)} />
     </div>
   );
 }
