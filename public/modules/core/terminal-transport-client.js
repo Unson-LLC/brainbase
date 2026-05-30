@@ -193,6 +193,11 @@ export class TerminalTransportClient {
         // 到着した場合に保存しておくバッファ。init() で terminal が準備でき次第 flush。
         this._preTerminalSnapshot = null;
         this._resetTerminalOnNextSnapshot = false;
+        // After a session-switch snapshot (a static preview), the live stream (tmux
+        // attach) repaints the screen. If that repaint is shorter than the snapshot, the
+        // snapshot's trailing lines linger -> duplicated menu / ruler ghost rows. Clear
+        // once on the first live output after such a snapshot. Set by _applySnapshot.
+        this._liveResetPendingAfterSnapshot = false;
         this._terminalWriteQueue = [];
         this._terminalWriteActive = false;
         this._terminalWriteGeneration = 0;
@@ -782,10 +787,19 @@ export class TerminalTransportClient {
                         break;
                     }
                     case 'output': {
-                        const outputLen = (typeof message.data === 'string' ? message.data : '').length;
-                        // verbose — disabled to reduce console noise
-                        // console.log(`[TTC] output received: len=${outputLen}`);
-                        this._applyOutput(typeof message.data === 'string' ? message.data : '');
+                        const outputData = typeof message.data === 'string' ? message.data : '';
+                        // One-shot: the first live output after a session-switch snapshot
+                        // repaints the screen (tmux attach). Fully RESET the terminal first
+                        // (not just \x1b[2J\x1b[3J\x1b[H): a partial clear leaves cursor/mode/
+                        // alternate-screen state from the snapshot preview, so an interactive
+                        // TUI's relative-cursor redraw misaligns and stacks a duplicate menu.
+                        // terminal.reset() gives the live repaint a truly clean slate; tmux
+                        // re-establishes the correct mode on attach. Only fires once per switch.
+                        if (this._liveResetPendingAfterSnapshot && outputData) {
+                            this._liveResetPendingAfterSnapshot = false;
+                            this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H', null, { resetTerminal: true });
+                        }
+                        this._applyOutput(outputData);
                         break;
                     }
                     case 'status':
@@ -2229,6 +2243,9 @@ export class TerminalTransportClient {
         if (!shouldResetTerminal && this._lastSnapshotText === normalizedText) return;
         this._lastSnapshotText = normalizedText;
         this._resetTerminalOnNextSnapshot = false;
+        // A reset (session-switch) snapshot is only a preview; arm a one-shot clear so the
+        // first live output repaints from a clean buffer (no ghost rows left below).
+        if (shouldResetTerminal) this._liveResetPendingAfterSnapshot = true;
         this._clearPendingEchoState();
 
         const viewportState = options.forceViewportState
