@@ -47,7 +47,55 @@ function orderSessions(arr, currentId) {
   });
 }
 
-function SessionRow({ s, currentId, showEmoji = true }) {
+// Grouped view parity (_sortFavoriteSessionsFirst): favorite first, otherwise PRESERVE
+// the saved array order (Array.sort is stable) so drag-reordering survives re-render.
+function favoriteFirst(arr) {
+  return [...arr].sort((a, b) => (isFavorite(a) ? 0 : 1) - (isFavorite(b) ? 0 : 1));
+}
+
+// Transient drag state kept OUTSIDE React (module-level) so dragging causes no
+// re-render churn. Highlight is toggled imperatively, exactly like the vanilla view.
+const dragState = { id: null, project: null };
+function onHandleDragStart(e, s, project) {
+  dragState.id = s.id; dragState.project = project;
+  const row = e.currentTarget.closest('.session-child-row');
+  if (row) row.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', s.id);
+  if (row) e.dataTransfer.setDragImage(row, 0, 0);
+}
+function onHandleDragEnd() {
+  dragState.id = null; dragState.project = null;
+  document.querySelectorAll('#session-list .session-child-row.dragging, #session-list .session-child-row.drag-over')
+    .forEach((el) => el.classList.remove('dragging', 'drag-over'));
+}
+function onRowDragOver(e, s, project) {
+  e.preventDefault(); e.stopPropagation();
+  if (dragState.id && dragState.project === project && dragState.id !== s.id) {
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('drag-over');
+  }
+}
+function onRowDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); }
+function onRowDrop(e, s, project) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const draggedId = dragState.id, draggedProject = dragState.project;
+  if (!draggedId || draggedProject !== project || draggedId === s.id) return;
+  const { sessions } = appStore.getState();
+  const di = sessions.findIndex((x) => x.id === draggedId);
+  const ti = sessions.findIndex((x) => x.id === s.id);
+  if (di === -1 || ti === -1) return;
+  const reordered = [...sessions];
+  const [dragged] = reordered.splice(di, 1);
+  const adj = di < ti ? ti - 1 : ti; // target index shifts after removal
+  reordered.splice(adj, 0, dragged);
+  appStore.setState({ sessions: reordered });
+  // Persist through the existing service via the app bridge (single source of truth).
+  document.dispatchEvent(new CustomEvent('island:session-action', { detail: { action: 'persistOrder' } }));
+}
+
+function SessionRow({ s, currentId, showEmoji = true, grouped = false }) {
   const ui = deriveSessionUiState(s.id, { currentSessionId: currentId });
   const active = s.id === currentId;
   const ind = indicatorClass(ui);
@@ -65,10 +113,19 @@ function SessionRow({ s, currentId, showEmoji = true }) {
       className={`session-child-row${active ? ' active' : ''}${s.worktree ? ' has-worktree' : ''} transport-${ui.transport}`}
       data-id={s.id}
       data-state={ui.activity || 'idle'}
+      data-project={grouped ? project : undefined}
       role="button" tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
+      onDragOver={grouped ? (e) => onRowDragOver(e, s, project) : undefined}
+      onDragLeave={grouped ? onRowDragLeave : undefined}
+      onDrop={grouped ? (e) => onRowDrop(e, s, project) : undefined}
     >
+      {grouped && (
+        <span className="drag-handle" draggable
+          onDragStart={(e) => onHandleDragStart(e, s, project)} onDragEnd={onHandleDragEnd}
+          onClick={(e) => e.stopPropagation()} title="ドラッグで並び替え">⠿</span>
+      )}
       {showEmoji && emoji && <span className="session-project-emoji" title={project}>{emoji}</span>}
       <span className="session-name-container">
         <span className="session-name">{s.name || s.id}</span>
@@ -108,7 +165,7 @@ function ProjectGroup({ project, sessions, currentId }) {
       </div>
       {!collapsed && (
         <div className="session-project-children">
-          {sessions.map((s) => <SessionRow key={s.id} s={s} currentId={currentId} showEmoji={false} />)}
+          {sessions.map((s) => <SessionRow key={s.id} s={s} currentId={currentId} showEmoji={false} grouped />)}
         </div>
       )}
     </div>
@@ -117,8 +174,9 @@ function ProjectGroup({ project, sessions, currentId }) {
 
 function Section({ title, sessions, currentId, defaultCollapsed = false }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const ordered = orderSessions(sessions, currentId);
-  // group AFTER ordering so favorites/active surface first within each project group
+  // Parity with vanilla grouped view: favorite-first but PRESERVE saved order (not the
+  // timeline activity-priority sort) so drag-reordered order is respected.
+  const ordered = favoriteFirst(sessions);
   const grouped = groupSessionsByProject(ordered, { excludeArchived: false, includeEmptyProjects: false });
   return (
     <div className="session-section">
