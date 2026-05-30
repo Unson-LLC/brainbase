@@ -3,48 +3,20 @@ import { createRoot } from 'react-dom/client';
 import SessionList from './SessionList.jsx';
 import SessionListMobile from './SessionListMobile.jsx';
 
-// Default ON. Opt OUT with ?island=0 or localStorage bb:session-list-island='0'.
-// Must mirror SessionView._sessionListIslandEnabled() so exactly one renderer owns
-// #session-list (the vanilla guards bail iff the island mounts).
-function islandEnabled() {
-  try {
-    const p = new URLSearchParams(location.search);
-    if (p.get('island') === '0') return false;
-    if (p.has('island')) return true;
-    const ls = localStorage.getItem('bb:session-list-island');
-    if (ls === '0') return false;
-    return true;
-  } catch { return true; }
+// Phase K3b: the React island is the SINGLE session-list renderer. The vanilla
+// SessionView renderer was retired, so there is no opt-out fallback any more — both
+// the desktop sidebar (#session-list) and the mobile bottom-sheet (#mobile-session-list)
+// are mounted unconditionally. data-island-owned signals other modules (e.g. the
+// terminal-switch active-row toggle, the mobile-nav render path) to stand aside.
+
+function mountIsland(id, Component, label) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  el.dataset.islandOwned = '1';
+  createRoot(el).render(<Component />);
+  console.info(`[island] React ${label} mounted`);
 }
 
-if (islandEnabled()) {
-  const el = document.getElementById('session-list');
-  if (el) {
-    el.innerHTML = '';
-    el.dataset.islandOwned = '1';
-    createRoot(el).render(<SessionList />);
-    console.info('[island] React session-list mounted (default on)');
-  }
-}
-
-// Mobile bottom-sheet island (Phase K, staged migration to a single renderer).
-// Default ON (Phase K2). Opt OUT with ?mobile-island=0 or localStorage bb:mobile-island='0'.
-// When mounted, mobile-navigation-mixin skips its vanilla renderInto path.
-function mobileIslandEnabled() {
-  try {
-    const p = new URLSearchParams(location.search);
-    if (p.get('mobile-island') === '0') return false;
-    if (p.has('mobile-island')) return true;
-    return localStorage.getItem('bb:mobile-island') !== '0';
-  } catch { return true; }
-}
-
-if (mobileIslandEnabled()) {
-  const mel = document.getElementById('mobile-session-list');
-  if (mel) {
-    mel.innerHTML = '';
-    mel.dataset.islandOwned = '1';
-    createRoot(mel).render(<SessionListMobile />);
-    console.info('[island] React mobile session-list mounted (flag on)');
-  }
-}
+mountIsland('session-list', SessionList, 'session-list');
+mountIsland('mobile-session-list', SessionListMobile, 'mobile session-list');

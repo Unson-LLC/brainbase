@@ -42,31 +42,14 @@ export function applyMobileNavigationMixin(AppClass) {
             }
         };
 
-        const renderMobileSessionList = () => {
-            if (!mobileSessionList) return;
-            // When the React mobile island owns the sheet (flag on), it renders reactively
-            // from the live appStore — skip the vanilla renderInto path entirely.
-            if (mobileSessionList.dataset.islandOwned === '1') return;
-            try {
-                // Render the ORIGINAL vanilla session list straight into the mobile
-                // sheet. The desktop #session-list is now owned by the React island, so
-                // cloning its DOM produced a broken/empty mobile list. renderInto builds
-                // vanilla rows WITH their full handlers (switch / menu / section+group
-                // toggle), so no manual re-attach is needed.
-                this.views.sessionView?.renderInto(mobileSessionList);
-                // Touch sheet: disable drag (parity with the previous mobile behaviour).
-                mobileSessionList.querySelectorAll('[draggable="true"]').forEach((el) => {
-                    el.setAttribute('draggable', 'false');
-                });
-                refreshIcons({ root: mobileSessionList });
-            } catch (error) {
-                console.error('Error rendering mobile session list:', error);
-            }
-        };
+        // The React mobile island (#mobile-session-list) renders reactively from the
+        // live appStore, so opening the sheet needs no imperative render (Phase K3b
+        // retired the vanilla renderInto path). Kept as a no-op for existing callers.
+        const renderMobileSessionList = () => {};
 
         // Selecting or creating a session should dismiss the sheet. Decoupled from the
-        // row handlers (which now come from the vanilla renderer via renderInto), and
-        // scoped to when the sheet is open so desktop navigation is unaffected.
+        // row handlers (the island emits SESSION_CHANGED / CREATE_SESSION), and scoped to
+        // when the sheet is open so desktop navigation is unaffected.
         const closeSheetOnNavigate = () => {
             if (sessionsBottomSheet?.classList.contains('active')) closeSessionsSheet();
         };
