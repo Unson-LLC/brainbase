@@ -27,7 +27,9 @@ status: active
 
 - **S-1 (orphan via re-entry)**: connect(A) pending → connect(A) again bumps `_connectToken`
   → the first promise rejects `superseded`; `_connectXtermTransport` catches → `switchSession`
-  returns `snapshot_fallback` (no hang).
+  returns `snapshot_fallback` (no hang). The `snapshot_fallback` blocks in `switchSession`
+  re-check `_isSessionSwitchCurrent(sessionId, switchToken)` before writing global state, so a
+  superseded switch (B in a rapid A→B→C) cannot stomp the newer switch's transport state.
 - **S-2 (auth-gap race)**: a second connect bumps the token during the first connect's
   `await _ensureAuthenticated()` gap → when the first executor runs it sees the bumped token
   and rejects `superseded` immediately.

@@ -415,6 +415,8 @@ export function applySessionManagementMixin(AppClass) {
                         if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     } catch (error) {
                         // エラー時: スナップショット表示を維持（真っ黒にしない）
+                        // 既に別セッションへ切り替わっていれば新しい switch の状態を踏まない。
+                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                         console.warn('[switchSession] Terminal startup failed, keeping snapshot:', error.message);
                         this._pendingTerminalSwitch = null;
                         this._terminalSwitchState = 'snapshot_fallback';
@@ -465,6 +467,9 @@ export function applySessionManagementMixin(AppClass) {
                     }
 
                     // 接続失敗: スナップショット表示を維持
+                    // connect() が superseded で reject された場合もここに来る。既に別セッションへ
+                    // 切り替わっていれば、新しい switch のグローバル状態を踏まないよう stale 終了する。
+                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     console.warn('[switchSession] Terminal connection failed, keeping snapshot');
                     this._pendingTerminalSwitch = null;
                     this._terminalSwitchState = 'snapshot_fallback';
