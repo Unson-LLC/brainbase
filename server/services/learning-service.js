@@ -755,6 +755,56 @@ export class LearningService {
         return rows.map((row) => this._mapMemoryCandidateRow(row));
     }
 
+    /**
+     * 個人KG (owner-visible memory_candidates) を本文 (body) でキーワード検索する。
+     * list API は旧 `memory` JSON カラムしか返さないため、judgment OS の本文を引く用途には
+     * このメソッドを使う (SNS context service / generate-memory-preamble と同じ body 経路)。
+     * owner / visibility=owner / 非redaction / 非rejected に限定して owner-only content を守る。
+     */
+    async searchPersonalKgCandidates({
+        query,
+        ownerPersonId = 'sato_keigo',
+        cognitiveTypes = null,
+        limit = 10
+    } = {}) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const q = normalizeOptionalString(query);
+        if (!q) throw new Error('query is required');
+        const owner = normalizeOptionalString(ownerPersonId) || 'sato_keigo';
+        const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
+
+        const values = [owner, `%${q}%`];
+        let sql = `SELECT id, cognitive_type, body, confidence, source_system, created_at
+                   FROM memory_candidates
+                   WHERE owner_person_id = $1
+                     AND visibility = 'owner'
+                     AND redaction_status = 'none'
+                     AND promotion_status <> 'rejected'
+                     AND body IS NOT NULL AND length(body) > 0
+                     AND body ILIKE $2`;
+        const types = Array.isArray(cognitiveTypes)
+            ? cognitiveTypes.map((t) => normalizeOptionalString(t)).filter(Boolean)
+            : [];
+        if (types.length > 0) {
+            values.push(types);
+            sql += ` AND cognitive_type = ANY($${values.length}::text[])`;
+        }
+        values.push(safeLimit);
+        sql += ` ORDER BY confidence DESC NULLS LAST, created_at DESC LIMIT $${values.length}`;
+
+        const { rows } = await this.pool.query(sql, values);
+        return rows.map((row) => ({
+            id: row.id,
+            cognitive_type: row.cognitive_type,
+            body: row.body,
+            confidence: row.confidence != null ? Number(row.confidence) : null,
+            source_system: row.source_system,
+            created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at
+        }));
+    }
+
     async getMemoryCandidate(id) {
         this.assertReady();
         await this.ensureSchema();

@@ -76,6 +76,22 @@ export class LearningController {
         }
     };
 
+    searchPersonalKg = async (req, res) => {
+        try {
+            const cognitiveTypeParam = req.query.cognitive_type || req.query.cognitiveType;
+            const result = await this.learningService.searchPersonalKgCandidates({
+                query: req.query.q || req.query.query,
+                ownerPersonId: req.query.owner_person_id || req.query.ownerPersonId,
+                cognitiveTypes: cognitiveTypeParam ? String(cognitiveTypeParam).split(',') : null,
+                limit: req.query.limit
+            });
+            res.json({ candidates: result });
+        } catch (error) {
+            logger.error('Failed to search personal KG candidates', { error });
+            res.status(400).json({ error: error.message || 'Failed to search personal KG candidates' });
+        }
+    };
+
     classifyMemoryCandidate = async (req, res) => {
         try {
             const result = await this.learningService.classifyMemoryCandidate(req.params.id, req.body || {});

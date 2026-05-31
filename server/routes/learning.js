@@ -10,6 +10,7 @@ export function createLearningRouter(learningService, learningHealthService = nu
     router.post('/promotions/dedupe-existing', controller.dedupeExistingPromotions);
     router.get('/promotions', controller.listPromotions);
     router.post('/memory-candidates', controller.createMemoryCandidate);
+    router.get('/memory-candidates/search', controller.searchPersonalKg);
     router.get('/memory-candidates', controller.listMemoryCandidates);
     router.post('/memory-candidates/:id/classify', controller.classifyMemoryCandidate);
     router.post('/memory-candidates/:id/approve', controller.approveMemoryCandidate);
