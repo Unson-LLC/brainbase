@@ -2493,23 +2493,49 @@ export class TerminalTransportClient {
 
     _drainTerminalWriteQueue() {
         if (this._terminalWriteActive || !this.terminal) return;
-        const operation = this._terminalWriteQueue.shift();
-        if (!operation) return;
-        if (operation.generation !== this._terminalWriteGeneration) {
-            this._drainTerminalWriteQueue();
-            return;
+
+        // Drop any stale-generation ops at the head (cancelled by _cancelTerminalWriteQueue).
+        while (this._terminalWriteQueue.length
+            && this._terminalWriteQueue[0].generation !== this._terminalWriteGeneration) {
+            this._terminalWriteQueue.shift();
         }
+        if (!this._terminalWriteQueue.length) return;
+
+        const generation = this._terminalWriteGeneration;
+
+        // Coalesce a run of consecutive same-generation ops into ONE terminal.write.
+        // Doing one write (+ one viewport restore + one render refresh) for a burst of WS output
+        // messages instead of one-per-message is the whole point: a long paste echoes back as
+        // hundreds/thousands of small chunks, and waiting for xterm's write-callback per chunk was
+        // ~53x slower than the same bytes written together (2000 msgs: ~55s -> ~1s).
+        // A resetTerminal op is a hard boundary: it can only START a batch (reset() clears the
+        // screen, so earlier ops must not merge across it). After the reset we still coalesce the
+        // following non-reset run; byte order is preserved.
+        const head = this._terminalWriteQueue.shift();
+        const batch = [head];
+        if (!head.resetTerminal) {
+            while (this._terminalWriteQueue.length
+                && this._terminalWriteQueue[0].generation === generation
+                && !this._terminalWriteQueue[0].resetTerminal) {
+                batch.push(this._terminalWriteQueue.shift());
+            }
+        }
+
+        const combinedText = batch.length === 1 ? head.text : batch.map((op) => op.text).join('');
+        const viewportState = head.viewportState;
+        const renderRefresh = batch.some((op) => op.renderRefresh === 'all') ? 'all' : 'bottom';
+        const afterWrites = batch.map((op) => op.afterWrite).filter((fn) => typeof fn === 'function');
 
         this._terminalWriteActive = true;
         let finished = false;
         const finish = () => {
             if (finished) return;
-            if (operation.generation !== this._terminalWriteGeneration) return;
+            if (generation !== this._terminalWriteGeneration) return;
             finished = true;
-            this._restoreViewportAfterTerminalWrite(operation.viewportState);
-            this._scheduleTerminalRenderRefresh(operation.renderRefresh);
+            this._restoreViewportAfterTerminalWrite(viewportState);
+            this._scheduleTerminalRenderRefresh(renderRefresh);
             try {
-                operation.afterWrite?.();
+                for (const afterWrite of afterWrites) afterWrite();
             } finally {
                 this._terminalWriteActive = false;
                 this._drainTerminalWriteQueue();
@@ -2517,11 +2543,11 @@ export class TerminalTransportClient {
         };
 
         try {
-            if (operation.resetTerminal && typeof this.terminal.reset === 'function') {
+            if (head.resetTerminal && typeof this.terminal.reset === 'function') {
                 this.terminal.reset();
             }
             const writeFn = this.terminal.write;
-            writeFn.call(this.terminal, operation.text, finish);
+            writeFn.call(this.terminal, combinedText, finish);
             if (writeFn.length < 2) {
                 this._queueTerminalWriteFallback(finish);
             }
