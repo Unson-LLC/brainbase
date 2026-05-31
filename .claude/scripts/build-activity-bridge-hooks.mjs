@@ -30,6 +30,7 @@ export const HOOK_ENTRYPOINTS = [
   'hooks/post-tool-use/activity-bridge.ts',
   'hooks/user-prompt-submit/activity-bridge.ts',
   'hooks/stop/activity-bridge.ts',
+  'hooks/notification/activity-bridge.ts',
 ];
 
 // 決定的な出力にするため build と test で同一 config を共有する。

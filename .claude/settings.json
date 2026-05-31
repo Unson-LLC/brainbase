@@ -81,6 +81,18 @@
         ]
       }
     ],
+    "Notification": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/notification/activity-bridge.ts",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

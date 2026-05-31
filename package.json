@@ -71,7 +71,8 @@
     "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
     "setup": "bash scripts/setup.sh",
     "prepare": "husky",
-    "sns:poll-metrics": "node scripts/poll-sns-feedback-metrics.js"
+    "sns:poll-metrics": "node scripts/poll-sns-feedback-metrics.js",
+    "build:hooks": "node .claude/scripts/build-activity-bridge-hooks.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1022.0",

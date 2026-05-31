@@ -639,3 +639,107 @@ export async function completeClaudeTurn(): Promise<void> {
     logHookExecution("Stop", "activity-bridge-complete", `${sessionId}:${turnId}:${waiting ? "waiting" : "done"}`);
   });
 }
+
+// Notification 種別のうち「ユーザーの返答待ちでブロックしている」ものだけ orange を出す。
+// permission_prompt: ツール許可待ち / elicitation_dialog: 構造化選択肢・入力待ち(AskUserQuestion等)。
+// idle_prompt(放置による注意喚起)は「ブロック」ではないので既定では除外。
+// type が取れない実装向けに message ヒューリスティックも併用。
+const WAITING_NOTIFICATION_TYPES = new Set([
+  "permission_prompt",
+  "elicitation_dialog",
+]);
+
+function isWaitingNotification(notificationType: string | null, message: string | null): boolean {
+  const t = (notificationType || "").toLowerCase();
+  if (WAITING_NOTIFICATION_TYPES.has(t)) return true;
+  if (t === "idle_prompt" || t === "auth_success" || t.startsWith("elicitation_")) {
+    // elicitation_complete/response は待ち解消側、idle/auth は対象外
+    return false;
+  }
+  const m = (message || "").toLowerCase();
+  return [
+    "permission",
+    "approve",
+    "waiting for your input",
+    "needs your",
+    "choose",
+    "select an option",
+    "を選",
+    "許可",
+    "返答",
+    "入力してください",
+  ].some((marker) => m.includes(marker));
+}
+
+/**
+ * Notification hook: Claude が選択肢/許可で返答待ちブロックしたら稼働インジケータを
+ * orange(state=waiting) にする。
+ *
+ * orange 条件は isWorking=true かつ activityKind='waiting_input'(server _deriveSnapshotFields)。
+ * よって status='done' ではなく status='working' + activityKind='waiting_input' を投げる。
+ * 開いている turn が無ければ bootstrap して isWorking を立てる。
+ * ユーザーが返答すると後続の PostToolUse/Stop が working/done に戻す。
+ */
+export async function notifyClaudeWaiting(rawPayload?: string): Promise<void> {
+  await withContext("Notification", "activity-bridge-notification", async ({ sessionId, port, state }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = JSON.parse(rawPayload || process.env.CLAUDE_NOTIFICATION || "{}");
+    } catch {
+      payload = {};
+    }
+    const notificationType = sanitizeText(
+      (payload.notification_type ?? payload.notificationType ?? payload.type) as unknown,
+      64,
+    );
+    const message = sanitizeText(payload.message, 160);
+
+    // payload capture: 何の Notification が来たかを必ず記録(実 type 確定用)
+    logHookExecution(
+      "Notification",
+      "activity-bridge-notification",
+      `${sessionId}:type=${notificationType || "?"}:waiting=${isWaitingNotification(notificationType, message)}:msg=${message || ""}`,
+    );
+
+    if (!isWaitingNotification(notificationType, message)) return;
+
+    const now = Date.now();
+    const entry = state.sessions[sessionId] || {};
+    let turnId = entry.activeTurnId;
+    if (!turnId) {
+      // 返答待ちなのに turn が無い場合は bootstrap して isWorking を立てる
+      turnId = createTurnId();
+      await postActivity(port, {
+        sessionId,
+        status: "working",
+        reportedAt: now,
+        lifecycle: "turn_started",
+        eventType: "claude/notification-bootstrap",
+        turnId,
+        activityKind: "task_started",
+        taskBrief: entry.lastPrompt || null,
+        currentStep: "作業を開始",
+      });
+    }
+
+    await postActivity(port, {
+      sessionId,
+      status: "working",
+      reportedAt: now,
+      lifecycle: "heartbeat",
+      eventType: "claude/notification-waiting",
+      turnId,
+      activityKind: "waiting_input",
+      taskBrief: entry.lastPrompt || null,
+      currentStep: "ユーザー返答待ち",
+      latestEvidence: message,
+    });
+
+    state.sessions[sessionId] = {
+      activeTurnId: turnId,
+      lastPrompt: entry.lastPrompt,
+      startedAt: entry.startedAt || now,
+    };
+    writeState(state);
+  });
+}
