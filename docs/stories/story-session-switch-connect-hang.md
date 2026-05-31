@@ -9,8 +9,9 @@ source_requirement:
     30〜76s、ときに5分以上ハングし ok:false になる事象を観測。原因は
     terminal-transport-client.js connect() の orphaned promise。
 architecture_docs:
-  - DESIGN.md
-  - docs/specs/story-session-switch-connect-hang-spec.md
+  - path: docs/specs/story-session-switch-connect-hang-spec.md
+    status: referenced
+    reason: connect() を必ず settle する内部修正と switchSession の snapshot_fallback stale-guard 追加のみ。新規モジュール境界・依存・データフロー・公開API・イベント契約の変更はなく既存 TerminalTransportClient / switchSession ステートマシン内で完結する。
 ---
 
 ## Background
@@ -34,6 +35,19 @@ pending 中に `_connectToken` を bump すると、先行 connect の timeout �
 - connect 完了/失敗/supersede/timeout の毎回、`_lastConnectMetric`（outcome + durationMs）
   を publish し、これまで不可視だった connect フェーズを計測可能にする。
 - out of scope: 切替速度そのものの最適化（warm 持続接続化）、cold runtime resume の改善。
+
+### 変更しない既存分岐（out of scope, 本 Story では挙動不変）
+
+本修正は `switchSession` / `_resumeSuspendedRuntimeIfNeeded` と同じファイルに触れるが、
+以下の既存分岐は**意図的に変更しない**（挙動は従来どおり）。本 Story の受け入れ基準は
+connect() の hang 解消と stale-guard に限定する。
+
+- `session.intendedState === 'archived'`: アーカイブ済みセッションは従来どおり
+  `switchSession` の冒頭で短絡し `{ ok: true, archived: true }` を返す。connect も transport も張らない。
+- `session?.intendedState === 'broken'`: 壊れた runtime は従来どおり
+  `_resumeSuspendedRuntimeIfNeeded` が `{ ok: false }`（明示的な復旧が必要）を返す。
+
+これらは hang や supersede とは独立の経路であり、本修正の対象外（回帰なし）。
 
 ## Acceptance Criteria
 
