@@ -2053,6 +2053,13 @@ export class TerminalTransportClient {
         const distanceFromBottom = Math.max(0, baseY - viewportY);
 
         return {
+            // Absolute top line the user is viewing. This is the stable quantity to
+            // preserve across a write that appends new lines: appended content does
+            // not change the absolute index of existing lines, so restoring to the
+            // same viewportY keeps the user on the same content. distanceFromBottom
+            // (kept for legacy/pinned states) drifts the viewport toward the bottom
+            // by the number of newly-written lines on every write — see _restoreViewportState.
+            viewportY,
             distanceFromBottom,
             wasPinnedToBottom: distanceFromBottom === 0
         };
@@ -2302,7 +2309,17 @@ export class TerminalTransportClient {
         if (!buffer || typeof this.terminal.scrollToLine !== 'function') return;
 
         const nextBaseY = Number.isFinite(buffer.baseY) ? buffer.baseY : 0;
-        const targetLine = Math.max(0, nextBaseY - viewportState.distanceFromBottom);
+        // Preserve the absolute top line the user is viewing, NOT the distance from a
+        // now-grown bottom. When live output appends N lines, baseY grows by N while the
+        // absolute index of already-visible content is unchanged; restoring to
+        // (nextBaseY - distanceFromBottom) therefore drags the viewport DOWN by N every
+        // write, so during continuous output the user is repeatedly pulled back to the
+        // bottom and pinned there (scroll lock). Restoring to the captured viewportY keeps
+        // the user on their content. Fall back to the legacy formula only for older state
+        // shapes that predate viewportY (pinned states never reach this branch).
+        const targetLine = Number.isFinite(viewportState.viewportY)
+            ? Math.min(Math.max(0, viewportState.viewportY), nextBaseY)
+            : Math.max(0, nextBaseY - viewportState.distanceFromBottom);
         this.terminal.scrollToLine(targetLine);
     }
 
