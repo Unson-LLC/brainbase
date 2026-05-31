@@ -19,14 +19,22 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import pg from 'pg';
+import { PgCandidateRepository } from '../server/services/candidate-store/candidate-repository.js';
+
+const { Pool } = pg;
 
 const GRAPH_API = process.env.BRAINBASE_GRAPH_API_URL || 'https://bb.unson.jp';
-const WIKI_API = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
 const PROJECTS = process.env.BRAINBASE_PROJECTS || 'brainbase,unson,salestailor,techknight,baao,mana,aitle';
 const CLEARANCE = process.env.BRAINBASE_CLEARANCE || 'internal,restricted,finance,hr,contract';
 const ROLE = process.env.BRAINBASE_ROLE || 'gm';
 const CAP_DIR = process.env.CAPABILITY_DIR
   || path.join(process.cwd(), 'docs/brainbase-capabilities/capabilities');
+
+// 個人KG (memory_candidates) は SNS context service と同じ owner / 判断軸を読む。
+const PERSONAL_KG_OWNER = process.env.MEMORY_PREAMBLE_OWNER_PERSON_ID || 'sato_keigo';
+const PERSONAL_KG_TYPES = ['insight', 'claim'];
+const PERSONAL_KG_TOP = Number(process.env.MEMORY_PREAMBLE_KG_TOP || 6);
 
 function readToken() {
   try {
@@ -62,27 +70,44 @@ async function fetchGraphNames(type, token) {
   }
 }
 
-async function fetchPersonalKg(token) {
-  // owner-visible personal_kg_core を memory_candidates から。失敗しても空で続行。
-  for (const base of [WIKI_API, GRAPH_API]) {
-    try {
-      const res = await fetch(`${base}/api/learning/memory-candidates?limit=200`, {
-        headers: graphHeaders(token),
+function personalKgDatabaseConfig() {
+  // サーバと同じ pool factory (new Pool({ connectionString })) を再利用する。
+  // 手組み host/port URL は "base" parse 失敗の罠があるため接続文字列のみ使う。
+  // Lightsail tunnel は localhost:25432 (INFO_SSOT_DATABASE_URL に入っている)。
+  const url = process.env.INFO_SSOT_DATABASE_URL
+    || process.env.INFO_SSOT_DB_URL
+    || process.env.DATABASE_URL;
+  return url ? { connectionString: url } : null;
+}
+
+async function fetchPersonalKg() {
+  // owner-visible な insight/claim を memory_candidates から body 付きで読む。
+  // list API (/api/learning/memory-candidates) は body を返さないため使わず、
+  // SNS context service と同じ PgCandidateRepository 経路で読む。失敗しても空で続行。
+  const config = personalKgDatabaseConfig();
+  if (!config) return [];
+  const pool = new Pool(config);
+  try {
+    const repo = new PgCandidateRepository({ pool });
+    const byType = await Promise.all(
+      PERSONAL_KG_TYPES.map((cognitive_type) =>
+        repo.list({ owner_person_id: PERSONAL_KG_OWNER, cognitive_type })),
+    );
+    return byType
+      .flat()
+      .filter((c) => c.visibility === 'owner')
+      .filter((c) => String(c.body || '').trim().length > 0)
+      // confidence 降順 → 直近 created_at 降順
+      .sort((a, b) => {
+        const conf = Number(b.confidence || 0) - Number(a.confidence || 0);
+        if (conf !== 0) return conf;
+        return String(b.created_at || '').localeCompare(String(a.created_at || ''));
       });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const items = data.candidates || data.items || data.records || [];
-      const core = items.filter((c) => {
-        const layer = c.memory_layer || (c.oyasumi_policy && c.oyasumi_policy.memory_layer);
-        const vis = c.visibility || 'owner';
-        return vis === 'owner' && layer !== 'sns_ready';
-      });
-      if (core.length) return core;
-    } catch {
-      // try next base
-    }
+  } catch {
+    return [];
+  } finally {
+    await pool.end().catch(() => {});
   }
-  return [];
 }
 
 function capabilityIds() {
@@ -107,7 +132,7 @@ async function build() {
     fetchGraphNames('org', token),
     fetchGraphNames('customer', token),
   ]);
-  const kg = await fetchPersonalKg(token);
+  const kg = await fetchPersonalKg();
   const caps = capabilityIds();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -119,12 +144,11 @@ async function build() {
   // 1. 個人KG (判断OS)
   lines.push('■ 個人KG (佐藤圭吾の判断OS / oyasumi 蓄積)');
   if (kg.length) {
-    const sorted = kg
-      .slice()
-      .sort((a, b) => (b.importance || 0) - (a.importance || 0))
-      .map((c) => (c.summary || c.content || '').replace(/\s+/gu, ' ').trim())
+    // fetchPersonalKg で confidence + created_at ランク済み。body をそのまま使う。
+    const ranked = kg
+      .map((c) => String(c.body || '').replace(/\s+/gu, ' ').trim())
       .filter(Boolean);
-    for (const t of truncate(sorted, 6)) lines.push(`  - ${t.slice(0, 110)}`);
+    for (const t of truncate(ranked, PERSONAL_KG_TOP)) lines.push(`  - ${t.slice(0, 110)}`);
   } else {
     lines.push('  (取得0件: oyasumi 未実行 or 取得失敗。/oyasumi で蓄積)');
   }
