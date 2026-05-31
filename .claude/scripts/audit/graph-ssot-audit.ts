@@ -168,7 +168,13 @@ interface SessionExtract {
   bash_commands: string[]; // 最初の Nだけ
   skill_loads: string[]; // brainbase-capability-map 等
   capmap_yaml_read: boolean; // docs/brainbase-capabilities/capabilities/*.yml の Read
+  preamble_injected: boolean; // SessionStart memory-preamble が注入されたか
 }
+
+// memory-preamble の先頭マーカー (generate-memory-preamble.mjs / inject-memory-preamble)。
+// claude は <session-start-hook>、codex は hookSpecificOutput.additionalContext として
+// transcript jsonl に残るので、生の line に対する substring 検出が最も頑健。
+const PREAMBLE_MARKER = "Brainbase memory preamble";
 
 async function parseClaudeJsonl(path: string): Promise<SessionExtract> {
   const ext: SessionExtract = {
@@ -178,6 +184,7 @@ async function parseClaudeJsonl(path: string): Promise<SessionExtract> {
     bash_commands: [],
     skill_loads: [],
     capmap_yaml_read: false,
+    preamble_injected: false,
   };
   // cwd は path から推測
   const projName = basename(dirname(path));
@@ -186,6 +193,7 @@ async function parseClaudeJsonl(path: string): Promise<SessionExtract> {
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
     if (!line.trim()) continue;
+    if (!ext.preamble_injected && line.includes(PREAMBLE_MARKER)) ext.preamble_injected = true;
     let obj: any;
     try {
       obj = JSON.parse(line);
@@ -233,11 +241,13 @@ async function parseCodexJsonl(path: string): Promise<SessionExtract> {
     bash_commands: [],
     skill_loads: [],
     capmap_yaml_read: false,
+    preamble_injected: false,
   };
 
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
     if (!line.trim()) continue;
+    if (!ext.preamble_injected && line.includes(PREAMBLE_MARKER)) ext.preamble_injected = true;
     let obj: any;
     try {
       obj = JSON.parse(line);
@@ -358,6 +368,13 @@ interface ResultRow {
   topic: TopicResult;
   query: QueryFlags;
   tool_call_count: number;
+  preamble_injected: boolean;
+}
+
+// このセッションで「真の引き」が起きたか (graph / capmap yaml / kg のいずれか)。
+// preamble の効果測定 (注入された session が実際に pull したか) に使う。
+function didRealQuery(query: QueryFlags): boolean {
+  return query.graph || query.capmap_real || query.kg;
 }
 
 async function main() {
@@ -381,6 +398,7 @@ async function main() {
       topic,
       query,
       tool_call_count: ext.tool_call_names.length,
+      preamble_injected: ext.preamble_injected,
     });
   }
 
@@ -409,6 +427,8 @@ async function main() {
       kg_candidate: number;
       kg_queried: number;
       excluded: number;
+      preamble_injected: number;
+      preamble_then_query: number;
     }
   > = {};
   for (const r of results) {
@@ -422,6 +442,8 @@ async function main() {
       kg_candidate: 0,
       kg_queried: 0,
       excluded: 0,
+      preamble_injected: 0,
+      preamble_then_query: 0,
     });
     w.total++;
     if (r.topic.excluded) {
@@ -435,7 +457,40 @@ async function main() {
     if (r.query.capmap_ceremonial) w.capmap_ceremonial++;
     if (r.topic.kg) w.kg_candidate++;
     if (r.query.kg) w.kg_queried++;
+    if (r.preamble_injected) {
+      w.preamble_injected++;
+      if (didRealQuery(r.query)) w.preamble_then_query++;
+    }
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Preamble 利用率: 注入された session が実際に pull したか。
+  // 注入あり/なしで real query 率を比較し、preamble の効果 (before/after) を測る。
+  // 母集団は excluded を除いた非メタ session。
+  // ──────────────────────────────────────────────────────────────────────────
+  const candidateSessions = results.filter((r) => !r.topic.excluded);
+  const injected = candidateSessions.filter((r) => r.preamble_injected);
+  const notInjected = candidateSessions.filter((r) => !r.preamble_injected);
+  const rate = (num: number, den: number) =>
+    den > 0 ? Number((num / den).toFixed(4)) : 0;
+  const injectedQueried = injected.filter((r) => didRealQuery(r.query)).length;
+  const notInjectedQueried = notInjected.filter((r) => didRealQuery(r.query)).length;
+  const preamble = {
+    candidate_sessions: candidateSessions.length,
+    injected: injected.length,
+    injected_rate: rate(injected.length, candidateSessions.length),
+    by_source: {
+      claude: injected.filter((r) => r.source === "claude").length,
+      claude_sub: injected.filter((r) => r.source === "claude-sub").length,
+      codex: injected.filter((r) => r.source === "codex").length,
+    },
+    // 注入された session のうち、実際に graph/capmap-yaml/kg を引いた割合
+    query_when_injected: injectedQueried,
+    query_rate_when_injected: rate(injectedQueried, injected.length),
+    // baseline: 注入されなかった session の real query 率 (比較対象)
+    query_when_not_injected: notInjectedQueried,
+    query_rate_when_not_injected: rate(notInjectedQueried, notInjected.length),
+  };
 
   const payload = {
     generated_at: new Date().toISOString(),
@@ -443,6 +498,7 @@ async function main() {
     hours: args.hours,
     totals,
     excluded,
+    preamble,
     by_worktree: byWorktree,
     results,
   };
@@ -451,7 +507,14 @@ async function main() {
   // stdout: summary
   console.log(
     JSON.stringify(
-      { totals, excluded, by_worktree: byWorktree, out: args.out, result_count: results.length },
+      {
+        totals,
+        excluded,
+        preamble,
+        by_worktree: byWorktree,
+        out: args.out,
+        result_count: results.length,
+      },
       null,
       2,
     ),

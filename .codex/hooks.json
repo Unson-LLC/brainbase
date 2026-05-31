@@ -6,6 +6,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash scripts/codex-hooks/inject-memory-preamble.sh",
+            "statusMessage": "brainbase memory preamble"
+          },
+          {
+            "type": "command",
             "command": "bash scripts/codex-hooks-activity.sh",
             "statusMessage": "brainbase activity"
           }
