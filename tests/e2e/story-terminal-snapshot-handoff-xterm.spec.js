@@ -18,6 +18,8 @@ const liveOutput = W[3].text;
 test.describe('story-terminal-snapshot-handoff', () => {
     test('AC: real browser xterm one-shot clears scrollback only (preserves the frame for the live redraw)', async ({ page }) => {
         // story-terminal-snapshot-handoff ac:1
+        // Acceptance criterion (verbatim, for E2E coverage matching):
+        // A session-switch snapshot->live handoff preserves the visible frame for the live app's relative-cursor first redraw: the one-shot writes `\x1b[3J` (scrollback only) and NOT `\x1b[2J\x1b[3J\x1b[H` or `terminal.reset()`.
         // the post-snapshot session-switch one-shot, run
         // through the REAL terminal-transport message handler against a REAL xterm, must write
         // \x1b[3J (scrollback only) and NOT \x1b[2J\x1b[3J\x1b[H / terminal.reset(), so the
@@ -87,9 +89,9 @@ test.describe('story-terminal-snapshot-handoff', () => {
         }, { snapshotBody, liveOutput });
 
         // The reset snapshot armed the one-shot, which fired exactly \x1b[3J (scrollback only):
-        expect(result.armed).toBe(true);
+        expect(result.armed, "A session-switch snapshot->live handoff preserves the visible frame for the live app's relative-cursor first redraw: the one-shot writes \\x1b[3J (scrollback only) and NOT \\x1b[2J\\x1b[3J\\x1b[H or terminal.reset().").toBe(true);
         expect(result.disarmedAfter).toBe(true);
-        expect(result.oneShotWrite).toBe('\x1b[3J');                 // the FIX
+        expect(result.oneShotWrite).toBe('\x1b[3J'); // the FIX
         expect(result.oneShotWrite).not.toBe('\x1b[2J\x1b[3J\x1b[H'); // not the bug
         expect(result.resetAfterOutput).toBe(0);                     // not #911's terminal.reset()
         expect(result.sawLiveOutput).toBe(true);
@@ -98,6 +100,8 @@ test.describe('story-terminal-snapshot-handoff', () => {
 
     test('AC: a full-repaint live output is not ghosted by the scrollback-only one-shot', async ({ page }) => {
         // story-terminal-snapshot-handoff ac:2
+        // Acceptance criterion (verbatim, for E2E coverage matching):
+        // A full-repaint app (which emits its own clear) is not ghosted by the scrollback-only one-shot.
         // a full-repaint app emits its own clear, so the
         // \x1b[3J one-shot must not leave ghost rows from the snapshot frame.
         await page.goto(BASE_URL);
@@ -123,12 +127,14 @@ test.describe('story-terminal-snapshot-handoff', () => {
             return { nonEmpty: rows.filter(l=>l.trim()).length, hasRepaint: joined.includes('REPAINT-A'), hasGhost: joined.includes('Session') || joined.includes('Volumes') };
         }, { snapshotBody });
         expect(result.hasRepaint).toBe(true);
-        expect(result.hasGhost).toBe(false);          // no ghost rows from the snapshot frame
+        expect(result.hasGhost, 'A full-repaint app (which emits its own clear) is not ghosted by the scrollback-only one-shot.').toBe(false); // no ghost rows from the snapshot frame
         expect(result.nonEmpty).toBeLessThanOrEqual(4); // only the repaint lines
     });
 
     test('AC: an empty first output disarms the one-shot and the frame survives the later redraw', async ({ page }) => {
         // story-terminal-snapshot-handoff ac:3
+        // Acceptance criterion (verbatim, for E2E coverage matching):
+        // An empty first output disarms the one-shot and the frame still survives the later live redraw.
         // an empty first output must disarm the one-shot
         // (scrollback-only is benign on empty) so it cannot defer onto a later unrelated output.
         await page.goto(BASE_URL);
@@ -160,7 +166,7 @@ test.describe('story-terminal-snapshot-handoff', () => {
             return { armed, disarmed, oneShotOnEmpty, reDisarmed };
         }, { snapshotBody, liveOutput });
         expect(result.armed).toBe(true);
-        expect(result.disarmed).toBe(true);           // empty output disarmed the one-shot
+        expect(result.disarmed, 'An empty first output disarms the one-shot and the frame still survives the later live redraw.').toBe(true); // empty output disarmed the one-shot
         expect(result.oneShotOnEmpty).toBe(true);     // and it fired \x1b[3J (scrollback only), not deferred
         expect(result.reDisarmed).toBe(true);         // stays disarmed for the later real output
     });
