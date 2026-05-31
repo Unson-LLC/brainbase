@@ -87,6 +87,11 @@
           {
             "type": "command",
             "command": ".claude/hooks/session-start-copy-plugins.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/session-start/inject-memory-preamble.ts",
+            "timeout": 5000
           }
         ]
       }
