@@ -223,6 +223,34 @@ async function fetchWikiPage(pagePath: string) {
   return (await response.json()) as { path: string; title: string; content: string; project_id?: string | null };
 }
 
+interface PersonalKgHit {
+  id: string;
+  cognitive_type: string;
+  body: string;
+  confidence: number | null;
+  source_system: string;
+  created_at: string;
+}
+
+async function fetchPersonalKgSearch(
+  query: string,
+  options: { cognitiveType?: string; limit?: number } = {}
+): Promise<PersonalKgHit[]> {
+  const token = await globalTokenManager.getToken();
+  const url = new URL('/api/learning/memory-candidates/search', wikiApiBaseUrl);
+  url.searchParams.set('q', query);
+  if (options.cognitiveType) url.searchParams.set('cognitive_type', options.cognitiveType);
+  if (options.limit) url.searchParams.set('limit', String(options.limit));
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Personal KG API error: ${response.status} ${response.statusText}`);
+  }
+  const data = (await response.json()) as { candidates?: PersonalKgHit[] };
+  return data.candidates || [];
+}
+
 function wikiPathToResourceUri(pagePath: string): string {
   return `${WIKI_RESOURCE_URI_PREFIX}${pagePath}`;
 }
@@ -394,6 +422,29 @@ const tools: Tool[] = [
       required: ['path'],
     },
   },
+  {
+    name: 'search_personal_kg',
+    description:
+      "Search Keigo Sato's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns his accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs Keigo's own stance, values, sales/content philosophy, or how he would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Keyword to search within the personal KG body text (e.g. "営業", "Persona Brain", "採用", "Claude Code 導入")',
+        },
+        cognitive_type: {
+          type: 'string',
+          description: 'Optional filter by cognitive type. Comma-separated allowed. One of: observation, insight, claim, preference, hypothesis, experiment, result.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results (default 10, max 50).',
+        },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 /**
@@ -520,6 +571,25 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const pagePath = args.path as string;
       const data = await fetchWikiPage(pagePath);
       return `# ${data.title}\n\n${data.content}`;
+    }
+
+    case 'search_personal_kg': {
+      const query = args.query as string;
+      const cognitiveType = args.cognitive_type as string | undefined;
+      const limit = typeof args.limit === 'number' ? args.limit : undefined;
+      const hits = await fetchPersonalKgSearch(query, { cognitiveType, limit });
+      if (hits.length === 0) {
+        return `No personal KG entries found for "${query}"${cognitiveType ? ` (cognitive_type=${cognitiveType})` : ''}.`;
+      }
+      const lines: string[] = [];
+      lines.push(`# Personal KG (佐藤圭吾) — "${query}" (${hits.length} hits)`);
+      lines.push('');
+      for (const h of hits) {
+        const conf = h.confidence != null ? ` conf=${h.confidence}` : '';
+        lines.push(`- **[${h.cognitive_type}${conf}]** ${h.body.replace(/\s+/g, ' ').trim()}`);
+        lines.push(`  _(${h.source_system} · ${String(h.created_at).slice(0, 10)} · ${h.id})_`);
+      }
+      return lines.join('\n');
     }
 
     default:
