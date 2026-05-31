@@ -788,19 +788,31 @@ export class TerminalTransportClient {
                     }
                     case 'output': {
                         const outputData = typeof message.data === 'string' ? message.data : '';
-                        // One-shot: the first live output after a session-switch snapshot
-                        // repaints the screen (tmux attach). Clear the snapshot preview first
-                        // so a shorter repaint cannot leave ghost rows below it (duplicated
-                        // menus / ruler lines). Only fires once per switch.
-                        //
-                        // NOTE: do NOT use terminal.reset() here. reset() exits the alternate
-                        // screen; when the live app is an alt-screen TUI and its first output
-                        // is a partial delta (not a full repaint), the screen blanks out
-                        // (regression from #911, reverted). A partial clear keeps the buffer
-                        // mode the snapshot established, which the live repaint expects.
-                        if (this._liveResetPendingAfterSnapshot && outputData) {
+                        // One-shot after a session-switch snapshot, before the first live
+                        // output. Clear the SCROLLBACK only (\x1b[3J) — the original intent
+                        // (prevent a shorter repaint leaving ghost rows below). Do NOT clear
+                        // the visible screen or home the cursor (\x1b[2J / \x1b[H), and do NOT
+                        // terminal.reset():
+                        //   - The snapshot preview established the visible frame AND the cursor
+                        //     position. An interactive TUI's first live output is a RELATIVE-
+                        //     cursor redraw (e.g. \x1b[2D\x1b[6B...), which can only reconstruct
+                        //     the frame if that frame + cursor are still there. \x1b[2J\x1b[3J\x1b[H
+                        //     wiped them, so the relative redraw produced a near-blank/garbled
+                        //     screen (the reported "描画が重複/空白"); #911's reset() also exited
+                        //     the alternate screen and blanked it.
+                        //   - A full-repaint app emits its own clear (\x1b[2J / \x1b[H), so
+                        //     \x1b[3J before it is safe — it cannot leave ghost rows.
+                        // Disarm on the FIRST output message regardless of whether it carries
+                        // data: \x1b[3J (scrollback only) is benign on an empty repaint, so this
+                        // avoids the stale-flag leak where an empty first output would defer the
+                        // one-shot onto a later, unrelated output.
+                        // Verified deterministically against a captured real handoff byte stream
+                        // (tests/unit/terminal-snapshot-handoff.test.js): \x1b[2J\x1b[3J\x1b[H ->
+                        // 1 non-empty line, \x1b[3J -> 13 (≈ the 12-line snapshot frame); plus
+                        // a full-repaint case (its own \x1b[2J wins) and an empty-first-output case.
+                        if (this._liveResetPendingAfterSnapshot) {
                             this._liveResetPendingAfterSnapshot = false;
-                            this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H');
+                            this._writeToTerminal('\x1b[3J');
                         }
                         this._applyOutput(outputData);
                         break;
