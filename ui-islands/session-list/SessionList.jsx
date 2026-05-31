@@ -6,38 +6,14 @@ import { getProjectConfig } from '/modules/project-mapping.js';
 // (esbuild external) so the island reuses the exact vanilla classification.
 import { classifySessionsForGroupedList } from '/modules/ui/views/session-view.js';
 import { groupSessionsByProject } from '/modules/session-manager.js';
+import { orderTimelineSessions, isFavorite } from './sessionOrder.js';
 import SessionRowFull from './SessionRowFull.jsx';
 import SessionToolbar, { filterSessions } from './SessionToolbar.jsx';
 
-// Parity with session-view _getActivitySortPriority: attention/working=1, done-unread=2, idle=3.
-function sortPriority(ui) {
-  const st = ui.hookStatus?.state;
-  if (st) {
-    if (['running', 'starting', 'waiting'].includes(st)) return 1;
-    if (st === 'done-unread') return 2;
-    return 3;
-  }
-  if (['thinking', 'working', 'waiting'].includes(ui.activity)) return 1;
-  if (ui.activity === 'done-unread') return 2;
-  return 3;
-}
-function sortTimestamp(s, ui) {
-  const live = ui.hookStatus?.liveActivity;
-  return live?.updatedAt || ui.hookStatus?.lastDoneAt || s.lastActivityAt || s.createdAt || 0;
-}
-function isFavorite(s) { return Boolean(s.favorite); }
-
-// favorite-first then activity priority then timestamp desc (matches _getTimelineSessions).
+// favorite-first -> activity priority(sticky done) -> timestamp desc。
+// sticky-done 機構を含め sessionOrder.js に集約(vanilla _getTimelineSessions パリティ)。
 function orderSessions(arr, currentId) {
-  return [...arr].sort((a, b) => {
-    const fa = isFavorite(a) ? 0 : 1, fb = isFavorite(b) ? 0 : 1;
-    if (fa !== fb) return fa - fb;
-    const ua = deriveSessionUiState(a.id, { currentSessionId: currentId });
-    const ub = deriveSessionUiState(b.id, { currentSessionId: currentId });
-    const pa = sortPriority(ua), pb = sortPriority(ub);
-    if (pa !== pb) return pa - pb;
-    return sortTimestamp(b, ub) - sortTimestamp(a, ua);
-  });
+  return orderTimelineSessions(arr, currentId, deriveSessionUiState);
 }
 
 // Grouped view parity (_sortFavoriteSessionsFirst): favorite first, otherwise PRESERVE

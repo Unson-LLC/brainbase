@@ -4,40 +4,18 @@ import { deriveSessionUiState } from '/modules/session-ui-state.js';
 import { getProjectFromSession, getProjectConfig } from '/modules/project-mapping.js';
 import { classifySessionsForGroupedList } from '/modules/ui/views/session-view.js';
 import { groupSessionsByProject } from '/modules/session-manager.js';
+import { orderTimelineSessions, isFavorite } from './sessionOrder.js';
 import SessionRowFull from './SessionRowFull.jsx';
 import SessionToolbar, { filterSessions } from './SessionToolbar.jsx';
 
 // Mobile bottom-sheet session list. Reproduces the vanilla mobile design (toolbar +
 // spacious rows + "Live" pill) while rendering via React from the live appStore.
 
-function isFavorite(s) { return Boolean(s.favorite); }
 function favoriteFirst(arr) { return [...arr].sort((a, b) => (isFavorite(a) ? 0 : 1) - (isFavorite(b) ? 0 : 1)); }
 
-function sortPriority(ui) {
-  const st = ui.hookStatus?.state;
-  if (st) {
-    if (['running', 'starting', 'waiting'].includes(st)) return 1;
-    if (st === 'done-unread') return 2;
-    return 3;
-  }
-  if (['thinking', 'working', 'waiting'].includes(ui.activity)) return 1;
-  if (ui.activity === 'done-unread') return 2;
-  return 3;
-}
-function sortTimestamp(s, ui) {
-  const live = ui.hookStatus?.liveActivity;
-  return live?.updatedAt || ui.hookStatus?.lastDoneAt || s.lastActivityAt || s.createdAt || 0;
-}
+// timeline 並び順は desktop と同一(sticky-done 含む)を sessionOrder.js から共有。
 function orderTimeline(arr, currentId) {
-  return [...arr].sort((a, b) => {
-    const fa = isFavorite(a) ? 0 : 1, fb = isFavorite(b) ? 0 : 1;
-    if (fa !== fb) return fa - fb;
-    const ua = deriveSessionUiState(a.id, { currentSessionId: currentId });
-    const ub = deriveSessionUiState(b.id, { currentSessionId: currentId });
-    const pa = sortPriority(ua), pb = sortPriority(ub);
-    if (pa !== pb) return pa - pb;
-    return sortTimestamp(b, ub) - sortTimestamp(a, ua);
-  });
+  return orderTimelineSessions(arr, currentId, deriveSessionUiState);
 }
 
 function MobileProjectGroup({ project, sessions, currentId }) {
