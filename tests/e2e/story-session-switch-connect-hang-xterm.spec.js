@@ -38,7 +38,7 @@ test.describe('story-session-switch-connect-hang', () => {
             return { res, metric: c._lastConnectMetric || null };
         });
         // A superseded pending connect (a concurrent or reconnect connect bumps the token while the first connect is still pending) rejects deterministically as superseded instead of hanging, so the awaiting switch reaches the snapshot fallback instead of freezing forever.
-        expect(outcome.res, 'A superseded pending connect (a concurrent or reconnect connect bumps the token while the first connect is still pending) rejects deterministically as superseded instead of hanging, so the awaiting switch reaches the snapshot fallback instead of freezing forever.').not.toBe('HUNG');
+        expect(outcome.res, 'A superseded connect (a concurrent or reconnect connect bumps the token while the first connect is still pending) rejects deterministically as superseded instead of hanging, so the awaiting switch reaches the snapshot fallback instead of freezing forever.').not.toBe('HUNG');
         expect(outcome.res.rejected).toMatch(/supersed/i);
         await page.screenshot({ path: 'var/test-results/story-session-switch-connect-hang-xterm.png', fullPage: false });
     });
