@@ -623,6 +623,17 @@ export class TerminalTransportClient {
         waitForInitialResetSnapshot = false,
         initialResetSnapshotTimeoutMs = INITIAL_RESET_SNAPSHOT_WAIT_MS
     } = {}) {
+        // A still-pending connect() from a previous call must settle now. Its
+        // CONNECT_TIMEOUT_MS guard is gated on _connectToken; once we bump the token below,
+        // that guard no-ops and the old promise would hang forever — the awaiting
+        // switchSession -> _connectXtermTransport never returns (observed >5min frozen
+        // snapshot). Reject it as superseded so the existing snapshot_fallback path runs.
+        if (this._supersedeConnect) {
+            const supersede = this._supersedeConnect;
+            this._supersedeConnect = null;
+            supersede();
+        }
+        const connectStartedAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
         const switchingSessions = Boolean(this.sessionId && this.sessionId !== sessionId);
         const prevToken = this._connectToken;
         this._connectToken += 1;
@@ -698,6 +709,31 @@ export class TerminalTransportClient {
             let connectSettled = false;
             let initialResetSnapshotApplied = false;
             let initialResetSnapshotTimerId = null;
+
+            // Publish a timing + outcome metric on every settle so the connect phase — the
+            // black hole where switches used to hang invisibly — is observable.
+            const recordConnectMetric = (outcome) => {
+                const endedAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                this._lastConnectMetric = {
+                    outcome,
+                    durationMs: Math.round(endedAt - connectStartedAt),
+                    sessionId,
+                    token: connectToken,
+                    switchingSessions
+                };
+                try { this.onConnectMetric?.(this._lastConnectMetric); } catch { /* metric is best-effort */ }
+            };
+
+            // Superseded during our async auth gap: a newer connect() already bumped the
+            // token before this executor ran. settle()'s token guard would strand us, so
+            // reject straight away.
+            if (this._connectToken !== connectToken) {
+                connectSettled = true;
+                recordConnectMetric('superseded');
+                reject(new Error('Terminal transport connect superseded'));
+                return;
+            }
+
             const timeoutId = setTimeout(() => {
                 if (this._connectToken !== connectToken) return;
                 settle('reject', new Error('Terminal transport connect timeout'));
@@ -710,14 +746,29 @@ export class TerminalTransportClient {
                     initialResetSnapshotTimerId = null;
                 }
             };
+
+            // Reject this pending connect when a later connect() supersedes it. Deliberately
+            // bypasses settle()'s _connectToken guard — that guard is exactly what would
+            // otherwise leave this promise unsettled forever.
+            this._supersedeConnect = () => {
+                if (connectSettled) return;
+                connectSettled = true;
+                cleanup();
+                recordConnectMetric('superseded');
+                reject(new Error('Terminal transport connect superseded'));
+            };
+
             const settle = (type, value) => {
                 if (connectSettled || this._connectToken !== connectToken) return;
                 connectSettled = true;
+                this._supersedeConnect = null;
                 cleanup();
                 if (type === 'reject') {
+                    recordConnectMetric(/timeout/i.test(value?.message) ? 'timeout' : 'error');
                     reject(value);
                     return;
                 }
+                recordConnectMetric(value?.mode || 'resolved');
                 resolve(value);
             };
             const maybeResolveLive = (initialResetSnapshot = null) => {
