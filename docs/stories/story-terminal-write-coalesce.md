@@ -41,6 +41,7 @@ render refresh）。長文ペーストは pty から**数百〜数千の小さ�
 
 - `operation.resetTerminal` 経路は batch の先頭境界として温存（reset 前後は混ざらない）。
 - stale generation（`_cancelTerminalWriteQueue` 後）の op は従来どおり破棄。
+- `this._hiddenDisconnect && this.sessionId`（hidden 復帰時の再接続経路）は本修正の対象外・挙動不変。
 
 ## Acceptance Criteria
 
