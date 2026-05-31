@@ -1593,7 +1593,10 @@ describe('terminal-transport-client', () => {
       '\x1b[2J\x1b[3J\x1b[Hupdated output',
       expect.any(Function)
     );
-    expect(scrollToLine).toHaveBeenCalledWith(120);
+    // The user was viewing line 80; appended output must keep them on line 80 (content-stable).
+    // (Previously this restored to nextBaseY - distanceFromBottom = 160 - 40 = 120, dragging the
+    // viewport toward the tail by the number of appended lines — the scroll-lock bug.)
+    expect(scrollToLine).toHaveBeenCalledWith(80);
     expect(client.fitAddon.fit).not.toHaveBeenCalled();
   });
 
@@ -2553,7 +2556,8 @@ describe('terminal-transport-client', () => {
     await Promise.resolve();
 
     expect(terminal.write).toHaveBeenCalledWith('hello', expect.any(Function));
-    expect(scrollToLine).toHaveBeenCalledWith(120);
+    // User was on line 80; appended output keeps them on line 80 (content-stable, no drag to tail).
+    expect(scrollToLine).toHaveBeenCalledWith(80);
   });
 
   it('output適用時_最下部にいるなら最下部を維持する', async () => {
