@@ -89,6 +89,20 @@ INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-persona
 - 同じ議事録の同じ抽出単位は `source_event_ids` で重複投入しない
 - 最終サマリ/HTMLレポート（存在する場合）には meeting由来と conversation由来を分けて、`input_count`, `personal_kg_core`, `sns_ready`, `needs_review`, `needs_redaction`, `projection_allowed` の件数を出し、取り込み漏れ・誤projectionを検知する
 
+## Memory Preamble 再生成（毎晩 materialize）
+
+Personal KG candidate を本番 `memory_candidates` へ書き込んだら、その日のうちに SessionStart 注入用の 3層 memory-preamble を再生成する。これで翌日以降の Claude Code / Codex セッション冒頭に最新の個人KG層（佐藤の判断軸）が入る。生成は重い（Graph API + candidate 読み）ので、毎晩ここで1回先に materialize しておき、hot path の SessionStart hook は file を読むだけにする。
+
+```bash
+cd /Users/ksato/workspace/code/brainbase
+node scripts/generate-memory-preamble.mjs
+```
+
+- 出力: `~/.brainbase/memory-preamble.txt`（≤2000 token、個人KG / Graph SSOT カタログ / Capability menu の3層）
+- stderr の `counts={...,"kg":N,...}` で `kg` が0でないことを確認する。0なら個人KG層が空（DB tunnel 断 or candidate 未書き込み）なので、Personal KG write が成功しているか戻って確認する
+- 注入経路は claude=`.claude/scripts/hooks/session-start/inject-memory-preamble.ts`、codex=`.codex/hooks.json` SessionStart → `scripts/codex-hooks/inject-memory-preamble.sh`。どちらも file を読むだけで DB/tunnel を持ち込まない
+- 利用率は `.claude/scripts/audit/graph-ssot-audit.ts` の `preamble` セクション（`injected_rate` / `query_rate_when_injected` vs `query_rate_when_not_injected`）で日次計測する
+
 ## Archive Blocked Triage
 
 `/oyasumi` は archive blocked の日次整理トリガーでもある。Phase 7 の前に必ず実行する。
