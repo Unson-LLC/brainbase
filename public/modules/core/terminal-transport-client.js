@@ -2134,11 +2134,22 @@ export class TerminalTransportClient {
         }
 
         if (this._resetTerminalOnNextSnapshot) {
-            this._isViewportPinnedToBottom = true;
+            // A transport reset re-arms this snapshot. This fires not only on a real session
+            // switch (that path is _forceApplyNextSnapshot above, where the buffer was already
+            // cleared and there is no scroll position to keep) but also on every RECONNECT of the
+            // session the user is currently viewing (connect() arms _resetTerminalOnNextSnapshot
+            // unconditionally). Force-pinning to the bottom here yanked a user who had scrolled up
+            // to read scrollback straight back to the latest line on each reconnect — the
+            // "scrolling works right after switching, then a while later it snaps to the bottom and
+            // locks" report. Preserve the user's scroll across the reset repaint; only pin when
+            // they were already at the bottom (so live tail-follow resumes). afterWrite (the
+            // connect-readiness handshake) and resetTerminal are unchanged.
+            const pinnedNow = this._computeIsViewportPinnedToBottom();
+            this._isViewportPinnedToBottom = pinnedNow;
             this._pendingSnapshotText = null;
             this._pendingSnapshotOptions = null;
             this._applySnapshot(normalizedText, {
-                forceViewportState: this._createPinnedViewportState(),
+                forceViewportState: pinnedNow ? this._createPinnedViewportState() : this._captureViewportState(),
                 resetTerminal: true,
                 screenOnly: options.screenOnly === true,
                 afterWrite: options.afterWrite

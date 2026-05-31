@@ -2012,7 +2012,7 @@ describe('terminal-transport-client', () => {
     expect(client._resetTerminalOnNextSnapshot).toBe(false);
   });
 
-  it('S-3: reset予定snapshotは上スクロール中でも保留せず最新出力へpinする', async () => {
+  it('S-3: reset予定snapshotは上スクロール中なら保留せず適用しつつユーザー位置を維持する(最下部へpinしない)', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -2047,8 +2047,12 @@ describe('terminal-transport-client', () => {
       '\x1b[2J\x1b[3J\x1b[Hfresh reset snapshot',
       expect.any(Function)
     );
-    expect(terminal.scrollToBottom).toHaveBeenCalled();
-    expect(terminal.scrollToLine).not.toHaveBeenCalled();
+    // A reset snapshot fires on every reconnect of the session the user is viewing, not only on a
+    // real session switch. When the user has scrolled up to read scrollback, it must NOT yank them
+    // to the bottom — it preserves their line (scrollToLine), and only pins (scrollToBottom) when
+    // they were already at the bottom. (Pre-fix this called scrollToBottom = the reconnect lock.)
+    expect(terminal.scrollToBottom).not.toHaveBeenCalled();
+    expect(terminal.scrollToLine).toHaveBeenCalledWith(20);
     expect(client._resetTerminalOnNextSnapshot).toBe(false);
   });
 
