@@ -599,6 +599,18 @@ export class TerminalTransportClient {
             return false;
         }
 
+        // Ctrl+L (clear screen, 0x0c). Browsers hijack Ctrl+L to focus the address bar, so the key
+        // never reaches the pty and apps like Claude Code don't clear. Send \f explicitly and
+        // preventDefault so it works inside the terminal.
+        if ((event.key === 'l' || event.key === 'L')
+            && event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+            void this.sendText('\x0c');
+            if (typeof event.preventDefault === 'function') {
+                event.preventDefault();
+            }
+            return false;
+        }
+
         return true;
     }
 
