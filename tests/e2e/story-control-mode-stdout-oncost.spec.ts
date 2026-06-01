@@ -33,13 +33,25 @@ test.describe('story-control-mode-stdout-oncost', () => {
     test('AC: a giant single %output line fed across many chunks decodes in linear time', () => {
         // story-control-mode-stdout-oncost ac:1
         const { client, outputs } = createClient();
-        const SIZE = 30 * 1024 * 1024; // 30MB single line — O(n^2) old code would take >10s
+        const SIZE = 30 * 1024 * 1024; // 30MB single line
+        const CHUNK = 64 * 1024;
         const whole = Buffer.concat([Buffer.from('%output %1 '), Buffer.alloc(SIZE, 0x41), Buffer.from('\n')]);
-        const t0 = performance.now();
-        feedInChunks(client, whole, 64 * 1024);
-        const ms = performance.now() - t0;
+        const chunks = Math.ceil(whole.length / CHUNK); // ~480 chunks
+
+        // Deterministic O(n) proof (instrumentation-independent): the old O(n^2) code did
+        // Buffer.concat([wholeBuffer, chunk]) per chunk (~480 calls); the O(n) fix concatenates the
+        // pending chunks once when the line completes.
+        const origConcat = Buffer.concat;
+        let concatCalls = 0;
+        (Buffer as any).concat = (...args: any[]) => { concatCalls++; return (origConcat as any).apply(Buffer, args); };
+        try {
+            feedInChunks(client, whole, CHUNK);
+        } finally {
+            Buffer.concat = origConcat;
+        }
         // A large single output line fed across many chunks is assembled and decoded in linear time so a paste-driven redraw flood no longer blocks the event loop for tens of seconds.
-        expect(ms, 'A large single output line fed across many chunks is assembled and decoded in linear time so a paste-driven redraw flood no longer blocks the event loop for tens of seconds.').toBeLessThan(1500);
+        expect(concatCalls, 'A large single output line fed across many chunks is assembled and decoded in linear time so a paste-driven redraw flood no longer blocks the event loop for tens of seconds.').toBeLessThanOrEqual(2);
+        expect(chunks).toBeGreaterThan(100);
         expect(outputs.join('').length).toBe(SIZE);
     });
 

@@ -12,8 +12,10 @@ status: active
   the decoded result.
 - **INV-2 (linear time)**: Assembling a single large `%output` line that spans K chunks is O(total
   bytes), not O(total bytes^2). No per-chunk full-buffer recopy or full rescan.
-- **INV-3 (bounded memory)**: A single line that never terminates is flushed once it exceeds
-  `MAX_PENDING_LINE_BYTES`, so pending memory is bounded.
+- **INV-3 (no mid-line split)**: A partial `%output` line is never split/flushed mid-stream (that
+  would drop its tail, since continuation chunks lack the `%output ` prefix). Pending memory is
+  bounded by the line length — identical to the previous single-Buffer implementation; only the
+  per-chunk O(n) recopy was removed.
 
 ## Constraints
 

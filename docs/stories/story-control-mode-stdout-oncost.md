@@ -39,7 +39,8 @@ architecture_docs:
 ## Scope
 
 - `_handleStdout`: チャンクを**配列に蓄積**し、**新しいチャンクのみ改行スキャン**、改行が現れた時だけ
-  1回 concat して行に分割する（O(n)）。未終端行の暴走に備え `MAX_PENDING_LINE_BYTES`(64MB) で flush。
+  1回 concat して行に分割する（O(n)）。pending メモリは行長で有界（旧実装と同じ）＝部分行を途中で
+  flush/分割しない（分割すると continuation が `%output ` prefix を失い tail が落ちるため）。
 - `decodeTmuxEscapes`: 非エスケープ run を**一括 slice コピー**（char-by-char の `result += value[i]` を
   廃止）。端末出力の大半は ASCII 制御列なので大行で桁違いに速い。
 - out of scope（follow-up）: `flushOutputBatch` の per-flush `�` デバッグ全スキャン撤去（軽微）。

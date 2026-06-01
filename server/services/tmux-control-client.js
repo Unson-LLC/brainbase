@@ -3,9 +3,6 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
-// OOM guard: if a single tmux `%output` line never terminates within this many bytes, flush it
-// rather than accumulate unboundedly. Real TUI redraw lines are well under this.
-const MAX_PENDING_LINE_BYTES = 64 * 1024 * 1024;
 const CONTROL_KEY_ALLOWLIST = new Set([
     'Enter',
     'Tab',
@@ -380,10 +377,10 @@ export class TmuxControlClient extends EventEmitter {
         // control mode octal-escapes non-ASCII): a 20MB line took ~7.3s and a 50MB line ~102s,
         // blocking the event loop long enough to drop the WebSocket.
         if (chunk.indexOf(0x0A) === -1) {
-            // Bound memory if a single line never terminates (pathological); flush what we have.
-            if (this._stdoutChunksLen > MAX_PENDING_LINE_BYTES) {
-                this._handleLineBytes(this._takePendingBuffer());
-            }
+            // No complete line yet — keep buffering this chunk (O(1)) without recopying / rescanning
+            // the whole pending buffer. Pending memory is bounded by the line length, identical to
+            // the previous single-Buffer implementation; we only removed the per-chunk O(n) recopy
+            // (so a partial `%output` line is never split mid-stream, which would drop its tail).
             return;
         }
 

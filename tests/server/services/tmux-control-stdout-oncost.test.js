@@ -59,19 +59,25 @@ describe('TmuxControlClient._handleStdout buffering', () => {
         expect(outputs.join('')).toBe('あXい');
     });
 
-    it('PERF: 巨大な単一 %output 行(20MB)をチャンク投入しても O(n) で完了する', () => {
+    it('O(n): 巨大な単一 %output 行をチャンク投入しても Buffer.concat は行ごと1回だけ（O(n²)再コピーしない）', () => {
         const { client, outputs } = createClient();
         const SIZE = 20 * 1024 * 1024;
+        const CHUNK = 64 * 1024;
         // one giant %output line: prefix + 20MB of 'A' + terminating newline, fed in 64KB chunks
-        const prefix = Buffer.from('%output %1 ', 'utf-8');
-        const body = Buffer.alloc(SIZE, 0x41); // 'A'
-        const nl = Buffer.from('\n', 'utf-8');
-        const whole = Buffer.concat([prefix, body, nl]);
-        const t0 = performance.now();
-        feedInChunks(client, whole, 64 * 1024);
-        const ms = performance.now() - t0;
-        // O(n^2) current code takes ~7300ms for 20MB; the O(n) fix is single-digit ms.
-        expect(ms).toBeLessThan(1500);
-        expect(outputs.join('').length).toBe(SIZE);
+        const whole = Buffer.concat([Buffer.from('%output %1 ', 'utf-8'), Buffer.alloc(SIZE, 0x41), Buffer.from('\n', 'utf-8')]);
+        const chunks = Math.ceil(whole.length / CHUNK); // ~320 chunks
+
+        // Deterministic, instrumentation-independent O(n) proof: count Buffer.concat calls made
+        // WHILE feeding. The old O(n^2) code did Buffer.concat([wholeBuffer, chunk]) per chunk
+        // (~320 calls); the O(n) fix concatenates the pending chunks once, when the line completes.
+        const concatSpy = vi.spyOn(Buffer, 'concat');
+        const before = concatSpy.mock.calls.length;
+        feedInChunks(client, whole, CHUNK);
+        const concatCalls = concatSpy.mock.calls.length - before;
+        concatSpy.mockRestore();
+
+        expect(concatCalls).toBeLessThanOrEqual(2);   // O(n); O(n^2) would be ~one per chunk (~320)
+        expect(chunks).toBeGreaterThan(100);          // sanity: the line really spans many chunks
+        expect(outputs.join('').length).toBe(SIZE);   // and the full line is emitted intact
     });
 });
