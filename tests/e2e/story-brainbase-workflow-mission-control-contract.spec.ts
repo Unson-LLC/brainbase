@@ -274,6 +274,41 @@ test('story-brainbase-workflow-mission-control /workflows preserves shell return
   await expect(page.getByText('ログインが必要です。')).not.toBeVisible();
 });
 
+test('story-brainbase-workflow-mission-control opens inside Brainbase shell without route navigation', async ({ page }) => {
+  await page.route('**/api/workflows', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ workflows: [] })
+    });
+  });
+  await page.route('**/api/config/projects', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ projects: [] })
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('#ab-workflows-btn').click();
+
+  await expect(page.locator('#activity-bar')).toBeVisible();
+  await expect(page.locator('#sidebar')).toBeVisible();
+  await expect(page.locator('#workflows-overlay.open')).toBeVisible();
+  await expect(page.locator('#terminal-stage')).toHaveCSS('display', 'none');
+  await expect(page.locator('#ab-workflows-btn')).toHaveClass(/active/);
+  await expect(page).toHaveURL(/\/$/);
+
+  const frame = page.frameLocator('#workflows-overlay-frame');
+  await expect(frame.getByRole('heading', { name: 'Workflow Mission Control' })).toBeVisible();
+  await expect(frame.getByRole('link', { name: 'Brainbase terminalへ戻る' })).toHaveCount(0);
+
+  await page.locator('#workflows-back-terminal').click();
+  await expect(page.locator('#workflows-overlay.open')).toHaveCount(0);
+  await expect(page.locator('#terminal-stage')).not.toHaveCSS('display', 'none');
+});
+
 test('story-brainbase-workflow-mission-control /workflows surfaces auth and API errors visibly', async ({ page }) => {
   await page.route('**/api/workflows', async (route) => {
     await route.fulfill({

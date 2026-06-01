@@ -271,6 +271,26 @@
             .content { padding: 22px; }
             .row, .row-button { grid-template-columns: 1fr; }
         }
+        body.embedded {
+            min-height: 100vh;
+        }
+        body.embedded .shell {
+            display: block;
+            min-height: 100vh;
+            padding: 0;
+        }
+        body.embedded .assistant,
+        body.embedded .terminal-return-link {
+            display: none;
+        }
+        body.embedded .surface {
+            min-height: 100vh;
+            border: 0;
+            border-radius: 0;
+        }
+        body.embedded .content {
+            padding: 24px;
+        }
     </style>
 </head>
 <body>
@@ -293,7 +313,7 @@
             <nav class="topbar" aria-label="Workflow navigation">
                 <div class="crumbs" id="breadcrumbs"></div>
                 <div class="toolbar">
-                    <a class="btn soft" href="/" aria-label="Brainbase terminalへ戻る">Terminalへ戻る</a>
+                    <a class="btn soft terminal-return-link" href="/" aria-label="Brainbase terminalへ戻る">Terminalへ戻る</a>
                     <select id="project-filter" aria-label="Project filter"><option value="">All projects</option></select>
                     <button id="refresh-btn" type="button">Refresh</button>
                 </div>
@@ -308,6 +328,9 @@
     </div>
 
     <script type="module">
+        const embeddedMode = new URLSearchParams(window.location.search).get('embedded') === '1';
+        if (embeddedMode) document.body.classList.add('embedded');
+
         const state = {
             projects: [],
             workflows: [],

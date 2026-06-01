@@ -58,9 +58,9 @@
                 <button class="activity-bar-item" id="ab-livefeed-btn" title="Live Feed">
                     <i data-lucide="radio"></i>
                 </button>
-                <a class="activity-bar-item" id="ab-workflows-link" href="/workflows" title="Workflows">
+                <button class="activity-bar-item" id="ab-workflows-btn" title="Workflows" type="button">
                     <i data-lucide="workflow"></i>
-                </a>
+                </button>
                 <button class="activity-bar-item" id="ab-portal-btn" title="Portal (Ctrl+Shift+P)">
                     <i data-lucide="compass"></i>
                 </button>
@@ -437,6 +437,26 @@
                             </div>
                         </div>
                         <div id="sns-growth-overlay-panel" class="sns-growth-embedded"></div>
+                    </div>
+
+                    <!-- Workflows Panel (keeps Brainbase shell and terminal runtime mounted) -->
+                    <div class="workflows-overlay" id="workflows-overlay">
+                        <div class="workflows-overlay-header">
+                            <button id="workflows-back-terminal" class="portal-terminal-back" type="button">
+                                <i data-lucide="arrow-left"></i>
+                                <span>Back to Terminal</span>
+                            </button>
+                            <div class="workflows-overlay-title">
+                                <i data-lucide="workflow"></i>
+                                <span>Workflow Mission Control</span>
+                            </div>
+                            <div class="workflows-overlay-actions">
+                                <a class="icon-btn workflows-open-full" href="/workflows" title="別ページで開く" aria-label="Workflowsを別ページで開く">
+                                    <i data-lucide="external-link"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <iframe id="workflows-overlay-frame" class="workflows-overlay-frame" title="Workflow Mission Control"></iframe>
                     </div>
 	            </div>
 
