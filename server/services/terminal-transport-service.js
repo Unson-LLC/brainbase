@@ -356,6 +356,52 @@ export class TerminalTransportService {
                     this.ownershipService.touchTerminalOwnership(connection.sessionId, connection.viewerId, connection.viewerLabel);
                 }
             };
+            // Backpressure / flood protection. A long paste makes the interactive TUI emit a huge
+            // redraw flood; forwarding all of it grows the WS in-flight buffer unbounded and blocks
+            // the event loop (observed: ~80s CPU peg, WS keepalive missed -> disconnect, ~250MB RSS
+            // churn, server restart). Terminal bytes can't be partially dropped without corrupting
+            // state, so when the client falls behind we DISCARD the backed-up intermediate stream
+            // and resync the client to the CURRENT screen with a fresh snapshot once it drains.
+            const OUTPUT_HIGH_WATER_BYTES = 4 * 1024 * 1024; // client too far behind
+            const OUTPUT_LOW_WATER_BYTES = 256 * 1024;       // considered drained
+            const OUTPUT_BATCH_MAX_CHARS = 1 * 1024 * 1024;  // never build one giant batch string
+            const RESYNC_IDLE_MS = 80;                       // flood considered paused
+            let streamBehind = false;
+            let lastOutputAt = 0;
+            let resyncTimer = null;
+            const bufferedAmount = () => Number(connection.ws.bufferedAmount) || 0;
+            const scheduleResync = () => {
+                if (resyncTimer !== null) return;
+                resyncTimer = setTimeout(() => { void runResync(); }, 60);
+            };
+            const runResync = async () => {
+                resyncTimer = null;
+                if (connection.closed || connection.ws.readyState !== 1) { streamBehind = false; return; }
+                // Wait until the socket has drained AND the flood has paused before resyncing,
+                // so we don't snapshot mid-burst and immediately fall behind again.
+                if (bufferedAmount() > OUTPUT_LOW_WATER_BYTES || Date.now() - lastOutputAt < RESYNC_IDLE_MS) {
+                    scheduleResync();
+                    return;
+                }
+                try {
+                    this.captureCache.invalidate(connection.sessionId);
+                    const snap = await this._getSnapshotPayload(connection.sessionId, {
+                        lines: HISTORY_SNAPSHOT_LINES,
+                        includeColors: true,
+                        visibleOnly: false
+                    });
+                    if (!connection.closed && connection.ws.readyState === 1) {
+                        const msg = { type: 'snapshot', text: snap.text, capturedAt: snap.capturedAt, screenOnly: false };
+                        if (snap.colorText) msg.colorText = snap.colorText;
+                        if (snap.cursor) msg.cursor = snap.cursor;
+                        connection.ws.send(JSON.stringify(msg));
+                    }
+                } catch (err) {
+                    logger.warn(`[TerminalTransport] resync snapshot failed for ${connection.sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+                }
+                streamBehind = false;
+            };
+
             const flushOutputBatch = () => {
                 outputBatchTimer = null;
                 if (!outputBatch || connection.closed || connection.ws.readyState !== 1) {
@@ -364,19 +410,33 @@ export class TerminalTransportService {
                 }
                 const flushed = outputBatch;
                 outputBatch = '';
-                // DEBUG: detect FFFD in streaming output
-                if (flushed.includes('\uFFFD')) {
-                    logger.warn(`[TerminalTransport] FFFD detected in streaming output for ${connection.sessionId}: len=${flushed.length}, fffd_count=${(flushed.match(/\uFFFD/g) || []).length}, snippet=${JSON.stringify(flushed.slice(0, 200))}`);
-                }
                 connection.ws.send(JSON.stringify({ type: 'output', data: flushed }));
+                // After sending, if the socket is now backlogged the client can't keep up:
+                // enter "behind" mode, stop streaming, and resync via snapshot when it drains.
+                if (bufferedAmount() > OUTPUT_HIGH_WATER_BYTES) {
+                    streamBehind = true;
+                    outputBatch = '';
+                    scheduleResync();
+                }
             };
             const handleOutput = (data) => {
                 if (connection.closed || connection.ws.readyState !== 1 || !data) return;
                 touchOwnershipThrottled();
+                lastOutputAt = Date.now();
+                // While behind, drop incoming bytes — the pending resync snapshot carries the
+                // current screen. Bounds memory and keeps the event loop responsive under a flood.
+                if (streamBehind) {
+                    scheduleResync();
+                    return;
+                }
                 // Do not treat arbitrary control-mode output as a complete initial frame.
                 // Some sessions emit only control/partial output on attach; cancelling the
                 // fallback there leaves xterm blank even though tmux capture has content.
                 outputBatch += data;
+                if (outputBatch.length >= OUTPUT_BATCH_MAX_CHARS) {
+                    flushOutputBatch();
+                    return;
+                }
                 if (outputBatchTimer === null) {
                     outputBatchTimer = setTimeout(flushOutputBatch, 8);
                 }
@@ -394,7 +454,12 @@ export class TerminalTransportService {
                     clearTimeout(outputBatchTimer);
                     outputBatchTimer = null;
                 }
+                if (resyncTimer !== null) {
+                    clearTimeout(resyncTimer);
+                    resyncTimer = null;
+                }
                 outputBatch = '';
+                streamBehind = false;
                 client.off('output', handleOutput);
                 client.off('error', handleFailure);
                 client.off('exit', handleFailure);
