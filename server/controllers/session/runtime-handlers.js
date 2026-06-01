@@ -572,6 +572,7 @@ export function installRuntimeHandlers(controller) {
     };
 
     controller.ensureTerminalRuntime = async (req, res) => {
+        const ensureStartedAt = Date.now();
         const { id } = req.params;
         const { initialCommand, cwd, engine, viewerId, forceTtyd } = req.body || {};
         const session = controller._findSessionOrFail(id, res);
@@ -608,6 +609,7 @@ export function installRuntimeHandlers(controller) {
                 && terminalAccess?.state !== 'blocked'
                 && isInteractiveRuntimeReady(runtimeStatus, observedRuntime)
             ) {
+                logger.info(`[terminal-ensure-timing] session=${id} fastPath=true totalMs=${Date.now() - ensureStartedAt}`);
                 return res.json({
                     sessionId: id,
                     runtimeStatus: controller._withViewerRuntimeStatus(runtimeStatus, trimmedViewerId),
@@ -616,7 +618,9 @@ export function installRuntimeHandlers(controller) {
                 });
             }
 
+            const resolveCwdStartedAt = Date.now();
             const resolvedCwd = await controller._resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
+            const resolveCwdMs = Date.now() - resolveCwdStartedAt;
             const runtimeOptions = {
                 sessionId: id,
                 cwd: typeof resolvedCwd === 'string' && resolvedCwd.trim()
@@ -631,14 +635,17 @@ export function installRuntimeHandlers(controller) {
             }
             let ttydResult = null;
 
+            const runtimeStartStartedAt = Date.now();
+            let runtimeStartResult = null;
             if (forceTtyd) {
                 ttydResult = await controller.runtimeLifecycle.startTtyd({
                     ...runtimeOptions,
                     forceTtyd: true
                 });
             } else {
-                await controller.runtimeLifecycle.ensureSessionRuntime(runtimeOptions);
+                runtimeStartResult = await controller.runtimeLifecycle.ensureSessionRuntime(runtimeOptions);
             }
+            const runtimeStartMs = Date.now() - runtimeStartStartedAt;
 
             if (session.intendedState !== 'active') {
                 await controller._updateStateWithRetry((currentState) => {
@@ -674,6 +681,7 @@ export function installRuntimeHandlers(controller) {
                 response.port = ttydResult.port;
                 response.proxyPath = controller._appendViewerIdToProxyPath(ttydResult.proxyPath, trimmedViewerId);
             }
+            logger.info(`[terminal-ensure-timing] session=${id} fastPath=false totalMs=${Date.now() - ensureStartedAt} resolveCwdMs=${resolveCwdMs} runtimeStartMs=${runtimeStartMs} forceTtyd=${Boolean(forceTtyd)} tmuxAlreadyRunning=${runtimeStartResult?.startedExisting === true}`);
             res.json(response);
         } catch (error) {
             console.error('Failed to ensure terminal runtime:', error);
