@@ -26,6 +26,13 @@ import { LearningHealthService } from '../services/learning-health-service.js';
 import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
+import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
+import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
+import {
+    WorkflowService,
+    createBrainbaseAliveWorkflow,
+    createDefaultWorkflowHandlers
+} from '../services/workflow/workflow-service.js';
 
 export function createCoreServices({
     tasksFile,
@@ -66,6 +73,19 @@ export function createCoreServices({
     });
     const learningHealthService = new LearningHealthService({
         stateDir: path.join(varDir, 'learning')
+    });
+    const workflowRepository = new JsonFileWorkflowRepository({
+        filePath: path.join(varDir, 'workflow-ledger.json'),
+        seedWorkflows: [createBrainbaseAliveWorkflow()]
+    });
+    const workflowRunner = new WorkflowRunner({
+        repository: workflowRepository,
+        handlers: createDefaultWorkflowHandlers()
+    });
+    const workflowService = new WorkflowService({
+        repository: workflowRepository,
+        runner: workflowRunner,
+        configParser
     });
 
     // candidate-store: cross-repo source からの Raw Ledger envelope 受信用。
@@ -186,6 +206,7 @@ export function createCoreServices({
         sessionActivityWsService,
         conversationLinker,
         tokenUsageService,
+        workflowService,
         uploadMiddleware: upload.single('file')
     };
 }

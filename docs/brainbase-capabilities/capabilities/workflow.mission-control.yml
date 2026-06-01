@@ -1,0 +1,66 @@
+id: workflow.mission-control
+name: Workflow Mission Control
+purpose: Track AI and human workflow execution as operational runs with project ownership, context snapshots, action-required state, human approval, outputs, and audit evidence.
+surfaces:
+  ui:
+    - /workflows
+    - Workflow Mission Control
+  api:
+    - GET /api/workflows
+    - POST /api/workflows
+    - GET /api/workflows/:workflowId
+    - PATCH /api/workflows/:workflowId
+    - POST /api/workflows/:workflowId/run
+    - GET /api/workflow-runs/:runId
+    - POST /api/workflow-runs/:runId/rerun
+    - POST /api/workflow-runs/:runId/human-steps/:stepId/resolve
+    - POST /api/workflow-human-steps/:stepId/resolve
+  code:
+    - server/services/workflow/workflow-service.js
+    - server/services/workflow/workflow-runner.js
+    - server/services/workflow/workflow-repository.js
+    - server/routes/workflows.js
+    - public/workflows.html
+  data:
+    - var/workflow-ledger.json
+    - workflows
+    - workflow_runs
+    - workflow_context_sources
+    - workflow_human_steps
+    - workflow_outputs
+    - workflow_audit_logs
+depends_on:
+  - auth.grants
+  - project.selector
+  - project.catalog
+  - verification.testing
+visibility_rules:
+  - Workflow project_id uses the same Project concept as session creation.
+  - Protected workflow APIs require explicit project grant, admin or CEO role, or internal API actor.
+  - Empty projectCodes is not unrestricted for workflow APIs.
+  - Created workflows use the authenticated actor as owner, assignee, and approver unless later role management is added.
+  - Human steps can be resolved by the assigned approver, admin, CEO, or internal API actor.
+  - Rejected or cancelled human steps do not resume the workflow handler.
+  - /workflows prioritizes human waiting, action required, failed, and needs_action runs before healthy runs.
+  - Scheduler connectors such as launchd and Lightsail systemd are future explicit connectors; MVP does not use in-process cron as canonical workflow scheduling.
+verification:
+  commands:
+    - npm run test:run -- tests/server/services/workflow-runner.test.js tests/server/routes/workflows.test.js
+    - npm run test:e2e -- tests/e2e/story-brainbase-workflow-mission-control-contract.spec.ts --project=chromium
+    - vibepro spec drift . --id story-brainbase-workflow-mission-control --json
+  expected:
+    - Workflow runner and route tests pass.
+    - /workflows renders project, owner, latest state, planned context, and resolved context.
+    - Real API-to-UI path shows latest resolved context.
+    - Empty project grants cannot access protected workflow APIs.
+    - Human approval resume and rejection paths are audited and behave distinctly.
+    - VibePro spec drift is clean.
+common_failures:
+  - Workflow does not appear because auth_grants project_codes lacks the workflow project.
+  - A workflow run stays needs_action because a required context source has no source_ref.
+  - Human approval cannot be resolved because the actor is not the assigned approver.
+  - /workflows appears stale because the local server is running a different source directory.
+  - Scheduler behavior is assumed to exist before the explicit launchd/systemd connector story is implemented.
+runbooks:
+  - ../runbooks/verify-testing-scope.md
+troubleshooting: []
