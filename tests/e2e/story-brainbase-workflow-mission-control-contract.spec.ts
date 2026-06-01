@@ -38,29 +38,45 @@ function makeService(extraHandlers = {}) {
   };
 }
 
-test('story-brainbase-workflow-mission-control ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 foundation contract', async () => {
+test('story-brainbase-workflow-mission-control ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 foundation contract', async () => {
   const story = await import('node:fs').then((fs) => fs.readFileSync('docs/stories/story-brainbase-workflow-mission-control.md', 'utf8'));
   const spec = await import('node:fs').then((fs) => fs.readFileSync('docs/specs/story-brainbase-workflow-mission-control-spec.md', 'utf8'));
   const architecture = await import('node:fs').then((fs) => fs.readFileSync('docs/architecture/brainbase-workflow-mission-control-architecture.md', 'utf8'));
+  const design = await import('node:fs').then((fs) => fs.readFileSync('docs/design/brainbase-workflow-project-first-ux.md', 'utf8'));
 
   // story-brainbase-workflow-mission-control ac:1 path: docs/architecture/brainbase-workflow-mission-control-architecture.md
   expect(story).toContain('path: docs/architecture/brainbase-workflow-mission-control-architecture.md');
   expect(story).toContain('Workflow Mission Control の全体 Story / Architecture / Spec が存在する');
-  // story-brainbase-workflow-mission-control ac:2 path: docs/specs/story-brainbase-workflow-mission-control-spec.md
+  // story-brainbase-workflow-mission-control ac:2 path: docs/architecture/ADR-015-workflow-mission-control-project-first-ui.md
+  expect(story).toContain('path: docs/architecture/ADR-015-workflow-mission-control-project-first-ui.md');
+  expect(architecture).toContain('Project Detail');
+  // story-brainbase-workflow-mission-control ac:3 path: docs/specs/story-brainbase-workflow-mission-control-spec.md
   expect(story).toContain('path: docs/specs/story-brainbase-workflow-mission-control-spec.md');
   expect(story).toContain('Workflow は `workspace_id` と `project_id` を必須にする');
-  // story-brainbase-workflow-mission-control ac:3 story-workflow-mission-control-foundation
+  // story-brainbase-workflow-mission-control ac:4 story-workflow-mission-control-foundation
   expect(story).toContain('story-workflow-mission-control-foundation');
+  expect(story).toContain('path: docs/design/brainbase-workflow-project-first-ux.md');
+  expect(story).toContain('Project-first UX の design doc が存在し、Workspace / Project / Workflow / Run detail の画面責務が明記されている');
+  expect(design).toContain('Workspace Home');
+  expect(design).toContain('Project Detail');
+  expect(design).toContain('Workflow Detail');
+  expect(design).toContain('Run Detail / Trace');
+  expect(spec).toContain('UI-001: Workspace home project cards');
+  expect(spec).toContain('UI-002: Project detail owns workflow browsing and creation');
+  expect(spec).toContain('UI-003: Global `/workflows` is an operational inbox');
+  expect(spec).toContain('UI-006: Run detail / trace');
+  expect(spec).toContain('UI-007: Context binding visibility');
   expect(spec).toContain('Workflow の `project_id` は、Brainbase の Session 作成時に選択する既存 Project と同じ概念を使う');
   expect(spec).toContain('空の `projectCodes` を unrestricted として扱わない');
   expect(spec).toContain('空 grant unrestricted は UI selector logic に限定する');
-  // story-brainbase-workflow-mission-control ac:4 story-workflow-project-context-binding
+  // story-brainbase-workflow-mission-control ac:5 story-workflow-project-context-binding
   expect(story).toContain('story-workflow-project-context-binding');
   expect(spec).toContain('owner_id');
-  // story-brainbase-workflow-mission-control ac:5 story-workflow-run-ledger-core-runner
+  // story-brainbase-workflow-mission-control ac:6 story-workflow-run-ledger-core-runner
   expect(story).toContain('story-workflow-run-ledger-core-runner');
+  // story-brainbase-workflow-mission-control ac:7 Workflow は context_sources を持ち、UI で何の context を使うか見える方針が明記されている。
   expect(spec).toContain('context_sources');
-  // story-brainbase-workflow-mission-control ac:6 story-workflow-dashboard-v0
+  // story-brainbase-workflow-mission-control ac:8 story-workflow-dashboard-v0
   expect(story).toContain('story-workflow-dashboard-v0');
   expect(architecture).toContain('workflow_run_context_snapshots');
   expect(spec).toContain('scheduler connector を実装必須にしない');
@@ -222,10 +238,14 @@ test('story-brainbase-workflow-mission-control /workflows Mission Control surfac
 
   await page.goto('/workflows');
 
+  // story-brainbase-workflow-mission-control ac:3 ac:7 Project-first UX and context visibility
   await expect(page.getByRole('heading', { name: 'Workflow Mission Control' })).toBeVisible();
-  await expect(page.getByText('Approval Workflow')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Workspace/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'プロジェクト' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operational Inbox' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Approval Workflow Project: sample-project/ })).toBeVisible();
   await expect(page.getByText('Project: sample-project / Owner: sato')).toBeVisible();
-  await expect(page.getByText('Action: approve')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Action: approve/ })).toBeVisible();
   await expect(page.getByText('Human waiting: yes')).toBeVisible();
   await expect(page.getByText('Planned context')).toBeVisible();
   await expect(page.getByText('project:sample-project').first()).toBeVisible();
@@ -289,9 +309,134 @@ test('story-brainbase-workflow-mission-control /workflows project filter keeps a
 
   await page.goto('/workflows');
   await page.getByLabel('Project filter').selectOption('sample-project');
-  await expect(page.getByText('Approval Workflow')).toBeVisible();
-  await expect(page.getByText('Action: approve')).toBeVisible();
+  // story-brainbase-workflow-mission-control ac:3 ac:7 Project Detail keeps workflow browsing and context in one view.
+  await expect(page.getByRole('heading', { name: 'sample-project' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ワークフロー', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ドキュメント / Context' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Approval Workflow Project: sample-project/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Action: approve/ })).toBeVisible();
   await expect(page.getByText('Other Workflow')).not.toBeVisible();
+});
+
+test('story-brainbase-workflow-mission-control /workflows covers detail and action network failures', async ({ page }) => {
+  let workflowDetailFails = true;
+  let runDetailFails = true;
+  await page.route('**/api/config/projects', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ projects: [{ id: 'sample-project', session_select: true }] })
+    });
+  });
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (url.pathname === '/api/workflows' && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          workflows: [{
+            id: 'approval-workflow',
+            name: 'Approval Workflow',
+            project_id: 'sample-project',
+            owner_id: 'sato',
+            context_sources: [{ source_type: 'project', source_ref: 'sample-project' }],
+            latest_run: { id: 'run-1', status: 'waiting_human', action_required: 'approve', human_waiting: true },
+            latest_context_snapshots: [{ source_type: 'project', source_ref: 'sample-project', status: 'resolved' }]
+          }]
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/workflows' && method === 'POST') {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'create failed' }) });
+      return;
+    }
+    if (url.pathname === '/api/workflows/approval-workflow' && method === 'GET') {
+      if (workflowDetailFails) {
+        workflowDetailFails = false;
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'detail failed' }) });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          workflow: {
+            id: 'approval-workflow',
+            name: 'Approval Workflow',
+            project_id: 'sample-project',
+            owner_id: 'sato',
+            risk_level: 'low',
+            hitl_policy: 'approval',
+            implementation_key: 'manual-placeholder'
+          },
+          context_sources: [{ source_type: 'project', source_ref: 'sample-project', required: true, permission: 'read' }],
+          runs: [{ id: 'run-1', status: 'waiting_human', started_at: '2026-06-01T09:00:00.000Z', action_required: 'approve' }]
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/workflows/approval-workflow/run' && method === 'POST') {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'run failed' }) });
+      return;
+    }
+    if (url.pathname === '/api/workflow-runs/run-1' && method === 'GET') {
+      if (runDetailFails) {
+        runDetailFails = false;
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'run detail failed' }) });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          run: { id: 'run-1', workflow_id: 'approval-workflow', project_id: 'sample-project', status: 'waiting_human', trigger_type: 'manual', env: 'local' },
+          run_steps: [{ id: 'step-1', step_name: 'human approval', status: 'waiting_human', message: 'Approve external publish' }],
+          context_snapshots: [{ source_type: 'project', source_ref: 'sample-project', status: 'resolved', preview: 'project:sample-project' }],
+          human_steps: [{ id: 'human-1', step_type: 'approval', status: 'pending', prompt: 'Approve external publish' }],
+          outputs: [],
+          audit_logs: []
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/workflow-runs/run-1/rerun' && method === 'POST') {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'rerun failed' }) });
+      return;
+    }
+    if (url.pathname === '/api/workflow-runs/run-1/human-steps/human-1/resolve' && method === 'POST') {
+      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'forbidden' }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not mocked' }) });
+  });
+
+  await page.goto('/workflows');
+  await page.getByLabel('Project filter').selectOption('sample-project');
+  await page.getByLabel('Name').fill('Failure Path');
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText('保存できません: HTTP 500')).toBeVisible();
+
+  await page.getByRole('button', { name: /Approval Workflow Project: sample-project/ }).click();
+  await expect(page.getByText('Workflow を読み込めません: HTTP 500')).toBeVisible();
+
+  await page.getByRole('button', { name: 'approval-workflow' }).click();
+  await expect(page.getByRole('heading', { name: 'Approval Workflow' })).toBeVisible();
+  await page.getByRole('button', { name: '▷ 実行' }).click();
+  await expect(page.getByText('実行できません: HTTP 500')).toBeVisible();
+
+  await page.getByText('run-1').click();
+  await expect(page.getByText('Run を読み込めません: HTTP 500')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Approval Workflow' }).click();
+  await page.getByText('run-1').click();
+  await expect(page.getByRole('heading', { name: 'Run Trace' })).toBeVisible();
+  await page.getByRole('button', { name: '↻ Rerun' }).click();
+  await expect(page.getByText('再実行できません: HTTP 500')).toBeVisible();
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByText('人間判断を処理できません: HTTP 403')).toBeVisible();
 });
 
 test('story-brainbase-workflow-mission-control /workflows real API path surfaces latest resolved context', async ({ page, request }) => {

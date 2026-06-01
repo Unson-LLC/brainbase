@@ -165,6 +165,44 @@ Project 詳細からは、その Project に紐づく Sessions と Workflows が
 
 MVPでは `/workflows` に独立した Mission Control surface を置き、最低限 `project_id`、`owner_id`、latest run、`action_required`、human waiting、context sources を表示する。
 
+### UI-001: Workspace home project cards
+
+Workspace home は Project cards を表示する。
+
+Each Project card shows project name, document/context count, workflow count, latest operational state summary when available, and overflow menu.
+
+### UI-002: Project detail owns workflow browsing and creation
+
+Project detail は、その Project に紐づく Workflows と Documents を同じ文脈で表示する。
+
+Project detail の Add Workflow は、その Project の `project_id` を初期値として workflow draft を作る。
+
+### UI-003: Global `/workflows` is an operational inbox
+
+`/workflows` は workflow creation の主入口ではなく、cross-project operational inbox とする。
+
+Ordering priority is human waiting, action required, failed / needs action, running, stale, recently successful, then healthy scheduled.
+
+### UI-004: Workflow detail before full canvas
+
+Workflow detail は full canvas editor より先に実装されるべき画面である。
+
+### UI-005: Workflow canvas is future editor surface
+
+Canvas / node graph は望ましい方向性だが、MVPの最初の必須実装ではない。
+
+### UI-006: Run detail / trace
+
+Run detail は実行ログを作業証跡として表示する。
+
+### UI-007: Context binding visibility
+
+UI は Project に document が存在する状態と、workflow context source に bind されている状態を区別する。
+
+Before run: planned context sources, required / optional, source type, source ref, permission, and missing state.
+
+After run: resolved context snapshot, source version or hash when available, item count, preview, and permission used.
+
 ## 7. Out Of Scope
 
 - 複数段階承認。

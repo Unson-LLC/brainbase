@@ -682,6 +682,36 @@ credential の扱い:
 - context snapshot に raw secret を保存しない。
 - user credential / workspace credential / workflow binding の区別を後続Specで固定する。
 
+## 16A. UX Surface Architecture
+
+Workflow Mission Control の UI は Project-first にする。
+
+```text
+Workspace Home
+  -> Project cards
+  -> Operational Inbox
+
+Project Detail
+  -> Workflows
+  -> Documents / Context
+  -> Project-fixed workflow creation
+
+Workflow Detail
+  -> Builder / Canvas preview
+  -> Context sources
+  -> Runs / Trace
+
+Run Detail
+  -> Step timeline
+  -> Resolved context
+  -> Outputs
+  -> Human / Audit
+```
+
+`/workflows` は cross-project operational inbox と Project browsing の入口を兼ねる。ただし workflow 作成の自然な文脈は Project Detail であり、作成時の `project_id` は選択中 Project に固定する。
+
+Run Detail は audit / resolved context / human decision の evidence surface である。Human step の approve / reject は run-scoped API に接続し、未追跡の modal state に閉じ込めない。
+
 ## 17. MVP Implementation Order
 
 Architecture後の実装順序は次の通り。

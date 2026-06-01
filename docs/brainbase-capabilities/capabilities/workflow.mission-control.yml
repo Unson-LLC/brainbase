@@ -21,6 +21,7 @@ surfaces:
     - server/services/workflow/workflow-repository.js
     - server/routes/workflows.js
     - public/workflows.html
+    - public/index.html
   data:
     - var/workflow-ledger.json
     - workflows
@@ -60,6 +61,7 @@ common_failures:
   - A workflow run stays needs_action because a required context source has no source_ref.
   - Human approval cannot be resolved because the actor is not the assigned approver.
   - /workflows appears stale because the local server is running a different source directory.
+  - Activity bar does not show Workflows because public/index.html lacks ab-workflows-link.
   - Scheduler behavior is assumed to exist before the explicit launchd/systemd connector story is implemented.
 runbooks:
   - ../runbooks/verify-testing-scope.md

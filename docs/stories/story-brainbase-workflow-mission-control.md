@@ -7,8 +7,13 @@ source_requirement:
 architecture_docs:
   - path: docs/architecture/brainbase-workflow-mission-control-architecture.md
     status: proposed
+  - path: docs/architecture/ADR-015-workflow-mission-control-project-first-ui.md
+    status: accepted
 spec_docs:
   - path: docs/specs/story-brainbase-workflow-mission-control-spec.md
+    status: proposed
+design_docs:
+  - path: docs/design/brainbase-workflow-project-first-ux.md
     status: proposed
 related_stories:
   - story-workflow-mission-control-foundation
@@ -69,6 +74,22 @@ Workspace
 
 既存の Claude/Codex/ChatGPT/cron/local CLI は runner になり得る。しかし Brainbase の価値は runner を増やすことではなく、どの runner が動いても `runWorkflow()` を通して同じ ledger、同じ dashboard、同じ audit に戻すことにある。
 
+## UI/UX 方針
+
+Workflow は global list からだけ扱うものではない。添付UIイメージの方向性に合わせ、Brainbase の workflow 体験は Project-first にする。
+
+```text
+Workspace
+  -> Project
+    -> Workflow
+      -> Builder / Canvas
+      -> Runs / Trace
+```
+
+Workspace では Project が並び、Project detail では Documents と Workflows が同じ文脈で見える。Workflow detail では context sources、latest run、human step、outputs、audit が見え、将来的には canvas / node graph で処理の流れを編集できる。
+
+`/workflows` は cross-project の Mission Control として残す。役割は workflow 作成の主入口ではなく、human waiting、action required、failed、stale、recently active を横断的に見る operational inbox である。
+
 ## スコープ
 
 - Workflow を workspace と project に所属させる。
@@ -83,6 +104,7 @@ Workspace
 ## 受け入れ条件
 
 - [ ] Workflow Mission Control の全体 Story / Architecture / Spec が存在する。
+- [ ] Project-first UX の design doc が存在し、Workspace / Project / Workflow / Run detail の画面責務が明記されている。
 - [ ] Workflow は `workspace_id` と `project_id` を必須にする方針が明記されている。
 - [ ] `project_id` は Session 作成時の既存 Project と同じ概念を使う方針が明記されている。
 - [ ] Workflow の protected API は、Session selector と同じ Project identity / alias を使うが、空の `projectCodes` を unrestricted として扱わない方針が明記されている。
@@ -93,6 +115,7 @@ Workspace
 - [ ] Human-in-the-loop は policy/gate/step として扱う方針が明記されている。
 - [ ] local / cloud / hybrid runner は二重実装せず、共通 runner entrypoint に接続する方針が明記されている。
 - [ ] 最初の MVP は `brainbase-alive` と `/ohayo` run ledger の順に進める方針が明記されている。
+- [ ] `/workflows` は global operational inbox、Project detail は workflow browsing / creation の自然な入口として分離されている。
 
 ## Workflow State Scenarios
 
