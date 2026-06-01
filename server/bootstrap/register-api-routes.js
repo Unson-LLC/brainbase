@@ -18,6 +18,11 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
+import {
+    createWorkflowHumanStepRouter,
+    createWorkflowRouter,
+    createWorkflowRunRouter
+} from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
 import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
@@ -100,6 +105,7 @@ export function registerApiRoutes(app, {
     candidateRepository,
     wikiService,
     tokenUsageService,
+    workflowService,
     uploadMiddleware,
     appVersion,
     workspaceRoot,
@@ -173,6 +179,10 @@ export function registerApiRoutes(app, {
     }));
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
+    const workflowAuthGuard = requireAuth(authService);
+    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService));
+    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
+    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
     app.use('/api', createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo, {
         brainbaseRoot,

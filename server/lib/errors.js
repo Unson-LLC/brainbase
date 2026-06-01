@@ -139,6 +139,14 @@ export class AppError extends Error {
     }
 
     /**
+     * @param {string} [message]
+     * @param {UnknownRecord} [details]
+     */
+    static forbidden(message = 'Forbidden', details) {
+        return new AppError(message, ErrorCodes.FORBIDDEN, { details });
+    }
+
+    /**
      * @param {string} message
      * @param {UnknownRecord} [details]
      */
