@@ -128,14 +128,21 @@ describe('CodexAppServerAdapter', () => {
         proc.stdout.write(`${JSON.stringify({ id: 1, result: {} })}\n`);
         await started;
 
-        const thread = adapter.startThread({ model: 'gpt-5.4', cwd: '/repo' });
+        const thread = adapter.startThread({
+            model: 'gpt-5.4',
+            cwd: '/repo',
+            approvalPolicy: 'on-request',
+            sandboxPolicy: 'workspace-write'
+        });
         await flush();
         expect(writes[2]).toEqual({
             method: 'thread/start',
             id: 2,
             params: {
                 model: 'gpt-5.4',
-                cwd: '/repo'
+                cwd: '/repo',
+                approvalPolicy: 'on-request',
+                sandboxPolicy: 'workspace-write'
             }
         });
         proc.stdout.write(`${JSON.stringify({ id: 2, result: { thread: { id: 'thr_1' } } })}\n`);

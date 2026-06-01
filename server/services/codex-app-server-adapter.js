@@ -133,15 +133,17 @@ export class CodexAppServerAdapter extends EventEmitter {
         this._writeMessage({ method, params });
     }
 
-    startThread({ model, cwd, metadata } = {}) {
+    startThread({ model, cwd, metadata, approvalPolicy, sandboxPolicy } = {}) {
         const params = {};
         if (model) params.model = model;
         if (cwd) params.cwd = cwd;
         if (metadata) params.metadata = metadata;
+        if (approvalPolicy) params.approvalPolicy = approvalPolicy;
+        if (sandboxPolicy) params.sandboxPolicy = sandboxPolicy;
         return this.request('thread/start', params);
     }
 
-    startTurn({ threadId, input, model, cwd } = {}) {
+    startTurn({ threadId, input, model, cwd, approvalPolicy, sandboxPolicy } = {}) {
         if (!threadId) {
             return Promise.reject(new Error('threadId is required'));
         }
@@ -152,6 +154,8 @@ export class CodexAppServerAdapter extends EventEmitter {
         params.input = input;
         if (model) params.model = model;
         if (cwd) params.cwd = cwd;
+        if (approvalPolicy) params.approvalPolicy = approvalPolicy;
+        if (sandboxPolicy) params.sandboxPolicy = sandboxPolicy;
         return this.request('turn/start', params);
     }
 

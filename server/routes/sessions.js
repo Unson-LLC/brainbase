@@ -4,6 +4,7 @@
  */
 import express from 'express';
 import { SessionController } from '../controllers/session-controller.js';
+import { CodexAppServerTranscriptService } from '../services/codex-app-server-transcript-service.js';
 import { retroactiveRename } from '../utils/session-name-generator.js';
 import { logger } from '../utils/logger.js';
 
@@ -19,6 +20,12 @@ import { logger } from '../utils/logger.js';
  */
 export function createSessionRouter(sessionServices, worktreeService, stateStore, testMode = false, conversationLinker = null, pathOptions = {}) {
     const router = express.Router();
+    const codexAppServerTranscript = sessionServices?.codexAppServerTranscript
+        || new CodexAppServerTranscriptService({
+            stateStore,
+            logger,
+            activityService: sessionServices?.activity
+        });
     const controller = new SessionController({
         activity: sessionServices?.activity,
         ownership: sessionServices?.ownership,
@@ -30,6 +37,7 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
         terminalIo: sessionServices?.terminal?.io,
         terminalInputProbe: sessionServices?.terminal?.inputProbe,
         snapshot: sessionServices?.terminal?.snapshot,
+        codexAppServerTranscript,
         worktreeService,
         archiveFinalizer: sessionServices?.archiveFinalizer,
         stateStore,
@@ -48,6 +56,22 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.post('/:id/hibernate', controller.hibernate);
     router.post('/:id/resume-runtime', controller.resumeRuntime);
     router.get('/:id/runtime', controller.getRuntime);
+    router.get('/:id/codex-app-server/transcript', async (req, res) => {
+        try {
+            res.json(await codexAppServerTranscript.ensureSession(req.params.id));
+        } catch (err) {
+            logger.error(`[Sessions] Failed to get Codex App Server transcript for ${req.params.id}:`, err.message);
+            res.status(err.status || 500).json({ error: err.message });
+        }
+    });
+    router.post('/:id/codex-app-server/turns', async (req, res) => {
+        try {
+            res.json(await codexAppServerTranscript.startTurn(req.params.id, req.body?.text));
+        } catch (err) {
+            logger.error(`[Sessions] Failed to start Codex App Server turn for ${req.params.id}:`, err.message);
+            res.status(err.status || 500).json({ error: err.message });
+        }
+    });
     router.post('/:id/terminal/ensure', controller.ensureTerminalRuntime);
     router.post('/:id/terminal/takeover', controller.takeoverTerminal);
     router.post('/:id/terminal/probe-input', controller.probeTerminalInput);

@@ -8,10 +8,13 @@ surfaces:
   api:
     - /api/sessions/report_activity
     - /api/state/sessions/:sessionId
+    - /api/sessions/:sessionId/codex-app-server/transcript
+    - /api/sessions/:sessionId/codex-app-server/turns
   code:
     - server/services/codex-app-server-adapter.js
     - server/services/codex-app-server-activity-bridge.js
     - server/services/codex-app-server-session-state.js
+    - server/services/codex-app-server-transcript-service.js
     - server/services/session-runtime/runtime-query-methods.js
     - scripts/codex-app-repl.mjs
     - scripts/lib/codex-app-server-activity-client.mjs
@@ -31,15 +34,19 @@ surfaces:
     - docs/stories/story-codex-appserver-thread-session-foundation.md
     - docs/stories/story-codex-appserver-session-state-ssot.md
     - docs/stories/story-codex-appserver-repl-activity-bridge.md
+    - docs/stories/story-codex-appserver-transcript-ui.md
     - docs/architecture/codex-appserver-session-state-ssot-architecture.md
     - docs/architecture/codex-appserver-thread-session-foundation-architecture.md
     - docs/architecture/codex-appserver-repl-activity-bridge-architecture.md
+    - docs/architecture/codex-appserver-transcript-ui-architecture.md
     - docs/specs/codex-appserver-session-state-ssot-spec.md
     - docs/specs/codex-appserver-thread-session-foundation-spec.md
     - docs/specs/codex-appserver-repl-activity-bridge-spec.md
+    - docs/specs/codex-appserver-transcript-ui-spec.md
     - tests/server/services/codex-app-server-adapter.test.js
     - tests/server/services/codex-app-server-activity-bridge.test.js
     - tests/server/services/codex-app-server-session-state.test.js
+    - tests/server/services/codex-app-server-transcript-service.test.js
     - tests/unit/codex-app-server-activity-client.test.js
     - tests/domain/session/session-display-route.test.js
     - tests/unit/session-ui-state.test.js
@@ -70,19 +77,22 @@ visibility_rules:
   - Codex App Server display eligibility is derived only for Codex sessions with non-stale App Server thread metadata.
   - Codex sessions without App Server thread metadata and all Claude Code sessions remain on the xterm display route.
   - Stale App Server metadata must remain distinguishable from missing metadata in display-route reasons.
-  - App Server display-route state is read-only until a separate transcript-rendering story owns the browser panel and input path.
-  - App Server display-route consumers must keep the interactive xterm/ttyd path as the default user-facing route until App Server transcript/input exists.
-  - App Server display-route consumers may show a read-only App Server display panel only behind an explicit diagnostic opt-in, without starting xterm.
+  - `story-codex-appserver-transcript-ui` owns native browser transcript display, App Server turn input, and a bounded session event ledger.
+  - App Server display-route consumers default to the native transcript panel once a non-stale App Server thread id exists and the feature flag is not explicitly disabled.
+  - Legacy terminal controls must remain read-only while App Server transcript mode is active; browser input must go through the App Server turn API.
   - App Server display-route consumers must preserve xterm/ttyd fallback for Claude Code and Codex sessions without usable App Server metadata.
+  - Mobile App Server display-route consumers must stay on snapshot fallback until mobile transcript support is explicitly implemented, with a visible desktop-only fallback reason.
   - New Codex session creation requests the App Server REPL path and must persist non-stale `session.codexAppServer` thread metadata before reporting creation success.
   - Existing Codex sessions without App Server metadata keep terminal fallback unless an explicit creation/start request opts into Codex App Server.
   - Keep full App Server event item persistence out of scope unless a separate ledger story defines ownership and retention.
+  - The transcript UI ledger must remain session-owned and bounded; raw App Server event streams must not be written to Graph SSOT.
   - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
   commands:
     - npm test -- tests/server/services/codex-app-server-adapter.test.js
     - npm run test:run -- tests/server/services/codex-app-server-activity-bridge.test.js
     - npm run test:run -- tests/server/services/codex-app-server-session-state.test.js tests/server/session-runtime-inventory.test.js
+    - npm run test:run -- tests/server/services/codex-app-server-transcript-service.test.js
     - npm run test:run -- tests/unit/codex-app-server-activity-client.test.js
     - npm run test:run -- tests/domain/session/session-display-route.test.js tests/unit/session-ui-state.test.js
     - npm run test:run -- tests/ui/integration/app-switch-session-runtime.test.js
@@ -96,10 +106,13 @@ verification:
     - Adapter unit tests pass.
     - Activity bridge tests prove `turn/started` maps to working and `turn/completed` maps to done-unread through existing hookStatus.
     - Session-state tests prove Codex-only App Server metadata persistence, restore selection, explicit missing-metadata fallback, and Claude Code non-mutation.
-    - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches; port 31013 live-runtime proof still requires post-merge smoke evidence.
+    - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches.
+    - Browser runtime proof for the transcript UI is covered by `tests/e2e/story-codex-appserver-transcript-ui-contract.spec.ts`; port 31013 live Codex CLI smoke remains optional operational evidence.
     - Display route tests prove Codex App Server metadata selects the App Server route and Claude Code stays on xterm.
     - Session creation tests prove new Codex sessions request App Server startup and wait for durable thread metadata.
-    - Session switching tests prove routed Codex App Server sessions default to xterm, while the diagnostic opt-in shows the App Server panel without starting xterm and Claude Code fallback still uses xterm.
+    - Transcript service tests prove thread resume/start, visible error items, optimistic user items, explicit policy pass-through, failed-turn ledger persistence, tool/input/turn items, and App Server turn payloads.
+    - Transcript route tests prove the sessions router wires transcript GET and turn POST to the service and preserves service error status.
+    - Session switching tests prove routed Codex App Server sessions default to the structured transcript panel, legacy terminal controls stay read-only until explicit fallback, explicit xterm fallback works, and Claude Code fallback still uses xterm.
     - Display-route contract E2E covers the Story acceptance criteria through Story/ADR/Spec/code/test anchors.
     - Codex CLI exposes the app-server command. If the local global `codex` shim is broken, use `npx -y @openai/codex@latest` as the reproducible CLI entrypoint for this capability check.
     - Existing terminal transport remains unchanged for user-facing sessions.
@@ -113,6 +126,7 @@ common_failures:
   - Persisting app-server events into Graph SSOT directly instead of a defined session/event ledger.
   - Reading session.codexAppServer metadata for Claude Code sessions.
   - Treating Codex App Server display-route eligibility as permission to remove xterm fallback.
+  - Leaving legacy terminal input enabled while transcript mode is active.
   - Reporting Codex session creation success before the App Server REPL has persisted thread metadata, causing immediate xterm fallback.
 runbooks: []
 troubleshooting: []

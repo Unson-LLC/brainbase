@@ -59,7 +59,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     document.body.innerHTML = dom.window.document.body.innerHTML;
     Object.defineProperty(window, 'localStorage', {
       value: {
-        getItem: vi.fn(() => null),
+        getItem: vi.fn((key) => key === 'brainbase-terminal-viewer-id' ? 'viewer-test' : null),
         setItem: vi.fn(),
         removeItem: vi.fn()
       },
@@ -835,14 +835,22 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(overlay.classList.contains('hidden')).toBe(true);
   });
 
-  it('Codex App Server sessions default to the xterm fallback so the operator can keep working', async () => {
+  it('Codex App Server sessions default to the transcript panel without starting terminal runtime', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
     app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
     app._resolveSessionRuntime = vi.fn().mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
     app._ensureDesktopTerminalRuntime = vi.fn().mockResolvedValue({ ok: true });
     app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+    app._startCodexAppServerTranscriptRefresh = vi.fn();
+    httpClient.get.mockResolvedValueOnce({
+      sessionId: 'session-app-server-default',
+      threadId: 'thread-app',
+      status: 'ready',
+      timeline: [{ id: 'assistant-1', kind: 'assistant', text: 'Transcript ready' }]
+    });
 
     appStore.setState({
       currentSessionId: null,
@@ -860,11 +868,15 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     });
 
     const result = await app.switchSession('session-app-server-default');
+    await Promise.resolve();
 
-    expect(result).toMatchObject({ ok: true, mode: 'xterm' });
-    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-app-server-default' }), { deferDisplay: true });
-    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
-    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(false);
+    expect(result).toMatchObject({ ok: true, mode: 'codex_app_server' });
+    expect(app._resolveSessionRuntime).not.toHaveBeenCalled();
+    expect(app._ensureDesktopTerminalRuntime).not.toHaveBeenCalled();
+    expect(app._connectXtermTransport).not.toHaveBeenCalled();
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('[data-codex-app-server-transcript]').textContent).toContain('Transcript ready');
+    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(true);
   });
 
   it('deferDisplayのxterm接続は初回reset snapshot描画完了を待ってから表示する', async () => {
@@ -893,7 +905,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(app.hideTerminalLoadingOverlay).toHaveBeenCalled();
   });
 
-  it('Codex App Server display route can opt into the read-only App Server panel without starting terminal runtime', async () => {
+  it('Codex App Server display route opens the structured App Server panel without starting terminal runtime', async () => {
     window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
@@ -910,6 +922,17 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     app._ensureDesktopTerminalRuntime = vi.fn();
     app._connectXtermTransport = vi.fn();
     app._resolveTtydProxyPath = vi.fn();
+    app._startCodexAppServerTranscriptRefresh = vi.fn();
+    app.setupTerminalInputUx();
+    httpClient.get.mockResolvedValueOnce({
+      sessionId: 'session-app-server',
+      threadId: 'thread-app',
+      status: 'ready',
+      timeline: [
+        { id: 'user-1', kind: 'user', text: 'Brainbase を分析して' },
+        { id: 'assistant-1', kind: 'assistant', text: '分析します' }
+      ]
+    });
 
     appStore.setState({
       currentSessionId: null,
@@ -928,6 +951,8 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
 
     const result = await app.switchSession('session-app-server');
     const panel = document.getElementById('codex-app-server-display-panel');
+    await Promise.resolve();
+    app._updateTerminalInputStatus();
 
     expect(result).toMatchObject({ ok: true, mode: 'codex_app_server' });
     expect(app._resolveSessionRuntime).not.toHaveBeenCalled();
@@ -941,13 +966,130 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(true);
     expect(document.getElementById('terminal-frame').src).toBe('about:blank');
     expect(document.getElementById('terminal-transport-switcher-label').textContent).toBe('App Server');
-    expect(document.getElementById('terminal-input-status').textContent).toBe('表示: App Server (read-only)');
+    expect(panel.querySelector('[data-codex-app-server-transcript]').textContent).toContain('Brainbase を分析して');
+    expect(panel.querySelector('[data-codex-app-server-transcript]').textContent).toContain('分析します');
+    expect(panel.querySelector('[data-codex-app-server-composer]')).not.toBeNull();
     expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
     expect(document.getElementById('terminal-snapshot-meta').classList.contains('hidden')).toBe(true);
     expect(appStore.getState().sessionUi.byId['session-app-server']).toMatchObject({
       transport: 'connected',
       attention: 'none'
     });
+  });
+
+  it('Codex App Server composer stays disabled until transcript restore completes', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+    app._resolveSessionRuntime = vi.fn();
+    app._ensureDesktopTerminalRuntime = vi.fn();
+    app._connectXtermTransport = vi.fn();
+    app._resolveTtydProxyPath = vi.fn();
+    app._startCodexAppServerTranscriptRefresh = vi.fn();
+
+    let resolveTranscript;
+    httpClient.get.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveTranscript = resolve;
+    }));
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server-restore',
+        name: 'App Server Restore Session',
+        path: '/tmp/session-app-server-restore',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-restore',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    const switchPromise = app.switchSession('session-app-server-restore');
+    await Promise.resolve();
+
+    const panel = document.getElementById('codex-app-server-display-panel');
+    const form = panel.querySelector('[data-codex-app-server-composer]');
+    const input = panel.querySelector('[data-codex-app-server-input]');
+    const button = form.querySelector('button[type="submit"]');
+    expect(panel.classList.contains('hidden')).toBe(false);
+    expect(form.dataset.restorePending).toBe('true');
+    expect(input.disabled).toBe(true);
+    expect(button.disabled).toBe(true);
+
+    input.value = 'restore前には送らない';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(httpClient.post).not.toHaveBeenCalled();
+
+    resolveTranscript({
+      sessionId: 'session-app-server-restore',
+      threadId: 'thread-restore',
+      status: 'ready',
+      timeline: [{ id: 'assistant-1', kind: 'assistant', text: 'Restored' }]
+    });
+    await switchPromise;
+
+    expect(form.dataset.restorePending).toBe('false');
+    expect(input.disabled).toBe(false);
+    expect(button.disabled).toBe(false);
+    expect(panel.querySelector('[data-codex-app-server-transcript]').textContent).toContain('Restored');
+  });
+
+  it('Codex App Server transcript load failure falls back to the desktop xterm path', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+    app._loadTerminalSnapshot = vi.fn().mockResolvedValue({
+      text: 'snapshot before xterm fallback',
+      capturedAt: '2026-06-01T00:00:00.000Z',
+      mode: 'fast'
+    });
+    app._resolveSessionRuntime = vi.fn().mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    app._ensureDesktopTerminalRuntime = vi.fn().mockResolvedValue({ ok: true });
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+    httpClient.get.mockRejectedValueOnce(new Error('App Server unavailable'));
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server-fallback',
+        name: 'App Server Fallback Session',
+        path: '/tmp/session-app-server-fallback',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app-fallback',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    const result = await app.switchSession('session-app-server-fallback');
+
+    expect(result).toMatchObject({ ok: true, mode: 'xterm' });
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-app-server-fallback' }), { deferDisplay: true });
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(false);
   });
 
   it('Codex App Server display route remains read-only for legacy terminal controls when enabled', async () => {
@@ -976,6 +1118,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     app._ensureDesktopTerminalRuntime = vi.fn();
     app._connectXtermTransport = vi.fn();
     app._resolveTtydProxyPath = vi.fn();
+    app._startCodexAppServerTranscriptRefresh = vi.fn();
     app.initServices();
     app.setupTerminalInputUx();
 
@@ -1023,6 +1166,113 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(httpClient.post).not.toHaveBeenCalled();
     expect(app.focusTerminal).not.toHaveBeenCalledWith('type-to-focus');
     expect(app.focusTerminal).not.toHaveBeenCalledWith('console-click');
+  });
+
+  it('Codex App Server transport switcher can explicitly fall back to terminal mode', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+    app._startCodexAppServerTranscriptRefresh = vi.fn();
+    app.setupTerminalInputUx();
+    httpClient.get.mockResolvedValueOnce({
+      sessionId: 'session-app-server',
+      threadId: 'thread-app',
+      status: 'ready',
+      timeline: [{ id: 'assistant-1', kind: 'assistant', text: 'Transcript ready' }]
+    });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server',
+        name: 'App Server Session',
+        path: '/tmp/session-app-server',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    await app.switchSession('session-app-server');
+    const switchSessionSpy = vi.spyOn(app, 'switchSession').mockResolvedValue({ ok: true, mode: 'xterm' });
+
+    document.getElementById('transport-opt-xterm')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+
+    expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(true);
+    expect(switchSessionSpy).toHaveBeenCalledWith('session-app-server', { forceXterm: true });
+  });
+
+  it('Codex App Server explicit terminal fallback failure keeps the transcript visible', async () => {
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect: vi.fn(),
+      hide: vi.fn(),
+      show: vi.fn(),
+      destroy: vi.fn(),
+      isActiveForSession: vi.fn(() => false)
+    };
+    app._resolveTtydProxyPath = vi.fn().mockResolvedValue({ proxyPath: null, terminalAccess: null });
+    app._startCodexAppServerTranscriptRefresh = vi.fn();
+    app.setupTerminalInputUx();
+    httpClient.get.mockResolvedValueOnce({
+      sessionId: 'session-app-server',
+      threadId: 'thread-app',
+      status: 'ready',
+      timeline: [{ id: 'assistant-1', kind: 'assistant', text: 'Transcript remains visible' }]
+    });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-app-server',
+        name: 'App Server Session',
+        path: '/tmp/session-app-server',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: {
+          threadId: 'thread-app',
+          lifecycle: 'turn_completed'
+        }
+      }]
+    });
+
+    await app.switchSession('session-app-server');
+    const panel = document.getElementById('codex-app-server-display-panel');
+    expect(panel.classList.contains('hidden')).toBe(false);
+    expect(panel.textContent).toContain('Transcript remains visible');
+
+    document.getElementById('transport-opt-xterm')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(app._resolveTtydProxyPath).toHaveBeenCalledWith(
+      'session-app-server',
+      expect.objectContaining({ id: 'session-app-server' }),
+      { forceXterm: true }
+    );
+    expect(panel.classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('console-area').classList.contains('using-codex-app-server')).toBe(true);
+    expect(panel.textContent).toContain('Transcript remains visible');
   });
 
   it('Claude Code sessions with stray App Server metadata still use the xterm fallback path', async () => {
@@ -1543,6 +1793,7 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(terminalFrame.classList.contains('hidden')).toBe(true);
     expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(true);
     expect(document.getElementById('codex-app-server-display-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-snapshot-title').textContent).toBe('Snapshot fallback: App Server transcript is desktop-only on mobile');
     expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 

@@ -597,7 +597,7 @@ export const activityServiceMethods = {
                 activeTurnIds.clear();
             }
             lastDoneAt = Math.max(lastDoneAt, timestamp);
-        } else if (lifecycle === 'turn_completed') {
+        } else if (['turn_completed', 'turn_failed', 'turn_cancelled'].includes(lifecycle)) {
             if (turnId) {
                 const hadTurnId = activeTurnIds.delete(turnId);
                 // 残留turnのクリア: Claudeフォーマット(claude-{ts}-{random})はタイムスタンプ比較する。
