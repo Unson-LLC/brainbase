@@ -111,6 +111,15 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Skip session activity telemetry. It is posted by trusted LOCAL hooks/CLI (the
+        // activity-bridge hooks, scripts/lib/brainbase-common.sh, codex-pty-shim.py, …) via
+        // curl/fetch with no browser CSRF token. CSRF guards against cross-site browser forgery,
+        // which does not apply to a localhost hook -> localhost server, non-mutating activity report.
+        // Without this, prod 403s every hook-driven report (stale indicators) and dev warns every interval.
+        if (req.path === '/api/sessions/report_activity') {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
