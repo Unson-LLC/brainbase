@@ -3,6 +3,9 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
+// OOM guard: if a single tmux `%output` line never terminates within this many bytes, flush it
+// rather than accumulate unboundedly. Real TUI redraw lines are well under this.
+const MAX_PENDING_LINE_BYTES = 64 * 1024 * 1024;
 const CONTROL_KEY_ALLOWLIST = new Set([
     'Enter',
     'Tab',
@@ -143,9 +146,15 @@ function decodeTmuxEscapes(value = '', carryoverBytes = []) {
 
     while (i < value.length) {
         if (value[i] !== '\\') {
+            // Copy the whole run of non-backslash chars at once instead of char-by-char.
+            // Terminal redraw output is mostly ASCII (cursor moves, colors), so this turns an
+            // O(n) per-char append loop into one slice per run — orders of magnitude faster on
+            // large lines.
             flushBytes();
-            result += value[i];
-            i++;
+            let next = value.indexOf('\\', i);
+            if (next === -1) next = value.length;
+            result += value.slice(i, next);
+            i = next;
             continue;
         }
 
@@ -226,8 +235,10 @@ export class TmuxControlClient extends EventEmitter {
         this.spawnFn = spawnFn;
         /** @type {TmuxChildProcess|null} */
         this.process = null;
-        /** @type {Buffer} Raw byte buffer for stdout (split on 0x0A after accumulation) */
-        this.stdoutBuffer = Buffer.alloc(0);
+        /** @type {Buffer[]} Pending stdout byte chunks, joined only when a line completes */
+        this._stdoutChunks = [];
+        /** @type {number} Total bytes currently held in _stdoutChunks */
+        this._stdoutChunksLen = 0;
         /** Pending incomplete octal tail from a previous %output line */
         this._pendingOctal = '';
         /** Pending incomplete UTF-8 bytes carried over from a previous %output line */
@@ -358,25 +369,54 @@ export class TmuxControlClient extends EventEmitter {
      * @returns {void}
      */
     _handleStdout(chunk) {
-        this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk]);
+        if (!chunk || chunk.length === 0) return;
+        this._stdoutChunks.push(chunk);
+        this._stdoutChunksLen += chunk.length;
 
+        // Only the newly-arrived chunk can introduce a newline. When it has none, keep buffering
+        // it WITHOUT re-copying / re-scanning the whole pending buffer. The previous code did
+        // `Buffer.concat([wholeBuffer, chunk])` + a full rescan from index 0 on every chunk, which
+        // is O(n^2) for a large `%output` line (a TUI redraw flood — ~4x worse for Japanese because
+        // control mode octal-escapes non-ASCII): a 20MB line took ~7.3s and a 50MB line ~102s,
+        // blocking the event loop long enough to drop the WebSocket.
+        if (chunk.indexOf(0x0A) === -1) {
+            // Bound memory if a single line never terminates (pathological); flush what we have.
+            if (this._stdoutChunksLen > MAX_PENDING_LINE_BYTES) {
+                this._handleLineBytes(this._takePendingBuffer());
+            }
+            return;
+        }
+
+        const buf = this._takePendingBuffer();
         let start = 0;
-        for (let idx = 0; idx < this.stdoutBuffer.length; idx++) {
-            if (this.stdoutBuffer[idx] !== 0x0A) continue;
-
+        let idx;
+        while ((idx = buf.indexOf(0x0A, start)) !== -1) {
             // Found newline — extract line bytes (strip optional \r before \n)
             let end = idx;
-            if (end > start && this.stdoutBuffer[end - 1] === 0x0D) end--;
-            const lineBytes = this.stdoutBuffer.subarray(start, end);
+            if (end > start && buf[end - 1] === 0x0D) end--;
+            this._handleLineBytes(buf.subarray(start, end));
             start = idx + 1;
-
-            this._handleLineBytes(lineBytes);
         }
 
-        // Keep remaining bytes (incomplete line) in buffer
-        if (start > 0) {
-            this.stdoutBuffer = Buffer.from(this.stdoutBuffer.subarray(start));
+        // Keep the incomplete remainder (if any) for the next chunk.
+        if (start < buf.length) {
+            const remainder = buf.subarray(start);
+            this._stdoutChunks.push(remainder);
+            this._stdoutChunksLen += remainder.length;
         }
+    }
+
+    /**
+     * Join and clear the pending stdout chunks into a single Buffer.
+     * @returns {Buffer}
+     */
+    _takePendingBuffer() {
+        const buf = this._stdoutChunks.length === 1
+            ? this._stdoutChunks[0]
+            : Buffer.concat(this._stdoutChunks, this._stdoutChunksLen);
+        this._stdoutChunks = [];
+        this._stdoutChunksLen = 0;
+        return buf;
     }
 
     /**
