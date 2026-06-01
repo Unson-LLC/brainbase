@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../../utils/logger.js';
 import { gracefulCleanup } from '../../lib/graceful-cleanup.js';
+import { logTtydStderr } from './ttyd-log-level.js';
 
 export const runtimeLifecycleMethods = {
     async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude', codexResumeId = null, codexAppServer = false }) {
@@ -261,7 +262,10 @@ export const runtimeLifecycleMethods = {
         });
 
         ttyd.stderr.on('data', (data) => {
-            logger.error(`[ttyd:${sessionId}] ${data}`);
+            // ttyd writes its normal startup banner to stderr with libwebsockets
+            // severity tokens (N/W/E). Route by true severity so benign notices
+            // don't flood the error stream and bury real failures.
+            logTtydStderr(logger, sessionId, data);
         });
 
         ttyd.on('error', (err) => {
