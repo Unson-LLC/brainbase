@@ -208,7 +208,7 @@ export class TerminalTransportClient {
     async init(hostEl) {
         this.hostEl = hostEl;
         this._syncCursorDebugClass();
-        const { Terminal, FitAddon, WebLinksAddon, Unicode11Addon } = await loadXterm();
+        const { Terminal, FitAddon, WebLinksAddon, Unicode11Addon, WebglAddon } = await loadXterm();
         if (this.terminal) return;
         const appearance = readTerminalAppearance(hostEl);
         this._syncTerminalMetricVars(appearance);
@@ -234,6 +234,12 @@ export class TerminalTransportClient {
             this.terminal.unicode.activeVersion = '11';
         }
         this.terminal.open(hostEl);
+        // Activate the GPU (WebGL) renderer after open(). The default DOM renderer leaves the xterm
+        // region unpainted under heavy continuous output — the screen freezes on the latest frame and
+        // only repaints on a resize (e.g. opening devtools). WebGL renders to a canvas and is not
+        // subject to that DOM-paint stall. On GPU context loss it disposes itself and xterm reverts to
+        // the DOM renderer, so a lost context degrades rather than breaks.
+        this._activateWebglRenderer(WebglAddon);
         this.fitAddon.fit();
         // dynamic import 中に届いた snapshot があれば適用する。これがないと
         // init() 完了前に着いた snapshot が drop され、画面が永遠に空白になる。
@@ -462,6 +468,8 @@ export class TerminalTransportClient {
         this._cancelTerminalRenderRefresh();
         this._clearPendingFocusEscape();
         this._removeCursorDebugPanel();
+        try { this._webglAddon?.dispose(); } catch (e) { /* noop */ }
+        this._webglAddon = null;
         this.terminal?.dispose();
         this.terminal = null;
         this.fitAddon = null;
@@ -1409,6 +1417,27 @@ export class TerminalTransportClient {
             }
         } catch (error) {
             console.warn('[TerminalTransportClient] Failed to refresh terminal rows', error);
+        }
+    }
+
+    _activateWebglRenderer(WebglAddon) {
+        if (!WebglAddon || !this.terminal || this._webglAddon) return;
+        try {
+            const addon = new WebglAddon();
+            // GPU context loss (tab backgrounded for long, driver reset, etc.): dispose the addon so
+            // xterm transparently falls back to the DOM renderer instead of showing a dead canvas.
+            if (typeof addon.onContextLoss === 'function') {
+                addon.onContextLoss(() => {
+                    try { addon.dispose(); } catch (e) { /* noop */ }
+                    if (this._webglAddon === addon) this._webglAddon = null;
+                });
+            }
+            this.terminal.loadAddon(addon);
+            this._webglAddon = addon;
+        } catch (error) {
+            // No WebGL (software/blocked GPU, headless, etc.) — keep the default DOM renderer.
+            this._webglAddon = null;
+            ttcWarn('[TTC-PROBE] WebGL renderer unavailable, using DOM renderer', { err: String(error?.message || error) });
         }
     }
 
