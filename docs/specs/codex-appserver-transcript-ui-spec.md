@@ -16,6 +16,7 @@
 - `codex-appserver-transcript-ui.fallback`: xterm/ttyd fallback MUST remain available for unsupported sessions, stale metadata, App Server control failure, and explicit user recovery.
 - `codex-appserver-transcript-ui.claude-unmodified`: Claude Code sessions MUST continue through the existing terminal path.
 - `codex-appserver-transcript-ui.mobile-contract`: Mobile behavior MUST either support the transcript composer or present an explicit fallback reason.
+- `codex-appserver-transcript-ui.assistant-ui-island`: The polished desktop transcript surface MAY be implemented as an assistant-ui React island as long as the App Server API boundary and terminal fallback clauses above remain intact.
 
 ## Evidence
 
@@ -25,4 +26,5 @@
 - Code: `server/services/codex-app-server-transcript-service.js`, `server/routes/sessions.js`, `public/modules/app/codex-app-server-display-mixin.js`, `public/index.html`, `public/style.css`
 - Tests: `tests/server/services/codex-app-server-transcript-service.test.js`, `tests/server/codex-app-server-transcript-routes.test.js`, `tests/ui/integration/app-switch-session-runtime.test.js`
 - Runtime smoke: `tests/e2e/story-codex-appserver-transcript-ui-contract.spec.ts` exercises browser `switchSession`, transcript GET, composer POST, visible errors, and asserts terminal input/ensure APIs are not called.
+- assistant-ui island: `ui-islands/codex-appserver-transcript/index.jsx`
 - Optional operational smoke: port 31013 can still be used after merge to check a live Codex CLI adapter, but it is not the only contract evidence.

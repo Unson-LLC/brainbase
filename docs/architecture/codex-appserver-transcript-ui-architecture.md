@@ -28,6 +28,7 @@ The existing xterm route remains the recovery and compatibility path.
   - error notifications
   - timestamps
 - Refresh the active browser from the transcript API; a future push channel can replace polling without changing the browser renderer contract.
+- Mount the polished transcript renderer as an assistant-ui React island so the rest of the Brainbase shell and terminal fallback remain unchanged.
 - Render App Server transcript mode in the existing terminal stage only when the session has non-stale App Server metadata and the server App Server control path is ready.
 - Keep xterm fallback as an explicit mode switch and automatic fallback when App Server control is unavailable.
 - Keep mobile App Server sessions on the snapshot fallback path until the desktop transcript composer is explicitly supported on mobile, and show a visible reason that the transcript panel is desktop-only on mobile.

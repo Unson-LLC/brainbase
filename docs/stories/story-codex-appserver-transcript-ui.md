@@ -8,6 +8,8 @@ As a Brainbase user operating a Codex session, I want a native Codex App Server 
 
 The current Codex App Server slices persist thread metadata, report activity, derive display-route state, and keep xterm as the default fallback. `story-codex-appserver-display-route-consumer` and `story-codex-appserver-xterm-default-fallback` explicitly leave transcript rendering and browser-side input out of scope. That makes App Server-backed sessions technically available but not the user experience we actually want.
 
+`story-codex-appserver-assistant-ui-transcript-panel` refines this surface by mounting the transcript as an assistant-ui React island while keeping the same App Server transcript and turn APIs.
+
 ## Acceptance Criteria
 
 - Codex App Server-backed Codex sessions render a structured transcript panel by default when the App Server transcript feature is not explicitly disabled.

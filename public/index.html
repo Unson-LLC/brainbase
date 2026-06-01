@@ -290,25 +290,7 @@
                         <pre id="terminal-snapshot-content" class="terminal-snapshot-content"></pre>
                     </div>
                     <section id="codex-app-server-display-panel" class="codex-app-server-display-panel hidden" aria-live="polite">
-                        <div class="codex-app-server-display-header">
-                            <span class="codex-app-server-display-title">Codex App Server</span>
-                            <span class="codex-app-server-display-status" data-codex-app-server-status></span>
-                        </div>
-                        <div class="codex-app-server-display-body">
-                            <div class="codex-app-server-display-row">
-                                <span class="codex-app-server-display-label">Session</span>
-                                <code data-codex-app-server-session-id></code>
-                            </div>
-                            <div class="codex-app-server-display-row">
-                                <span class="codex-app-server-display-label">Thread</span>
-                                <code data-codex-app-server-thread-label></code>
-                            </div>
-                        </div>
-                        <div class="codex-app-server-transcript" data-codex-app-server-transcript></div>
-                        <form class="codex-app-server-composer" data-codex-app-server-composer>
-                            <textarea data-codex-app-server-input rows="3" placeholder="Codex に依頼する"></textarea>
-                            <button type="submit" class="primary-btn">送信</button>
-                        </form>
+                        <div data-codex-app-server-react-root class="codex-app-server-react-root"></div>
                     </section>
 	                <div id="terminal-xterm-host" class="terminal-xterm-host hidden" aria-label="Terminal transport host"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
