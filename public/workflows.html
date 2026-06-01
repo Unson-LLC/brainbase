@@ -96,6 +96,13 @@
             padding: 0 12px;
             cursor: pointer;
         }
+        .btn {
+            display: inline-flex;
+            min-height: 34px;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
         .btn.primary {
             background: #121619;
             color: #fff;
@@ -286,6 +293,7 @@
             <nav class="topbar" aria-label="Workflow navigation">
                 <div class="crumbs" id="breadcrumbs"></div>
                 <div class="toolbar">
+                    <a class="btn soft" href="/" aria-label="Brainbase terminalへ戻る">Terminalへ戻る</a>
                     <select id="project-filter" aria-label="Project filter"><option value="">All projects</option></select>
                     <button id="refresh-btn" type="button">Refresh</button>
                 </div>
@@ -318,11 +326,34 @@
         const breadcrumbs = document.getElementById('breadcrumbs');
         const filterEl = document.getElementById('project-filter');
         const refreshBtn = document.getElementById('refresh-btn');
+        const AUTH_TOKEN_KEY = 'brainbase.auth.token';
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, (char) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             }[char]));
+        }
+        function getAuthToken() {
+            try {
+                return window.localStorage?.getItem(AUTH_TOKEN_KEY) || '';
+            } catch {
+                return '';
+            }
+        }
+        function withAuthOptions(options = {}) {
+            const token = getAuthToken();
+            const headers = { ...(options.headers || {}) };
+            if (token && !headers.Authorization && !headers.authorization) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+            return {
+                ...options,
+                credentials: 'include',
+                headers
+            };
+        }
+        async function apiFetch(url, options = {}) {
+            return await fetch(url, withAuthOptions(options));
         }
         function setView(name) {
             Object.entries(views).forEach(([key, el]) => el.classList.toggle('active', key === name));
@@ -498,7 +529,7 @@
             views.workflow.innerHTML = '<div class="empty">Loading workflow...</div>';
             setView('workflow');
             try {
-                const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}`, { credentials: 'include' });
+                const response = await apiFetch(`/api/workflows/${encodeURIComponent(workflowId)}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 state.workflowDetail = await response.json();
             } catch (error) {
@@ -537,7 +568,7 @@
             views.run.innerHTML = '<div class="empty">Loading run trace...</div>';
             setView('run');
             try {
-                const response = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}`, { credentials: 'include' });
+                const response = await apiFetch(`/api/workflow-runs/${encodeURIComponent(runId)}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 state.runDetail = await response.json();
             } catch (error) {
@@ -573,10 +604,9 @@
             const id = `wf_${projectId}_${name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
             statusEl.textContent = 'Saving...';
             try {
-                const response = await fetch('/api/workflows', {
+                const response = await apiFetch('/api/workflows', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
                     body: JSON.stringify({ id, name, project_id: projectId, description: String(formData.get('description') || ''), risk_level: String(formData.get('risk_level') || 'low'), context_sources: [{ source_type: sourceType, source_ref: sourceRef, required: true, preview: sourceRef }] })
                 });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -588,21 +618,21 @@
             }
         }
         async function runWorkflow(workflowId) {
-            const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ trigger_type: 'manual', env: 'local' }) });
+            const response = await apiFetch(`/api/workflows/${encodeURIComponent(workflowId)}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trigger_type: 'manual', env: 'local' }) });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             await load({ keepView: true });
             await renderRun(result.run.id);
         }
         async function rerun(runId) {
-            const response = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}/rerun`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({}) });
+            const response = await apiFetch(`/api/workflow-runs/${encodeURIComponent(runId)}/rerun`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             await load({ keepView: true });
             await renderRun(result.run.id);
         }
         async function resolveHumanStep(runId, stepId, resolution) {
-            const response = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}/human-steps/${encodeURIComponent(stepId)}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ resolution }) });
+            const response = await apiFetch(`/api/workflow-runs/${encodeURIComponent(runId)}/human-steps/${encodeURIComponent(stepId)}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution }) });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             await load({ keepView: true });
@@ -615,15 +645,15 @@
             }
             try {
                 const [projectsResponse, workflowsResponse] = await Promise.all([
-                    fetch('/api/config/projects', { credentials: 'include' }).catch(() => null),
-                    fetch('/api/workflows', { credentials: 'include' })
+                    apiFetch('/api/config/projects').catch(() => null),
+                    apiFetch('/api/workflows')
                 ]);
                 if (projectsResponse?.ok) {
                     const projectData = await projectsResponse.json();
                     state.projects = Array.isArray(projectData.projects) ? projectData.projects.filter((project) => !project.archived) : [];
                 }
                 if (workflowsResponse.status === 401) {
-                    views.workspace.innerHTML = '<div class="error">ログインが必要です。</div>';
+                    views.workspace.innerHTML = '<div class="error">ログインが必要です。<div class="toolbar" style="margin-top:12px;"><a class="btn soft" href="/">Brainbase Terminalへ戻る</a></div></div>';
                     setView('workspace');
                     return;
                 }

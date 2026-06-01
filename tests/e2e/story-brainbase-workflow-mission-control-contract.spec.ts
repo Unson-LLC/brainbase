@@ -253,6 +253,27 @@ test('story-brainbase-workflow-mission-control /workflows Mission Control surfac
   await expect(page.getByText('project:sample-project (resolved)')).toBeVisible();
 });
 
+test('story-brainbase-workflow-mission-control /workflows preserves shell return and bearer auth', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('brainbase.auth.token', 'workflow-test-token');
+  });
+  await page.route('**/api/workflows', async (route) => {
+    expect(route.request().headers().authorization).toBe('Bearer workflow-test-token');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ workflows: [] })
+    });
+  });
+
+  await page.goto('/workflows');
+
+  const terminalLink = page.getByRole('link', { name: 'Brainbase terminalへ戻る' });
+  await expect(terminalLink).toBeVisible();
+  await expect(terminalLink).toHaveAttribute('href', '/');
+  await expect(page.getByText('ログインが必要です。')).not.toBeVisible();
+});
+
 test('story-brainbase-workflow-mission-control /workflows surfaces auth and API errors visibly', async ({ page }) => {
   await page.route('**/api/workflows', async (route) => {
     await route.fulfill({
@@ -264,6 +285,7 @@ test('story-brainbase-workflow-mission-control /workflows surfaces auth and API 
 
   await page.goto('/workflows');
   await expect(page.getByText('ログインが必要です。')).toBeVisible();
+  await expect(page.locator('.error').getByRole('link', { name: 'Brainbase Terminalへ戻る' })).toBeVisible();
 
   await page.unroute('**/api/workflows');
   await page.route('**/api/workflows', async (route) => {
