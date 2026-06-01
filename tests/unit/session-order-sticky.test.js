@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
     orderTimelineSessions,
     sessionSortPriority,
+    sessionSortTimestamp,
     __resetStickyForTests
 } from '../../ui-islands/session-list/sessionOrder.js';
 
@@ -83,5 +84,58 @@ describe('sessionOrder (timeline sticky-done)', () => {
         expect(sessionSortPriority({ activity: 'thinking' })).toBe(1);
         expect(sessionSortPriority({ activity: 'done-unread' })).toBe(2);
         expect(sessionSortPriority({ activity: 'idle' })).toBe(3);
+    });
+});
+
+/**
+ * idle(無印) セッションの時系列ソートの回帰テスト。
+ *
+ * 旧実装の sessionSortTimestamp は idle セッションで存在しない s.lastActivityAt →
+ * ISO 文字列の s.createdAt に落ち、文字列同士の数値比較が NaN になって idle 同士が
+ * 配列の挿入順のまま並んでいた(= 時系列が無視される)。実際の直近活動時刻は
+ * セッション埋め込み hookStatus と updatedAt に残っているのに参照していなかった。
+ */
+describe('sessionOrder (idle recency timestamp)', () => {
+    beforeEach(() => __resetStickyForTests());
+
+    const ids = (arr) => arr.map((s) => s.id);
+    const idleUi = () => ({ hookStatus: null, activity: 'idle' });
+    const deriveIdle = () => idleUi();
+
+    it('sessionSortTimestamp は ISO 文字列の createdAt を数値(epoch ms)で返す', () => {
+        const ts = sessionSortTimestamp({ createdAt: '2026-06-01T02:09:00.000Z' }, idleUi());
+        expect(typeof ts).toBe('number');
+        expect(ts).toBe(Date.parse('2026-06-01T02:09:00.000Z'));
+    });
+
+    it('idle セッションは createdAt(ISO 文字列) でも時系列降順に並ぶ(NaN 比較で挿入順固定にならない)', () => {
+        // 入力順は古い→新しい。createdAt が文字列でも新しい方が上に来ること。
+        const list = [
+            { id: 'old', createdAt: '2026-05-01T00:00:00.000Z' },
+            { id: 'new', createdAt: '2026-06-01T00:00:00.000Z' },
+            { id: 'mid', createdAt: '2026-05-15T00:00:00.000Z' }
+        ];
+        expect(ids(orderTimelineSessions(list, null, deriveIdle))).toEqual(['new', 'mid', 'old']);
+    });
+
+    it('idle セッションは createdAt より埋め込み hookStatus の直近活動時刻を優先する', () => {
+        // 'recent' は古い作成だが直近まで稼働、'fresh' は新しい作成だが活動は古い。
+        // 時系列(=直近活動)では recent が上に来るべき。
+        const recentTs = Date.parse('2026-06-01T02:00:00.000Z');
+        const staleTs = Date.parse('2026-05-20T00:00:00.000Z');
+        const list = [
+            { id: 'fresh', createdAt: '2026-05-30T00:00:00.000Z', hookStatus: { lastActivityAt: staleTs } },
+            { id: 'recent', createdAt: '2026-03-01T00:00:00.000Z', hookStatus: { lastWorkingAt: recentTs } }
+        ];
+        expect(ids(orderTimelineSessions(list, null, deriveIdle))).toEqual(['recent', 'fresh']);
+    });
+
+    it('埋め込み hookStatus が無ければ updatedAt を createdAt より優先する', () => {
+        const list = [
+            { id: 'a', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-01T00:00:00.000Z' },
+            { id: 'b', createdAt: '2026-05-01T00:00:00.000Z', updatedAt: '2026-05-02T00:00:00.000Z' }
+        ];
+        // a は作成は古いが updatedAt が直近 → 上。
+        expect(ids(orderTimelineSessions(list, null, deriveIdle))).toEqual(['a', 'b']);
     });
 });

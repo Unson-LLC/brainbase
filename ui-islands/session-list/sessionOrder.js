@@ -29,9 +29,42 @@ export function sessionSortPriority(ui) {
   return 3;
 }
 
+// epoch ミリ秒へ正規化。ISO 文字列(createdAt/updatedAt 等)も数値へ変換する。
+// これを通さないと createdAt(文字列) 同士の比較が NaN になり、idle 同士が
+// 実質ソートされず配列の挿入順のまま並ぶ(時系列無視)。
+function toMs(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// セッションオブジェクトに埋め込まれた hookStatus の活動時刻(最新のもの)。
+// ライブ status ストアから外れた idle セッションでも、ここに直近の活動時刻が残る。
+function embeddedRecency(s) {
+  const hook = s?.hookStatus;
+  if (!hook) return 0;
+  return Math.max(toMs(hook.lastActivityAt), toMs(hook.lastWorkingAt), toMs(hook.lastDoneAt));
+}
+
+// 並び順に使う「直近の活動時刻」を epoch ミリ秒で返す。
+//
+// idle(無印) セッションは旧実装だと s.lastActivityAt(セッションには存在しない)
+// → s.createdAt(ISO 文字列) に落ち、文字列比較が NaN になって時系列が無視されていた。
+// セッション埋め込み hookStatus の活動時刻 → updatedAt → createdAt の順に
+// 実際の recency をフォールバックし、必ず数値を返す。
 export function sessionSortTimestamp(s, ui) {
   const live = ui?.hookStatus?.liveActivity;
-  return live?.updatedAt || ui?.hookStatus?.lastDoneAt || s?.lastActivityAt || s?.createdAt || 0;
+  return (
+    toMs(live?.updatedAt)
+    || toMs(ui?.hookStatus?.lastDoneAt)
+    || toMs(ui?.hookStatus?.lastActivityAt)
+    || embeddedRecency(s)
+    || toMs(s?.lastActivityAt)
+    || toMs(s?.updatedAt)
+    || toMs(s?.createdAt)
+    || 0
+  );
 }
 
 /**
