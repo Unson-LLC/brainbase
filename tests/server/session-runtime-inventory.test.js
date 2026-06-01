@@ -912,6 +912,9 @@ describe('session runtime inventory', () => {
             skipped: [],
             warnings: []
         }));
+        const codexAppServerTranscript = {
+            stopSession: vi.fn(async () => true)
+        };
         const app = express();
         app.use(express.json());
         app.use('/api/sessions', createSessionRouter({
@@ -939,6 +942,7 @@ describe('session runtime inventory', () => {
                 },
                 lifecycle: { stopSessionOwnedProcesses }
             },
+            codexAppServerTranscript,
             terminal: {
                 snapshot: {
                     getVisibleContent: vi.fn(async () => 'visible terminal output')
@@ -952,6 +956,7 @@ describe('session runtime inventory', () => {
             .expect(200);
 
         expect(stopSessionOwnedProcesses).toHaveBeenCalledWith('session-alpha', [{ pid: 123, category: 'codex' }]);
+        expect(codexAppServerTranscript.stopSession).toHaveBeenCalledWith('session-alpha', { status: 'hibernated' });
         expect(response.body).toMatchObject({
             success: true,
             intendedState: 'hibernated',
@@ -966,6 +971,128 @@ describe('session runtime inventory', () => {
             restoreStrategy: 'codex_resume',
             restoreCommand: 'codex resume thread-alpha',
             resumeFailureReason: null
+        });
+    });
+
+    it('stops Codex App Server transcript runtime when a session is manually stopped', async () => {
+        let state = {
+            sessions: [{
+                id: 'session-alpha',
+                name: 'Alpha',
+                engine: 'codex',
+                intendedState: 'active',
+                path: '/tmp/session-alpha',
+                codexAppServer: { threadId: 'thread-alpha' }
+            }]
+        };
+        const update = vi.fn(async (nextState) => {
+            state = nextState;
+            return state;
+        });
+        const stopTtyd = vi.fn(async () => true);
+        const codexAppServerTranscript = {
+            stopSession: vi.fn(async () => true)
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sessions', createSessionRouter({
+            runtime: {
+                lifecycle: { stopTtyd }
+            },
+            codexAppServerTranscript
+        }, null, { get: () => state, update }));
+
+        await request(app)
+            .post('/api/sessions/session-alpha/stop')
+            .send({})
+            .expect(200);
+
+        expect(stopTtyd).toHaveBeenCalledWith('session-alpha', { preserveTmux: false });
+        expect(codexAppServerTranscript.stopSession).toHaveBeenCalledWith('session-alpha', { status: 'paused' });
+        expect(state.sessions[0]).toMatchObject({
+            intendedState: 'paused',
+            pausedReason: 'manual'
+        });
+    });
+
+    it('stops Codex App Server transcript runtime even when no ttyd runtime is stopped', async () => {
+        const state = {
+            sessions: [{
+                id: 'session-alpha',
+                name: 'Alpha',
+                engine: 'codex',
+                intendedState: 'active',
+                path: '/tmp/session-alpha',
+                codexAppServer: { threadId: 'thread-alpha' }
+            }]
+        };
+        const update = vi.fn(async (nextState) => nextState);
+        const stopTtyd = vi.fn(async () => false);
+        const codexAppServerTranscript = {
+            stopSession: vi.fn(async () => true)
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sessions', createSessionRouter({
+            runtime: {
+                lifecycle: { stopTtyd }
+            },
+            codexAppServerTranscript
+        }, null, { get: () => state, update }));
+
+        await request(app)
+            .post('/api/sessions/session-alpha/stop')
+            .send({})
+            .expect(404);
+
+        expect(stopTtyd).toHaveBeenCalledWith('session-alpha', { preserveTmux: false });
+        expect(codexAppServerTranscript.stopSession).toHaveBeenCalledWith('session-alpha', { status: 'paused' });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('stops Codex App Server transcript runtime before archiving a session', async () => {
+        let state = {
+            sessions: [{
+                id: 'session-alpha',
+                name: 'Alpha',
+                engine: 'codex',
+                intendedState: 'active',
+                path: '/tmp/session-alpha',
+                codexAppServer: { threadId: 'thread-alpha' }
+            }]
+        };
+        const update = vi.fn(async (nextState) => {
+            state = nextState;
+            return state;
+        });
+        const stopTtyd = vi.fn(async () => true);
+        const codexAppServerTranscript = {
+            stopSession: vi.fn(async () => true)
+        };
+        const archiveFinalizer = {
+            enqueue: vi.fn(async () => {})
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sessions', createSessionRouter({
+            runtime: {
+                lifecycle: { stopTtyd }
+            },
+            codexAppServerTranscript,
+            archiveFinalizer
+        }, null, { get: () => state, update }));
+
+        await request(app)
+            .post('/api/sessions/session-alpha/archive')
+            .send({})
+            .expect(200);
+
+        expect(stopTtyd).toHaveBeenCalledWith('session-alpha');
+        expect(codexAppServerTranscript.stopSession).toHaveBeenCalledWith('session-alpha', { status: 'archived' });
+        expect(archiveFinalizer.enqueue).toHaveBeenCalledWith('session-alpha');
+        expect(state.sessions[0]).toMatchObject({
+            intendedState: 'archived',
+            archive: { status: 'queued' }
         });
     });
 
@@ -1150,6 +1277,81 @@ describe('session runtime inventory', () => {
             runtimeState: 'broken',
             hibernatePartialStop: true
         });
+        expect(state.sessions[0]).toMatchObject({
+            intendedState: 'broken',
+            runtimeState: 'broken',
+            hibernatePartialStop: true
+        });
+    });
+
+    it('marks a session broken when transcript cleanup fails after owned processes stop', async () => {
+        let state = {
+            sessions: [{
+                id: 'session-alpha',
+                name: 'Alpha',
+                engine: 'codex',
+                intendedState: 'active',
+                path: '/tmp/session-alpha',
+                codexThreadId: 'thread-alpha'
+            }]
+        };
+        const update = vi.fn(async (nextState) => {
+            state = nextState;
+            return state;
+        });
+        const stopSessionOwnedProcesses = vi.fn(async () => ({
+            killed: [{ pid: 123, category: 'codex', signal: 'SIGTERM' }],
+            warnings: []
+        }));
+        const codexAppServerTranscript = {
+            stopSession: vi.fn(async () => {
+                throw new Error('transcript stop failed');
+            })
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/sessions', createSessionRouter({
+            activity: { promptBuffers: new Map(), getSessionStatus: vi.fn(() => ({})) },
+            ownership: { getTerminalOwnerSnapshot: vi.fn(() => null) },
+            runtime: {
+                query: {
+                    getHibernationEligibility: vi.fn(async () => ({
+                        sessionId: 'session-alpha',
+                        eligible: true,
+                        reasons: ['idle_runtime_can_hibernate'],
+                        blockers: [],
+                        runtimePresence: 'hot',
+                        rssKb: 2048,
+                        processCount: 1,
+                        processesByCategory: { codex: 1, unknown_child: 0 },
+                        ownedProcesses: [{ pid: 123, category: 'codex' }],
+                        restoreMetadata: { restoreStrategy: 'codex_resume', codexResumeId: 'thread-alpha' }
+                    })),
+                    getSessionById: vi.fn((sessionId) => state.sessions.find(session => session.id === sessionId))
+                },
+                lifecycle: { stopSessionOwnedProcesses }
+            },
+            terminal: {
+                snapshot: {
+                    getVisibleContent: vi.fn(async () => 'visible terminal output')
+                }
+            },
+            codexAppServerTranscript
+        }, null, { get: () => state, update }));
+
+        const response = await request(app)
+            .post('/api/sessions/session-alpha/hibernate')
+            .send({})
+            .expect(500);
+
+        expect(response.body).toMatchObject({
+            error: 'Failed to hibernate session',
+            intendedState: 'broken',
+            runtimeState: 'broken',
+            hibernateFailureReason: 'transcript stop failed',
+            hibernatePartialStop: true
+        });
+        expect(codexAppServerTranscript.stopSession).toHaveBeenCalledWith('session-alpha', { status: 'hibernated' });
         expect(state.sessions[0]).toMatchObject({
             intendedState: 'broken',
             runtimeState: 'broken',

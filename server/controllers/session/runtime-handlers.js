@@ -390,6 +390,12 @@ export function installRuntimeHandlers(controller) {
             let stopResult;
             try {
                 stopResult = await controller.runtimeLifecycle.stopSessionOwnedProcesses(id, finalEligibility.ownedProcesses || []);
+                try {
+                    await controller.codexAppServerTranscript?.stopSession?.(id, { status: 'hibernated' });
+                } catch (transcriptStopError) {
+                    transcriptStopError.killed = Array.isArray(stopResult?.killed) ? stopResult.killed : [];
+                    throw transcriptStopError;
+                }
             } catch (stopError) {
                 const failedAt = new Date().toISOString();
                 const killedProcesses = Array.isArray(stopError?.killed) ? stopError.killed : [];
@@ -1033,6 +1039,10 @@ export function installRuntimeHandlers(controller) {
         try {
             const stopped = await controller.runtimeLifecycle.stopTtyd(id, { preserveTmux });
 
+            await controller.codexAppServerTranscript?.stopSession?.(id, {
+                status: preserveTmux ? 'terminal_stopped' : 'paused'
+            });
+
             if (!stopped) {
                 return res.status(404).json({ error: 'Session not found or already stopped' });
             }
@@ -1073,6 +1083,15 @@ export function installRuntimeHandlers(controller) {
                 await controller.runtimeLifecycle.stopTtyd(id);
             } catch (ttydError) {
                 logger.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
+            }
+            try {
+                await controller.codexAppServerTranscript?.stopSession?.(id, { status: 'archived' });
+            } catch (appServerError) {
+                logger.error(`[archive] Failed to stop Codex App Server transcript runtime for ${id}:`, appServerError.message);
+                return res.status(500).json({
+                    error: 'Failed to archive session',
+                    detail: appServerError.message
+                });
             }
 
             await controller._updateStateWithRetry((state) => {

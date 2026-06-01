@@ -3,9 +3,9 @@
 ## Clauses
 
 - `codex-appserver-xterm-default.route-preserved`: `deriveSessionDisplayRoute()` MAY still return `codex_app_server` for Codex sessions with non-stale App Server thread metadata.
-- `codex-appserver-xterm-default.default-xterm`: Browser session switching MUST NOT show the App Server display panel by default for App Server-backed Codex sessions; it MUST continue through the interactive xterm/ttyd path.
-- `codex-appserver-xterm-default.diagnostic-opt-in`: Browser session switching MAY show the read-only App Server display panel only when `window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ === true`.
-- `codex-appserver-xterm-default.read-only-panel`: When the diagnostic App Server panel is active, legacy terminal input, paste, key, reconnect, click-to-focus, and type-to-focus controls MUST NOT send terminal input or start terminal runtime.
+- `codex-appserver-xterm-default.transcript-default-supersedes`: Browser session switching MAY show the native App Server transcript panel by default for App Server-backed Codex sessions when `story-codex-appserver-transcript-ui` is present.
+- `codex-appserver-xterm-default.explicit-terminal-fallback`: Browser session switching MUST keep xterm/ttyd available for unsupported sessions, stale App Server metadata, transcript load failure, mobile fallback, and explicit terminal transport selection.
+- `codex-appserver-xterm-default.read-only-panel`: When the App Server transcript panel is active, legacy terminal input, paste, key, click-to-focus, and type-to-focus controls MUST NOT send terminal input unless the user first switches to xterm/ttyd fallback.
 - `codex-appserver-xterm-default.metadata-create`: Regular and worktree Codex session creation MUST continue to request App Server startup and persist non-stale thread metadata.
 - `codex-appserver-xterm-default.fallbacks`: Claude Code sessions, Codex sessions with missing metadata, and Codex sessions with stale metadata MUST keep the existing terminal fallback path.
 

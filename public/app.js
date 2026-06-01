@@ -643,6 +643,7 @@ export class App {
             this.sessionUiSummaryIntervalId = null;
         }
         this._stopMobileSnapshotPolling();
+        this._stopCodexAppServerTranscriptRefresh?.();
         if (this._terminalFrameLayoutSyncRaf) {
             window.cancelAnimationFrame(this._terminalFrameLayoutSyncRaf);
             this._terminalFrameLayoutSyncRaf = null;

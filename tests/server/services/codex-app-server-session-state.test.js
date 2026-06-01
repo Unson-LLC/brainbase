@@ -96,6 +96,49 @@ describe('Codex App Server session state', () => {
         });
     });
 
+    it('clears active App Server turns when a turn fails or is cancelled', async () => {
+        const stateStore = createStateStore([{
+            id: 'session-codex',
+            engine: 'codex',
+            codexAppServer: {
+                schemaVersion: 1,
+                source: 'codex_app_server',
+                threadId: 'thread-app-1',
+                activeTurnId: 'turn-app-1'
+            }
+        }]);
+
+        await recordCodexAppServerSessionState({
+            stateStore,
+            sessionId: 'session-codex',
+            turnId: 'turn-app-1',
+            lifecycle: 'turn_failed',
+            eventType: 'turn/failed',
+            status: 'error'
+        });
+
+        expect(stateStore.get().sessions[0].codexAppServer).toMatchObject({
+            activeTurnId: null,
+            lastTurnId: 'turn-app-1',
+            lifecycle: 'turn_failed',
+            status: 'error'
+        });
+
+        await recordCodexAppServerSessionState({
+            stateStore,
+            sessionId: 'session-codex',
+            lifecycle: 'turn_cancelled',
+            eventType: 'turn/cancelled',
+            status: 'error'
+        });
+
+        expect(stateStore.get().sessions[0].codexAppServer).toMatchObject({
+            activeTurnId: null,
+            lifecycle: 'turn_cancelled',
+            status: 'error'
+        });
+    });
+
     it('uses App Server thread metadata before legacy Codex resume sources', () => {
         const session = {
             id: 'session-codex',

@@ -1915,7 +1915,7 @@ button svg *,
     inset: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     padding: 20px;
     background: var(--terminal-bg, #0b0f14);
     color: var(--text-primary, #f4f6f8);
@@ -1969,6 +1969,93 @@ button svg *,
     overflow-wrap: anywhere;
     font-size: 12px;
     color: var(--text-primary, #f4f6f8);
+}
+
+.codex-app-server-transcript {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: auto;
+    padding: 8px 2px 12px;
+}
+
+.codex-app-server-message {
+    max-width: min(760px, 100%);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(15, 23, 42, 0.62);
+    color: var(--text-primary, #f4f6f8);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.codex-app-server-message.user {
+    align-self: flex-end;
+    background: rgba(37, 99, 235, 0.22);
+    border-color: rgba(96, 165, 250, 0.4);
+}
+
+.codex-app-server-message.assistant {
+    align-self: flex-start;
+}
+
+.codex-app-server-message.command,
+.codex-app-server-message.file_change,
+.codex-app-server-message.reasoning,
+.codex-app-server-message.tool,
+.codex-app-server-message.input_request,
+.codex-app-server-message.turn {
+    align-self: stretch;
+    max-width: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    background: rgba(2, 6, 23, 0.74);
+}
+
+.codex-app-server-message.error {
+    align-self: stretch;
+    max-width: 100%;
+    border-color: rgba(248, 113, 113, 0.5);
+    background: rgba(127, 29, 29, 0.26);
+}
+
+.codex-app-server-message-label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-secondary, #9ca3af);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.codex-app-server-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.codex-app-server-composer textarea {
+    min-height: 56px;
+    max-height: 160px;
+    resize: vertical;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(15, 23, 42, 0.82);
+    color: var(--text-primary, #f4f6f8);
+    font: inherit;
+    line-height: 1.45;
+}
+
+.codex-app-server-composer textarea:focus {
+    outline: 2px solid rgba(96, 165, 250, 0.55);
+    outline-offset: 1px;
 }
 
 .terminal-xterm-host .xterm,

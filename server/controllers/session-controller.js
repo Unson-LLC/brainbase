@@ -29,9 +29,10 @@ export class SessionController {
      *   terminalIo?: any,
      *   terminalInputProbe?: any,
      *   snapshot?: any,
- *   worktreeService?: any,
- *   archiveFinalizer?: any,
- *   stateStore?: any,
+     *   codexAppServerTranscript?: any,
+     *   worktreeService?: any,
+     *   archiveFinalizer?: any,
+     *   stateStore?: any,
      *   projectsRoot?: string | null,
      *   codeProjectsRoot?: string | null,
      *   captureCache?: any
@@ -48,6 +49,7 @@ export class SessionController {
         this.terminalIo = deps.terminalIo || null;
         this.terminalInputProbe = deps.terminalInputProbe || null;
         this.snapshot = deps.snapshot || null;
+        this.codexAppServerTranscript = deps.codexAppServerTranscript || null;
         this.worktreeService = deps.worktreeService;
         this.archiveFinalizer = deps.archiveFinalizer || null;
         this.stateStore = deps.stateStore;

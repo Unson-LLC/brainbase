@@ -568,7 +568,8 @@ export function applyTerminalInputUxMixin(AppClass) {
             this.transportOptTtydEl.classList.toggle('active', !xtermActive && presentationMode !== 'snapshot');
         }
 
-        const showReconnect = presentationMode === 'snapshot'
+        const showReconnect = presentationMode === 'codex_app_server'
+            || presentationMode === 'snapshot'
             || transportState === 'reconnecting'
             || transportState === 'disconnected';
         if (this.transportOptReconnectEl) {
@@ -982,17 +983,19 @@ export function applyTerminalInputUxMixin(AppClass) {
         let ownerLabel = '';
 
         if (usingCodexAppServer) {
-            stateClass = 'blocked';
+            stateClass = 'ready';
             transportState = 'connected';
             attentionState = 'none';
             presentationMode = 'codex_app_server';
             snapshotVisible = false;
-            text = '表示: App Server (read-only)';
-            title = `session=${sessionId} codex app server display read-only`;
+            text = '入力: App Server';
+            title = `session=${sessionId} codex app server transcript`;
         } else if (usingMobileSnapshot) {
             presentationMode = 'snapshot';
             snapshotVisible = true;
-            snapshotTitle = 'Terminal display';
+            snapshotTitle = this._getCurrentTokenStatusSession(sessionId)?.mobileDisplayFallbackReason === 'app_server_transcript_desktop_only'
+                ? 'Snapshot fallback: App Server transcript is desktop-only on mobile'
+                : 'Terminal display';
             transportState = terminalAccess?.state === 'blocked' ? 'blocked' : 'connected';
             if (overlayState.any) {
                 stateClass = 'blocked';
@@ -1665,6 +1668,17 @@ export function applyTerminalInputUxMixin(AppClass) {
             const sessionId = appStore.getState().currentSessionId;
             if (!sessionId) return;
             if (this._isCodexAppServerDisplayActive()) {
+                if (btn.id === 'transport-opt-reconnect') {
+                    this._loadCodexAppServerTranscript?.(sessionId, { scroll: true });
+                    return;
+                }
+                if (btn.dataset.transport === 'ttyd' || btn.dataset.transport === 'xterm') {
+                    this._terminalSnapshotCache?.delete?.(sessionId);
+                    void this.switchSession(sessionId, btn.dataset.transport === 'ttyd'
+                        ? { forceTtyd: true }
+                        : { forceXterm: true });
+                    return;
+                }
                 this._updateTerminalInputStatus();
                 return;
             }

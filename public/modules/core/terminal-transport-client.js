@@ -117,11 +117,12 @@ export function shouldUseXtermTransport() {
 }
 
 export class TerminalTransportClient {
-    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null, getCurrentSessionId = null }) {
+    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null, onConnectMetric = null, getCurrentSessionId = null }) {
         this.viewerId = viewerId;
         this.viewerLabel = viewerLabel;
         this.onStatusChange = onStatusChange;
         this.onSnapshotChange = onSnapshotChange;
+        this.onConnectMetric = typeof onConnectMetric === 'function' ? onConnectMetric : null;
         this.getCurrentSessionId = typeof getCurrentSessionId === 'function' ? getCurrentSessionId : null;
         this.hostEl = null;
         this.terminal = null;

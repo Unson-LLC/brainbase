@@ -85,9 +85,13 @@ export function buildCodexAppServerStatePatch(session, {
         || normalizeString(previous.restore?.threadId);
     const resolvedTurnId = normalizeString(turnId);
     const normalizedLifecycle = normalizeString(lifecycle);
-    const isComplete = normalizedLifecycle === 'turn_completed';
-    const activeTurnId = isComplete
-        ? (previous.activeTurnId === resolvedTurnId ? null : previous.activeTurnId || null)
+    const isTerminalTurnLifecycle = [
+        'turn_completed',
+        'turn_failed',
+        'turn_cancelled'
+    ].includes(normalizedLifecycle);
+    const activeTurnId = isTerminalTurnLifecycle
+        ? (!resolvedTurnId || previous.activeTurnId === resolvedTurnId ? null : previous.activeTurnId || null)
         : resolvedTurnId || previous.activeTurnId || null;
     const numericReportedAt = Number(reportedAt);
     const updatedAt = new Date(Number.isFinite(numericReportedAt) ? numericReportedAt : Date.now()).toISOString();

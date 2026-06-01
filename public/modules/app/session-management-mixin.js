@@ -291,7 +291,7 @@ export function applySessionManagementMixin(AppClass) {
 
                 if (this._shouldUseCodexAppServerDisplay?.(activeSession, options)) {
                     const displayRoute = this._getSessionDisplayRoute?.(activeSession);
-                    const shown = this._showCodexAppServerDisplay?.(activeSession, displayRoute);
+                    const shown = this._showCodexAppServerDisplay?.(activeSession, displayRoute, { deferInitialLoad: true });
                     if (!shown) {
                         this._failTerminalSwitch?.(sessionId, switchToken, {
                             previousSessionId,
@@ -303,17 +303,32 @@ export function applySessionManagementMixin(AppClass) {
                         });
                         return { ok: false, reason: 'codex-app-server-display-missing' };
                     }
-                    this.reconnectManager?.setCurrentSession(sessionId);
-                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_codex_app_server' });
-                    this._setCurrentSessionUiState({
-                        transport: 'connected',
-                        attention: 'none'
-                    });
-                    this._updateTerminalInputStatus?.();
-                    return { ok: true, mode: 'codex_app_server', displayRoute };
+                    const transcriptSnapshot = await this._loadCodexAppServerTranscript?.(sessionId, { scroll: true });
+                    if (!transcriptSnapshot) {
+                        this._hideCodexAppServerDisplay?.();
+                    } else {
+                        this._startCodexAppServerTranscriptRefresh?.(sessionId);
+                        this.reconnectManager?.setCurrentSession(sessionId);
+                        this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_codex_app_server' });
+                        this._setCurrentSessionUiState({
+                            transport: 'connected',
+                            attention: 'none'
+                        });
+                        this._updateTerminalInputStatus?.();
+                        return { ok: true, mode: 'codex_app_server', displayRoute };
+                    }
                 }
 
                 if (this.isMobile()) {
+                    const appServerMobileFallback = activeSession?.engine === 'codex'
+                        && activeSession?.codexAppServer?.stale !== true
+                        && (activeSession?.codexAppServer?.threadId || activeSession?.codexAppServer?.restore?.threadId);
+                    const mobileSnapshotTitle = appServerMobileFallback
+                        ? 'Snapshot fallback: App Server transcript is desktop-only on mobile'
+                        : 'Terminal display';
+                    if (appServerMobileFallback) {
+                        activeSession.mobileDisplayFallbackReason = 'app_server_transcript_desktop_only';
+                    }
                     const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, activeSession);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
@@ -337,12 +352,12 @@ export function applySessionManagementMixin(AppClass) {
                     this._terminalTransportStatus = null;
                     this._mobileTerminalMode = 'snapshot';
                     this._mobileLiveTerminalSessionId = null;
-                    this._showSnapshotDisplay(sessionId, { title: 'Terminal display', snapshot });
+                    this._showSnapshotDisplay(sessionId, { title: mobileSnapshotTitle, snapshot });
                     this._clearTerminalFrame(terminalFrame);
                     this._renderTerminalSnapshotPanel({
                         visible: true,
                         snapshot,
-                        title: 'Terminal display',
+                        title: mobileSnapshotTitle,
                         pinToBottom: true
                     });
                     if (cachedSnapshot) {
@@ -354,15 +369,15 @@ export function applySessionManagementMixin(AppClass) {
                                 this._renderTerminalSnapshotPanel({
                                     visible: true,
                                     snapshot: freshSnapshot,
-                                    title: 'Terminal display',
+                                    title: mobileSnapshotTitle,
                                     pinToBottom: true
                                 });
                                 this._updateTerminalInputStatus();
                             })
                             .catch(() => {});
                     }
+                    this.reconnectManager?.setCurrentSession(sessionId);
                     if (this.reconnectManager) {
-                        this.reconnectManager.setCurrentSession(sessionId);
                         this.reconnectManager.terminalAccess = terminalAccess || null;
                         if (terminalAccess?.state === 'blocked') {
                             this.reconnectManager._setBlocked?.(terminalAccess);
