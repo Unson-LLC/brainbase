@@ -6,6 +6,7 @@
  * @property {new (...args: any[]) => any} FitAddon - FitAddon constructor
  * @property {new (...args: any[]) => any} WebLinksAddon - WebLinksAddon constructor
  * @property {new (...args: any[]) => any} Unicode11Addon - Unicode11 width tables addon
+ * @property {(new (...args: any[]) => any) | null} WebglAddon - WebGL renderer addon (optional)
  */
 
 const XTERM_JS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js';
@@ -13,6 +14,10 @@ const XTERM_CSS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css';
 const XTERM_FIT_URL = 'https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js';
 const XTERM_WEBLINKS_URL = 'https://unpkg.com/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js';
 const XTERM_UNICODE11_URL = 'https://unpkg.com/@xterm/addon-unicode11@0.8.0/lib/addon-unicode11.js';
+// GPU renderer. The default DOM renderer leaves the xterm region unpainted under heavy continuous
+// output (the screen freezes until a resize forces a repaint); WebGL renders to a canvas and avoids
+// that DOM-paint stall. Loaded best-effort — if the CDN/script fails the terminal keeps the DOM renderer.
+const XTERM_WEBGL_URL = 'https://unpkg.com/@xterm/addon-webgl@0.18.0/lib/addon-webgl.js';
 
 /** @type {Promise<XtermModules> | null} */
 let loadPromise = null;
@@ -71,16 +76,23 @@ export async function loadXterm() {
         await loadScript(XTERM_FIT_URL);
         await loadScript(XTERM_WEBLINKS_URL);
         await loadScript(XTERM_UNICODE11_URL);
+        // Best-effort: a WebGL load failure must not break the terminal (falls back to DOM renderer).
+        try {
+            await loadScript(XTERM_WEBGL_URL);
+        } catch (error) {
+            // ignore — WebglAddon stays undefined and the caller keeps the DOM renderer
+        }
 
         const Terminal = /** @type {any} */ (window).Terminal;
         const FitAddon = /** @type {any} */ (window).FitAddon?.FitAddon || /** @type {any} */ (window).FitAddon;
         const WebLinksAddon = /** @type {any} */ (window).WebLinksAddon?.WebLinksAddon || /** @type {any} */ (window).WebLinksAddon;
         const Unicode11Addon = /** @type {any} */ (window).Unicode11Addon?.Unicode11Addon || /** @type {any} */ (window).Unicode11Addon;
+        const WebglAddon = /** @type {any} */ (window).WebglAddon?.WebglAddon || /** @type {any} */ (window).WebglAddon || null;
         if (!Terminal || !FitAddon) {
             throw new Error('xterm.js globals are not available');
         }
 
-        return { Terminal, FitAddon, WebLinksAddon, Unicode11Addon };
+        return { Terminal, FitAddon, WebLinksAddon, Unicode11Addon, WebglAddon };
     })();
 
     return await loadPromise;
