@@ -39,6 +39,7 @@ octalデコーダ(~50MB/s)はいずれも無実。真因は**出力フラッド�
 
 - snapshot/polling transport 経路（`_startSnapshotPolling` / `_pollConnection`）。
 - `handleFailure`(error/exit) → `_fallbackToPolling` 経路。
+- `isStartupShell(session...)`（startup shell 判定）分岐は本修正の対象外・挙動不変。
 
 ## Acceptance Criteria
 
