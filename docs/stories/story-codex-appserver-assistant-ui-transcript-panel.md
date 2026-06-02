@@ -15,6 +15,7 @@ As a Brainbase user working in a Codex App Server-backed session, I want the tra
 - assistant-ui is a build-time dependency for the browser island bundle and does not add production Node dependency audit surface.
 - If the transcript island mount root or session id is unavailable, the shell must leave the existing terminal/fallback surface intact instead of partially mounting transcript UI.
 - If the transcript island import or mount fails once because the browser has a stale failed module while Brainbase was updated, the shell retries the island import once with a cache-busted URL before falling back.
+- If the session ledger contains duplicate event ids, the transcript island still renders every event without triggering assistant-ui duplicate message id failures.
 
 ## Out Of Scope
 

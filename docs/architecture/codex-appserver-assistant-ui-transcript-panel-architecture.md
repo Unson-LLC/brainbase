@@ -21,6 +21,7 @@ Mount a React island under `#codex-app-server-display-panel` and render the tran
 - Styles: `public/style.css` owns the concrete Brainbase visual treatment.
 - Mount guard: if the expected island root or active session id is unavailable, the shell does not mount the island and leaves the existing terminal/fallback surface intact.
 - Import resilience: if the browser shell fails to import or mount the island once, it retries the same island with a cache-busted URL before using the fallback renderer. This covers already-open Brainbase pages after a bundle replacement without changing the steady-state bundle URL.
+- Message identity: the adapter preserves each ledger event while deriving unique assistant-ui message ids when duplicate ledger ids appear in a snapshot. This keeps Brainbase ledger semantics separate from assistant-ui's message tree identity contract.
 
 ## Dependency Policy
 

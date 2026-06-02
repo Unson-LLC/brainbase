@@ -85,6 +85,16 @@ test('story-codex-appserver-assistant-ui-transcript-panel ac:9 stale island impo
   expect(mixin).toContain('panel.dataset.sessionId !== sessionId');
 });
 
+test('story-codex-appserver-assistant-ui-transcript-panel ac:10 duplicate ledger ids are normalized for assistant-ui', async () => {
+  const criterion = 'If the session ledger contains duplicate event ids, the transcript island still renders every event without triggering assistant-ui duplicate message id failures.';
+  expect('If the session ledger contains duplicate event ids, the transcript island still renders every event without triggering assistant-ui duplicate message id failures.').toBe(criterion);
+  expect(read('docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md')).toContain(criterion);
+  expect(read('docs/specs/codex-appserver-assistant-ui-transcript-panel-spec.md')).toContain('unique-message-ids');
+  const island = read('ui-islands/codex-appserver-transcript/index.jsx');
+  expect(island).toContain('seenIds');
+  expect(island).toContain(':duplicate-');
+});
+
 test('story-codex-appserver-assistant-ui-transcript-panel runtime: failed island import keeps visible fallback transcript', async ({ page }) => {
   const sessionId = 'story-assistant-ui-import-fallback';
   const turnBodies: unknown[] = [];
@@ -395,4 +405,86 @@ test('story-codex-appserver-assistant-ui-transcript-panel runtime: delayed impor
   await expect(panel.locator('[data-codex-appserver-transcript-island]')).toBeVisible();
   await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'Current retry session is visible' })).toBeVisible();
   await expect(panel).not.toContainText('Stale retry session must not mount');
+});
+
+test('story-codex-appserver-assistant-ui-transcript-panel runtime: duplicate ledger ids do not crash assistant-ui thread', async ({ page }) => {
+  const sessionId = 'story-assistant-ui-duplicate-ledger-ids';
+  const pageErrors: string[] = [];
+
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    window.__BRAINBASE_TEST__ = true;
+    window.__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__ = true;
+  });
+  await page.route('**/api/state', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ sessions: [], currentSessionId: null, preferences: {} })
+    });
+  });
+  await page.route(`**/api/state/sessions/${sessionId}`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  await page.route(`**/api/sessions/${sessionId}/codex-app-server/transcript`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sessionId,
+        threadId: 'thread-duplicate-ledger-ids',
+        status: 'complete',
+        timeline: [
+          { id: 'duplicate-message-id', kind: 'user', text: 'first duplicate user event' },
+          { id: 'duplicate-message-id', kind: 'user', text: 'second duplicate user event' },
+          { id: 'assistant-duplicate-proof', kind: 'assistant', text: 'Duplicate ids render without assistant-ui crash' }
+        ]
+      })
+    });
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('domcontentloaded');
+  await page.evaluate(() => document.getElementById('app-loading-splash')?.remove());
+  await page.evaluate(async (sid) => {
+    const [{ createApp }, { appStore }] = await Promise.all([
+      import('/app.js'),
+      import('/modules/core/store.js')
+    ]);
+    const app = createApp();
+    (window as any).brainbaseApp = app;
+    app.reconnectManager = { setCurrentSession() {} };
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalTransportClient = {
+      disconnect() {},
+      hide() {},
+      show() {},
+      destroy() {},
+      isActiveForSession() { return false; }
+    };
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: sid,
+        name: 'Duplicate Ledger Id Session',
+        path: '/tmp/duplicate-ledger-ids',
+        engine: 'codex',
+        intendedState: 'active',
+        codexAppServer: { threadId: 'thread-duplicate-ledger-ids', status: 'complete' }
+      }]
+    });
+    await app.switchSession(sid);
+  }, sessionId);
+
+  const panel = page.locator('#codex-app-server-display-panel');
+  await expect(panel.locator('[data-codex-appserver-transcript-island]')).toBeVisible();
+  await expect(panel.locator('.aui-thread-root')).toBeVisible();
+  await expect(panel.locator('.aui-user-message-root')).toHaveCount(2);
+  await expect(panel).toContainText('first duplicate user event');
+  await expect(panel).toContainText('second duplicate user event');
+  await expect(panel).toContainText('Duplicate ids render without assistant-ui crash');
+  expect(pageErrors.filter((message) => message.includes('same message id'))).toEqual([]);
 });

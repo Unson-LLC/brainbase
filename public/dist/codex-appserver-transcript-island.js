@@ -54491,11 +54491,10 @@ function formatActivityText(item) {
 
 ${text5}` : `**${kind}${status}**`;
 }
-function toAssistantMessage(item, index5) {
+function toAssistantMessage(item, index5, id) {
   const kind = item?.kind || "assistant";
   const role = ROLE_KINDS.has(kind) ? kind : "assistant";
   const text5 = ROLE_KINDS.has(kind) ? item?.text || "" : formatActivityText(item);
-  const id = item?.id || `codex-appserver-${index5}`;
   const createdAt = item?.createdAt ? new Date(item.createdAt) : /* @__PURE__ */ new Date(0);
   if (role === "user") {
     return {
@@ -54524,7 +54523,14 @@ function toAssistantMessage(item, index5) {
 }
 function normalizeSnapshot(snapshot) {
   const timeline = Array.isArray(snapshot?.timeline) ? snapshot.timeline : [];
-  return timeline.map(toAssistantMessage);
+  const seenIds = /* @__PURE__ */ new Map();
+  return timeline.map((item, index5) => {
+    const baseId = String(item?.id || `codex-appserver-${index5}`);
+    const seenCount = seenIds.get(baseId) || 0;
+    seenIds.set(baseId, seenCount + 1);
+    const id = seenCount === 0 ? baseId : `${baseId}:duplicate-${seenCount}:${index5}`;
+    return toAssistantMessage(item, index5, id);
+  });
 }
 function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, initialSnapshot, autoLoad = true }) {
   const [messages, setMessages] = (0, import_react166.useState)(() => normalizeSnapshot(initialSnapshot));

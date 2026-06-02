@@ -34,11 +34,10 @@ function formatActivityText(item) {
     return text ? `**${kind}${status}**\n\n${text}` : `**${kind}${status}**`;
 }
 
-function toAssistantMessage(item, index) {
+function toAssistantMessage(item, index, id) {
     const kind = item?.kind || 'assistant';
     const role = ROLE_KINDS.has(kind) ? kind : 'assistant';
     const text = ROLE_KINDS.has(kind) ? (item?.text || '') : formatActivityText(item);
-    const id = item?.id || `codex-appserver-${index}`;
     const createdAt = item?.createdAt ? new Date(item.createdAt) : new Date(0);
 
     if (role === 'user') {
@@ -72,7 +71,14 @@ function toAssistantMessage(item, index) {
 
 function normalizeSnapshot(snapshot) {
     const timeline = Array.isArray(snapshot?.timeline) ? snapshot.timeline : [];
-    return timeline.map(toAssistantMessage);
+    const seenIds = new Map();
+    return timeline.map((item, index) => {
+        const baseId = String(item?.id || `codex-appserver-${index}`);
+        const seenCount = seenIds.get(baseId) || 0;
+        seenIds.set(baseId, seenCount + 1);
+        const id = seenCount === 0 ? baseId : `${baseId}:duplicate-${seenCount}:${index}`;
+        return toAssistantMessage(item, index, id);
+    });
 }
 
 function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, initialSnapshot, autoLoad = true }) {
