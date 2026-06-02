@@ -265,6 +265,20 @@
             padding: 12px;
             background: #fff;
         }
+        .draft-preview {
+            display: grid;
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .draft-preview .canvas {
+            min-height: 180px;
+            padding: 28px;
+        }
+        .draft-status {
+            min-height: 20px;
+            color: var(--muted);
+            font-size: 13px;
+        }
         .error, .empty {
             border: 2px solid var(--line);
             border-radius: 8px;
@@ -349,7 +363,9 @@
             selectedWorkflowId: '',
             selectedRunId: '',
             workflowDetail: null,
-            runDetail: null
+            runDetail: null,
+            workflowDraft: null,
+            workflowDraftTest: null
         };
         const views = {
             workspace: document.getElementById('workspace-view'),
@@ -366,6 +382,12 @@
             return String(value ?? '').replace(/[&<>"']/g, (char) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             }[char]));
+        }
+        function errorMessage(data, fallback) {
+            if (typeof data?.error === 'string') return data.error;
+            if (typeof data?.error?.message === 'string') return data.error.message;
+            if (typeof data?.message === 'string') return data.message;
+            return fallback;
         }
         function getAuthToken() {
             try {
@@ -520,6 +542,8 @@
             state.selectedProjectId = projectId;
             state.selectedWorkflowId = '';
             state.selectedRunId = '';
+            state.workflowDraft = null;
+            state.workflowDraftTest = null;
             filterEl.value = projectId;
             const workflows = projectWorkflows(projectId);
             const contextSources = workflows.flatMap((workflow) => plannedSources(workflow).map((source) => ({ ...source, workflowId: workflow.id })));
@@ -530,7 +554,7 @@
                         <h1>${escapeHtml(projectId)}</h1>
                         <div class="meta-row"><span>${workflows.length} workflow</span><span>${contextSources.length} context binding</span><span>No local path</span></div>
                     </div>
-                    <button class="btn primary" type="button" data-action="noop">＋ Add Workflow</button>
+                    <button class="btn primary" type="button" data-action="focus-workflow-draft">＋ Add Workflow</button>
                 </div>
                 <div class="layout-two">
                     <section>
@@ -538,16 +562,18 @@
                         <div class="stack">${workflows.map(renderWorkflowCard).join('') || '<div class="empty">No workflows in this project</div>'}</div>
                     </section>
                     <section class="panel">
-                        <div class="panel-title"><h3>新しいWorkflow</h3><span class="badge">Project固定</span></div>
-                        <form id="create-workflow-form" class="field-grid">
-                            <label>Name<input name="name" required placeholder="例: Morning Briefing"></label>
-                            <label>Risk<select name="risk_level"><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
-                            <label>Context type<select name="source_type"><option value="project">project</option><option value="document">document</option><option value="local_fs">local_fs</option><option value="human">human</option></select></label>
-                            <label>Context ref<input name="source_ref" value="${escapeHtml(projectId)}"></label>
-                            <label class="full">Purpose<input name="description" placeholder="何を毎回回したいか"></label>
+                        <div class="panel-title"><h3>Workflow Draft Builder</h3><span class="badge">Project固定</span></div>
+                        <form id="workflow-draft-form" class="field-grid">
+                            <label class="full">やりたいこと<textarea name="prompt" required placeholder="例: 毎朝、予定と未完了タスクをまとめるワークフローを作りたい"></textarea></label>
                             <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
-                            <div class="full toolbar"><button class="btn primary" type="submit">保存</button><span class="sub" id="create-workflow-status"></span></div>
+                            <div class="full toolbar">
+                                <button class="btn primary" type="submit">Generate Draft</button>
+                                <button class="btn soft" type="button" data-action="test-draft" disabled>Test</button>
+                                <button class="btn soft" type="button" data-action="publish-draft" disabled>Publish</button>
+                            </div>
                         </form>
+                        <div class="draft-status" id="workflow-draft-status"></div>
+                        <div class="draft-preview" id="workflow-draft-preview"></div>
                     </section>
                 </div>
                 <section class="section-title"><h2>ドキュメント / Context</h2></section>
@@ -663,6 +689,114 @@
                 statusEl.textContent = `保存できません: ${error.message}`;
             }
         }
+        function setDraftButtons({ canTest = false, canPublish = false } = {}) {
+            const testButton = document.querySelector('[data-action="test-draft"]');
+            const publishButton = document.querySelector('[data-action="publish-draft"]');
+            if (testButton) testButton.disabled = !canTest;
+            if (publishButton) publishButton.disabled = !canPublish;
+        }
+        function renderDraftPreview() {
+            const previewEl = document.getElementById('workflow-draft-preview');
+            const statusEl = document.getElementById('workflow-draft-status');
+            if (!previewEl) return;
+            const draft = state.workflowDraft;
+            if (!draft) {
+                previewEl.innerHTML = '';
+                setDraftButtons();
+                return;
+            }
+            const workflow = draft.workflow || {};
+            const nodes = draft.builder_preview?.nodes || [];
+            const testResult = state.workflowDraftTest;
+            if (statusEl) statusEl.textContent = testResult
+                ? `Test: ${testResult.status} / ${testResult.message}`
+                : 'Draft generated. Test before publish.';
+            previewEl.innerHTML = `
+                <div class="trace-item">
+                    <strong>${escapeHtml(workflow.name || workflow.id)}</strong>
+                    <div class="sub">${escapeHtml(workflow.description || '')}</div>
+                    <div class="chips">
+                        <span class="badge">draft</span>
+                        <span class="badge">${escapeHtml(workflow.risk_level || 'low')}</span>
+                        <span class="badge">${escapeHtml(workflow.hitl_policy || 'none')}</span>
+                        <span class="badge">${escapeHtml(workflow.project_id || '-')}</span>
+                    </div>
+                </div>
+                <div class="canvas"><div class="canvas-row">
+                    ${nodes.map((node, index) => `${index ? '<div class="connector"></div>' : ''}<div class="node"><div class="node-title">${escapeHtml(node.label || node.id)}</div><div class="node-copy">${escapeHtml(node.summary || node.type || '')}</div></div>`).join('')}
+                </div></div>
+                <div class="trace-list">
+                    ${(draft.context_sources || []).map((source) => `<div class="trace-item"><strong>${escapeHtml(source.source_type || 'context')}</strong><div class="sub">${escapeHtml(source.source_ref || '-')}</div><div class="chips"><span class="badge">${escapeHtml(source.permission || 'read')}</span><span class="badge ${source.required ? 'warn' : ''}">${source.required ? 'required' : 'optional'}</span></div></div>`).join('')}
+                </div>
+            `;
+            setDraftButtons({
+                canTest: true,
+                canPublish: testResult?.status === 'passed'
+            });
+        }
+        async function generateWorkflowDraft(form) {
+            const statusEl = document.getElementById('workflow-draft-status');
+            const formData = new FormData(form);
+            const prompt = String(formData.get('prompt') || '').trim();
+            const projectId = String(formData.get('project_id') || '').trim();
+            if (statusEl) statusEl.textContent = 'Generating draft...';
+            state.workflowDraft = null;
+            state.workflowDraftTest = null;
+            renderDraftPreview();
+            try {
+                const response = await apiFetch('/api/workflows/draft', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_id: projectId, prompt })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+                state.workflowDraft = data.draft;
+                if (statusEl) statusEl.textContent = 'Draft generated. Test before publish.';
+                renderDraftPreview();
+            } catch (error) {
+                if (statusEl) statusEl.innerHTML = `<span class="error" style="display:block;">Draft生成に失敗しました: ${escapeHtml(error.message)}</span>`;
+                setDraftButtons();
+            }
+        }
+        async function testDraft() {
+            const statusEl = document.getElementById('workflow-draft-status');
+            if (!state.workflowDraft) return;
+            if (statusEl) statusEl.textContent = 'Testing draft...';
+            try {
+                const response = await apiFetch('/api/workflows/draft/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ draft: state.workflowDraft })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+                state.workflowDraftTest = data.test_result;
+                renderDraftPreview();
+            } catch (error) {
+                if (statusEl) statusEl.innerHTML = `<span class="error" style="display:block;">Draft testに失敗しました: ${escapeHtml(error.message)}</span>`;
+                setDraftButtons({ canTest: true, canPublish: false });
+            }
+        }
+        async function publishDraft() {
+            const statusEl = document.getElementById('workflow-draft-status');
+            if (!state.workflowDraft?.workflow) return;
+            if (statusEl) statusEl.textContent = 'Publishing workflow...';
+            try {
+                const response = await apiFetch('/api/workflows', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state.workflowDraft.workflow)
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+                if (statusEl) statusEl.textContent = 'Published';
+                await load({ keepView: true });
+                await renderWorkflow(data.workflow.id);
+            } catch (error) {
+                if (statusEl) statusEl.innerHTML = `<span class="error" style="display:block;">Publishに失敗しました: ${escapeHtml(error.message)}</span>`;
+            }
+        }
         async function runWorkflow(workflowId) {
             const response = await apiFetch(`/api/workflows/${encodeURIComponent(workflowId)}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trigger_type: 'manual', env: 'local' }) });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -738,11 +872,21 @@
                 try { await resolveHumanStep(target.dataset.runId, target.dataset.stepId, target.dataset.resolution); }
                 catch (error) { views.run.insertAdjacentHTML('afterbegin', `<div class="error">人間判断を処理できません: ${escapeHtml(error.message)}</div>`); }
             }
+            if (target.dataset.action === 'test-draft') {
+                await testDraft();
+            }
+            if (target.dataset.action === 'publish-draft') {
+                await publishDraft();
+            }
+            if (target.dataset.action === 'focus-workflow-draft') {
+                document.querySelector('#workflow-draft-form textarea[name="prompt"]')?.focus();
+                document.getElementById('workflow-draft-form')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
         });
         document.addEventListener('submit', async (event) => {
-            if (event.target.id !== 'create-workflow-form') return;
+            if (event.target.id !== 'workflow-draft-form') return;
             event.preventDefault();
-            await createWorkflow(event.target);
+            await generateWorkflowDraft(event.target);
         });
         filterEl.addEventListener('change', () => {
             if (filterEl.value) renderProject(filterEl.value);

@@ -2,6 +2,10 @@
 
 import crypto from 'node:crypto';
 import { AppError } from '../../lib/errors.js';
+import {
+    generateWorkflowDraft,
+    testWorkflowDraft
+} from './workflow-draft-generator.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -221,6 +225,24 @@ export class WorkflowService {
             after: created
         });
         return { workflow: created };
+    }
+
+    async generateDraft(input, actor = {}) {
+        const projectId = input.project_id || input.projectId;
+        if (!projectId) throw AppError.validation('project_id is required');
+        await this._assertProjectSelectable(projectId);
+        this._assertActorCanAccessProject(projectId, actor);
+        const draft = generateWorkflowDraft(input);
+        return { draft };
+    }
+
+    async testDraft(input, actor = {}) {
+        const draft = input.draft || input;
+        const projectId = draft.workflow?.project_id || draft.workflow?.projectId || draft.project_id || draft.projectId;
+        if (!projectId) throw AppError.validation('project_id is required');
+        await this._assertProjectSelectable(projectId);
+        this._assertActorCanAccessProject(projectId, actor);
+        return { test_result: testWorkflowDraft(draft) };
     }
 
     async updateWorkflow(workflowId, patch, actor = {}) {

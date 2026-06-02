@@ -60,8 +60,14 @@ Response:
     "name": "Morning Briefing",
     "description": "...",
     "risk_level": "low",
-    "hitl_policy": "review",
+    "hitl_policy": "none",
     "implementation_key": "manual-placeholder",
+    "workflow": {
+      "id": "wf_xxx",
+      "project_id": "general",
+      "implementation_key": "manual-placeholder",
+      "context_sources": []
+    },
     "context_sources": [],
     "steps": [],
     "builder_preview": {}
@@ -121,7 +127,30 @@ Given draft generation, test, or publish fails.
 When the API returns an error.
 Then the UI shows an inline error and keeps the draft prompt/edit path available.
 
-## 6. Out of Scope
+## 6. State Machine
+
+```text
+empty
+  -> draft_generated
+  -> draft_tested_passed | draft_tested_failed
+  -> published_workflow
+```
+
+- `draft_generated` is not persisted as workflow state.
+- `draft_tested_passed` and `draft_tested_failed` return dry-run evidence only.
+- Draft test must not create `workflow_runs`, `workflow_outputs`, `human_steps`, or external side effects.
+- `published_workflow` is created only through the existing `POST /api/workflows` path.
+- Real execution after publish must use `POST /api/workflows/:id/run` and `runWorkflow()`.
+
+## 7. PR2 Verification Contract
+
+- Route tests must cover draft generation without persistence.
+- Route tests must cover dry-run without `workflow_runs`, `workflow_outputs`, or `human_steps`.
+- Route tests must reject malformed drafts and mismatched `draft.context_sources` / `workflow.context_sources`.
+- Route tests must publish a generated draft and then run it through the normal `runWorkflow()` path.
+- E2E must cover Add Workflow focus, generate, preview, test, publish, readable inline API errors, and retryable publish failure.
+
+## 8. Out of Scope
 
 - Real LLM provider as the only generation path.
 - Full canvas editing and persisted node positions.

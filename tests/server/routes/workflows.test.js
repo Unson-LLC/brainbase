@@ -102,6 +102,194 @@ describe('workflow routes', () => {
         ]);
     });
 
+    it('generates a schema-bound workflow draft without persisting a workflow', async () => {
+        const { app, repository } = makeApp();
+
+        const res = await request(app)
+            .post('/api/workflows/draft')
+            .send({
+                project_id: 'sample-project',
+                prompt: '毎朝、予定と未完了タスクをまとめるワークフローを作りたい'
+            })
+            .expect(201);
+
+        expect(res.body.draft).toMatchObject({
+            status: 'draft',
+            project_id: 'sample-project',
+            name: 'Morning Briefing',
+            risk_level: 'low',
+            hitl_policy: 'none',
+            implementation_key: 'manual-placeholder',
+            workflow: expect.objectContaining({
+                project_id: 'sample-project',
+                implementation_key: 'manual-placeholder'
+            }),
+            context_sources: [expect.objectContaining({
+                source_type: 'project',
+                source_ref: 'sample-project'
+            })],
+            builder_preview: expect.objectContaining({
+                nodes: expect.any(Array),
+                edges: expect.any(Array)
+            })
+        });
+        expect(res.body.draft.steps.length).toBeGreaterThan(2);
+        expect(repository.getWorkflow(res.body.draft.workflow.id)).toBeNull();
+    });
+
+    it('dry-runs a workflow draft without creating workflow_runs, outputs, or human steps', async () => {
+        const { app, repository } = makeApp();
+        const draftRes = await request(app)
+            .post('/api/workflows/draft')
+            .send({
+                project_id: 'sample-project',
+                prompt: '月末に請求前の確認をするワークフローを作りたい'
+            })
+            .expect(201);
+
+        const beforeRuns = repository.listRuns().length;
+        const beforeOutputs = repository.ledger.outputs.length;
+        const beforeHumanSteps = repository.ledger.human_steps.length;
+        const testRes = await request(app)
+            .post('/api/workflows/draft/test')
+            .send({ draft: draftRes.body.draft })
+            .expect(200);
+
+        expect(testRes.body.test_result).toMatchObject({
+            dry_run: true,
+            status: 'passed'
+        });
+        expect(repository.listRuns().length).toBe(beforeRuns);
+        expect(repository.ledger.outputs).toHaveLength(beforeOutputs);
+        expect(repository.ledger.human_steps).toHaveLength(beforeHumanSteps);
+    });
+
+    it('rejects malformed workflow drafts at the schema boundary', async () => {
+        const { app } = makeApp();
+
+        const res = await request(app)
+            .post('/api/workflows/draft/test')
+            .send({
+                draft: {
+                    workflow: {
+                        id: 'wf-bad',
+                        project_id: 'sample-project',
+                        name: 'Bad Draft',
+                        implementation_key: 'manual-placeholder',
+                        risk_level: 'extreme',
+                        hitl_policy: 'none',
+                        context_sources: []
+                    },
+                    steps: [{ id: 'start', label: 'Start' }],
+                    context_sources: [{
+                        source_type: 'project',
+                        source_ref: 'sample-project',
+                        permission: 'admin'
+                    }],
+                    builder_preview: {
+                        nodes: [{ id: 'missing-step', label: 'Missing Step' }],
+                        edges: [{ from: 'missing-step', to: 'ghost' }]
+                    }
+                }
+            })
+            .expect(200);
+
+        expect(res.body.test_result).toMatchObject({
+            dry_run: true,
+            status: 'failed'
+        });
+        expect(res.body.test_result.message).toContain('workflow.risk_level');
+        expect(res.body.test_result.message).toContain('step.type');
+        expect(res.body.test_result.message).toContain('builder_preview');
+    });
+
+    it('rejects workflow drafts when workflow context differs from draft context', async () => {
+        const { app } = makeApp();
+        const draftRes = await request(app)
+            .post('/api/workflows/draft')
+            .send({
+                project_id: 'sample-project',
+                prompt: '毎朝、予定と未完了タスクをまとめるワークフローを作りたい'
+            })
+            .expect(201);
+        const tamperedDraft = {
+            ...draftRes.body.draft,
+            workflow: {
+                ...draftRes.body.draft.workflow,
+                context_sources: [{
+                    source_type: 'project',
+                    source_ref: 'general',
+                    permission: 'read',
+                    required: true
+                }]
+            }
+        };
+
+        const res = await request(app)
+            .post('/api/workflows/draft/test')
+            .send({ draft: tamperedDraft })
+            .expect(200);
+
+        expect(res.body.test_result).toMatchObject({
+            dry_run: true,
+            status: 'failed'
+        });
+        expect(res.body.test_result.message).toContain('workflow.context_sources must match draft context_sources');
+    });
+
+    it('publishes a generated draft as a normal workflow and runs it through runWorkflow', async () => {
+        const { app, repository } = makeApp();
+        const draftRes = await request(app)
+            .post('/api/workflows/draft')
+            .send({
+                project_id: 'sample-project',
+                prompt: '毎朝、予定と未完了タスクをまとめるワークフローを作りたい'
+            })
+            .expect(201);
+
+        const publishRes = await request(app)
+            .post('/api/workflows')
+            .send(draftRes.body.draft.workflow)
+            .expect(201);
+
+        expect(publishRes.body.workflow).toMatchObject({
+            id: draftRes.body.draft.workflow.id,
+            project_id: 'sample-project',
+            implementation_key: 'manual-placeholder'
+        });
+
+        const runRes = await request(app)
+            .post(`/api/workflows/${publishRes.body.workflow.id}/run`)
+            .send({ trigger_type: 'manual' })
+            .expect(201);
+
+        expect(runRes.body.run).toMatchObject({
+            workflow_id: publishRes.body.workflow.id,
+            project_id: 'sample-project',
+            status: 'success',
+            closure_state: 'closed'
+        });
+        expect(repository.listRuns({ workflowId: publishRes.body.workflow.id })).toHaveLength(1);
+        expect(repository.listOutputs(runRes.body.run.id)).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                workflow_id: publishRes.body.workflow.id,
+                project_id: 'sample-project'
+            })
+        ]));
+    });
+
+    it('denies workflow draft generation for inaccessible projects', async () => {
+        const { app } = makeApp({ accessProjectCodes: [] });
+
+        await request(app)
+            .post('/api/workflows/draft')
+            .send({
+                project_id: 'sample-project',
+                prompt: '毎朝の確認を作りたい'
+            })
+            .expect(403);
+    });
+
     it('rejects create when the workflow id already exists', async () => {
         const { app } = makeApp();
 
