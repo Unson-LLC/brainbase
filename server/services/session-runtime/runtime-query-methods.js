@@ -437,8 +437,14 @@ export const runtimeQueryMethods = {
     },
 
     _isXtermOnlyMode() {
-        return process.env.BRAINBASE_TERMINAL_TRANSPORT === 'xterm'
-            && process.env.BRAINBASE_TEST_MODE !== 'false';
+        // Xterm-only mode is determined solely by the configured terminal transport.
+        // Production runs BRAINBASE_TERMINAL_TRANSPORT=xterm (tmux + WebSocket) with
+        // zero ttyd processes; the previous `&& BRAINBASE_TEST_MODE !== 'false'` clause
+        // was a rollout artifact that left ttyd-vestigial code (scan/restore/repair/
+        // spawn) active in production, where repairActiveTtydSessions then spawned ttyd
+        // that timed out every watchdog cycle. When the transport is xterm, ttyd is not
+        // the serving mechanism regardless of test mode.
+        return process.env.BRAINBASE_TERMINAL_TRANSPORT === 'xterm';
     },
 
     getRuntimeStatus(session) {
