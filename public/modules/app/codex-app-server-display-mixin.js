@@ -4,6 +4,11 @@ import { httpClient } from '../core/http-client.js';
 const CODEX_APP_SERVER_DISPLAY_OPT_IN_FLAG = '__BRAINBASE_ENABLE_CODEX_APP_SERVER_DISPLAY__';
 const CODEX_APP_SERVER_TRANSCRIPT_ISLAND_URL = '/dist/codex-appserver-transcript-island.js';
 
+function getCodexAppServerTranscriptIslandUrl({ retry = false } = {}) {
+    if (!retry) return CODEX_APP_SERVER_TRANSCRIPT_ISLAND_URL;
+    return `${CODEX_APP_SERVER_TRANSCRIPT_ISLAND_URL}?retry=${Date.now()}`;
+}
+
 function setText(root, selector, value) {
     const element = root?.querySelector?.(selector);
     if (element) element.textContent = value || '';
@@ -137,29 +142,44 @@ export function applyCodexAppServerDisplayMixin(AppClass) {
         const root = panel?.querySelector?.('[data-codex-app-server-react-root]');
         if (!root || !sessionId) return false;
         ensureCodexAppServerFallbackShell(panel, { sessionId, threadId, status });
-        try {
-            const module = await import(CODEX_APP_SERVER_TRANSCRIPT_ISLAND_URL);
-            const mount = module.mountCodexAppServerTranscript || window.BrainbaseCodexAppServerTranscript?.mount;
-            if (!mount) return false;
-            const api = {
-                getTranscript: () => httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/codex-app-server/transcript`, { timeout: 120000 }),
-                startTurn: (text) => httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/codex-app-server/turns`, { text }, { timeout: 120000 })
-            };
-            this._codexAppServerTranscriptIsland?.unmount?.();
-            this._codexAppServerTranscriptIslandProps = {
-                api,
-                sessionId,
-                threadId,
-                initialStatus: status,
-                initialSnapshot,
-                autoLoad
-            };
-            this._codexAppServerTranscriptIsland = mount(root, this._codexAppServerTranscriptIslandProps);
-            return true;
-        } catch (error) {
-            console.warn('[brainbase] Codex App Server transcript island failed; using fallback renderer', error);
-            return false;
+        const api = {
+            getTranscript: () => httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/codex-app-server/transcript`, { timeout: 120000 }),
+            startTurn: (text) => httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/codex-app-server/turns`, { text }, { timeout: 120000 })
+        };
+        this._codexAppServerTranscriptIslandProps = {
+            api,
+            sessionId,
+            threadId,
+            initialStatus: status,
+            initialSnapshot,
+            autoLoad
+        };
+        let firstError = null;
+        for (const retry of [false, true]) {
+            try {
+                const module = await import(getCodexAppServerTranscriptIslandUrl({ retry }));
+                if (panel.dataset.sessionId !== sessionId) {
+                    return false;
+                }
+                const mount = module.mountCodexAppServerTranscript || window.BrainbaseCodexAppServerTranscript?.mount;
+                if (!mount) throw new Error('Codex App Server transcript island mount export is missing');
+                if (panel.dataset.sessionId !== sessionId) {
+                    return false;
+                }
+                this._codexAppServerTranscriptIsland?.unmount?.();
+                this._codexAppServerTranscriptIsland = mount(root, this._codexAppServerTranscriptIslandProps);
+                return true;
+            } catch (error) {
+                if (!retry) {
+                    firstError = error;
+                    console.warn('[brainbase] Codex App Server transcript island failed; retrying with cache-bust URL', error);
+                    continue;
+                }
+                console.warn('[brainbase] Codex App Server transcript island retry failed; using fallback renderer', { firstError, error });
+                return false;
+            }
         }
+        return false;
     };
 
     AppClass.prototype._unmountCodexAppServerTranscriptIsland = function() {

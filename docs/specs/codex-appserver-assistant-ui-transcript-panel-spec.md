@@ -10,6 +10,7 @@
 - `codex-appserver-assistant-ui-transcript-panel.states`: Loading, empty, refresh, sending, and API error states MUST be visible and actionable.
 - `codex-appserver-assistant-ui-transcript-panel.fallback`: xterm/ttyd fallback and Claude Code terminal behavior MUST remain unchanged.
 - `codex-appserver-assistant-ui-transcript-panel.mount-guard`: If the React mount root or session id is unavailable, the shell MUST not partially mount the island and MUST preserve the existing terminal/fallback surface.
+- `codex-appserver-assistant-ui-transcript-panel.import-retry`: If the island dynamic import or mount fails, the shell MUST retry once with a cache-busted island URL before using the existing fallback renderer.
 - `codex-appserver-assistant-ui-transcript-panel.dependency-scope`: assistant-ui MUST remain build-time scoped for this slice unless a later dependency gate explicitly accepts production runtime dependency expansion.
 
 ## Evidence

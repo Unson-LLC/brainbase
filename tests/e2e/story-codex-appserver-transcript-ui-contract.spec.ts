@@ -35,7 +35,8 @@ test('ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 ac:13 story
   expect(html).toContain('codex-app-server-display-panel');
   expect(html).toContain('data-codex-app-server-react-root');
   expect(css).toContain('codex-appserver-chat-shell');
-  expect(read('ui-islands/codex-appserver-transcript/index.jsx')).toContain('ThreadPrimitive');
+  expect(read('ui-islands/codex-appserver-transcript/index.jsx')).toContain("from '@assistant-ui/react-ui'");
+  expect(read('ui-islands/codex-appserver-transcript/index.jsx')).toContain('<Thread {...threadConfig} />');
   expect(capability).toContain('native browser transcript display');
 
   // story-codex-appserver-transcript-ui ac:4 browser input goes through App Server turns, not ttyd/xterm input.
@@ -327,20 +328,20 @@ test('story-codex-appserver-transcript-ui runtime smoke: browser switchSession u
   await expect(panel).toBeVisible();
   await expect(page.locator('#terminal-xterm-host')).toHaveClass(/hidden/);
   await expect(island).toContainText('VibeProのStory/Architecture/Spec/Gateを確認します。');
-  await expect(panel.locator('.codex-appserver-chat-message.error')).toContainText('Visible App Server error proof');
-  await expect(panel.locator('.codex-appserver-chat-message.reasoning')).toContainText('reasoning summary proof');
-  await expect(panel.locator('.codex-appserver-chat-message.command')).toContainText('command output proof');
-  await expect(panel.locator('.codex-appserver-chat-message.file_change')).toContainText('file change proof');
-  await expect(panel.locator('.codex-appserver-chat-message.tool')).toContainText('tool call proof');
-  await expect(panel.locator('.codex-appserver-chat-message.input_request')).toContainText('input request proof');
-  await expect(panel.locator('.codex-appserver-chat-message.turn')).toContainText('Turn completed');
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'Visible App Server error proof' })).toBeVisible();
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'reasoning summary proof' })).toBeVisible();
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'command output proof' })).toBeVisible();
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'file change proof' })).toBeVisible();
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'tool call proof' })).toBeVisible();
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'input request proof' })).toBeVisible();
+  await expect(panel.locator('.aui-assistant-message-root').filter({ hasText: 'Turn completed' })).toBeVisible();
 
-  await panel.locator('.codex-appserver-chat-input').fill('追加でruntime smokeを確認して');
-  await panel.locator('.codex-appserver-chat-send').click();
+  await panel.locator('.aui-composer-input').fill('追加でruntime smokeを確認して');
+  await panel.locator('.aui-composer-input').press('Enter');
   await expect(island).toContainText('runtime smoke accepted');
 
-  await panel.locator('.codex-appserver-chat-input').fill('失敗時のledger永続化を確認して');
-  await panel.locator('.codex-appserver-chat-send').click();
+  await panel.locator('.aui-composer-input').fill('失敗時のledger永続化を確認して');
+  await panel.locator('.aui-composer-input').press('Enter');
   await expect(island).toContainText('persistent turn failure proof');
   await page.evaluate(async (sid) => {
     await (window as any).brainbaseApp._loadCodexAppServerTranscript(sid);
@@ -439,10 +440,10 @@ test('story-codex-appserver-transcript-ui ac:11 runtime smoke: composer waits fo
 
   const panel = page.locator('#codex-app-server-display-panel');
   await expect(panel).toBeVisible();
-  await expect(panel.locator('.codex-appserver-chat-input')).toBeDisabled();
-  await expect(panel.locator('.codex-appserver-chat-send')).toBeDisabled();
+  await expect(panel.locator('.aui-composer-input')).toBeDisabled();
+  await expect(panel.locator('.aui-composer-send')).toBeDisabled();
 
-  await panel.locator('.codex-appserver-chat-input').evaluate((input) => {
+  await panel.locator('.aui-composer-input').evaluate((input) => {
     (input as HTMLInputElement).value = 'restore前には送らない';
     input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
@@ -450,10 +451,10 @@ test('story-codex-appserver-transcript-ui ac:11 runtime smoke: composer waits fo
 
   releaseTranscript?.();
   await page.evaluate(async () => { await (window as any).switchPromise; });
-  await expect(panel.locator('.codex-appserver-chat-input')).toBeEnabled();
+  await expect(panel.locator('.aui-composer-input')).toBeEnabled();
   await expect(panel.locator('[data-codex-appserver-transcript-island]')).toContainText('Restored before input');
-  await panel.locator('.codex-appserver-chat-input').fill('restore後に送る');
-  await expect(panel.locator('.codex-appserver-chat-send')).toBeEnabled();
+  await panel.locator('.aui-composer-input').fill('restore後に送る');
+  await expect(panel.locator('.aui-composer-send')).toBeEnabled();
 });
 
 test('story-codex-appserver-transcript-ui ac:9 ac:12 runtime smoke: fallback paths stay terminal-based', async ({ page }) => {
