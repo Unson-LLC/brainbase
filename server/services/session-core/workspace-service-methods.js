@@ -89,13 +89,23 @@ export const workspaceServiceMethods = {
     },
 
     async resolveSessionWorkspacePath(sessionOrId, options = {}) {
-        const { persist = true, preferTmux = true } = options;
+        const { persist = true, preferTmux = true, reuseExistingPath = false } = options;
         const state = this.stateStore.get();
         const session = typeof sessionOrId === 'string'
             ? (state.sessions || []).find((item) => item.id === sessionOrId)
             : sessionOrId;
 
         if (!session) return null;
+
+        // Fast path for hot callers (e.g. terminal ensure on every session switch):
+        // the workspace path is persisted to session.path after the first resolve, so
+        // when it still points at a real directory we can skip the per-call
+        // `tmux list-panes` subprocess + candidate fs scan entirely. Only the
+        // already-persisted value is trusted; resolution falls through to the full
+        // (tmux-preferring) path when it is missing or stale.
+        if (reuseExistingPath && typeof session.path === 'string' && session.path && fs.existsSync(session.path)) {
+            return session.path;
+        }
 
         const seen = new Set();
         const orderedCandidates = [];

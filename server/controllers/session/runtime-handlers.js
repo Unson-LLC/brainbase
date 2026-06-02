@@ -619,7 +619,12 @@ export function installRuntimeHandlers(controller) {
             }
 
             const resolveCwdStartedAt = Date.now();
-            const resolvedCwd = await controller._resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
+            // reuseExistingPath: skip the per-switch `tmux list-panes` subprocess + fs
+            // candidate scan when session.path is already a valid resolved directory.
+            // This is the cold-path cost measured at up to ~1.5s on busy systems; the
+            // path is persisted on first resolve, so reuse is safe here and falls back
+            // to full resolution when it is missing/stale.
+            const resolvedCwd = await controller._resolveSessionWorkspacePath(session, { persist: true, preferTmux: true, reuseExistingPath: true });
             const resolveCwdMs = Date.now() - resolveCwdStartedAt;
             const runtimeOptions = {
                 sessionId: id,
