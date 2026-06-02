@@ -347,4 +347,83 @@ describe('activity-service-methods', () => {
             expect(paneSvc._getPaneTitleActivityStatuses()['session-1']).toBeUndefined();
         });
     });
+
+    // 入力待ち(orange)が、ユーザーが実際に応答するまで継続すること。
+    // 背景の pty-shim heartbeat / ready(別セッション切替で resync される)が
+    // waiting_input を 'working' で上書きして orange を即潰す退行の回帰防止。
+    describe('waiting(orange) のスティッキー維持', () => {
+        // _buildStatusForSession の staleness は実 Date.now() を使うため、直近の時刻を基準にする
+        // (全イベントは数百ms以内で 5 分の working timeout に収まる)。
+        const T = Date.now();
+        let wsvc;
+        beforeEach(() => {
+            wsvc = {
+                hookStatus: new Map(),
+                promptBuffers: new Map(),
+                sessions: [],
+                paneTitleSuppressedSessionIds: new Set(),
+                _activityWsBroadcast: null,
+                _persistHookStatus: () => Promise.resolve(),
+                _persistSessionLiveSummary: () => Promise.resolve(),
+                _listTmuxPaneTitles: () => [],
+                _now: () => T + 600
+            };
+            for (const [name, fn] of Object.entries(activityServiceMethods)) wsvc[name] = fn.bind(wsvc);
+            wsvc._persistHookStatus = () => Promise.resolve();
+            wsvc._persistSessionLiveSummary = () => Promise.resolve();
+            wsvc._activityWsBroadcast = null;
+        });
+        const state = () => wsvc.getSessionStatus()['s1']?.state;
+        const enterWaiting = () => {
+            wsvc.reportActivity('s1', 'working', T, { lifecycle: 'turn_started', turnId: 'turn-1' });
+            wsvc.reportActivity('s1', 'working', T + 100, { lifecycle: 'heartbeat', eventType: 'waiting_for_user_input', activityKind: 'waiting_input' });
+        };
+
+        it('入力待ちは pty-shim heartbeat 背景イベントでも維持される(orange のまま)', () => {
+            enterWaiting();
+            expect(state(), '待機に入る').toBe('waiting');
+            wsvc.reportActivity('s1', 'working', T + 200, { lifecycle: 'heartbeat', eventType: 'codex/pty-shim-heartbeat' });
+            expect(state(), 'pty-shim heartbeat では waiting を維持').toBe('waiting');
+        });
+
+        it('入力待ちは pty-shim ready(別セッション切替の resync)でも維持される', () => {
+            enterWaiting();
+            wsvc.reportActivity('s1', 'working', T + 300, { lifecycle: 'heartbeat', eventType: 'codex/pty-shim-ready' });
+            expect(state(), 'pty-shim ready では waiting を維持').toBe('waiting');
+        });
+
+        it('ユーザーが応答して実活動イベントが来たら waiting を解除する', () => {
+            enterWaiting();
+            wsvc.reportActivity('s1', 'working', T + 400, { lifecycle: 'heartbeat', eventType: 'exec_command_output_delta' });
+            expect(state(), '実活動(コマンド出力)では running へ解除').toBe('running');
+        });
+
+        it('turn 完了したら waiting を解除して done へ遷移する', () => {
+            enterWaiting();
+            wsvc.reportActivity('s1', 'done', T + 500, { lifecycle: 'turn_completed', turnId: 'turn-1' });
+            expect(state(), 'turn 完了で done-unread へ').toBe('done-unread');
+        });
+
+        it('明示 activityKind を伴う実フックイベントは waiting を上書きできる', () => {
+            enterWaiting();
+            wsvc.reportActivity('s1', 'working', T + 250, { lifecycle: 'heartbeat', eventType: 'claude/post-tool-use', activityKind: 'editing_file' });
+            expect(state(), '明示 activityKind は待機を解除').toBe('running');
+        });
+
+        it('_shouldPreserveWaiting: 背景イベントのみ維持・実イベント/turn無し/doneは維持しない', () => {
+            const prev = { activityKind: 'waiting_input', statusTone: 'waiting' };
+            const turns = new Set(['turn-1']);
+            // 維持する: 背景ノイズ + turn 開いている + status working
+            expect(wsvc._shouldPreserveWaiting({ previous: prev, eventType: 'codex/pty-shim-heartbeat', status: 'working', activeTurnIds: turns })).toBe(true);
+            expect(wsvc._shouldPreserveWaiting({ previous: prev, eventType: '', status: 'working', activeTurnIds: turns })).toBe(true);
+            // 維持しない: turn 終了(done)
+            expect(wsvc._shouldPreserveWaiting({ previous: prev, eventType: 'codex/pty-shim-heartbeat', status: 'done', activeTurnIds: turns })).toBe(false);
+            // 維持しない: active turn 無し
+            expect(wsvc._shouldPreserveWaiting({ previous: prev, eventType: 'codex/pty-shim-heartbeat', status: 'working', activeTurnIds: new Set() })).toBe(false);
+            // 維持しない: 実フックイベント(背景セット外)
+            expect(wsvc._shouldPreserveWaiting({ previous: prev, eventType: 'exec_command_output_delta', status: 'working', activeTurnIds: turns })).toBe(false);
+            // 維持しない: 直前が waiting でない
+            expect(wsvc._shouldPreserveWaiting({ previous: { activityKind: 'reasoning' }, eventType: 'codex/pty-shim-heartbeat', status: 'working', activeTurnIds: turns })).toBe(false);
+        });
+    });
 });

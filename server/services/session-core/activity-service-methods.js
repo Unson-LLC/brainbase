@@ -18,6 +18,19 @@ const PANE_TITLE_SPINNER_UNCHANGED_TIMEOUT = 30 * 60 * 1000;
 const PANE_TITLE_SUPPRESSION_TIMEOUT = 5 * 60 * 1000;
 const TMUX_PANE_TITLE_ROWS_CACHE_TTL = 1000;
 
+// 入力待ち(waiting_input / orange)を「上書きしてよい背景ノイズ」イベント。
+// Codex は pty-shim から heartbeat/ready を絶え間なく流し、これらは
+// metadata.activityKind を持たないため _deriveActivityKind で 'working' に化けて
+// 待機状態を即座に潰してしまう(別セッションへ切替えると resync で顕在化)。
+// これらのイベントでは waiting_input を維持し、ユーザーが実際に応答する
+// (= 実活動イベント or turn 終了)まで orange を継続させる。
+const WAITING_BACKGROUND_EVENT_TYPES = new Set([
+    'codex/pty-shim-heartbeat',
+    'codex/pty-shim-ready',
+    'tmux-pane-title-spinner',
+    'claude/notification-waiting'
+]);
+
 function trimPromptBuffer(value) {
     if (typeof value !== 'string') return '';
     return value.length > PROMPT_BUFFER_MAX_LENGTH
@@ -866,7 +879,14 @@ export const activityServiceMethods = {
             return normalized || null;
         };
         const previous = this._normalizeLiveActivity(currentHookData.liveActivity);
-        const activityKind = normalizeString(metadata.activityKind) || this._deriveActivityKind(eventType, status);
+        let activityKind = normalizeString(metadata.activityKind) || this._deriveActivityKind(eventType, status);
+        // 入力待ちの維持: 直前が waiting で、今回が背景ノイズイベント(pty-shim heartbeat 等)
+        // なら waiting_input を保持する。ユーザーが実際に応答すると実活動イベントが届くか
+        // turn が閉じる(status='done' / activeTurn 0)ので、そのときに通常どおり解除される。
+        if (activityKind !== 'waiting_input'
+            && this._shouldPreserveWaiting({ previous, metadata, eventType, status, activeTurnIds })) {
+            activityKind = 'waiting_input';
+        }
         const currentStep = normalizeString(metadata.currentStep) || this._deriveCurrentStep(activityKind, eventType, status);
         const latestEvidence = normalizeString(metadata.latestEvidence) || previous?.latestEvidence || null;
         const taskBrief = normalizeString(metadata.taskBrief) || previous?.taskBrief || null;
@@ -895,6 +915,23 @@ export const activityServiceMethods = {
             updatedAt: timestamp,
             assistantSnippetUpdatedAt: assistantSnippet ? timestamp : (previous?.assistantSnippetUpdatedAt || 0)
         };
+    },
+
+    // 入力待ち(orange)をこのイベントで維持すべきか。
+    // ユーザーが実際に選択するまで継続させるのが狙い。背景の heartbeat / pty-shim resync /
+    // pane-title では解除せず、実活動イベント・明示 activityKind・turn 終了でのみ解除する。
+    _shouldPreserveWaiting({ previous, metadata = {}, eventType = '', status, activeTurnIds = new Set() }) {
+        const wasWaiting = previous?.activityKind === 'waiting_input' || previous?.statusTone === 'waiting';
+        if (!wasWaiting) return false;
+        // turn が閉じた(完了/idle)なら待機を維持しない → done/idle へ正常遷移させる
+        if (status === 'done') return false;
+        if (!activeTurnIds || activeTurnIds.size === 0) return false;
+        // フックが具体的な新しい活動を明示報告した(= ユーザーが応答して再開した)→ 解除
+        const explicitKind = typeof metadata.activityKind === 'string' ? metadata.activityKind.trim() : '';
+        if (explicitKind && explicitKind !== 'waiting_input') return false;
+        // 既知の背景ノイズイベント(pty-shim heartbeat/ready, pane-title, 再通知)のみ維持。
+        // それ以外(実フックイベント)は通常どおり再計算させて解除する。
+        return WAITING_BACKGROUND_EVENT_TYPES.has(eventType) || eventType === '';
     },
 
     _deriveActivityKind(eventType, status) {
