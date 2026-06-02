@@ -3,12 +3,23 @@ import { createRoot } from 'react-dom/client';
 import {
     AssistantRuntimeProvider,
     ComposerPrimitive,
+    MessagePrimitive,
     ThreadPrimitive,
     useExternalStoreRuntime
 } from '@assistant-ui/react';
 
 const ROLE_KINDS = new Set(['user', 'assistant', 'system']);
 const COMPACT_KINDS = new Set(['command', 'file_change', 'reasoning', 'tool', 'input_request', 'turn']);
+const ACTIVITY_KIND_CONFIG = {
+    command: { icon: '$', label: 'Command', tone: 'neutral' },
+    file_change: { icon: 'F', label: 'File change', tone: 'file' },
+    reasoning: { icon: 'R', label: 'Reasoning', tone: 'reasoning' },
+    tool: { icon: 'T', label: 'Tool', tone: 'tool' },
+    input_request: { icon: '?', label: 'Input request', tone: 'input' },
+    turn: { icon: '>', label: 'Turn', tone: 'neutral' },
+    error: { icon: '!', label: 'Error', tone: 'error' },
+    system: { icon: 'S', label: 'System', tone: 'neutral' }
+};
 
 function textFromAppendMessage(message) {
     return (message?.content || [])
@@ -65,31 +76,192 @@ function normalizeSnapshot(snapshot) {
     return timeline.map(toAssistantMessage);
 }
 
+function splitFencedCode(text) {
+    const source = String(text || '').replace(/\r\n/g, '\n');
+    const blocks = [];
+    const pattern = /```([A-Za-z0-9_+.-]*)[ \t]*\n([\s\S]*?)```/g;
+    let cursor = 0;
+    let match;
+    while ((match = pattern.exec(source))) {
+        if (match.index > cursor) {
+            blocks.push({ type: 'text', text: source.slice(cursor, match.index) });
+        }
+        blocks.push({ type: 'code', language: match[1] || 'text', code: match[2].replace(/\n$/, '') });
+        cursor = pattern.lastIndex;
+    }
+    if (cursor < source.length) {
+        blocks.push({ type: 'text', text: source.slice(cursor) });
+    }
+    return blocks.length ? blocks : [{ type: 'text', text: source }];
+}
+
+function InlineMarkdown({ text }) {
+    const parts = [];
+    const pattern = /(`([^`]+)`)|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+    let cursor = 0;
+    let match;
+    while ((match = pattern.exec(text))) {
+        if (match.index > cursor) parts.push(text.slice(cursor, match.index));
+        if (match[2]) {
+            parts.push(<code key={`code-${match.index}`} className="codex-appserver-inline-code">{match[2]}</code>);
+        } else if (match[3] && match[4]) {
+            parts.push(
+                <a
+                    key={`link-${match.index}`}
+                    className="codex-appserver-link"
+                    href={match[4]}
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    {match[3]}
+                </a>
+            );
+        }
+        cursor = pattern.lastIndex;
+    }
+    if (cursor < text.length) parts.push(text.slice(cursor));
+    return <>{parts.map((part, index) => typeof part === 'string' ? <React.Fragment key={`text-${index}`}>{part}</React.Fragment> : part)}</>;
+}
+
+function MarkdownText({ text }) {
+    const lines = String(text || '').split('\n');
+    const nodes = [];
+    let paragraph = [];
+    let list = null;
+
+    const flushParagraph = () => {
+        if (!paragraph.length) return;
+        nodes.push(
+            <p key={`p-${nodes.length}`} className="codex-appserver-markdown-paragraph">
+                <InlineMarkdown text={paragraph.join(' ')} />
+            </p>
+        );
+        paragraph = [];
+    };
+    const flushList = () => {
+        if (!list) return;
+        const Component = list.ordered ? 'ol' : 'ul';
+        nodes.push(
+            <Component key={`list-${nodes.length}`} className="codex-appserver-markdown-list">
+                {list.items.map((item, index) => <li key={`${index}-${item}`}><InlineMarkdown text={item} /></li>)}
+            </Component>
+        );
+        list = null;
+    };
+
+    for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+        if (!line.trim()) {
+            flushParagraph();
+            flushList();
+            continue;
+        }
+        const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+        const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+        if (unordered || ordered) {
+            flushParagraph();
+            const orderedList = Boolean(ordered);
+            if (!list || list.ordered !== orderedList) flushList();
+            if (!list) list = { ordered: orderedList, items: [] };
+            list.items.push((unordered?.[1] || ordered?.[1] || '').trim());
+            continue;
+        }
+        flushList();
+        paragraph.push(line.trim());
+    }
+    flushParagraph();
+    flushList();
+    if (!nodes.length) return <p className="codex-appserver-markdown-paragraph"> </p>;
+    return <>{nodes}</>;
+}
+
+function CodeBlock({ language, code }) {
+    const [copied, setCopied] = useState(false);
+    const copyCode = useCallback(async () => {
+        try {
+            await navigator.clipboard?.writeText?.(code);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1400);
+        } catch {
+            setCopied(false);
+        }
+    }, [code]);
+
+    return (
+        <figure className="codex-appserver-code-block">
+            <figcaption>
+                <span>{language || 'text'}</span>
+                <button type="button" onClick={copyCode} className="codex-appserver-copy-code">
+                    {copied ? 'Copied' : 'Copy'}
+                </button>
+            </figcaption>
+            <pre><code>{code}</code></pre>
+        </figure>
+    );
+}
+
+function RichMessageContent({ text }) {
+    const blocks = useMemo(() => splitFencedCode(text), [text]);
+    return (
+        <div className="codex-appserver-rich-text">
+            {blocks.map((block, index) => block.type === 'code'
+                ? <CodeBlock key={`code-${index}`} language={block.language} code={block.code} />
+                : <MarkdownText key={`text-${index}`} text={block.text} />)}
+        </div>
+    );
+}
+
+function ActivityEvent({ kind, text, status }) {
+    const config = ACTIVITY_KIND_CONFIG[kind] || { icon: 'i', label: kind.replaceAll('_', ' '), tone: 'neutral' };
+    const isLong = text.length > 180 || text.includes('\n');
+    return (
+        <details
+            className={`codex-appserver-activity ${config.tone}`}
+            data-codex-appserver-activity-kind={kind}
+            open={!isLong || kind === 'error'}
+        >
+            <summary>
+                <span className="codex-appserver-activity-icon" aria-hidden="true">{config.icon}</span>
+                <span className="codex-appserver-activity-title">{config.label}</span>
+                {status ? <span className="codex-appserver-activity-status">{status}</span> : null}
+                {isLong ? <span className="codex-appserver-activity-hint">Details</span> : null}
+            </summary>
+            <div className="codex-appserver-activity-body">
+                <RichMessageContent text={text || ' '} />
+            </div>
+        </details>
+    );
+}
+
 function MessageBubble({ message }) {
     const kind = message?.metadata?.custom?.codexKind || message?.role || 'assistant';
+    const rawStatus = message?.metadata?.custom?.rawStatus || '';
     const text = (message?.content || [])
         .filter((part) => part?.type === 'text' || part?.type === 'reasoning')
         .map((part) => part.text || '')
         .join('\n');
     const isCompact = COMPACT_KINDS.has(kind);
-    const label = kind.replaceAll('_', ' ');
+    const isConversation = !isCompact && kind !== 'error';
 
     return (
-        <article
-            className={`codex-appserver-chat-message ${message.role} ${kind}${isCompact ? ' compact' : ''}`}
+        <MessagePrimitive.Root
+            className={`codex-appserver-chat-message ${message.role} ${kind}${isCompact ? ' compact' : ''}${isConversation ? ' conversation' : ' activity-row'}`}
             data-codex-appserver-message-kind={kind}
             data-codex-appserver-message-id={message.id}
         >
-            <div className="codex-appserver-chat-avatar" aria-hidden="true">
-                {message.role === 'user' ? 'U' : kind === 'error' ? '!' : 'AI'}
-            </div>
-            <div className="codex-appserver-chat-bubble">
-                <div className="codex-appserver-chat-meta">
-                    <span>{label}</span>
-                </div>
-                <div className="codex-appserver-chat-text">{text || ' '}</div>
-            </div>
-        </article>
+            {isConversation ? (
+                <>
+                    <div className="codex-appserver-chat-avatar" aria-hidden="true">
+                        {message.role === 'user' ? 'You' : 'BB'}
+                    </div>
+                    <div className="codex-appserver-chat-bubble">
+                        <RichMessageContent text={text || ' '} />
+                    </div>
+                </>
+            ) : (
+                <ActivityEvent kind={kind} text={text || ' '} status={rawStatus} />
+            )}
+        </MessagePrimitive.Root>
     );
 }
 
@@ -225,8 +397,10 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
                             <ComposerPrimitive.Input
                                 className="codex-appserver-chat-input"
                                 placeholder="Codex に依頼する"
-                                submitMode="ctrlEnter"
-                                rows={2}
+                                submitMode="enter"
+                                rows={1}
+                                autoFocus
+                                unstable_insertNewlineOnTouchEnter
                             />
                             <ComposerPrimitive.Send className="codex-appserver-chat-send">
                                 {isSending ? 'Sending' : 'Send'}

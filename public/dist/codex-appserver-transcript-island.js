@@ -513,7 +513,7 @@ var require_react_development = __commonJS({
           }
           return element;
         };
-        function createElement2(type, config, children) {
+        function createElement3(type, config, children) {
           var propName;
           var props = {};
           var key = null;
@@ -787,7 +787,7 @@ var require_react_development = __commonJS({
           }
           return children;
         }
-        function createContext7(defaultValue) {
+        function createContext8(defaultValue) {
           var context2 = {
             $$typeof: REACT_CONTEXT_TYPE,
             // As a workaround to support multiple concurrent renderers, we categorize
@@ -974,7 +974,7 @@ var require_react_development = __commonJS({
           }
           return lazyType;
         }
-        function forwardRef19(render) {
+        function forwardRef23(render) {
           {
             if (render != null && render.$$typeof === REACT_MEMO_TYPE) {
               error("forwardRef requires a render function but received a `memo` component. Instead of forwardRef(memo(...)), use memo(forwardRef(...)).");
@@ -1035,7 +1035,7 @@ var require_react_development = __commonJS({
           }
           return false;
         }
-        function memo7(type, compare) {
+        function memo11(type, compare) {
           {
             if (!isValidElementType(type)) {
               error("memo: The first argument must be a component. Instead received: %s", type === null ? "null" : typeof type);
@@ -1073,7 +1073,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher;
         }
-        function useContext7(Context) {
+        function useContext8(Context) {
           var dispatcher = resolveDispatcher();
           {
             if (Context._context !== void 0) {
@@ -1087,7 +1087,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher.useContext(Context);
         }
-        function useState7(initialState) {
+        function useState9(initialState) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
@@ -1095,11 +1095,11 @@ var require_react_development = __commonJS({
           var dispatcher = resolveDispatcher();
           return dispatcher.useReducer(reducer, initialArg, init);
         }
-        function useRef14(initialValue) {
+        function useRef15(initialValue) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useRef(initialValue);
         }
-        function useEffect13(create2, deps) {
+        function useEffect14(create2, deps) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useEffect(create2, deps);
         }
@@ -1111,11 +1111,11 @@ var require_react_development = __commonJS({
           var dispatcher = resolveDispatcher();
           return dispatcher.useLayoutEffect(create2, deps);
         }
-        function useCallback27(callback, deps) {
+        function useCallback28(callback, deps) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useCallback(callback, deps);
         }
-        function useMemo15(create2, deps) {
+        function useMemo21(create2, deps) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useMemo(create2, deps);
         }
@@ -1612,7 +1612,7 @@ var require_react_development = __commonJS({
               error("React.createElement: type is invalid -- expected a string (for built-in components) or a class/function (for composite components) but got: %s.%s", typeString, info);
             }
           }
-          var element = createElement2.apply(this, arguments);
+          var element = createElement3.apply(this, arguments);
           if (element == null) {
             return element;
           }
@@ -1868,29 +1868,29 @@ var require_react_development = __commonJS({
         exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ReactSharedInternals;
         exports.act = act;
         exports.cloneElement = cloneElement$1;
-        exports.createContext = createContext7;
+        exports.createContext = createContext8;
         exports.createElement = createElement$1;
         exports.createFactory = createFactory;
         exports.createRef = createRef;
-        exports.forwardRef = forwardRef19;
+        exports.forwardRef = forwardRef23;
         exports.isValidElement = isValidElement6;
         exports.lazy = lazy;
-        exports.memo = memo7;
+        exports.memo = memo11;
         exports.startTransition = startTransition;
         exports.unstable_act = act;
-        exports.useCallback = useCallback27;
-        exports.useContext = useContext7;
+        exports.useCallback = useCallback28;
+        exports.useContext = useContext8;
         exports.useDebugValue = useDebugValue2;
         exports.useDeferredValue = useDeferredValue;
-        exports.useEffect = useEffect13;
+        exports.useEffect = useEffect14;
         exports.useId = useId2;
         exports.useImperativeHandle = useImperativeHandle;
         exports.useInsertionEffect = useInsertionEffect;
         exports.useLayoutEffect = useLayoutEffect7;
-        exports.useMemo = useMemo15;
+        exports.useMemo = useMemo21;
         exports.useReducer = useReducer2;
-        exports.useRef = useRef14;
-        exports.useState = useState7;
+        exports.useRef = useRef15;
+        exports.useState = useState9;
         exports.useSyncExternalStore = useSyncExternalStore4;
         exports.useTransition = useTransition;
         exports.version = ReactVersion;
@@ -2386,9 +2386,9 @@ var require_react_dom_development = __commonJS({
         if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ !== "undefined" && typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart === "function") {
           __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(new Error());
         }
-        var React13 = require_react();
+        var React14 = require_react();
         var Scheduler = require_scheduler();
-        var ReactSharedInternals = React13.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+        var ReactSharedInternals = React14.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
         var suppressWarning = false;
         function setSuppressWarning(newSuppressWarning) {
           {
@@ -2437,7 +2437,7 @@ var require_react_dom_development = __commonJS({
         var HostPortal = 4;
         var HostComponent = 5;
         var HostText = 6;
-        var Fragment4 = 7;
+        var Fragment6 = 7;
         var Mode = 8;
         var ContextConsumer = 9;
         var ContextProvider = 10;
@@ -3594,7 +3594,7 @@ var require_react_dom_development = __commonJS({
               return "DehydratedFragment";
             case ForwardRef:
               return getWrappedName$1(type, type.render, "ForwardRef");
-            case Fragment4:
+            case Fragment6:
               return "Fragment";
             case HostComponent:
               return type;
@@ -3995,7 +3995,7 @@ var require_react_dom_development = __commonJS({
           {
             if (props.value == null) {
               if (typeof props.children === "object" && props.children !== null) {
-                React13.Children.forEach(props.children, function(child) {
+                React14.Children.forEach(props.children, function(child) {
                   if (child == null) {
                     return;
                   }
@@ -9419,7 +9419,7 @@ var require_react_dom_development = __commonJS({
             }
           }
         }
-        function createElement2(type, props, rootContainerElement, parentNamespace) {
+        function createElement3(type, props, rootContainerElement, parentNamespace) {
           var isCustomComponentTag;
           var ownerDocument = getOwnerDocumentFromRootContainer(rootContainerElement);
           var domElement;
@@ -10289,7 +10289,7 @@ var require_react_dom_development = __commonJS({
             }
             parentNamespace = hostContextDev.namespace;
           }
-          var domElement = createElement2(type, props, rootContainerInstance, parentNamespace);
+          var domElement = createElement3(type, props, rootContainerInstance, parentNamespace);
           precacheFiberNode(internalInstanceHandle, domElement);
           updateFiberProps(domElement, props);
           return domElement;
@@ -12023,7 +12023,7 @@ var require_react_dom_development = __commonJS({
             }
           }
           function updateFragment2(returnFiber, current2, fragment, lanes, key) {
-            if (current2 === null || current2.tag !== Fragment4) {
+            if (current2 === null || current2.tag !== Fragment6) {
               var created = createFiberFromFragment(fragment, returnFiber.mode, lanes, key);
               created.return = returnFiber;
               return created;
@@ -12426,7 +12426,7 @@ var require_react_dom_development = __commonJS({
               if (child.key === key) {
                 var elementType = element.type;
                 if (elementType === REACT_FRAGMENT_TYPE) {
-                  if (child.tag === Fragment4) {
+                  if (child.tag === Fragment6) {
                     deleteRemainingChildren(returnFiber, child.sibling);
                     var existing = useFiber(child, element.props.children);
                     existing.return = returnFiber;
@@ -17425,8 +17425,8 @@ var require_react_dom_development = __commonJS({
         function validateSuspenseListNestedChild(childSlot, index4) {
           {
             var isAnArray = isArray(childSlot);
-            var isIterable = !isAnArray && typeof getIteratorFn(childSlot) === "function";
-            if (isAnArray || isIterable) {
+            var isIterable2 = !isAnArray && typeof getIteratorFn(childSlot) === "function";
+            if (isAnArray || isIterable2) {
               var type = isAnArray ? "array" : "iterable";
               error("A nested %s was passed to row #%s in <SuspenseList />. Wrap it in an additional SuspenseList to configure its revealOrder: <SuspenseList revealOrder=...> ... <SuspenseList revealOrder=...>{%s}</SuspenseList> ... </SuspenseList>", type, index4, type);
               return false;
@@ -17902,7 +17902,7 @@ var require_react_dom_development = __commonJS({
               var _resolvedProps2 = workInProgress2.elementType === type ? _unresolvedProps2 : resolveDefaultProps(type, _unresolvedProps2);
               return updateForwardRef(current2, workInProgress2, type, _resolvedProps2, renderLanes2);
             }
-            case Fragment4:
+            case Fragment6:
               return updateFragment(current2, workInProgress2, renderLanes2);
             case Mode:
               return updateMode(current2, workInProgress2, renderLanes2);
@@ -18174,7 +18174,7 @@ var require_react_dom_development = __commonJS({
             case SimpleMemoComponent:
             case FunctionComponent:
             case ForwardRef:
-            case Fragment4:
+            case Fragment6:
             case Mode:
             case Profiler:
             case ContextConsumer:
@@ -22435,7 +22435,7 @@ var require_react_dom_development = __commonJS({
           return fiber;
         }
         function createFiberFromFragment(elements, mode, lanes, key) {
-          var fiber = createFiber(Fragment4, elements, key, mode);
+          var fiber = createFiber(Fragment6, elements, key, mode);
           fiber.lanes = lanes;
           return fiber;
         }
@@ -23591,7 +23591,7 @@ var require_react_jsx_runtime_development = __commonJS({
     if (true) {
       (function() {
         "use strict";
-        var React13 = require_react();
+        var React14 = require_react();
         var REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.element");
         var REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal");
         var REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment");
@@ -23617,7 +23617,7 @@ var require_react_jsx_runtime_development = __commonJS({
           }
           return null;
         }
-        var ReactSharedInternals = React13.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+        var ReactSharedInternals = React14.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
         function error(format) {
           {
             {
@@ -24467,11 +24467,11 @@ var require_react_jsx_runtime_development = __commonJS({
             return jsxWithValidation(type, props, key, false);
           }
         }
-        var jsx34 = jsxWithValidationDynamic;
-        var jsxs4 = jsxWithValidationStatic;
+        var jsx48 = jsxWithValidationDynamic;
+        var jsxs8 = jsxWithValidationStatic;
         exports.Fragment = REACT_FRAGMENT_TYPE;
-        exports.jsx = jsx34;
-        exports.jsxs = jsxs4;
+        exports.jsx = jsx48;
+        exports.jsxs = jsxs8;
       })();
     }
   }
@@ -24594,7 +24594,7 @@ var require_secure_json_parse = __commonJS({
 });
 
 // ui-islands/codex-appserver-transcript/index.jsx
-var import_react70 = __toESM(require_react(), 1);
+var import_react89 = __toESM(require_react(), 1);
 var import_client = __toESM(require_client(), 1);
 
 // node_modules/@assistant-ui/tap/dist/core/helpers/callResourceFn.js
@@ -27953,6 +27953,19 @@ function toolResultStream(tools, abortSignal, human, options) {
 
 // node_modules/@assistant-ui/core/dist/react/providers/AttachmentByIndexProvider.js
 var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+var MessageAttachmentByIndexProvider = ({ index: index3, children }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(AuiProvider, {
+    value: useAui({ attachment: Derived({
+      source: "message",
+      query: {
+        type: "index",
+        index: index3
+      },
+      get: (aui) => aui.message().attachment({ index: index3 })
+    }) }),
+    children
+  });
+};
 var ComposerAttachmentByIndexProvider = ({ index: index3, children }) => {
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(AuiProvider, {
     value: useAui({ attachment: Derived({
@@ -27990,10 +28003,97 @@ var MessageByIndexProvider = ({ index: index3, children }) => {
   });
 };
 
-// node_modules/@assistant-ui/core/dist/react/providers/SuggestionByIndexProvider.js
+// node_modules/@assistant-ui/core/dist/react/providers/PartByIndexProvider.js
 var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
-var SuggestionByIndexProvider = ({ index: index3, children }) => {
+var PartByIndexProvider = ({ index: index3, children }) => {
   return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(AuiProvider, {
+    value: useAui({ part: Derived({
+      source: "message",
+      query: {
+        type: "index",
+        index: index3
+      },
+      get: (aui) => aui.message().part({ index: index3 })
+    }) }),
+    children
+  });
+};
+
+// node_modules/@assistant-ui/core/dist/react/providers/TextMessagePartProvider.js
+var import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+var TextMessagePartClient = resource(({ text, isRunning }) => {
+  const state = tapMemo(() => ({
+    type: "text",
+    text,
+    status: isRunning ? { type: "running" } : { type: "complete" }
+  }), [text, isRunning]);
+  return {
+    getState: () => state,
+    addToolResult: () => {
+      throw new Error("Not supported");
+    },
+    resumeToolCall: () => {
+      throw new Error("Not supported");
+    },
+    respondToToolApproval: () => {
+      throw new Error("Not supported");
+    }
+  };
+});
+var TextMessagePartProvider = ({ text, isRunning = false, children }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(AuiProvider, {
+    value: useAui({ part: TextMessagePartClient({
+      text,
+      isRunning
+    }) }),
+    children
+  });
+};
+
+// node_modules/@assistant-ui/core/dist/store/clients/chain-of-thought-client.js
+var COMPLETE_STATUS = Object.freeze({ type: "complete" });
+var ChainOfThoughtClient = resource(({ parts, getMessagePart }) => {
+  const [collapsed, setCollapsed] = tapState(true);
+  const status = tapMemo(() => {
+    return parts[parts.length - 1]?.status ?? COMPLETE_STATUS;
+  }, [parts]);
+  const state = tapMemo(() => ({
+    parts,
+    collapsed,
+    status
+  }), [
+    parts,
+    collapsed,
+    status
+  ]);
+  return {
+    getState: () => state,
+    setCollapsed,
+    part: getMessagePart
+  };
+});
+
+// node_modules/@assistant-ui/core/dist/react/providers/ChainOfThoughtByIndicesProvider.js
+var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+var ChainOfThoughtByIndicesProvider = ({ startIndex, endIndex, children }) => {
+  const parts = useAuiState((s) => s.message.parts).slice(startIndex, endIndex + 1);
+  const parentAui = useAui();
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(AuiProvider, {
+    value: useAui({ chainOfThought: ChainOfThoughtClient({
+      parts,
+      getMessagePart: ({ index: index3 }) => {
+        if (index3 < 0 || index3 >= parts.length) throw new Error(`ChainOfThought part index ${index3} is out of bounds (0..${parts.length - 1})`);
+        return parentAui.message().part({ index: startIndex + index3 });
+      }
+    }) }),
+    children
+  });
+};
+
+// node_modules/@assistant-ui/core/dist/react/providers/SuggestionByIndexProvider.js
+var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+var SuggestionByIndexProvider = ({ index: index3, children }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AuiProvider, {
     value: useAui({ suggestion: Derived({
       source: "suggestions",
       query: { index: index3 },
@@ -28004,9 +28104,9 @@ var SuggestionByIndexProvider = ({ index: index3, children }) => {
 };
 
 // node_modules/@assistant-ui/core/dist/react/providers/QueueItemByIndexProvider.js
-var import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
 var QueueItemByIndexProvider = ({ index: index3, children }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(AuiProvider, {
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(AuiProvider, {
     value: useAui({ queueItem: Derived({
       source: "composer",
       query: { index: index3 },
@@ -28601,14 +28701,14 @@ var MessagePartRuntimeImpl = class {
 };
 
 // node_modules/@assistant-ui/core/dist/runtime/api/message-runtime.js
-var COMPLETE_STATUS = Object.freeze({ type: "complete" });
+var COMPLETE_STATUS2 = Object.freeze({ type: "complete" });
 var toMessagePartStatus = (message, partIndex, part) => {
-  if (message.role !== "assistant") return COMPLETE_STATUS;
+  if (message.role !== "assistant") return COMPLETE_STATUS2;
   if (part.type === "tool-call") if (!part.result) return message.status;
-  else return COMPLETE_STATUS;
+  else return COMPLETE_STATUS2;
   const isLastPart = partIndex === Math.max(0, message.content.length - 1);
-  if (message.status.type === "requires-action") return COMPLETE_STATUS;
-  return isLastPart ? message.status : COMPLETE_STATUS;
+  if (message.status.type === "requires-action") return COMPLETE_STATUS2;
+  return isLastPart ? message.status : COMPLETE_STATUS2;
 };
 var getMessagePartState = (message, partIndex) => {
   const part = message.content[partIndex];
@@ -29014,7 +29114,7 @@ var ThreadRuntimeImpl = class {
 
 // node_modules/@assistant-ui/core/dist/react/runtimes/RuntimeAdapterProvider.js
 var import_react10 = __toESM(require_react(), 1);
-var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
 var RuntimeAdaptersContext = (0, import_react10.createContext)(null);
 var useRuntimeAdapters = () => {
   return (0, import_react10.useContext)(RuntimeAdaptersContext);
@@ -31517,7 +31617,7 @@ var useExternalStoreRuntime = (store) => {
 
 // node_modules/@assistant-ui/core/dist/react/primitives/thread/ThreadMessages.js
 var import_react12 = __toESM(require_react(), 1);
-var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
 var isComponentsSame = (prev, next) => {
   return prev.Message === next.Message && prev.EditComposer === next.EditComposer && prev.UserEditComposer === next.UserEditComposer && prev.AssistantEditComposer === next.AssistantEditComposer && prev.SystemEditComposer === next.SystemEditComposer && prev.UserMessage === next.UserMessage && prev.AssistantMessage === next.AssistantMessage && prev.SystemMessage === next.SystemMessage;
 };
@@ -31538,12 +31638,12 @@ var getComponent = (components, role, isEditing) => {
   }
 };
 var ThreadMessageComponent = ({ components }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(getComponent(components, useAuiState((s) => s.message.role), useAuiState((s) => s.message.composer.isEditing)), {});
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(getComponent(components, useAuiState((s) => s.message.role), useAuiState((s) => s.message.composer.isEditing)), {});
 };
 var ThreadPrimitiveMessageByIndex = (0, import_react12.memo)(({ index: index3, components }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(MessageByIndexProvider, {
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MessageByIndexProvider, {
     index: index3,
-    children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadMessageComponent, { components })
+    children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ThreadMessageComponent, { components })
   });
 }, (prev, next) => prev.index === next.index && isComponentsSame(prev.components, next.components));
 ThreadPrimitiveMessageByIndex.displayName = "ThreadPrimitive.MessageByIndex";
@@ -31551,9 +31651,9 @@ var ThreadPrimitiveMessagesInner = ({ children }) => {
   const messagesLength = useAuiState((s) => s.thread.messages.length);
   return (0, import_react12.useMemo)(() => {
     if (messagesLength === 0) return null;
-    return Array.from({ length: messagesLength }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(MessageByIndexProvider, {
+    return Array.from({ length: messagesLength }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MessageByIndexProvider, {
       index: index3,
-      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(RenderChildrenWithAccessor, {
+      children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(RenderChildrenWithAccessor, {
         getItemState: (aui) => aui.thread().message({ index: index3 }).getState(),
         children: (getItem) => children({ get message() {
           return getItem();
@@ -31563,8 +31663,8 @@ var ThreadPrimitiveMessagesInner = ({ children }) => {
   }, [messagesLength, children]);
 };
 var ThreadPrimitiveMessagesImpl = ({ components, children }) => {
-  if (components) return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadPrimitiveMessagesInner, { children: () => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadMessageComponent, { components }) });
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadPrimitiveMessagesInner, { children });
+  if (components) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ThreadPrimitiveMessagesInner, { children: () => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ThreadMessageComponent, { components }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ThreadPrimitiveMessagesInner, { children });
 };
 ThreadPrimitiveMessagesImpl.displayName = "ThreadPrimitive.Messages";
 var ThreadPrimitiveMessages = (0, import_react12.memo)(ThreadPrimitiveMessagesImpl, (prev, next) => {
@@ -31572,9 +31672,623 @@ var ThreadPrimitiveMessages = (0, import_react12.memo)(ThreadPrimitiveMessagesIm
   return isComponentsSame(prev.components, next.components);
 });
 
-// node_modules/@assistant-ui/core/dist/react/primitives/composer/ComposerAttachments.js
+// node_modules/@assistant-ui/core/dist/react/utils/getMessageQuote.js
+var getMessageQuote = (state) => {
+  const metadata = state.message.metadata;
+  if (!metadata || typeof metadata !== "object") return void 0;
+  return metadata.custom?.quote;
+};
+
+// node_modules/@assistant-ui/core/dist/react/primitives/generativeUI/GenerativeUI.js
 var import_react13 = __toESM(require_react(), 1);
-var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+var GenerativeUIRenderError = class extends Error {
+  componentName;
+  constructor(componentName, message = `Component "${componentName}" is not in the generative-ui allowlist.`) {
+    super(message);
+    this.name = "GenerativeUIRenderError";
+    this.componentName = componentName;
+  }
+};
+var isObjectNode = (node) => typeof node === "object" && node !== null;
+var renderNode = (node, components, Fallback, path) => {
+  if (node === void 0 || node === null) return null;
+  if (typeof node === "string") return node;
+  if (!isObjectNode(node) || !("component" in node)) {
+    if (typeof process !== "undefined" && true) console.warn(`[generative-ui] Skipping malformed node at ${path}:`, node);
+    return null;
+  }
+  const { component, props, children, key } = node;
+  const Resolved = components[component];
+  if (!Resolved) {
+    if (Fallback) return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Fallback, {
+      component,
+      props
+    }, key ?? path);
+    throw new GenerativeUIRenderError(component);
+  }
+  const renderedChildren = children?.length ? children.map((child, i) => renderNode(child, components, Fallback, `${path}/${i}`)) : void 0;
+  return (0, import_react13.createElement)(Resolved, {
+    ...props ?? {},
+    key: key ?? path
+  }, ...renderedChildren ?? []);
+};
+var normalizeRoot = (spec) => {
+  if (!spec || spec.root === void 0 || spec.root === null) return [];
+  const root = spec.root;
+  return Array.isArray(root) ? root : [root];
+};
+var GenerativeUIRender = ({ spec, components, Fallback }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(import_jsx_runtime12.Fragment, { children: (0, import_react13.useMemo)(() => normalizeRoot(spec), [spec]).map((node, i) => renderNode(node, components, Fallback, `${i}`)) });
+};
+GenerativeUIRender.displayName = "GenerativeUIRender";
+var MessagePrimitiveGenerativeUI = ({ components, spec, Fallback }) => {
+  const storeSpec = useAuiState((s) => {
+    const part = s.part;
+    return part?.type === "generative-ui" ? part.spec : void 0;
+  });
+  const partSpec = spec ?? storeSpec;
+  if (!partSpec) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GenerativeUIRender, {
+    spec: partSpec,
+    components,
+    Fallback
+  });
+};
+MessagePrimitiveGenerativeUI.displayName = "MessagePrimitive.GenerativeUI";
+
+// node_modules/@assistant-ui/core/dist/types/message.js
+var MCP_APP_URI_SCHEME = "ui://";
+var isMcpAppUri = (uri) => !!uri?.startsWith(MCP_APP_URI_SCHEME);
+
+// node_modules/@assistant-ui/core/dist/react/primitives/message/MessageParts.js
+var import_react15 = __toESM(require_react(), 1);
+var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+
+// node_modules/zustand/esm/vanilla/shallow.mjs
+var isIterable = (obj) => Symbol.iterator in obj;
+var hasIterableEntries = (value) => (
+  // HACK: avoid checking entries type
+  "entries" in value
+);
+var compareEntries = (valueA, valueB) => {
+  const mapA = valueA instanceof Map ? valueA : new Map(valueA.entries());
+  const mapB = valueB instanceof Map ? valueB : new Map(valueB.entries());
+  if (mapA.size !== mapB.size) {
+    return false;
+  }
+  for (const [key, value] of mapA) {
+    if (!mapB.has(key) || !Object.is(value, mapB.get(key))) {
+      return false;
+    }
+  }
+  return true;
+};
+var compareIterables = (valueA, valueB) => {
+  const iteratorA = valueA[Symbol.iterator]();
+  const iteratorB = valueB[Symbol.iterator]();
+  let nextA = iteratorA.next();
+  let nextB = iteratorB.next();
+  while (!nextA.done && !nextB.done) {
+    if (!Object.is(nextA.value, nextB.value)) {
+      return false;
+    }
+    nextA = iteratorA.next();
+    nextB = iteratorB.next();
+  }
+  return !!nextA.done && !!nextB.done;
+};
+function shallow(valueA, valueB) {
+  if (Object.is(valueA, valueB)) {
+    return true;
+  }
+  if (typeof valueA !== "object" || valueA === null || typeof valueB !== "object" || valueB === null) {
+    return false;
+  }
+  if (Object.getPrototypeOf(valueA) !== Object.getPrototypeOf(valueB)) {
+    return false;
+  }
+  if (isIterable(valueA) && isIterable(valueB)) {
+    if (hasIterableEntries(valueA) && hasIterableEntries(valueB)) {
+      return compareEntries(valueA, valueB);
+    }
+    return compareIterables(valueA, valueB);
+  }
+  return compareEntries(
+    { entries: () => Object.entries(valueA) },
+    { entries: () => Object.entries(valueB) }
+  );
+}
+
+// node_modules/zustand/esm/react/shallow.mjs
+var import_react14 = __toESM(require_react(), 1);
+function useShallow(selector) {
+  const prev = import_react14.default.useRef(void 0);
+  return (state) => {
+    const next = selector(state);
+    return shallow(prev.current, next) ? prev.current : prev.current = next;
+  };
+}
+
+// node_modules/@assistant-ui/core/dist/react/primitives/message/MessageParts.js
+var createGroupState = (groupType) => {
+  let start = -1;
+  return {
+    startGroup: (index3) => {
+      if (start === -1) start = index3;
+    },
+    endGroup: (endIndex, ranges) => {
+      if (start !== -1) {
+        ranges.push({
+          type: groupType,
+          startIndex: start,
+          endIndex
+        });
+        start = -1;
+      }
+    },
+    finalize: (endIndex, ranges) => {
+      if (start !== -1) ranges.push({
+        type: groupType,
+        startIndex: start,
+        endIndex
+      });
+    }
+  };
+};
+var groupMessageParts = (messageTypes, useChainOfThought) => {
+  const ranges = [];
+  if (useChainOfThought) {
+    const chainOfThoughtGroup = createGroupState("chainOfThoughtGroup");
+    for (let i = 0; i < messageTypes.length; i++) {
+      const type = messageTypes[i];
+      if (type === "tool-call" || type === "reasoning") chainOfThoughtGroup.startGroup(i);
+      else {
+        chainOfThoughtGroup.endGroup(i - 1, ranges);
+        ranges.push({
+          type: "single",
+          index: i
+        });
+      }
+    }
+    chainOfThoughtGroup.finalize(messageTypes.length - 1, ranges);
+  } else {
+    const toolGroup = createGroupState("toolGroup");
+    const reasoningGroup = createGroupState("reasoningGroup");
+    for (let i = 0; i < messageTypes.length; i++) {
+      const type = messageTypes[i];
+      if (type === "tool-call") {
+        reasoningGroup.endGroup(i - 1, ranges);
+        toolGroup.startGroup(i);
+      } else if (type === "reasoning") {
+        toolGroup.endGroup(i - 1, ranges);
+        reasoningGroup.startGroup(i);
+      } else {
+        toolGroup.endGroup(i - 1, ranges);
+        reasoningGroup.endGroup(i - 1, ranges);
+        ranges.push({
+          type: "single",
+          index: i
+        });
+      }
+    }
+    toolGroup.finalize(messageTypes.length - 1, ranges);
+    reasoningGroup.finalize(messageTypes.length - 1, ranges);
+  }
+  return ranges;
+};
+var useMessagePartsGroups = (useChainOfThought) => {
+  const messageTypes = useAuiState(useShallow((s) => s.message.parts.map((c) => c.type)));
+  return (0, import_react15.useMemo)(() => {
+    if (messageTypes.length === 0) return [];
+    return groupMessageParts(messageTypes, useChainOfThought);
+  }, [messageTypes, useChainOfThought]);
+};
+var ToolUIDisplay = ({ Fallback, ...props }) => {
+  const Render = useAuiState((s) => s.tools.toolUIs[props.toolName]?.[0]?.render ?? Fallback);
+  if (!Render) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Render, { ...props });
+};
+var getDataRenderer = (dataRenderers, name, inlineFallback) => {
+  const named = dataRenderers.renderers[name]?.[0];
+  if (named) return named;
+  return dataRenderers.fallbacks[0] ?? inlineFallback;
+};
+var DataUIDisplay = ({ Fallback, ...props }) => {
+  const Render = useAuiState((s) => getDataRenderer(s.dataRenderers, props.name, Fallback));
+  if (!Render) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Render, { ...props });
+};
+var defaultComponents = {
+  Text: () => null,
+  Reasoning: () => null,
+  Source: () => null,
+  Image: () => null,
+  File: () => null,
+  Unstable_Audio: () => null,
+  ToolGroup: ({ children }) => children,
+  ReasoningGroup: ({ children }) => children
+};
+var MessagePartComponent = ({ components: { Text = defaultComponents.Text, Reasoning = defaultComponents.Reasoning, Image = defaultComponents.Image, Source = defaultComponents.Source, File: File2 = defaultComponents.File, Unstable_Audio: Audio = defaultComponents.Unstable_Audio, tools = {}, data, generativeUI } = {} }) => {
+  const aui = useAui();
+  const part = useAuiState((s) => s.part);
+  const type = part.type;
+  if (type === "tool-call") {
+    const addResult = aui.part().addToolResult;
+    const resume = aui.part().resumeToolCall;
+    const respondToApproval = aui.part().respondToToolApproval;
+    if ("Override" in tools) return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(tools.Override, {
+      ...part,
+      addResult,
+      resume,
+      respondToApproval
+    });
+    const Tool = tools.by_name?.[part.toolName] ?? tools.Fallback;
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToolUIDisplay, {
+      ...part,
+      Fallback: Tool,
+      addResult,
+      resume,
+      respondToApproval
+    });
+  }
+  if (part.status?.type === "requires-action") throw new Error("Encountered unexpected requires-action status");
+  switch (type) {
+    case "text":
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Text, { ...part });
+    case "reasoning":
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Reasoning, { ...part });
+    case "source":
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Source, { ...part });
+    case "image":
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Image, { ...part });
+    case "file":
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(File2, { ...part });
+    case "audio":
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Audio, { ...part });
+    case "data": {
+      const Data = data?.by_name?.[part.name] ?? data?.Fallback;
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(DataUIDisplay, {
+        ...part,
+        Fallback: Data
+      });
+    }
+    case "generative-ui":
+      if (!generativeUI?.components) {
+        if (typeof process !== "undefined" && true) console.warn("MessagePrimitive.Parts received a generative-ui part but no `components.generativeUI.components` allowlist was provided. Pass an allowlist or render with <MessagePrimitive.GenerativeUI />.");
+        return null;
+      }
+      return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(GenerativeUIRender, {
+        spec: part.spec,
+        components: generativeUI.components,
+        Fallback: generativeUI.Fallback
+      });
+    default:
+      console.warn(`Unknown message part type: ${type}`);
+      return null;
+  }
+};
+var MessagePrimitivePartByIndex = (0, import_react15.memo)(({ index: index3, components }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(PartByIndexProvider, {
+    index: index3,
+    children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePartComponent, { components })
+  });
+}, (prev, next) => prev.index === next.index && prev.components?.Text === next.components?.Text && prev.components?.Reasoning === next.components?.Reasoning && prev.components?.Source === next.components?.Source && prev.components?.Image === next.components?.Image && prev.components?.File === next.components?.File && prev.components?.Unstable_Audio === next.components?.Unstable_Audio && prev.components?.tools === next.components?.tools && prev.components?.data === next.components?.data && prev.components?.generativeUI === next.components?.generativeUI && prev.components?.ToolGroup === next.components?.ToolGroup && prev.components?.ReasoningGroup === next.components?.ReasoningGroup);
+MessagePrimitivePartByIndex.displayName = "MessagePrimitive.PartByIndex";
+var EmptyPartFallback = ({ status, component: Component }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(TextMessagePartProvider, {
+    text: "",
+    isRunning: status.type === "running",
+    children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Component, {
+      type: "text",
+      text: "",
+      status
+    })
+  });
+};
+var COMPLETE_STATUS3 = Object.freeze({ type: "complete" });
+var RUNNING_STATUS = Object.freeze({ type: "running" });
+var EmptyPartsImpl = ({ components }) => {
+  const status = useAuiState((s) => s.message.status ?? COMPLETE_STATUS3);
+  if (components?.Empty) return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(components.Empty, { status });
+  if (status.type !== "running") return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EmptyPartFallback, {
+    status,
+    component: components?.Text ?? defaultComponents.Text
+  });
+};
+var EmptyParts = (0, import_react15.memo)(EmptyPartsImpl, (prev, next) => prev.components?.Empty === next.components?.Empty && prev.components?.Text === next.components?.Text);
+var ConditionalEmptyImpl = ({ components, enabled }) => {
+  if (!useAuiState((s) => {
+    if (!enabled) return false;
+    if (s.message.parts.length === 0) return false;
+    const lastPart = s.message.parts[s.message.parts.length - 1];
+    return lastPart?.type !== "text" && lastPart?.type !== "reasoning";
+  })) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EmptyParts, { components });
+};
+var ConditionalEmpty = (0, import_react15.memo)(ConditionalEmptyImpl, (prev, next) => prev.enabled === next.enabled && prev.components?.Empty === next.components?.Empty && prev.components?.Text === next.components?.Text);
+var QuoteRendererImpl = ({ Quote }) => {
+  const quoteInfo = useAuiState(getMessageQuote);
+  if (!quoteInfo) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Quote, {
+    text: quoteInfo.text,
+    messageId: quoteInfo.messageId
+  });
+};
+var QuoteRenderer = (0, import_react15.memo)(QuoteRendererImpl);
+function resolveToolRender(toolsState, part) {
+  const named = toolsState.toolUIs[part.toolName]?.[0]?.render ?? null;
+  if (named) return named;
+  if (isMcpAppUri(part.mcp?.app?.resourceUri) && toolsState.mcpApp) return toolsState.mcpApp.render;
+  return null;
+}
+var RegisteredToolUI = () => {
+  const aui = useAui();
+  const part = useAuiState((s) => s.part);
+  const Render = useAuiState((s) => s.part.type === "tool-call" ? resolveToolRender(s.tools, s.part) : null);
+  if (!Render || part.type !== "tool-call") return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Render, {
+    ...part,
+    addResult: aui.part().addToolResult,
+    resume: aui.part().resumeToolCall,
+    respondToApproval: aui.part().respondToToolApproval
+  });
+};
+var RegisteredDataRendererUI = () => {
+  const part = useAuiState((s) => s.part);
+  const Render = useAuiState((s) => s.part.type === "data" ? getDataRenderer(s.dataRenderers, s.part.name, void 0) ?? null : null);
+  if (!Render || part.type !== "data") return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Render, { ...part });
+};
+var DefaultPartFallback = () => {
+  const partType = useAuiState((s) => s.part.type);
+  if (partType === "tool-call") return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RegisteredToolUI, {});
+  if (partType === "data") return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RegisteredDataRendererUI, {});
+  return null;
+};
+var EMPTY_RUNNING_TEXT_PART = Object.freeze({
+  type: "text",
+  text: "",
+  status: RUNNING_STATUS
+});
+var MessagePartChildren = ({ index: index3, children }) => {
+  const aui = useAui();
+  const dataRenderers = useAuiState((s) => s.dataRenderers);
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(PartByIndexProvider, {
+    index: index3,
+    children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RenderChildrenWithAccessor, {
+      getItemState: (aui2) => aui2.message().part({ index: index3 }).getState(),
+      children: (getItem) => children({ get part() {
+        const state = getItem();
+        if (state.type === "tool-call") {
+          const hasUI = resolveToolRender(aui.tools().getState(), state) !== null;
+          const partMethods = aui.message().part({ index: index3 });
+          return {
+            ...state,
+            toolUI: hasUI ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RegisteredToolUI, {}) : null,
+            addResult: partMethods.addToolResult,
+            resume: partMethods.resumeToolCall,
+            respondToApproval: partMethods.respondToToolApproval
+          };
+        }
+        if (state.type === "data") {
+          const hasUI = getDataRenderer(dataRenderers, state.name, void 0) !== void 0;
+          return {
+            ...state,
+            dataRendererUI: hasUI ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RegisteredDataRendererUI, {}) : null
+          };
+        }
+        return state;
+      } })
+    })
+  });
+};
+var MessagePrimitivePartsInner = ({ children }) => {
+  const contentLength = useAuiState((s) => s.message.parts.length);
+  const isRunning = useAuiState((s) => (s.message.status?.type ?? "complete") === "running");
+  const isEmptyRunning = contentLength === 0 && isRunning;
+  if (contentLength === 0) {
+    if (!isEmptyRunning) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(TextMessagePartProvider, {
+      text: "",
+      isRunning: true,
+      children: children({ part: EMPTY_RUNNING_TEXT_PART })
+    });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(import_jsx_runtime13.Fragment, { children: Array.from({ length: contentLength }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePartChildren, {
+    index: index3,
+    children: (value) => children(value) ?? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(DefaultPartFallback, {})
+  }, index3)) });
+};
+var MessagePrimitiveParts = ({ components, unstable_showEmptyOnNonTextEnd = true, children }) => {
+  if (children) return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePrimitivePartsInner, { children });
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePrimitivePartsCompat, {
+    components,
+    unstable_showEmptyOnNonTextEnd
+  });
+};
+MessagePrimitiveParts.displayName = "MessagePrimitive.Parts";
+var MessagePrimitivePartsCompat = ({ components, unstable_showEmptyOnNonTextEnd }) => {
+  const contentLength = useAuiState((s) => s.message.parts.length);
+  const messageRanges = useMessagePartsGroups(!!components?.ChainOfThought);
+  const partsElements = (0, import_react15.useMemo)(() => {
+    if (contentLength === 0) return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EmptyParts, { components });
+    return messageRanges.map((range) => {
+      if (range.type === "single") return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePrimitivePartByIndex, {
+        index: range.index,
+        components
+      }, range.index);
+      else if (range.type === "chainOfThoughtGroup") {
+        const ChainOfThoughtComponent = components?.ChainOfThought;
+        if (!ChainOfThoughtComponent) return null;
+        return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ChainOfThoughtByIndicesProvider, {
+          startIndex: range.startIndex,
+          endIndex: range.endIndex,
+          children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ChainOfThoughtComponent, {})
+        }, `chainOfThought-${range.startIndex}`);
+      } else if (range.type === "toolGroup") return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(components?.ToolGroup ?? defaultComponents.ToolGroup, {
+        startIndex: range.startIndex,
+        endIndex: range.endIndex,
+        children: Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => {
+          const partIndex = range.startIndex + i;
+          return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePrimitivePartByIndex, {
+            index: partIndex,
+            components
+          }, `part-${partIndex}`);
+        })
+      }, `tool-${range.startIndex}`);
+      else return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(components?.ReasoningGroup ?? defaultComponents.ReasoningGroup, {
+        startIndex: range.startIndex,
+        endIndex: range.endIndex,
+        children: Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => {
+          const partIndex = range.startIndex + i;
+          return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MessagePrimitivePartByIndex, {
+            index: partIndex,
+            components
+          }, `part-${partIndex}`);
+        })
+      }, `reasoning-${range.startIndex}`);
+    });
+  }, [
+    messageRanges,
+    components,
+    contentLength
+  ]);
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+    components?.Quote && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(QuoteRenderer, { Quote: components.Quote }),
+    partsElements,
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ConditionalEmpty, {
+      components,
+      enabled: unstable_showEmptyOnNonTextEnd
+    })
+  ] });
+};
+
+// node_modules/@assistant-ui/core/dist/react/utils/groupParts.js
+var GROUPBY_MEMO_KEY = /* @__PURE__ */ Symbol.for("@assistant-ui/groupBy.memoKey");
+var makeChildNodeKey = (parent) => {
+  const idx = parent.nextChildIdx++;
+  return parent.nodeKey === "" ? String(idx) : `${parent.nodeKey}.${idx}`;
+};
+var buildGroupTree = (paths) => {
+  const root = {
+    key: "",
+    nodeKey: "",
+    indices: [],
+    children: [],
+    nextChildIdx: 0
+  };
+  const stack = [root];
+  const closeTop = () => {
+    const closing = stack.pop();
+    stack[stack.length - 1].children.push({
+      type: "group",
+      key: closing.key,
+      nodeKey: closing.nodeKey,
+      indices: closing.indices,
+      children: closing.children
+    });
+  };
+  for (let i = 0; i < paths.length; i++) {
+    const path = paths[i];
+    let common = 0;
+    while (common < stack.length - 1 && common < path.length && stack[common + 1].key === path[common]) common++;
+    while (stack.length - 1 > common) closeTop();
+    while (stack.length - 1 < path.length) {
+      const parent = stack[stack.length - 1];
+      stack.push({
+        key: path[stack.length - 1],
+        nodeKey: makeChildNodeKey(parent),
+        indices: [],
+        children: [],
+        nextChildIdx: 0
+      });
+    }
+    const top = stack[stack.length - 1];
+    top.children.push({
+      type: "part",
+      index: i,
+      nodeKey: makeChildNodeKey(top)
+    });
+    for (let s = 1; s < stack.length; s++) stack[s].indices.push(i);
+  }
+  while (stack.length > 1) closeTop();
+  return root.children;
+};
+
+// node_modules/@assistant-ui/core/dist/react/primitives/message/MessageGroupedParts.js
+var import_react16 = __toESM(require_react(), 1);
+var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
+var COMPLETE_STATUS4 = Object.freeze({ type: "complete" });
+var shouldShowIndicator = (mode, parts, isRunning) => {
+  if (!isRunning) return false;
+  switch (mode) {
+    case "never":
+      return false;
+    case "always":
+      return true;
+    case "empty":
+      return parts.length === 0;
+    case "no-text": {
+      const last = parts[parts.length - 1];
+      return last !== void 0 && last.type !== "text" && last.type !== "reasoning";
+    }
+  }
+};
+var PartChildrenSentinel = () => {
+  throw new Error("MessagePrimitive.GroupedParts: rendered `children` under a leaf part. `children` is only meaningful for `group-\u2026` cases \u2014 add a matching case for the part type or return `null` to skip it.");
+};
+var renderNode2 = (node, parts, render) => {
+  if (node.type === "part") return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(MessagePartChildren, {
+    index: node.index,
+    children: ({ part }) => render({
+      part,
+      children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(PartChildrenSentinel, {})
+    })
+  }, `part-${node.index}`);
+  const status = parts[node.indices.at(-1)]?.status ?? COMPLETE_STATUS4;
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(import_react16.Fragment, { children: render({
+    part: {
+      type: node.key,
+      status,
+      indices: node.indices
+    },
+    children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(import_jsx_runtime14.Fragment, { children: node.children.map((child) => renderNode2(child, parts, render)) })
+  }) }, node.nodeKey);
+};
+var MessagePrimitiveGroupedParts = ({ groupBy, indicator = "no-text", children }) => {
+  const parts = useAuiState(useShallow((s) => s.message.parts));
+  const toolUIs = useAuiState((s) => s.tools.toolUIs);
+  const isRunning = useAuiState((s) => indicator === "never" ? false : s.message.status?.type === "running");
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [(0, import_react16.useMemo)(() => {
+    const context2 = { toolUIs };
+    return buildGroupTree(parts.map((part) => groupBy(part, context2) ?? []));
+  }, [
+    parts,
+    groupBy[GROUPBY_MEMO_KEY] ?? groupBy,
+    toolUIs
+  ]).map((node) => renderNode2(node, parts, children)), shouldShowIndicator(indicator, parts, isRunning) && children({
+    part: { type: "indicator" },
+    children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(PartChildrenSentinel, {})
+  })] });
+};
+MessagePrimitiveGroupedParts.displayName = "MessagePrimitive.GroupedParts";
+
+// node_modules/@assistant-ui/core/dist/react/primitives/message/MessageQuote.js
+var import_react17 = __toESM(require_react(), 1);
+var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+var MessagePrimitiveQuoteImpl = ({ children }) => {
+  const quoteInfo = useAuiState(getMessageQuote);
+  if (!quoteInfo) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_jsx_runtime15.Fragment, { children: children(quoteInfo) });
+};
+var MessagePrimitiveQuote = (0, import_react17.memo)(MessagePrimitiveQuoteImpl);
+MessagePrimitiveQuote.displayName = "MessagePrimitive.Quote";
+
+// node_modules/@assistant-ui/core/dist/react/primitives/message/MessageAttachments.js
+var import_react18 = __toESM(require_react(), 1);
+var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
 var getComponent2 = (components, attachment) => {
   switch (attachment.type) {
     case "image":
@@ -31592,20 +32306,74 @@ var AttachmentComponent = ({ components }) => {
   if (!attachment) return null;
   const Component = getComponent2(components, attachment);
   if (!Component) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Component, {});
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Component, {});
 };
-var ComposerPrimitiveAttachmentByIndex = (0, import_react13.memo)(({ index: index3, components }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerAttachmentByIndexProvider, {
+var MessagePrimitiveAttachmentByIndex = (0, import_react18.memo)(({ index: index3, components }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(MessageAttachmentByIndexProvider, {
     index: index3,
-    children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(AttachmentComponent, { components })
+    children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(AttachmentComponent, { components })
+  });
+}, (prev, next) => prev.index === next.index && prev.components?.Image === next.components?.Image && prev.components?.Document === next.components?.Document && prev.components?.File === next.components?.File && prev.components?.Attachment === next.components?.Attachment);
+MessagePrimitiveAttachmentByIndex.displayName = "MessagePrimitive.AttachmentByIndex";
+var MessagePrimitiveAttachmentsInner = ({ children }) => {
+  const attachmentsCount = useAuiState((s) => {
+    if (s.message.role !== "user") return 0;
+    return (s.message.attachments ?? []).length;
+  });
+  return (0, import_react18.useMemo)(() => Array.from({ length: attachmentsCount }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(MessageAttachmentByIndexProvider, {
+    index: index3,
+    children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(RenderChildrenWithAccessor, {
+      getItemState: (aui) => aui.message().attachment({ index: index3 }).getState(),
+      children: (getItem) => children({ get attachment() {
+        return getItem();
+      } })
+    })
+  }, index3)), [attachmentsCount, children]);
+};
+var MessagePrimitiveAttachments = ({ components, children }) => {
+  if (components) return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(MessagePrimitiveAttachmentsInner, { children: ({ attachment }) => {
+    const Component = getComponent2(components, attachment);
+    if (!Component) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Component, {});
+  } });
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(MessagePrimitiveAttachmentsInner, { children });
+};
+MessagePrimitiveAttachments.displayName = "MessagePrimitive.Attachments";
+
+// node_modules/@assistant-ui/core/dist/react/primitives/composer/ComposerAttachments.js
+var import_react19 = __toESM(require_react(), 1);
+var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
+var getComponent3 = (components, attachment) => {
+  switch (attachment.type) {
+    case "image":
+      return components?.Image ?? components?.Attachment;
+    case "document":
+      return components?.Document ?? components?.Attachment;
+    case "file":
+      return components?.File ?? components?.Attachment;
+    default:
+      return components?.Attachment;
+  }
+};
+var AttachmentComponent2 = ({ components }) => {
+  const attachment = useAuiState((s) => s.attachment);
+  if (!attachment) return null;
+  const Component = getComponent3(components, attachment);
+  if (!Component) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Component, {});
+};
+var ComposerPrimitiveAttachmentByIndex = (0, import_react19.memo)(({ index: index3, components }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ComposerAttachmentByIndexProvider, {
+    index: index3,
+    children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(AttachmentComponent2, { components })
   });
 }, (prev, next) => prev.index === next.index && prev.components?.Image === next.components?.Image && prev.components?.Document === next.components?.Document && prev.components?.File === next.components?.File && prev.components?.Attachment === next.components?.Attachment);
 ComposerPrimitiveAttachmentByIndex.displayName = "ComposerPrimitive.AttachmentByIndex";
 var ComposerPrimitiveAttachmentsInner = ({ children }) => {
   const attachmentsCount = useAuiState((s) => s.composer.attachments.length);
-  return (0, import_react13.useMemo)(() => Array.from({ length: attachmentsCount }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerAttachmentByIndexProvider, {
+  return (0, import_react19.useMemo)(() => Array.from({ length: attachmentsCount }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ComposerAttachmentByIndexProvider, {
     index: index3,
-    children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(RenderChildrenWithAccessor, {
+    children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(RenderChildrenWithAccessor, {
       getItemState: (aui) => aui.composer().attachment({ index: index3 }).getState(),
       children: (getItem) => children({ get attachment() {
         return getItem();
@@ -31614,23 +32382,23 @@ var ComposerPrimitiveAttachmentsInner = ({ children }) => {
   }, index3)), [attachmentsCount, children]);
 };
 var ComposerPrimitiveAttachments = ({ components, children }) => {
-  if (components) return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerPrimitiveAttachmentsInner, { children: ({ attachment }) => {
-    const Component = getComponent2(components, attachment);
+  if (components) return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ComposerPrimitiveAttachmentsInner, { children: ({ attachment }) => {
+    const Component = getComponent3(components, attachment);
     if (!Component) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Component, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Component, {});
   } });
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerPrimitiveAttachmentsInner, { children });
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ComposerPrimitiveAttachmentsInner, { children });
 };
 ComposerPrimitiveAttachments.displayName = "ComposerPrimitive.Attachments";
 
 // node_modules/@assistant-ui/core/dist/react/primitives/composer/ComposerQueue.js
-var import_react14 = __toESM(require_react(), 1);
-var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
+var import_react20 = __toESM(require_react(), 1);
+var import_jsx_runtime18 = __toESM(require_jsx_runtime(), 1);
 var ComposerPrimitiveQueueInner = ({ children }) => {
   const queue = useAuiState((s) => s.composer.queue.length);
-  return (0, import_react14.useMemo)(() => Array.from({ length: queue }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(QueueItemByIndexProvider, {
+  return (0, import_react20.useMemo)(() => Array.from({ length: queue }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(QueueItemByIndexProvider, {
     index: index3,
-    children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(RenderChildrenWithAccessor, {
+    children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(RenderChildrenWithAccessor, {
       getItemState: (aui) => aui.composer().queueItem({ index: index3 }).getState(),
       children: (getItem) => children({ get queueItem() {
         return getItem();
@@ -31638,30 +32406,36 @@ var ComposerPrimitiveQueueInner = ({ children }) => {
     })
   }, index3)), [queue, children]);
 };
-var ComposerPrimitiveQueue = (0, import_react14.memo)(ComposerPrimitiveQueueInner);
+var ComposerPrimitiveQueue = (0, import_react20.memo)(ComposerPrimitiveQueueInner);
 ComposerPrimitiveQueue.displayName = "ComposerPrimitive.Queue";
 
+// node_modules/@assistant-ui/core/dist/react/primitives/messagePart/MessagePartInProgress.js
+var MessagePartPrimitiveInProgress = ({ children }) => {
+  return useAuiState((s) => s.part.status.type === "running") ? children : null;
+};
+MessagePartPrimitiveInProgress.displayName = "MessagePartPrimitive.InProgress";
+
 // node_modules/@assistant-ui/core/dist/react/primitives/thread/ThreadSuggestions.js
-var import_react15 = __toESM(require_react(), 1);
-var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+var import_react21 = __toESM(require_react(), 1);
+var import_jsx_runtime19 = __toESM(require_jsx_runtime(), 1);
 var SuggestionComponent = ({ components }) => {
   const Component = components.Suggestion;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Component, {});
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(Component, {});
 };
-var ThreadPrimitiveSuggestionByIndex = (0, import_react15.memo)(({ index: index3, components }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SuggestionByIndexProvider, {
+var ThreadPrimitiveSuggestionByIndex = (0, import_react21.memo)(({ index: index3, components }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(SuggestionByIndexProvider, {
     index: index3,
-    children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SuggestionComponent, { components })
+    children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(SuggestionComponent, { components })
   });
 }, (prev, next) => prev.index === next.index && prev.components.Suggestion === next.components.Suggestion);
 ThreadPrimitiveSuggestionByIndex.displayName = "ThreadPrimitive.SuggestionByIndex";
 var ThreadPrimitiveSuggestionsInner = ({ children }) => {
   const suggestionsLength = useAuiState((s) => s.suggestions.suggestions.length);
-  return (0, import_react15.useMemo)(() => {
+  return (0, import_react21.useMemo)(() => {
     if (suggestionsLength === 0) return null;
-    return Array.from({ length: suggestionsLength }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SuggestionByIndexProvider, {
+    return Array.from({ length: suggestionsLength }, (_, index3) => /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(SuggestionByIndexProvider, {
       index: index3,
-      children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(RenderChildrenWithAccessor, {
+      children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(RenderChildrenWithAccessor, {
         getItemState: (aui) => aui.suggestions().suggestion({ index: index3 }).getState(),
         children: (getItem) => children({ get suggestion() {
           return getItem();
@@ -31671,11 +32445,11 @@ var ThreadPrimitiveSuggestionsInner = ({ children }) => {
   }, [suggestionsLength, children]);
 };
 var ThreadPrimitiveSuggestionsImpl = ({ components, children }) => {
-  if (components) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ThreadPrimitiveSuggestionsInner, { children: () => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SuggestionComponent, { components }) });
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ThreadPrimitiveSuggestionsInner, { children });
+  if (components) return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ThreadPrimitiveSuggestionsInner, { children: () => /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(SuggestionComponent, { components }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ThreadPrimitiveSuggestionsInner, { children });
 };
 ThreadPrimitiveSuggestionsImpl.displayName = "ThreadPrimitive.Suggestions";
-var ThreadPrimitiveSuggestions = (0, import_react15.memo)(ThreadPrimitiveSuggestionsImpl, (prev, next) => {
+var ThreadPrimitiveSuggestions = (0, import_react21.memo)(ThreadPrimitiveSuggestionsImpl, (prev, next) => {
   if (prev.children || next.children) return prev.children === next.children;
   return prev.components.Suggestion === next.components.Suggestion;
 });
@@ -31697,12 +32471,12 @@ var ComposerPrimitiveIf = ({ children, ...query }) => {
 ComposerPrimitiveIf.displayName = "ComposerPrimitive.If";
 
 // node_modules/@assistant-ui/core/dist/react/primitive-hooks/useComposerSend.js
-var import_react16 = __toESM(require_react(), 1);
+var import_react22 = __toESM(require_react(), 1);
 var useComposerSend = () => {
   const aui = useAui();
   const disabled = useAuiState((s) => !s.composer.canSend || s.thread.isRunning && !s.thread.capabilities.queue);
   return {
-    send: (0, import_react16.useCallback)((opts) => {
+    send: (0, import_react22.useCallback)((opts) => {
       aui.composer().send(opts);
     }, [aui]),
     disabled
@@ -31710,12 +32484,12 @@ var useComposerSend = () => {
 };
 
 // node_modules/@assistant-ui/core/dist/react/primitive-hooks/useComposerCancel.js
-var import_react17 = __toESM(require_react(), 1);
+var import_react23 = __toESM(require_react(), 1);
 var useComposerCancel = () => {
   const aui = useAui();
   const disabled = useAuiState((s) => !s.composer.canCancel);
   return {
-    cancel: (0, import_react17.useCallback)(() => {
+    cancel: (0, import_react23.useCallback)(() => {
       aui.composer().cancel();
     }, [aui]),
     disabled
@@ -31723,12 +32497,12 @@ var useComposerCancel = () => {
 };
 
 // node_modules/@assistant-ui/core/dist/react/primitive-hooks/useComposerDictate.js
-var import_react18 = __toESM(require_react(), 1);
+var import_react24 = __toESM(require_react(), 1);
 var useComposerDictate = () => {
   const aui = useAui();
   const disabled = useAuiState((s) => s.composer.dictation != null || !s.thread.capabilities.dictation || !s.composer.isEditing);
   return {
-    startDictation: (0, import_react18.useCallback)(() => {
+    startDictation: (0, import_react24.useCallback)(() => {
       aui.composer().startDictation();
     }, [aui]),
     disabled
@@ -31736,12 +32510,12 @@ var useComposerDictate = () => {
 };
 
 // node_modules/@assistant-ui/core/dist/react/primitive-hooks/useComposerAddAttachment.js
-var import_react19 = __toESM(require_react(), 1);
+var import_react25 = __toESM(require_react(), 1);
 var useComposerAddAttachment = () => {
   const aui = useAui();
   const disabled = useAuiState((s) => !s.composer.isEditing);
   return {
-    addAttachment: (0, import_react19.useCallback)((file) => {
+    addAttachment: (0, import_react25.useCallback)((file) => {
       return aui.composer().addAttachment(file);
     }, [aui]),
     disabled
@@ -31749,13 +32523,13 @@ var useComposerAddAttachment = () => {
 };
 
 // node_modules/@assistant-ui/core/dist/react/primitive-hooks/useSuggestionTrigger.js
-var import_react20 = __toESM(require_react(), 1);
+var import_react26 = __toESM(require_react(), 1);
 var useSuggestionTrigger = ({ prompt, send, clearComposer = true }) => {
   const aui = useAui();
   const disabled = useAuiState((s) => s.thread.isDisabled);
   const resolvedSend = send ?? false;
   return {
-    trigger: (0, import_react20.useCallback)(() => {
+    trigger: (0, import_react26.useCallback)(() => {
       const isRunning = aui.thread().getState().isRunning;
       if (resolvedSend && !isRunning) {
         aui.thread().append({
@@ -31779,6 +32553,11 @@ var useSuggestionTrigger = ({ prompt, send, clearComposer = true }) => {
     ]),
     disabled
   };
+};
+
+// node_modules/@assistant-ui/core/dist/react/primitive-hooks/useMessageError.js
+var useMessageError = () => {
+  return useAuiState((s) => s.message.status?.type === "incomplete" && s.message.status.reason === "error" ? s.message.status.error ?? "An error occurred" : void 0);
 };
 
 // node_modules/@assistant-ui/core/dist/internal/duplicate-detection.js
@@ -31825,10 +32604,10 @@ var unstable_defaultDirectiveFormatter = {
 if (true) checkDuplicateCore();
 
 // node_modules/@assistant-ui/react/dist/context/react/utils/createContextHook.js
-var import_react22 = __toESM(require_react(), 1);
+var import_react28 = __toESM(require_react(), 1);
 function createContextHook(context2, providerName) {
   function useContextHook(options) {
-    const contextValue2 = (0, import_react22.useContext)(context2);
+    const contextValue2 = (0, import_react28.useContext)(context2);
     if (!options?.optional && !contextValue2) throw new Error(`This component must be used within ${providerName}.`);
     return contextValue2;
   }
@@ -31861,8 +32640,8 @@ function createContextStoreHook(contextHook, contextKey) {
 }
 
 // node_modules/@assistant-ui/react/dist/context/react/ThreadViewportContext.js
-var import_react23 = __toESM(require_react(), 1);
-var ThreadViewportContext = (0, import_react23.createContext)(null);
+var import_react29 = __toESM(require_react(), 1);
+var ThreadViewportContext = (0, import_react29.createContext)(null);
 var { useThreadViewport, useThreadViewportStore } = createContextStoreHook(createContextHook(ThreadViewportContext, "ThreadPrimitive.Viewport"), "useThreadViewport");
 
 // node_modules/@assistant-ui/react/dist/devtools/DevToolsHooks.js
@@ -32044,17 +32823,17 @@ var writableStore = (store) => {
 };
 
 // node_modules/@assistant-ui/react/dist/context/providers/ThreadViewportProvider.js
-var import_react24 = __toESM(require_react(), 1);
-var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+var import_react30 = __toESM(require_react(), 1);
+var import_jsx_runtime20 = __toESM(require_jsx_runtime(), 1);
 var useThreadViewportStoreValue = (options) => {
   const outerViewport = useThreadViewportStore({ optional: true });
-  const [store] = (0, import_react24.useState)(() => makeThreadViewportStore(options));
-  (0, import_react24.useEffect)(() => {
+  const [store] = (0, import_react30.useState)(() => makeThreadViewportStore(options));
+  (0, import_react30.useEffect)(() => {
     return outerViewport?.getState().onScrollToBottom(() => {
       store.getState().scrollToBottom();
     });
   }, [outerViewport, store]);
-  (0, import_react24.useEffect)(() => {
+  (0, import_react30.useEffect)(() => {
     if (!outerViewport) return;
     return store.subscribe((state) => {
       if (outerViewport.getState().isAtBottom !== state.isAtBottom) writableStore(outerViewport).setState({ isAtBottom: state.isAtBottom });
@@ -32064,37 +32843,37 @@ var useThreadViewportStoreValue = (options) => {
 };
 var ThreadPrimitiveViewportProvider = ({ children, options = {} }) => {
   const useThreadViewport2 = useThreadViewportStoreValue(options);
-  const [context2] = (0, import_react24.useState)(() => {
+  const [context2] = (0, import_react30.useState)(() => {
     return { useThreadViewport: useThreadViewport2 };
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(ThreadViewportContext.Provider, {
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadViewportContext.Provider, {
     value: context2,
     children
   });
 };
 
 // node_modules/@assistant-ui/react/dist/legacy-runtime/AssistantRuntimeProvider.js
-var import_react26 = __toESM(require_react(), 1);
-var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+var import_react32 = __toESM(require_react(), 1);
+var import_jsx_runtime21 = __toESM(require_jsx_runtime(), 1);
 var DevToolsRegistration = () => {
   const aui = useAui();
-  (0, import_react26.useEffect)(() => {
+  (0, import_react32.useEffect)(() => {
     if (typeof process === "undefined" || false) return;
     return DevToolsProviderApi.register(aui);
   }, [aui]);
   return null;
 };
 var AssistantRuntimeProviderImpl = ({ children, aui, runtime }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(AssistantProviderBase, {
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(AssistantProviderBase, {
     runtime,
     aui: aui ?? null,
-    children: [/* @__PURE__ */ (0, import_jsx_runtime13.jsx)(DevToolsRegistration, {}), /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ThreadPrimitiveViewportProvider, { children })]
+    children: [/* @__PURE__ */ (0, import_jsx_runtime21.jsx)(DevToolsRegistration, {}), /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ThreadPrimitiveViewportProvider, { children })]
   });
 };
-var AssistantRuntimeProvider = (0, import_react26.memo)(AssistantRuntimeProviderImpl);
+var AssistantRuntimeProvider = (0, import_react32.memo)(AssistantRuntimeProviderImpl);
 
 // node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-var React3 = __toESM(require_react(), 1);
+var React4 = __toESM(require_react(), 1);
 function setRef(ref, value) {
   if (typeof ref === "function") {
     return ref(value);
@@ -32127,7 +32906,7 @@ function composeRefs(...refs) {
   };
 }
 function useComposedRefs(...refs) {
-  return React3.useCallback(composeRefs(...refs), refs);
+  return React4.useCallback(composeRefs(...refs), refs);
 }
 
 // node_modules/@assistant-ui/react/dist/_virtual/_rolldown/runtime.js
@@ -32143,18 +32922,18 @@ var __exportAll = (all, no_symbols) => {
 };
 
 // node_modules/@assistant-ui/react/dist/utils/Primitive.js
-var import_react27 = __toESM(require_react(), 1);
-var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
+var import_react35 = __toESM(require_react(), 1);
+var import_jsx_runtime24 = __toESM(require_jsx_runtime(), 1);
 
 // node_modules/@radix-ui/react-primitive/dist/index.mjs
-var React5 = __toESM(require_react(), 1);
+var React6 = __toESM(require_react(), 1);
 var ReactDOM = __toESM(require_react_dom(), 1);
 
 // node_modules/@radix-ui/react-slot/dist/index.mjs
-var React4 = __toESM(require_react(), 1);
-var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
+var React5 = __toESM(require_react(), 1);
+var import_jsx_runtime22 = __toESM(require_jsx_runtime(), 1);
 var REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy");
-var use = React4[" use ".trim().toString()];
+var use = React5[" use ".trim().toString()];
 function isPromiseLike(value) {
   return typeof value === "object" && value !== null && "then" in value;
 }
@@ -32164,53 +32943,53 @@ function isLazyComponent(element) {
 // @__NO_SIDE_EFFECTS__
 function createSlot(ownerName) {
   const SlotClone = /* @__PURE__ */ createSlotClone(ownerName);
-  const Slot2 = React4.forwardRef((props, forwardedRef) => {
+  const Slot2 = React5.forwardRef((props, forwardedRef) => {
     let { children, ...slotProps } = props;
     if (isLazyComponent(children) && typeof use === "function") {
       children = use(children._payload);
     }
-    const childrenArray = React4.Children.toArray(children);
+    const childrenArray = React5.Children.toArray(children);
     const slottable = childrenArray.find(isSlottable);
     if (slottable) {
       const newElement = slottable.props.children;
       const newChildren = childrenArray.map((child) => {
         if (child === slottable) {
-          if (React4.Children.count(newElement) > 1) return React4.Children.only(null);
-          return React4.isValidElement(newElement) ? newElement.props.children : null;
+          if (React5.Children.count(newElement) > 1) return React5.Children.only(null);
+          return React5.isValidElement(newElement) ? newElement.props.children : null;
         } else {
           return child;
         }
       });
-      return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children: React4.isValidElement(newElement) ? React4.cloneElement(newElement, void 0, newChildren) : null });
+      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children: React5.isValidElement(newElement) ? React5.cloneElement(newElement, void 0, newChildren) : null });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children });
+    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children });
   });
   Slot2.displayName = `${ownerName}.Slot`;
   return Slot2;
 }
 // @__NO_SIDE_EFFECTS__
 function createSlotClone(ownerName) {
-  const SlotClone = React4.forwardRef((props, forwardedRef) => {
+  const SlotClone = React5.forwardRef((props, forwardedRef) => {
     let { children, ...slotProps } = props;
     if (isLazyComponent(children) && typeof use === "function") {
       children = use(children._payload);
     }
-    if (React4.isValidElement(children)) {
+    if (React5.isValidElement(children)) {
       const childrenRef = getElementRef(children);
       const props2 = mergeProps(slotProps, children.props);
-      if (children.type !== React4.Fragment) {
+      if (children.type !== React5.Fragment) {
         props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
       }
-      return React4.cloneElement(children, props2);
+      return React5.cloneElement(children, props2);
     }
-    return React4.Children.count(children) > 1 ? React4.Children.only(null) : null;
+    return React5.Children.count(children) > 1 ? React5.Children.only(null) : null;
   });
   SlotClone.displayName = `${ownerName}.SlotClone`;
   return SlotClone;
 }
 var SLOTTABLE_IDENTIFIER = /* @__PURE__ */ Symbol("radix.slottable");
 function isSlottable(child) {
-  return React4.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
+  return React5.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
 }
 function mergeProps(slotProps, childProps) {
   const overrideProps = { ...childProps };
@@ -32251,7 +33030,7 @@ function getElementRef(element) {
 }
 
 // node_modules/@radix-ui/react-primitive/dist/index.mjs
-var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime23 = __toESM(require_jsx_runtime(), 1);
 var NODES = [
   "a",
   "button",
@@ -32273,13 +33052,13 @@ var NODES = [
 ];
 var Primitive = NODES.reduce((primitive, node) => {
   const Slot2 = createSlot(`Primitive.${node}`);
-  const Node = React5.forwardRef((props, forwardedRef) => {
+  const Node = React6.forwardRef((props, forwardedRef) => {
     const { asChild, ...primitiveProps } = props;
     const Comp = asChild ? Slot2 : node;
     if (typeof window !== "undefined") {
       window[/* @__PURE__ */ Symbol.for("radix-ui")] = true;
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Comp, { ...primitiveProps, ref: forwardedRef });
+    return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Comp, { ...primitiveProps, ref: forwardedRef });
   });
   Node.displayName = `Primitive.${node}`;
   return { ...primitive, [node]: Node };
@@ -32306,18 +33085,18 @@ var NODES2 = [
   "ul"
 ];
 function withRenderProp(Component) {
-  const Wrapped = (0, import_react27.forwardRef)(({ render, asChild, children, ...rest }, ref) => {
+  const Wrapped = (0, import_react35.forwardRef)(({ render, asChild, children, ...rest }, ref) => {
     const Comp = Component;
-    if (render && (0, import_react27.isValidElement)(render)) {
+    if (render && (0, import_react35.isValidElement)(render)) {
       const renderChildren = children !== void 0 ? children : render.props.children;
-      return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Comp, {
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Comp, {
         ...rest,
         asChild: true,
         ref,
-        children: (0, import_react27.cloneElement)(render, void 0, renderChildren)
+        children: (0, import_react35.cloneElement)(render, void 0, renderChildren)
       });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Comp, {
+    return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Comp, {
       ...rest,
       asChild,
       ref,
@@ -32350,10 +33129,10 @@ function composeEventHandlers(originalEventHandler, ourEventHandler, { checkForD
 }
 
 // node_modules/@assistant-ui/react/dist/utils/createActionButton.js
-var import_react28 = __toESM(require_react(), 1);
-var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
+var import_react36 = __toESM(require_react(), 1);
+var import_jsx_runtime25 = __toESM(require_jsx_runtime(), 1);
 var createActionButton = (displayName, useActionButton, forwardProps = []) => {
-  const ActionButton = (0, import_react28.forwardRef)((props, forwardedRef) => {
+  const ActionButton = (0, import_react36.forwardRef)((props, forwardedRef) => {
     const forwardedProps = {};
     const primitiveProps = {};
     Object.keys(props).forEach((key) => {
@@ -32361,7 +33140,7 @@ var createActionButton = (displayName, useActionButton, forwardProps = []) => {
       else primitiveProps[key] = props[key];
     });
     const callback = useActionButton(forwardedProps) ?? void 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Primitive2.button, {
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Primitive2.button, {
       ...primitiveProps,
       type: "button",
       ref: forwardedRef,
@@ -32374,22 +33153,22 @@ var createActionButton = (displayName, useActionButton, forwardProps = []) => {
 };
 
 // node_modules/@radix-ui/react-use-escape-keydown/dist/index.mjs
-var React7 = __toESM(require_react(), 1);
+var React8 = __toESM(require_react(), 1);
 
 // node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs
-var React6 = __toESM(require_react(), 1);
+var React7 = __toESM(require_react(), 1);
 function useCallbackRef(callback) {
-  const callbackRef = React6.useRef(callback);
-  React6.useEffect(() => {
+  const callbackRef = React7.useRef(callback);
+  React7.useEffect(() => {
     callbackRef.current = callback;
   });
-  return React6.useMemo(() => (...args) => callbackRef.current?.(...args), []);
+  return React7.useMemo(() => (...args) => callbackRef.current?.(...args), []);
 }
 
 // node_modules/@radix-ui/react-use-escape-keydown/dist/index.mjs
 function useEscapeKeydown(onEscapeKeyDownProp, ownerDocument = globalThis?.document) {
   const onEscapeKeyDown = useCallbackRef(onEscapeKeyDownProp);
-  React7.useEffect(() => {
+  React8.useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         onEscapeKeyDown(event);
@@ -32409,28 +33188,28 @@ __export(dist_exports, {
   createSlot: () => createSlot2,
   createSlottable: () => createSlottable
 });
-var React8 = __toESM(require_react(), 1);
-var import_jsx_runtime18 = __toESM(require_jsx_runtime(), 1);
+var React9 = __toESM(require_react(), 1);
+var import_jsx_runtime26 = __toESM(require_jsx_runtime(), 1);
 // @__NO_SIDE_EFFECTS__
 function createSlot2(ownerName) {
   const SlotClone = /* @__PURE__ */ createSlotClone2(ownerName);
-  const Slot2 = React8.forwardRef((props, forwardedRef) => {
+  const Slot2 = React9.forwardRef((props, forwardedRef) => {
     const { children, ...slotProps } = props;
-    const childrenArray = React8.Children.toArray(children);
+    const childrenArray = React9.Children.toArray(children);
     const slottable = childrenArray.find(isSlottable2);
     if (slottable) {
       const newElement = slottable.props.children;
       const newChildren = childrenArray.map((child) => {
         if (child === slottable) {
-          if (React8.Children.count(newElement) > 1) return React8.Children.only(null);
-          return React8.isValidElement(newElement) ? newElement.props.children : null;
+          if (React9.Children.count(newElement) > 1) return React9.Children.only(null);
+          return React9.isValidElement(newElement) ? newElement.props.children : null;
         } else {
           return child;
         }
       });
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children: React8.isValidElement(newElement) ? React8.cloneElement(newElement, void 0, newChildren) : null });
+      return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children: React9.isValidElement(newElement) ? React9.cloneElement(newElement, void 0, newChildren) : null });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children });
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(SlotClone, { ...slotProps, ref: forwardedRef, children });
   });
   Slot2.displayName = `${ownerName}.Slot`;
   return Slot2;
@@ -32438,17 +33217,17 @@ function createSlot2(ownerName) {
 var Slot = /* @__PURE__ */ createSlot2("Slot");
 // @__NO_SIDE_EFFECTS__
 function createSlotClone2(ownerName) {
-  const SlotClone = React8.forwardRef((props, forwardedRef) => {
+  const SlotClone = React9.forwardRef((props, forwardedRef) => {
     const { children, ...slotProps } = props;
-    if (React8.isValidElement(children)) {
+    if (React9.isValidElement(children)) {
       const childrenRef = getElementRef2(children);
       const props2 = mergeProps2(slotProps, children.props);
-      if (children.type !== React8.Fragment) {
+      if (children.type !== React9.Fragment) {
         props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
       }
-      return React8.cloneElement(children, props2);
+      return React9.cloneElement(children, props2);
     }
-    return React8.Children.count(children) > 1 ? React8.Children.only(null) : null;
+    return React9.Children.count(children) > 1 ? React9.Children.only(null) : null;
   });
   SlotClone.displayName = `${ownerName}.SlotClone`;
   return SlotClone;
@@ -32457,7 +33236,7 @@ var SLOTTABLE_IDENTIFIER2 = /* @__PURE__ */ Symbol("radix.slottable");
 // @__NO_SIDE_EFFECTS__
 function createSlottable(ownerName) {
   const Slottable2 = ({ children }) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_jsx_runtime18.Fragment, { children });
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(import_jsx_runtime26.Fragment, { children });
   };
   Slottable2.displayName = `${ownerName}.Slottable`;
   Slottable2.__radixId = SLOTTABLE_IDENTIFIER2;
@@ -32465,7 +33244,7 @@ function createSlottable(ownerName) {
 }
 var Slottable = /* @__PURE__ */ createSlottable("Slottable");
 function isSlottable2(child) {
-  return React8.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER2;
+  return React9.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER2;
 }
 function mergeProps2(slotProps, childProps) {
   const overrideProps = { ...childProps };
@@ -32505,22 +33284,49 @@ function getElementRef2(element) {
   return element.props.ref || element.ref;
 }
 
+// node_modules/@assistant-ui/react/dist/primitives/message/MessageIf.js
+var useMessageIf = (props) => {
+  return useAuiState((s) => {
+    const { role, attachments, parts, branchCount, isLast, speech, isCopied, isHovering } = s.message;
+    if (props.hasBranches === true && branchCount < 2) return false;
+    if (props.user && role !== "user") return false;
+    if (props.assistant && role !== "assistant") return false;
+    if (props.system && role !== "system") return false;
+    if (props.lastOrHover === true && !isHovering && !isLast) return false;
+    if (props.last !== void 0 && props.last !== isLast) return false;
+    if (props.copied === true && !isCopied) return false;
+    if (props.copied === false && isCopied) return false;
+    if (props.speaking === true && speech == null) return false;
+    if (props.speaking === false && speech != null) return false;
+    if (props.hasAttachments === true && (role !== "user" || !attachments?.length)) return false;
+    if (props.hasAttachments === false && role === "user" && attachments?.length) return false;
+    if (props.hasContent === true && parts.length === 0) return false;
+    if (props.hasContent === false && parts.length > 0) return false;
+    if (props.submittedFeedback !== void 0 && (s.message.metadata.submittedFeedback?.type ?? null) !== props.submittedFeedback) return false;
+    return true;
+  });
+};
+var MessagePrimitiveIf = ({ children, ...query }) => {
+  return useMessageIf(query) ? children : null;
+};
+MessagePrimitiveIf.displayName = "MessagePrimitive.If";
+
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerInputPluginContext.js
-var import_react29 = __toESM(require_react(), 1);
-var import_jsx_runtime19 = __toESM(require_jsx_runtime(), 1);
-var ComposerInputPluginRegistryContext = (0, import_react29.createContext)(null);
+var import_react37 = __toESM(require_react(), 1);
+var import_jsx_runtime27 = __toESM(require_jsx_runtime(), 1);
+var ComposerInputPluginRegistryContext = (0, import_react37.createContext)(null);
 var useComposerInputPluginRegistryOptional = () => {
-  return (0, import_react29.useContext)(ComposerInputPluginRegistryContext);
+  return (0, import_react37.useContext)(ComposerInputPluginRegistryContext);
 };
 var ComposerInputPluginProvider = ({ children }) => {
-  const pluginsRef = (0, import_react29.useRef)(/* @__PURE__ */ new Map());
-  const snapshotRef = (0, import_react29.useRef)([]);
-  const refreshSnapshot = (0, import_react29.useCallback)(() => {
+  const pluginsRef = (0, import_react37.useRef)(/* @__PURE__ */ new Map());
+  const snapshotRef = (0, import_react37.useRef)([]);
+  const refreshSnapshot = (0, import_react37.useCallback)(() => {
     const entries = Array.from(pluginsRef.current.entries());
     entries.sort((a, b) => b[1] - a[1]);
     snapshotRef.current = entries.map(([plugin]) => plugin);
   }, []);
-  const register = (0, import_react29.useCallback)((plugin, opts) => {
+  const register = (0, import_react37.useCallback)((plugin, opts) => {
     const priority = opts?.priority ?? 0;
     pluginsRef.current.set(plugin, priority);
     refreshSnapshot();
@@ -32529,36 +33335,36 @@ var ComposerInputPluginProvider = ({ children }) => {
       refreshSnapshot();
     };
   }, [refreshSnapshot]);
-  const getPlugins = (0, import_react29.useCallback)(() => snapshotRef.current, []);
-  const registry = (0, import_react29.useMemo)(() => ({
+  const getPlugins = (0, import_react37.useCallback)(() => snapshotRef.current, []);
+  const registry = (0, import_react37.useMemo)(() => ({
     register,
     getPlugins
   }), [register, getPlugins]);
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ComposerInputPluginRegistryContext.Provider, {
+  return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(ComposerInputPluginRegistryContext.Provider, {
     value: registry,
     children
   });
 };
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopoverRootContext.js
-var import_react30 = __toESM(require_react(), 1);
-var import_jsx_runtime20 = __toESM(require_jsx_runtime(), 1);
-var TriggerPopoverRootContext = (0, import_react30.createContext)(null);
-var TriggerPopoverAriaPublishContext = (0, import_react30.createContext)(null);
+var import_react38 = __toESM(require_react(), 1);
+var import_jsx_runtime28 = __toESM(require_jsx_runtime(), 1);
+var TriggerPopoverRootContext = (0, import_react38.createContext)(null);
+var TriggerPopoverAriaPublishContext = (0, import_react38.createContext)(null);
 var useTriggerPopoverRootContext = () => {
-  const ctx = (0, import_react30.useContext)(TriggerPopoverRootContext);
+  const ctx = (0, import_react38.useContext)(TriggerPopoverRootContext);
   if (!ctx) throw new Error("useTriggerPopoverRootContext must be used within ComposerPrimitive.TriggerPopoverRoot");
   return ctx;
 };
-var useTriggerPopoverRootContextOptional = () => (0, import_react30.useContext)(TriggerPopoverRootContext);
+var useTriggerPopoverRootContextOptional = () => (0, import_react38.useContext)(TriggerPopoverRootContext);
 var useTriggerPopoverAriaPublish = () => {
-  const ctx = (0, import_react30.useContext)(TriggerPopoverAriaPublishContext);
+  const ctx = (0, import_react38.useContext)(TriggerPopoverAriaPublishContext);
   if (!ctx) throw new Error("useTriggerPopoverAriaPublish must be used within ComposerPrimitive.TriggerPopoverRoot");
   return ctx;
 };
 var useTriggerPopoverTriggers = () => {
   const ctx = useTriggerPopoverRootContext();
-  return (0, import_react30.useSyncExternalStore)(ctx.subscribe, ctx.getTriggers, ctx.getTriggers);
+  return (0, import_react38.useSyncExternalStore)(ctx.subscribe, ctx.getTriggers, ctx.getTriggers);
 };
 var EMPTY_TRIGGERS = /* @__PURE__ */ new Map();
 var noopSubscribe = () => () => {
@@ -32566,20 +33372,20 @@ var noopSubscribe = () => () => {
 var getEmptyTriggers = () => EMPTY_TRIGGERS;
 var useTriggerPopoverTriggersOptional = () => {
   const ctx = useTriggerPopoverRootContextOptional();
-  return (0, import_react30.useSyncExternalStore)(ctx ? ctx.subscribe : noopSubscribe, ctx ? ctx.getTriggers : getEmptyTriggers, ctx ? ctx.getTriggers : getEmptyTriggers);
+  return (0, import_react38.useSyncExternalStore)(ctx ? ctx.subscribe : noopSubscribe, ctx ? ctx.getTriggers : getEmptyTriggers, ctx ? ctx.getTriggers : getEmptyTriggers);
 };
 var getNullAria = () => null;
 var useTriggerPopoverActiveAriaOptional = () => {
   const ctx = useTriggerPopoverRootContextOptional();
-  return (0, import_react30.useSyncExternalStore)(ctx ? ctx.subscribeAria : noopSubscribe, ctx ? ctx.getActiveAria : getNullAria, ctx ? ctx.getActiveAria : getNullAria);
+  return (0, import_react38.useSyncExternalStore)(ctx ? ctx.subscribeAria : noopSubscribe, ctx ? ctx.getActiveAria : getNullAria, ctx ? ctx.getActiveAria : getNullAria);
 };
 function useSimpleSubscribable() {
-  const listenersRef = (0, import_react30.useRef)(/* @__PURE__ */ new Set());
+  const listenersRef = (0, import_react38.useRef)(/* @__PURE__ */ new Set());
   return {
-    notify: (0, import_react30.useCallback)(() => {
+    notify: (0, import_react38.useCallback)(() => {
       for (const listener of listenersRef.current) listener();
     }, []),
-    subscribe: (0, import_react30.useCallback)((listener) => {
+    subscribe: (0, import_react38.useCallback)((listener) => {
       listenersRef.current.add(listener);
       return () => {
         listenersRef.current.delete(listener);
@@ -32588,10 +33394,10 @@ function useSimpleSubscribable() {
   };
 }
 var TriggerPopoverRootInner = ({ children }) => {
-  const triggersRef = (0, import_react30.useRef)(/* @__PURE__ */ new Map());
-  const lifecycleListenersRef = (0, import_react30.useRef)(/* @__PURE__ */ new Set());
+  const triggersRef = (0, import_react38.useRef)(/* @__PURE__ */ new Map());
+  const lifecycleListenersRef = (0, import_react38.useRef)(/* @__PURE__ */ new Set());
   const { notify, subscribe } = useSimpleSubscribable();
-  const register = (0, import_react30.useCallback)((trigger) => {
+  const register = (0, import_react38.useCallback)((trigger) => {
     const { char } = trigger;
     if (triggersRef.current.has(char)) {
       if (true) console.warn(`[assistant-ui] Duplicate TriggerPopover for char "${char}". Ignoring the second registration.`);
@@ -32614,17 +33420,17 @@ var TriggerPopoverRootInner = ({ children }) => {
       for (const l of lifecycleListenersRef.current) l.removed(char);
     };
   }, [notify]);
-  const getTriggers = (0, import_react30.useCallback)(() => triggersRef.current, []);
-  const subscribeLifecycle = (0, import_react30.useCallback)((listener) => {
+  const getTriggers = (0, import_react38.useCallback)(() => triggersRef.current, []);
+  const subscribeLifecycle = (0, import_react38.useCallback)((listener) => {
     lifecycleListenersRef.current.add(listener);
     return () => {
       lifecycleListenersRef.current.delete(listener);
     };
   }, []);
-  const activeAriaRef = (0, import_react30.useRef)(null);
-  const activeAriaCharRef = (0, import_react30.useRef)(null);
+  const activeAriaRef = (0, import_react38.useRef)(null);
+  const activeAriaCharRef = (0, import_react38.useRef)(null);
   const { notify: notifyAria, subscribe: subscribeAria } = useSimpleSubscribable();
-  const setActiveAria = (0, import_react30.useCallback)((char, aria) => {
+  const setActiveAria = (0, import_react38.useCallback)((char, aria) => {
     if (aria === null) {
       if (activeAriaCharRef.current !== char) return;
       activeAriaRef.current = null;
@@ -32638,8 +33444,8 @@ var TriggerPopoverRootInner = ({ children }) => {
     activeAriaCharRef.current = char;
     notifyAria();
   }, [notifyAria]);
-  const getActiveAria = (0, import_react30.useCallback)(() => activeAriaRef.current, []);
-  const value = (0, import_react30.useMemo)(() => ({
+  const getActiveAria = (0, import_react38.useCallback)(() => activeAriaRef.current, []);
+  const value = (0, import_react38.useMemo)(() => ({
     register,
     getTriggers,
     subscribe,
@@ -32654,18 +33460,18 @@ var TriggerPopoverRootInner = ({ children }) => {
     getActiveAria,
     subscribeAria
   ]);
-  const ariaPublishValue = (0, import_react30.useMemo)(() => ({ setActiveAria }), [setActiveAria]);
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(TriggerPopoverRootContext.Provider, {
+  const ariaPublishValue = (0, import_react38.useMemo)(() => ({ setActiveAria }), [setActiveAria]);
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(TriggerPopoverRootContext.Provider, {
     value,
-    children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(TriggerPopoverAriaPublishContext.Provider, {
+    children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(TriggerPopoverAriaPublishContext.Provider, {
       value: ariaPublishValue,
       children
     })
   });
 };
 var ComposerPrimitiveTriggerPopoverRoot = ({ children }) => {
-  if (useComposerInputPluginRegistryOptional()) return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(TriggerPopoverRootInner, { children });
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ComposerInputPluginProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(TriggerPopoverRootInner, { children }) });
+  if (useComposerInputPluginRegistryOptional()) return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(TriggerPopoverRootInner, { children });
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(ComposerInputPluginProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(TriggerPopoverRootInner, { children }) });
 };
 ComposerPrimitiveTriggerPopoverRoot.displayName = "ComposerPrimitive.TriggerPopoverRoot";
 
@@ -32952,29 +33758,29 @@ var TriggerPopoverResource = resource(({ adapter, text, triggerChar, behavior, a
 });
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopover.js
-var import_react31 = __toESM(require_react(), 1);
-var import_jsx_runtime21 = __toESM(require_jsx_runtime(), 1);
-var TriggerPopoverScopeContext = (0, import_react31.createContext)(null);
+var import_react39 = __toESM(require_react(), 1);
+var import_jsx_runtime29 = __toESM(require_jsx_runtime(), 1);
+var TriggerPopoverScopeContext = (0, import_react39.createContext)(null);
 var useTriggerPopoverScopeContext = () => {
-  const ctx = (0, import_react31.useContext)(TriggerPopoverScopeContext);
+  const ctx = (0, import_react39.useContext)(TriggerPopoverScopeContext);
   if (!ctx) throw new Error("useTriggerPopoverScopeContext must be used within ComposerPrimitive.TriggerPopover");
   return ctx;
 };
-var useTriggerPopoverScopeContextOptional = () => (0, import_react31.useContext)(TriggerPopoverScopeContext);
-var TriggerBehaviorRegistrationContext = (0, import_react31.createContext)(null);
+var useTriggerPopoverScopeContextOptional = () => (0, import_react39.useContext)(TriggerPopoverScopeContext);
+var TriggerBehaviorRegistrationContext = (0, import_react39.createContext)(null);
 var useTriggerBehaviorRegistration = () => {
-  const ctx = (0, import_react31.useContext)(TriggerBehaviorRegistrationContext);
+  const ctx = (0, import_react39.useContext)(TriggerBehaviorRegistrationContext);
   if (!ctx) throw new Error("TriggerPopover.Directive / TriggerPopover.Action must be rendered inside ComposerPrimitive.TriggerPopover");
   return ctx;
 };
-var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, adapter, "aria-label": ariaLabel, children, ...props }, forwardedRef) => {
+var ComposerPrimitiveTriggerPopover = (0, import_react39.forwardRef)(({ char, adapter, "aria-label": ariaLabel, children, ...props }, forwardedRef) => {
   const aui = useAui();
   const text = useAuiState((s) => s.composer.text);
-  const popoverId = (0, import_react31.useId)();
-  const behaviorRef = (0, import_react31.useRef)(null);
-  const [behavior, setBehavior] = (0, import_react31.useState)(null);
-  const registrationCountRef = (0, import_react31.useRef)(0);
-  const register = (0, import_react31.useCallback)((next) => {
+  const popoverId = (0, import_react39.useId)();
+  const behaviorRef = (0, import_react39.useRef)(null);
+  const [behavior, setBehavior] = (0, import_react39.useState)(null);
+  const registrationCountRef = (0, import_react39.useRef)(0);
+  const register = (0, import_react39.useCallback)((next) => {
     registrationCountRef.current += 1;
     if (registrationCountRef.current > 1) console.warn(`[assistant-ui] TriggerPopover "${char}" received more than one behavior child. Exactly one <TriggerPopover.Directive> or <TriggerPopover.Action> is allowed per TriggerPopover; the last registration wins.`);
     behaviorRef.current = next;
@@ -32987,7 +33793,7 @@ var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, ad
       }
     };
   }, [char]);
-  const registration = (0, import_react31.useMemo)(() => ({ register }), [register]);
+  const registration = (0, import_react39.useMemo)(() => ({ register }), [register]);
   const resource2 = useResource(TriggerPopoverResource({
     adapter,
     text,
@@ -32996,10 +33802,10 @@ var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, ad
     aui,
     popoverId
   }));
-  const resourceRef = (0, import_react31.useRef)(resource2);
+  const resourceRef = (0, import_react39.useRef)(resource2);
   resourceRef.current = resource2;
   const root = useTriggerPopoverRootContext();
-  (0, import_react31.useEffect)(() => {
+  (0, import_react39.useEffect)(() => {
     return root.register({
       char,
       ...behavior ? { behavior } : {},
@@ -33011,13 +33817,13 @@ var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, ad
     behavior
   ]);
   const pluginRegistry = useComposerInputPluginRegistryOptional();
-  (0, import_react31.useEffect)(() => {
+  (0, import_react39.useEffect)(() => {
     if (!pluginRegistry) return void 0;
     return pluginRegistry.register(resourceRef.current);
   }, [pluginRegistry]);
   const open = behavior !== null && resource2.open;
   const aria = useTriggerPopoverAriaPublish();
-  (0, import_react31.useEffect)(() => {
+  (0, import_react39.useEffect)(() => {
     if (!open) return void 0;
     return () => {
       aria.setActiveAria(char, null);
@@ -33027,7 +33833,7 @@ var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, ad
     char,
     open
   ]);
-  (0, import_react31.useEffect)(() => {
+  (0, import_react39.useEffect)(() => {
     if (!open) return;
     aria.setActiveAria(char, {
       popoverId,
@@ -33040,11 +33846,11 @@ var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, ad
     open,
     resource2.highlightedItemId
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(TriggerBehaviorRegistrationContext.Provider, {
+  return /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(TriggerBehaviorRegistrationContext.Provider, {
     value: registration,
-    children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(TriggerPopoverScopeContext.Provider, {
+    children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(TriggerPopoverScopeContext.Provider, {
       value: resource2,
-      children: open ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Primitive2.div, {
+      children: open ? /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Primitive2.div, {
         role: "listbox",
         id: popoverId,
         "aria-label": ariaLabel ?? "Suggestions",
@@ -33060,26 +33866,26 @@ var ComposerPrimitiveTriggerPopover = (0, import_react31.forwardRef)(({ char, ad
 ComposerPrimitiveTriggerPopover.displayName = "ComposerPrimitive.TriggerPopover";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerSend.js
-var import_react34 = __toESM(require_react(), 1);
+var import_react42 = __toESM(require_react(), 1);
 var useComposerSend2 = () => {
   const { disabled, send } = useComposerSend();
-  const callback = (0, import_react34.useCallback)(() => send(), [send]);
+  const callback = (0, import_react42.useCallback)(() => send(), [send]);
   if (disabled) return null;
   return callback;
 };
 var ComposerPrimitiveSend = createActionButton("ComposerPrimitive.Send", useComposerSend2);
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerRoot.js
-var import_react35 = __toESM(require_react(), 1);
-var import_jsx_runtime22 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveRoot = (0, import_react35.forwardRef)(({ onSubmit, ...rest }, forwardedRef) => {
+var import_react43 = __toESM(require_react(), 1);
+var import_jsx_runtime30 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveRoot = (0, import_react43.forwardRef)(({ onSubmit, ...rest }, forwardedRef) => {
   const send = useComposerSend2();
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!send) return;
     send();
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Primitive2.form, {
+  return /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Primitive2.form, {
     ...rest,
     ref: forwardedRef,
     onSubmit: composeEventHandlers(onSubmit, handleSubmit)
@@ -33088,35 +33894,35 @@ var ComposerPrimitiveRoot = (0, import_react35.forwardRef)(({ onSubmit, ...rest 
 ComposerPrimitiveRoot.displayName = "ComposerPrimitive.Root";
 
 // node_modules/@assistant-ui/react/dist/utils/hooks/useOnScrollToBottom.js
-var import_react36 = __toESM(require_react(), 1);
+var import_react44 = __toESM(require_react(), 1);
 var useOnScrollToBottom = (callback) => {
   const callbackRef = useCallbackRef(callback);
   const onScrollToBottom = useThreadViewport((vp) => vp.onScrollToBottom);
-  (0, import_react36.useEffect)(() => {
+  (0, import_react44.useEffect)(() => {
     return onScrollToBottom(callbackRef);
   }, [onScrollToBottom, callbackRef]);
 };
 
 // node_modules/@assistant-ui/react/dist/utils/hooks/useMediaQuery.js
-var import_react37 = __toESM(require_react(), 1);
+var import_react45 = __toESM(require_react(), 1);
 var getServerSnapshot = () => false;
 var noopUnsubscribe = () => {
 };
 var useMediaQuery = (query) => {
-  return (0, import_react37.useSyncExternalStore)((0, import_react37.useCallback)((callback) => {
+  return (0, import_react45.useSyncExternalStore)((0, import_react45.useCallback)((callback) => {
     if (typeof window === "undefined" || query === null) return noopUnsubscribe;
     const mql = window.matchMedia(query);
     mql.addEventListener("change", callback);
     return () => mql.removeEventListener("change", callback);
-  }, [query]), (0, import_react37.useCallback)(() => {
+  }, [query]), (0, import_react45.useCallback)(() => {
     if (typeof window === "undefined" || query === null) return false;
     return window.matchMedia(query).matches;
   }, [query]), getServerSnapshot);
 };
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerInput.js
-var import_react41 = __toESM(require_react(), 1);
-var import_jsx_runtime23 = __toESM(require_jsx_runtime(), 1);
+var import_react49 = __toESM(require_react(), 1);
+var import_jsx_runtime31 = __toESM(require_jsx_runtime(), 1);
 
 // node_modules/@babel/runtime/helpers/esm/extends.js
 function _extends() {
@@ -33141,18 +33947,18 @@ function _objectWithoutPropertiesLoose(r, e) {
 }
 
 // node_modules/react-textarea-autosize/dist/react-textarea-autosize.browser.esm.js
-var React11 = __toESM(require_react());
+var React12 = __toESM(require_react());
 
 // node_modules/use-latest/dist/use-latest.esm.js
-var import_react39 = __toESM(require_react());
+var import_react47 = __toESM(require_react());
 
 // node_modules/use-isomorphic-layout-effect/dist/use-isomorphic-layout-effect.browser.esm.js
-var import_react38 = __toESM(require_react());
-var index = import_react38.useLayoutEffect;
+var import_react46 = __toESM(require_react());
+var index = import_react46.useLayoutEffect;
 
 // node_modules/use-latest/dist/use-latest.esm.js
 var useLatest = function useLatest2(value) {
-  var ref = import_react39.default.useRef(value);
+  var ref = import_react47.default.useRef(value);
   index(function() {
     ref.current = value;
   });
@@ -33160,7 +33966,7 @@ var useLatest = function useLatest2(value) {
 };
 
 // node_modules/use-composed-ref/dist/use-composed-ref.esm.js
-var import_react40 = __toESM(require_react());
+var import_react48 = __toESM(require_react());
 var updateRef = function updateRef2(ref, value) {
   if (typeof ref === "function") {
     ref(value);
@@ -33169,8 +33975,8 @@ var updateRef = function updateRef2(ref, value) {
   ref.current = value;
 };
 var useComposedRef = function useComposedRef2(libRef, userRef) {
-  var prevUserRef = import_react40.default.useRef();
-  return import_react40.default.useCallback(function(instance) {
+  var prevUserRef = import_react48.default.useRef();
+  return import_react48.default.useCallback(function(instance) {
     libRef.current = instance;
     if (prevUserRef.current) {
       updateRef(prevUserRef.current, null);
@@ -33311,7 +34117,7 @@ var getSizingData = function getSizingData2(node) {
 var getSizingData$1 = getSizingData;
 function useListener(target, type, listener) {
   var latestListener = useLatest(listener);
-  React11.useLayoutEffect(function() {
+  React12.useLayoutEffect(function() {
     var handler = function handler2(ev) {
       return latestListener.current(ev);
     };
@@ -33341,10 +34147,10 @@ var _excluded = ["cacheMeasurements", "maxRows", "minRows", "onChange", "onHeigh
 var TextareaAutosize = function TextareaAutosize2(_ref, userRef) {
   var cacheMeasurements = _ref.cacheMeasurements, maxRows = _ref.maxRows, minRows = _ref.minRows, _ref$onChange = _ref.onChange, onChange = _ref$onChange === void 0 ? noop : _ref$onChange, _ref$onHeightChange = _ref.onHeightChange, onHeightChange = _ref$onHeightChange === void 0 ? noop : _ref$onHeightChange, props = _objectWithoutPropertiesLoose(_ref, _excluded);
   var isControlled = props.value !== void 0;
-  var libRef = React11.useRef(null);
+  var libRef = React12.useRef(null);
   var ref = useComposedRef(libRef, userRef);
-  var heightRef = React11.useRef(0);
-  var measurementsCacheRef = React11.useRef();
+  var heightRef = React12.useRef(0);
+  var measurementsCacheRef = React12.useRef();
   var resizeTextarea = function resizeTextarea2() {
     var node = libRef.current;
     var nodeSizingData = cacheMeasurements && measurementsCacheRef.current ? measurementsCacheRef.current : getSizingData$1(node);
@@ -33368,7 +34174,7 @@ var TextareaAutosize = function TextareaAutosize2(_ref, userRef) {
     onChange(event);
   };
   {
-    React11.useLayoutEffect(resizeTextarea);
+    React12.useLayoutEffect(resizeTextarea);
     useFormResetListener(libRef, function() {
       if (!isControlled) {
         var currentValue = libRef.current.value;
@@ -33382,17 +34188,17 @@ var TextareaAutosize = function TextareaAutosize2(_ref, userRef) {
     });
     useWindowResizeListener(resizeTextarea);
     useFontsLoadedListener(resizeTextarea);
-    return /* @__PURE__ */ React11.createElement("textarea", _extends({}, props, {
+    return /* @__PURE__ */ React12.createElement("textarea", _extends({}, props, {
       onChange: handleChange,
       ref
     }));
   }
 };
-var index2 = /* @__PURE__ */ React11.forwardRef(TextareaAutosize);
+var index2 = /* @__PURE__ */ React12.forwardRef(TextareaAutosize);
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerInput.js
 var TOUCH_PRIMARY_QUERY = "(pointer: coarse) and (not (any-pointer: fine))";
-var ComposerPrimitiveInput = (0, import_react41.forwardRef)(({ autoFocus = false, asChild, render, disabled: disabledProp, onChange, onKeyDown, onPaste, onSelect, submitOnEnter, submitMode, cancelOnEscape = true, unstable_focusOnRunStart = true, unstable_focusOnScrollToBottom = true, unstable_focusOnThreadSwitched = true, unstable_insertNewlineOnTouchEnter = false, addAttachmentOnPaste = true, ...rest }, forwardedRef) => {
+var ComposerPrimitiveInput = (0, import_react49.forwardRef)(({ autoFocus = false, asChild, render, disabled: disabledProp, onChange, onKeyDown, onPaste, onSelect, submitOnEnter, submitMode, cancelOnEscape = true, unstable_focusOnRunStart = true, unstable_focusOnScrollToBottom = true, unstable_focusOnThreadSwitched = true, unstable_insertNewlineOnTouchEnter = false, addAttachmentOnPaste = true, ...rest }, forwardedRef) => {
   const aui = useAui();
   const pluginRegistry = useComposerInputPluginRegistryOptional();
   const activeAria = useTriggerPopoverActiveAriaOptional();
@@ -33404,9 +34210,9 @@ var ComposerPrimitiveInput = (0, import_react41.forwardRef)(({ autoFocus = false
     return s.composer.text;
   });
   const isDisabled = useAuiState((s) => s.thread.isDisabled || s.composer.dictation?.inputDisabled) || disabledProp;
-  const textareaRef = (0, import_react41.useRef)(null);
+  const textareaRef = (0, import_react49.useRef)(null);
   const ref = useComposedRefs(forwardedRef, textareaRef);
-  const compositionRef = (0, import_react41.useRef)(false);
+  const compositionRef = (0, import_react49.useRef)(false);
   useEscapeKeydown((e) => {
     if (!textareaRef.current?.contains(e.target)) return;
     if (pluginRegistry) {
@@ -33456,17 +34262,17 @@ var ComposerPrimitiveInput = (0, import_react41.forwardRef)(({ autoFocus = false
     }
   };
   const autoFocusEnabled = autoFocus && !isDisabled;
-  const focus = (0, import_react41.useCallback)(() => {
+  const focus = (0, import_react49.useCallback)(() => {
     const textarea = textareaRef.current;
     if (!textarea || !autoFocusEnabled) return;
     textarea.focus({ preventScroll: true });
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }, [autoFocusEnabled]);
-  (0, import_react41.useEffect)(() => focus(), [focus]);
+  (0, import_react49.useEffect)(() => focus(), [focus]);
   useOnScrollToBottom(() => {
     if (aui.composer().getState().type === "thread" && unstable_focusOnScrollToBottom) focus();
   });
-  (0, import_react41.useEffect)(() => {
+  (0, import_react49.useEffect)(() => {
     if (aui.composer().getState().type !== "thread" || !unstable_focusOnRunStart) return void 0;
     return aui.on("thread.runStart", focus);
   }, [
@@ -33474,7 +34280,7 @@ var ComposerPrimitiveInput = (0, import_react41.forwardRef)(({ autoFocus = false
     focus,
     aui
   ]);
-  (0, import_react41.useEffect)(() => {
+  (0, import_react49.useEffect)(() => {
     if (aui.composer().getState().type !== "thread" || !unstable_focusOnThreadSwitched) return void 0;
     return aui.on("threadListItem.switchedTo", focus);
   }, [
@@ -33529,14 +34335,14 @@ var ComposerPrimitiveInput = (0, import_react41.forwardRef)(({ autoFocus = false
     }),
     onPaste: composeEventHandlers(onPaste, handlePaste)
   };
-  if (render && (0, import_react41.isValidElement)(render)) {
+  if (render && (0, import_react49.isValidElement)(render)) {
     const renderChildren = rest.children !== void 0 ? rest.children : render.props.children;
-    return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(dist_exports.Root, {
+    return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(dist_exports.Root, {
       ...inputProps,
-      children: (0, import_react41.cloneElement)(render, void 0, renderChildren)
+      children: (0, import_react49.cloneElement)(render, void 0, renderChildren)
     });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(asChild ? dist_exports.Root : index2, { ...inputProps });
+  return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(asChild ? dist_exports.Root : index2, { ...inputProps });
 });
 ComposerPrimitiveInput.displayName = "ComposerPrimitive.Input";
 
@@ -33549,11 +34355,11 @@ var useComposerCancel$1 = () => {
 var ComposerPrimitiveCancel = createActionButton("ComposerPrimitive.Cancel", useComposerCancel$1);
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerAddAttachment.js
-var import_react44 = __toESM(require_react(), 1);
+var import_react52 = __toESM(require_react(), 1);
 var useComposerAddAttachment$1 = ({ multiple = true } = {}) => {
   const { disabled, addAttachment } = useComposerAddAttachment();
   const aui = useAui();
-  const callback = (0, import_react44.useCallback)(() => {
+  const callback = (0, import_react52.useCallback)(() => {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = multiple;
@@ -33582,29 +34388,29 @@ var useComposerAddAttachment$1 = ({ multiple = true } = {}) => {
 var ComposerPrimitiveAddAttachment = createActionButton("ComposerPrimitive.AddAttachment", useComposerAddAttachment$1, ["multiple"]);
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerAttachmentDropzone.js
-var import_react46 = __toESM(require_react(), 1);
-var import_jsx_runtime24 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveAttachmentDropzone = (0, import_react46.forwardRef)(({ disabled, asChild = false, render, children, ...rest }, ref) => {
-  const [isDragging, setIsDragging] = (0, import_react46.useState)(false);
+var import_react54 = __toESM(require_react(), 1);
+var import_jsx_runtime32 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveAttachmentDropzone = (0, import_react54.forwardRef)(({ disabled, asChild = false, render, children, ...rest }, ref) => {
+  const [isDragging, setIsDragging] = (0, import_react54.useState)(false);
   const aui = useAui();
-  const handleDragEnterCapture = (0, import_react46.useCallback)((e) => {
+  const handleDragEnterCapture = (0, import_react54.useCallback)((e) => {
     if (disabled) return;
     e.preventDefault();
     setIsDragging(true);
   }, [disabled]);
-  const handleDragOverCapture = (0, import_react46.useCallback)((e) => {
+  const handleDragOverCapture = (0, import_react54.useCallback)((e) => {
     if (disabled) return;
     e.preventDefault();
     if (!isDragging) setIsDragging(true);
   }, [disabled, isDragging]);
-  const handleDragLeaveCapture = (0, import_react46.useCallback)((e) => {
+  const handleDragLeaveCapture = (0, import_react54.useCallback)((e) => {
     if (disabled) return;
     e.preventDefault();
     const next = e.relatedTarget;
     if (next && e.currentTarget.contains(next)) return;
     setIsDragging(false);
   }, [disabled]);
-  const handleDrop = (0, import_react46.useCallback)(async (e) => {
+  const handleDrop = (0, import_react54.useCallback)(async (e) => {
     if (disabled) return;
     e.preventDefault();
     setIsDragging(false);
@@ -33626,14 +34432,14 @@ var ComposerPrimitiveAttachmentDropzone = (0, import_react46.forwardRef)(({ disa
     onDropCapture: composeEventHandlers(rest.onDropCapture, handleDrop),
     ref
   };
-  if (render && (0, import_react46.isValidElement)(render)) {
+  if (render && (0, import_react54.isValidElement)(render)) {
     const renderChildren = children !== void 0 ? children : render.props.children;
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(dist_exports.Root, {
+    return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(dist_exports.Root, {
       ...mergedProps,
-      children: (0, import_react46.cloneElement)(render, void 0, renderChildren)
+      children: (0, import_react54.cloneElement)(render, void 0, renderChildren)
     });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(asChild ? dist_exports.Root : "div", {
+  return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(asChild ? dist_exports.Root : "div", {
     ...mergedProps,
     children
   });
@@ -33649,11 +34455,11 @@ var useComposerDictate$1 = () => {
 var ComposerPrimitiveDictate = createActionButton("ComposerPrimitive.Dictate", useComposerDictate$1);
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerStopDictation.js
-var import_react48 = __toESM(require_react(), 1);
+var import_react56 = __toESM(require_react(), 1);
 var useComposerStopDictation = () => {
   const aui = useAui();
   const isDictating = useAuiState((s) => s.composer.dictation != null);
-  const callback = (0, import_react48.useCallback)(() => {
+  const callback = (0, import_react56.useCallback)(() => {
     aui.composer().stopDictation();
   }, [aui]);
   if (!isDictating) return null;
@@ -33662,46 +34468,46 @@ var useComposerStopDictation = () => {
 var ComposerPrimitiveStopDictation = createActionButton("ComposerPrimitive.StopDictation", useComposerStopDictation);
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerDictationTranscript.js
-var import_react49 = __toESM(require_react(), 1);
-var import_jsx_runtime25 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveDictationTranscript = (0, import_react49.forwardRef)(({ children, ...props }, forwardRef19) => {
+var import_react57 = __toESM(require_react(), 1);
+var import_jsx_runtime33 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveDictationTranscript = (0, import_react57.forwardRef)(({ children, ...props }, forwardRef23) => {
   const transcript = useAuiState((s) => s.composer.dictation?.transcript);
   if (!transcript) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Primitive2.span, {
+  return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Primitive2.span, {
     ...props,
-    ref: forwardRef19,
+    ref: forwardRef23,
     children: children ?? transcript
   });
 });
 ComposerPrimitiveDictationTranscript.displayName = "ComposerPrimitive.DictationTranscript";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/ComposerQuote.js
-var import_react51 = __toESM(require_react(), 1);
-var import_jsx_runtime26 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveQuote = (0, import_react51.forwardRef)((props, forwardedRef) => {
+var import_react59 = __toESM(require_react(), 1);
+var import_jsx_runtime34 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveQuote = (0, import_react59.forwardRef)((props, forwardedRef) => {
   if (!useAuiState((s) => s.composer.quote)) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Primitive2.div, {
+  return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Primitive2.div, {
     ...props,
     ref: forwardedRef
   });
 });
 ComposerPrimitiveQuote.displayName = "ComposerPrimitive.Quote";
-var ComposerPrimitiveQuoteText = (0, import_react51.forwardRef)(({ children, ...props }, forwardedRef) => {
+var ComposerPrimitiveQuoteText = (0, import_react59.forwardRef)(({ children, ...props }, forwardedRef) => {
   const text = useAuiState((s) => s.composer.quote?.text);
   if (!text) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Primitive2.span, {
+  return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Primitive2.span, {
     ...props,
     ref: forwardedRef,
     children: children ?? text
   });
 });
 ComposerPrimitiveQuoteText.displayName = "ComposerPrimitive.QuoteText";
-var ComposerPrimitiveQuoteDismiss = (0, import_react51.forwardRef)(({ onClick, ...props }, forwardedRef) => {
+var ComposerPrimitiveQuoteDismiss = (0, import_react59.forwardRef)(({ onClick, ...props }, forwardedRef) => {
   const aui = useAui();
-  const handleDismiss = (0, import_react51.useCallback)(() => {
+  const handleDismiss = (0, import_react59.useCallback)(() => {
     aui.composer().setQuote(void 0);
   }, [aui]);
-  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Primitive2.button, {
+  return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Primitive2.button, {
     type: "button",
     ...props,
     ref: forwardedRef,
@@ -33711,12 +34517,12 @@ var ComposerPrimitiveQuoteDismiss = (0, import_react51.forwardRef)(({ onClick, .
 ComposerPrimitiveQuoteDismiss.displayName = "ComposerPrimitive.QuoteDismiss";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopoverCategories.js
-var import_react53 = __toESM(require_react(), 1);
-var import_jsx_runtime27 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveTriggerPopoverCategories = (0, import_react53.forwardRef)(({ children, "aria-label": ariaLabel, ...props }, forwardedRef) => {
+var import_react61 = __toESM(require_react(), 1);
+var import_jsx_runtime35 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveTriggerPopoverCategories = (0, import_react61.forwardRef)(({ children, "aria-label": ariaLabel, ...props }, forwardedRef) => {
   const { categories, activeCategoryId, isSearchMode, open } = useTriggerPopoverScopeContext();
   if (!open || activeCategoryId || isSearchMode) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Primitive2.div, {
+  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(Primitive2.div, {
     role: "group",
     "aria-label": ariaLabel ?? "Categories",
     ...props,
@@ -33725,17 +34531,17 @@ var ComposerPrimitiveTriggerPopoverCategories = (0, import_react53.forwardRef)((
   });
 });
 ComposerPrimitiveTriggerPopoverCategories.displayName = "ComposerPrimitive.TriggerPopoverCategories";
-var ComposerPrimitiveTriggerPopoverCategoryItem = (0, import_react53.forwardRef)(({ categoryId, onClick, onMouseMove, ...props }, forwardedRef) => {
+var ComposerPrimitiveTriggerPopoverCategoryItem = (0, import_react61.forwardRef)(({ categoryId, onClick, onMouseMove, ...props }, forwardedRef) => {
   const { selectCategory, highlightIndex, categories, highlightedIndex, activeCategoryId, isSearchMode, popoverId } = useTriggerPopoverScopeContext();
-  const handleClick = (0, import_react53.useCallback)(() => {
+  const handleClick = (0, import_react61.useCallback)(() => {
     selectCategory(categoryId);
   }, [selectCategory, categoryId]);
   const categoryIndex = categories.findIndex((c) => c.id === categoryId);
   const isHighlighted = !activeCategoryId && !isSearchMode && categoryIndex === highlightedIndex;
-  const handleMouseMove = (0, import_react53.useCallback)(() => {
+  const handleMouseMove = (0, import_react61.useCallback)(() => {
     highlightIndex(categoryIndex);
   }, [highlightIndex, categoryIndex]);
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Primitive2.button, {
+  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(Primitive2.button, {
     type: "button",
     role: "option",
     id: `${popoverId}-option-${categoryId}`,
@@ -33750,12 +34556,12 @@ var ComposerPrimitiveTriggerPopoverCategoryItem = (0, import_react53.forwardRef)
 ComposerPrimitiveTriggerPopoverCategoryItem.displayName = "ComposerPrimitive.TriggerPopoverCategoryItem";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopoverItems.js
-var import_react54 = __toESM(require_react(), 1);
-var import_jsx_runtime28 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveTriggerPopoverItems = (0, import_react54.forwardRef)(({ children, "aria-label": ariaLabel, ...props }, forwardedRef) => {
+var import_react62 = __toESM(require_react(), 1);
+var import_jsx_runtime36 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveTriggerPopoverItems = (0, import_react62.forwardRef)(({ children, "aria-label": ariaLabel, ...props }, forwardedRef) => {
   const { items, activeCategoryId, isSearchMode, open } = useTriggerPopoverScopeContext();
   if (!open || !activeCategoryId && !isSearchMode) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Primitive2.div, {
+  return /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(Primitive2.div, {
     role: "group",
     "aria-label": ariaLabel ?? "Items",
     ...props,
@@ -33764,17 +34570,17 @@ var ComposerPrimitiveTriggerPopoverItems = (0, import_react54.forwardRef)(({ chi
   });
 });
 ComposerPrimitiveTriggerPopoverItems.displayName = "ComposerPrimitive.TriggerPopoverItems";
-var ComposerPrimitiveTriggerPopoverItem = (0, import_react54.forwardRef)(({ item, index: indexProp, onClick, onMouseMove, ...props }, forwardedRef) => {
+var ComposerPrimitiveTriggerPopoverItem = (0, import_react62.forwardRef)(({ item, index: indexProp, onClick, onMouseMove, ...props }, forwardedRef) => {
   const { selectItem, highlightIndex, items, highlightedIndex, activeCategoryId, isSearchMode, popoverId } = useTriggerPopoverScopeContext();
-  const handleClick = (0, import_react54.useCallback)(() => {
+  const handleClick = (0, import_react62.useCallback)(() => {
     selectItem(item);
   }, [selectItem, item]);
   const itemIndex = indexProp ?? items.findIndex((i) => i.id === item.id);
   const isHighlighted = (isSearchMode || activeCategoryId !== null) && itemIndex === highlightedIndex;
-  const handleMouseMove = (0, import_react54.useCallback)(() => {
+  const handleMouseMove = (0, import_react62.useCallback)(() => {
     highlightIndex(itemIndex);
   }, [highlightIndex, itemIndex]);
-  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Primitive2.button, {
+  return /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(Primitive2.button, {
     type: "button",
     role: "option",
     id: `${popoverId}-option-${item.id}`,
@@ -33789,12 +34595,12 @@ var ComposerPrimitiveTriggerPopoverItem = (0, import_react54.forwardRef)(({ item
 ComposerPrimitiveTriggerPopoverItem.displayName = "ComposerPrimitive.TriggerPopoverItem";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopoverBack.js
-var import_react55 = __toESM(require_react(), 1);
-var import_jsx_runtime29 = __toESM(require_jsx_runtime(), 1);
-var ComposerPrimitiveTriggerPopoverBack = (0, import_react55.forwardRef)(({ onClick, ...props }, forwardedRef) => {
+var import_react63 = __toESM(require_react(), 1);
+var import_jsx_runtime37 = __toESM(require_jsx_runtime(), 1);
+var ComposerPrimitiveTriggerPopoverBack = (0, import_react63.forwardRef)(({ onClick, ...props }, forwardedRef) => {
   const { activeCategoryId, isSearchMode, goBack, open } = useTriggerPopoverScopeContext();
   if (!open || !activeCategoryId || isSearchMode) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Primitive2.button, {
+  return /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(Primitive2.button, {
     type: "button",
     ...props,
     ref: forwardedRef,
@@ -33804,12 +34610,12 @@ var ComposerPrimitiveTriggerPopoverBack = (0, import_react55.forwardRef)(({ onCl
 ComposerPrimitiveTriggerPopoverBack.displayName = "ComposerPrimitive.TriggerPopoverBack";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopoverAction.js
-var import_react56 = __toESM(require_react(), 1);
+var import_react64 = __toESM(require_react(), 1);
 var ComposerPrimitiveTriggerPopoverAction = ({ formatter, onExecute, removeOnExecute }) => {
   const { register } = useTriggerBehaviorRegistration();
-  const onExecuteRef = (0, import_react56.useRef)(onExecute);
+  const onExecuteRef = (0, import_react64.useRef)(onExecute);
   onExecuteRef.current = onExecute;
-  (0, import_react56.useEffect)(() => {
+  (0, import_react64.useEffect)(() => {
     return register({
       kind: "action",
       formatter: formatter ?? unstable_defaultDirectiveFormatter,
@@ -33826,12 +34632,12 @@ var ComposerPrimitiveTriggerPopoverAction = ({ formatter, onExecute, removeOnExe
 ComposerPrimitiveTriggerPopoverAction.displayName = "ComposerPrimitive.TriggerPopoverAction";
 
 // node_modules/@assistant-ui/react/dist/primitives/composer/trigger/TriggerPopoverDirective.js
-var import_react57 = __toESM(require_react(), 1);
+var import_react65 = __toESM(require_react(), 1);
 var ComposerPrimitiveTriggerPopoverDirective = ({ formatter, onInserted }) => {
   const { register } = useTriggerBehaviorRegistration();
-  const onInsertedRef = (0, import_react57.useRef)(onInserted);
+  const onInsertedRef = (0, import_react65.useRef)(onInserted);
   onInsertedRef.current = onInserted;
-  (0, import_react57.useEffect)(() => {
+  (0, import_react65.useEffect)(() => {
     return register({
       kind: "directive",
       formatter: formatter ?? unstable_defaultDirectiveFormatter,
@@ -33881,11 +34687,184 @@ var composer_exports = /* @__PURE__ */ __exportAll({
   unstable_useTriggerPopoverTriggersOptional: () => useTriggerPopoverTriggersOptional
 });
 
+// node_modules/@assistant-ui/react/dist/primitives/messagePart/useMessagePartText.js
+var useMessagePartText = () => {
+  return useAuiState((s) => {
+    if (s.part.type !== "text" && s.part.type !== "reasoning") throw new Error("MessagePartText can only be used inside text or reasoning message parts.");
+    return s.part;
+  });
+};
+
+// node_modules/@assistant-ui/react/dist/primitives/messagePart/useMessagePartImage.js
+var useMessagePartImage = () => {
+  return useAuiState((s) => {
+    if (s.part.type !== "image") throw new Error("MessagePartImage can only be used inside image message parts.");
+    return s.part;
+  });
+};
+
+// node_modules/@assistant-ui/react/dist/utils/smooth/SmoothContext.js
+var import_react66 = __toESM(require_react(), 1);
+var import_jsx_runtime38 = __toESM(require_jsx_runtime(), 1);
+var SmoothContext = (0, import_react66.createContext)(null);
+function useSmoothContext(options) {
+  const context2 = (0, import_react66.useContext)(SmoothContext);
+  if (!options?.optional && !context2) throw new Error("This component must be used within a SmoothContextProvider.");
+  return context2;
+}
+var { useSmoothStatus, useSmoothStatusStore } = createContextStoreHook(useSmoothContext, "useSmoothStatus");
+
+// node_modules/@assistant-ui/react/dist/utils/smooth/useSmooth.js
+var import_react67 = __toESM(require_react(), 1);
+var TextStreamAnimator = class {
+  currentText;
+  setText;
+  animationFrameId = null;
+  lastUpdateTime = Date.now();
+  targetText = "";
+  constructor(currentText, setText) {
+    this.currentText = currentText;
+    this.setText = setText;
+  }
+  start() {
+    if (this.animationFrameId !== null) return;
+    this.lastUpdateTime = Date.now();
+    this.animate();
+  }
+  stop() {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+  animate = () => {
+    const currentTime = Date.now();
+    let timeToConsume = currentTime - this.lastUpdateTime;
+    const remainingChars = this.targetText.length - this.currentText.length;
+    const baseTimePerChar = Math.min(5, 250 / remainingChars);
+    let charsToAdd = 0;
+    while (timeToConsume >= baseTimePerChar && charsToAdd < remainingChars) {
+      charsToAdd++;
+      timeToConsume -= baseTimePerChar;
+    }
+    if (charsToAdd !== remainingChars) this.animationFrameId = requestAnimationFrame(this.animate);
+    else this.animationFrameId = null;
+    if (charsToAdd === 0) return;
+    this.currentText = this.targetText.slice(0, this.currentText.length + charsToAdd);
+    this.lastUpdateTime = currentTime - timeToConsume;
+    this.setText(this.currentText);
+  };
+};
+var SMOOTH_STATUS = Object.freeze({ type: "running" });
+var useSmooth = (state, smooth = false) => {
+  const { text } = state;
+  const [displayedText, setDisplayedText] = (0, import_react67.useState)(state.status.type === "running" ? "" : text);
+  const aui = useAui();
+  const part = useAuiState(() => aui.part());
+  const [prevPart, setPrevPart] = (0, import_react67.useState)(part);
+  if (part !== prevPart || !text.startsWith(displayedText)) {
+    setPrevPart(part);
+    setDisplayedText(state.status.type === "running" ? "" : text);
+  }
+  const smoothStatusStore = useSmoothStatusStore({ optional: true });
+  const setText = useCallbackRef((text2) => {
+    setDisplayedText(text2);
+    if (smoothStatusStore) {
+      const target = displayedText !== text2 || state.status.type === "running" ? SMOOTH_STATUS : state.status;
+      writableStore(smoothStatusStore).setState(target, true);
+    }
+  });
+  (0, import_react67.useEffect)(() => {
+    if (smoothStatusStore) {
+      const target = smooth && (displayedText !== text || state.status.type === "running") ? SMOOTH_STATUS : state.status;
+      writableStore(smoothStatusStore).setState(target, true);
+    }
+  }, [
+    smoothStatusStore,
+    smooth,
+    text,
+    displayedText,
+    state.status
+  ]);
+  const [animatorRef] = (0, import_react67.useState)(new TextStreamAnimator(displayedText, setText));
+  const animatorPartRef = (0, import_react67.useRef)(part);
+  (0, import_react67.useEffect)(() => {
+    if (!smooth) {
+      animatorRef.stop();
+      return;
+    }
+    const partChanged = animatorPartRef.current !== part;
+    animatorPartRef.current = part;
+    if (partChanged || !text.startsWith(animatorRef.targetText)) {
+      if (state.status.type === "running") {
+        animatorRef.currentText = "";
+        animatorRef.targetText = text;
+        animatorRef.start();
+      } else {
+        animatorRef.currentText = text;
+        animatorRef.targetText = text;
+        animatorRef.stop();
+      }
+      return;
+    }
+    animatorRef.targetText = text;
+    animatorRef.start();
+  }, [
+    animatorRef,
+    smooth,
+    text,
+    state.status.type,
+    part
+  ]);
+  (0, import_react67.useEffect)(() => {
+    return () => {
+      animatorRef.stop();
+    };
+  }, [animatorRef]);
+  return (0, import_react67.useMemo)(() => smooth ? {
+    type: "text",
+    text: displayedText,
+    status: text === displayedText ? state.status : SMOOTH_STATUS
+  } : state, [
+    smooth,
+    displayedText,
+    state,
+    text
+  ]);
+};
+
+// node_modules/@assistant-ui/react/dist/primitives/messagePart/MessagePartText.js
+var import_react68 = __toESM(require_react(), 1);
+var import_jsx_runtime39 = __toESM(require_jsx_runtime(), 1);
+var MessagePartPrimitiveText = (0, import_react68.forwardRef)(({ smooth = true, component: Component = "span", ...rest }, forwardedRef) => {
+  const { text, status } = useSmooth(useMessagePartText(), smooth);
+  return /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Component, {
+    "data-status": status.type,
+    ...rest,
+    ref: forwardedRef,
+    children: text
+  });
+});
+MessagePartPrimitiveText.displayName = "MessagePartPrimitive.Text";
+
+// node_modules/@assistant-ui/react/dist/primitives/messagePart/MessagePartImage.js
+var import_react69 = __toESM(require_react(), 1);
+var import_jsx_runtime40 = __toESM(require_jsx_runtime(), 1);
+var MessagePartPrimitiveImage = (0, import_react69.forwardRef)((props, forwardedRef) => {
+  const { image } = useMessagePartImage();
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Primitive2.img, {
+    src: image,
+    ...props,
+    ref: forwardedRef
+  });
+});
+MessagePartPrimitiveImage.displayName = "MessagePartPrimitive.Image";
+
 // node_modules/@assistant-ui/react/dist/utils/hooks/useManagedRef.js
-var import_react58 = __toESM(require_react(), 1);
+var import_react71 = __toESM(require_react(), 1);
 var useManagedRef = (callback) => {
-  const cleanupRef = (0, import_react58.useRef)(void 0);
-  return (0, import_react58.useCallback)((el) => {
+  const cleanupRef = (0, import_react71.useRef)(void 0);
+  return (0, import_react71.useCallback)((el) => {
     if (cleanupRef.current) {
       cleanupRef.current();
       cleanupRef.current = void 0;
@@ -33895,6 +34874,16 @@ var useManagedRef = (callback) => {
 };
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/topAnchor/topAnchorUtils.js
+var parseCssLength = (value, element) => {
+  const match = value.trim().match(/^(\d+(?:\.\d+)?|\.\d+)(em|px|rem)$/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const num = Number(match[1]);
+  const unit = match[2];
+  if (unit === "px") return num;
+  if (unit === "em") return num * (parseFloat(getComputedStyle(element).fontSize) || 16);
+  if (unit === "rem") return num * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+  return Number.POSITIVE_INFINITY;
+};
 var getAnchorId = (anchor) => anchor.dataset.messageId;
 var createReserveElement = () => {
   const reserve = document.createElement("div");
@@ -33918,11 +34907,330 @@ var snapScrollTop = (top) => {
   return Math.round(top * pixelRatio) / pixelRatio;
 };
 
+// node_modules/@assistant-ui/react/dist/primitives/message/MessageRoot.js
+var import_react72 = __toESM(require_react(), 1);
+var import_jsx_runtime41 = __toESM(require_jsx_runtime(), 1);
+var useIsHoveringRef = () => {
+  const aui = useAui();
+  const message = useAuiState(() => aui.message());
+  return useManagedRef((0, import_react72.useCallback)((el) => {
+    const handleMouseEnter = () => {
+      message.setIsHovering(true);
+    };
+    const handleMouseLeave = () => {
+      message.setIsHovering(false);
+    };
+    el.addEventListener("mouseenter", handleMouseEnter);
+    el.addEventListener("mouseleave", handleMouseLeave);
+    if (el.matches(":hover")) queueMicrotask(() => message.setIsHovering(true));
+    return () => {
+      el.removeEventListener("mouseenter", handleMouseEnter);
+      el.removeEventListener("mouseleave", handleMouseLeave);
+      message.setIsHovering(false);
+    };
+  }, [message]));
+};
+var useIsTopAnchorUser = () => {
+  const activeAnchorId = useThreadViewport((s) => s.topAnchorTurn?.anchorId);
+  return useAuiState((s) => s.message.role === "user" && s.message.index > 0 && s.message.index === s.thread.messages.length - 2 && s.thread.messages.at(-1)?.role === "assistant" && (s.message.id === activeAnchorId || s.thread.isRunning));
+};
+var useIsTopAnchorTarget = () => {
+  const activeTargetId = useThreadViewport((s) => s.topAnchorTurn?.targetId);
+  return useAuiState((s) => s.message.isLast && s.message.role === "assistant" && s.message.index >= 1 && s.thread.messages.at(s.message.index - 1)?.role === "user" && (s.message.id === activeTargetId || s.thread.isRunning));
+};
+var useTopAnchorUserRef = (active, threadViewportStore) => {
+  return useManagedRef((0, import_react72.useCallback)((el) => {
+    if (!active) return;
+    return threadViewportStore.getState().registerAnchorElement(el);
+  }, [active, threadViewportStore]));
+};
+var useTopAnchorTargetRef = ({ active, threadViewportStore }) => {
+  return useManagedRef((0, import_react72.useCallback)((el) => {
+    if (!active) return;
+    const state = threadViewportStore.getState();
+    const clamp = state.topAnchorMessageClamp;
+    return state.registerAnchorTargetElement(el, {
+      tallerThan: parseCssLength(clamp.tallerThan, el),
+      visibleHeight: parseCssLength(clamp.visibleHeight, el)
+    });
+  }, [active, threadViewportStore]));
+};
+var MessagePrimitiveRootDefault = ({ forwardedRef, ...props }) => {
+  const ref = useComposedRefs(forwardedRef, useIsHoveringRef());
+  const messageId = useAuiState((s) => s.message.id);
+  return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Primitive2.div, {
+    ...props,
+    ref,
+    "data-message-id": messageId
+  });
+};
+var MessagePrimitiveRootTopAnchor = ({ forwardedRef, threadViewportStore, ...props }) => {
+  const isHoveringRef = useIsHoveringRef();
+  const isTopAnchorUser = useIsTopAnchorUser();
+  const isTopAnchorTarget = useIsTopAnchorTarget();
+  const ref = useComposedRefs(forwardedRef, isHoveringRef, useTopAnchorUserRef(isTopAnchorUser, threadViewportStore), useTopAnchorTargetRef({
+    active: isTopAnchorTarget,
+    threadViewportStore
+  }));
+  const messageId = useAuiState((s) => s.message.id);
+  return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Primitive2.div, {
+    ...props,
+    ref,
+    "data-message-id": messageId,
+    "data-aui-top-anchor-user": isTopAnchorUser ? "" : void 0,
+    "data-aui-top-anchor-target": isTopAnchorTarget ? "" : void 0
+  });
+};
+var MessagePrimitiveRoot = (0, import_react72.forwardRef)((props, forwardedRef) => {
+  const threadViewportStore = useThreadViewportStore();
+  if (threadViewportStore.getState().turnAnchor === "top") return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(MessagePrimitiveRootTopAnchor, {
+    ...props,
+    forwardedRef,
+    threadViewportStore
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(MessagePrimitiveRootDefault, {
+    ...props,
+    forwardedRef
+  });
+});
+MessagePrimitiveRoot.displayName = "MessagePrimitive.Root";
+
+// node_modules/@assistant-ui/react/dist/primitives/message/MessageParts.js
+var import_jsx_runtime42 = __toESM(require_jsx_runtime(), 1);
+var webDefaultComponents = {
+  ...defaultComponents,
+  Text: () => /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("p", {
+    style: { whiteSpace: "pre-line" },
+    children: [/* @__PURE__ */ (0, import_jsx_runtime42.jsx)(MessagePartPrimitiveText, {}), /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(MessagePartPrimitiveInProgress, { children: /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("span", {
+      style: { fontFamily: "revert" },
+      children: " \u25CF"
+    }) })]
+  }),
+  Image: () => /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(MessagePartPrimitiveImage, {})
+};
+var MessagePrimitiveParts2 = (props) => {
+  if ("children" in props) return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(MessagePrimitiveParts, { children: props.children });
+  const { components, ...rest } = props;
+  return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(MessagePrimitiveParts, {
+    components: components ? {
+      Text: components.Text ?? webDefaultComponents.Text,
+      Image: components.Image ?? webDefaultComponents.Image,
+      Reasoning: components.Reasoning ?? defaultComponents.Reasoning,
+      Source: components.Source ?? defaultComponents.Source,
+      File: components.File ?? defaultComponents.File,
+      Unstable_Audio: components.Unstable_Audio ?? defaultComponents.Unstable_Audio,
+      ..."ChainOfThought" in components ? { ChainOfThought: components.ChainOfThought } : {
+        tools: components.tools,
+        data: components.data,
+        ToolGroup: components.ToolGroup ?? defaultComponents.ToolGroup,
+        ReasoningGroup: components.ReasoningGroup ?? defaultComponents.ReasoningGroup
+      },
+      Empty: components.Empty,
+      Quote: components.Quote,
+      generativeUI: components.generativeUI
+    } : webDefaultComponents,
+    ...rest
+  });
+};
+MessagePrimitiveParts2.displayName = "MessagePrimitive.Parts";
+
+// node_modules/@assistant-ui/react/dist/primitives/message/MessageError.js
+var MessagePrimitiveError = ({ children }) => {
+  return useMessageError() !== void 0 ? children : null;
+};
+MessagePrimitiveError.displayName = "MessagePrimitive.Error";
+
+// node_modules/@assistant-ui/react/dist/primitives/message/MessagePartsGrouped.js
+var import_react76 = __toESM(require_react(), 1);
+var import_jsx_runtime43 = __toESM(require_jsx_runtime(), 1);
+var groupMessagePartsByParentId = (parts) => {
+  const groupMap = /* @__PURE__ */ new Map();
+  for (let i = 0; i < parts.length; i++) {
+    const groupId = parts[i]?.parentId ?? `__ungrouped_${i}`;
+    const indices = groupMap.get(groupId) ?? [];
+    indices.push(i);
+    groupMap.set(groupId, indices);
+  }
+  const groups = [];
+  for (const [groupId, indices] of groupMap) {
+    const groupKey = groupId.startsWith("__ungrouped_") ? void 0 : groupId;
+    groups.push({
+      groupKey,
+      indices
+    });
+  }
+  return groups;
+};
+var useMessagePartsGrouped = (groupingFunction) => {
+  const parts = useAuiState((s) => s.message.parts);
+  return (0, import_react76.useMemo)(() => {
+    if (parts.length === 0) return [];
+    return groupingFunction(parts);
+  }, [parts, groupingFunction]);
+};
+var ToolUIDisplay2 = ({ Fallback, ...props }) => {
+  const Render = useAuiState((s) => {
+    const Render2 = s.tools.tools[props.toolName] ?? Fallback;
+    if (Array.isArray(Render2)) return Render2[0] ?? Fallback;
+    return Render2;
+  });
+  if (!Render) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Render, { ...props });
+};
+var DataUIDisplay2 = ({ Fallback, ...props }) => {
+  const Render = useAuiState((s) => {
+    const Render2 = s.dataRenderers.renderers[props.name] ?? Fallback;
+    if (Array.isArray(Render2)) return Render2[0] ?? Fallback;
+    return Render2;
+  });
+  if (!Render) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Render, { ...props });
+};
+var defaultComponents2 = {
+  Text: () => /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("p", {
+    style: { whiteSpace: "pre-line" },
+    children: [/* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MessagePartPrimitiveText, {}), /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MessagePartPrimitiveInProgress, { children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("span", {
+      style: { fontFamily: "revert" },
+      children: " \u25CF"
+    }) })]
+  }),
+  Reasoning: () => null,
+  Source: () => null,
+  Image: () => /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MessagePartPrimitiveImage, {}),
+  File: () => null,
+  Unstable_Audio: () => null,
+  Group: ({ children }) => children
+};
+var MessagePartComponent2 = ({ components: { Text = defaultComponents2.Text, Reasoning = defaultComponents2.Reasoning, Image = defaultComponents2.Image, Source = defaultComponents2.Source, File: File2 = defaultComponents2.File, Unstable_Audio: Audio = defaultComponents2.Unstable_Audio, tools = {}, data } = {} }) => {
+  const aui = useAui();
+  const part = useAuiState((s) => s.part);
+  const type = part.type;
+  if (type === "tool-call") {
+    const addResult = aui.part().addToolResult;
+    const resume = aui.part().resumeToolCall;
+    const respondToApproval = aui.part().respondToToolApproval;
+    if ("Override" in tools) return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(tools.Override, {
+      ...part,
+      addResult,
+      resume,
+      respondToApproval
+    });
+    const Tool = tools.by_name?.[part.toolName] ?? tools.Fallback;
+    return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ToolUIDisplay2, {
+      ...part,
+      Fallback: Tool,
+      addResult,
+      resume,
+      respondToApproval
+    });
+  }
+  if (part.status?.type === "requires-action") throw new Error("Encountered unexpected requires-action status");
+  switch (type) {
+    case "text":
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Text, { ...part });
+    case "reasoning":
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Reasoning, { ...part });
+    case "source":
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Source, { ...part });
+    case "image":
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Image, { ...part });
+    case "file":
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(File2, { ...part });
+    case "audio":
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Audio, { ...part });
+    case "data": {
+      const Data = data?.by_name?.[part.name] ?? data?.Fallback;
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(DataUIDisplay2, {
+        ...part,
+        Fallback: Data
+      });
+    }
+    default:
+      console.warn(`Unknown message part type: ${type}`);
+      return null;
+  }
+};
+var MessagePartImpl = ({ partIndex, components }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(PartByIndexProvider, {
+    index: partIndex,
+    children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MessagePartComponent2, { components })
+  });
+};
+var MessagePart = (0, import_react76.memo)(MessagePartImpl, (prev, next) => prev.partIndex === next.partIndex && prev.components?.Text === next.components?.Text && prev.components?.Reasoning === next.components?.Reasoning && prev.components?.Source === next.components?.Source && prev.components?.Image === next.components?.Image && prev.components?.File === next.components?.File && prev.components?.Unstable_Audio === next.components?.Unstable_Audio && prev.components?.tools === next.components?.tools && prev.components?.data === next.components?.data && prev.components?.Group === next.components?.Group);
+var EmptyPartFallback2 = ({ status, component: Component }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(TextMessagePartProvider, {
+    text: "",
+    isRunning: status.type === "running",
+    children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Component, {
+      type: "text",
+      text: "",
+      status
+    })
+  });
+};
+var COMPLETE_STATUS5 = Object.freeze({ type: "complete" });
+var EmptyPartsImpl2 = ({ components }) => {
+  const status = useAuiState((s) => s.message.status ?? COMPLETE_STATUS5);
+  if (components?.Empty) return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(components.Empty, { status });
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(EmptyPartFallback2, {
+    status,
+    component: components?.Text ?? defaultComponents2.Text
+  });
+};
+var EmptyParts2 = (0, import_react76.memo)(EmptyPartsImpl2, (prev, next) => prev.components?.Empty === next.components?.Empty && prev.components?.Text === next.components?.Text);
+var MessagePrimitiveUnstable_PartsGrouped = ({ groupingFunction, components }) => {
+  const contentLength = useAuiState((s) => s.message.parts.length);
+  const messageGroups = useMessagePartsGrouped(groupingFunction);
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(import_jsx_runtime43.Fragment, { children: (0, import_react76.useMemo)(() => {
+    if (contentLength === 0) return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(EmptyParts2, { components });
+    return messageGroups.map((group, groupIndex) => {
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(components?.Group ?? defaultComponents2.Group, {
+        groupKey: group.groupKey,
+        indices: group.indices,
+        children: group.indices.map((partIndex) => /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MessagePart, {
+          partIndex,
+          components
+        }, partIndex))
+      }, `group-${groupIndex}-${group.groupKey ?? "ungrouped"}`);
+    });
+  }, [
+    messageGroups,
+    components,
+    contentLength
+  ]) });
+};
+MessagePrimitiveUnstable_PartsGrouped.displayName = "MessagePrimitive.Unstable_PartsGrouped";
+var MessagePrimitiveUnstable_PartsGroupedByParentId = ({ components, ...props }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MessagePrimitiveUnstable_PartsGrouped, {
+    ...props,
+    components,
+    groupingFunction: groupMessagePartsByParentId
+  });
+};
+MessagePrimitiveUnstable_PartsGroupedByParentId.displayName = "MessagePrimitive.Unstable_PartsGroupedByParentId";
+
+// node_modules/@assistant-ui/react/dist/primitives/message.js
+var message_exports = /* @__PURE__ */ __exportAll({
+  AttachmentByIndex: () => MessagePrimitiveAttachmentByIndex,
+  Attachments: () => MessagePrimitiveAttachments,
+  Content: () => MessagePrimitiveParts2,
+  Error: () => MessagePrimitiveError,
+  GenerativeUI: () => MessagePrimitiveGenerativeUI,
+  GroupedParts: () => MessagePrimitiveGroupedParts,
+  If: () => MessagePrimitiveIf,
+  PartByIndex: () => MessagePrimitivePartByIndex,
+  Parts: () => MessagePrimitiveParts2,
+  Quote: () => MessagePrimitiveQuote,
+  Root: () => MessagePrimitiveRoot,
+  Unstable_PartsGrouped: () => MessagePrimitiveUnstable_PartsGrouped,
+  Unstable_PartsGroupedByParentId: () => MessagePrimitiveUnstable_PartsGroupedByParentId
+});
+
 // node_modules/@assistant-ui/react/dist/utils/hooks/useOnResizeContent.js
-var import_react59 = __toESM(require_react(), 1);
+var import_react78 = __toESM(require_react(), 1);
 var useOnResizeContent = (callback) => {
   const callbackRef = useCallbackRef(callback);
-  return useManagedRef((0, import_react59.useCallback)((el) => {
+  return useManagedRef((0, import_react78.useCallback)((el) => {
     const resizeObserver = new ResizeObserver(() => {
       callbackRef();
     });
@@ -33944,20 +35252,20 @@ var useOnResizeContent = (callback) => {
 };
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/useThreadViewportAutoScroll.js
-var import_react60 = __toESM(require_react(), 1);
+var import_react79 = __toESM(require_react(), 1);
 var useThreadViewportAutoScroll = ({ autoScroll, scrollToBottomOnRunStart = true, scrollToBottomOnInitialize = true, scrollToBottomOnThreadSwitch = true }) => {
-  const divRef = (0, import_react60.useRef)(null);
+  const divRef = (0, import_react79.useRef)(null);
   const hasMessages = useAuiState((s) => s.thread.messages.length > 0);
-  const initializeScrollRequestedRef = (0, import_react60.useRef)(false);
-  const scheduledFrameRef = (0, import_react60.useRef)(null);
+  const initializeScrollRequestedRef = (0, import_react79.useRef)(false);
+  const scheduledFrameRef = (0, import_react79.useRef)(null);
   const threadViewportStore = useThreadViewportStore();
   if (autoScroll === void 0) autoScroll = threadViewportStore.getState().turnAnchor !== "top";
-  const lastScrollTop = (0, import_react60.useRef)(0);
-  const lastScrollHeight = (0, import_react60.useRef)(0);
-  const lastObservedScrollHeight = (0, import_react60.useRef)(0);
-  const lastObservedClientHeight = (0, import_react60.useRef)(0);
-  const scrollingToBottomBehaviorRef = (0, import_react60.useRef)(null);
-  const scrollToBottom = (0, import_react60.useCallback)((behavior) => {
+  const lastScrollTop = (0, import_react79.useRef)(0);
+  const lastScrollHeight = (0, import_react79.useRef)(0);
+  const lastObservedScrollHeight = (0, import_react79.useRef)(0);
+  const lastObservedClientHeight = (0, import_react79.useRef)(0);
+  const scrollingToBottomBehaviorRef = (0, import_react79.useRef)(null);
+  const scrollToBottom = (0, import_react79.useCallback)((behavior) => {
     const div = divRef.current;
     if (!div) return;
     scrollingToBottomBehaviorRef.current = behavior;
@@ -33966,7 +35274,7 @@ var useThreadViewportAutoScroll = ({ autoScroll, scrollToBottomOnRunStart = true
       behavior
     });
   }, []);
-  const scheduleScrollToBottom = (0, import_react60.useCallback)((behavior) => {
+  const scheduleScrollToBottom = (0, import_react79.useCallback)((behavior) => {
     scrollingToBottomBehaviorRef.current = behavior;
     if (scheduledFrameRef.current !== null) cancelAnimationFrame(scheduledFrameRef.current);
     scheduledFrameRef.current = requestAnimationFrame(() => {
@@ -33974,10 +35282,10 @@ var useThreadViewportAutoScroll = ({ autoScroll, scrollToBottomOnRunStart = true
       scrollToBottom(behavior);
     });
   }, [scrollToBottom]);
-  (0, import_react60.useLayoutEffect)(() => () => {
+  (0, import_react79.useLayoutEffect)(() => () => {
     if (scheduledFrameRef.current !== null) cancelAnimationFrame(scheduledFrameRef.current);
   }, []);
-  const hasActiveTopAnchor = (0, import_react60.useCallback)(() => {
+  const hasActiveTopAnchor = (0, import_react79.useCallback)(() => {
     const state = threadViewportStore.getState();
     return state.turnAnchor === "top" && state.element.viewport === divRef.current && state.element.anchor !== null;
   }, [threadViewportStore]);
@@ -34015,7 +35323,7 @@ var useThreadViewportAutoScroll = ({ autoScroll, scrollToBottomOnRunStart = true
       el.removeEventListener("scroll", handleScroll);
     };
   });
-  (0, import_react60.useLayoutEffect)(() => {
+  (0, import_react79.useLayoutEffect)(() => {
     if (!scrollToBottomOnInitialize) return;
     if (!hasMessages) {
       initializeScrollRequestedRef.current = false;
@@ -34046,10 +35354,10 @@ var useThreadViewportAutoScroll = ({ autoScroll, scrollToBottomOnRunStart = true
 };
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/ThreadRoot.js
-var import_react61 = __toESM(require_react(), 1);
-var import_jsx_runtime30 = __toESM(require_jsx_runtime(), 1);
-var ThreadPrimitiveRoot = (0, import_react61.forwardRef)((props, ref) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Primitive2.div, {
+var import_react80 = __toESM(require_react(), 1);
+var import_jsx_runtime44 = __toESM(require_jsx_runtime(), 1);
+var ThreadPrimitiveRoot = (0, import_react80.forwardRef)((props, ref) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Primitive2.div, {
     ...props,
     ref
   });
@@ -34080,9 +35388,9 @@ var ThreadPrimitiveIf = ({ children, ...query }) => {
 ThreadPrimitiveIf.displayName = "ThreadPrimitive.If";
 
 // node_modules/@assistant-ui/react/dist/utils/hooks/useSizeHandle.js
-var import_react62 = __toESM(require_react(), 1);
+var import_react81 = __toESM(require_react(), 1);
 var useSizeHandle = (register, getHeight3) => {
-  return useManagedRef((0, import_react62.useCallback)((el) => {
+  return useManagedRef((0, import_react81.useCallback)((el) => {
     if (!register) return;
     const sizeHandle = register();
     const updateHeight = () => {
@@ -34243,10 +35551,10 @@ var mountTopAnchorReserve = (store) => {
 };
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/topAnchor/useTopAnchorReserve.js
-var import_react63 = __toESM(require_react(), 1);
+var import_react82 = __toESM(require_react(), 1);
 var useTopAnchorReserve = (enabled) => {
   const threadViewportStore = useThreadViewportStore();
-  (0, import_react63.useLayoutEffect)(() => {
+  (0, import_react82.useLayoutEffect)(() => {
     if (!enabled) return;
     return mountTopAnchorReserve(threadViewportStore);
   }, [enabled, threadViewportStore]);
@@ -34267,10 +35575,10 @@ var getActiveTopAnchorAnchorId = (options) => getActiveTopAnchorTurn(options)?.a
 var getActiveTopAnchorTargetId = (options) => getActiveTopAnchorTurn(options)?.targetId;
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/ThreadViewport.js
-var import_react64 = __toESM(require_react(), 1);
-var import_jsx_runtime31 = __toESM(require_jsx_runtime(), 1);
+var import_react83 = __toESM(require_react(), 1);
+var import_jsx_runtime45 = __toESM(require_jsx_runtime(), 1);
 var useViewportSizeRef = () => {
-  return useSizeHandle(useThreadViewport((s) => s.registerViewport), (0, import_react64.useCallback)((el) => el.clientHeight, []));
+  return useSizeHandle(useThreadViewport((s) => s.registerViewport), (0, import_react83.useCallback)((el) => el.clientHeight, []));
 };
 var useViewportElementRef = () => {
   return useManagedRef(useThreadViewport((s) => s.registerViewportElement));
@@ -34285,27 +35593,27 @@ var useTopAnchorTurn = (enabled) => {
     if (!enabled) return void 0;
     return getActiveTopAnchorTargetId(s.thread);
   });
-  const activeTurn = (0, import_react64.useMemo)(() => {
+  const activeTurn = (0, import_react83.useMemo)(() => {
     if (!activeAnchorId || !activeTargetId) return null;
     return {
       anchorId: activeAnchorId,
       targetId: activeTargetId
     };
   }, [activeAnchorId, activeTargetId]);
-  (0, import_react64.useLayoutEffect)(() => {
+  (0, import_react83.useLayoutEffect)(() => {
     if (!activeTurn) return;
     const state = threadViewportStore.getState();
     const current = state.topAnchorTurn;
     if (current?.anchorId === activeTurn.anchorId && current.targetId === activeTurn.targetId) return;
     state.setTopAnchorTurn(activeTurn);
   }, [activeTurn, threadViewportStore]);
-  const clearTopAnchorTurn = (0, import_react64.useCallback)(() => {
+  const clearTopAnchorTurn = (0, import_react83.useCallback)(() => {
     threadViewportStore.getState().setTopAnchorTurn(null);
   }, [threadViewportStore]);
   useAuiEvent("thread.initialize", clearTopAnchorTurn);
   useAuiEvent("threadListItem.switchedTo", clearTopAnchorTurn);
 };
-var ThreadPrimitiveViewportScrollable = (0, import_react64.forwardRef)(({ autoScroll, scrollToBottomOnRunStart, scrollToBottomOnInitialize, scrollToBottomOnThreadSwitch, children, ...rest }, forwardedRef) => {
+var ThreadPrimitiveViewportScrollable = (0, import_react83.forwardRef)(({ autoScroll, scrollToBottomOnRunStart, scrollToBottomOnInitialize, scrollToBottomOnThreadSwitch, children, ...rest }, forwardedRef) => {
   const autoScrollRef = useThreadViewportAutoScroll({
     autoScroll,
     scrollToBottomOnRunStart,
@@ -34318,20 +35626,20 @@ var ThreadPrimitiveViewportScrollable = (0, import_react64.forwardRef)(({ autoSc
   useTopAnchorTurn(topAnchorEnabled);
   useTopAnchorReserve(topAnchorEnabled);
   const ref = useComposedRefs(forwardedRef, autoScrollRef, viewportSizeRef, viewportElementRef);
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Primitive2.div, {
+  return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(Primitive2.div, {
     ...rest,
     ref,
     children
   });
 });
 ThreadPrimitiveViewportScrollable.displayName = "ThreadPrimitive.ViewportScrollable";
-var ThreadPrimitiveViewport = (0, import_react64.forwardRef)(({ turnAnchor, topAnchorMessageClamp, ...props }, ref) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(ThreadPrimitiveViewportProvider, {
+var ThreadPrimitiveViewport = (0, import_react83.forwardRef)(({ turnAnchor, topAnchorMessageClamp, ...props }, ref) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(ThreadPrimitiveViewportProvider, {
     options: {
       turnAnchor,
       topAnchorMessageClamp
     },
-    children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(ThreadPrimitiveViewportScrollable, {
+    children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(ThreadPrimitiveViewportScrollable, {
       ...props,
       ref
     })
@@ -34340,14 +35648,14 @@ var ThreadPrimitiveViewport = (0, import_react64.forwardRef)(({ turnAnchor, topA
 ThreadPrimitiveViewport.displayName = "ThreadPrimitive.Viewport";
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/ThreadViewportFooter.js
-var import_react65 = __toESM(require_react(), 1);
-var import_jsx_runtime32 = __toESM(require_jsx_runtime(), 1);
-var ThreadPrimitiveViewportFooter = (0, import_react65.forwardRef)((props, forwardedRef) => {
-  const ref = useComposedRefs(forwardedRef, useSizeHandle(useThreadViewport((s) => s.registerContentInset), (0, import_react65.useCallback)((el) => {
+var import_react84 = __toESM(require_react(), 1);
+var import_jsx_runtime46 = __toESM(require_jsx_runtime(), 1);
+var ThreadPrimitiveViewportFooter = (0, import_react84.forwardRef)((props, forwardedRef) => {
+  const ref = useComposedRefs(forwardedRef, useSizeHandle(useThreadViewport((s) => s.registerContentInset), (0, import_react84.useCallback)((el) => {
     const marginTop = parseFloat(getComputedStyle(el).marginTop) || 0;
     return el.offsetHeight + marginTop;
   }, [])));
-  return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Primitive2.div, {
+  return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(Primitive2.div, {
     ...props,
     ref
   });
@@ -34355,11 +35663,11 @@ var ThreadPrimitiveViewportFooter = (0, import_react65.forwardRef)((props, forwa
 ThreadPrimitiveViewportFooter.displayName = "ThreadPrimitive.ViewportFooter";
 
 // node_modules/@assistant-ui/react/dist/primitives/thread/ThreadScrollToBottom.js
-var import_react67 = __toESM(require_react(), 1);
+var import_react86 = __toESM(require_react(), 1);
 var useThreadScrollToBottom = ({ behavior } = {}) => {
   const isAtBottom = useThreadViewport((s) => s.isAtBottom);
   const threadViewportStore = useThreadViewportStore();
-  const handleScrollToBottom = (0, import_react67.useCallback)(() => {
+  const handleScrollToBottom = (0, import_react86.useCallback)(() => {
     threadViewportStore.getState().scrollToBottom({ behavior });
   }, [threadViewportStore, behavior]);
   if (isAtBottom) return null;
@@ -34402,9 +35710,19 @@ var thread_exports = /* @__PURE__ */ __exportAll({
 });
 
 // ui-islands/codex-appserver-transcript/index.jsx
-var import_jsx_runtime33 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime47 = __toESM(require_jsx_runtime(), 1);
 var ROLE_KINDS = /* @__PURE__ */ new Set(["user", "assistant", "system"]);
 var COMPACT_KINDS = /* @__PURE__ */ new Set(["command", "file_change", "reasoning", "tool", "input_request", "turn"]);
+var ACTIVITY_KIND_CONFIG = {
+  command: { icon: "$", label: "Command", tone: "neutral" },
+  file_change: { icon: "F", label: "File change", tone: "file" },
+  reasoning: { icon: "R", label: "Reasoning", tone: "reasoning" },
+  tool: { icon: "T", label: "Tool", tone: "tool" },
+  input_request: { icon: "?", label: "Input request", tone: "input" },
+  turn: { icon: ">", label: "Turn", tone: "neutral" },
+  error: { icon: "!", label: "Error", tone: "error" },
+  system: { icon: "S", label: "System", tone: "neutral" }
+};
 function textFromAppendMessage(message) {
   return (message?.content || []).filter((part) => part?.type === "text").map((part) => part.text || "").join("\n").trim();
 }
@@ -34449,42 +35767,176 @@ function normalizeSnapshot(snapshot) {
   const timeline = Array.isArray(snapshot?.timeline) ? snapshot.timeline : [];
   return timeline.map(toAssistantMessage);
 }
-function MessageBubble({ message }) {
-  const kind = message?.metadata?.custom?.codexKind || message?.role || "assistant";
-  const text = (message?.content || []).filter((part) => part?.type === "text" || part?.type === "reasoning").map((part) => part.text || "").join("\n");
-  const isCompact = COMPACT_KINDS.has(kind);
-  const label = kind.replaceAll("_", " ");
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
-    "article",
+function splitFencedCode(text) {
+  const source = String(text || "").replace(/\r\n/g, "\n");
+  const blocks = [];
+  const pattern = /```([A-Za-z0-9_+.-]*)[ \t]*\n([\s\S]*?)```/g;
+  let cursor = 0;
+  let match;
+  while (match = pattern.exec(source)) {
+    if (match.index > cursor) {
+      blocks.push({ type: "text", text: source.slice(cursor, match.index) });
+    }
+    blocks.push({ type: "code", language: match[1] || "text", code: match[2].replace(/\n$/, "") });
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < source.length) {
+    blocks.push({ type: "text", text: source.slice(cursor) });
+  }
+  return blocks.length ? blocks : [{ type: "text", text: source }];
+}
+function InlineMarkdown({ text }) {
+  const parts = [];
+  const pattern = /(`([^`]+)`)|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let cursor = 0;
+  let match;
+  while (match = pattern.exec(text)) {
+    if (match.index > cursor) parts.push(text.slice(cursor, match.index));
+    if (match[2]) {
+      parts.push(/* @__PURE__ */ (0, import_jsx_runtime47.jsx)("code", { className: "codex-appserver-inline-code", children: match[2] }, `code-${match.index}`));
+    } else if (match[3] && match[4]) {
+      parts.push(
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
+          "a",
+          {
+            className: "codex-appserver-link",
+            href: match[4],
+            target: "_blank",
+            rel: "noreferrer",
+            children: match[3]
+          },
+          `link-${match.index}`
+        )
+      );
+    }
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(import_jsx_runtime47.Fragment, { children: parts.map((part, index3) => typeof part === "string" ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(import_react89.default.Fragment, { children: part }, `text-${index3}`) : part) });
+}
+function MarkdownText({ text }) {
+  const lines = String(text || "").split("\n");
+  const nodes = [];
+  let paragraph = [];
+  let list = null;
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    nodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", { className: "codex-appserver-markdown-paragraph", children: /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(InlineMarkdown, { text: paragraph.join(" ") }) }, `p-${nodes.length}`)
+    );
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list) return;
+    const Component = list.ordered ? "ol" : "ul";
+    nodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(Component, { className: "codex-appserver-markdown-list", children: list.items.map((item, index3) => /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(InlineMarkdown, { text: item }) }, `${index3}-${item}`)) }, `list-${nodes.length}`)
+    );
+    list = null;
+  };
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (unordered || ordered) {
+      flushParagraph();
+      const orderedList = Boolean(ordered);
+      if (!list || list.ordered !== orderedList) flushList();
+      if (!list) list = { ordered: orderedList, items: [] };
+      list.items.push((unordered?.[1] || ordered?.[1] || "").trim());
+      continue;
+    }
+    flushList();
+    paragraph.push(line.trim());
+  }
+  flushParagraph();
+  flushList();
+  if (!nodes.length) return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", { className: "codex-appserver-markdown-paragraph", children: " " });
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(import_jsx_runtime47.Fragment, { children: nodes });
+}
+function CodeBlock({ language, code }) {
+  const [copied, setCopied] = (0, import_react89.useState)(false);
+  const copyCode = (0, import_react89.useCallback)(async () => {
+    try {
+      await navigator.clipboard?.writeText?.(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  }, [code]);
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("figure", { className: "codex-appserver-code-block", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("figcaption", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { children: language || "text" }),
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("button", { type: "button", onClick: copyCode, className: "codex-appserver-copy-code", children: copied ? "Copied" : "Copy" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("pre", { children: /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("code", { children: code }) })
+  ] });
+}
+function RichMessageContent({ text }) {
+  const blocks = (0, import_react89.useMemo)(() => splitFencedCode(text), [text]);
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-rich-text", children: blocks.map((block, index3) => block.type === "code" ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(CodeBlock, { language: block.language, code: block.code }, `code-${index3}`) : /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(MarkdownText, { text: block.text }, `text-${index3}`)) });
+}
+function ActivityEvent({ kind, text, status }) {
+  const config = ACTIVITY_KIND_CONFIG[kind] || { icon: "i", label: kind.replaceAll("_", " "), tone: "neutral" };
+  const isLong = text.length > 180 || text.includes("\n");
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(
+    "details",
     {
-      className: `codex-appserver-chat-message ${message.role} ${kind}${isCompact ? " compact" : ""}`,
-      "data-codex-appserver-message-kind": kind,
-      "data-codex-appserver-message-id": message.id,
+      className: `codex-appserver-activity ${config.tone}`,
+      "data-codex-appserver-activity-kind": kind,
+      open: !isLong || kind === "error",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "codex-appserver-chat-avatar", "aria-hidden": "true", children: message.role === "user" ? "U" : kind === "error" ? "!" : "AI" }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "codex-appserver-chat-bubble", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "codex-appserver-chat-meta", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { children: label }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "codex-appserver-chat-text", children: text || " " })
-        ] })
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("summary", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-activity-icon", "aria-hidden": "true", children: config.icon }),
+          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-activity-title", children: config.label }),
+          status ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-activity-status", children: status }) : null,
+          isLong ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-activity-hint", children: "Details" }) : null
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-activity-body", children: /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(RichMessageContent, { text: text || " " }) })
       ]
     }
   );
 }
+function MessageBubble({ message }) {
+  const kind = message?.metadata?.custom?.codexKind || message?.role || "assistant";
+  const rawStatus = message?.metadata?.custom?.rawStatus || "";
+  const text = (message?.content || []).filter((part) => part?.type === "text" || part?.type === "reasoning").map((part) => part.text || "").join("\n");
+  const isCompact = COMPACT_KINDS.has(kind);
+  const isConversation = !isCompact && kind !== "error";
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
+    message_exports.Root,
+    {
+      className: `codex-appserver-chat-message ${message.role} ${kind}${isCompact ? " compact" : ""}${isConversation ? " conversation" : " activity-row"}`,
+      "data-codex-appserver-message-kind": kind,
+      "data-codex-appserver-message-id": message.id,
+      children: isConversation ? /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(import_jsx_runtime47.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-chat-avatar", "aria-hidden": "true", children: message.role === "user" ? "You" : "BB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-chat-bubble", children: /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(RichMessageContent, { text: text || " " }) })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(ActivityEvent, { kind, text: text || " ", status: rawStatus })
+    }
+  );
+}
 function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, initialSnapshot, autoLoad = true }) {
-  const viewportRef = (0, import_react70.useRef)(null);
-  const [messages, setMessages] = (0, import_react70.useState)(() => normalizeSnapshot(initialSnapshot));
-  const [status, setStatus] = (0, import_react70.useState)(initialSnapshot?.status || initialStatus || "thread ready");
-  const [currentThreadId, setCurrentThreadId] = (0, import_react70.useState)(threadId || "");
-  const [isLoading, setIsLoading] = (0, import_react70.useState)(!initialSnapshot);
-  const [isSending, setIsSending] = (0, import_react70.useState)(false);
-  const [error, setError] = (0, import_react70.useState)("");
-  const isSendingRef = (0, import_react70.useRef)(false);
-  const applySnapshot = (0, import_react70.useCallback)((snapshot) => {
+  const viewportRef = (0, import_react89.useRef)(null);
+  const [messages, setMessages] = (0, import_react89.useState)(() => normalizeSnapshot(initialSnapshot));
+  const [status, setStatus] = (0, import_react89.useState)(initialSnapshot?.status || initialStatus || "thread ready");
+  const [currentThreadId, setCurrentThreadId] = (0, import_react89.useState)(threadId || "");
+  const [isLoading, setIsLoading] = (0, import_react89.useState)(!initialSnapshot);
+  const [isSending, setIsSending] = (0, import_react89.useState)(false);
+  const [error, setError] = (0, import_react89.useState)("");
+  const isSendingRef = (0, import_react89.useRef)(false);
+  const applySnapshot = (0, import_react89.useCallback)((snapshot) => {
     setMessages(normalizeSnapshot(snapshot));
     setStatus(snapshot?.status || "thread ready");
     if (snapshot?.threadId) setCurrentThreadId(snapshot.threadId);
   }, []);
-  const loadTranscript = (0, import_react70.useCallback)(async ({ silent = false } = {}) => {
+  const loadTranscript = (0, import_react89.useCallback)(async ({ silent = false } = {}) => {
     if (!api?.getTranscript) return;
     if (!silent) setIsLoading(true);
     try {
@@ -34497,22 +35949,22 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
       if (!silent) setIsLoading(false);
     }
   }, [api, applySnapshot]);
-  (0, import_react70.useEffect)(() => {
+  (0, import_react89.useEffect)(() => {
     if (initialSnapshot) {
       applySnapshot(initialSnapshot);
       setIsLoading(false);
     }
   }, [initialSnapshot, applySnapshot]);
-  (0, import_react70.useEffect)(() => {
+  (0, import_react89.useEffect)(() => {
     if (autoLoad) loadTranscript();
   }, [autoLoad, loadTranscript, sessionId]);
-  (0, import_react70.useEffect)(() => {
+  (0, import_react89.useEffect)(() => {
     const timer = window.setInterval(() => {
       if (!isSendingRef.current) loadTranscript({ silent: true });
     }, 1200);
     return () => window.clearInterval(timer);
   }, [loadTranscript]);
-  (0, import_react70.useEffect)(() => {
+  (0, import_react89.useEffect)(() => {
     const node = viewportRef.current;
     if (!node) return;
     node.scrollTop = node.scrollHeight;
@@ -34542,15 +35994,15 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
   });
   const messageCount = messages.length;
   const statusLabel = isSending ? "running" : status;
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(AssistantRuntimeProvider, { runtime, children: /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("section", { className: "codex-appserver-chat-shell", "data-codex-appserver-transcript-island": true, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("header", { className: "codex-appserver-chat-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "codex-appserver-chat-title-group", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "codex-appserver-chat-title", children: "Codex App Server" }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "codex-appserver-chat-subtitle", children: "Structured transcript" })
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(AssistantRuntimeProvider, { runtime, children: /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("section", { className: "codex-appserver-chat-shell", "data-codex-appserver-transcript-island": true, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("header", { className: "codex-appserver-chat-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", { className: "codex-appserver-chat-title-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-chat-title", children: "Codex App Server" }),
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-chat-subtitle", children: "Structured transcript" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "codex-appserver-chat-status", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "codex-appserver-chat-chip", children: statusLabel }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", { className: "codex-appserver-chat-status", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { className: "codex-appserver-chat-chip", children: statusLabel }),
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
           "button",
           {
             type: "button",
@@ -34564,14 +36016,14 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "codex-appserver-chat-context", "aria-label": "Session context", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { children: "session" }),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: sessionId }),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { children: "thread" }),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: currentThreadId || "unavailable" })
+    /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", { className: "codex-appserver-chat-context", "aria-label": "Session context", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { children: "session" }),
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("code", { children: sessionId }),
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { children: "thread" }),
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("code", { children: currentThreadId || "unavailable" })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(thread_exports.Root, { className: "codex-appserver-chat-thread", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(thread_exports.Root, { className: "codex-appserver-chat-thread", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(
         thread_exports.Viewport,
         {
           className: "codex-appserver-chat-viewport",
@@ -34579,22 +36031,24 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
           autoScroll: true,
           turnAnchor: "bottom",
           children: [
-            isLoading && messageCount === 0 ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "codex-appserver-chat-empty", children: "Loading transcript..." }) : messageCount === 0 ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "codex-appserver-chat-empty", children: "No transcript yet." }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(thread_exports.Messages, { children: ({ message }) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MessageBubble, { message }) }),
-            error ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "codex-appserver-chat-error", role: "alert", children: error }) : null
+            isLoading && messageCount === 0 ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-chat-empty", children: "Loading transcript..." }) : messageCount === 0 ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-chat-empty", children: "No transcript yet." }) : /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(thread_exports.Messages, { children: ({ message }) => /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(MessageBubble, { message }) }),
+            error ? /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("div", { className: "codex-appserver-chat-error", role: "alert", children: error }) : null
           ]
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(thread_exports.ViewportFooter, { className: "codex-appserver-chat-footer", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(composer_exports.Root, { className: "codex-appserver-chat-composer", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(thread_exports.ViewportFooter, { className: "codex-appserver-chat-footer", children: /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(composer_exports.Root, { className: "codex-appserver-chat-composer", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
           composer_exports.Input,
           {
             className: "codex-appserver-chat-input",
             placeholder: "Codex \u306B\u4F9D\u983C\u3059\u308B",
-            submitMode: "ctrlEnter",
-            rows: 2
+            submitMode: "enter",
+            rows: 1,
+            autoFocus: true,
+            unstable_insertNewlineOnTouchEnter: true
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(composer_exports.Send, { className: "codex-appserver-chat-send", children: isSending ? "Sending" : "Send" })
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(composer_exports.Send, { className: "codex-appserver-chat-send", children: isSending ? "Sending" : "Send" })
       ] }) })
     ] })
   ] }) });
@@ -34607,10 +36061,10 @@ function mountCodexAppServerTranscript(rootElement, props) {
     root = (0, import_client.createRoot)(rootElement);
     mountedRoots.set(rootElement, root);
   }
-  root.render(/* @__PURE__ */ (0, import_jsx_runtime33.jsx)(CodexAppServerTranscriptApp, { ...props }));
+  root.render(/* @__PURE__ */ (0, import_jsx_runtime47.jsx)(CodexAppServerTranscriptApp, { ...props }));
   return {
     update(nextProps) {
-      root.render(/* @__PURE__ */ (0, import_jsx_runtime33.jsx)(CodexAppServerTranscriptApp, { ...nextProps }));
+      root.render(/* @__PURE__ */ (0, import_jsx_runtime47.jsx)(CodexAppServerTranscriptApp, { ...nextProps }));
     },
     unmount() {
       root.unmount();

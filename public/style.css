@@ -2069,8 +2069,9 @@ button svg *,
 .codex-appserver-chat-shell {
     display: flex;
     flex-direction: column;
-    background: #090d12;
-    color: #eef2f6;
+    min-height: 0;
+    background: #0b0f14;
+    color: #edf1f5;
 }
 
 .codex-appserver-chat-header {
@@ -2079,9 +2080,9 @@ button svg *,
     justify-content: space-between;
     gap: 12px;
     min-height: 56px;
-    padding: 10px 18px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(10, 15, 21, 0.94);
+    padding: 10px 22px;
+    border-bottom: 1px solid rgba(164, 174, 186, 0.16);
+    background: rgba(12, 17, 23, 0.96);
 }
 
 .codex-appserver-chat-title-group {
@@ -2097,7 +2098,7 @@ button svg *,
 }
 
 .codex-appserver-chat-subtitle {
-    color: #9aa4b2;
+    color: #a5afbc;
     font-size: 11px;
     line-height: 1.2;
 }
@@ -2114,11 +2115,11 @@ button svg *,
     min-height: 26px;
     max-width: 180px;
     overflow: hidden;
-    border: 1px solid rgba(74, 222, 128, 0.24);
+    border: 1px solid rgba(52, 211, 153, 0.26);
     border-radius: 999px;
     padding: 0 10px;
-    color: #86efac;
-    background: rgba(22, 101, 52, 0.18);
+    color: #99f6e4;
+    background: rgba(13, 95, 86, 0.2);
     font-size: 11px;
     font-weight: 700;
     text-overflow: ellipsis;
@@ -2151,9 +2152,9 @@ button svg *,
     align-items: center;
     gap: 8px;
     min-height: 36px;
-    padding: 6px 18px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    color: #98a5b4;
+    padding: 6px 22px;
+    border-bottom: 1px solid rgba(164, 174, 186, 0.1);
+    color: #9ca8b7;
     font-size: 11px;
     overflow: hidden;
 }
@@ -2182,19 +2183,20 @@ button svg *,
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 20px max(20px, calc((100% - 920px) / 2)) 22px;
+    gap: 18px;
+    padding: 26px max(22px, calc((100% - 860px) / 2)) 28px;
+    scroll-behavior: smooth;
 }
 
 .codex-appserver-chat-empty,
 .codex-appserver-chat-error {
     margin: auto;
     max-width: 460px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    border: 1px solid rgba(164, 174, 186, 0.2);
     border-radius: 8px;
     padding: 14px 16px;
-    color: #b7c2d0;
-    background: rgba(15, 23, 42, 0.58);
+    color: #c5ced9;
+    background: rgba(18, 24, 32, 0.7);
     text-align: center;
 }
 
@@ -2206,17 +2208,18 @@ button svg *,
 
 .codex-appserver-chat-message {
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
-    gap: 10px;
-    max-width: min(840px, 100%);
-    width: fit-content;
-    min-width: min(240px, 100%);
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    max-width: min(780px, 100%);
+    width: 100%;
+    min-width: 0;
     align-items: start;
 }
 
 .codex-appserver-chat-message.user {
     align-self: flex-end;
-    grid-template-columns: minmax(0, 1fr) 32px;
+    grid-template-columns: minmax(0, 1fr) 34px;
+    max-width: min(660px, 94%);
 }
 
 .codex-appserver-chat-message.user .codex-appserver-chat-avatar {
@@ -2226,8 +2229,9 @@ button svg *,
 .codex-appserver-chat-message.user .codex-appserver-chat-bubble {
     grid-column: 1;
     grid-row: 1;
-    background: #1d4ed8;
-    border-color: rgba(147, 197, 253, 0.46);
+    color: #f8fafc;
+    background: #2256b8;
+    border-color: rgba(147, 197, 253, 0.42);
 }
 
 .codex-appserver-chat-message.compact,
@@ -2237,97 +2241,256 @@ button svg *,
     max-width: 100%;
 }
 
-.codex-appserver-chat-message.compact .codex-appserver-chat-bubble {
-    background: rgba(2, 6, 23, 0.78);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.codex-appserver-chat-message.error .codex-appserver-chat-bubble {
-    border-color: rgba(248, 113, 113, 0.52);
-    background: rgba(127, 29, 29, 0.28);
-}
-
 .codex-appserver-chat-avatar {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(164, 174, 186, 0.24);
     border-radius: 999px;
-    color: #d7dee8;
-    background: rgba(30, 41, 59, 0.9);
-    font-size: 11px;
+    color: #e7edf5;
+    background: #242b35;
+    font-size: 10px;
     font-weight: 800;
 }
 
 .codex-appserver-chat-bubble {
     min-width: 0;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    border: 1px solid rgba(164, 174, 186, 0.14);
     border-radius: 8px;
-    padding: 10px 12px;
-    background: rgba(18, 25, 34, 0.92);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    padding: 13px 15px;
+    background: #171d25;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.2);
 }
 
-.codex-appserver-chat-meta {
-    margin-bottom: 5px;
-    color: #9aa4b2;
+.codex-appserver-rich-text {
+    color: #edf2f7;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.62;
+}
+
+.codex-appserver-markdown-paragraph {
+    margin: 0 0 10px;
+}
+
+.codex-appserver-markdown-paragraph:last-child,
+.codex-appserver-markdown-list:last-child,
+.codex-appserver-code-block:last-child {
+    margin-bottom: 0;
+}
+
+.codex-appserver-markdown-list {
+    margin: 0 0 10px 18px;
+    padding: 0;
+}
+
+.codex-appserver-markdown-list li + li {
+    margin-top: 4px;
+}
+
+.codex-appserver-inline-code {
+    border: 1px solid rgba(164, 174, 186, 0.2);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: #f8fafc;
+    background: rgba(2, 6, 23, 0.54);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.92em;
+}
+
+.codex-appserver-link {
+    color: #8ec5ff;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.codex-appserver-code-block {
+    margin: 12px 0;
+    overflow: hidden;
+    border: 1px solid rgba(164, 174, 186, 0.18);
+    border-radius: 8px;
+    background: #05080d;
+}
+
+.codex-appserver-code-block figcaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 34px;
+    padding: 0 10px 0 12px;
+    border-bottom: 1px solid rgba(164, 174, 186, 0.14);
+    color: #aeb8c5;
+    background: #121821;
     font-size: 11px;
     font-weight: 700;
-    line-height: 1.2;
-    text-transform: uppercase;
 }
 
-.codex-appserver-chat-text {
-    color: #edf2f7;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 13px;
-    line-height: 1.55;
+.codex-appserver-copy-code {
+    min-height: 24px;
+    border: 1px solid rgba(164, 174, 186, 0.22);
+    border-radius: 6px;
+    padding: 0 8px;
+    color: #eef2f7;
+    background: #202936;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.codex-appserver-copy-code:hover,
+.codex-appserver-copy-code:focus-visible {
+    border-color: rgba(142, 197, 255, 0.55);
+    outline: none;
+}
+
+.codex-appserver-code-block pre {
+    margin: 0;
+    max-height: 420px;
+    overflow: auto;
+    padding: 13px 14px;
+}
+
+.codex-appserver-code-block code {
+    color: #f3f6fa;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+}
+
+.codex-appserver-activity {
+    width: 100%;
+    max-width: min(780px, 100%);
+    border: 1px solid rgba(164, 174, 186, 0.14);
+    border-radius: 8px;
+    background: rgba(18, 24, 32, 0.64);
+}
+
+.codex-appserver-activity summary {
+    display: grid;
+    grid-template-columns: 28px auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 6px 10px;
+    color: #c9d2df;
+    cursor: pointer;
+    list-style: none;
+}
+
+.codex-appserver-activity summary::-webkit-details-marker {
+    display: none;
+}
+
+.codex-appserver-activity-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: #f8fafc;
+    background: #303846;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.codex-appserver-activity-title {
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.codex-appserver-activity-status,
+.codex-appserver-activity-hint {
+    min-width: 0;
+    overflow: hidden;
+    color: #9eaabb;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.codex-appserver-activity-hint {
+    justify-self: end;
+}
+
+.codex-appserver-activity-body {
+    border-top: 1px solid rgba(164, 174, 186, 0.12);
+    padding: 10px 12px 12px 46px;
+}
+
+.codex-appserver-activity.reasoning .codex-appserver-activity-icon {
+    background: #4f46e5;
+}
+
+.codex-appserver-activity.tool .codex-appserver-activity-icon {
+    background: #0f766e;
+}
+
+.codex-appserver-activity.file .codex-appserver-activity-icon {
+    background: #b45309;
+}
+
+.codex-appserver-activity.input .codex-appserver-activity-icon {
+    background: #7c3aed;
+}
+
+.codex-appserver-activity.error {
+    border-color: rgba(248, 113, 113, 0.42);
+    background: rgba(127, 29, 29, 0.2);
+}
+
+.codex-appserver-activity.error .codex-appserver-activity-icon {
+    background: #b91c1c;
 }
 
 .codex-appserver-chat-footer {
-    border-top: 1px solid rgba(148, 163, 184, 0.16);
-    padding: 12px max(88px, calc((100% - 920px) / 2)) 14px max(18px, calc((100% - 920px) / 2));
-    background: rgba(9, 13, 18, 0.96);
+    border-top: 1px solid rgba(164, 174, 186, 0.14);
+    padding: 14px max(88px, calc((100% - 860px) / 2)) 16px max(22px, calc((100% - 860px) / 2));
+    background: rgba(11, 15, 20, 0.98);
 }
 
 .codex-appserver-chat-composer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
-    gap: 10px;
-    min-height: 52px;
+    gap: 9px;
+    min-height: 48px;
+    border: 1px solid rgba(164, 174, 186, 0.24);
+    border-radius: 8px;
+    padding: 8px;
+    background: #151b23;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.26);
 }
 
 .codex-appserver-chat-input {
-    min-height: 52px;
+    min-height: 34px;
     max-height: 170px;
     resize: none;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 8px;
-    padding: 10px 12px;
-    background: rgba(15, 23, 42, 0.88);
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 9px;
+    background: transparent;
     color: #f4f6f8;
     font: inherit;
-    line-height: 1.45;
+    line-height: 1.5;
 }
 
 .codex-appserver-chat-input:focus {
-    outline: 2px solid rgba(96, 165, 250, 0.55);
-    outline-offset: 1px;
+    outline: none;
 }
 
 .codex-appserver-chat-send {
-    min-width: 76px;
-    height: 40px;
-    border: 1px solid rgba(96, 165, 250, 0.42);
+    min-width: 66px;
+    height: 34px;
+    border: 1px solid rgba(142, 197, 255, 0.42);
     border-radius: 8px;
-    padding: 0 14px;
+    padding: 0 12px;
     color: #f8fafc;
-    background: #2563eb;
-    font-size: 13px;
+    background: #2256b8;
+    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
 }
