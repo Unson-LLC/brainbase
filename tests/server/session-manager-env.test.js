@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionServices } from '../../server/services/create-session-services.js';
 
 const { spawnMock } = vi.hoisted(() => ({
@@ -30,6 +30,11 @@ describe('SessionManager env', () => {
   beforeEach(async () => {
     spawnMock.mockReset();
 
+    // These tests assert the ttyd-spawn env contract, which only runs when ttyd is
+    // actually spawned. Pin a non-xterm transport so startTtyd does not take the
+    // xterm-only skip (the runner shell defaults BRAINBASE_TERMINAL_TRANSPORT=xterm).
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', 'ttyd');
+
     manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
@@ -41,6 +46,10 @@ describe('SessionManager env', () => {
     manager.findFreePort = vi.fn().mockResolvedValue(40000);
     manager._saveTtydProcessInfo = vi.fn().mockResolvedValue();
     manager.waitForTtydReady = vi.fn().mockResolvedValue();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('startTtyd呼び出し時_BRAINBASE_PORTが環境変数に設定される', async () => {
