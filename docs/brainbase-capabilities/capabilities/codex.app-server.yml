@@ -40,18 +40,21 @@ surfaces:
     - docs/stories/story-codex-appserver-transcript-ui.md
     - docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md
     - docs/stories/story-codex-appserver-chatgpt-polish.md
+    - docs/stories/story-codex-appserver-assistant-ui-native-adoption.md
     - docs/architecture/codex-appserver-session-state-ssot-architecture.md
     - docs/architecture/codex-appserver-thread-session-foundation-architecture.md
     - docs/architecture/codex-appserver-repl-activity-bridge-architecture.md
     - docs/architecture/codex-appserver-transcript-ui-architecture.md
     - docs/architecture/codex-appserver-assistant-ui-transcript-panel-architecture.md
     - docs/architecture/codex-appserver-chatgpt-polish-architecture.md
+    - docs/architecture/codex-appserver-assistant-ui-native-adoption-architecture.md
     - docs/specs/codex-appserver-session-state-ssot-spec.md
     - docs/specs/codex-appserver-thread-session-foundation-spec.md
     - docs/specs/codex-appserver-repl-activity-bridge-spec.md
     - docs/specs/codex-appserver-transcript-ui-spec.md
     - docs/specs/codex-appserver-assistant-ui-transcript-panel-spec.md
     - docs/specs/codex-appserver-chatgpt-polish-spec.md
+    - docs/specs/codex-appserver-assistant-ui-native-adoption-spec.md
     - tests/server/services/codex-app-server-adapter.test.js
     - tests/server/services/codex-app-server-activity-bridge.test.js
     - tests/server/services/codex-app-server-session-state.test.js
@@ -67,6 +70,7 @@ surfaces:
     - tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
     - tests/e2e/story-codex-appserver-session-create-contract.spec.ts
     - tests/e2e/story-codex-appserver-chatgpt-polish-contract.spec.ts
+    - tests/e2e/story-codex-appserver-assistant-ui-native-adoption-contract.spec.ts
   data:
     - in-memory Codex App Server process state
     - in-memory JSON-RPC pending request map
@@ -99,6 +103,7 @@ visibility_rules:
   - The assistant-ui transcript panel is a React island over the existing App Server transcript APIs; it must not require replacing the whole Brainbase shell with React.
   - assistant-ui is currently build-time scoped for the browser transcript bundle; production Node dependency expansion requires a separate dependency gate decision.
   - The polished assistant-ui transcript surface may improve browser rendering and composer behavior, but it must keep the App Server transcript and turn APIs as the only browser network contract.
+  - `story-codex-appserver-assistant-ui-native-adoption` resets the transcript implementation to use the OSS pre-styled `@assistant-ui/react-ui` `Thread` as the primary renderer before adding Brainbase-specific custom message UI.
   - ChatGPT-like transcript polish must not claim server-side streaming unless a separate transport story implements and verifies streaming evidence.
   - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
@@ -118,6 +123,7 @@ verification:
     - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
     - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
     - npm run test:e2e -- tests/e2e/story-codex-appserver-chatgpt-polish-contract.spec.ts
+    - npm run test:e2e -- tests/e2e/story-codex-appserver-assistant-ui-native-adoption-contract.spec.ts
     - npx -y @openai/codex@latest app-server --help
   expected:
     - Adapter unit tests pass.
@@ -126,6 +132,7 @@ verification:
     - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches.
     - Browser runtime proof for the transcript UI is covered by `tests/e2e/story-codex-appserver-transcript-ui-contract.spec.ts`; port 31013 live Codex CLI smoke remains optional operational evidence.
     - Browser runtime proof for the polished assistant-ui experience is covered by `tests/e2e/story-codex-appserver-chatgpt-polish-contract.spec.ts`, including markdown/code rendering, activity rows, copy code, Enter send, and Shift+Enter multiline draft behavior.
+    - Browser/runtime proof for native assistant-ui adoption is covered by `tests/e2e/story-codex-appserver-assistant-ui-native-adoption-contract.spec.ts`, including direct `@assistant-ui/react-ui` `Thread` usage, assistant-ui markdown integration, injected distributed CSS, and App Server turn API submission.
     - assistant-ui transcript bundle builds from `ui-islands/codex-appserver-transcript/index.jsx`, and `npm audit --omit=dev` stays scoped to production dependencies.
     - Display route tests prove Codex App Server metadata selects the App Server route and Claude Code stays on xterm.
     - Session creation tests prove new Codex sessions request App Server startup and wait for durable thread metadata.

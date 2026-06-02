@@ -40,7 +40,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit -p public/jsconfig.json",
-    "build:codex-appserver-transcript": "esbuild ui-islands/codex-appserver-transcript/index.jsx --bundle --format=esm --jsx=automatic --outfile=public/dist/codex-appserver-transcript-island.js",
+    "build:codex-appserver-transcript": "esbuild ui-islands/codex-appserver-transcript/index.jsx --bundle --format=esm --jsx=automatic --loader:.css=text --legal-comments=external --outfile=public/dist/codex-appserver-transcript-island.js",
     "test:mobile": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js",
     "test:mobile:iphone": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='iPhone 13 Pro - Emulated'",
     "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'",
@@ -102,6 +102,8 @@
   },
   "devDependencies": {
     "@assistant-ui/react": "^0.14.13",
+    "@assistant-ui/react-markdown": "^0.14.1",
+    "@assistant-ui/react-ui": "^0.2.1",
     "@playwright/test": "^1.48.0",
     "@vitest/coverage-v8": "^4.0.16",
     "@xterm/headless": "^5.5.0",

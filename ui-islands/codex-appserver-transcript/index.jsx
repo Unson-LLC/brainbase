@@ -2,24 +2,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 import {
     AssistantRuntimeProvider,
-    ComposerPrimitive,
-    MessagePrimitive,
-    ThreadPrimitive,
     useExternalStoreRuntime
 } from '@assistant-ui/react';
+import { Thread, makeMarkdownText } from '@assistant-ui/react-ui';
+import assistantUiStyles from '@assistant-ui/react-ui/styles/index.css';
+import assistantUiMarkdownStyles from '@assistant-ui/react-ui/styles/markdown.css';
 
 const ROLE_KINDS = new Set(['user', 'assistant', 'system']);
-const COMPACT_KINDS = new Set(['command', 'file_change', 'reasoning', 'tool', 'input_request', 'turn']);
-const ACTIVITY_KIND_CONFIG = {
-    command: { icon: '$', label: 'Command', tone: 'neutral' },
-    file_change: { icon: 'F', label: 'File change', tone: 'file' },
-    reasoning: { icon: 'R', label: 'Reasoning', tone: 'reasoning' },
-    tool: { icon: 'T', label: 'Tool', tone: 'tool' },
-    input_request: { icon: '?', label: 'Input request', tone: 'input' },
-    turn: { icon: '>', label: 'Turn', tone: 'neutral' },
-    error: { icon: '!', label: 'Error', tone: 'error' },
-    system: { icon: 'S', label: 'System', tone: 'neutral' }
-};
+const MarkdownText = makeMarkdownText();
+
+function ensureAssistantUiStyles() {
+    if (document.getElementById('brainbase-assistant-ui-native-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'brainbase-assistant-ui-native-styles';
+    style.textContent = `${assistantUiStyles}\n${assistantUiMarkdownStyles}\n${BRAINBASE_AUI_SHELL_STYLES}`;
+    document.head.append(style);
+}
 
 function textFromAppendMessage(message) {
     return (message?.content || [])
@@ -29,18 +27,19 @@ function textFromAppendMessage(message) {
         .trim();
 }
 
+function formatActivityText(item) {
+    const kind = String(item?.kind || 'event').replaceAll('_', ' ');
+    const status = item?.status ? ` (${item.status})` : '';
+    const text = item?.text || '';
+    return text ? `**${kind}${status}**\n\n${text}` : `**${kind}${status}**`;
+}
+
 function toAssistantMessage(item, index) {
     const kind = item?.kind || 'assistant';
     const role = ROLE_KINDS.has(kind) ? kind : 'assistant';
-    const text = item?.text || '';
+    const text = ROLE_KINDS.has(kind) ? (item?.text || '') : formatActivityText(item);
     const id = item?.id || `codex-appserver-${index}`;
     const createdAt = item?.createdAt ? new Date(item.createdAt) : new Date(0);
-    const metadata = {
-        custom: {
-            codexKind: kind,
-            rawStatus: item?.status || null
-        }
-    };
 
     if (role === 'user') {
         return {
@@ -49,7 +48,7 @@ function toAssistantMessage(item, index) {
             role,
             content: [{ type: 'text', text }],
             attachments: [],
-            metadata
+            metadata: { custom: { codexKind: kind, rawStatus: item?.status || null } }
         };
     }
 
@@ -57,12 +56,12 @@ function toAssistantMessage(item, index) {
         id,
         createdAt,
         role,
-        content: [{ type: kind === 'reasoning' ? 'reasoning' : 'text', text }],
+        content: [{ type: 'text', text }],
         status: kind === 'error'
             ? { type: 'incomplete', reason: 'error', error: text }
             : { type: 'complete', reason: 'stop' },
         metadata: {
-            ...metadata,
+            custom: { codexKind: kind, rawStatus: item?.status || null },
             unstable_state: null,
             unstable_annotations: [],
             unstable_data: [],
@@ -76,197 +75,7 @@ function normalizeSnapshot(snapshot) {
     return timeline.map(toAssistantMessage);
 }
 
-function splitFencedCode(text) {
-    const source = String(text || '').replace(/\r\n/g, '\n');
-    const blocks = [];
-    const pattern = /```([A-Za-z0-9_+.-]*)[ \t]*\n([\s\S]*?)```/g;
-    let cursor = 0;
-    let match;
-    while ((match = pattern.exec(source))) {
-        if (match.index > cursor) {
-            blocks.push({ type: 'text', text: source.slice(cursor, match.index) });
-        }
-        blocks.push({ type: 'code', language: match[1] || 'text', code: match[2].replace(/\n$/, '') });
-        cursor = pattern.lastIndex;
-    }
-    if (cursor < source.length) {
-        blocks.push({ type: 'text', text: source.slice(cursor) });
-    }
-    return blocks.length ? blocks : [{ type: 'text', text: source }];
-}
-
-function InlineMarkdown({ text }) {
-    const parts = [];
-    const pattern = /(`([^`]+)`)|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
-    let cursor = 0;
-    let match;
-    while ((match = pattern.exec(text))) {
-        if (match.index > cursor) parts.push(text.slice(cursor, match.index));
-        if (match[2]) {
-            parts.push(<code key={`code-${match.index}`} className="codex-appserver-inline-code">{match[2]}</code>);
-        } else if (match[3] && match[4]) {
-            parts.push(
-                <a
-                    key={`link-${match.index}`}
-                    className="codex-appserver-link"
-                    href={match[4]}
-                    target="_blank"
-                    rel="noreferrer"
-                >
-                    {match[3]}
-                </a>
-            );
-        }
-        cursor = pattern.lastIndex;
-    }
-    if (cursor < text.length) parts.push(text.slice(cursor));
-    return <>{parts.map((part, index) => typeof part === 'string' ? <React.Fragment key={`text-${index}`}>{part}</React.Fragment> : part)}</>;
-}
-
-function MarkdownText({ text }) {
-    const lines = String(text || '').split('\n');
-    const nodes = [];
-    let paragraph = [];
-    let list = null;
-
-    const flushParagraph = () => {
-        if (!paragraph.length) return;
-        nodes.push(
-            <p key={`p-${nodes.length}`} className="codex-appserver-markdown-paragraph">
-                <InlineMarkdown text={paragraph.join(' ')} />
-            </p>
-        );
-        paragraph = [];
-    };
-    const flushList = () => {
-        if (!list) return;
-        const Component = list.ordered ? 'ol' : 'ul';
-        nodes.push(
-            <Component key={`list-${nodes.length}`} className="codex-appserver-markdown-list">
-                {list.items.map((item, index) => <li key={`${index}-${item}`}><InlineMarkdown text={item} /></li>)}
-            </Component>
-        );
-        list = null;
-    };
-
-    for (const rawLine of lines) {
-        const line = rawLine.trimEnd();
-        if (!line.trim()) {
-            flushParagraph();
-            flushList();
-            continue;
-        }
-        const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-        const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
-        if (unordered || ordered) {
-            flushParagraph();
-            const orderedList = Boolean(ordered);
-            if (!list || list.ordered !== orderedList) flushList();
-            if (!list) list = { ordered: orderedList, items: [] };
-            list.items.push((unordered?.[1] || ordered?.[1] || '').trim());
-            continue;
-        }
-        flushList();
-        paragraph.push(line.trim());
-    }
-    flushParagraph();
-    flushList();
-    if (!nodes.length) return <p className="codex-appserver-markdown-paragraph"> </p>;
-    return <>{nodes}</>;
-}
-
-function CodeBlock({ language, code }) {
-    const [copied, setCopied] = useState(false);
-    const copyCode = useCallback(async () => {
-        try {
-            await navigator.clipboard?.writeText?.(code);
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1400);
-        } catch {
-            setCopied(false);
-        }
-    }, [code]);
-
-    return (
-        <figure className="codex-appserver-code-block">
-            <figcaption>
-                <span>{language || 'text'}</span>
-                <button type="button" onClick={copyCode} className="codex-appserver-copy-code">
-                    {copied ? 'Copied' : 'Copy'}
-                </button>
-            </figcaption>
-            <pre><code>{code}</code></pre>
-        </figure>
-    );
-}
-
-function RichMessageContent({ text }) {
-    const blocks = useMemo(() => splitFencedCode(text), [text]);
-    return (
-        <div className="codex-appserver-rich-text">
-            {blocks.map((block, index) => block.type === 'code'
-                ? <CodeBlock key={`code-${index}`} language={block.language} code={block.code} />
-                : <MarkdownText key={`text-${index}`} text={block.text} />)}
-        </div>
-    );
-}
-
-function ActivityEvent({ kind, text, status }) {
-    const config = ACTIVITY_KIND_CONFIG[kind] || { icon: 'i', label: kind.replaceAll('_', ' '), tone: 'neutral' };
-    const isLong = text.length > 180 || text.includes('\n');
-    return (
-        <details
-            className={`codex-appserver-activity ${config.tone}`}
-            data-codex-appserver-activity-kind={kind}
-            open={!isLong || kind === 'error'}
-        >
-            <summary>
-                <span className="codex-appserver-activity-icon" aria-hidden="true">{config.icon}</span>
-                <span className="codex-appserver-activity-title">{config.label}</span>
-                {status ? <span className="codex-appserver-activity-status">{status}</span> : null}
-                {isLong ? <span className="codex-appserver-activity-hint">Details</span> : null}
-            </summary>
-            <div className="codex-appserver-activity-body">
-                <RichMessageContent text={text || ' '} />
-            </div>
-        </details>
-    );
-}
-
-function MessageBubble({ message }) {
-    const kind = message?.metadata?.custom?.codexKind || message?.role || 'assistant';
-    const rawStatus = message?.metadata?.custom?.rawStatus || '';
-    const text = (message?.content || [])
-        .filter((part) => part?.type === 'text' || part?.type === 'reasoning')
-        .map((part) => part.text || '')
-        .join('\n');
-    const isCompact = COMPACT_KINDS.has(kind);
-    const isConversation = !isCompact && kind !== 'error';
-
-    return (
-        <MessagePrimitive.Root
-            className={`codex-appserver-chat-message ${message.role} ${kind}${isCompact ? ' compact' : ''}${isConversation ? ' conversation' : ' activity-row'}`}
-            data-codex-appserver-message-kind={kind}
-            data-codex-appserver-message-id={message.id}
-        >
-            {isConversation ? (
-                <>
-                    <div className="codex-appserver-chat-avatar" aria-hidden="true">
-                        {message.role === 'user' ? 'You' : 'BB'}
-                    </div>
-                    <div className="codex-appserver-chat-bubble">
-                        <RichMessageContent text={text || ' '} />
-                    </div>
-                </>
-            ) : (
-                <ActivityEvent kind={kind} text={text || ' '} status={rawStatus} />
-            )}
-        </MessagePrimitive.Root>
-    );
-}
-
 function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, initialSnapshot, autoLoad = true }) {
-    const viewportRef = useRef(null);
     const [messages, setMessages] = useState(() => normalizeSnapshot(initialSnapshot));
     const [status, setStatus] = useState(initialSnapshot?.status || initialStatus || 'thread ready');
     const [currentThreadId, setCurrentThreadId] = useState(threadId || '');
@@ -274,6 +83,10 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState('');
     const isSendingRef = useRef(false);
+
+    useEffect(() => {
+        ensureAssistantUiStyles();
+    }, []);
 
     const applySnapshot = useCallback((snapshot) => {
         setMessages(normalizeSnapshot(snapshot));
@@ -313,12 +126,6 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
         return () => window.clearInterval(timer);
     }, [loadTranscript]);
 
-    useEffect(() => {
-        const node = viewportRef.current;
-        if (!node) return;
-        node.scrollTop = node.scrollHeight;
-    }, [messages, isSending, error]);
-
     const runtime = useExternalStoreRuntime({
         messages,
         isLoading,
@@ -343,7 +150,29 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
         }
     });
 
-    const messageCount = messages.length;
+    const threadConfig = useMemo(() => ({
+        assistantAvatar: { fallback: 'BB' },
+        welcome: { message: 'Codex App Server transcript' },
+        composer: { allowAttachments: false },
+        branchPicker: { allowBranchPicker: false },
+        assistantMessage: {
+            components: { Text: MarkdownText }
+        },
+        strings: {
+            composer: {
+                input: { placeholder: 'Codex に依頼する' },
+                send: { tooltip: 'Send' }
+            },
+            assistantMessage: {
+                copy: { tooltip: 'Copy' },
+                reload: { tooltip: 'Reload' }
+            },
+            thread: {
+                scrollToBottom: { tooltip: 'Scroll to bottom' }
+            }
+        }
+    }), []);
+
     const statusLabel = isSending ? 'running' : status;
 
     return (
@@ -352,7 +181,7 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
                 <header className="codex-appserver-chat-header">
                     <div className="codex-appserver-chat-title-group">
                         <span className="codex-appserver-chat-title">Codex App Server</span>
-                        <span className="codex-appserver-chat-subtitle">Structured transcript</span>
+                        <span className="codex-appserver-chat-subtitle">assistant-ui native thread</span>
                     </div>
                     <div className="codex-appserver-chat-status">
                         <span className="codex-appserver-chat-chip">{statusLabel}</span>
@@ -364,7 +193,7 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
                             title="Reload transcript"
                             aria-label="Reload transcript"
                         >
-                            ↻
+                            Reload
                         </button>
                     </div>
                 </header>
@@ -374,40 +203,16 @@ function CodexAppServerTranscriptApp({ api, sessionId, threadId, initialStatus, 
                     <span>thread</span>
                     <code>{currentThreadId || 'unavailable'}</code>
                 </div>
-                <ThreadPrimitive.Root className="codex-appserver-chat-thread">
-                    <ThreadPrimitive.Viewport
-                        className="codex-appserver-chat-viewport"
-                        ref={viewportRef}
-                        autoScroll
-                        turnAnchor="bottom"
-                    >
-                        {isLoading && messageCount === 0 ? (
-                            <div className="codex-appserver-chat-empty">Loading transcript...</div>
-                        ) : messageCount === 0 ? (
-                            <div className="codex-appserver-chat-empty">No transcript yet.</div>
-                        ) : (
-                            <ThreadPrimitive.Messages>
-                                {({ message }) => <MessageBubble message={message} />}
-                            </ThreadPrimitive.Messages>
-                        )}
-                        {error ? <div className="codex-appserver-chat-error" role="alert">{error}</div> : null}
-                    </ThreadPrimitive.Viewport>
-                    <ThreadPrimitive.ViewportFooter className="codex-appserver-chat-footer">
-                        <ComposerPrimitive.Root className="codex-appserver-chat-composer">
-                            <ComposerPrimitive.Input
-                                className="codex-appserver-chat-input"
-                                placeholder="Codex に依頼する"
-                                submitMode="enter"
-                                rows={1}
-                                autoFocus
-                                unstable_insertNewlineOnTouchEnter
-                            />
-                            <ComposerPrimitive.Send className="codex-appserver-chat-send">
-                                {isSending ? 'Sending' : 'Send'}
-                            </ComposerPrimitive.Send>
-                        </ComposerPrimitive.Root>
-                    </ThreadPrimitive.ViewportFooter>
-                </ThreadPrimitive.Root>
+                <div className="codex-appserver-native-thread">
+                    {isLoading && messages.length === 0 ? (
+                        <div className="codex-appserver-chat-state">Loading transcript...</div>
+                    ) : null}
+                    <Thread {...threadConfig} />
+                    {messages.length === 0 && !isLoading ? (
+                        <div className="codex-appserver-chat-state codex-appserver-chat-state-empty">No transcript yet.</div>
+                    ) : null}
+                    {error ? <div className="codex-appserver-chat-error" role="alert">{error}</div> : null}
+                </div>
             </section>
         </AssistantRuntimeProvider>
     );
@@ -437,3 +242,148 @@ export function mountCodexAppServerTranscript(rootElement, props) {
 window.BrainbaseCodexAppServerTranscript = {
     mount: mountCodexAppServerTranscript
 };
+
+const BRAINBASE_AUI_SHELL_STYLES = `
+.codex-appserver-chat-shell {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  background: #0b0d10;
+  color: #f2f5f8;
+}
+.codex-appserver-chat-header,
+.codex-appserver-chat-context {
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+.codex-appserver-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+}
+.codex-appserver-chat-title-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.codex-appserver-chat-title {
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+.codex-appserver-chat-subtitle,
+.codex-appserver-chat-context {
+  color: #9aa4b2;
+  font-size: 12px;
+}
+.codex-appserver-chat-status,
+.codex-appserver-chat-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.codex-appserver-chat-chip {
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #8bf3b1;
+  font-size: 12px;
+}
+.codex-appserver-chat-icon-button {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: #151a21;
+  color: #dbe4ee;
+  font-size: 12px;
+  cursor: pointer;
+}
+.codex-appserver-chat-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.codex-appserver-chat-context {
+  min-width: 0;
+  padding: 8px 18px;
+  white-space: nowrap;
+}
+.codex-appserver-chat-context code {
+  min-width: 0;
+  overflow: hidden;
+  color: #dbe4ee;
+  text-overflow: ellipsis;
+}
+.codex-appserver-native-thread {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.codex-appserver-native-thread .aui-thread-root {
+  height: 100%;
+  background: #0b0d10;
+  color: #f2f5f8;
+}
+.codex-appserver-native-thread .aui-thread-viewport {
+  padding: 20px min(7vw, 72px);
+}
+.codex-appserver-native-thread .aui-thread-viewport-footer {
+  background: linear-gradient(180deg, rgba(11, 13, 16, 0), #0b0d10 28%);
+}
+.codex-appserver-native-thread .aui-composer-root {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: #10151b;
+}
+.codex-appserver-native-thread .aui-composer-input {
+  color: #f2f5f8;
+}
+.codex-appserver-native-thread .aui-composer-input::placeholder {
+  color: #8894a5;
+}
+.codex-appserver-native-thread .aui-user-message-content {
+  background: #2563eb;
+  color: #ffffff;
+}
+.codex-appserver-native-thread .aui-assistant-message-content {
+  color: #e8eef7;
+}
+.codex-appserver-native-thread .aui-md-a {
+  color: #93c5fd;
+}
+.codex-appserver-native-thread .aui-md-pre {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #080b0f;
+}
+.codex-appserver-chat-state {
+  position: absolute;
+  left: 50%;
+  top: 28px;
+  z-index: 1;
+  transform: translateX(-50%);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(16, 21, 27, 0.92);
+  color: #aeb8c5;
+  font-size: 12px;
+}
+.codex-appserver-chat-state-empty {
+  top: 76px;
+}
+.codex-appserver-chat-error {
+  position: absolute;
+  right: 18px;
+  bottom: 86px;
+  max-width: min(520px, calc(100% - 36px));
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(69, 10, 10, 0.92);
+  color: #fecaca;
+  font-size: 13px;
+}
+`;
