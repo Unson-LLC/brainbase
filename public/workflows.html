@@ -124,6 +124,16 @@
             gap: 20px;
             margin-bottom: 28px;
         }
+        .view-heading {
+            display: grid;
+            gap: 8px;
+        }
+        .inline-back {
+            width: fit-content;
+            min-height: 28px;
+            padding: 0 10px;
+            font-size: 13px;
+        }
         .badge {
             display: inline-flex;
             align-items: center;
@@ -515,7 +525,8 @@
             const contextSources = workflows.flatMap((workflow) => plannedSources(workflow).map((source) => ({ ...source, workflowId: workflow.id })));
             views.project.innerHTML = `
                 <div class="view-header">
-                    <div>
+                    <div class="view-heading">
+                        <button class="btn soft inline-back" type="button" data-action="home">← Workspace</button>
                         <h1>${escapeHtml(projectId)}</h1>
                         <div class="meta-row"><span>${workflows.length} workflow</span><span>${contextSources.length} context binding</span><span>No local path</span></div>
                     </div>
@@ -566,7 +577,11 @@
             const runs = state.workflowDetail.runs || [];
             views.workflow.innerHTML = `
                 <div class="view-header">
-                    <div><h1>${escapeHtml(workflow.name || workflow.id)}</h1><div class="meta-row"><span>Project: ${escapeHtml(workflow.project_id)}</span><span>Owner: ${escapeHtml(workflow.owner_id)}</span><span>Risk: ${escapeHtml(workflow.risk_level || 'low')}</span><span>HITL: ${escapeHtml(workflow.hitl_policy || 'none')}</span></div></div>
+                    <div class="view-heading">
+                        <button class="btn soft inline-back" type="button" data-action="project">← ${escapeHtml(workflow.project_id)}</button>
+                        <h1>${escapeHtml(workflow.name || workflow.id)}</h1>
+                        <div class="meta-row"><span>Project: ${escapeHtml(workflow.project_id)}</span><span>Owner: ${escapeHtml(workflow.owner_id)}</span><span>Risk: ${escapeHtml(workflow.risk_level || 'low')}</span><span>HITL: ${escapeHtml(workflow.hitl_policy || 'none')}</span></div>
+                    </div>
                     <div class="toolbar"><button class="btn soft" type="button" data-action="run-workflow" data-workflow-id="${escapeHtml(workflow.id)}">▷ 実行</button><button class="btn primary" type="button" disabled>保存</button></div>
                 </div>
                 <div class="layout-two">
@@ -603,7 +618,14 @@
             state.selectedProjectId = run.project_id;
             state.selectedWorkflowId = run.workflow_id;
             views.run.innerHTML = `
-                <div class="view-header"><div><h1>Run Trace</h1><div class="meta-row"><span>${escapeHtml(run.id)}</span><span>${escapeHtml(run.status)}</span><span>${escapeHtml(run.trigger_type || '-')}</span><span>${escapeHtml(run.env || '-')}</span></div></div><button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button></div>
+                <div class="view-header">
+                    <div class="view-heading">
+                        <button class="btn soft inline-back" type="button" data-action="workflow">← Workflow</button>
+                        <h1>Run Trace</h1>
+                        <div class="meta-row"><span>${escapeHtml(run.id)}</span><span>${escapeHtml(run.status)}</span><span>${escapeHtml(run.trigger_type || '-')}</span><span>${escapeHtml(run.env || '-')}</span></div>
+                    </div>
+                    <button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button>
+                </div>
                 <div class="layout-two">
                     <section class="panel"><div class="panel-title"><h3>Step timeline</h3></div><div class="trace-list">${run_steps.map((step) => `<div class="trace-item"><strong>${escapeHtml(step.step_name || step.step_key || step.id)}</strong><div class="sub">${escapeHtml(step.status)} · ${escapeHtml(step.message || step.error_message || '-')}</div></div>`).join('') || '<div class="empty">No step trace</div>'}</div></section>
                     <section class="panel"><div class="panel-title"><h3>Resolved context</h3></div><div class="trace-list">${context_snapshots.map((snapshot) => `<div class="trace-item"><strong>${escapeHtml(snapshot.source_type || 'context')}</strong><div class="sub">${escapeHtml(snapshot.source_ref || '-')}</div><div class="sub">${escapeHtml(snapshot.preview || '')}</div></div>`).join('') || '<div class="empty">No context snapshot</div>'}</div></section>

@@ -279,14 +279,43 @@ test('story-brainbase-workflow-mission-control opens inside Brainbase shell with
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ workflows: [] })
+      body: JSON.stringify({
+        workflows: [{
+          id: 'brainbase-alive',
+          name: 'Brainbase Alive',
+          project_id: 'general',
+          owner_id: 'local-user',
+          context_sources: [{ source_type: 'project', source_ref: 'general' }],
+          latest_run: { id: 'run-1', status: 'success', action_required: 'none', human_waiting: false },
+          latest_context_snapshots: [{ source_type: 'project', source_ref: 'general', status: 'resolved' }]
+        }]
+      })
+    });
+  });
+  await page.route('**/api/workflows/brainbase-alive', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        workflow: {
+          id: 'brainbase-alive',
+          name: 'Brainbase Alive',
+          project_id: 'general',
+          owner_id: 'local-user',
+          risk_level: 'low',
+          hitl_policy: 'none',
+          implementation_key: 'brainbase-alive'
+        },
+        context_sources: [{ source_type: 'project', source_ref: 'general', required: true, permission: 'read' }],
+        runs: [{ id: 'run-1', status: 'success', started_at: '2026-06-01T09:00:00.000Z', action_required: 'none' }]
+      })
     });
   });
   await page.route('**/api/config/projects', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ projects: [] })
+      body: JSON.stringify({ projects: [{ id: 'general', session_select: true }] })
     });
   });
 
@@ -306,6 +335,14 @@ test('story-brainbase-workflow-mission-control opens inside Brainbase shell with
   await expect(frame.getByRole('heading', { name: 'Workflow Mission Control' })).toBeVisible();
   await expect(frame.locator('.topbar')).toHaveCSS('display', 'none');
   await expect(frame.getByRole('link', { name: 'Brainbase terminalへ戻る' })).toHaveCount(0);
+  await frame.getByRole('button', { name: /Brainbase Alive/ }).click();
+  await expect(frame.getByRole('heading', { name: 'Brainbase Alive' })).toBeVisible();
+  await expect(frame.getByRole('button', { name: '← general' })).toBeVisible();
+  await frame.getByRole('button', { name: '← general' }).click();
+  await expect(frame.getByRole('heading', { name: 'general' })).toBeVisible();
+  await expect(frame.getByRole('button', { name: '← Workspace' })).toBeVisible();
+  await frame.getByRole('button', { name: '← Workspace' }).click();
+  await expect(frame.getByRole('heading', { name: 'Workflow Mission Control' })).toBeVisible();
 
   await page.locator('#workflows-back-terminal').click();
   await expect(page.locator('#workflows-overlay.open')).toHaveCount(0);
