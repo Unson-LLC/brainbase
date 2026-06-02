@@ -26,6 +26,14 @@ export function createWorkflowRouter(workflowService) {
         res.status(201).json(result);
     }));
 
+    router.post('/draft', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.generateDraft(req.body || {}, actorFromRequest(req)));
+    }));
+
+    router.post('/draft/test', asyncHandler(async (req, res) => {
+        res.json(await workflowService.testDraft(req.body || {}, actorFromRequest(req)));
+    }));
+
     router.get('/:workflowId', asyncHandler(async (req, res) => {
         res.json(await workflowService.getWorkflow(req.params.workflowId, actorFromRequest(req)));
     }));

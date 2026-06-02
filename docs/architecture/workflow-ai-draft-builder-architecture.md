@@ -73,8 +73,9 @@ type WorkflowDraft = {
   name: string
   description: string
   risk_level: "low" | "medium" | "high"
-  hitl_policy: "none" | "approval" | "review"
+  hitl_policy: "none" | "human_review" | "approval_required"
   implementation_key: "manual-placeholder"
+  workflow: Workflow
   context_sources: WorkflowContextSource[]
   steps: WorkflowDraftStep[]
   builder_preview: BuilderPreview
@@ -102,3 +103,37 @@ Errors are visible inline and must not leave the user in a dead end.
 - Unit tests cover draft generation and dry-run validation.
 - Route tests cover authorization, schema, draft test, and publish compatibility.
 - E2E covers Project detail prompt -> generate -> preview -> test -> publish -> workflow detail.
+
+## 7. PR2 Implementation Closure
+
+The implementation slice keeps the builder inside the existing Workflow Mission Control architecture.
+
+```text
+server/routes/workflows.js
+  POST /api/workflows/draft
+  POST /api/workflows/draft/test
+
+server/services/workflow/workflow-draft-generator.js
+  generateWorkflowDraft()
+  testWorkflowDraft()
+
+server/services/workflow/workflow-service.js
+  generateDraft()
+  testDraft()
+  createWorkflow() remains the publish path
+
+public/workflows.html
+  Workflow Draft Builder panel
+```
+
+The final PR2 state machine is:
+
+```text
+empty
+  -> draft_generated
+  -> draft_tested_passed | draft_tested_failed
+  -> published_workflow
+  -> runWorkflow()
+```
+
+This PR intentionally does not introduce a new runner, scheduler, local agent polling, full node editor persistence, external LLM provider, DB migration, or external side-effect execution during draft test.
