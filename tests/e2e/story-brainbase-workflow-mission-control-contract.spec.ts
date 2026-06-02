@@ -296,12 +296,15 @@ test('story-brainbase-workflow-mission-control opens inside Brainbase shell with
   await expect(page.locator('#activity-bar')).toBeVisible();
   await expect(page.locator('#sidebar')).toBeVisible();
   await expect(page.locator('#workflows-overlay.open')).toBeVisible();
+  await expect(page.locator('#session-context-bar')).toHaveCSS('display', 'none');
+  await expect(page.locator('#terminal-header')).toHaveCSS('display', 'none');
   await expect(page.locator('#terminal-stage')).toHaveCSS('display', 'none');
   await expect(page.locator('#ab-workflows-btn')).toHaveClass(/active/);
   await expect(page).toHaveURL(/\/$/);
 
   const frame = page.frameLocator('#workflows-overlay-frame');
   await expect(frame.getByRole('heading', { name: 'Workflow Mission Control' })).toBeVisible();
+  await expect(frame.locator('.topbar')).toHaveCSS('display', 'none');
   await expect(frame.getByRole('link', { name: 'Brainbase terminalへ戻る' })).toHaveCount(0);
 
   await page.locator('#workflows-back-terminal').click();

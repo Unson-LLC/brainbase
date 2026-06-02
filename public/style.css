@@ -14331,6 +14331,11 @@ body.sns-growth-mode-active .terminal-header {
     display: none !important;
 }
 
+body.workflows-mode-active .session-context-bar,
+body.workflows-mode-active .terminal-header {
+    display: none !important;
+}
+
 /* Workflows Overlay (Brainbase workspace mode) */
 .workflows-overlay {
     display: none;
@@ -14347,11 +14352,11 @@ body.sns-growth-mode-active .terminal-header {
 
 .workflows-overlay-header {
     display: flex;
-    min-height: 52px;
+    min-height: 44px;
     flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: 0 14px;
     border-bottom: 1px solid rgba(191, 201, 214, 0.14);
     background: rgba(8, 10, 13, 0.94);
 }

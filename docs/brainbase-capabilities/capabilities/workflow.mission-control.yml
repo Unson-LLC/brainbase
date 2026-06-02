@@ -45,6 +45,7 @@ visibility_rules:
   - Rejected or cancelled human steps do not resume the workflow handler.
   - /workflows prioritizes human waiting, action required, failed, and needs_action runs before healthy runs.
   - The activity bar Workflows control opens Workflow Mission Control inside the Brainbase shell instead of navigating away, so the session list and terminal runtime remain mounted.
+  - While the Workflows shell overlay is active, terminal-only top chrome is hidden and the embedded /workflows topbar is suppressed to avoid stacked navigation bars.
   - Scheduler connectors such as launchd and Lightsail systemd are future explicit connectors; MVP does not use in-process cron as canonical workflow scheduling.
 verification:
   commands:
@@ -65,6 +66,7 @@ common_failures:
   - /workflows appears stale because the local server is running a different source directory.
   - Activity bar does not show Workflows because public/index.html lacks ab-workflows-btn.
   - Returning from Workflow Mission Control is expensive if the activity bar navigates to /workflows instead of opening the shell overlay.
+  - Workflows overlay feels cluttered if workflows-mode-active does not hide session-context-bar, terminal-header, and the embedded /workflows topbar.
   - Scheduler behavior is assumed to exist before the explicit launchd/systemd connector story is implemented.
 runbooks:
   - ../runbooks/verify-testing-scope.md
