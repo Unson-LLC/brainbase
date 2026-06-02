@@ -2602,7 +2602,7 @@ export class TerminalTransportClient {
             if (finished) return;
             if (generation !== this._terminalWriteGeneration) return;
             finished = true;
-            this._restoreViewportAfterTerminalWrite(viewportState);
+            this._restoreViewportAfterTerminalWrite(viewportState, head.resetTerminal);
             this._scheduleTerminalRenderRefresh(renderRefresh);
             try {
                 for (const afterWrite of afterWrites) afterWrite();
@@ -2643,7 +2643,21 @@ export class TerminalTransportClient {
         Promise.resolve().then(finish);
     }
 
-    _restoreViewportAfterTerminalWrite(viewportState) {
+    _restoreViewportAfterTerminalWrite(viewportState, isForced = false) {
+        // A live-output write captures its viewport when it is QUEUED. Under heavy continuous output
+        // (Claude Code etc.) the user can scroll up while a batch — whose head was captured at the
+        // bottom (wasPinnedToBottom=true) — is still in flight. Restoring that stale "pinned" state
+        // calls scrollToBottom() and yanks the user back to the latest line on every batch, so
+        // scrolling works at first and then locks to the bottom under load (a timing race that
+        // disappears under devtools/slower timing). If the live viewport is no longer at the bottom,
+        // the user scrolled away SINCE this write was queued: keep their position, do not snap down.
+        // (isForced = a session-switch/reconnect reset snapshot, which intentionally re-pins to the
+        // latest output — the buffer was just cleared so the prior scroll position is meaningless.)
+        if (!isForced && viewportState && viewportState.wasPinnedToBottom
+            && !this._computeIsViewportPinnedToBottom()) {
+            this._isViewportPinnedToBottom = false;
+            return;
+        }
         this._restoreViewportState(viewportState);
         // NocoDB バグ#2: モバイルでターミナル更新時にスクロール位置が最下部に
         // 戻る問題への対策。 ユーザーが上スクロール中（wasPinnedToBottom=false）
