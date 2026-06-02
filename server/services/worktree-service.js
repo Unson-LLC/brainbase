@@ -711,12 +711,24 @@ export class WorktreeService {
             return this._resolveListHasConflicts(stdout);
         } catch (error) {
             const output = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`;
-            if (/No conflicts found/i.test(output)) {
+            if (this._isBenignConflictInspectError(output)) {
                 return false;
             }
             logger.warn(`[workspace] Failed to inspect conflicts for ${workspacePath}: ${error instanceof Error ? error.message : String(error)}`);
             return false;
         }
+    }
+
+    /**
+     * Classify a `jj resolve --list` failure as a benign no-conflicts result.
+     * - "No conflicts found": some jj versions report no conflicts via a non-zero exit.
+     * - "There is no jj repo": the workspace is not a jj repo (e.g. a git-only worktree),
+     *   so there are no jj conflicts to inspect. This is a legitimate state and must not
+     *   spam the error log on every poll.
+     */
+    _isBenignConflictInspectError(output) {
+        const text = String(output || '');
+        return /No conflicts found/i.test(text) || /no jj repo/i.test(text);
     }
 
     _resolveListHasConflicts(resolveOutput) {
