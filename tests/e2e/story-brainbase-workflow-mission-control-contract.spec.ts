@@ -116,6 +116,15 @@ test('story-brainbase-workflow-mission-control ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 
   expect(story).toContain('story-workflow-human-in-the-loop');
   // story-brainbase-workflow-mission-control ac:8 story-workflow-routine-integration
   expect(story).toContain('story-workflow-routine-integration');
+  // story-workflow-ai-draft-builder: chat prompt -> draft -> builder preview -> dry-run -> publish
+  expect(story).toContain('story-workflow-ai-draft-builder');
+  const draftStory = await import('node:fs').then((fs) => fs.readFileSync('docs/stories/story-workflow-ai-draft-builder.md', 'utf8'));
+  const draftSpec = await import('node:fs').then((fs) => fs.readFileSync('docs/specs/story-workflow-ai-draft-builder-spec.md', 'utf8'));
+  const draftArchitecture = await import('node:fs').then((fs) => fs.readFileSync('docs/architecture/workflow-ai-draft-builder-architecture.md', 'utf8'));
+  expect(draftStory).toContain('chat-like prompt');
+  expect(draftArchitecture).toContain('Draft is not workflow state');
+  expect(draftSpec).toContain('POST /api/workflows/draft');
+  expect(draftSpec).toContain('Draft test validates the generated plan');
   // story-brainbase-workflow-mission-control ac:9 どの workspace / project に属する仕事なのか。
   expect(story).toContain('どの workspace / project に属する仕事なのか。');
   const createResult = await service.createWorkflow({

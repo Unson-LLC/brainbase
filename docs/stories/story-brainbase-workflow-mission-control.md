@@ -22,6 +22,7 @@ related_stories:
   - story-workflow-dashboard-v0
   - story-workflow-human-in-the-loop
   - story-workflow-routine-integration
+  - story-workflow-ai-draft-builder
 status: draft
 created_at: 2026-06-01
 updated_at: 2026-06-01
@@ -178,3 +179,4 @@ Then scheduler は直接 business logic を呼ばず、`runWorkflow()` に接続
 4. `story-workflow-dashboard-v0`: `/workflows` で health、failed、human waiting、action required、latest runs、context visibility を表示する。
 5. `story-workflow-human-in-the-loop`: approval / review / input request を workflow step として扱う。
 6. `story-workflow-routine-integration`: `brainbase-alive` と `/ohayo` を最初の routine workflow として ledger に接続する。
+7. `story-workflow-ai-draft-builder`: チャット入力から workflow draft を生成し、Builder preview、dry-run test、publish の作成ループを接続する。
