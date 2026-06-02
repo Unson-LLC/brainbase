@@ -46,7 +46,10 @@ describe('TerminalRuntimeReconciler', () => {
       ownershipService: ownership,
       runtimeRegistry: registry,
       execSyncFn: vi.fn((command) => String(command).startsWith('tmux capture-pane') ? paneOutput : dryProcesses),
-      killFn
+      killFn,
+      // These tests assert ttyd-transport recovery behavior; pin the transport so
+      // they are deterministic regardless of the runner's BRAINBASE_TERMINAL_TRANSPORT.
+      terminalTransport: 'ttyd'
     });
     return { reconciler, registry, killFn, ownership, ensureSessionRuntime, stopTtyd, startTtyd, restartTtydForExistingTmux };
   }

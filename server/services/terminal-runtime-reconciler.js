@@ -99,6 +99,7 @@ export class TerminalRuntimeReconciler {
         serverGeneration = null,
         execSyncFn = execSync,
         killFn = process.kill,
+        terminalTransport = process.env.BRAINBASE_TERMINAL_TRANSPORT ?? null,
         logger = console
     } = {}) {
         this.stateStore = stateStore;
@@ -109,7 +110,16 @@ export class TerminalRuntimeReconciler {
         this.serverGeneration = serverGeneration;
         this.execSync = execSyncFn;
         this.kill = killFn;
+        this.terminalTransport = terminalTransport;
         this.logger = logger;
+    }
+
+    // When the live terminal transport is xterm (tmux + WebSocket), ttyd is not the
+    // serving mechanism and no ttyd processes are expected to run. A persisted
+    // ttydProcess record with no observed ttyd is therefore NOT a degraded condition
+    // and must not drive ttyd reconnect (which would churn every watchdog cycle).
+    _isXtermTransport() {
+        return this.terminalTransport === 'xterm';
     }
 
     observe() {
@@ -490,7 +500,7 @@ export class TerminalRuntimeReconciler {
             ));
             return { runtimeState: TERMINAL_RUNTIME_STATE.DEGRADED, issues };
         }
-        if (entry.session?.ttydProcess && (entry.ttyd || []).length === 0) {
+        if (!this._isXtermTransport() && entry.session?.ttydProcess && (entry.ttyd || []).length === 0) {
             const persistedPid = entry.session.ttydProcess?.pid;
             const persistedPort = entry.session.ttydProcess?.port;
             const details = [
