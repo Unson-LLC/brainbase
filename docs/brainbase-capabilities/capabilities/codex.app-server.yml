@@ -5,6 +5,7 @@ surfaces:
   ui:
     - session display-route state for Codex App Server thread sessions
     - Codex App Server display panel for routed thread sessions
+    - assistant-ui React island transcript panel for routed thread sessions
   api:
     - /api/sessions/report_activity
     - /api/state/sessions/:sessionId
@@ -20,6 +21,8 @@ surfaces:
     - scripts/lib/codex-app-server-activity-client.mjs
     - public/modules/domain/session/session-display-route.js
     - public/modules/app/codex-app-server-display-mixin.js
+    - ui-islands/codex-appserver-transcript/index.jsx
+    - public/dist/codex-appserver-transcript-island.js
     - public/modules/app/session-management-mixin.js
     - public/modules/session-ui-state.js
     - docs/stories/story-codex-appserver-session-create.md
@@ -35,14 +38,17 @@ surfaces:
     - docs/stories/story-codex-appserver-session-state-ssot.md
     - docs/stories/story-codex-appserver-repl-activity-bridge.md
     - docs/stories/story-codex-appserver-transcript-ui.md
+    - docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md
     - docs/architecture/codex-appserver-session-state-ssot-architecture.md
     - docs/architecture/codex-appserver-thread-session-foundation-architecture.md
     - docs/architecture/codex-appserver-repl-activity-bridge-architecture.md
     - docs/architecture/codex-appserver-transcript-ui-architecture.md
+    - docs/architecture/codex-appserver-assistant-ui-transcript-panel-architecture.md
     - docs/specs/codex-appserver-session-state-ssot-spec.md
     - docs/specs/codex-appserver-thread-session-foundation-spec.md
     - docs/specs/codex-appserver-repl-activity-bridge-spec.md
     - docs/specs/codex-appserver-transcript-ui-spec.md
+    - docs/specs/codex-appserver-assistant-ui-transcript-panel-spec.md
     - tests/server/services/codex-app-server-adapter.test.js
     - tests/server/services/codex-app-server-activity-bridge.test.js
     - tests/server/services/codex-app-server-session-state.test.js
@@ -86,9 +92,13 @@ visibility_rules:
   - Existing Codex sessions without App Server metadata keep terminal fallback unless an explicit creation/start request opts into Codex App Server.
   - Keep full App Server event item persistence out of scope unless a separate ledger story defines ownership and retention.
   - The transcript UI ledger must remain session-owned and bounded; raw App Server event streams must not be written to Graph SSOT.
+  - The assistant-ui transcript panel is a React island over the existing App Server transcript APIs; it must not require replacing the whole Brainbase shell with React.
+  - assistant-ui is currently build-time scoped for the browser transcript bundle; production Node dependency expansion requires a separate dependency gate decision.
   - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
 verification:
   commands:
+    - npm run build:codex-appserver-transcript
+    - npm audit --omit=dev
     - npm test -- tests/server/services/codex-app-server-adapter.test.js
     - npm run test:run -- tests/server/services/codex-app-server-activity-bridge.test.js
     - npm run test:run -- tests/server/services/codex-app-server-session-state.test.js tests/server/session-runtime-inventory.test.js
@@ -108,6 +118,7 @@ verification:
     - Session-state tests prove Codex-only App Server metadata persistence, restore selection, explicit missing-metadata fallback, and Claude Code non-mutation.
     - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches.
     - Browser runtime proof for the transcript UI is covered by `tests/e2e/story-codex-appserver-transcript-ui-contract.spec.ts`; port 31013 live Codex CLI smoke remains optional operational evidence.
+    - assistant-ui transcript bundle builds from `ui-islands/codex-appserver-transcript/index.jsx`, and `npm audit --omit=dev` stays scoped to production dependencies.
     - Display route tests prove Codex App Server metadata selects the App Server route and Claude Code stays on xterm.
     - Session creation tests prove new Codex sessions request App Server startup and wait for durable thread metadata.
     - Transcript service tests prove thread resume/start, visible error items, optimistic user items, explicit policy pass-through, failed-turn ledger persistence, tool/input/turn items, and App Server turn payloads.
