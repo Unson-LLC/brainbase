@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { TERMINAL_RUNTIME_STATE } from './terminal-runtime-registry.js';
+import { PS_INVENTORY_MAX_BUFFER } from './session-runtime/ps-inventory-config.js';
 
 const INPUT_PROBE_FRESH_MS = 60_000;
 const OWNERSHIP_STALE_MS = 90_000;
@@ -400,7 +401,7 @@ export class TerminalRuntimeReconciler {
 
     _listProcesses() {
         try {
-            const stdout = this.execSync('ps -axo pid=,ppid=,pgid=,command=', { encoding: 'utf8' });
+            const stdout = this.execSync('ps -axo pid=,ppid=,pgid=,command=', { encoding: 'utf8', maxBuffer: PS_INVENTORY_MAX_BUFFER });
             return stdout.split('\n').map(parsePsLine).filter(Boolean);
         } catch (error) {
             this.logger.warn?.(`[TerminalRuntimeReconciler] process observation failed: ${error.message}`);

@@ -7,6 +7,7 @@ import {
     buildCodexAppServerRestoreMetadata,
     getCodexAppServerThreadId
 } from '../codex-app-server-session-state.js';
+import { PS_INVENTORY_MAX_BUFFER } from './ps-inventory-config.js';
 
 const PROCESS_CATEGORIES = [
     'codex',
@@ -498,10 +499,10 @@ export const runtimeQueryMethods = {
 
         try {
             if (typeof this.execPromise === 'function') {
-                const result = await this.execPromise('ps -axo pid=,ppid=,rss=,command=');
+                const result = await this.execPromise('ps -axo pid=,ppid=,rss=,command=', { maxBuffer: PS_INVENTORY_MAX_BUFFER });
                 psOutput = typeof result === 'string' ? result : result?.stdout || '';
             } else {
-                psOutput = execSync('ps -axo pid=,ppid=,rss=,command=', { encoding: 'utf-8' });
+                psOutput = execSync('ps -axo pid=,ppid=,rss=,command=', { encoding: 'utf-8', maxBuffer: PS_INVENTORY_MAX_BUFFER });
             }
         } catch (error) {
             logger.warn('[runtime-inventory] ps command failed', {
