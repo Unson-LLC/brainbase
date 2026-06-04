@@ -45,7 +45,7 @@ export const schemaTemplates: Record<string, unknown> = {
     type: 'object',
     required: ['id', 'type', 'text'],
     properties: {
-      id: { type: 'string' },
+      id: { type: 'string', minLength: 1 },
       type: { enum: ['self', 'work', 'relationship', 'value', 'judgment', 'experience', 'sns_context'] },
       text: { type: 'string', minLength: 1 },
       tags: { type: 'array', items: { type: 'string' } },

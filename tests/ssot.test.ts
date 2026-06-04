@@ -61,6 +61,7 @@ describe('local SSOT loader', () => {
     expect(graphSchema.properties.entities.items.required).toEqual(['id', 'type', 'name']);
     expect(relationshipSchema.properties.relationships.items.required).toEqual(['id', 'person', 'context']);
     expect(personalKgSchema.required).toEqual(['id', 'type', 'text']);
+    expect(personalKgSchema.properties.id.minLength).toBe(1);
     expect(personalKgSchema.properties.text.minLength).toBe(1);
     expect(decisionSchema.required).toEqual(['id', 'title', 'decision']);
     expect(decisionSchema.properties.title.minLength).toBe(1);

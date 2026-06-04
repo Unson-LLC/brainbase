@@ -56,6 +56,47 @@ describe('MCP contract', () => {
     }
   });
 
+  it('S-4 calls v1 tools through stdio server startup with BRAINBASE_PERSONAL_OS_DIR', async () => {
+    const dataDir = await fixtureDir();
+    const client = new Client({
+      name: 'brainbase-contract-test',
+      version: '0.0.0'
+    });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: ['dist/index.js'],
+      env: {
+        ...process.env,
+        BRAINBASE_PERSONAL_OS_DIR: dataDir
+      }
+    });
+
+    await client.connect(transport);
+    try {
+      const context = await client.callTool({
+        name: 'get_context',
+        arguments: {}
+      });
+      expect(JSON.stringify(context.content)).toContain('Owner');
+      expect(JSON.stringify(context.content)).toContain('Personal OS');
+
+      const search = await client.callTool({
+        name: 'search_personal_kg',
+        arguments: { query: 'local MCP' }
+      });
+      expect(JSON.stringify(search.content)).toContain('personal-kg');
+
+      const status = await client.callTool({
+        name: 'onboarding_status',
+        arguments: {}
+      });
+      const statusText = status.content[0]?.type === 'text' ? status.content[0].text : '{}';
+      expect(JSON.parse(statusText)).toMatchObject({ backend: 'local' });
+    } finally {
+      await client.close();
+    }
+  });
+
   it('C-6 returns deterministic JSON-compatible tool results from fixture SSOT', async () => {
     const dataDir = await fixtureDir();
 
