@@ -191,6 +191,179 @@ describe('onboarding CLI', () => {
     });
   });
 
+  it('S-11 onboard:diagnose-sources reports Google GoG readiness and Drive allowlists', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:diagnose-sources',
+      '--dir', dir,
+      '--email', 'gmail',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--drive-folder', 'folder-123',
+      '--tasks', 'notion',
+      '--assume-gog',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const diagnostics = JSON.parse(output.stdout()).diagnostics;
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        area: 'email',
+        status: 'ready',
+        collector: 'gog',
+        importMode: 'metadata-first',
+        sourcePath: 'sources/gmail/threads.jsonl'
+      }),
+      expect.objectContaining({
+        area: 'calendar',
+        status: 'ready',
+        collector: 'gog',
+        importMode: 'metadata-first',
+        sourcePath: 'sources/calendar/events.jsonl'
+      }),
+      expect.objectContaining({
+        area: 'drive',
+        status: 'ready',
+        collector: 'gog',
+        importMode: 'metadata-first',
+        sourcePath: 'sources/drive/files.jsonl'
+      })
+    ]));
+    const drive = diagnostics.find((diagnostic: { area: string }) => diagnostic.area === 'drive');
+    expect(drive.setupCommands.join('\n')).toContain('gog drive ls folder-123');
+    expect(drive.safetyNotes.join('\n')).toContain('Do not scan the whole Drive by default');
+  });
+
+  it('S-12 onboard:diagnose-sources fails visibly when GoG is not available', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:diagnose-sources',
+      '--dir', dir,
+      '--email', 'gmail',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--drive-folder', 'folder-123',
+      '--gog-command', '__missing_brainbase_gog__',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const diagnostics = JSON.parse(output.stdout()).diagnostics;
+    expect(diagnostics.filter((diagnostic: { collector: string; status: string }) => diagnostic.collector === 'gog').map((diagnostic: { status: string }) => diagnostic.status)).toEqual([
+      'needs_setup',
+      'needs_setup',
+      'needs_setup'
+    ]);
+    expect(JSON.stringify(diagnostics)).toContain('Install or configure local GoG command');
+
+    const markdown = capture();
+    const markdownCode = await runCli([
+      'onboard:diagnose-sources',
+      '--dir', dir,
+      '--email', 'gmail',
+      '--drive', 'google-drive',
+      '--gog-command', '__missing_brainbase_gog__'
+    ], markdown.io);
+
+    expect(markdownCode).toBe(0);
+    expect(markdown.stdout()).toContain('# Brainbase Source Diagnosis');
+    expect(markdown.stdout()).toContain('- Status: needs_setup');
+    expect(markdown.stdout()).toContain('Install or configure local GoG command: __missing_brainbase_gog__');
+    expect(markdown.stdout()).toContain('- Required user input:');
+    expect(markdown.stdout()).toContain('- Setup commands:');
+  });
+
+  it('S-13 onboard:diagnose-sources requires a Drive folder allowlist even when GoG is ready', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:diagnose-sources',
+      '--dir', dir,
+      '--drive', 'google-drive',
+      '--assume-gog',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const drive = JSON.parse(output.stdout()).diagnostics.find((diagnostic: { area: string }) => diagnostic.area === 'drive');
+    expect(drive.status).toBe('needs_input');
+    expect(drive.requiredUserInput.join('\n')).toContain('At least one allowed Google Drive folder id');
+
+    const markdown = capture();
+    const markdownCode = await runCli([
+      'onboard:diagnose-sources',
+      '--dir', dir,
+      '--drive', 'google-drive',
+      '--assume-gog'
+    ], markdown.io);
+
+    expect(markdownCode).toBe(0);
+    expect(markdown.stdout()).toContain('- Status: needs_input');
+    expect(markdown.stdout()).toContain('At least one allowed Google Drive folder id');
+    expect(markdown.stdout()).toContain('gog drive ls <allowed-folder-id>');
+  });
+
+  it.each(['notion', 'todoist', 'linear', 'github-issues', 'nocodb', 'csv', 'none'])('S-14 onboard:diagnose-sources maps task source %s deterministically', async (taskInput) => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:diagnose-sources',
+      '--dir', dir,
+      '--tasks', taskInput,
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const tasks = JSON.parse(output.stdout()).diagnostics.find((diagnostic: { area: string }) => diagnostic.area === 'tasks');
+    expect(tasks).toMatchObject({
+      area: 'tasks',
+      input: taskInput,
+      sourcePath: 'sources/tasks/tasks.jsonl'
+    });
+    expect(JSON.stringify(tasks)).toContain('Do not paste secrets');
+  });
+
+  it('S-15 onboard:candidates writes review candidates without canonical SSOT writes', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:candidates',
+      '--dir', dir,
+      '--name', 'Owner',
+      '--value', 'Local facts first',
+      '--project', 'MCP Onboarding',
+      '--relationship', 'Otawara|partner|Needs local MCP from Codex',
+      '--decision-principle', 'Promote only reviewed candidates',
+      '--write',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const candidateSet = JSON.parse(output.stdout());
+    expect(candidateSet.canonicalWrites).toBe(false);
+    expect(candidateSet.candidates.map((candidate: { kind: string }) => candidate.kind)).toEqual([
+      'self',
+      'value',
+      'project',
+      'decision',
+      'relationship'
+    ]);
+    await expect(readFile(candidateSet.candidatePath, 'utf8')).resolves.toContain('Otawara');
+
+    const os = await loadPersonalOs(dir);
+    expect(os.graph.entities).toHaveLength(0);
+    expect(os.personalKg).toHaveLength(0);
+    expect(os.relationships.relationships).toHaveLength(0);
+
+    const doctorOutput = capture();
+    const doctorCode = await runCli(['doctor', '--dir', dir], doctorOutput.io);
+    expect(doctorCode).toBe(0);
+    expect(JSON.parse(doctorOutput.stdout()).missing).toEqual(['self', 'work', 'relationships']);
+  });
+
   it('S-2 fails loudly for malformed relationship seeds', async () => {
     const dir = await tempDir();
     const output = capture();
