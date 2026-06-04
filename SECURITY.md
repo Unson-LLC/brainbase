@@ -1,127 +1,62 @@
 # Security Policy
 
-## OSS Security Automation
+## Scope
 
-This repository implements automated security checks to prevent accidental exposure of sensitive information before OSS release.
+Brainbase MCP v1 is a local-first package. It does not require hosted backends, Infisical, bb.unson.jp, Lightsail, API keys, OAuth tokens, or Unson internal data.
 
-### Automated Checks
+The default runtime reads canonical local files under `~/.brainbase/personal-os/` or the path supplied through `BRAINBASE_PERSONAL_OS_DIR`.
 
-The following security checks are automated:
+## Supported Checks
 
-1. **Pre-commit Hook** - Runs locally before each commit
-2. **GitHub Actions CI** - Runs on every push and pull request
-
-### What is Checked
-
-The `scripts/check-secrets.sh` script scans for:
-
-#### Critical Checks (MUST FIX)
-- Personal names (Japanese: 佐藤, さとう, サトウ)
-- Personal names (English: Keigo, Sato)
-- Personal email addresses (@unson.co.jp, @gmail.com, @yahoo.co.jp)
-- Hardcoded absolute paths (/Users/ksato, /Users/*/)
-- AWS credentials (aws_access_key, AWS_ACCESS_KEY, AKIA[0-9A-Z]{16})
-- API keys (OpenAI: sk-*, GitHub PAT: ghp_*)
-
-#### Warning Checks (Review Recommended)
-- Real company names in samples
-- Slack channel IDs (C[0-9A-Z]{10})
-- Slack user IDs (U[0-9A-Z]{10})
-- Workspace paths (/Users/*/workspace)
-
-### Setup
-
-#### Install Pre-commit Hook
-
-Run this command once after cloning the repository:
+Before release or contribution, run:
 
 ```bash
-bash scripts/install-pre-commit-hook.sh
+npm run build
+npm test
+npm audit
+npm pack --dry-run --json
 ```
 
-The hook will automatically run before each `git commit`.
-
-#### Manual Check
-
-You can manually run the security check at any time:
+For public package publication, use:
 
 ```bash
-bash scripts/check-secrets.sh
+npm publish --access public
 ```
 
-Exit codes:
-- `0` - Success (warnings may exist)
-- `1` - Critical errors found (commit blocked)
+`package.json` includes `publishConfig.access=public` so scoped package publication does not accidentally default to private package semantics.
 
-#### Bypass Hook (NOT Recommended)
+`npm pack --dry-run --json` should include only the package runtime and public docs:
 
-If you absolutely need to bypass the pre-commit hook:
+- `dist/`
+- `README.md`
+- `LICENSE`
+- `SECURITY.md`
+- `package.json`
 
-```bash
-git commit --no-verify
-```
+It must not include personal SSOT files, raw sources, UI artifacts, internal operation scripts, VibePro workbench files, or secrets.
 
-**Warning**: This bypasses all security checks. Only use this if you're certain the changes are safe.
+## Local Data
 
-### GitHub Actions
+Do not commit files from:
 
-The security check runs automatically on:
-- Every push to `main` branch
-- Every push to `session/**` branches
-- Every pull request to `main`
+- `~/.brainbase/personal-os/`
+- Any directory used as `BRAINBASE_PERSONAL_OS_DIR`
+- `sources/` directories that contain raw personal notes, logs, or meeting transcripts
 
-If the check fails:
-1. The workflow will fail
-2. An artifact with detailed results will be uploaded
-3. (For PRs) A comment will be added to the PR
+The repository templates and tests must use synthetic fixture data only.
 
-### Exclusions
+## Reporting Security Issues
 
-The following files and directories are automatically excluded from checks:
+Report security issues through GitHub:
 
-- `node_modules/`, `.git/`, `dist/`, `build/`, `coverage/`, `test-results/`, `.worktrees/`, `.claude/`, `data/`, `var/`
-- `state.json`, `*.log`, `*.tmp`
-- Internal documentation files (see `.gitignore`)
+https://github.com/Unson-LLC/brainbase/issues
 
-### Reporting Security Issues
+Do not include credentials, personal SSOT content, private meeting notes, or raw logs in public issues.
 
-If you discover a security vulnerability in this project, please report it by:
+## Best Practices
 
-1. Creating a new issue at https://github.com/Unson-LLC/brainbase/issues
-2. Marking it as a security issue
-3. Providing detailed steps to reproduce
-
-Do NOT include sensitive credentials or personal information in the issue.
-
-### Security Best Practices
-
-When contributing to this project:
-
-1. Never hardcode credentials, API keys, or tokens
-2. Use environment variables for sensitive configuration
-3. Use generic placeholders in documentation (e.g., `/path/to/workspace` instead of `/Users/yourname/workspace`)
-4. Anonymize sample data (use "Developer A" instead of real names)
-5. Run `bash scripts/check-secrets.sh` before committing
-6. Review the script output carefully
-
-### False Positives
-
-If the security check flags a false positive:
-
-1. Verify it's truly a false positive (not actually sensitive data)
-2. Add the file to the exclusion list in `scripts/check-secrets.sh`
-3. Document the reason in a PR comment
-
-### Updates to Security Checks
-
-To add new security patterns:
-
-1. Edit `scripts/check-secrets.sh`
-2. Add new `check_pattern` calls with appropriate severity ("error" or "warning")
-3. Test the changes locally: `bash scripts/check-secrets.sh`
-4. Submit a PR with the changes
-
----
-
-**Last Updated**: 2025-12-31
-**Maintainer**: Unson LLC
+- Keep local MCP mode secret-free.
+- Use placeholders in documentation and fixtures.
+- Prefer canonical local SSOT files over raw source material.
+- Treat hosted backends and remote sync as future optional integrations, not v1 behavior.
+- Keep `.vibepro/`, `node_modules/`, `dist/`, coverage output, and local test scratch directories out of git.
