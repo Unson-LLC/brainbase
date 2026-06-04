@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { onboardingStatus } from './tools.js';
@@ -161,7 +162,8 @@ async function onboardInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const config = {
     mcpServers: {
       brainbase: {
-        command: 'brainbase-mcp',
+        command: process.execPath,
+        args: [fileURLToPath(new URL('./index.js', import.meta.url))],
         env: {
           BRAINBASE_PERSONAL_OS_DIR: dataDir
         }

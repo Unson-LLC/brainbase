@@ -69,7 +69,8 @@ describe('onboarding CLI', () => {
 
     expect(code).toBe(0);
     const config = JSON.parse(output.stdout());
-    expect(config.mcpServers.brainbase.command).toBe('brainbase-mcp');
+    expect(config.mcpServers.brainbase.command).toBe(process.execPath);
+    expect(config.mcpServers.brainbase.args[0]).toMatch(/src\/index\.js$/);
     expect(config.mcpServers.brainbase.env.BRAINBASE_PERSONAL_OS_DIR).toBe(dir);
   });
 });

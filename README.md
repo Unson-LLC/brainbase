@@ -47,12 +47,14 @@ BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
 
 ## CLI
 
-After building, the package exposes two binaries:
+When installed as a package, Brainbase exposes two binaries:
 
 ```bash
 brainbase-mcp
 brainbase
 ```
+
+For local checkout onboarding, run commands through `npm run ...` until the package is installed or linked. `onboard:install` writes a config that launches the built MCP entrypoint with your current Node executable, so the generated config works without guessing whether `brainbase-mcp` is on `PATH`.
 
 Common commands:
 
