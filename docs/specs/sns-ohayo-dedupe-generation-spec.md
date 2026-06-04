@@ -7,12 +7,19 @@ story_id: str.brainbase.sns-ohayo-dedupe-generation
 related_specs:
   - SPEC-sns-persona-brain-gate
   - SPEC-personal-kg-sns-seed-mvp
+architecture_docs:
+  - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
+  - docs/architecture/sns-posted-content-dedupe-architecture.md
+  - docs/architecture/sns-ohayo-ledger-import-fail-loud-architecture.md
 implementation_files:
   - server/services/sns/sns-generation-context-service.js
   - scripts/generate-sns-ohayo-brief.js
+  - scripts/import-sns-review-pack-to-ledger.js
 test_files:
   - tests/sns/ops/sns-generation-context.test.js
   - tests/sns/ops/sns-ohayo-brief.test.js
+  - tests/sns/ops/import-sns-review-pack-to-ledger.test.js
+  - e2e/str-brainbase-sns-ohayo-dedupe-generation-cli.spec.ts
 ---
 
 # SPEC: SNS ohayo 重複回避生成
@@ -33,6 +40,8 @@ test_files:
   - 検証: `tests/sns/ops/sns-ohayo-brief.test.js`
 - **INV-5**: Ledger import duplicate-body protection remains unchanged.
   - 検証: existing SNS ledger route/import tests.
+- **INV-6**: `/ohayo` SNS Ledger import must fail loudly when the review pack has no posts or when every draft is skipped by Ledger import.
+  - 検証: `tests/sns/ops/import-sns-review-pack-to-ledger.test.js`
 
 ## Contracts
 
@@ -101,6 +110,8 @@ type RecentHistory = {
 
 - **AP-1**: Depending on Ledger import skip as the first duplicate prevention layer.
   - **理由**: the UI appears stale and the operator cannot review alternatives.
+- **AP-1b**: Treating an all-skipped Ledger import response as `/ohayo` SNS success.
+  - **理由**: created/updated が0件なら Cockpit に今日分候補は出ておらず、日次運用では未投入として扱う必要がある。
 - **AP-2**: Treating weekly lane labels as copy.
   - **理由**: the same lane may need different concrete claims on different days.
 - **AP-3**: Reusing the same quote-commentary body while only changing the source URL.
@@ -119,6 +130,7 @@ ADR不要。変更範囲は既存のSNS generation context serviceと`generate-s
 | INV-3 | `tests/sns/ops/sns-ohayo-brief.test.js` | pass |
 | INV-4 | `tests/sns/ops/sns-ohayo-brief.test.js` | pass |
 | INV-5 | existing SNS ledger tests | unchanged |
+| INV-6 | `tests/sns/ops/import-sns-review-pack-to-ledger.test.js` | pass |
 | S-1 | `tests/sns/ops/sns-ohayo-brief.test.js` | pass |
 | S-2 | `tests/sns/ops/sns-ohayo-brief.test.js` | pass |
 | S-3 | `tests/sns/ops/sns-ohayo-brief.test.js` | pass |

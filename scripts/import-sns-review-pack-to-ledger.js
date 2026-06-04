@@ -50,6 +50,17 @@ export function reviewPackToLedgerPayload(input) {
     if (!reviewPack || !Array.isArray(reviewPack.posts)) {
         throw new Error('signals JSON must include reviewPack.posts');
     }
+    if (reviewPack.posts.length === 0) {
+        const holdReasons = Array.isArray(reviewPack.holds)
+            ? reviewPack.holds
+                .flatMap((hold) => hold.reasons || [])
+                .filter(Boolean)
+            : [];
+        const suffix = holdReasons.length > 0
+            ? `; holds=${[...new Set(holdReasons)].join(',')}`
+            : '';
+        throw new Error(`reviewPack.posts is empty; SNS Ledger import would create no reviewable posts${suffix}`);
+    }
     return {
         account_id: input.account_id || 'acc_x_sato',
         account_handle: input.account_handle || '@AIBizNavigator',
@@ -80,6 +91,43 @@ export function reviewPackToLedgerPayload(input) {
     };
 }
 
+function countByReason(skipped = []) {
+    const counts = {};
+    for (const item of skipped) {
+        const reason = item?.reason || 'unknown';
+        counts[reason] = (counts[reason] || 0) + 1;
+    }
+    return counts;
+}
+
+export function summarizeImportResult(result, { importedFile, expectedDrafts } = {}) {
+    const created = result.created?.length || 0;
+    const updated = result.updated?.length || 0;
+    const skippedItems = result.skipped || [];
+    const skipped = skippedItems.length;
+    const expected = Number(expectedDrafts ?? created + updated + skipped);
+    const success = expected > 0 && (created + updated) > 0;
+    return {
+        imported_file: importedFile || null,
+        created,
+        updated,
+        skipped,
+        success,
+        skipped_reasons: countByReason(skippedItems),
+        skipped_items: skippedItems,
+        summary: result.summary
+    };
+}
+
+export function assertImportCreatedReviewablePosts(summary) {
+    if (!summary.success) {
+        const reasons = Object.entries(summary.skipped_reasons || {})
+            .map(([reason, count]) => `${reason}:${count}`)
+            .join(',');
+        throw new Error(`SNS Ledger import created no reviewable posts; created=${summary.created} updated=${summary.updated} skipped=${summary.skipped}${reasons ? ` reasons=${reasons}` : ''}`);
+    }
+}
+
 async function postJson(url, payload) {
     const response = await fetch(url, {
         method: 'POST',
@@ -103,12 +151,12 @@ async function main() {
         return;
     }
     const result = await postJson(`${args.baseUrl.replace(/\/$/u, '')}/api/sns-growth/review-pack`, payload);
-    console.log(JSON.stringify({
-        imported_file: filePath,
-        created: result.created?.length || 0,
-        updated: result.updated?.length || 0,
-        summary: result.summary
-    }, null, 2));
+    const summary = summarizeImportResult(result, {
+        importedFile: filePath,
+        expectedDrafts: payload.drafts.length
+    });
+    console.log(JSON.stringify(summary, null, 2));
+    assertImportCreatedReviewablePosts(summary);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
