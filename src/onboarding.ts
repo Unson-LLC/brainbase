@@ -19,6 +19,28 @@ export interface ConnectorRecommendationSet {
   nextCommands: string[];
 }
 
+export type SourceDiagnosisStatus = 'ready' | 'needs_setup' | 'needs_input' | 'not_configured';
+
+export interface SourceDiagnosis {
+  area: SourceArea;
+  input: string;
+  status: SourceDiagnosisStatus;
+  collector: string | null;
+  sourcePath: string;
+  writeTarget: string;
+  importMode: ConnectorRecommendation['importMode'];
+  requiredUserInput: string[];
+  setupCommands: string[];
+  safetyNotes: string[];
+}
+
+export interface SourceDiagnosisSet {
+  goal: string;
+  diagnostics: SourceDiagnosis[];
+  nextCommands: string[];
+  safetyRules: string[];
+}
+
 export interface AgentOnboardingProtocol {
   goal: string;
   interviewSections: Array<{
@@ -36,6 +58,41 @@ export interface RecommendationInput {
   calendar?: string;
   drive?: string;
   tasks?: string;
+}
+
+export interface SourceDiagnosisInput extends RecommendationInput {
+  dataDir: string;
+  gogCommand?: string;
+  gogAvailable?: boolean;
+  driveFolders?: string[];
+}
+
+export interface CandidateInput {
+  dataDir: string;
+  name?: string;
+  values?: string[];
+  projects?: string[];
+  relationships?: string[];
+  decisionPrinciples?: string[];
+  now?: string;
+}
+
+export interface OnboardingCandidate {
+  id: string;
+  kind: 'self' | 'value' | 'project' | 'relationship' | 'decision';
+  payload: Record<string, string | string[] | undefined>;
+  source: 'agent-interview';
+  promoted: false;
+  createdAt: string;
+}
+
+export interface CandidateDraftSet {
+  goal: string;
+  canonicalWrites: false;
+  candidatePath: string;
+  candidates: OnboardingCandidate[];
+  safetyRules: string[];
+  nextCommands: string[];
 }
 
 export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
@@ -110,6 +167,8 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
     ],
     nextCommands: [
       'brainbase onboard:init',
+      'brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion',
+      'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
       'brainbase onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion',
       'brainbase onboard:seed --name "<name>" --value "<what matters>" --project "<current project>"',
       'brainbase onboard:install --target codex --dry-run',
@@ -121,6 +180,74 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'doctor reports connected=true and missing=[].',
       'The selected MCP client has a Brainbase config snippet.',
       'The user has reviewed what Brainbase is allowed to remember.'
+    ]
+  };
+}
+
+export function buildSourceDiagnosis(input: SourceDiagnosisInput): SourceDiagnosisSet {
+  const recommendationSet = buildConnectorRecommendations(input);
+  const diagnostics = recommendationSet.recommendations.map((recommendation) => diagnoseRecommendation(recommendation, input));
+
+  return {
+    goal: 'Diagnose local source collection readiness before any raw material or candidates are promoted into canonical Brainbase SSOT.',
+    diagnostics,
+    nextCommands: [
+      'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
+      'brainbase doctor',
+      'brainbase onboard:seed --name "<name>" --value "<approved value>" --project "<approved project>"'
+    ],
+    safetyRules: [
+      'Do not paste OAuth tokens, passwords, API keys, or refresh tokens into chat.',
+      'Use metadata-first source collection before body text or document excerpts.',
+      'Keep provider output under sources/ and extracted facts under candidates/.',
+      'Promote only reviewed candidate facts into canonical SSOT.',
+      'Drive collection must use explicit folder allowlists.'
+    ]
+  };
+}
+
+export function buildCandidateDrafts(input: CandidateInput): CandidateDraftSet {
+  const now = input.now ?? new Date().toISOString();
+  const candidates: OnboardingCandidate[] = [];
+
+  if (input.name) {
+    candidates.push(candidate('self', { name: input.name }, now));
+  }
+  for (const value of input.values ?? []) {
+    candidates.push(candidate('value', { text: value, tags: ['onboarding'] }, now));
+  }
+  for (const project of input.projects ?? []) {
+    candidates.push(candidate('project', { name: project, summary: 'Approved during Brainbase agent onboarding.' }, now));
+  }
+  for (const principle of input.decisionPrinciples ?? []) {
+    candidates.push(candidate('decision', {
+      title: 'Agent onboarding decision principle',
+      decision: principle,
+      tags: ['principle', 'onboarding']
+    }, now));
+  }
+  for (const encoded of input.relationships ?? []) {
+    const [person, role, context] = encoded.split('|').map((part) => part.trim());
+    if (!person || !context) {
+      throw new Error('relationship must be "person|role|context" or "person||context"');
+    }
+    candidates.push(candidate('relationship', { person, role: role || undefined, context }, now));
+  }
+
+  return {
+    goal: 'Review candidate facts before promoting them into canonical Brainbase SSOT.',
+    canonicalWrites: false,
+    candidatePath: `${input.dataDir}/candidates/onboarding-candidates-${fileSafeTimestamp(now)}.json`,
+    candidates,
+    safetyRules: [
+      'Candidates are not canonical memory.',
+      'Do not promote raw source material without user review.',
+      'Only approved facts should be copied into graph.json, personal-kg.jsonl, relationships.json, or decisions.jsonl.'
+    ],
+    nextCommands: [
+      'Review the candidate file with the user.',
+      'Promote approved self/work/relationship facts with brainbase onboard:seed.',
+      'Run brainbase doctor after promotion.'
     ]
   };
 }
@@ -213,6 +340,71 @@ export function renderConnectorRecommendations(input: RecommendationInput, forma
   ].join('\n');
 }
 
+export function renderSourceDiagnosis(input: SourceDiagnosisInput, format: OnboardingFormat): string {
+  const diagnosisSet = buildSourceDiagnosis(input);
+  if (format === 'json') {
+    return `${JSON.stringify(diagnosisSet, null, 2)}\n`;
+  }
+
+  return [
+    '# Brainbase Source Diagnosis',
+    '',
+    diagnosisSet.goal,
+    '',
+    ...diagnosisSet.diagnostics.flatMap((diagnosis) => [
+      `## ${labelForArea(diagnosis.area)}`,
+      '',
+      `- Input: ${diagnosis.input}`,
+      `- Status: ${diagnosis.status}`,
+      `- Collector: ${diagnosis.collector ?? 'none'}`,
+      `- Source path: \`${diagnosis.sourcePath}\``,
+      `- Write target: \`${diagnosis.writeTarget}\``,
+      `- Import mode: ${diagnosis.importMode}`,
+      '- Required user input:',
+      ...(diagnosis.requiredUserInput.length === 0 ? ['  - none'] : diagnosis.requiredUserInput.map((item) => `  - ${item}`)),
+      '- Setup commands:',
+      ...(diagnosis.setupCommands.length === 0 ? ['  - none'] : diagnosis.setupCommands.map((command) => `  - \`${command}\``)),
+      '- Safety notes:',
+      ...diagnosis.safetyNotes.map((note) => `  - ${note}`),
+      ''
+    ]),
+    '## Safety Rules',
+    ...diagnosisSet.safetyRules.map((rule) => `- ${rule}`),
+    '',
+    '## Next Commands',
+    ...diagnosisSet.nextCommands.map((command) => `- \`${command}\``),
+    ''
+  ].join('\n');
+}
+
+export function renderCandidateDrafts(input: CandidateInput, format: OnboardingFormat): string {
+  const candidateSet = buildCandidateDrafts(input);
+  if (format === 'json') {
+    return `${JSON.stringify(candidateSet, null, 2)}\n`;
+  }
+
+  return [
+    '# Brainbase Onboarding Candidates',
+    '',
+    candidateSet.goal,
+    '',
+    `- Canonical writes: ${String(candidateSet.canonicalWrites)}`,
+    `- Candidate path: \`${candidateSet.candidatePath}\``,
+    '',
+    '## Candidates',
+    ...(candidateSet.candidates.length === 0
+      ? ['- none']
+      : candidateSet.candidates.map((candidate) => `- ${candidate.kind}: ${JSON.stringify(candidate.payload)}`)),
+    '',
+    '## Safety Rules',
+    ...candidateSet.safetyRules.map((rule) => `- ${rule}`),
+    '',
+    '## Next Commands',
+    ...candidateSet.nextCommands.map((command) => `- ${command}`),
+    ''
+  ].join('\n');
+}
+
 export function parseOnboardingFormat(value: string | undefined): OnboardingFormat {
   if (!value || value === 'markdown') {
     return 'markdown';
@@ -221,6 +413,145 @@ export function parseOnboardingFormat(value: string | undefined): OnboardingForm
     return 'json';
   }
   throw new Error('format must be markdown|json');
+}
+
+function diagnoseRecommendation(recommendation: ConnectorRecommendation, input: SourceDiagnosisInput): SourceDiagnosis {
+  const writeTarget = `${input.dataDir}/${recommendation.sourcePath}`;
+  if (recommendation.importMode === 'not-configured') {
+    return {
+      area: recommendation.area,
+      input: recommendation.input,
+      status: 'not_configured',
+      collector: null,
+      sourcePath: recommendation.sourcePath,
+      writeTarget,
+      importMode: recommendation.importMode,
+      requiredUserInput: [],
+      setupCommands: [],
+      safetyNotes: recommendation.safetyNotes
+    };
+  }
+
+  if (isGoogleDiagnosis(recommendation)) {
+    const gogCommand = input.gogCommand || 'gog';
+    const driveFolders = input.driveFolders ?? [];
+    const needsDriveFolder = recommendation.area === 'drive' && driveFolders.length === 0;
+    const status: SourceDiagnosisStatus = input.gogAvailable
+      ? (needsDriveFolder ? 'needs_input' : 'ready')
+      : 'needs_setup';
+    return {
+      area: recommendation.area,
+      input: recommendation.input,
+      status,
+      collector: 'gog',
+      sourcePath: recommendation.sourcePath,
+      writeTarget,
+      importMode: 'metadata-first',
+      requiredUserInput: [
+        ...(input.gogAvailable ? [] : [`Install or configure local GoG command: ${gogCommand}`]),
+        ...(needsDriveFolder ? ['At least one allowed Google Drive folder id'] : []),
+        ...(recommendation.area === 'calendar' ? ['Date range and private-calendar exclusion decision'] : []),
+        ...(recommendation.area === 'email' ? ['Mail account and metadata/body-excerpt scope decision'] : [])
+      ],
+      setupCommands: googleSetupCommands(recommendation.area, gogCommand, writeTarget, driveFolders),
+      safetyNotes: recommendation.safetyNotes
+    };
+  }
+
+  return {
+    area: recommendation.area,
+    input: recommendation.input,
+    status: recommendation.importMode === 'manual' ? 'needs_input' : 'needs_setup',
+    collector: collectorFor(recommendation),
+    sourcePath: recommendation.sourcePath,
+    writeTarget,
+    importMode: recommendation.importMode,
+    requiredUserInput: nonGoogleRequiredInput(recommendation),
+    setupCommands: nonGoogleSetupCommands(recommendation, writeTarget),
+    safetyNotes: recommendation.safetyNotes
+  };
+}
+
+function isGoogleDiagnosis(recommendation: ConnectorRecommendation): boolean {
+  return recommendation.importMode === 'metadata-first'
+    && (recommendation.recommendation.includes('GoG') || recommendation.recommendation.includes('Google'));
+}
+
+function googleSetupCommands(area: SourceArea, gogCommand: string, writeTarget: string, driveFolders: string[]): string[] {
+  if (area === 'email') {
+    return [
+      `${gogCommand} gmail auth --readonly`,
+      `${gogCommand} gmail threads --metadata --out ${writeTarget}`
+    ];
+  }
+  if (area === 'calendar') {
+    return [
+      `${gogCommand} calendar auth --readonly`,
+      `${gogCommand} calendar events --metadata --out ${writeTarget}`
+    ];
+  }
+  if (area === 'drive') {
+    const folder = driveFolders[0] ?? '<allowed-folder-id>';
+    return [
+      `${gogCommand} drive auth --readonly`,
+      `${gogCommand} drive ls ${folder} --json --out ${writeTarget}`,
+      `${gogCommand} drive download <file-id> --out <approved-output-path>`
+    ];
+  }
+  return [];
+}
+
+function collectorFor(recommendation: ConnectorRecommendation): string | null {
+  if (recommendation.area === 'tasks') {
+    if (matches(recommendation.input, ['notion'])) return 'notion-mcp-or-export';
+    if (matches(recommendation.input, ['linear'])) return 'linear-mcp-or-export';
+    if (matches(recommendation.input, ['github', 'github issues', 'github-issues', 'issues'])) return 'github-connector-or-export';
+    if (matches(recommendation.input, ['nocodb'])) return 'nocodb-mcp-or-export';
+  }
+  return recommendation.importMode === 'manual' ? 'manual-export' : 'external-export';
+}
+
+function nonGoogleRequiredInput(recommendation: ConnectorRecommendation): string[] {
+  if (recommendation.importMode === 'manual') {
+    return ['Explicit local file, folder, CSV, or JSONL export path'];
+  }
+  if (recommendation.area === 'tasks') {
+    return ['Workspace/project/database allowlist', 'Read-only export or connector path'];
+  }
+  return ['Read-only export path', 'Allowed account or workspace'];
+}
+
+function nonGoogleSetupCommands(recommendation: ConnectorRecommendation, writeTarget: string): string[] {
+  if (matches(recommendation.input, ['none', 'no', 'なし'])) {
+    return [];
+  }
+  if (matches(recommendation.input, ['csv', 'spreadsheet', 'excel', 'manual'])) {
+    return [`Normalize the approved export into ${writeTarget}`];
+  }
+  return [`Export or collect read-only data, then normalize JSONL into ${writeTarget}`];
+}
+
+function candidate(kind: OnboardingCandidate['kind'], payload: OnboardingCandidate['payload'], createdAt: string): OnboardingCandidate {
+  return {
+    id: `candidate-${kind}-${hash(`${kind}:${JSON.stringify(payload)}`)}`,
+    kind,
+    payload,
+    source: 'agent-interview',
+    promoted: false,
+    createdAt
+  };
+}
+
+function fileSafeTimestamp(value: string): string {
+  return value.replace(/[^0-9A-Za-z-]/g, '-');
+}
+
+function hash(value: string): string {
+  let hashValue = 0;
+  for (const char of value) {
+    hashValue = ((hashValue << 5) - hashValue + char.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hashValue).toString(36);
 }
 
 function recommendEmail(value: string | undefined): ConnectorRecommendation {

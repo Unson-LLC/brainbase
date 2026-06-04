@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { constants } from 'node:fs';
+import { access, mkdir, writeFile } from 'node:fs/promises';
+import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { onboardingStatus } from './tools.js';
-import { parseOnboardingFormat, renderAgentProtocol, renderConnectorRecommendations } from './onboarding.js';
+import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderSourceDiagnosis } from './onboarding.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -36,6 +37,10 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardAgent(parsed, io);
       case 'onboard:recommend':
         return await onboardRecommend(parsed, io);
+      case 'onboard:diagnose-sources':
+        return await onboardDiagnoseSources(parsed, io);
+      case 'onboard:candidates':
+        return await onboardCandidates(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -197,6 +202,54 @@ async function onboardRecommend(parsed: ParsedArgs, io: CliIo): Promise<number> 
   return 0;
 }
 
+async function onboardDiagnoseSources(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+  const gogCommand = first(parsed, 'gog-command') ?? 'gog';
+  const gogAvailable = parsed.flags.has('assume-gog') || await commandExists(gogCommand);
+  write(io, renderSourceDiagnosis({
+    dataDir,
+    email: first(parsed, 'email'),
+    calendar: first(parsed, 'calendar'),
+    drive: first(parsed, 'drive'),
+    tasks: first(parsed, 'tasks'),
+    gogCommand,
+    gogAvailable,
+    driveFolders: parsed.values.get('drive-folder') ?? []
+  }, format));
+  return 0;
+}
+
+async function onboardCandidates(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+  const input = {
+    dataDir,
+    name: first(parsed, 'name'),
+    values: parsed.values.get('value') ?? [],
+    projects: parsed.values.get('project') ?? [],
+    relationships: parsed.values.get('relationship') ?? [],
+    decisionPrinciples: parsed.values.get('decision-principle') ?? [],
+    now: new Date().toISOString()
+  };
+  const candidateSet = buildCandidateDrafts(input);
+  if (candidateSet.candidates.length === 0 && !parsed.flags.has('non-interactive')) {
+    write(io, 'No candidate values provided. Use --name, --value, --project, --decision-principle, or --relationship.\n');
+    return 1;
+  }
+  if (parsed.flags.has('write')) {
+    await mkdir(dirname(candidateSet.candidatePath), { recursive: true });
+    await writeFile(candidateSet.candidatePath, `${JSON.stringify(candidateSet, null, 2)}\n`, { flag: 'wx' });
+  }
+  write(io, renderCandidateDrafts(input, format));
+  if (parsed.flags.has('write')) {
+    write(io, format === 'json' ? '' : `Wrote candidate file: ${candidateSet.candidatePath}\n`);
+  }
+  return 0;
+}
+
 function isInstallTarget(value: string | undefined): value is InstallTarget {
   return value === 'codex' || value === 'claude' || value === 'codecode';
 }
@@ -278,6 +331,22 @@ function first(parsed: ParsedArgs, key: string): string | undefined {
   return parsed.values.get(key)?.[0];
 }
 
+async function commandExists(command: string): Promise<boolean> {
+  const candidates = isAbsolute(command)
+    ? [command]
+    : (process.env.PATH ?? '').split(delimiter).filter(Boolean).map((dir) => join(dir, command));
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate, constants.X_OK);
+      return true;
+    } catch {
+      // Continue checking PATH candidates.
+    }
+  }
+  return false;
+}
+
 function upsertGraphEntity(entities: GraphEntity[], entity: GraphEntity): void {
   const index = entities.findIndex((candidate) => candidate.id === entity.id);
   if (index >= 0) {
@@ -312,6 +381,8 @@ function usage(): string {
   brainbase onboard:install --target codex|claude|codecode [--dir path] [--dry-run] [--output path]
   brainbase onboard:agent [--format markdown|json]
   brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
+  brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
+  brainbase onboard:candidates [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"] [--write] [--format markdown|json]
   brainbase doctor [--dir path]
 `;
 }

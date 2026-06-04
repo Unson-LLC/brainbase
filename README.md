@@ -23,7 +23,32 @@ Paste the generated protocol into Codex or Claude Code and let it ask which tool
 - drive/docs: Google Drive, OneDrive, Dropbox, Notion, local folders, or another document system
 - tasks: Notion, Todoist, Linear, GitHub Issues, NocoDB, CSV, or no task tool
 
-After the interview, ask Brainbase for connector guidance:
+After the interview, ask Brainbase to diagnose the local source setup. This does not import source data. It tells the agent which local collector, allowlist, and staging path are needed:
+
+```bash
+brainbase onboard:diagnose-sources \
+  --email gmail \
+  --calendar google-calendar \
+  --drive google-drive \
+  --drive-folder "<allowed-google-drive-folder-id>" \
+  --tasks notion
+```
+
+Gmail, Google Calendar, and Google Drive diagnosis uses local GoG-style collection when available. The first pass should be metadata-first. Drive collection requires explicit folder allowlists. If GoG is missing, diagnosis reports `needs_setup` instead of pretending import is ready.
+
+Then let the coding agent draft candidate facts from the interview. Candidate files are review material only; they do not count as canonical memory:
+
+```bash
+brainbase onboard:candidates --write \
+  --name "Your Name" \
+  --value "What matters in your work" \
+  --project "Current project" \
+  --relationship "Key Partner|collaborator|Context you want AI tools to remember"
+```
+
+Review candidates with the user, then promote only approved facts through `brainbase onboard:seed` or an equivalent explicit promotion flow.
+
+`onboard:recommend` remains available when you only want connector guidance:
 
 ```bash
 brainbase onboard:recommend \
@@ -32,8 +57,6 @@ brainbase onboard:recommend \
   --drive google-drive \
   --tasks notion
 ```
-
-Gmail, Google Calendar, and Google Drive recommendations use local GoG-style collection when available. The first pass should be metadata-first. Drive collection should use explicit folder allowlists.
 
 External sources are staged as secondary material:
 
@@ -123,6 +146,8 @@ Local checkout equivalents:
 ```bash
 npm run build
 node dist/cli.js onboard:agent
+node dist/cli.js onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion
+node dist/cli.js onboard:candidates --write --name "Your Name" --project "Current project"
 node dist/cli.js onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion
 npm run onboard:init
 npm run onboard:seed -- --name "Your Name"
