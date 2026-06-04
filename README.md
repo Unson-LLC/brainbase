@@ -6,6 +6,49 @@ The v1 value is narrow by design: create a canonical local SSOT for yourself, yo
 
 This repository does not include the internal Brainbase UI, session runtime, xterm transport, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data. Those belong in the internal `brainbase-unson` system.
 
+## Agent-assisted Onboarding
+
+Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. Instead of starting with a long manual seed command, ask your coding agent to run the Brainbase onboarding interview.
+
+```bash
+npm install
+npm run build
+node dist/cli.js onboard:agent
+```
+
+Paste the generated protocol into Codex or Claude Code and let it ask which tools you use:
+
+- mail: Gmail, Outlook, Apple Mail, or another mail tool
+- calendar: Google Calendar, Outlook Calendar, Apple Calendar, or another calendar
+- drive/docs: Google Drive, OneDrive, Dropbox, Notion, local folders, or another document system
+- tasks: Notion, Todoist, Linear, GitHub Issues, NocoDB, CSV, or no task tool
+
+After the interview, ask Brainbase for connector guidance:
+
+```bash
+brainbase onboard:recommend \
+  --email gmail \
+  --calendar google-calendar \
+  --drive google-drive \
+  --tasks notion
+```
+
+Gmail, Google Calendar, and Google Drive recommendations use local GoG-style collection when available. The first pass should be metadata-first. Drive collection should use explicit folder allowlists.
+
+External sources are staged as secondary material:
+
+```text
+~/.brainbase/personal-os/
+  sources/
+    gmail/
+    calendar/
+    drive/
+    tasks/
+  candidates/
+```
+
+Do not paste OAuth tokens, passwords, API keys, or refresh tokens into chat. Imported mail, calendar, drive, and task material stays under `sources/` until reviewed. Only approved candidates should be promoted into `graph.json`, `relationships.json`, `personal-kg.jsonl`, or `decisions.jsonl`.
+
 ## 30 Minute Setup
 
 ```bash
@@ -29,7 +72,8 @@ It contains the canonical local SSOT:
 - `personal-kg.jsonl`: values, judgment criteria, experiences, and personal context.
 - `relationships.json`: relationship context that should survive across tools.
 - `decisions.jsonl`: decision records and principles.
-- `sources/`: optional raw notes, logs, or minutes. MCP tools prefer canonical files over these raw materials.
+- `sources/`: optional raw notes, logs, mail, calendar, drive, and task exports. MCP tools prefer canonical files over these raw materials.
+- `candidates/`: staging area for extracted facts before user approval.
 - `schemas/`: generated schema references for the local files.
 
 For a local checkout, launch the built MCP server with:
@@ -77,6 +121,9 @@ brainbase doctor
 Local checkout equivalents:
 
 ```bash
+npm run build
+node dist/cli.js onboard:agent
+node dist/cli.js onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion
 npm run onboard:init
 npm run onboard:seed -- --name "Your Name"
 npm run onboard:install -- --target codex --dry-run

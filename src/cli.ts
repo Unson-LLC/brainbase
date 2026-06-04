@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { onboardingStatus } from './tools.js';
+import { parseOnboardingFormat, renderAgentProtocol, renderConnectorRecommendations } from './onboarding.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -31,6 +32,10 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardSeed(parsed, io);
       case 'onboard:install':
         return await onboardInstall(parsed, io);
+      case 'onboard:agent':
+        return await onboardAgent(parsed, io);
+      case 'onboard:recommend':
+        return await onboardRecommend(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -175,6 +180,23 @@ async function onboardInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   return 0;
 }
 
+async function onboardAgent(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  write(io, renderAgentProtocol(format));
+  return 0;
+}
+
+async function onboardRecommend(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  write(io, renderConnectorRecommendations({
+    email: first(parsed, 'email'),
+    calendar: first(parsed, 'calendar'),
+    drive: first(parsed, 'drive'),
+    tasks: first(parsed, 'tasks')
+  }, format));
+  return 0;
+}
+
 function isInstallTarget(value: string | undefined): value is InstallTarget {
   return value === 'codex' || value === 'claude' || value === 'codecode';
 }
@@ -288,6 +310,8 @@ function usage(): string {
   brainbase onboard:init [--dir path]
   brainbase onboard:seed [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"]
   brainbase onboard:install --target codex|claude|codecode [--dir path] [--dry-run] [--output path]
+  brainbase onboard:agent [--format markdown|json]
+  brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
   brainbase doctor [--dir path]
 `;
 }
