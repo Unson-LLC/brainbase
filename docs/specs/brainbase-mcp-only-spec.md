@@ -24,7 +24,7 @@ Replace `Unson-LLC/brainbase` with a UI-free, local-first MCP package that lets 
 
 - S-1: `brainbase onboard:init` creates the minimum Personal OS directory and canonical files.
 - S-2: `brainbase onboard:seed` updates self, work, and relationship context.
-- S-3: `brainbase onboard:install --target codex|claude|codecode --dry-run` prints a valid client-specific MCP config: Codex TOML and Claude/CodeCode standard MCP JSON.
+- S-3: `brainbase onboard:install --target codex|claude|codecode --dry-run` prints a valid client-specific MCP config: Codex TOML and Claude/CodeCode standard MCP JSON. `--output` writes a new snippet file and refuses to overwrite existing client config.
 - S-4: `brainbase-mcp` starts over stdio and lists the v1 tools.
 - S-5: `get_context` combines self, work, relationships, and decisions from canonical files.
 - S-6: `search_personal_kg` searches only owner-local Personal KG entries.
@@ -45,3 +45,5 @@ Replace `Unson-LLC/brainbase` with a UI-free, local-first MCP package that lets 
 - V-5: `git diff --check`
 - V-6: `cmp -s AGENTS.md CLAUDE.md`
 - V-7: build artifact CLI smoke for `onboard:init`, `onboard:seed`, `onboard:install --dry-run`, and `doctor`.
+- V-8: path tests cover default `~/.brainbase/personal-os`, `BRAINBASE_PERSONAL_OS_DIR`, and explicit `--dir` precedence.
+- V-9: fail-loud tests cover malformed canonical JSON/JSONL files and unsupported CLI inputs.

@@ -170,7 +170,7 @@ async function onboardInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   }
 
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, payload);
+  await writeConfigSnippet(outputPath, payload);
   write(io, `Wrote ${target} MCP config to ${outputPath}\n`);
   return 0;
 }
@@ -205,6 +205,17 @@ function buildInstallPayload(target: InstallTarget, dataDir: string): string {
 
 function tomlString(value: string): string {
   return JSON.stringify(value);
+}
+
+async function writeConfigSnippet(outputPath: string, payload: string): Promise<void> {
+  try {
+    await writeFile(outputPath, payload, { flag: 'wx' });
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
+      throw new Error(`Refusing to overwrite existing MCP config snippet ${outputPath}. Choose a new --output path or remove the old snippet first.`);
+    }
+    throw error;
+  }
 }
 
 async function doctor(parsed: ParsedArgs, io: CliIo): Promise<number> {

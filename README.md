@@ -103,7 +103,9 @@ npm run onboard:install -- --target claude --dry-run
 npm run onboard:install -- --target codecode --dry-run
 ```
 
-The command prints a valid MCP server config. Use `--output /path/to/config` when you want Brainbase to write the generated config.
+The command prints a valid MCP server config snippet. Use `--output /path/to/new-snippet-file` when you want Brainbase to write the generated snippet.
+
+`--output` intentionally creates a new snippet file and refuses to overwrite an existing file. It does not merge into existing Codex, Claude, or CodeCode config files. Review the snippet, then paste or merge it into the target client config yourself so existing MCP servers and client settings are preserved.
 
 Codex output is TOML for `~/.codex/config.toml` style configuration:
 
@@ -132,7 +134,26 @@ Claude and CodeCode output use the standard MCP `mcpServers` JSON shape:
 }
 ```
 
-Choose the target client's MCP config file yourself when using `--output`.
+Choose a temporary snippet path when using `--output`; do not point it at a live client config unless you have already moved the old file aside.
+
+## Migration From Prior Brainbase Repos
+
+This repository is intentionally replaced as the external Personal Onboarding Kit. It is not a compatible continuation of the previous internal Brainbase UI/runtime package.
+
+Use this repo when you want:
+
+- Local personal SSOT under `~/.brainbase/personal-os/`.
+- MCP access from Codex, Claude, or CodeCode.
+- No hosted backend, no Infisical requirement, and no Unson internal data.
+
+Keep or pin the internal `brainbase-unson` system when you need:
+
+- Brainbase UI, session runtime, terminal/xterm transport, workflow mission control, or social operations.
+- bb.unson.jp, Lightsail, Graph API, JWT/API-token flows, or hosted sync.
+- Legacy Graph API MCP tools such as `get_entity`.
+- VibePro runtime or internal 31013 operation surfaces.
+
+The v1 MCP tool surface is intentionally limited to `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`.
 
 ## Hosted Backends
 
