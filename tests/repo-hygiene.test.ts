@@ -1,9 +1,24 @@
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { constants } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = process.cwd();
+const execFileAsync = promisify(execFile);
+const forbiddenArtifactPatterns = [
+  /(^|\/)public(\/|$)/,
+  /(^|\/)ui-islands(\/|$)/,
+  /^(server|start)\.js$/,
+  /(^|\/)mcp\/(brainbase|jibble|nocodb)(\/|$)/,
+  /(^|\/)sns(\/|$)/,
+  /(^|\/)launchd(\/|$)/,
+  /(^|\/)workflow(s)?(\/|$)/,
+  /xterm/i,
+  /mission-control/i,
+  /codex-app-server/i
+];
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -12,6 +27,21 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function gitTrackedFiles(): Promise<string[]> {
+  const { stdout } = await execFileAsync('git', ['ls-files'], { cwd: repoRoot });
+  return stdout.split('\n').filter(Boolean);
+}
+
+async function packFiles(): Promise<string[]> {
+  const { stdout } = await execFileAsync('npm', ['pack', '--dry-run', '--json'], { cwd: repoRoot });
+  const [pack] = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
+  return pack.files.map((file) => file.path);
+}
+
+function forbiddenMatches(files: string[]): string[] {
+  return files.filter((file) => forbiddenArtifactPatterns.some((pattern) => pattern.test(file)));
 }
 
 describe('MCP-only repository hygiene', () => {
@@ -31,6 +61,9 @@ describe('MCP-only repository hygiene', () => {
     await Promise.all(forbiddenPaths.map(async (path) => {
       expect(await exists(path), `${path} should not be present in the MCP-only repo`).toBe(false);
     }));
+
+    const trackedFiles = await gitTrackedFiles();
+    expect(forbiddenMatches(trackedFiles)).toEqual([]);
   });
 
   it('INV-1 keeps hosted backend and secret managers out of v1 dependencies', async () => {
@@ -54,5 +87,15 @@ describe('MCP-only repository hygiene', () => {
       'LICENSE',
       'SECURITY.md'
     ]);
+
+    const publishedFiles = await packFiles();
+    expect(forbiddenMatches(publishedFiles)).toEqual([]);
+    expect(publishedFiles.every((file) => (
+      file === 'LICENSE'
+      || file === 'README.md'
+      || file === 'SECURITY.md'
+      || file === 'package.json'
+      || file.startsWith('dist/')
+    ))).toBe(true);
   });
 });

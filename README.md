@@ -12,7 +12,8 @@ This repository does not include the internal Brainbase UI, session runtime, xte
 npm install
 npm run build
 npm run onboard:init
-npm run onboard:seed -- --name "Your Name" --value "What matters in your work" --project "Current project"
+npm run onboard:seed -- --name "Your Name" --value "What matters in your work" --project "Current project" --relationship "Key Partner|collaborator|Context you want AI tools to remember"
+npm run doctor
 npm run onboard:install -- --target codex --dry-run
 ```
 
