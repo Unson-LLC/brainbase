@@ -55,6 +55,7 @@
     "vibepro:graphify-impact": "node scripts/vibepro-graphify-impact-gate.mjs",
     "vibepro:component-style": "node scripts/vibepro-component-style-check.mjs",
     "ssot:inventory:local": "node scripts/local-data-server-ssot-inventory.js",
+    "ssot:upsert:local": "node scripts/local-data-server-ssot-upsert.js",
     "migrate:m5a": "node scripts/migrate-m5a-production-schema.js",
     "seed:personal-kg:sns-foundation": "node scripts/seed-personal-kg-sns-foundation.js",
     "seed:personal-kg:baao-minutes": "node scripts/seed-personal-kg-baao-minutes.js",
