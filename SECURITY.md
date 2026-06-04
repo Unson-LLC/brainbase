@@ -17,6 +17,14 @@ npm audit
 npm pack --dry-run --json
 ```
 
+For public package publication, use:
+
+```bash
+npm publish --access public
+```
+
+`package.json` includes `publishConfig.access=public` so scoped package publication does not accidentally default to private package semantics.
+
 `npm pack --dry-run --json` should include only the package runtime and public docs:
 
 - `dist/`

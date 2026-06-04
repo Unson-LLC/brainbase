@@ -31,7 +31,15 @@ It contains the canonical local SSOT:
 - `sources/`: optional raw notes, logs, or minutes. MCP tools prefer canonical files over these raw materials.
 - `schemas/`: generated schema references for the local files.
 
-Override the directory with:
+For a local checkout, launch the built MCP server with:
+
+```bash
+BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os npm start
+```
+
+The generated MCP client config uses the same idea explicitly: your current Node executable plus this checkout's built `dist/index.js`.
+
+When installed as a package, you can launch it with:
 
 ```bash
 BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
@@ -56,13 +64,22 @@ brainbase
 
 For local checkout onboarding, run commands through `npm run ...` until the package is installed or linked. `onboard:install` writes a config that launches the built MCP entrypoint with your current Node executable, so the generated config works without guessing whether `brainbase-mcp` is on `PATH`.
 
-Common commands:
+Installed package commands:
 
 ```bash
 brainbase onboard:init
 brainbase onboard:seed
 brainbase onboard:install --target codex --dry-run
 brainbase doctor
+```
+
+Local checkout equivalents:
+
+```bash
+npm run onboard:init
+npm run onboard:seed -- --name "Your Name"
+npm run onboard:install -- --target codex --dry-run
+npm run doctor
 ```
 
 Non-interactive seed example:
@@ -81,12 +98,41 @@ brainbase onboard:seed \
 Dry-run output:
 
 ```bash
-brainbase onboard:install --target codex --dry-run
-brainbase onboard:install --target claude --dry-run
-brainbase onboard:install --target codecode --dry-run
+npm run onboard:install -- --target codex --dry-run
+npm run onboard:install -- --target claude --dry-run
+npm run onboard:install -- --target codecode --dry-run
 ```
 
-The command prints a valid MCP server config. Use `--output /path/to/config.json` when you want Brainbase to write a config file.
+The command prints a valid MCP server config. Use `--output /path/to/config` when you want Brainbase to write the generated config.
+
+Codex output is TOML for `~/.codex/config.toml` style configuration:
+
+```toml
+[mcp_servers.brainbase]
+command = "/path/to/node"
+args = ["/path/to/brainbase/dist/index.js"]
+
+[mcp_servers.brainbase.env]
+BRAINBASE_PERSONAL_OS_DIR = "/path/to/personal-os"
+```
+
+Claude and CodeCode output use the standard MCP `mcpServers` JSON shape:
+
+```json
+{
+  "mcpServers": {
+    "brainbase": {
+      "command": "/path/to/node",
+      "args": ["/path/to/brainbase/dist/index.js"],
+      "env": {
+        "BRAINBASE_PERSONAL_OS_DIR": "/path/to/personal-os"
+      }
+    }
+  }
+}
+```
+
+Choose the target client's MCP config file yourself when using `--output`.
 
 ## Hosted Backends
 
@@ -107,4 +153,10 @@ npm install
 npm run build
 npm test
 npm pack --dry-run
+```
+
+Scoped package publication is configured as public. After verification, publish with:
+
+```bash
+npm publish --access public
 ```

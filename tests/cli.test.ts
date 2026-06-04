@@ -62,7 +62,20 @@ describe('onboarding CLI', () => {
     expect(os.personalKg.some((entry) => entry.text === 'Local facts first')).toBe(true);
   });
 
-  it.each(['codex', 'claude', 'codecode'])('S-3 onboard:install --target %s --dry-run prints valid MCP config', async (target) => {
+  it('S-3 onboard:install --target codex --dry-run prints valid Codex TOML config', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli(['onboard:install', '--target', 'codex', '--dir', dir, '--dry-run'], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('[mcp_servers.brainbase]');
+    expect(output.stdout()).toContain(`[mcp_servers.brainbase.env]`);
+    expect(output.stdout()).toContain(`command = ${JSON.stringify(process.execPath)}`);
+    expect(output.stdout()).toMatch(/args = \[".*src\/index\.js"\]/);
+    expect(output.stdout()).toContain(`BRAINBASE_PERSONAL_OS_DIR = ${JSON.stringify(dir)}`);
+  });
+
+  it.each(['claude', 'codecode'])('S-3 onboard:install --target %s --dry-run prints valid MCP JSON config', async (target) => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli(['onboard:install', '--target', target, '--dir', dir, '--dry-run'], output.io);

@@ -18,6 +18,8 @@ interface ParsedArgs {
   flags: Set<string>;
 }
 
+type InstallTarget = 'codex' | 'claude' | 'codecode';
+
 export async function runCli(argv = process.argv.slice(2), io: CliIo = process): Promise<number> {
   const parsed = parseArgs(argv);
 
@@ -154,34 +156,55 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function onboardInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const target = first(parsed, 'target');
-  if (!target || !['codex', 'claude', 'codecode'].includes(target)) {
+  if (!isInstallTarget(target)) {
     throw new Error('onboard:install requires --target codex|claude|codecode');
   }
 
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  const config = {
-    mcpServers: {
-      brainbase: {
-        command: process.execPath,
-        args: [fileURLToPath(new URL('./index.js', import.meta.url))],
-        env: {
-          BRAINBASE_PERSONAL_OS_DIR: dataDir
-        }
-      }
-    }
-  };
-  const payload = JSON.stringify(config, null, 2);
+  const payload = buildInstallPayload(target, dataDir);
   const outputPath = first(parsed, 'output');
 
   if (parsed.flags.has('dry-run') || !outputPath) {
-    write(io, `${payload}\n`);
+    write(io, payload);
     return 0;
   }
 
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${payload}\n`);
+  await writeFile(outputPath, payload);
   write(io, `Wrote ${target} MCP config to ${outputPath}\n`);
   return 0;
+}
+
+function isInstallTarget(value: string | undefined): value is InstallTarget {
+  return value === 'codex' || value === 'claude' || value === 'codecode';
+}
+
+function buildInstallPayload(target: InstallTarget, dataDir: string): string {
+  const server = {
+    command: process.execPath,
+    args: [fileURLToPath(new URL('./index.js', import.meta.url))],
+    env: {
+      BRAINBASE_PERSONAL_OS_DIR: dataDir
+    }
+  };
+
+  if (target === 'codex') {
+    return [
+      '[mcp_servers.brainbase]',
+      `command = ${tomlString(server.command)}`,
+      `args = [${server.args.map(tomlString).join(', ')}]`,
+      '',
+      '[mcp_servers.brainbase.env]',
+      `BRAINBASE_PERSONAL_OS_DIR = ${tomlString(dataDir)}`,
+      ''
+    ].join('\n');
+  }
+
+  return `${JSON.stringify({ mcpServers: { brainbase: server } }, null, 2)}\n`;
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
 }
 
 async function doctor(parsed: ParsedArgs, io: CliIo): Promise<number> {

@@ -16,7 +16,7 @@ The v1 product value is giving an individual a local personal SSOT that AI tools
 6. Raw notes, logs, and meeting transcripts can exist under `sources/`, but MCP responses prefer canonical SSOT data.
 7. `brainbase onboard:init` creates the minimum local SSOT structure.
 8. `brainbase onboard:seed` can seed self, work, and relationship context.
-9. `brainbase onboard:install --target codex|claude|codecode --dry-run` emits a launchable MCP config without requiring users to guess a global binary path.
+9. `brainbase onboard:install --target codex|claude|codecode --dry-run` emits a launchable client-specific MCP config without requiring users to guess a global binary path: Codex gets TOML, Claude and CodeCode get standard MCP JSON.
 10. Local MCP mode requires no secrets, Infisical, bb.unson.jp, Lightsail, AWS credentials, or hosted backend.
 11. The package tarball excludes UI/internal artifacts, raw personal data, VibePro workbench files, and tests.
 
