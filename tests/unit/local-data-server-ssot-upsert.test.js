@@ -64,7 +64,15 @@ describe('local data server SSOT additive upsert', () => {
             item({ source_path: '.codex/history.jsonl', target_table: 'memory_candidates', target_type: 'personal_kg_candidate', migration_status: 'needs_extraction' }),
             item({ source_path: 'projects/brainbase/conflict.md', migration_status: 'conflict', review_reason: 'server row has different hash' }),
             item({ source_path: 'projects/brainbase/existing.md', migration_status: 'existing_server_match' }),
-            item({ source_path: 'projects/brainbase/path-only.md', migration_status: 'existing_server_path_only' })
+            item({ source_path: 'projects/brainbase/path-only.md', migration_status: 'existing_server_path_only' }),
+            item({
+                source_path: 'sns/rules.md',
+                source_root: path.join(tmp, 'workspace'),
+                migration_status: 'needs_review',
+                review_reason: 'duplicate local source path suppressed by root priority',
+                duplicate_of_source_root: path.join(tmp, '_codex'),
+                duplicate_resolution: 'suppressed_by_root_priority'
+            })
         ]);
 
         expect(plan.operations).toHaveLength(2);
@@ -76,7 +84,16 @@ describe('local data server SSOT additive upsert', () => {
             'status:needs_extraction',
             'status:conflict',
             'status:existing_server_match',
-            'status:existing_server_path_only'
+            'status:existing_server_path_only',
+            'status:needs_review'
+        ]));
+        expect(plan.skips).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                source_path: 'sns/rules.md',
+                source_root: path.join(tmp, 'workspace'),
+                duplicate_of_source_root: path.join(tmp, '_codex'),
+                duplicate_resolution: 'suppressed_by_root_priority'
+            })
         ]));
     });
 

@@ -50,8 +50,12 @@ function buildUpsertPlan(items, options = {}) {
                 migration_status: item.migration_status,
                 target_table: item.target_table,
                 target_type: item.target_type,
+                source_root: item.source_root || null,
                 source_path: item.source_path,
-                review_reason: item.review_reason || null
+                review_reason: item.review_reason || null,
+                duplicate_of_source_root: item.duplicate_of_source_root || null,
+                duplicate_of_source_path: item.duplicate_of_source_path || null,
+                duplicate_resolution: item.duplicate_resolution || null
             });
             continue;
         }

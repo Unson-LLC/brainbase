@@ -143,7 +143,7 @@ function walkFiles(root, { extensions = FILE_EXTENSIONS, maxFileBytes = DEFAULT_
             if (entry.isDirectory()) {
                 if (SKIP_DIRS.has(entry.name)) continue;
                 stack.push(full);
-            } else if (entry.isFile() && extensions.has(path.extname(entry.name).toLowerCase())) {
+            } else if (entry.isFile() && !entry.name.startsWith('.') && extensions.has(path.extname(entry.name).toLowerCase())) {
                 const stat = fs.statSync(full);
                 if (stat.size > maxFileBytes) continue;
                 results.push(full);
@@ -160,6 +160,33 @@ function collectConversationLogFiles(homeDir) {
     const claudeProjects = path.join(homeDir, '.claude', 'projects');
     files.push(...walkFiles(claudeProjects, { extensions: new Set(['.jsonl']) }));
     return files.sort();
+}
+
+function localInventoryKey(item) {
+    return `${item.target_table}|${item.target_type}|${normalizePath(item.source_path)}`;
+}
+
+function dedupeLocalInventory(items) {
+    const seen = new Map();
+    const deduped = [];
+    for (const item of items) {
+        const key = localInventoryKey(item);
+        if (seen.has(key)) {
+            const primary = seen.get(key);
+            deduped.push({
+                ...item,
+                migration_status: 'needs_review',
+                review_reason: 'duplicate local source path suppressed by root priority',
+                duplicate_of_source_root: primary.source_root,
+                duplicate_of_source_path: primary.source_path,
+                duplicate_resolution: 'suppressed_by_root_priority'
+            });
+            continue;
+        }
+        seen.set(key, item);
+        deduped.push(item);
+    }
+    return deduped;
 }
 
 function workspaceContentRoots(workspaceRoot, contentDirs = DEFAULT_WORKSPACE_CONTENT_DIRS) {
@@ -201,7 +228,7 @@ function collectLocalInventory(options = {}) {
             items.push(buildConversationLogItem({ filePath, homeDir }));
         }
     }
-    return items;
+    return options.dedupeLocalSources === false ? items : dedupeLocalInventory(items);
 }
 
 function serverIndexKey({ target_table, target_type, source_path }) {
@@ -216,7 +243,7 @@ function compareWithServer(items, serverRows = []) {
         index.get(key).push(row);
     }
     return items.map((item) => {
-        if (item.migration_status === 'needs_extraction') return item;
+        if (item.migration_status === 'needs_extraction' || item.migration_status === 'needs_review') return item;
         const matches = index.get(serverIndexKey(item)) || [];
         if (!matches.length) return { ...item, migration_status: 'local_only' };
         const exact = matches.find((row) => row.content_hash && row.content_hash === item.content_hash);
@@ -355,6 +382,7 @@ export {
     classifyCodexRelPath,
     collectLocalInventory,
     compareWithServer,
+    dedupeLocalInventory,
     loadServerRows,
     parseArgs,
     serverIndexKey,

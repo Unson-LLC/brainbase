@@ -44,6 +44,8 @@ type LocalInventoryItem = {
 - **INV-8**: `wiki/**/*.md` targets `wiki_pages`.
 - **INV-9**: Server comparison can mark exact hash matches, path-only matches, conflicts, or local-only items.
 - **INV-10**: Conversation/cognitive memory promotion remains out of scope for inventory; promoted Graph writes require a separate gate.
+- **INV-11**: When multiple local roots produce the same `target_table|target_type|source_path`, inventory keeps the first root in collection priority order as the comparable item and emits lower-priority duplicates as `needs_review`. The default priority is `_codex` before workspace content, so declared `_codex` SSOT files are not turned into conflicts by older workspace duplicates, and the suppressed duplicates remain visible to operators.
+- **INV-12**: Hidden dotfiles under document roots are not indexed as Graph documents. Token/cache files such as `.x_oauth2_token.json` must not become `graph_entities:document` candidates.
 
 ## Scenarios
 
@@ -77,9 +79,18 @@ type LocalInventoryItem = {
 - when: `compareWithServer` runs
 - then: status is `existing_server_path_only`.
 
+### S-6: duplicate local root
+
+- given: `_codex/sns/rules.md` and workspace-root `sns/rules.md` both exist with different content
+- when: inventory runs
+- then: the `_codex` item is emitted as the comparable `graph_entities:document:sns/rules.md` item
+- and: the workspace-root duplicate is emitted with `migration_status=needs_review`, `duplicate_resolution=suppressed_by_root_priority`, and the primary `source_root`.
+
 ## Verification
 
 | Clause | Test |
 |---|---|
 | INV-2, INV-5〜8, S-1〜3 | `tests/unit/local-data-server-ssot-inventory.test.js` |
 | INV-1, INV-3, INV-9, S-4〜5 | `tests/unit/local-data-server-ssot-inventory.test.js` |
+| INV-11, S-6 | `tests/unit/local-data-server-ssot-inventory.test.js` |
+| INV-12 | `tests/unit/local-data-server-ssot-inventory.test.js` |
