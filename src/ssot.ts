@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
@@ -57,6 +57,11 @@ const decisionSchema: z.ZodType<DecisionRecord> = z.object({
 export async function initializePersonalOs(dataDir: string): Promise<void> {
   await mkdir(dataDir, { recursive: true });
   await mkdir(join(dataDir, 'sources'), { recursive: true });
+  await mkdir(join(dataDir, 'sources', 'gmail'), { recursive: true });
+  await mkdir(join(dataDir, 'sources', 'calendar'), { recursive: true });
+  await mkdir(join(dataDir, 'sources', 'drive'), { recursive: true });
+  await mkdir(join(dataDir, 'sources', 'tasks'), { recursive: true });
+  await mkdir(join(dataDir, 'candidates'), { recursive: true });
   await mkdir(join(dataDir, 'schemas'), { recursive: true });
   await writeJsonIfMissing(join(dataDir, 'graph.json'), emptyGraph);
   await writeJsonIfMissing(join(dataDir, 'relationships.json'), emptyRelationships);
@@ -150,9 +155,21 @@ async function readJsonl<T>(filePath: string, schema: z.ZodType<T>, label: strin
 }
 
 async function countSources(dataDir: string): Promise<number> {
+  return countSourceFiles(join(dataDir, 'sources'));
+}
+
+async function countSourceFiles(sourceDir: string): Promise<number> {
   try {
-    const entries = await readdir(join(dataDir, 'sources'));
-    return entries.filter((entry) => !entry.startsWith('.')).length;
+    const entries = await readdir(sourceDir);
+    const counts = await Promise.all(entries.filter((entry) => !entry.startsWith('.')).map(async (entry) => {
+      const entryPath = join(sourceDir, entry);
+      const entryStat = await stat(entryPath);
+      if (entryStat.isDirectory()) {
+        return countSourceFiles(entryPath);
+      }
+      return entryStat.isFile() ? 1 : 0;
+    }));
+    return counts.reduce((sum, count) => sum + count, 0);
   } catch {
     return 0;
   }

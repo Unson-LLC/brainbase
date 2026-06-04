@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -39,6 +39,12 @@ describe('onboarding CLI', () => {
     expect(code).toBe(0);
     await expect(readFile(join(dir, 'graph.json'), 'utf8')).resolves.toContain('"version": 1');
     await expect(readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).resolves.toBe('');
+    await expect(access(join(dir, 'sources', 'gmail'))).resolves.toBeUndefined();
+    await expect(access(join(dir, 'sources', 'calendar'))).resolves.toBeUndefined();
+    await expect(access(join(dir, 'sources', 'drive'))).resolves.toBeUndefined();
+    await expect(access(join(dir, 'sources', 'tasks'))).resolves.toBeUndefined();
+    await expect(access(join(dir, 'candidates'))).resolves.toBeUndefined();
+    expect((await loadPersonalOs(dir)).sourceCount).toBe(0);
     expect(output.stdout()).toContain('Initialized');
   });
 
@@ -110,6 +116,79 @@ describe('onboarding CLI', () => {
 
     expect(code).toBe(1);
     expect(output.stderr()).toContain('onboard:install requires --target codex|claude|codecode');
+  });
+
+  it('S-9 onboard:agent --format json prints the Codex and Claude Code interview protocol', async () => {
+    const output = capture();
+    const code = await runCli(['onboard:agent', '--format', 'json'], output.io);
+
+    expect(code).toBe(0);
+    const protocol = JSON.parse(output.stdout());
+    expect(protocol.goal).toContain('Codex');
+    expect(protocol.interviewSections.map((section: { id: string }) => section.id)).toEqual([
+      'email',
+      'calendar',
+      'drive',
+      'tasks',
+      'permissions',
+      'approval'
+    ]);
+    expect(protocol.safetyRules.join('\n')).toContain('Do not ask the user to paste OAuth tokens');
+    expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:recommend');
+  });
+
+  it('S-10 onboard:recommend maps Google tools to metadata-first GoG source staging', async () => {
+    const output = capture();
+    const code = await runCli([
+      'onboard:recommend',
+      '--email', 'gmail',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--tasks', 'notion',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const recommendations = JSON.parse(output.stdout()).recommendations;
+    expect(recommendations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        area: 'email',
+        recommendation: expect.stringContaining('GoG Gmail'),
+        sourcePath: 'sources/gmail/threads.jsonl',
+        importMode: 'metadata-first'
+      }),
+      expect.objectContaining({
+        area: 'calendar',
+        recommendation: expect.stringContaining('GoG Google Calendar'),
+        sourcePath: 'sources/calendar/events.jsonl',
+        importMode: 'metadata-first'
+      }),
+      expect.objectContaining({
+        area: 'drive',
+        recommendation: expect.stringContaining('GoG Drive'),
+        sourcePath: 'sources/drive/files.jsonl',
+        importMode: 'metadata-first'
+      }),
+      expect.objectContaining({
+        area: 'tasks',
+        recommendation: expect.stringContaining('Notion'),
+        sourcePath: 'sources/tasks/tasks.jsonl',
+        importMode: 'export-first'
+      })
+    ]));
+  });
+
+  it('S-10 onboard:recommend handles no task tool deterministically', async () => {
+    const output = capture();
+    const code = await runCli(['onboard:recommend', '--tasks', 'none', '--format', 'json'], output.io);
+
+    expect(code).toBe(0);
+    const tasks = JSON.parse(output.stdout()).recommendations.find((recommendation: { area: string }) => recommendation.area === 'tasks');
+    expect(tasks).toMatchObject({
+      area: 'tasks',
+      input: 'none',
+      importMode: 'not-configured'
+    });
   });
 
   it('S-2 fails loudly for malformed relationship seeds', async () => {
