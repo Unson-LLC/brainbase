@@ -355,6 +355,7 @@ export {
     classifyCodexRelPath,
     collectLocalInventory,
     compareWithServer,
+    loadServerRows,
     parseArgs,
     serverIndexKey,
     sha256,

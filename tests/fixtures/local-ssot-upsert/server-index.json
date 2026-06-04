@@ -1,0 +1,23 @@
+[
+  {
+    "target_id": "server-doc-1",
+    "target_table": "graph_entities",
+    "target_type": "document",
+    "source_path": "projects/brainbase/existing.md",
+    "content_hash": "7f270166bf253500aca37833e78862ebf2e7094bee38b2e16d4369fe2e945cb5"
+  },
+  {
+    "target_id": "server-doc-conflict",
+    "target_table": "graph_entities",
+    "target_type": "document",
+    "source_path": "projects/brainbase/conflict.md",
+    "content_hash": "different-server-hash"
+  },
+  {
+    "target_id": "server-doc-path-only",
+    "target_table": "graph_entities",
+    "target_type": "document",
+    "source_path": "projects/brainbase/path-only.md",
+    "content_hash": null
+  }
+]
