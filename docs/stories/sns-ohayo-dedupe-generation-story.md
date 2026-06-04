@@ -5,6 +5,10 @@ status: active
 date: 2026-05-23
 related_specs:
   - SPEC-sns-ohayo-dedupe-generation
+architecture_docs:
+  - docs/architecture/ADR-011-sns-posting-ledger-boundary.md
+  - docs/architecture/sns-posted-content-dedupe-architecture.md
+  - docs/architecture/sns-ohayo-ledger-import-fail-loud-architecture.md
 ---
 
 # Story: SNS ohayo 重複回避生成
@@ -41,4 +45,4 @@ The value of Brainbase SNS operations is that posts come from the owner's Person
 
 ## Architecture Decision
 
-ADR不要。既存のSNS generation contextと`/ohayo` review-pack生成パイプライン内で、recent historyと決定的なpre-import dedupeを追加する変更に限定する。DB schema、公開API、SNS cockpit UI、Ledger duplicate guardの境界は変えない。
+ADR不要: 既存のSNS generation contextと`/ohayo` review-pack生成パイプライン内で、recent historyと決定的なpre-import dedupeを追加する変更に限定する。DB schema、公開API、SNS cockpit UI、Ledger duplicate guardの境界は変えない。

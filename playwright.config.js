@@ -8,7 +8,12 @@ const BASE_URL = process.env.BRAINBASE_BASE_URL
 const REUSE_EXISTING_SERVER = process.env.BRAINBASE_E2E_REUSE_SERVER === 'true';
 
 export default defineConfig({
-    testDir: './tests/e2e',
+    testDir: '.',
+    testMatch: [
+        'tests/e2e/**/*.spec.@(js|ts)',
+        'tests/e2e/**/*.test.@(js|ts)',
+        'e2e/**/*.spec.@(js|ts)'
+    ],
     outputDir: 'var/test-results',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
