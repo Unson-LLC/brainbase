@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+.vibepro/
 .DS_Store
 *.tgz
 .brainbase-test/
+.vibepro/

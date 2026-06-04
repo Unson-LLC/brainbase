@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 describe('local SSOT loader', () => {
-  it('creates the minimum canonical local files', async () => {
+  it('S-1 C-5 creates the minimum canonical local files', async () => {
     const dir = await tempDir();
     await initializePersonalOs(dir);
     const os = await loadPersonalOs(dir);
@@ -29,7 +29,7 @@ describe('local SSOT loader', () => {
     expect(os.decisions).toEqual([]);
   });
 
-  it('fails loudly when a canonical file is malformed', async () => {
+  it('INV-3 fails loudly when a canonical file is malformed', async () => {
     const dir = await tempDir();
     await initializePersonalOs(dir);
     await writeFile(join(dir, 'graph.json'), '{"version":2,"entities":[]}');
@@ -37,7 +37,7 @@ describe('local SSOT loader', () => {
     await expect(loadPersonalOs(dir)).rejects.toThrow(/Failed to read canonical SSOT file|Invalid literal value/);
   });
 
-  it('loads canonical Personal KG even when raw sources disagree', async () => {
+  it('INV-2 AP-2 loads canonical Personal KG even when raw sources disagree', async () => {
     const dir = await tempDir();
     await createFixturePersonalOs(dir);
     const os = await loadPersonalOs(dir);

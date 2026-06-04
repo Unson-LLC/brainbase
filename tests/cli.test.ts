@@ -31,7 +31,7 @@ function capture() {
 }
 
 describe('onboarding CLI', () => {
-  it('onboard:init creates the minimum files', async () => {
+  it('S-1 onboard:init creates the minimum files', async () => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli(['onboard:init', '--dir', dir], output.io);
@@ -42,7 +42,7 @@ describe('onboarding CLI', () => {
     expect(output.stdout()).toContain('Initialized');
   });
 
-  it('onboard:seed updates self, work, and relationships', async () => {
+  it('S-2 onboard:seed updates self, work, and relationships', async () => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli([
@@ -62,7 +62,7 @@ describe('onboarding CLI', () => {
     expect(os.personalKg.some((entry) => entry.text === 'Local facts first')).toBe(true);
   });
 
-  it.each(['codex', 'claude', 'codecode'])('onboard:install --target %s --dry-run prints valid MCP config', async (target) => {
+  it.each(['codex', 'claude', 'codecode'])('S-3 onboard:install --target %s --dry-run prints valid MCP config', async (target) => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli(['onboard:install', '--target', target, '--dir', dir, '--dry-run'], output.io);

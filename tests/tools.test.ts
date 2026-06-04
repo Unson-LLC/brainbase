@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 describe('MCP tool functions', () => {
-  it('combines self, work, relationships, and decisions for get_context', async () => {
+  it('S-5 combines self, work, relationships, and decisions for get_context', async () => {
     const os = await fixture();
     const context = getContext(os);
 
@@ -33,7 +33,7 @@ describe('MCP tool functions', () => {
     expect(JSON.stringify(context)).toContain('local personal SSOT only');
   });
 
-  it('search_personal_kg searches only owner-local JSONL entries', async () => {
+  it('S-6 search_personal_kg searches only owner-local JSONL entries', async () => {
     const os = await fixture();
     const results = searchPersonalKg(os, 'Otawara local MCP');
 
@@ -42,7 +42,7 @@ describe('MCP tool functions', () => {
     expect(results.map((result) => result.text).join('\n')).not.toContain('Otawara');
   });
 
-  it('search crosses graph and Personal KG while preferring canonical data over sources', async () => {
+  it('INV-2 search crosses graph and Personal KG while preferring canonical data over sources', async () => {
     const os = await fixture();
     const results = searchAll(os, 'hosted server canonical', 10);
 
@@ -50,7 +50,7 @@ describe('MCP tool functions', () => {
     expect(results.every((result) => !result.text.includes('Remote hosted server should be preferred'))).toBe(true);
   });
 
-  it('reports onboarding status', async () => {
+  it('C-6 reports onboarding status', async () => {
     const os = await fixture();
     const status = onboardingStatus(os);
 

@@ -21,7 +21,7 @@ afterEach(async () => {
 });
 
 describe('MCP contract', () => {
-  it('lists exactly the v1 tools', () => {
+  it('C-6 lists exactly the v1 tools', () => {
     expect(toolDefinitions.map((tool) => tool.name)).toEqual([
       'get_context',
       'list_entities',
@@ -31,7 +31,7 @@ describe('MCP contract', () => {
     ]);
   });
 
-  it('lists v1 tools through stdio server startup', async () => {
+  it('S-4 lists v1 tools through stdio server startup', async () => {
     const client = new Client({
       name: 'brainbase-contract-test',
       version: '0.0.0'
@@ -56,7 +56,7 @@ describe('MCP contract', () => {
     }
   });
 
-  it('returns deterministic JSON-compatible tool results from fixture SSOT', async () => {
+  it('C-6 returns deterministic JSON-compatible tool results from fixture SSOT', async () => {
     const dataDir = await fixtureDir();
 
     await expect(callBrainbaseTool('get_context', { dataDir })).resolves.toMatchObject({
