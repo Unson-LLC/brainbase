@@ -380,6 +380,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
 export {
     classifyCodexRelPath,
+    collectConversationLogFiles,
     collectLocalInventory,
     compareWithServer,
     dedupeLocalInventory,

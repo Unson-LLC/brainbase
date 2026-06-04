@@ -66,6 +66,12 @@ function toJstIso(value) {
     return `${shifted.toISOString().replace('Z', '')}+09:00`;
 }
 
+function toJstDate(value) {
+    const date = new Date(value);
+    const shifted = new Date(date.getTime() + JST_OFFSET_MS);
+    return shifted.toISOString().slice(0, 10);
+}
+
 function sha12(value) {
     return crypto.createHash('sha1').update(value).digest('hex').slice(0, 12);
 }
@@ -192,6 +198,51 @@ function collectConversationMessages({ date, homeDir = os.homedir(), includeCode
         ...(includeClaudeCode ? normalizeClaudeCodeMessages({ date, homeDir }) : [])
     ];
     return withEventIds(messages);
+}
+
+function collectConversationMessagesByDate({ homeDir = os.homedir(), includeCodex = true, includeClaudeCode = true } = {}) {
+    const messages = [];
+    if (includeCodex) {
+        const historyPath = path.join(homeDir, '.codex', 'history.jsonl');
+        for (const record of readJsonLines(historyPath)) {
+            if (!Number.isFinite(Number(record.ts))) continue;
+            const text = normalizeSpaces(record.text);
+            if (!text) continue;
+            const utcMs = Number(record.ts) * 1000;
+            messages.push({
+                tool: 'codex',
+                session_id: record.session_id || null,
+                ts: toJstIso(utcMs),
+                text
+            });
+        }
+    }
+    if (includeClaudeCode) {
+        const projectsDir = path.join(homeDir, '.claude', 'projects');
+        for (const record of walkJsonlFiles(projectsDir).flatMap((filePath) => readJsonLines(filePath))) {
+            if (record.type !== 'user' || !record.message || typeof record.message !== 'object') continue;
+            if (!record.timestamp) continue;
+            const utcMs = Date.parse(record.timestamp);
+            if (!Number.isFinite(utcMs)) continue;
+            const text = normalizeSpaces(textFromClaudeContent(record.message.content));
+            if (!text || isGeneratedClaudeUserText(text)) continue;
+            messages.push({
+                tool: 'claude_code',
+                session_id: record.sessionId || null,
+                cwd: record.cwd || null,
+                ts: toJstIso(utcMs),
+                text
+            });
+        }
+    }
+
+    const grouped = {};
+    for (const message of withEventIds(messages)) {
+        const date = toJstDate(Date.parse(message.ts));
+        grouped[date] = grouped[date] || [];
+        grouped[date].push(message);
+    }
+    return Object.fromEntries(Object.entries(grouped).sort(([left], [right]) => left.localeCompare(right)));
 }
 
 function loadInputMessages(inputPath) {
@@ -600,9 +651,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
 export {
     collectConversationMessages,
+    collectConversationMessagesByDate,
     extractConversationPersonalKgCandidates,
     loadInputMessages,
     normalizeClaudeCodeMessages,
     normalizeCodexMessages,
-    parseArgs
+    parseArgs,
+    toJstDate
 };
