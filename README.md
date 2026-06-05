@@ -196,6 +196,10 @@ Installed package commands:
 brainbase onboard:init
 brainbase onboard:seed
 brainbase onboard:install --target codex --dry-run
+brainbase onboard:import --source gmail --from /tmp/gmail.json
+brainbase onboard:extract --self-email you@example.com --write
+brainbase onboard:apply --from <candidate-file> --select <id> --write
+brainbase onboard:routines --target codex --cwd /path/to/brainbase
 brainbase doctor
 ```
 
@@ -207,6 +211,10 @@ node dist/cli.js onboard:agent
 node dist/cli.js onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "<notes-folder>" --tasks scattered-calendar-notes --inactive-task-tool notion
 node dist/cli.js onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion
 node dist/cli.js onboard:candidates --write --name "Your Name" --project "Current project"
+node dist/cli.js onboard:import --source gmail --from /tmp/gmail.json
+node dist/cli.js onboard:extract --self-email you@example.com --write
+node dist/cli.js onboard:apply --from <candidate-file> --select <id> --write
+node dist/cli.js onboard:routines --target codex --cwd "$(pwd)"
 node dist/cli.js onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion
 npm run onboard:init
 npm run onboard:seed -- --name "Your Name"
