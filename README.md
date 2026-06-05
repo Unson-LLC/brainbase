@@ -36,6 +36,24 @@ brainbase onboard:diagnose-sources \
 
 Gmail, Google Calendar, and Google Drive diagnosis uses local GoG-style collection when available. The first pass should be metadata-first. Drive collection requires explicit folder allowlists. If GoG is missing, diagnosis reports `needs_setup` instead of pretending import is ready.
 
+For a Google Workspace local-first adopter with an always-on SSH-accessible Mac mini, Workspace mail/calendar/drive, a secondary Gmail account, local files, and tasks scattered across Calendar and notes, generate the setup plan first:
+
+```bash
+brainbase onboard:plan \
+  --profile google-workspace-local \
+  --host mac-mini \
+  --email google-workspace \
+  --secondary-email gmail \
+  --calendar google-calendar \
+  --drive google-drive \
+  --drive-folder "<allowed-google-drive-folder-id>" \
+  --local-folder "<allowed-local-notes-folder>" \
+  --tasks scattered-calendar-notes \
+  --inactive-task-tool notion
+```
+
+This plan treats the Mac mini as the user's local MCP runtime host, not as a hosted Brainbase backend or server-operations handoff. Google Workspace and Gmail are staged through read-only metadata-first GoG steps. Google Drive and local files are allowlist-first; do not scan the whole Drive or home directory. If Notion was tried and abandoned, keep it as inactive context and extract task candidates from Google Calendar and approved local notes instead.
+
 Then let the coding agent draft candidate facts from the interview. Candidate files are review material only; they do not count as canonical memory:
 
 ```bash
@@ -146,6 +164,7 @@ Local checkout equivalents:
 ```bash
 npm run build
 node dist/cli.js onboard:agent
+node dist/cli.js onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "<notes-folder>" --tasks scattered-calendar-notes --inactive-task-tool notion
 node dist/cli.js onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion
 node dist/cli.js onboard:candidates --write --name "Your Name" --project "Current project"
 node dist/cli.js onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion

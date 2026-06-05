@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { onboardingStatus } from './tools.js';
-import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderSourceDiagnosis } from './onboarding.js';
+import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis } from './onboarding.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -39,6 +39,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardRecommend(parsed, io);
       case 'onboard:diagnose-sources':
         return await onboardDiagnoseSources(parsed, io);
+      case 'onboard:plan':
+        return await onboardPlan(parsed, io);
       case 'onboard:candidates':
         return await onboardCandidates(parsed, io);
       case 'doctor':
@@ -221,6 +223,23 @@ async function onboardDiagnoseSources(parsed: ParsedArgs, io: CliIo): Promise<nu
   return 0;
 }
 
+async function onboardPlan(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  write(io, renderLocalOnboardingPlan({
+    profile: first(parsed, 'profile'),
+    host: first(parsed, 'host'),
+    email: first(parsed, 'email'),
+    secondaryEmails: parsed.values.get('secondary-email') ?? [],
+    calendar: first(parsed, 'calendar'),
+    drive: first(parsed, 'drive'),
+    driveFolders: parsed.values.get('drive-folder') ?? [],
+    localFolders: parsed.values.get('local-folder') ?? [],
+    tasks: first(parsed, 'tasks'),
+    inactiveTaskTools: parsed.values.get('inactive-task-tool') ?? []
+  }, format));
+  return 0;
+}
+
 async function onboardCandidates(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const format = parseOnboardingFormat(first(parsed, 'format'));
   const dataDir = resolveDataDir(first(parsed, 'dir'));
@@ -382,6 +401,7 @@ function usage(): string {
   brainbase onboard:agent [--format markdown|json]
   brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
   brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
+  brainbase onboard:plan [--profile google-workspace-local] [--host value] [--email value] [--secondary-email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--inactive-task-tool value] [--format markdown|json]
   brainbase onboard:candidates [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"] [--write] [--format markdown|json]
   brainbase doctor [--dir path]
 `;
