@@ -364,6 +364,85 @@ describe('onboarding CLI', () => {
     expect(JSON.parse(doctorOutput.stdout()).missing).toEqual(['self', 'work', 'relationships']);
   });
 
+  it('S-16 onboard:plan maps Google Workspace local answers into a no-write setup plan', async () => {
+    const output = capture();
+    const code = await runCli([
+      'onboard:plan',
+      '--profile', 'google-workspace-local',
+      '--host', 'mac-mini',
+      '--email', 'google-workspace',
+      '--secondary-email', 'gmail',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--drive-folder', 'folder-123',
+      '--local-folder', '/Users/owner/Notes',
+      '--tasks', 'scattered-calendar-notes',
+      '--inactive-task-tool', 'notion',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const plan = JSON.parse(output.stdout());
+    expect(plan.profile).toBe('google-workspace-local');
+    expect(plan.canonicalWrites).toBe(false);
+    expect(plan.host).toMatchObject({
+      input: 'mac-mini',
+      role: expect.stringContaining('local Brainbase MCP runtime host')
+    });
+    expect(plan.host.boundary).toContain('not a hosted backend');
+    expect(plan.safetyRules.join('\n')).toContain('bb.unson.jp sync are out of scope');
+
+    const email = plan.sources.find((source: { area: string }) => source.area === 'email');
+    expect(email).toMatchObject({
+      collector: 'gog gmail',
+      importMode: 'metadata-first',
+      sourcePath: 'sources/gmail/threads.jsonl'
+    });
+    expect(email.accounts).toEqual(['<google-workspace-account>', '<gmail-account>']);
+
+    const drive = plan.sources.find((source: { area: string }) => source.area === 'drive');
+    expect(drive.allowlists).toEqual(['folder-123']);
+    expect(drive.notes.join('\n')).toContain('Do not scan the whole Drive');
+
+    const localFiles = plan.sources.find((source: { area: string }) => source.area === 'local_files');
+    expect(localFiles.allowlists).toEqual(['/Users/owner/Notes']);
+    expect(localFiles.notes.join('\n')).toContain('Do not scan the full home directory');
+
+    const tasks = plan.sources.find((source: { area: string }) => source.area === 'tasks');
+    expect(tasks.collector).toBe('calendar-and-notes-candidates');
+    expect(tasks.notes.join('\n')).toContain('Inactive task tools: notion');
+    expect(tasks.notes.join('\n')).toContain('candidate inputs');
+
+    expect(plan.nextCommands.join('\n')).toContain('brainbase onboard:diagnose-sources');
+    expect(plan.nextCommands.join('\n')).toContain('brainbase onboard:candidates');
+    expect(plan.nextCommands.join('\n')).toContain('brainbase onboard:install');
+    expect(plan.nextCommands.join('\n')).toContain('brainbase doctor');
+  });
+
+  it('S-17 onboard:plan markdown surfaces missing Drive and local allowlists', async () => {
+    const output = capture();
+    const code = await runCli([
+      'onboard:plan',
+      '--profile', 'google-workspace-local',
+      '--host', 'mac-mini',
+      '--email', 'google-workspace',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--tasks', 'scattered-calendar-notes',
+      '--inactive-task-tool', 'notion'
+    ], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('# Brainbase Local Onboarding Plan');
+    expect(output.stdout()).toContain('- Input: mac-mini');
+    expect(output.stdout()).toContain('not a hosted backend');
+    expect(output.stdout()).toContain('At least one allowed Google Drive folder id');
+    expect(output.stdout()).toContain('At least one allowed local folder for notes or work files');
+    expect(output.stdout()).toContain('Allowed local notes folder if notes should be included');
+    expect(output.stdout()).toContain('Inactive task tools: notion');
+    expect(output.stdout()).toContain('gog drive ls --parent <allowed-google-drive-folder-id>');
+  });
+
   it('S-2 fails loudly for malformed relationship seeds', async () => {
     const dir = await tempDir();
     const output = capture();

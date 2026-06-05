@@ -95,6 +95,49 @@ export interface CandidateDraftSet {
   nextCommands: string[];
 }
 
+export interface LocalOnboardingPlanInput extends RecommendationInput {
+  profile?: string;
+  host?: string;
+  secondaryEmails?: string[];
+  driveFolders?: string[];
+  localFolders?: string[];
+  inactiveTaskTools?: string[];
+}
+
+export interface LocalOnboardingPlanStep {
+  id: string;
+  title: string;
+  commands: string[];
+  notes: string[];
+}
+
+export interface LocalOnboardingPlanSource {
+  area: SourceArea | 'local_files';
+  input: string;
+  collector: string;
+  importMode: ConnectorRecommendation['importMode'];
+  sourcePath: string;
+  accounts: string[];
+  allowlists: string[];
+  requiredUserInput: string[];
+  notes: string[];
+}
+
+export interface LocalOnboardingPlan {
+  goal: string;
+  profile: string;
+  canonicalWrites: false;
+  host: {
+    input: string;
+    role: string;
+    boundary: string;
+  };
+  sources: LocalOnboardingPlanSource[];
+  setupSteps: LocalOnboardingPlanStep[];
+  safetyRules: string[];
+  nextCommands: string[];
+}
+
 export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
   return {
     goal: 'Help the user build a local Brainbase Personal OS that Codex, Claude Code, or CodeCode can read through MCP.',
@@ -252,6 +295,176 @@ export function buildCandidateDrafts(input: CandidateInput): CandidateDraftSet {
   };
 }
 
+export function buildLocalOnboardingPlan(input: LocalOnboardingPlanInput): LocalOnboardingPlan {
+  const profile = input.profile || 'google-workspace-local';
+  if (profile !== 'google-workspace-local') {
+    throw new Error('profile must be google-workspace-local');
+  }
+
+  const host = input.host || 'local-machine';
+  const email = normalizeInput(input.email || 'google-workspace');
+  const calendar = normalizeInput(input.calendar || 'google-calendar');
+  const drive = normalizeInput(input.drive || 'google-drive');
+  const tasks = normalizeInput(input.tasks || 'scattered-calendar-notes');
+  const secondaryEmails = (input.secondaryEmails ?? []).map(normalizeInput).filter((value) => !isNone(value));
+  const driveFolders = input.driveFolders ?? [];
+  const localFolders = input.localFolders ?? [];
+  const inactiveTaskTools = (input.inactiveTaskTools ?? []).map(normalizeInput).filter((value) => !isNone(value));
+  const workspaceAccount = accountPlaceholder(email, 'google-workspace-account');
+  const secondaryAccounts = secondaryEmails.map((value, index) => accountPlaceholder(value, index === 0 ? 'secondary-gmail-account' : `secondary-email-${index + 1}`));
+
+  const sources: LocalOnboardingPlanSource[] = [
+    {
+      area: 'email',
+      input: [email, ...secondaryEmails].join(', '),
+      collector: 'gog gmail',
+      importMode: 'metadata-first',
+      sourcePath: 'sources/gmail/threads.jsonl',
+      accounts: [workspaceAccount, ...secondaryAccounts],
+      allowlists: [],
+      requiredUserInput: ['Workspace mail account', ...(secondaryAccounts.length > 0 ? ['Secondary Gmail account authorization'] : [])],
+      notes: [
+        'Start with thread metadata, participants, subjects, dates, labels, URLs, and snippets.',
+        'Body excerpts require explicit user approval.'
+      ]
+    },
+    {
+      area: 'calendar',
+      input: calendar,
+      collector: 'gog calendar',
+      importMode: 'metadata-first',
+      sourcePath: 'sources/calendar/events.jsonl',
+      accounts: [workspaceAccount],
+      allowlists: ['primary', '<additional-allowed-calendar-id>'],
+      requiredUserInput: ['Date range', 'Private calendar exclusion decision'],
+      notes: [
+        'Use Google Calendar as both schedule context and one source of scattered task candidates.',
+        'Descriptions and private event details are opt-in.'
+      ]
+    },
+    {
+      area: 'drive',
+      input: drive,
+      collector: 'gog drive',
+      importMode: 'metadata-first',
+      sourcePath: 'sources/drive/files.jsonl',
+      accounts: [workspaceAccount],
+      allowlists: driveFolders,
+      requiredUserInput: driveFolders.length === 0 ? ['At least one allowed Google Drive folder id'] : [],
+      notes: [
+        'List metadata for explicitly allowed Drive folders only.',
+        'Do not scan the whole Drive.',
+        'Downloads are selected-file only after review.'
+      ]
+    },
+    {
+      area: 'local_files',
+      input: localFolders.length > 0 ? localFolders.join(', ') : 'none',
+      collector: 'manual local metadata index',
+      importMode: 'manual',
+      sourcePath: 'sources/drive/local-files.jsonl',
+      accounts: [],
+      allowlists: localFolders,
+      requiredUserInput: localFolders.length === 0 ? ['At least one allowed local folder for notes or work files'] : [],
+      notes: [
+        'Use explicit local folder allowlists only.',
+        'Do not scan the full home directory.',
+        'Local notes are candidate extraction input until reviewed.'
+      ]
+    },
+    {
+      area: 'tasks',
+      input: tasks,
+      collector: 'calendar-and-notes-candidates',
+      importMode: 'manual',
+      sourcePath: 'sources/tasks/tasks.jsonl',
+      accounts: [workspaceAccount],
+      allowlists: ['calendar events', ...localFolders],
+      requiredUserInput: localFolders.length === 0 ? ['Allowed local notes folder if notes should be included'] : [],
+      notes: [
+        'Treat Google Calendar entries and local notes as task candidate inputs.',
+        'Do not require inactive tools as connectors.',
+        ...(inactiveTaskTools.length > 0 ? [`Inactive task tools: ${inactiveTaskTools.join(', ')}`] : []),
+        'Promote only reviewed tasks, relationships, decisions, and personal KG facts.'
+      ]
+    }
+  ];
+
+  const driveFolderArg = driveFolders.length > 0
+    ? driveFolders.map((folder) => `--drive-folder ${quoteShell(folder)}`).join(' ')
+    : '--drive-folder "<allowed-google-drive-folder-id>"';
+
+  return {
+    goal: 'Turn a Google Workspace local onboarding interview into a safe Brainbase MCP setup plan.',
+    profile,
+    canonicalWrites: false,
+    host: {
+      input: host,
+      role: 'local Brainbase MCP runtime host reachable by the owner over SSH',
+      boundary: 'This is not a hosted backend, server operations handoff, Lightsail sync, bb.unson.jp sync, or Infisical-managed deployment.'
+    },
+    sources,
+    setupSteps: [
+      {
+        id: 'runtime-host',
+        title: 'Prepare the local runtime host',
+        commands: [
+          'ssh <mac-mini-host>',
+          'git clone https://github.com/Unson-LLC/brainbase.git',
+          'cd brainbase && npm install && npm run build'
+        ],
+        notes: [
+          'Run Brainbase MCP on the owner-controlled Mac mini or local machine.',
+          'Keep the Personal OS under ~/.brainbase/personal-os/.'
+        ]
+      },
+      {
+        id: 'google-workspace-readonly',
+        title: 'Authorize Google Workspace read-only collectors',
+        commands: [
+          `gog auth add ${workspaceAccount} --services gmail,calendar,drive`,
+          ...secondaryAccounts.map((account) => `gog auth add ${account} --services gmail`),
+          `gog gmail search "newer_than:30d" --account ${workspaceAccount} --json`,
+          `gog calendar events primary --account ${workspaceAccount} --from <from-date> --to <to-date> --json`,
+          ...(driveFolders.length > 0
+            ? driveFolders.map((folder) => `gog drive ls --parent ${folder} --account ${workspaceAccount} --json`)
+            : [`gog drive ls --parent <allowed-google-drive-folder-id> --account ${workspaceAccount} --json`])
+        ],
+        notes: [
+          'Use metadata-first collection.',
+          'Do not paste OAuth credentials or tokens into chat.'
+        ]
+      },
+      {
+        id: 'candidate-extraction',
+        title: 'Draft candidates before canonical promotion',
+        commands: [
+          'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
+          'brainbase doctor'
+        ],
+        notes: [
+          'Review Calendar and local note task candidates with the user.',
+          'Use onboard:seed only after approval.'
+        ]
+      }
+    ],
+    safetyRules: [
+      'No canonical SSOT writes happen during planning.',
+      'Do not paste OAuth tokens, passwords, API keys, or refresh tokens into chat.',
+      'Google source collection is metadata-first and read-only in the first pass.',
+      'Drive and local file collection are allowlist-first.',
+      'Abandoned or inactive task tools are context, not required connectors.',
+      'Hosted backend, Infisical, Unson API, Lightsail, and bb.unson.jp sync are out of scope for v1.'
+    ],
+    nextCommands: [
+      `brainbase onboard:diagnose-sources --email ${quoteShell(email)} --calendar ${quoteShell(calendar)} --drive ${quoteShell(drive)} ${driveFolderArg} --tasks ${quoteShell(tasks)}`,
+      'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
+      'brainbase onboard:install --target codex --dry-run',
+      'brainbase doctor'
+    ]
+  };
+}
+
 export function buildConnectorRecommendations(input: RecommendationInput): ConnectorRecommendationSet {
   const recommendations = [
     recommendEmail(input.email),
@@ -401,6 +614,60 @@ export function renderCandidateDrafts(input: CandidateInput, format: OnboardingF
     '',
     '## Next Commands',
     ...candidateSet.nextCommands.map((command) => `- ${command}`),
+    ''
+  ].join('\n');
+}
+
+export function renderLocalOnboardingPlan(input: LocalOnboardingPlanInput, format: OnboardingFormat): string {
+  const plan = buildLocalOnboardingPlan(input);
+  if (format === 'json') {
+    return `${JSON.stringify(plan, null, 2)}\n`;
+  }
+
+  return [
+    '# Brainbase Local Onboarding Plan',
+    '',
+    plan.goal,
+    '',
+    `- Profile: ${plan.profile}`,
+    `- Canonical writes: ${String(plan.canonicalWrites)}`,
+    '',
+    '## Runtime Host',
+    `- Input: ${plan.host.input}`,
+    `- Role: ${plan.host.role}`,
+    `- Boundary: ${plan.host.boundary}`,
+    '',
+    '## Sources',
+    ...plan.sources.flatMap((source) => [
+      '',
+      `### ${labelForPlanArea(source.area)}`,
+      `- Input: ${source.input}`,
+      `- Collector: ${source.collector}`,
+      `- Import mode: ${source.importMode}`,
+      `- Source path: \`${source.sourcePath}\``,
+      `- Accounts: ${source.accounts.length > 0 ? source.accounts.join(', ') : 'none'}`,
+      `- Allowlists: ${source.allowlists.length > 0 ? source.allowlists.join(', ') : 'none'}`,
+      '- Required user input:',
+      ...(source.requiredUserInput.length === 0 ? ['  - none'] : source.requiredUserInput.map((item) => `  - ${item}`)),
+      '- Notes:',
+      ...source.notes.map((note) => `  - ${note}`)
+    ]),
+    '',
+    '## Setup Steps',
+    ...plan.setupSteps.flatMap((step) => [
+      '',
+      `### ${step.title}`,
+      '- Commands:',
+      ...step.commands.map((command) => `  - \`${command}\``),
+      '- Notes:',
+      ...step.notes.map((note) => `  - ${note}`)
+    ]),
+    '',
+    '## Safety Rules',
+    ...plan.safetyRules.map((rule) => `- ${rule}`),
+    '',
+    '## Next Commands',
+    ...plan.nextCommands.map((command) => `- \`${command}\``),
     ''
   ].join('\n');
 }
@@ -557,7 +824,7 @@ function hash(value: string): string {
 function recommendEmail(value: string | undefined): ConnectorRecommendation {
   const input = normalizeInput(value);
   if (isNone(input)) return notConfigured('email', input, 'sources/gmail/threads.jsonl');
-  if (matches(input, ['gmail', 'google', 'google mail', 'google workspace', 'workspace'])) {
+  if (matches(input, ['gmail', 'google', 'google mail', 'google workspace', 'google-workspace', 'gws', 'workspace'])) {
     return {
       area: 'email',
       input,
@@ -584,7 +851,7 @@ function recommendEmail(value: string | undefined): ConnectorRecommendation {
 function recommendCalendar(value: string | undefined): ConnectorRecommendation {
   const input = normalizeInput(value);
   if (isNone(input)) return notConfigured('calendar', input, 'sources/calendar/events.jsonl');
-  if (matches(input, ['google', 'google-calendar', 'google calendar', 'gcal', 'google workspace', 'workspace'])) {
+  if (matches(input, ['google', 'google-calendar', 'google calendar', 'gcal', 'google workspace', 'google-workspace', 'gws', 'workspace'])) {
     return {
       area: 'calendar',
       input,
@@ -611,7 +878,7 @@ function recommendCalendar(value: string | undefined): ConnectorRecommendation {
 function recommendDrive(value: string | undefined): ConnectorRecommendation {
   const input = normalizeInput(value);
   if (isNone(input)) return notConfigured('drive', input, 'sources/drive/files.jsonl');
-  if (matches(input, ['google', 'google-drive', 'google drive', 'drive', 'google-docs', 'google docs', 'docs', 'google workspace', 'workspace'])) {
+  if (matches(input, ['google', 'google-drive', 'google drive', 'drive', 'google-docs', 'google docs', 'docs', 'google workspace', 'google-workspace', 'gws', 'workspace'])) {
     return {
       area: 'drive',
       input,
@@ -663,6 +930,9 @@ function recommendTasks(value: string | undefined): ConnectorRecommendation {
   }
   if (matches(input, ['csv', 'spreadsheet', 'excel', 'manual'])) {
     return manual('tasks', input, 'sources/tasks/tasks.jsonl', 'Use CSV or JSONL import from an explicit file.');
+  }
+  if (matches(input, ['scattered-calendar-notes', 'calendar-notes', 'calendar and notes', 'calendar', 'notes', 'memo', 'memos'])) {
+    return manual('tasks', input, 'sources/tasks/tasks.jsonl', 'Use Google Calendar entries and explicit local notes as candidate task inputs.');
   }
   return manual('tasks', input, 'sources/tasks/tasks.jsonl');
 }
@@ -723,6 +993,26 @@ function normalizeInput(value: string | undefined): string {
   return value?.trim().toLowerCase() || 'none';
 }
 
+function accountPlaceholder(input: string, fallback: string): string {
+  if (input.includes('@')) {
+    return input;
+  }
+  if (matches(input, ['gmail', 'google mail'])) {
+    return '<gmail-account>';
+  }
+  if (matches(input, ['google-workspace', 'google workspace', 'gws', 'workspace'])) {
+    return `<${fallback}>`;
+  }
+  return `<${fallback}>`;
+}
+
+function quoteShell(value: string): string {
+  if (/^[A-Za-z0-9._:@/-]+$/.test(value)) {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
 function matches(input: string, aliases: string[]): boolean {
   return aliases.includes(input);
 }
@@ -736,4 +1026,9 @@ function labelForArea(area: SourceArea): string {
   if (area === 'calendar') return 'Calendar';
   if (area === 'drive') return 'Drive and Docs';
   return 'Tasks';
+}
+
+function labelForPlanArea(area: LocalOnboardingPlanSource['area']): string {
+  if (area === 'local_files') return 'Local Files';
+  return labelForArea(area);
 }
