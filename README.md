@@ -66,6 +66,28 @@ brainbase onboard:candidates --write \
 
 Review candidates with the user, then promote only approved facts through `brainbase onboard:seed` or an equivalent explicit promotion flow.
 
+### Import collected sources and extract candidates
+
+Once the diagnosed GoG collectors have produced metadata JSON, complete the value loop locally. Brainbase still never authenticates to a provider; it only normalizes already-collected JSON, derives candidates, and promotes the ones you select.
+
+```bash
+# 1. Import collected provider JSON (metadata-first; bodies and file contents are dropped)
+gog gmail search "newer_than:90d" --json > /tmp/gmail.json
+brainbase onboard:import --source gmail --from /tmp/gmail.json
+brainbase onboard:import --source calendar --from /tmp/calendar.json
+brainbase onboard:import --source drive --from /tmp/drive.json
+brainbase onboard:import --source local --from /tmp/local-notes.json
+
+# 2. Extract reviewable candidates from sources/ (deterministic; exclude your own address)
+brainbase onboard:extract --self-email you@example.com --write
+
+# 3. Review the extracted candidate file, then promote only selected ids (dry-run by default)
+brainbase onboard:apply --from <candidate-file> --select <id> --write
+brainbase doctor
+```
+
+`onboard:import` and `onboard:extract` never write canonical SSOT. Only `onboard:apply --write` promotes selected candidates into `graph.json`, `personal-kg.jsonl`, `relationships.json`, and `decisions.jsonl`.
+
 `onboard:recommend` remains available when you only want connector guidance:
 
 ```bash

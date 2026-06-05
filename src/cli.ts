@@ -1,12 +1,25 @@
 #!/usr/bin/env node
 import { constants } from 'node:fs';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { onboardingStatus } from './tools.js';
 import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis } from './onboarding.js';
+import {
+  buildExtractedCandidateSet,
+  extractCandidates,
+  loadApplyCandidates,
+  normalizeSource,
+  parseProvider,
+  planApply,
+  renderSourceJsonl,
+  sourcePathFor,
+  type ApplyResult,
+  type ExtractedCandidateSet,
+  type SourceRecord
+} from './import-extract.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -43,6 +56,12 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardPlan(parsed, io);
       case 'onboard:candidates':
         return await onboardCandidates(parsed, io);
+      case 'onboard:import':
+        return await onboardImport(parsed, io);
+      case 'onboard:extract':
+        return await onboardExtract(parsed, io);
+      case 'onboard:apply':
+        return await onboardApply(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -269,6 +288,200 @@ async function onboardCandidates(parsed: ParsedArgs, io: CliIo): Promise<number>
   return 0;
 }
 
+async function onboardImport(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const provider = parseProvider(first(parsed, 'source'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+
+  const fromPath = first(parsed, 'from');
+  if (!fromPath) {
+    throw new Error('onboard:import requires --from <file|-> with collected provider JSON.');
+  }
+  const rawText = await readInput(fromPath, io);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawText);
+  } catch (error) {
+    throw new Error(`onboard:import expected JSON from ${fromPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const records = normalizeSource(provider, raw, { includeDescriptions: parsed.flags.has('include-descriptions') });
+  const relativePath = first(parsed, 'out') ?? sourcePathFor(provider);
+  const outPath = isAbsolute(relativePath) ? relativePath : join(dataDir, relativePath);
+  await mkdir(dirname(outPath), { recursive: true });
+  await writeFile(outPath, renderSourceJsonl(records));
+
+  if (format === 'json') {
+    write(io, `${JSON.stringify({ provider, sourcePath: outPath, count: records.length }, null, 2)}\n`);
+  } else {
+    write(io, `Imported ${records.length} ${provider} record(s) (metadata-first) to ${outPath}\n`);
+  }
+  return 0;
+}
+
+async function onboardExtract(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+
+  const records = await readSourceRecords(dataDir);
+  const candidates = extractCandidates(records, {
+    selfEmails: parsed.values.get('self-email') ?? [],
+    topRelationships: numberOption(first(parsed, 'top-relationships'))
+  });
+  const candidateSet = buildExtractedCandidateSet(candidates, dataDir);
+
+  if (records.length === 0) {
+    write(io, format === 'json'
+      ? `${JSON.stringify(candidateSet, null, 2)}\n`
+      : 'No source records found. Run onboard:import first.\n');
+    return records.length === 0 && !parsed.flags.has('write') ? 1 : 0;
+  }
+
+  if (parsed.flags.has('write')) {
+    await mkdir(dirname(candidateSet.candidatePath), { recursive: true });
+    await writeFile(candidateSet.candidatePath, `${JSON.stringify(candidateSet, null, 2)}\n`);
+  }
+
+  write(io, format === 'json' ? `${JSON.stringify(candidateSet, null, 2)}\n` : renderExtractedSet(candidateSet));
+  if (parsed.flags.has('write') && format !== 'json') {
+    write(io, `Wrote extracted candidate file: ${candidateSet.candidatePath}\n`);
+  }
+  return 0;
+}
+
+async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+
+  const fromPath = first(parsed, 'from');
+  if (!fromPath) {
+    throw new Error('onboard:apply requires --from <candidate-file>.');
+  }
+  const raw = JSON.parse(await readInput(fromPath, io));
+  const candidates = loadApplyCandidates(raw);
+  const selectedIds = new Set(parsed.values.get('select') ?? []);
+  const all = parsed.flags.has('all');
+  if (!all && selectedIds.size === 0) {
+    throw new Error('onboard:apply requires --select <id> (repeatable) or --all to choose which candidates to promote.');
+  }
+
+  const os = await loadPersonalOs(dataDir);
+  const now = new Date().toISOString();
+  const result = planApply(candidates, { ids: selectedIds, all }, {
+    graphEntities: [...os.graph.entities],
+    relationships: [...os.relationships.relationships],
+    personalKg: os.personalKg,
+    decisions: os.decisions,
+    ownerName: os.graph.owner?.name
+  }, now);
+
+  const willWrite = parsed.flags.has('write');
+  if (willWrite) {
+    await saveGraph(dataDir, { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities });
+    await saveRelationships(dataDir, { version: 1, relationships: result.relationships });
+    await appendPersonalKg(dataDir, result.personalKgAdditions);
+    await appendDecisions(dataDir, result.decisionAdditions);
+  }
+
+  if (format === 'json') {
+    write(io, `${JSON.stringify({ applied: result.applied, skipped: result.skipped, canonicalWrites: willWrite, dataDir }, null, 2)}\n`);
+  } else {
+    write(io, renderApplyResult(result, willWrite, dataDir));
+  }
+  return 0;
+}
+
+async function readInput(fromPath: string, io: CliIo): Promise<string> {
+  if (fromPath === '-') {
+    return readStdin();
+  }
+  return readFile(fromPath, 'utf8');
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function readSourceRecords(dataDir: string): Promise<SourceRecord[]> {
+  const relativePaths = ['sources/gmail/threads.jsonl', 'sources/calendar/events.jsonl', 'sources/drive/files.jsonl', 'sources/drive/local-files.jsonl'];
+  const records: SourceRecord[] = [];
+  for (const relativePath of relativePaths) {
+    let content = '';
+    try {
+      content = await readFile(join(dataDir, relativePath), 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of content.split('\n').map((row) => row.trim()).filter(Boolean)) {
+      try {
+        records.push(JSON.parse(line) as SourceRecord);
+      } catch {
+        // Skip malformed source lines; sources are secondary material.
+      }
+    }
+  }
+  return records;
+}
+
+function renderExtractedSet(set: ExtractedCandidateSet): string {
+  const lines: string[] = ['# Brainbase Extracted Candidates', '', set.goal, ''];
+  lines.push(`- Candidate path: \`${set.candidatePath}\``);
+  lines.push(`- Counts: person ${set.counts.person}, org ${set.counts.org}, project ${set.counts.project}, relationship ${set.counts.relationship}, next_action ${set.counts.next_action}`);
+  lines.push('', '## Candidates');
+  for (const candidate of set.candidates) {
+    const label = candidate.payload.name ?? candidate.payload.person ?? candidate.payload.text ?? candidate.id;
+    lines.push(`- [${candidate.kind}] ${candidate.id}: ${String(label)} (count ${candidate.provenance.count}, sources ${candidate.provenance.sources.join('/')})`);
+  }
+  lines.push('', '## Safety Rules');
+  for (const rule of set.safetyRules) {
+    lines.push(`- ${rule}`);
+  }
+  lines.push('', '## Next Commands');
+  for (const command of set.nextCommands) {
+    lines.push(`- ${command}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function renderApplyResult(result: ApplyResult, wrote: boolean, dataDir: string): string {
+  const lines: string[] = ['# Brainbase Apply', ''];
+  lines.push(`- Canonical writes: ${wrote}`);
+  lines.push(`- Data dir: ${dataDir}`);
+  lines.push('', '## Applied');
+  if (result.applied.length === 0) {
+    lines.push('- (none)');
+  }
+  for (const item of result.applied) {
+    lines.push(`- [${item.kind}] ${item.id}: ${item.summary}`);
+  }
+  lines.push('', '## Skipped');
+  if (result.skipped.length === 0) {
+    lines.push('- (none)');
+  }
+  for (const item of result.skipped) {
+    lines.push(`- ${item.id}: ${item.reason}`);
+  }
+  if (!wrote) {
+    lines.push('', 'Dry-run only. Re-run with --write to promote selected candidates into canonical SSOT.');
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function numberOption(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function isInstallTarget(value: string | undefined): value is InstallTarget {
   return value === 'codex' || value === 'claude' || value === 'codecode';
 }
@@ -403,6 +616,9 @@ function usage(): string {
   brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
   brainbase onboard:plan [--profile google-workspace-local] [--host value] [--email value] [--secondary-email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--inactive-task-tool value] [--format markdown|json]
   brainbase onboard:candidates [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"] [--write] [--format markdown|json]
+  brainbase onboard:import --source gmail|calendar|drive|local --from path|- [--dir path] [--out path] [--include-descriptions] [--format markdown|json]
+  brainbase onboard:extract [--dir path] [--self-email value] [--top-relationships n] [--write] [--format markdown|json]
+  brainbase onboard:apply --from path [--select id] [--all] [--write] [--dir path] [--format markdown|json]
   brainbase doctor [--dir path]
 `;
 }
