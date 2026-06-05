@@ -20,6 +20,14 @@ import {
   type ExtractedCandidateSet,
   type SourceRecord
 } from './import-extract.js';
+import {
+  buildClaudeScheduledTasks,
+  buildRoutines,
+  parseRoutineKinds,
+  parseRoutineTarget,
+  renderCodexAutomations,
+  type RoutineDefinition
+} from './routines.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -62,6 +70,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardExtract(parsed, io);
       case 'onboard:apply':
         return await onboardApply(parsed, io);
+      case 'onboard:routines':
+        return await onboardRoutines(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -482,6 +492,69 @@ function numberOption(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+async function onboardRoutines(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const target = parseRoutineTarget(first(parsed, 'target'));
+  const kinds = parseRoutineKinds(first(parsed, 'routines'));
+  const cwd = first(parsed, 'cwd') ?? process.cwd();
+  const definitions = buildRoutines(kinds, {
+    ohayoHour: numberOption(first(parsed, 'ohayo-hour')),
+    ohayoMinute: numberOption(first(parsed, 'ohayo-minute')),
+    oyasumiHour: numberOption(first(parsed, 'oyasumi-hour')),
+    oyasumiMinute: numberOption(first(parsed, 'oyasumi-minute')),
+    retroDow: first(parsed, 'retro-dow'),
+    retroHour: numberOption(first(parsed, 'retro-hour')),
+    retroMinute: numberOption(first(parsed, 'retro-minute'))
+  });
+
+  const payload = target === 'codex'
+    ? renderCodexAutomations(definitions, cwd, first(parsed, 'model') ?? 'gpt-5')
+    : `${JSON.stringify(buildClaudeScheduledTasks(definitions, cwd), null, 2)}\n`;
+
+  const outPath = first(parsed, 'out');
+  if (outPath) {
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeConfigSnippet(outPath, payload);
+  }
+
+  if (format === 'json') {
+    write(io, `${JSON.stringify({ target, cwd, outPath: outPath ?? null, routines: definitions }, null, 2)}\n`);
+  } else {
+    write(io, renderRoutinesMarkdown(definitions, target, payload, outPath));
+  }
+  return 0;
+}
+
+function renderRoutinesMarkdown(definitions: RoutineDefinition[], target: string, payload: string, outPath?: string): string {
+  const lines: string[] = ['# Brainbase Personal Routines', ''];
+  lines.push(`- Target agent: ${target}`);
+  lines.push(`- Routines: ${definitions.map((definition) => definition.kind).join(', ')}`);
+  lines.push('- Generation only: this prints a definition; it does not register with any live scheduler.');
+  lines.push('', '## Schedule');
+  for (const definition of definitions) {
+    const when = definition.schedule.freq === 'weekly'
+      ? `weekly ${definition.schedule.dayOfWeek} ${pad(definition.schedule.hour)}:${pad(definition.schedule.minute)}`
+      : `daily ${pad(definition.schedule.hour)}:${pad(definition.schedule.minute)}`;
+    lines.push(`- ${definition.kind}: ${when} (rrule \`${definition.rrule}\`, cron \`${definition.cron}\`)`);
+  }
+  lines.push('', `## ${target === 'codex' ? 'automation.toml' : 'scheduled-tasks.json'}`, '', '```', payload.trimEnd(), '```');
+  lines.push('', '## Register');
+  if (target === 'codex') {
+    lines.push('- Save each per-file TOML document as ~/.codex/automations/<id>/automation.toml on your agent host, or import it through your Codex automation UI.');
+  } else {
+    lines.push('- Register each scheduled task with your Claude Code scheduler (for example the /schedule command) using its cron and prompt.');
+  }
+  lines.push('- Routines run against your local Brainbase MCP context; keep external side effects confirmation-gated.');
+  if (outPath) {
+    lines.push(`- Wrote routine definition to ${outPath}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function pad(value: number): string {
+  return value.toString().padStart(2, '0');
+}
+
 function isInstallTarget(value: string | undefined): value is InstallTarget {
   return value === 'codex' || value === 'claude' || value === 'codecode';
 }
@@ -619,6 +692,7 @@ function usage(): string {
   brainbase onboard:import --source gmail|calendar|drive|local --from path|- [--dir path] [--out path] [--include-descriptions] [--format markdown|json]
   brainbase onboard:extract [--dir path] [--self-email value] [--top-relationships n] [--write] [--format markdown|json]
   brainbase onboard:apply --from path [--select id] [--all] [--write] [--dir path] [--format markdown|json]
+  brainbase onboard:routines --target codex|claude [--routines ohayo,oyasumi,retro] [--ohayo-hour n] [--oyasumi-hour n] [--retro-dow MON-SUN] [--retro-hour n] [--cwd path] [--out path] [--format markdown|json]
   brainbase doctor [--dir path]
 `;
 }

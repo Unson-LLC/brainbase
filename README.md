@@ -88,6 +88,24 @@ brainbase doctor
 
 `onboard:import` and `onboard:extract` never write canonical SSOT. Only `onboard:apply --write` promotes selected candidates into `graph.json`, `personal-kg.jsonl`, `relationships.json`, and `decisions.jsonl`.
 
+### Register the daily operating routines
+
+Loading context once is not enough; the operating loop runs every day. Generate personal-scoped morning (`ohayo`), end-of-day (`oyasumi`), and weekly retrospective (`retro`) routines for whichever coding agent you run. Brainbase prints the definition; your agent registers it with its own scheduler. The routines are scoped to your own connected sources and local Brainbase MCP context — they are not the internal Unson operations.
+
+```bash
+# Codex host (emits per-file automation.toml documents)
+brainbase onboard:routines --target codex --cwd /path/to/brainbase \
+  --ohayo-hour 7 --oyasumi-hour 22 --retro-dow FRI --retro-hour 17
+
+# Claude Code host (emits scheduled-task definitions with cron + prompt)
+brainbase onboard:routines --target claude --cwd /path/to/brainbase
+
+# Only some routines, written to a file
+brainbase onboard:routines --target codex --routines ohayo,retro --out ./routines.toml
+```
+
+`onboard:routines` is generation-only and dry-run by default: it prints definitions, writes a file only with `--out`, never registers a live scheduler, and never writes canonical SSOT.
+
 `onboard:recommend` remains available when you only want connector guidance:
 
 ```bash
