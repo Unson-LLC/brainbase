@@ -84,7 +84,8 @@ describe('buildSkillBundle', () => {
     for (const banned of ['slack', 'sns', 'nocodb', 'vibepro', 'infisical', 'lightsail', 'hosted backend', 'server operations', 'unson']) {
       expect(joined, `public skills must not contain ${banned}`).not.toContain(banned);
     }
-    expect(joined).toContain('never ask the user to paste oauth tokens');
+    expect(joined).toContain('oauthトークン');
+    expect(joined).toContain('チャットに貼るようユーザーに依頼しない');
   });
 });
 
@@ -99,7 +100,9 @@ describe('onboard:skills CLI', () => {
     expect(manifest.canonicalWrites).toBe(false);
     expect(manifest.liveConfigWrites).toBe(false);
     expect(manifest.skills.map((skill: { id: string }) => skill.id)).toEqual(['brainbase-source-import']);
+    expect(manifest.skills[0].description).toContain('ローカルソース');
     expect(manifest.skills[0].content).toContain('name: brainbase-source-import');
+    expect(manifest.skills[0].content).toContain('## 目的');
   });
 
   it('S-5 writes selected skills with --out and S-6 refuses overwrite', async () => {
@@ -113,7 +116,9 @@ describe('onboard:skills CLI', () => {
     ], first.io);
 
     expect(firstCode).toBe(0);
-    await expect(readFile(join(dir, 'brainbase-candidate-review', 'SKILL.md'), 'utf8')).resolves.toContain('name: brainbase-candidate-review');
+    const written = await readFile(join(dir, 'brainbase-candidate-review', 'SKILL.md'), 'utf8');
+    expect(written).toContain('name: brainbase-candidate-review');
+    expect(written).toContain('# Brainbase候補レビュー');
 
     const second = capture();
     const secondCode = await runCli([
