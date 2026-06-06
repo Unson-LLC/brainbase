@@ -28,6 +28,14 @@ import {
   renderCodexAutomations,
   type RoutineDefinition
 } from './routines.js';
+import {
+  assertPublicSafeSkillBundle,
+  buildSkillBundle,
+  parseSkillIds,
+  parseSkillTarget,
+  renderSkillsMarkdown,
+  type SkillBundle
+} from './skills.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -72,6 +80,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardApply(parsed, io);
       case 'onboard:routines':
         return await onboardRoutines(parsed, io);
+      case 'onboard:skills':
+        return await onboardSkills(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -555,6 +565,41 @@ function pad(value: number): string {
   return value.toString().padStart(2, '0');
 }
 
+async function onboardSkills(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const target = parseSkillTarget(first(parsed, 'target'));
+  const ids = parseSkillIds(first(parsed, 'skills'));
+  const bundle = buildSkillBundle(target, ids);
+  assertPublicSafeSkillBundle(bundle);
+
+  const outDir = first(parsed, 'out');
+  if (outDir) {
+    await writeSkillBundle(outDir, bundle);
+  }
+
+  if (format === 'json') {
+    write(io, `${JSON.stringify({ ...bundle, outDir: outDir ?? null }, null, 2)}\n`);
+  } else {
+    write(io, renderSkillsMarkdown(bundle, outDir));
+  }
+  return 0;
+}
+
+async function writeSkillBundle(outDir: string, bundle: SkillBundle): Promise<void> {
+  for (const skill of bundle.skills) {
+    const outputPath = join(outDir, skill.relativePath);
+    await mkdir(dirname(outputPath), { recursive: true });
+    try {
+      await writeFile(outputPath, skill.content, { flag: 'wx' });
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
+        throw new Error(`Refusing to overwrite existing skill file ${outputPath}. Choose a new --out directory or remove the old file first.`);
+      }
+      throw error;
+    }
+  }
+}
+
 function isInstallTarget(value: string | undefined): value is InstallTarget {
   return value === 'codex' || value === 'claude' || value === 'codecode';
 }
@@ -693,6 +738,7 @@ function usage(): string {
   brainbase onboard:extract [--dir path] [--self-email value] [--top-relationships n] [--write] [--format markdown|json]
   brainbase onboard:apply --from path [--select id] [--all] [--write] [--dir path] [--format markdown|json]
   brainbase onboard:routines --target codex|claude [--routines ohayo,oyasumi,retro] [--ohayo-hour n] [--oyasumi-hour n] [--retro-dow MON-SUN] [--retro-hour n] [--cwd path] [--out path] [--format markdown|json]
+  brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase doctor [--dir path]
 `;
 }
