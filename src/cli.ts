@@ -43,6 +43,7 @@ import {
   renderProjectRegistrationMarkdown,
   type ProjectRegistrationPlan
 } from './projects.js';
+import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -71,6 +72,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardInstall(parsed, io);
       case 'onboard:agent':
         return await onboardAgent(parsed, io);
+      case 'onboard:start':
+        return await onboardStart(parsed, io);
       case 'onboard:recommend':
         return await onboardRecommend(parsed, io);
       case 'onboard:diagnose-sources':
@@ -238,6 +241,56 @@ async function onboardInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
 async function onboardAgent(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const format = parseOnboardingFormat(first(parsed, 'format'));
   write(io, renderAgentProtocol(format));
+  return 0;
+}
+
+async function onboardStart(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const target = parseGuidedTarget(first(parsed, 'target'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+  const os = await loadPersonalOs(dataDir);
+  const status = onboardingStatus(os);
+  const missing = Array.isArray(status.missing)
+    ? status.missing.filter((item): item is string => typeof item === 'string')
+    : [];
+  const explicitGogCommand = first(parsed, 'gog-command');
+  const gogCommand = explicitGogCommand ?? 'gog';
+  const gogAvailable = parsed.flags.has('assume-gog') || await commandExists(gogCommand);
+  const projectName = first(parsed, 'project') ?? first(parsed, 'project-name');
+  const project = projectName ? {
+    name: projectName,
+    goal: first(parsed, 'goal'),
+    status: first(parsed, 'status'),
+    role: first(parsed, 'role'),
+    stakeholders: (parsed.values.get('stakeholder') ?? []).map(parseProjectStakeholder),
+    sources: (parsed.values.get('source') ?? []).map(parseProjectSource),
+    taskSources: parsed.values.get('task-source') ?? [],
+    decisionPrinciples: parsed.values.get('decision-principle') ?? []
+  } : undefined;
+
+  write(io, renderGuidedFirstRun({
+    dataDir,
+    target,
+    profile: first(parsed, 'profile'),
+    host: first(parsed, 'host'),
+    name: first(parsed, 'name'),
+    value: parsed.values.get('value') ?? [],
+    email: first(parsed, 'email'),
+    secondaryEmails: parsed.values.get('secondary-email') ?? [],
+    calendar: first(parsed, 'calendar'),
+    drive: first(parsed, 'drive'),
+    driveFolders: parsed.values.get('drive-folder') ?? [],
+    localFolders: parsed.values.get('local-folder') ?? [],
+    tasks: first(parsed, 'tasks'),
+    inactiveTaskTools: parsed.values.get('inactive-task-tool') ?? [],
+    gogCommand: explicitGogCommand,
+    assumeGog: parsed.flags.has('assume-gog'),
+    gogAvailable,
+    project,
+    connected: status.connected === true,
+    missing
+  }, format));
   return 0;
 }
 
@@ -666,6 +719,16 @@ function isInstallTarget(value: string | undefined): value is InstallTarget {
   return value === 'codex' || value === 'claude' || value === 'codecode';
 }
 
+function parseGuidedTarget(value: string | undefined): GuidedTarget {
+  if (!value || value === 'codex') {
+    return 'codex';
+  }
+  if (value === 'claude' || value === 'codecode') {
+    return value;
+  }
+  throw new Error('onboard:start requires --target codex|claude|codecode');
+}
+
 function buildInstallPayload(target: InstallTarget, dataDir: string): string {
   const server = {
     command: process.execPath,
@@ -792,6 +855,7 @@ function usage(): string {
   brainbase onboard:seed [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"]
   brainbase onboard:install --target codex|claude|codecode [--dir path] [--dry-run] [--output path]
   brainbase onboard:agent [--format markdown|json]
+  brainbase onboard:start [--target codex|claude|codecode] [--dir path] [--name value] [--project value] [--goal value] [--status value] [--role value] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--format markdown|json]
   brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
   brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
   brainbase onboard:plan [--profile google-workspace-local] [--host value] [--email value] [--secondary-email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--inactive-task-tool value] [--format markdown|json]

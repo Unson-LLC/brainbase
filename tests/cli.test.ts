@@ -139,6 +139,105 @@ describe('onboarding CLI', () => {
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:projects');
   });
 
+  it('S-9b onboard:start initializes Personal OS and prints a Japanese guided first-run plan', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:start',
+      '--dir', dir,
+      '--target', 'codex',
+      '--name', '大田原さん',
+      '--value', 'AIには外部ソース由来の推測を候補扱いしてほしい',
+      '--project', 'Brainbase個人オンボーディング',
+      '--goal', 'CodexからBrainbase MCPを呼び出して仕事文脈を渡す',
+      '--status', '初回セットアップ中',
+      '--role', '個人利用者',
+      '--stakeholder', '佐藤圭吾|導入支援|Brainbase MCPとオンボーディングを支援する',
+      '--email', 'gmail',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--drive-folder', 'cursorvers-brainbase-folder',
+      '--local-folder', '/Users/otawara/Notes',
+      '--tasks', 'scattered-calendar-notes',
+      '--assume-gog',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const guide = JSON.parse(output.stdout());
+    expect(guide.language).toBe('ja');
+    expect(guide.target).toBe('codex');
+    expect(guide.dataDir).toBe(dir);
+    expect(guide.initialized).toMatchObject({
+      personalOs: true,
+      canonicalFactWrites: false
+    });
+    expect(guide.interview.map((section: { id: string }) => section.id)).toEqual([
+      'self',
+      'project',
+      'sources',
+      'approval'
+    ]);
+    expect(JSON.stringify(guide.interview)).toContain('メール');
+    expect(JSON.stringify(guide.interview)).toContain('Google Drive');
+
+    const drive = guide.sourceReadiness.find((source: { area: string }) => source.area === 'drive');
+    expect(drive).toMatchObject({
+      title: 'ドライブ',
+      status: 'ready',
+      statusLabel: '準備済み'
+    });
+    expect(drive.setupCommands.join('\n')).toContain('gog drive ls cursorvers-brainbase-folder');
+    expect(guide.answers.localFolders).toEqual(['/Users/otawara/Notes']);
+
+    expect(guide.projectRegistration.available).toBe(true);
+    expect(guide.projectRegistration.dryRunCommand).toContain('brainbase onboard:projects');
+    expect(guide.projectRegistration.dryRunCommand).toContain('Brainbase個人オンボーディング');
+    expect(guide.projectRegistration.dryRunCommand).toContain('local|local folder|/Users/otawara/Notes');
+    expect(guide.projectRegistration.writeCommand).toContain('--write');
+    expect(guide.nextCommands.map((item: { id: string }) => item.id)).toEqual([
+      'self-seed',
+      'source-diagnosis',
+      'project-dry-run',
+      'project-write',
+      'candidates',
+      'install',
+      'doctor'
+    ]);
+    expect(guide.nextCommands.find((item: { id: string }) => item.id === 'source-diagnosis').command).toContain('--assume-gog');
+    expect(guide.nextCommands.find((item: { id: string }) => item.id === 'install').command).toContain('onboard:install --target codex');
+    expect(guide.approvalGates.join('\n')).toContain('OAuth token');
+    expect(guide.completionCheck.join('\n')).toContain('doctor の missing が空');
+
+    const os = await loadPersonalOs(dir);
+    expect(os.graph.entities).toHaveLength(0);
+    expect(os.personalKg).toHaveLength(0);
+  });
+
+  it('S-9c onboard:start markdown shows missing source setup in Japanese', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:start',
+      '--dir', dir,
+      '--target', 'claude',
+      '--email', 'gmail',
+      '--calendar', 'google-calendar',
+      '--drive', 'google-drive',
+      '--gog-command', '__missing_brainbase_gog__'
+    ], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('# Brainbase 初回オンボーディング開始');
+    expect(output.stdout()).toContain('対象エージェント: Claude Code');
+    expect(output.stdout()).toContain('メール');
+    expect(output.stdout()).toContain('ローカル設定が必要');
+    expect(output.stdout()).toContain('ローカルGoGコマンドをインストールまたは設定する: __missing_brainbase_gog__');
+    expect(output.stdout()).toContain('プロジェクト名の聞き取り待ち');
+    expect(output.stdout()).toContain('--gog-command __missing_brainbase_gog__');
+    expect(output.stdout()).toContain('brainbase onboard:install --target claude');
+  });
+
   it('S-10 onboard:recommend maps Google tools to metadata-first GoG source staging', async () => {
     const output = capture();
     const code = await runCli([

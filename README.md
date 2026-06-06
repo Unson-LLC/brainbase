@@ -13,6 +13,33 @@ Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. Instea
 ```bash
 npm install
 npm run build
+node dist/cli.js onboard:start --target codex
+```
+
+`onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not promote self, project, relationship, decision, mail, calendar, drive, or task facts into canonical SSOT. It asks Codex or Claude Code to interview the user first, then prints the next commands for source diagnosis, project registration, candidate review, MCP install, and `doctor`.
+
+For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
+
+```bash
+node dist/cli.js onboard:start \
+  --target codex \
+  --name "Your Name" \
+  --project "Current project" \
+  --goal "What this project should achieve" \
+  --status "Current state" \
+  --role "Your role" \
+  --email gmail \
+  --calendar google-calendar \
+  --drive google-drive \
+  --drive-folder "<allowed-google-drive-folder-id>" \
+  --tasks scattered-calendar-notes
+```
+
+The output is intentionally command-ready for Codex and Claude Code. It keeps OAuth tokens out of chat, starts with metadata-first collection, requires Drive/local folder allowlists, and keeps `sources/` plus `candidates/` as secondary material until the user approves canonical writes.
+
+If you only want the raw interview protocol, use:
+
+```bash
 node dist/cli.js onboard:agent
 ```
 
