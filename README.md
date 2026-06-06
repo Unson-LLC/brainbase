@@ -106,6 +106,33 @@ brainbase onboard:routines --target codex --routines ohayo,retro --out ./routine
 
 `onboard:routines` is generation-only and dry-run by default: it prints definitions, writes a file only with `--out`, never registers a live scheduler, and never writes canonical SSOT.
 
+### Install public onboarding skills
+
+Brainbase also ships a small public-safe skill set for coding agents. These are not the internal Brainbase operations skills; they are personal-scoped instructions for onboarding, source import, candidate review, and daily routines.
+
+```bash
+# Codex-compatible skill paths
+brainbase onboard:skills --target codex
+
+# Claude Code project skill paths
+brainbase onboard:skills --target claude
+
+# Write portable SKILL.md files to a review directory
+brainbase onboard:skills --target portable --out ./brainbase-skills
+
+# Install only part of the set
+brainbase onboard:skills --target codex --skills brainbase-source-import,brainbase-candidate-review
+```
+
+The built-in public skill ids are:
+
+- `brainbase-personal-onboarding`
+- `brainbase-source-import`
+- `brainbase-candidate-review`
+- `brainbase-daily-routines`
+
+`onboard:skills` is generation-only and dry-run by default. It writes files only with `--out`, refuses to overwrite existing `SKILL.md` files, never changes live Codex or Claude Code configuration, and never writes canonical SSOT.
+
 `onboard:recommend` remains available when you only want connector guidance:
 
 ```bash
@@ -200,6 +227,7 @@ brainbase onboard:import --source gmail --from /tmp/gmail.json
 brainbase onboard:extract --self-email you@example.com --write
 brainbase onboard:apply --from <candidate-file> --select <id> --write
 brainbase onboard:routines --target codex --cwd /path/to/brainbase
+brainbase onboard:skills --target codex
 brainbase doctor
 ```
 
@@ -215,6 +243,7 @@ node dist/cli.js onboard:import --source gmail --from /tmp/gmail.json
 node dist/cli.js onboard:extract --self-email you@example.com --write
 node dist/cli.js onboard:apply --from <candidate-file> --select <id> --write
 node dist/cli.js onboard:routines --target codex --cwd "$(pwd)"
+node dist/cli.js onboard:skills --target codex
 node dist/cli.js onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion
 npm run onboard:init
 npm run onboard:seed -- --name "Your Name"
