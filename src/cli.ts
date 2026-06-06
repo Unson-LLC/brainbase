@@ -36,6 +36,13 @@ import {
   renderSkillsMarkdown,
   type SkillBundle
 } from './skills.js';
+import {
+  buildProjectRegistrationPlan,
+  parseProjectSource,
+  parseProjectStakeholder,
+  renderProjectRegistrationMarkdown,
+  type ProjectRegistrationPlan
+} from './projects.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -70,6 +77,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardDiagnoseSources(parsed, io);
       case 'onboard:plan':
         return await onboardPlan(parsed, io);
+      case 'onboard:projects':
+        return await onboardProjects(parsed, io);
       case 'onboard:candidates':
         return await onboardCandidates(parsed, io);
       case 'onboard:import':
@@ -306,6 +315,59 @@ async function onboardCandidates(parsed: ParsedArgs, io: CliIo): Promise<number>
     write(io, format === 'json' ? '' : `Wrote candidate file: ${candidateSet.candidatePath}\n`);
   }
   return 0;
+}
+
+async function onboardProjects(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+
+  const name = first(parsed, 'name');
+  if (!name) {
+    throw new Error('onboard:projects requires --name <project-name>');
+  }
+  const plan = buildProjectRegistrationPlan({
+    name,
+    goal: first(parsed, 'goal'),
+    status: first(parsed, 'status'),
+    role: first(parsed, 'role'),
+    stakeholders: (parsed.values.get('stakeholder') ?? []).map(parseProjectStakeholder),
+    sources: (parsed.values.get('source') ?? []).map(parseProjectSource),
+    taskSources: parsed.values.get('task-source') ?? [],
+    decisionPrinciples: parsed.values.get('decision-principle') ?? [],
+    now: parsed.flags.has('write') ? new Date().toISOString() : undefined
+  });
+
+  const willWrite = parsed.flags.has('write');
+  if (willWrite) {
+    await applyProjectRegistrationPlan(dataDir, plan);
+  }
+
+  if (format === 'json') {
+    write(io, `${JSON.stringify({ ...plan, canonicalWrites: willWrite, dataDir }, null, 2)}\n`);
+  } else {
+    write(io, renderProjectRegistrationMarkdown(plan, willWrite, dataDir));
+  }
+  return 0;
+}
+
+async function applyProjectRegistrationPlan(dataDir: string, plan: ProjectRegistrationPlan): Promise<void> {
+  const os = await loadPersonalOs(dataDir);
+  const graphEntities = [...os.graph.entities];
+  for (const entity of plan.writes.graphEntities) {
+    upsertGraphEntity(graphEntities, entity);
+  }
+  const relationships = [...os.relationships.relationships];
+  for (const relationship of plan.writes.relationships) {
+    if (!relationships.some((existing) => existing.id === relationship.id)) {
+      relationships.push(relationship);
+    }
+  }
+
+  await saveGraph(dataDir, { ...os.graph, entities: graphEntities });
+  await saveRelationships(dataDir, { version: 1, relationships });
+  await appendPersonalKg(dataDir, plan.writes.personalKg);
+  await appendDecisions(dataDir, plan.writes.decisions);
 }
 
 async function onboardImport(parsed: ParsedArgs, io: CliIo): Promise<number> {
@@ -733,6 +795,7 @@ function usage(): string {
   brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
   brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
   brainbase onboard:plan [--profile google-workspace-local] [--host value] [--email value] [--secondary-email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--inactive-task-tool value] [--format markdown|json]
+  brainbase onboard:projects --name value [--goal value] [--status value] [--role value] [--stakeholder "person|role|context"] [--source "area|label|ref"] [--task-source value] [--decision-principle value] [--write] [--dir path] [--format markdown|json]
   brainbase onboard:candidates [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"] [--write] [--format markdown|json]
   brainbase onboard:import --source gmail|calendar|drive|local --from path|- [--dir path] [--out path] [--include-descriptions] [--format markdown|json]
   brainbase onboard:extract [--dir path] [--self-email value] [--top-relationships n] [--write] [--format markdown|json]
