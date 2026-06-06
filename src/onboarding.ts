@@ -179,6 +179,17 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
         ]
       },
       {
+        id: 'projects',
+        title: 'Projects',
+        questions: [
+          'What active projects should Brainbase register first?',
+          'For each project, what is the goal, current status, and your role?',
+          'Who are the key stakeholders for each project?',
+          'Which mail, calendar, drive, task, or local-note sources are explicitly allowed for each project?',
+          'What project-specific decision principles should AI tools remember?'
+        ]
+      },
+      {
         id: 'permissions',
         title: 'Permissions',
         questions: [
@@ -211,6 +222,7 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
     nextCommands: [
       'brainbase onboard:init',
       'brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion',
+      'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
       'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
       'brainbase onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion',
       'brainbase onboard:seed --name "<name>" --value "<what matters>" --project "<current project>"',
@@ -236,6 +248,7 @@ export function buildSourceDiagnosis(input: SourceDiagnosisInput): SourceDiagnos
     diagnostics,
     nextCommands: [
       'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
+      'brainbase onboard:projects --name "<approved project>" --goal "<approved goal>"',
       'brainbase doctor',
       'brainbase onboard:seed --name "<name>" --value "<approved value>" --project "<approved project>"'
     ],
@@ -437,8 +450,9 @@ export function buildLocalOnboardingPlan(input: LocalOnboardingPlanInput): Local
       },
       {
         id: 'candidate-extraction',
-        title: 'Draft candidates before canonical promotion',
+        title: 'Register projects and draft candidates before canonical promotion',
         commands: [
+          'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
           'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
           'brainbase doctor'
         ],
@@ -458,6 +472,7 @@ export function buildLocalOnboardingPlan(input: LocalOnboardingPlanInput): Local
     ],
     nextCommands: [
       `brainbase onboard:diagnose-sources --email ${quoteShell(email)} --calendar ${quoteShell(calendar)} --drive ${quoteShell(drive)} ${driveFolderArg} --tasks ${quoteShell(tasks)}`,
+      'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
       'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
       'brainbase onboard:install --target codex --dry-run',
       'brainbase doctor'

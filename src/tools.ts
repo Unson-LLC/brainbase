@@ -3,12 +3,24 @@ import type { EntityKind, PersonalOs, SearchResult } from './types.js';
 export function getContext(os: PersonalOs): Record<string, unknown> {
   const selfEntries = os.personalKg.filter((entry) => entry.type === 'self' || entry.type === 'value' || entry.type === 'judgment');
   const workEntries = os.personalKg.filter((entry) => entry.type === 'work' || entry.type === 'experience');
+  const projects = os.graph.entities.filter((entity) => entity.type === 'project').map((entity) => ({
+    id: entity.id,
+    name: entity.name,
+    summary: entity.summary,
+    goal: readMetadataString(entity.metadata, 'goal'),
+    status: readMetadataString(entity.metadata, 'status'),
+    role: readMetadataString(entity.metadata, 'role'),
+    sources: Array.isArray(entity.metadata?.sources) ? entity.metadata.sources : [],
+    taskSources: Array.isArray(entity.metadata?.taskSources) ? entity.metadata.taskSources : [],
+    decisionPrinciples: Array.isArray(entity.metadata?.decisionPrinciples) ? entity.metadata.decisionPrinciples : []
+  }));
 
   return {
     owner: os.graph.owner ?? {},
     self: selfEntries.map((entry) => entry.text),
+    projects,
     work: [
-      ...os.graph.entities.filter((entity) => entity.type === 'project').map((entity) => entity.summary ? `${entity.name}: ${entity.summary}` : entity.name),
+      ...projects.map((project) => project.summary ? `${project.name}: ${project.summary}` : project.name),
       ...workEntries.map((entry) => entry.text)
     ],
     relationships: os.relationships.relationships.map((relationship) => ({
@@ -70,8 +82,8 @@ export function searchAll(os: PersonalOs, query: string, limit = 10): SearchResu
     source: 'graph' as const,
     id: entity.id,
     title: entity.name,
-    text: entity.summary ?? entity.name,
-    score: scoreText(query, [entity.id, entity.type, entity.name, entity.summary ?? '', ...(entity.tags ?? [])])
+    text: [entity.summary ?? entity.name, metadataText(entity.metadata)].filter(Boolean).join('\n'),
+    score: scoreText(query, [entity.id, entity.type, entity.name, entity.summary ?? '', metadataText(entity.metadata), ...(entity.tags ?? [])])
   }));
   const relationshipResults = os.relationships.relationships.map((relationship) => ({
     source: 'relationships' as const,
@@ -131,4 +143,16 @@ function scoreText(query: string, fields: string[]): number {
   }
   const haystack = fields.join('\n').toLowerCase();
   return terms.reduce((score, term) => score + (haystack.includes(term) ? 1 : 0), 0);
+}
+
+function metadataText(metadata: Record<string, unknown> | undefined): string {
+  if (!metadata) {
+    return '';
+  }
+  return JSON.stringify(metadata);
+}
+
+function readMetadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : undefined;
 }

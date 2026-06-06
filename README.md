@@ -66,6 +66,28 @@ brainbase onboard:candidates --write \
 
 Review candidates with the user, then promote only approved facts through `brainbase onboard:seed` or an equivalent explicit promotion flow.
 
+### Register active projects
+
+Brainbase can register active projects from the onboarding interview before any external source is connected. Codex or Claude Code should ask the user about the project goal, current status, their role, key stakeholders, allowed source areas, task sources, and project-specific decision principles. Source references are metadata-only allowlists; this command does not read mail, calendar, drive, task, or local-note content.
+
+```bash
+# Dry-run first: show the project registration plan without canonical writes
+brainbase onboard:projects \
+  --name "Current project" \
+  --goal "What this project should achieve" \
+  --status "Current state" \
+  --role "Your role" \
+  --stakeholder "Key Partner|collaborator|Why this person matters" \
+  --source "drive|Proposal folder|gdrive-folder-id" \
+  --task-source "Calendar follow-ups" \
+  --decision-principle "How AI should make tradeoffs in this project"
+
+# After user approval, promote it into canonical SSOT
+brainbase onboard:projects --name "Current project" --goal "Approved goal" --write
+```
+
+After `--write`, project context is stored in canonical local SSOT and becomes visible through Brainbase MCP `get_context`, `list_entities`, and `search`.
+
 ### Import collected sources and extract candidates
 
 Once the diagnosed GoG collectors have produced metadata JSON, complete the value loop locally. Brainbase still never authenticates to a provider; it only normalizes already-collected JSON, derives candidates, and promotes the ones you select.
@@ -226,6 +248,7 @@ brainbase onboard:install --target codex --dry-run
 brainbase onboard:import --source gmail --from /tmp/gmail.json
 brainbase onboard:extract --self-email you@example.com --write
 brainbase onboard:apply --from <candidate-file> --select <id> --write
+brainbase onboard:projects --name "Current project" --goal "What this project should achieve"
 brainbase onboard:routines --target codex --cwd /path/to/brainbase
 brainbase onboard:skills --target codex
 brainbase doctor
@@ -239,6 +262,7 @@ node dist/cli.js onboard:agent
 node dist/cli.js onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "<notes-folder>" --tasks scattered-calendar-notes --inactive-task-tool notion
 node dist/cli.js onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion
 node dist/cli.js onboard:candidates --write --name "Your Name" --project "Current project"
+node dist/cli.js onboard:projects --name "Current project" --goal "What this project should achieve"
 node dist/cli.js onboard:import --source gmail --from /tmp/gmail.json
 node dist/cli.js onboard:extract --self-email you@example.com --write
 node dist/cli.js onboard:apply --from <candidate-file> --select <id> --write

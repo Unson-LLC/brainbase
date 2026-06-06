@@ -130,11 +130,13 @@ describe('onboarding CLI', () => {
       'calendar',
       'drive',
       'tasks',
+      'projects',
       'permissions',
       'approval'
     ]);
     expect(protocol.safetyRules.join('\n')).toContain('Do not ask the user to paste OAuth tokens');
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:recommend');
+    expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:projects');
   });
 
   it('S-10 onboard:recommend maps Google tools to metadata-first GoG source staging', async () => {

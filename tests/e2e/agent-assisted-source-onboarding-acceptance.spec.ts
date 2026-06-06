@@ -45,15 +45,17 @@ describe('agent-assisted source onboarding acceptance', () => {
     expect(agentMarkdown, 'agent-assisted-source-onboarding ac:1 `brainbase onboard:agent` outputs a reusable agent prompt that tells Codex / Claude Code what to ask and what not to do.').toContain('Do not ask the user to paste OAuth tokens');
 
     const agentJson = JSON.parse(await cli(['onboard:agent', '--format', 'json']));
-    expect(agentJson.interviewSections.map((section: { id: string }) => section.id), 'agent-assisted-source-onboarding ac:2 `brainbase onboard:agent --format json` returns structured interview sections for mail, calendar, drive/docs, tasks, permissions, and approval.').toEqual([
+    expect(agentJson.interviewSections.map((section: { id: string }) => section.id), 'agent-assisted-source-onboarding ac:2 `brainbase onboard:agent --format json` returns structured interview sections for mail, calendar, drive/docs, tasks, projects, permissions, and approval.').toEqual([
       'email',
       'calendar',
       'drive',
       'tasks',
+      'projects',
       'permissions',
       'approval'
     ]);
-    expect(agentJson.safetyRules.join('\n'), 'agent-assisted-source-onboarding ac:2 `brainbase onboard:agent --format json` returns structured interview sections for mail, calendar, drive/docs, tasks, permissions, and approval.').toContain('Body excerpts require explicit user approval');
+    expect(agentJson.safetyRules.join('\n'), 'agent-assisted-source-onboarding ac:2 `brainbase onboard:agent --format json` returns structured interview sections for mail, calendar, drive/docs, tasks, projects, permissions, and approval.').toContain('Body excerpts require explicit user approval');
+    expect(agentJson.nextCommands.join('\n'), 'agent-assisted-source-onboarding ac:2 project registration is part of the structured onboarding flow.').toContain('brainbase onboard:projects');
 
     const recommendationSet = JSON.parse(await cli([
       'onboard:recommend',
