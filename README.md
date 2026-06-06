@@ -106,32 +106,32 @@ brainbase onboard:routines --target codex --routines ohayo,retro --out ./routine
 
 `onboard:routines` is generation-only and dry-run by default: it prints definitions, writes a file only with `--out`, never registers a live scheduler, and never writes canonical SSOT.
 
-### Install public onboarding skills
+### Public onboarding skillsを生成する
 
-Brainbase also ships a small public-safe skill set for coding agents. These are not the internal Brainbase operations skills; they are personal-scoped instructions for onboarding, source import, candidate review, and daily routines.
+Brainbaseには、コーディングエージェント向けの公開safeな最小skillsも入っています。これは内部Brainbase運用skillsではなく、個人オンボーディング、ソース取り込み、候補レビュー、日次ルーティンのための日本語instructionsです。
 
 ```bash
-# Codex-compatible skill paths
+# Codex-compatible skill paths に合わせて表示
 brainbase onboard:skills --target codex
 
-# Claude Code project skill paths
+# Claude Code project skill paths に合わせて表示
 brainbase onboard:skills --target claude
 
-# Write portable SKILL.md files to a review directory
+# portableなSKILL.mdをreview用ディレクトリへ書き出す
 brainbase onboard:skills --target portable --out ./brainbase-skills
 
-# Install only part of the set
+# 一部のskillsだけ生成する
 brainbase onboard:skills --target codex --skills brainbase-source-import,brainbase-candidate-review
 ```
 
-The built-in public skill ids are:
+標準のpublic skill ids:
 
 - `brainbase-personal-onboarding`
 - `brainbase-source-import`
 - `brainbase-candidate-review`
 - `brainbase-daily-routines`
 
-`onboard:skills` is generation-only and dry-run by default. It writes files only with `--out`, refuses to overwrite existing `SKILL.md` files, never changes live Codex or Claude Code configuration, and never writes canonical SSOT.
+`onboard:skills` はgeneration-onlyで、defaultはdry-runです。`--out` のときだけファイルを書き、既存の `SKILL.md` はoverwriteしません。live Codex / Claude Code configurationもcanonical SSOTも変更しません。
 
 `onboard:recommend` remains available when you only want connector guidance:
 

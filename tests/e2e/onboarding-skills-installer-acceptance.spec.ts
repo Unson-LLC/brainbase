@@ -65,14 +65,16 @@ describe('Onboarding skills installer acceptance', () => {
     ]);
 
     const markdown = await cli(['onboard:skills', '--target', 'codex']);
-    expect(markdown, 'onboarding-skills-installer ac:3 dry-run prints a manifest and SKILL.md contents.').toContain('# Brainbase Public Onboarding Skills');
+    expect(markdown, 'onboarding-skills-installer ac:3 dry-run prints a manifest and SKILL.md contents.').toContain('# Brainbase公開オンボーディングSkills');
     expect(markdown).toContain('```markdown');
+    expect(markdown, 'generated SKILL.md content should be Japanese for the first adopter audience.').toContain('## 目的');
 
     const lowered = JSON.stringify(codex.skills).toLowerCase();
     for (const banned of ['slack', 'sns', 'nocodb', 'vibepro', 'hosted backend', 'infisical', 'server operations', 'unson']) {
       expect(lowered, `onboarding-skills-installer ac:5 public skills must not reference ${banned}.`).not.toContain(banned);
     }
-    expect(lowered, 'onboarding-skills-installer ac:6 skills must tell agents not to ask users to paste secrets.').toContain('never ask the user to paste oauth tokens');
+    expect(lowered, 'onboarding-skills-installer ac:6 skills must tell agents not to ask users to paste secrets.').toContain('oauthトークン');
+    expect(lowered, 'onboarding-skills-installer ac:6 skills must tell agents not to ask users to paste secrets.').toContain('チャットに貼るようユーザーに依頼しない');
 
     const again = await cli(['onboard:skills', '--target', 'codex']);
     expect(again, 'onboarding-skills-installer ac:8 markdown output is deterministic.').toBe(markdown);
@@ -91,6 +93,7 @@ describe('Onboarding skills installer acceptance', () => {
     await cli(['onboard:skills', '--target', 'portable', '--skills', 'brainbase-daily-routines', '--out', outDir]);
     const skillFile = await readFile(join(outDir, 'brainbase-daily-routines', 'SKILL.md'), 'utf8');
     expect(skillFile, 'onboarding-skills-installer ac:3 --out writes selected SKILL.md files.').toContain('name: brainbase-daily-routines');
+    expect(skillFile, 'generated SKILL.md content is Japanese.').toContain('# Brainbase日次ルーティン');
 
     const second = capture();
     const secondCode = await runCli(['onboard:skills', '--target', 'portable', '--skills', 'brainbase-daily-routines', '--out', outDir], second.io);

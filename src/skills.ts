@@ -8,6 +8,7 @@ export type BrainbaseSkillId =
 
 export interface BrainbaseSkillDefinition {
   id: BrainbaseSkillId;
+  title: string;
   description: string;
   body: string;
 }
@@ -43,105 +44,109 @@ const TARGET_BASE_PATHS: Record<SkillTarget, string> = {
   portable: 'skills'
 };
 
-const SECRET_RULE = 'Never ask the user to paste OAuth tokens, passwords, API keys, or refresh tokens into chat.';
+const SECRET_RULE = 'OAuthトークン、パスワード、APIキー、リフレッシュトークンをチャットに貼るようユーザーに依頼しない。';
 
 const SKILL_DEFINITIONS: Record<BrainbaseSkillId, BrainbaseSkillDefinition> = {
   'brainbase-personal-onboarding': {
     id: 'brainbase-personal-onboarding',
-    description: 'Run the public Brainbase personal onboarding interview and local MCP setup without hosted services.',
+    title: 'Brainbase個人オンボーディング',
+    description: '公開版Brainbaseの個人オンボーディング面談とローカルMCP設定を、安全に進める。',
     body: [
-      '## Purpose',
+      '## 目的',
       '',
-      'Use this skill when a person wants to start using Brainbase from Codex, Claude Code, or another coding agent.',
+      'ユーザーがCodex、Claude Code、または他のコーディングエージェントからBrainbaseを使い始める時に使う。',
       '',
-      '## Workflow',
+      '## 手順',
       '',
-      '1. Start with `brainbase onboard:agent` and let the agent ask about mail, calendar, drive/docs, tasks, permissions, and approval.',
-      '2. Run `brainbase onboard:init` to create the local Personal OS directory.',
-      '3. Run `brainbase onboard:diagnose-sources` using the user answers before collecting any source data.',
-      '4. Draft review candidates with `brainbase onboard:candidates --write` or by running the source import/extract loop.',
-      '5. Promote only facts the user explicitly approves into canonical SSOT with `brainbase onboard:seed` or `brainbase onboard:apply --write`.',
-      '6. Install MCP config with `brainbase onboard:install --target codex|claude|codecode --dry-run`, then have the user review the generated snippet.',
+      '1. 最初に `brainbase onboard:agent` を実行し、メール、カレンダー、ドライブ/ドキュメント、タスク、権限、承認についてエージェントに確認させる。',
+      '2. `brainbase onboard:init` でローカルPersonal OSディレクトリを作成する。',
+      '3. ソースデータを集める前に、ユーザーの回答を使って `brainbase onboard:diagnose-sources` を実行する。',
+      '4. `brainbase onboard:candidates --write`、またはsource import/extractの流れでレビュー候補を作る。',
+      '5. ユーザーが明示的に承認した事実だけを `brainbase onboard:seed` または `brainbase onboard:apply --write` でcanonical SSOTへ昇格する。',
+      '6. `brainbase onboard:install --target codex|claude|codecode --dry-run` でMCP設定スニペットを生成し、ユーザーに確認してもらう。',
       '',
-      '## Safety',
+      '## 安全ルール',
       '',
       `- ${SECRET_RULE}`,
-      '- Keep Brainbase local-first: use the local MCP server and `~/.brainbase/personal-os/` unless the user explicitly chooses another local path.',
-      '- Treat raw mail, calendar, drive, task, and notes data as secondary source material under `sources/`.',
-      '- Canonical context comes only from `graph.json`, `relationships.json`, `personal-kg.jsonl`, and `decisions.jsonl` after user review.'
+      '- Brainbaseはローカルファーストで扱う。ユーザーが別のローカルパスを明示しない限り、ローカルMCPサーバーと `~/.brainbase/personal-os/` を使う。',
+      '- メール、カレンダー、ドライブ、タスク、メモの生データは `sources/` 配下の二次材料として扱う。',
+      '- canonical contextは、ユーザー確認後の `graph.json`、`relationships.json`、`personal-kg.jsonl`、`decisions.jsonl` だけから作る。'
     ].join('\n')
   },
   'brainbase-source-import': {
     id: 'brainbase-source-import',
-    description: 'Collect local source metadata, import it into Brainbase sources, and extract review candidates.',
+    title: 'Brainbaseソース取り込み',
+    description: 'ローカルソースのメタデータを集め、Brainbase sourcesへ取り込み、レビュー候補を抽出する。',
     body: [
-      '## Purpose',
+      '## 目的',
       '',
-      'Use this skill when the user has selected mail, calendar, drive/docs, task, or local note sources for Brainbase onboarding.',
+      'ユーザーがBrainbaseオンボーディングでメール、カレンダー、ドライブ/ドキュメント、タスク、ローカルメモを対象にした時に使う。',
       '',
-      '## Workflow',
+      '## 手順',
       '',
-      '1. Confirm explicit allowlists before reading drive folders, local folders, calendars, task projects, or mail accounts.',
-      '2. Prefer metadata-first collection. For Google Workspace, use local GoG-style collection when available and keep output under `sources/`.',
-      '3. Import collected JSON with `brainbase onboard:import --source gmail|calendar|drive|local --from <file>`.',
-      '4. Extract deterministic candidates with `brainbase onboard:extract --self-email <email> --write`.',
-      '5. Show candidate ids, provenance counts, and source areas to the user before promotion.',
+      '1. ドライブフォルダ、ローカルフォルダ、カレンダー、タスクプロジェクト、メールアカウントを読む前に、明示的な許可範囲を確認する。',
+      '2. まずメタデータ優先で集める。Google Workspaceでは、利用可能ならローカルのGoG系コレクタを使い、出力は `sources/` 配下に置く。',
+      '3. 集めたJSONを `brainbase onboard:import --source gmail|calendar|drive|local --from <file>` で取り込む。',
+      '4. `brainbase onboard:extract --self-email <email> --write` で決定的なレビュー候補を抽出する。',
+      '5. 昇格前に、候補id、provenance count、source areaをユーザーに見せる。',
       '',
-      '## Safety',
+      '## 安全ルール',
       '',
       `- ${SECRET_RULE}`,
-      '- Do not collect full mail bodies, full event descriptions, or file contents unless the user explicitly approves excerpts.',
-      '- Do not scan an entire drive or home directory. Use explicit allowlists.',
-      '- Import/extract steps are not canonical memory. They only create secondary source records and review candidates.'
+      '- ユーザーが抜粋の利用を明示的に承認しない限り、メール本文全体、予定説明全文、ファイル本文を集めない。',
+      '- ドライブ全体やホームディレクトリ全体をスキャンしない。明示的な許可リストを使う。',
+      '- import/extractはcanonical memoryではない。二次ソース記録とレビュー候補を作るだけにする。'
     ].join('\n')
   },
   'brainbase-candidate-review': {
     id: 'brainbase-candidate-review',
-    description: 'Review Brainbase candidates with the user before promoting anything into canonical personal SSOT.',
+    title: 'Brainbase候補レビュー',
+    description: 'Brainbase候補をユーザーと確認し、承認されたものだけを個人SSOTへ昇格する。',
     body: [
-      '## Purpose',
+      '## 目的',
       '',
-      'Use this skill when Brainbase has candidate facts from an interview or source extraction.',
+      '面談やsource extractionからBrainbase候補が作られた時に使う。',
       '',
-      '## Workflow',
+      '## 手順',
       '',
-      '1. Group candidates by self, value, project, person, organization, relationship, decision, and next action.',
-      '2. Present candidate ids with plain-language summaries and provenance, not raw private source dumps.',
-      '3. Ask the user which candidate ids to approve, reject, or revise.',
-      '4. Dry-run promotion first with `brainbase onboard:apply --from <candidate-file> --select <id>` or use `brainbase onboard:seed` for manual facts.',
-      '5. Write canonical files only after explicit approval using `--write`.',
-      '6. Run `brainbase doctor` and, when useful, call Brainbase MCP `get_context` or `search` to confirm the approved facts are visible.',
+      '1. 候補をself、value、project、person、organization、relationship、decision、next actionに分類する。',
+      '2. private sourceの生データをそのまま出さず、候補id、平易な要約、provenanceを提示する。',
+      '3. どの候補idを承認、却下、修正するかをユーザーに確認する。',
+      '4. まず `brainbase onboard:apply --from <candidate-file> --select <id>` でdry-runする。手入力の事実には `brainbase onboard:seed` を使う。',
+      '5. `--write` は明示的な承認後にだけ使い、canonical filesへ書き込む。',
+      '6. `brainbase doctor` を実行し、必要に応じてBrainbase MCPの `get_context` または `search` で承認済み事実が見えることを確認する。',
       '',
-      '## Safety',
+      '## 安全ルール',
       '',
       `- ${SECRET_RULE}`,
-      '- Never promote candidates just because they appear frequently.',
-      '- Keep rejected or uncertain candidates out of canonical SSOT.',
-      '- Separate source-derived guesses from user-approved durable memory.'
+      '- 頻出しているだけの候補を自動昇格しない。',
+      '- 却下または不確実な候補はcanonical SSOTに入れない。',
+      '- source由来の推測と、ユーザー承認済みのdurable memoryを分ける。'
     ].join('\n')
   },
   'brainbase-daily-routines': {
     id: 'brainbase-daily-routines',
-    description: 'Generate personal Brainbase ohayo, oyasumi, and retro routines for the user agent scheduler.',
+    title: 'Brainbase日次ルーティン',
+    description: 'ユーザーのエージェントスケジューラ向けに、個人用Brainbase ohayo、oyasumi、retroを生成する。',
     body: [
-      '## Purpose',
+      '## 目的',
       '',
-      'Use this skill when the user wants Brainbase to become a recurring personal operating loop, not a one-time setup.',
+      'ユーザーがBrainbaseを一度きりの設定ではなく、継続的な個人オペレーティングループにしたい時に使う。',
       '',
-      '## Workflow',
+      '## 手順',
       '',
-      '1. Generate routine definitions with `brainbase onboard:routines --target codex|claude`.',
-      '2. Use `--routines ohayo,oyasumi,retro` or a subset when the user wants only part of the loop.',
-      '3. Tune routine times with `--ohayo-hour`, `--oyasumi-hour`, `--retro-dow`, and `--retro-hour`.',
-      '4. Review the generated prompt and schedule with the user before registering it in any scheduler.',
-      '5. Keep each routine scoped to the user\'s local Brainbase MCP context and their own approved sources.',
+      '1. `brainbase onboard:routines --target codex|claude` でルーティン定義を生成する。',
+      '2. 必要に応じて `--routines ohayo,oyasumi,retro` またはsubsetを使う。',
+      '3. `--ohayo-hour`、`--oyasumi-hour`、`--retro-dow`、`--retro-hour` で実行時刻を調整する。',
+      '4. スケジューラに登録する前に、生成されたpromptとscheduleをユーザーと確認する。',
+      '5. 各ルーティンは、ユーザー自身のローカルBrainbase MCP contextと承認済みソースだけに限定する。',
       '',
-      '## Safety',
+      '## 安全ルール',
       '',
       `- ${SECRET_RULE}`,
-      '- Do not send messages, publish, modify calendars, or delete records without explicit confirmation.',
-      '- Treat authentication or collector failures as unavailable data, not as zero work.',
-      '- Routine generation does not register a live scheduler unless the user performs that separate step.'
+      '- 明示的な確認なしに、メッセージ送信、公開、カレンダー変更、レコード削除をしない。',
+      '- 認証やcollectorの失敗は「データ未取得」と扱い、「対象ゼロ」とは扱わない。',
+      '- ルーティン生成はlive scheduler登録ではない。登録はユーザーが別ステップとして行う。'
     ].join('\n')
   }
 };
@@ -186,45 +191,45 @@ export function buildSkillBundle(target: SkillTarget, ids: BrainbaseSkillId[] = 
   const skills = ids.map((id) => buildSkillFile(target, SKILL_DEFINITIONS[id]));
   return {
     target,
-    goal: 'Install public-safe Brainbase onboarding skills for a personal coding-agent workflow.',
+    goal: '個人のコーディングエージェント運用向けに、公開safeなBrainbaseオンボーディングskillsを生成する。',
     canonicalWrites: false,
     liveConfigWrites: false,
     skills,
     safetyRules: [
       SECRET_RULE,
-      'Generated skills are personal-scoped and local-first.',
-      'Generated skills are not copied from internal Brainbase operations.',
-      'This command prints or writes portable SKILL.md files; it does not mutate live agent configuration.'
+      '生成されるskillsは個人スコープかつローカルファーストに限定する。',
+      '生成されるskillsは内部Brainbase運用からコピーしない。',
+      'このコマンドはportableなSKILL.mdを表示または書き出すだけで、live agent configurationは変更しない。'
     ],
     nextSteps: [
-      `Review the generated ${target} skill files.`,
-      'Place the files in the target agent skill directory or point the agent at the generated directory.',
-      'Run `brainbase onboard:agent` and continue the onboarding interview.'
+      `生成された ${target} skill files を確認する。`,
+      '対象エージェントのskill directoryへ配置するか、生成ディレクトリをエージェントに参照させる。',
+      '`brainbase onboard:agent` を実行し、オンボーディング面談を続ける。'
     ]
   };
 }
 
 export function renderSkillsMarkdown(bundle: SkillBundle, outDir?: string): string {
-  const lines: string[] = ['# Brainbase Public Onboarding Skills', ''];
-  lines.push(`- Target: ${bundle.target}`);
+  const lines: string[] = ['# Brainbase公開オンボーディングSkills', ''];
+  lines.push(`- 対象: ${bundle.target}`);
   lines.push(`- Skills: ${bundle.skills.map((skill) => skill.id).join(', ')}`);
-  lines.push(`- Canonical writes: ${bundle.canonicalWrites}`);
-  lines.push(`- Live config writes: ${bundle.liveConfigWrites}`);
+  lines.push(`- canonical writes: ${bundle.canonicalWrites}`);
+  lines.push(`- live config writes: ${bundle.liveConfigWrites}`);
   if (outDir) {
-    lines.push(`- Output directory: ${outDir}`);
+    lines.push(`- 出力ディレクトリ: ${outDir}`);
   }
-  lines.push('', '## Files');
+  lines.push('', '## ファイル');
   for (const skill of bundle.skills) {
     lines.push('', `### ${skill.id}`, '');
-    lines.push(`- Recommended path: ${skill.recommendedPath}`);
-    lines.push(`- Relative path: ${skill.relativePath}`);
+    lines.push(`- 推奨パス: ${skill.recommendedPath}`);
+    lines.push(`- 相対パス: ${skill.relativePath}`);
     lines.push('', '```markdown', skill.content.trimEnd(), '```');
   }
-  lines.push('', '## Safety Rules');
+  lines.push('', '## 安全ルール');
   for (const rule of bundle.safetyRules) {
     lines.push(`- ${rule}`);
   }
-  lines.push('', '## Next Steps');
+  lines.push('', '## 次のステップ');
   for (const step of bundle.nextSteps) {
     lines.push(`- ${step}`);
   }
@@ -263,15 +268,11 @@ function renderSkillContent(definition: BrainbaseSkillDefinition): string {
     `description: ${definition.description}`,
     '---',
     '',
-    `# ${titleize(definition.id)}`,
+    `# ${definition.title}`,
     '',
     definition.body,
     ''
   ].join('\n');
-}
-
-function titleize(id: string): string {
-  return id.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
 function isBrainbaseSkillId(value: string): value is BrainbaseSkillId {
