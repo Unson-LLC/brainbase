@@ -1,79 +1,64 @@
-# Contributing to Brainbase
+# Contributing to Brainbase MCP
 
-Thank you for your interest in contributing to Brainbase!
+Brainbase MCP v1 is a local-first personal onboarding kit. Keep contributions focused on the MCP server, onboarding CLI, local SSOT schemas, tests, and public documentation.
 
-## 🚀 Development Workflow
+This repository does not contain the internal Brainbase UI, session runtime, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data.
 
-Brainbase follows a **7-Phase Development Workflow**:
+## Development Workflow
 
-1. **Explore** - Understand existing code
-2. **Plan** - Design implementation approach
-3. **Branch** - Create feature branch (`session/YYYY-MM-DD-<type>-<name>`)
-4. **Edit** - Implement with TDD (Red-Green-Refactor)
-5. **Test** - Ensure 80%+ coverage
-6. **Commit** - Use Conventional Commits format
-7. **PR** - Submit pull request for review
+1. Read the relevant source, tests, and docs before editing.
+2. Make the smallest change that satisfies the issue or pull request.
+3. Add or update tests for changed behavior.
+4. Run the required verification commands.
+5. Submit a focused pull request with a clear summary and test evidence.
 
-## 🧪 Test-Driven Development (TDD)
+## Required Checks
 
-Brainbase is built with TDD at its core. Follow the **Red-Green-Refactor** cycle:
-
-1. **RED**: Write a failing test
-2. **GREEN**: Write minimal code to pass
-3. **REFACTOR**: Clean up code
+Run these before opening or merging a pull request:
 
 ```bash
-# Run tests
+npm run build
 npm test
-
-# Run tests with coverage
-npm run test:coverage
+npm audit
+npm pack --dry-run --json
 ```
 
-**Coverage Requirement**: 80%+ for all PRs
+Use targeted tests while iterating:
 
-## 🏗️ Architecture Principles
-
-Brainbase follows these core principles:
-
-- **Event-Driven Architecture**: All state changes emit events via EventBus
-- **Reactive Store Pattern**: UI syncs with state via Reactive Store
-- **Dependency Injection**: Services resolved via DI Container
-- **Service Layer Pattern**: Business logic in Service layer
-
-See [CLAUDE.md](./CLAUDE.md) for detailed development standards.
-
-## 📝 Commit Message Format
-
-Use **Conventional Commits**:
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```bash
+npm test -- tests/cli.test.ts
+npm test -- tests/tools.test.ts
 ```
 
-**Types**: feat, fix, docs, style, refactor, test, chore
+## Repository Hygiene
 
-## 🔍 Code Review Process
+Do not commit:
 
-1. Create a feature branch
-2. Implement with TDD
-3. Ensure tests pass and coverage is 80%+
-4. Create a pull request
-5. Respond to review feedback
-6. Merge after approval
+- Personal SSOT data from `~/.brainbase/personal-os/` or any `BRAINBASE_PERSONAL_OS_DIR`.
+- Raw meeting notes, logs, transcripts, or private source material.
+- UI artifacts, internal workflow/runtime files, or Unson-specific operational data.
+- Secrets, tokens, local env files, `.vibepro/`, `dist/`, `node_modules/`, or coverage output.
 
-## 💬 Communication
+`npm pack --dry-run --json` should only include the runtime package and public docs.
 
-- **Issues**: Bug reports, feature requests
-- **Discussions**: Questions, ideas, general discussions
-- **Pull Requests**: Code contributions
+## Architecture
 
----
+The v1 package exposes:
 
-Thank you for contributing to Brainbase! 🎉
+- `brainbase-mcp`: stdio MCP server.
+- `brainbase`: onboarding and doctor CLI.
+- Local canonical files under `~/.brainbase/personal-os/`.
+- MCP tools for context, entity listing, search, Personal KG search, and onboarding status.
+
+Prefer deterministic local file loading, explicit schema validation, and fail-loud errors over hidden fallbacks.
+
+## Commit Messages
+
+Use concise Conventional Commits:
+
+```text
+feat: add local SSOT import command
+fix: emit target-specific MCP install config
+test: cover onboarding status gaps
+docs: clarify local-only backend scope
+```
