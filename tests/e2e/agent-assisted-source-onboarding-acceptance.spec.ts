@@ -40,22 +40,89 @@ async function cli(args: string[]) {
 describe('agent-assisted source onboarding acceptance', () => {
   it('covers the Story acceptance criteria for agent-assisted source onboarding', async () => {
     const agentMarkdown = await cli(['onboard:agent']);
-    expect(agentMarkdown, 'agent-assisted-source-onboarding ac:1 `brainbase onboard:agent` outputs a reusable agent prompt that tells Codex / Claude Code what to ask and what not to do.').toContain('Codex');
-    expect(agentMarkdown, 'agent-assisted-source-onboarding ac:1 `brainbase onboard:agent` outputs a reusable agent prompt that tells Codex / Claude Code what to ask and what not to do.').toContain('Claude Code');
-    expect(agentMarkdown, 'agent-assisted-source-onboarding ac:1 `brainbase onboard:agent` outputs a reusable agent prompt that tells Codex / Claude Code what to ask and what not to do.').toContain('Do not ask the user to paste OAuth tokens');
+    expect(agentMarkdown, 'value-first-onboarding ac:1 `brainbase onboard:agent` starts by asking for the repeated context the user wants Brainbase to remember.').toContain('What do you not want to explain repeatedly');
+    expect(agentMarkdown, 'value-first-onboarding ac:1 `brainbase onboard:agent` starts by asking for the repeated context the user wants Brainbase to remember.').toContain('Codex');
+    expect(agentMarkdown, 'value-first-onboarding ac:1 `brainbase onboard:agent` starts by asking for the repeated context the user wants Brainbase to remember.').toContain('Claude Code');
+    expect(agentMarkdown, 'value-first-onboarding ac:1 `brainbase onboard:agent` starts by asking for the repeated context the user wants Brainbase to remember.').toContain('Do not ask the user to paste OAuth tokens');
 
     const agentJson = JSON.parse(await cli(['onboard:agent', '--format', 'json']));
-    expect(agentJson.interviewSections.map((section: { id: string }) => section.id), 'agent-assisted-source-onboarding ac:2 `brainbase onboard:agent --format json` returns structured interview sections for mail, calendar, drive/docs, tasks, projects, permissions, and approval.').toEqual([
-      'email',
-      'calendar',
-      'drive',
-      'tasks',
-      'projects',
-      'permissions',
-      'approval'
+    expect(agentJson.interviewSections.map((section: { id: string }) => section.id), 'value-first-onboarding ac:2 `brainbase onboard:agent --format json` returns value-first sections for value target, hypothesis, approval, minimum seed, first value demo, and optional sources.').toEqual([
+      'value_target',
+      'hypothesis',
+      'approval',
+      'minimum_seed',
+      'first_value_demo',
+      'optional_sources'
     ]);
-    expect(agentJson.safetyRules.join('\n'), 'agent-assisted-source-onboarding ac:2 `brainbase onboard:agent --format json` returns structured interview sections for mail, calendar, drive/docs, tasks, projects, permissions, and approval.').toContain('Body excerpts require explicit user approval');
+    expect(agentJson.nextCommands.indexOf('brainbase onboard:demo --scenario "<real request that should now work>"'), 'value-first-onboarding ac:2 `brainbase onboard:agent --format json` returns value-first sections for value target, hypothesis, approval, minimum seed, first value demo, and optional sources.').toBeLessThan(
+      agentJson.nextCommands.indexOf('brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion')
+    );
+    expect(agentJson.safetyRules.join('\n'), 'value-first-onboarding ac:2 `brainbase onboard:agent --format json` returns value-first sections for value target, hypothesis, approval, minimum seed, first value demo, and optional sources.').toContain('Do not treat raw source diagnosis');
     expect(agentJson.nextCommands.join('\n'), 'agent-assisted-source-onboarding ac:2 project registration is part of the structured onboarding flow.').toContain('brainbase onboard:projects');
+
+    const missingDir = await tempDir();
+    const missingDemo = JSON.parse(await cli(['onboard:demo', '--dir', missingDir, '--format', 'json']));
+    expect(missingDemo, 'value-first-onboarding ac:3 `brainbase onboard:demo --format json` reports `ready: false` with missing canonical areas when self, work, or relationships are absent.').toMatchObject({
+      ready: false,
+      missing: ['self', 'work', 'relationships'],
+      completionSignal: 'needs_seed'
+    });
+
+    const demoDir = await tempDir();
+    await cli([
+      'onboard:seed',
+      '--dir', demoDir,
+      '--name', 'Owner',
+      '--value', 'Do not re-explain the AI Dojo premise.',
+      '--project', 'AI Dojo',
+      '--relationship', 'Yamamoto Rikiya|CSO|Owns CSO perspective for AI Dojo decisions.'
+    ]);
+    const readyDemo = JSON.parse(await cli([
+      'onboard:demo',
+      '--dir', demoDir,
+      '--scenario', 'Draft the first note to Yamamoto about AI Dojo.',
+      '--format', 'json'
+    ]));
+    expect(readyDemo.ready, 'value-first-onboarding ac:4 After seeding self, work, and a relationship, `brainbase onboard:demo --scenario "<real request>" --format json` reports `ready: true` and produces an answer that uses the saved relationship context.').toBe(true);
+    expect(readyDemo.contextUsed.selectedRelationship, 'value-first-onboarding ac:4 After seeding self, work, and a relationship, `brainbase onboard:demo --scenario "<real request>" --format json` reports `ready: true` and produces an answer that uses the saved relationship context.').toMatchObject({
+      person: 'Yamamoto Rikiya',
+      role: 'CSO'
+    });
+    expect(readyDemo.answer, 'value-first-onboarding ac:4 After seeding self, work, and a relationship, `brainbase onboard:demo --scenario "<real request>" --format json` reports `ready: true` and produces an answer that uses the saved relationship context.').toContain('Owns CSO perspective');
+
+    const status = JSON.parse(await cli(['doctor', '--dir', demoDir]));
+    expect(status.valueDemo, 'value-first-onboarding ac:5 `doctor` exposes a `valueDemo` readiness block so onboarding completion is not reduced to connector setup.').toMatchObject({
+      ready: true,
+      missing: [],
+      completionSignal: 'first_value_demo_ready'
+    });
+
+    const guidedDir = await tempDir();
+    const guided = JSON.parse(await cli([
+      'onboard:start',
+      '--dir', guidedDir,
+      '--target', 'codex',
+      '--name', 'Owner',
+      '--value', 'Do not re-explain the AI Dojo premise.',
+      '--project', 'AI Dojo',
+      '--goal', 'Prove Brainbase onboarding value',
+      '--status', 'first run',
+      '--role', 'owner',
+      '--stakeholder', 'Yamamoto Rikiya|CSO|Owns CSO perspective for AI Dojo decisions.',
+      '--format', 'json'
+    ]));
+    const guidedCommandIds = guided.nextCommands.map((item: { id: string }) => item.id);
+    expect(guided.interview.map((section: { id: string }) => section.id), 'value-first-onboarding ac:1 primary `onboard:start` path asks value target before source setup.').toEqual([
+      'value_target',
+      'self',
+      'project',
+      'approval',
+      'first_value_demo',
+      'sources'
+    ]);
+    expect(guidedCommandIds.indexOf('first-value-demo'), 'value-first-onboarding ac:6 primary `onboard:start` path presents first value demo before source diagnosis or candidate files.').toBeLessThan(guidedCommandIds.indexOf('source-diagnosis'));
+    expect(guided.nextCommands.find((item: { id: string }) => item.id === 'first-value-demo').command, 'value-first-onboarding ac:6 primary `onboard:start` path presents first value demo before source diagnosis or candidate files.').toContain('brainbase onboard:demo');
+    expect(guided.nextCommands.find((item: { id: string }) => item.id === 'self-seed').command, 'value-first-onboarding ac:4 primary `onboard:start` path seeds relationship context before the first demo.').toContain('--relationship');
 
     const recommendationSet = JSON.parse(await cli([
       'onboard:recommend',
@@ -103,5 +170,6 @@ describe('agent-assisted source onboarding acceptance', () => {
     const readme = await readFile('README.md', 'utf8');
     expect(readme.indexOf('## Agent-assisted Onboarding'), 'agent-assisted-source-onboarding ac:8 README explains the agent-assisted onboarding path before the manual seed path.').toBeGreaterThanOrEqual(0);
     expect(readme.indexOf('## Agent-assisted Onboarding'), 'agent-assisted-source-onboarding ac:8 README explains the agent-assisted onboarding path before the manual seed path.').toBeLessThan(readme.indexOf('## 30 Minute Setup'));
+    expect(readme.indexOf('brainbase onboard:demo'), 'value-first-onboarding ac:6 README presents the first value demo before source diagnosis or candidate files.').toBeLessThan(readme.indexOf('brainbase onboard:diagnose-sources'));
   });
 });

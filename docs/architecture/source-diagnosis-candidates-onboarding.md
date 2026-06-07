@@ -16,7 +16,7 @@ Brainbase keeps agent-assisted onboarding local and deterministic. Codex, Claude
 
 ## Data Flow
 
-1. The coding agent asks the user about mail, calendar, drive/docs, tasks, permissions, and review scope.
+1. After the first value demo, the coding agent asks the user about mail, calendar, drive/docs, tasks, permissions, and review scope.
 2. The agent calls `onboard:diagnose-sources` with the answers.
 3. The diagnosis tells the agent which local collector is needed and which `sources/` path should receive metadata-first output.
 4. The agent calls `onboard:candidates` with approved interview facts.

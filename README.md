@@ -8,7 +8,7 @@ This repository does not include the internal Brainbase UI, session runtime, xte
 
 ## Agent-assisted Onboarding
 
-Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. Instead of starting with a long manual seed command, ask your coding agent to run the Brainbase onboarding interview.
+Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. The first onboarding goal is a useful answer from your own context, not connector setup.
 
 ```bash
 npm install
@@ -16,7 +16,7 @@ npm run build
 node dist/cli.js onboard:start --target codex
 ```
 
-`onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not promote self, project, relationship, decision, mail, calendar, drive, or task facts into canonical SSOT. It asks Codex or Claude Code to interview the user first, then prints the next commands for source diagnosis, project registration, candidate review, MCP install, and `doctor`.
+`onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not promote self, project, relationship, decision, mail, calendar, drive, or task facts into canonical SSOT. It asks Codex or Claude Code what context you do not want to explain repeatedly, then prints the next commands for minimum seed, `onboard:demo`, project registration, optional source diagnosis, candidate review, MCP install, and `doctor`. The demo command appears before source diagnosis.
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 
@@ -43,14 +43,40 @@ If you only want the raw interview protocol, use:
 node dist/cli.js onboard:agent
 ```
 
-Paste the generated protocol into Codex or Claude Code and let it ask which tools you use:
+Paste the generated protocol into Codex or Claude Code. The agent should first ask what you do not want to explain repeatedly:
 
-- mail: Gmail, Outlook, Apple Mail, or another mail tool
-- calendar: Google Calendar, Outlook Calendar, Apple Calendar, or another calendar
-- drive/docs: Google Drive, OneDrive, Dropbox, Notion, local folders, or another document system
-- tasks: Notion, Todoist, Linear, GitHub Issues, NocoDB, CSV, or no task tool
+- a work premise
+- a key relationship
+- a decision principle
+- an active project
 
-After the interview, ask Brainbase to diagnose the local source setup. This does not import source data. It tells the agent which local collector, allowlist, and staging path are needed:
+Then approve the smallest facts that should become canonical local SSOT and seed them explicitly:
+
+```bash
+brainbase onboard:init
+brainbase onboard:seed \
+  --name "Your Name" \
+  --value "What should not be re-explained" \
+  --project "Current project" \
+  --relationship "Key Partner|collaborator|Context you want AI tools to remember"
+```
+
+Run the first value demo with a real request. This is the onboarding completion signal:
+
+```bash
+brainbase onboard:demo --scenario "Draft the first note I should send to Key Partner about Current project"
+```
+
+`onboard:demo` reads only canonical `graph.json`, `relationships.json`, `personal-kg.jsonl`, and `decisions.jsonl`. It does not call an LLM, hosted backend, or raw source collector. If it returns `ready: true` and the answer uses the saved relationship or work premise, Brainbase has reached the first value moment.
+
+After the demo, install the MCP config:
+
+```bash
+brainbase onboard:install --target codex --dry-run
+brainbase doctor
+```
+
+Source setup is optional follow-up work. After the demo, ask Brainbase to diagnose the local source setup only when the demo shows that more context is needed or when you want to import existing tools:
 
 ```bash
 brainbase onboard:diagnose-sources \
@@ -81,12 +107,12 @@ brainbase onboard:plan \
 
 This plan treats the Mac mini as the user's local MCP runtime host, not as a hosted Brainbase backend or server-operations handoff. Google Workspace and Gmail are staged through read-only metadata-first GoG steps. Google Drive and local files are allowlist-first; do not scan the whole Drive or home directory. If Notion was tried and abandoned, keep it as inactive context and extract task candidates from Google Calendar and approved local notes instead.
 
-Then let the coding agent draft candidate facts from the interview. Candidate files are review material only; they do not count as canonical memory:
+Candidate files are also optional post-demo review material. They do not count as canonical memory:
 
 ```bash
 brainbase onboard:candidates --write \
   --name "Your Name" \
-  --value "What matters in your work" \
+  --value "What should not be re-explained" \
   --project "Current project" \
   --relationship "Key Partner|collaborator|Context you want AI tools to remember"
 ```
@@ -213,6 +239,7 @@ npm install
 npm run build
 npm run onboard:init
 npm run onboard:seed -- --name "Your Name" --value "What matters in your work" --project "Current project" --relationship "Key Partner|collaborator|Context you want AI tools to remember"
+node dist/cli.js onboard:demo --scenario "Draft the first note I should send to Key Partner about Current project"
 npm run doctor
 npm run onboard:install -- --target codex --dry-run
 ```
@@ -253,7 +280,7 @@ BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
 - `list_entities`: lists `person`, `org`, `project`, `relationship`, and `decision` entities.
 - `search`: searches canonical Graph and Personal KG data.
 - `search_personal_kg`: searches owner-local Personal KG only.
-- `onboarding_status`: reports seeded areas, missing setup, and local connection status.
+- `onboarding_status`: reports seeded areas, first value demo readiness, missing setup, and local connection status.
 
 ## CLI
 
@@ -271,6 +298,7 @@ Installed package commands:
 ```bash
 brainbase onboard:init
 brainbase onboard:seed
+brainbase onboard:demo
 brainbase onboard:install --target codex --dry-run
 brainbase onboard:import --source gmail --from /tmp/gmail.json
 brainbase onboard:extract --self-email you@example.com --write
@@ -286,6 +314,7 @@ Local checkout equivalents:
 ```bash
 npm run build
 node dist/cli.js onboard:agent
+node dist/cli.js onboard:demo --scenario "Draft the first note I should send to Key Partner about Current project"
 node dist/cli.js onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "<notes-folder>" --tasks scattered-calendar-notes --inactive-task-tool notion
 node dist/cli.js onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion
 node dist/cli.js onboard:candidates --write --name "Your Name" --project "Current project"

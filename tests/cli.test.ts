@@ -118,25 +118,87 @@ describe('onboarding CLI', () => {
     expect(output.stderr()).toContain('onboard:install requires --target codex|claude|codecode');
   });
 
-  it('S-9 onboard:agent --format json prints the Codex and Claude Code interview protocol', async () => {
+  it('value-first-onboarding S-1 C-3 onboard:agent --format json prints the value-first protocol', async () => {
     const output = capture();
     const code = await runCli(['onboard:agent', '--format', 'json'], output.io);
 
     expect(code).toBe(0);
     const protocol = JSON.parse(output.stdout());
-    expect(protocol.goal).toContain('Codex');
+    expect(protocol.goal).toContain('first useful Brainbase answer');
     expect(protocol.interviewSections.map((section: { id: string }) => section.id)).toEqual([
-      'email',
-      'calendar',
-      'drive',
-      'tasks',
-      'projects',
-      'permissions',
-      'approval'
+      'value_target',
+      'hypothesis',
+      'approval',
+      'minimum_seed',
+      'first_value_demo',
+      'optional_sources'
     ]);
     expect(protocol.safetyRules.join('\n')).toContain('Do not ask the user to paste OAuth tokens');
-    expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:recommend');
+    expect(protocol.safetyRules.join('\n')).toContain('Do not treat raw source diagnosis');
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:projects');
+    expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:demo');
+    expect(protocol.nextCommands.indexOf('brainbase onboard:demo --scenario "<real request that should now work>"')).toBeLessThan(
+      protocol.nextCommands.indexOf('brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion')
+    );
+  });
+
+  it('value-first-onboarding S-2 C-5 onboard:demo reports missing canonical areas before seed', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli(['onboard:demo', '--dir', dir, '--format', 'json'], output.io);
+
+    expect(code).toBe(0);
+    const demo = JSON.parse(output.stdout());
+    expect(demo.ready).toBe(false);
+    expect(demo.completionSignal).toBe('needs_seed');
+    expect(demo.missing).toEqual(['self', 'work', 'relationships']);
+    expect(demo.answer).toContain('first value demo is not ready');
+  });
+
+  it('value-first-onboarding S-3 S-4 C-5 C-6 onboard:demo succeeds after minimum seed and doctor exposes valueDemo', async () => {
+    const dir = await tempDir();
+    const seed = capture();
+    const seedCode = await runCli([
+      'onboard:seed',
+      '--dir', dir,
+      '--name', 'Owner',
+      '--value', 'Do not make me re-explain the AI Dojo premise.',
+      '--project', 'AI Dojo',
+      '--relationship', 'Yamamoto Rikiya|CSO|Owns CSO perspective for AI Dojo decisions.',
+      '--decision-principle', 'First prove value, then configure sources.'
+    ], seed.io);
+    expect(seedCode).toBe(0);
+
+    const output = capture();
+    const code = await runCli([
+      'onboard:demo',
+      '--dir', dir,
+      '--scenario', 'Draft the first note to Yamamoto about AI Dojo.',
+      '--format', 'json'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const demo = JSON.parse(output.stdout());
+    expect(demo.ready).toBe(true);
+    expect(demo.completionSignal).toBe('first_value_demo_ready');
+    expect(demo.missing).toEqual([]);
+    expect(demo.contextUsed.selectedRelationship).toMatchObject({
+      person: 'Yamamoto Rikiya',
+      role: 'CSO'
+    });
+    expect(demo.answer).toContain('without asking the user to explain the background again');
+    expect(demo.answer).toContain('Yamamoto Rikiya');
+    expect(demo.answer).toContain('AI Dojo');
+
+    const doctorOutput = capture();
+    const doctorCode = await runCli(['doctor', '--dir', dir], doctorOutput.io);
+    expect(doctorCode).toBe(0);
+    const status = JSON.parse(doctorOutput.stdout());
+    expect(status.valueDemo).toMatchObject({
+      ready: true,
+      missing: [],
+      completionSignal: 'first_value_demo_ready'
+    });
   });
 
   it('S-9b onboard:start initializes Personal OS and prints a Japanese guided first-run plan', async () => {
@@ -172,14 +234,16 @@ describe('onboarding CLI', () => {
       personalOs: true,
       canonicalFactWrites: false
     });
-    expect(guide.interview.map((section: { id: string }) => section.id)).toEqual([
-      'self',
-      'project',
-      'sources',
-      'approval'
-    ]);
     expect(JSON.stringify(guide.interview)).toContain('メール');
     expect(JSON.stringify(guide.interview)).toContain('Google Drive');
+    expect(guide.interview.map((section: { id: string }) => section.id)).toEqual([
+      'value_target',
+      'self',
+      'project',
+      'approval',
+      'first_value_demo',
+      'sources'
+    ]);
 
     const drive = guide.sourceReadiness.find((source: { area: string }) => source.area === 'drive');
     expect(drive).toMatchObject({
@@ -197,17 +261,21 @@ describe('onboarding CLI', () => {
     expect(guide.projectRegistration.writeCommand).toContain('--write');
     expect(guide.nextCommands.map((item: { id: string }) => item.id)).toEqual([
       'self-seed',
-      'source-diagnosis',
+      'first-value-demo',
       'project-dry-run',
       'project-write',
+      'source-diagnosis',
       'candidates',
       'install',
       'doctor'
     ]);
+    expect(guide.nextCommands.find((item: { id: string }) => item.id === 'self-seed').command).toContain('--relationship');
+    expect(guide.nextCommands.find((item: { id: string }) => item.id === 'first-value-demo').command).toContain('onboard:demo');
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'source-diagnosis').command).toContain('--assume-gog');
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'install').command).toContain('onboard:install --target codex');
     expect(guide.approvalGates.join('\n')).toContain('OAuth token');
-    expect(guide.completionCheck.join('\n')).toContain('doctor の missing が空');
+    expect(guide.approvalGates.join('\n')).toContain('最初の価値体験');
+    expect(guide.completionCheck.join('\n')).toContain('first_value_demo_ready');
 
     const os = await loadPersonalOs(dir);
     expect(os.graph.entities).toHaveLength(0);
@@ -231,6 +299,8 @@ describe('onboarding CLI', () => {
     expect(output.stdout()).toContain('# Brainbase 初回オンボーディング開始');
     expect(output.stdout()).toContain('対象エージェント: Claude Code');
     expect(output.stdout()).toContain('メール');
+    expect(output.stdout()).toContain('接続準備（デモ後の任意ステップ）');
+    expect(output.stdout()).toContain('onboard:demo');
     expect(output.stdout()).toContain('ローカル設定が必要');
     expect(output.stdout()).toContain('ローカルGoGコマンドをインストールまたは設定する: __missing_brainbase_gog__');
     expect(output.stdout()).toContain('プロジェクト名の聞き取り待ち');

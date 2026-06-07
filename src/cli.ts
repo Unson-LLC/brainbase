@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { onboardingStatus } from './tools.js';
-import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis } from './onboarding.js';
+import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
 import {
   buildExtractedCandidateSet,
   extractCandidates,
@@ -74,6 +74,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardAgent(parsed, io);
       case 'onboard:start':
         return await onboardStart(parsed, io);
+      case 'onboard:demo':
+        return await onboardDemo(parsed, io);
       case 'onboard:recommend':
         return await onboardRecommend(parsed, io);
       case 'onboard:diagnose-sources':
@@ -291,6 +293,15 @@ async function onboardStart(parsed: ParsedArgs, io: CliIo): Promise<number> {
     connected: status.connected === true,
     missing
   }, format));
+  return 0;
+}
+
+async function onboardDemo(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = parseOnboardingFormat(first(parsed, 'format'));
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  await initializePersonalOs(dataDir);
+  const os = await loadPersonalOs(dataDir);
+  write(io, renderValueDemo({ os, scenario: first(parsed, 'scenario') }, format));
   return 0;
 }
 
@@ -856,6 +867,7 @@ function usage(): string {
   brainbase onboard:install --target codex|claude|codecode [--dir path] [--dry-run] [--output path]
   brainbase onboard:agent [--format markdown|json]
   brainbase onboard:start [--target codex|claude|codecode] [--dir path] [--name value] [--project value] [--goal value] [--status value] [--role value] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--format markdown|json]
+  brainbase onboard:demo [--dir path] [--scenario value] [--format markdown|json]
   brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
   brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
   brainbase onboard:plan [--profile google-workspace-local] [--host value] [--email value] [--secondary-email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--inactive-task-tool value] [--format markdown|json]
