@@ -1,3 +1,5 @@
+import type { PersonalOs, RelationshipRecord } from './types.js';
+
 export type OnboardingFormat = 'markdown' | 'json';
 
 export type SourceArea = 'email' | 'calendar' | 'drive' | 'tasks';
@@ -138,82 +140,103 @@ export interface LocalOnboardingPlan {
   nextCommands: string[];
 }
 
+export interface ValueDemoInput {
+  os: PersonalOs;
+  scenario?: string;
+}
+
+export interface ValueDemo {
+  goal: string;
+  ready: boolean;
+  missing: string[];
+  scenario: string;
+  contextUsed: {
+    ownerName?: string;
+    self: string[];
+    work: string[];
+    relationships: Array<{
+      person: string;
+      role?: string;
+      context: string;
+    }>;
+    selectedRelationship?: {
+      person: string;
+      role?: string;
+      context: string;
+    };
+    decisions: Array<{
+      title: string;
+      decision: string;
+    }>;
+  };
+  answer: string;
+  nextStep: string;
+  completionSignal: 'needs_seed' | 'first_value_demo_ready';
+}
+
 export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
   return {
-    goal: 'Help the user build a local Brainbase Personal OS that Codex, Claude Code, or CodeCode can read through MCP.',
+    goal: 'Help the user reach a first useful Brainbase answer from local canonical context before asking them to configure source collectors.',
     interviewSections: [
       {
-        id: 'email',
-        title: 'Mail',
+        id: 'value_target',
+        title: 'First value target',
         questions: [
-          'What mail tool do you use: Gmail, Outlook, Apple Mail, or something else?',
-          'Which account should Brainbase inspect first?',
-          'Should the first pass be metadata only, or are short body excerpts allowed after confirmation?'
+          'What do you not want to explain repeatedly to Codex, Claude Code, or CodeCode?',
+          'Which real request would prove Brainbase is useful today?',
+          'Should the first demo focus on a work premise, key relationship, decision principle, or active project?'
         ]
       },
       {
-        id: 'calendar',
-        title: 'Calendar',
+        id: 'hypothesis',
+        title: 'Memory hypothesis',
         questions: [
-          'What calendar do you use: Google Calendar, Outlook Calendar, Apple Calendar, or something else?',
-          'How far back and forward should Brainbase inspect?',
-          'Are private calendars excluded?'
-        ]
-      },
-      {
-        id: 'drive',
-        title: 'Drive and Docs',
-        questions: [
-          'Where do work documents live: Google Drive, OneDrive, Dropbox, Notion, local folders, or somewhere else?',
-          'Which folders are explicitly allowed?',
-          'Should Brainbase start with metadata only before reading excerpts?'
-        ]
-      },
-      {
-        id: 'tasks',
-        title: 'Tasks',
-        questions: [
-          'What task system do you use: Notion, Todoist, Linear, GitHub Issues, NocoDB, CSV, or none?',
-          'Which projects or workspaces should be included?',
-          'Who owns task status decisions?'
-        ]
-      },
-      {
-        id: 'projects',
-        title: 'Projects',
-        questions: [
-          'What active projects should Brainbase register first?',
-          'For each project, what is the goal, current status, and your role?',
-          'Who are the key stakeholders for each project?',
-          'Which mail, calendar, drive, task, or local-note sources are explicitly allowed for each project?',
-          'What project-specific decision principles should AI tools remember?'
-        ]
-      },
-      {
-        id: 'permissions',
-        title: 'Permissions',
-        questions: [
-          'Which accounts, calendars, folders, projects, or workspaces are explicitly allowed?',
-          'Which sources must be excluded from Brainbase onboarding?',
-          'Is metadata-only collection acceptable before any body text or document excerpts are read?'
+          'Summarize the smallest self, work, and relationship facts needed for that demo.',
+          'State what Brainbase should remember in plain language before writing any files.',
+          'Name the relationship or project the demo should use.'
         ]
       },
       {
         id: 'approval',
-        title: 'Review and approval',
+        title: 'Approval',
         questions: [
-          'What active projects should become canonical work context?',
-          'Which key relationships should Brainbase remember?',
-          'Which decision principles should guide future Codex or Claude Code work?',
-          'Which extracted people, organizations, projects, relationships, and decisions should be promoted to canonical SSOT?',
-          'Which sources are sensitive and should stay raw-only or excluded?',
-          'What should Codex or Claude Code remember for future work?'
+          'Ask the user to approve the exact facts that will become canonical SSOT.',
+          'Confirm that the facts are safe to store locally under the Personal OS directory.',
+          'Do not show candidate JSON as the first user-facing review surface.'
+        ]
+      },
+      {
+        id: 'minimum_seed',
+        title: 'Minimum canonical seed',
+        questions: [
+          'Run brainbase onboard:init if the Personal OS directory does not exist.',
+          'Run brainbase onboard:seed with the approved name, value, project, relationship, or decision principle.',
+          'Keep raw sources and candidates out of the first value demo.'
+        ]
+      },
+      {
+        id: 'first_value_demo',
+        title: 'First value demo',
+        questions: [
+          'Run brainbase onboard:demo with the real request the user chose.',
+          'Show the answer and ask whether it saved explanation effort.',
+          'Treat this demo, not connector readiness, as the onboarding completion signal.'
+        ]
+      },
+      {
+        id: 'optional_sources',
+        title: 'Optional source setup',
+        questions: [
+          'Only after the first demo, ask which mail, calendar, drive/docs, or task tools should be diagnosed.',
+          'Use source diagnosis to fill gaps exposed by the demo, not as the starting point.',
+          'Keep imported material under sources/ and promote only reviewed facts.'
         ]
       }
     ],
     safetyRules: [
       'Do not ask the user to paste OAuth tokens, passwords, API keys, or refresh tokens into chat.',
       'Use read-only collection paths where available.',
+      'Do not treat raw source diagnosis, connector readiness, or candidate JSON as onboarding completion.',
       'Keep mail, calendar, drive, and task data under sources/ until the user approves candidates.',
       'Prefer metadata-first import. Body excerpts require explicit user approval.',
       'Drive collection must be folder allowlist based.',
@@ -221,21 +244,67 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
     ],
     nextCommands: [
       'brainbase onboard:init',
-      'brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion',
+      'brainbase onboard:seed --name "<name>" --value "<what should not be re-explained>" --project "<current project>" --relationship "<person>|<role>|<context>"',
       'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
-      'brainbase onboard:candidates --write --name "<name>" --project "<current project>"',
-      'brainbase onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion',
-      'brainbase onboard:seed --name "<name>" --value "<what matters>" --project "<current project>"',
+      'brainbase onboard:demo --scenario "<real request that should now work>"',
       'brainbase onboard:install --target codex --dry-run',
-      'brainbase doctor'
+      'brainbase doctor',
+      'brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion'
     ],
     completionCheck: [
       'Personal OS directory exists.',
-      'sources/ has provider-specific folders but raw source files are not canonical context.',
-      'doctor reports connected=true and missing=[].',
+      'The approved self, work, and relationship facts are canonical SSOT.',
+      'brainbase onboard:demo returns ready=true and a useful answer for the selected real request.',
       'The selected MCP client has a Brainbase config snippet.',
-      'The user has reviewed what Brainbase is allowed to remember.'
+      'Source diagnosis is optional follow-up work, not the onboarding completion condition.'
     ]
+  };
+}
+
+export function buildValueDemo(input: ValueDemoInput): ValueDemo {
+  const scenario = input.scenario?.trim() || 'Draft the first message or working note that should use my saved Brainbase context.';
+  const seeded = seededAreas(input.os);
+  const missing = Object.entries(seeded)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  const self = selfContext(input.os);
+  const work = workContext(input.os);
+  const relationships = input.os.relationships.relationships.map((relationship) => ({
+    person: relationship.person,
+    role: relationship.role,
+    context: relationship.context
+  }));
+  const decisions = input.os.decisions.map((decision) => ({
+    title: decision.title,
+    decision: decision.decision
+  }));
+  const selectedRelationship = selectRelationship(input.os.relationships.relationships, scenario);
+  const ready = missing.length === 0;
+
+  return {
+    goal: 'Demonstrate Brainbase value from canonical local SSOT before source collector setup.',
+    ready,
+    missing,
+    scenario,
+    contextUsed: {
+      ownerName: input.os.graph.owner?.name,
+      self,
+      work,
+      relationships,
+      selectedRelationship: selectedRelationship ? {
+        person: selectedRelationship.person,
+        role: selectedRelationship.role,
+        context: selectedRelationship.context
+      } : undefined,
+      decisions
+    },
+    answer: ready
+      ? buildReadyDemoAnswer({ scenario, self, work, selectedRelationship, decisions })
+      : buildMissingDemoAnswer(missing),
+    nextStep: ready
+      ? 'Install the MCP config, then ask the same scenario from Codex or Claude Code. Use source diagnosis only if the demo exposed missing context.'
+      : `Seed the missing canonical areas first: ${missing.join(', ')}.`,
+    completionSignal: ready ? 'first_value_demo_ready' : 'needs_seed'
   };
 }
 
@@ -605,6 +674,42 @@ export function renderSourceDiagnosis(input: SourceDiagnosisInput, format: Onboa
   ].join('\n');
 }
 
+export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat): string {
+  const demo = buildValueDemo(input);
+  if (format === 'json') {
+    return `${JSON.stringify(demo, null, 2)}\n`;
+  }
+
+  return [
+    '# Brainbase First Value Demo',
+    '',
+    demo.goal,
+    '',
+    `- Ready: ${String(demo.ready)}`,
+    `- Completion signal: ${demo.completionSignal}`,
+    `- Scenario: ${demo.scenario}`,
+    `- Missing: ${demo.missing.length === 0 ? 'none' : demo.missing.join(', ')}`,
+    '',
+    '## Context Used',
+    `- Owner: ${demo.contextUsed.ownerName ?? 'unknown'}`,
+    '- Self:',
+    ...(demo.contextUsed.self.length === 0 ? ['  - none'] : demo.contextUsed.self.map((item) => `  - ${item}`)),
+    '- Work:',
+    ...(demo.contextUsed.work.length === 0 ? ['  - none'] : demo.contextUsed.work.map((item) => `  - ${item}`)),
+    '- Relationships:',
+    ...(demo.contextUsed.relationships.length === 0
+      ? ['  - none']
+      : demo.contextUsed.relationships.map((relationship) => `  - ${relationship.person}${relationship.role ? ` (${relationship.role})` : ''}: ${relationship.context}`)),
+    '',
+    '## Demo Answer',
+    demo.answer,
+    '',
+    '## Next Step',
+    demo.nextStep,
+    ''
+  ].join('\n');
+}
+
 export function renderCandidateDrafts(input: CandidateInput, format: OnboardingFormat): string {
   const candidateSet = buildCandidateDrafts(input);
   if (format === 'json') {
@@ -752,6 +857,97 @@ function diagnoseRecommendation(recommendation: ConnectorRecommendation, input: 
     setupCommands: nonGoogleSetupCommands(recommendation, writeTarget),
     safetyNotes: recommendation.safetyNotes
   };
+}
+
+function seededAreas(os: PersonalOs): Record<'self' | 'work' | 'relationships', boolean> {
+  return {
+    self: Boolean(os.graph.owner?.name) || os.personalKg.some((entry) => entry.type === 'self'),
+    work: os.graph.entities.some((entity) => entity.type === 'project') || os.personalKg.some((entry) => entry.type === 'work'),
+    relationships: os.relationships.relationships.length > 0
+  };
+}
+
+function selfContext(os: PersonalOs): string[] {
+  return [
+    ...(os.graph.owner?.name ? [`Owner: ${os.graph.owner.name}`] : []),
+    ...(os.graph.owner?.summary ? [os.graph.owner.summary] : []),
+    ...os.personalKg
+      .filter((entry) => entry.type === 'self' || entry.type === 'value' || entry.type === 'judgment')
+      .map((entry) => entry.text)
+  ];
+}
+
+function workContext(os: PersonalOs): string[] {
+  return [
+    ...os.graph.entities
+      .filter((entity) => entity.type === 'project')
+      .map((entity) => entity.summary ? `${entity.name}: ${entity.summary}` : entity.name),
+    ...os.personalKg
+      .filter((entry) => entry.type === 'work' || entry.type === 'experience')
+      .map((entry) => entry.text)
+  ];
+}
+
+function selectRelationship(relationships: RelationshipRecord[], scenario: string): RelationshipRecord | undefined {
+  const normalizedScenario = normalizeForMatch(scenario);
+  return relationships.find((relationship) => relationshipTerms(relationship.person)
+    .some((term) => normalizedScenario.includes(normalizeForMatch(term))))
+    ?? relationships[0];
+}
+
+function relationshipTerms(name: string): string[] {
+  const compact = name.replace(/\s+/g, '');
+  const terms = new Set([
+    name,
+    compact,
+    ...name.split(/[\s,|/()]+/).filter(Boolean)
+  ]);
+  if (compact.length >= 2) {
+    terms.add(compact.slice(0, 2));
+  }
+  return [...terms].filter((term) => term.length >= 2);
+}
+
+function normalizeForMatch(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '');
+}
+
+function buildReadyDemoAnswer(input: {
+  scenario: string;
+  self: string[];
+  work: string[];
+  selectedRelationship?: RelationshipRecord;
+  decisions: Array<{ title: string; decision: string }>;
+}): string {
+  const relationshipLine = input.selectedRelationship
+    ? `Use saved relationship context for ${input.selectedRelationship.person}${input.selectedRelationship.role ? ` (${input.selectedRelationship.role})` : ''}: ${input.selectedRelationship.context}`
+    : 'No specific relationship matched the scenario, so use the saved work and self context first.';
+  const workLine = input.work[0] ? `Anchor the answer in current work: ${input.work[0]}` : 'No work premise was available.';
+  const selfLine = input.self[0] ? `Carry the owner premise: ${input.self[0]}` : 'No self premise was available.';
+  const decisionLine = input.decisions[0] ? `Respect the decision principle: ${input.decisions[0].decision}` : 'No decision principle was needed for this demo.';
+
+  return [
+    `For "${input.scenario}", Brainbase can start from local SSOT without asking the user to explain the background again.`,
+    '',
+    relationshipLine,
+    workLine,
+    selfLine,
+    decisionLine,
+    '',
+    'Suggested first response:',
+    input.selectedRelationship
+      ? `Start by acknowledging ${input.selectedRelationship.person}'s role/context, then propose the next concrete action using the saved work premise.`
+      : 'Start from the saved work premise, then ask only for the one missing detail needed to act.',
+    'Completion: this is the first value demo. Source diagnosis is optional follow-up, not the proof of onboarding.'
+  ].join('\n');
+}
+
+function buildMissingDemoAnswer(missing: string[]): string {
+  return [
+    'Brainbase is connected, but the first value demo is not ready because canonical context is still missing.',
+    `Missing canonical areas: ${missing.join(', ')}.`,
+    'Seed the minimum approved facts, then rerun brainbase onboard:demo with the real request.'
+  ].join('\n');
 }
 
 function isGoogleDiagnosis(recommendation: ConnectorRecommendation): boolean {

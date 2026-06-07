@@ -17,17 +17,20 @@ Brainbase Personal Onboarding Kit should let a first-time user start from Codex,
 
 - `onboard:start` initializes the local Personal OS directory when needed.
 - `onboard:start` does not write canonical self, project, relationship, personal KG, or decision facts by itself.
-- The command emits a Japanese interview flow for self, project, sources, and approval.
+- The command emits a Japanese interview flow for value target, self/work context, project, approval, first value demo, and optional post-demo sources.
 - The command accepts known answers for target agent, self name, project, goal, status, role, email, calendar, drive, drive folder allowlists, local folders, and tasks.
 - The command reports source readiness in Japanese while preserving concrete setup commands.
 - The command includes copyable next commands for:
   - `onboard:seed`
-  - `onboard:diagnose-sources`
+  - `onboard:demo`
   - `onboard:projects` dry-run
   - `onboard:projects --write` after approval
+  - `onboard:diagnose-sources` after the first value demo
   - `onboard:candidates --write`
   - `onboard:install --target <agent> --dry-run`
   - `doctor`
+- `onboard:start` lists `onboard:demo` before source diagnosis or candidate review.
+- `onboard:start` completion checks include first value demo readiness, not only `doctor.missing`.
 - Project registration remains approval-gated. Dry-run comes before `--write`.
 - OAuth tokens, passwords, API keys, and refresh tokens are never requested through chat.
 - Drive and local file collection remain allowlist-first.

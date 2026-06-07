@@ -112,12 +112,19 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
   const missing = Object.entries(seeded)
     .filter(([, value]) => !value)
     .map(([key]) => key);
+  const valueDemoReady = missing.length === 0;
 
   return {
     connected: true,
     dataDir: os.dataDir,
     seeded,
     missing,
+    valueDemo: {
+      ready: valueDemoReady,
+      missing,
+      command: 'brainbase onboard:demo --scenario "<real request>"',
+      completionSignal: valueDemoReady ? 'first_value_demo_ready' : 'needs_seed'
+    },
     counts: {
       graphEntities: os.graph.entities.length,
       personalKgEntries: os.personalKg.length,

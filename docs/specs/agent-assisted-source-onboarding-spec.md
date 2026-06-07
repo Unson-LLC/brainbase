@@ -2,7 +2,7 @@
 
 ## Objective
 
-Provide a UI-free onboarding protocol where Codex, Claude Code, or CodeCode interviews the user about existing work tools and Brainbase returns safe local connector recommendations. The package remains a local MCP onboarding kit.
+Provide a UI-free onboarding protocol where Codex, Claude Code, or CodeCode reaches a first value demo from approved canonical facts, then Brainbase returns safe local connector recommendations as optional follow-up. The package remains a local MCP onboarding kit.
 
 ## Commands
 
@@ -12,10 +12,10 @@ Outputs an agent-facing onboarding protocol.
 
 The protocol must include:
 
-- Goal: build a local Personal OS for MCP clients.
-- Interview questions for mail, calendar, drive/docs, task management, active projects, key relationships, and decision principles.
+- Goal: reach a first useful Brainbase answer from local canonical context before source collector setup.
+- Interview questions for repeated context, memory hypothesis, approval, minimum seed, first value demo, and optional source setup.
 - Safety boundaries: read-only collection, no secrets in chat, raw sources are secondary material, approval before canonical writes.
-- Suggested next commands: `onboard:init`, `onboard:recommend`, `onboard:install`, `doctor`.
+- Suggested next commands: `onboard:init`, `onboard:seed`, `onboard:demo`, `onboard:install`, `doctor`, and optional `onboard:diagnose-sources`.
 
 ### `brainbase onboard:recommend`
 

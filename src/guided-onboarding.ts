@@ -137,13 +137,25 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     ...(input.gogCommand ? ['--gog-command', input.gogCommand] : []),
     ...(input.assumeGog ? ['--assume-gog'] : [])
   ]);
+  const firstRelationship = firstProjectStakeholder(input.project);
+  const firstRelationshipArg = firstRelationship
+    ? `${firstRelationship.person}|${firstRelationship.role ?? ''}|${firstRelationship.context}`
+    : '<関係者>|<役割>|<AIに覚えてほしい文脈>';
+  const firstValueScenario = buildFirstValueScenario(input.project?.name, firstRelationship?.person);
   const selfSeedCommand = command([
     'brainbase',
     'onboard:seed',
     '--dir', input.dataDir,
     '--name', input.name || '<あなたの名前>',
     ...values.flatMap((value) => ['--value', value]),
-    '--project', input.project?.name || '<最初に登録するプロジェクト>'
+    '--project', input.project?.name || '<最初に登録するプロジェクト>',
+    '--relationship', firstRelationshipArg
+  ]);
+  const demoCommand = command([
+    'brainbase',
+    'onboard:demo',
+    '--dir', input.dataDir,
+    '--scenario', firstValueScenario
   ]);
   const projectDryRunCommand = project
     ? projectCommand(input.dataDir, project.project.name, input.project, project.project.sources, false)
@@ -153,7 +165,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     : undefined;
 
   return {
-    goal: 'Codex / Claude Code / CodeCode が質問しながら、ローカル Brainbase MCP の初回セットアップを日本語で開始できるようにする。',
+    goal: 'Codex / Claude Code / CodeCode が質問しながら、ローカル Brainbase MCP の最初の価値体験まで日本語で到達できるようにする。',
     language: 'ja',
     profile,
     target: input.target,
@@ -193,20 +205,20 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     nextCommands: [
       {
         id: 'self-seed',
-        title: '自己情報と最初の仕事文脈を正本化する',
-        when: '名前、価値観、最初のプロジェクトを本人が確認した後',
+        title: '最初のデモに必要な最小文脈を正本化する',
+        when: '名前、価値観、最初のプロジェクト、関係者文脈を本人が確認した後',
         command: selfSeedCommand
       },
       {
-        id: 'source-diagnosis',
-        title: 'メール・カレンダー・ドライブ・タスクの接続準備を診断する',
-        when: '利用ツールと読み取り範囲を聞き取った後',
-        command: diagnoseCommand
+        id: 'first-value-demo',
+        title: '最初の価値体験を実行する',
+        when: '最小文脈のseed直後。接続診断より先に実行する',
+        command: demoCommand
       },
       ...(projectDryRunCommand ? [{
         id: 'project-dry-run',
         title: 'プロジェクト登録内容を確認する',
-        when: 'プロジェクトの目的、状態、役割、関係者、許可ソースを聞き取った後',
+        when: '最初のデモ後、プロジェクト詳細を追加したい時',
         command: projectDryRunCommand
       }] : []),
       ...(projectWriteCommand ? [{
@@ -216,9 +228,15 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
         command: projectWriteCommand
       }] : []),
       {
+        id: 'source-diagnosis',
+        title: 'メール・カレンダー・ドライブ・タスクの接続準備を診断する',
+        when: '最初の価値体験の後、追加文脈が必要だと分かった時',
+        command: diagnoseCommand
+      },
+      {
         id: 'candidates',
         title: '候補ファクトをレビュー用に作る',
-        when: '聞き取り内容をまだ正本化せずレビュー材料にしたい時',
+        when: '最初のデモ後、聞き取り内容をまだ正本化せずレビュー材料にしたい時',
         command: command([
           'brainbase',
           'onboard:candidates',
@@ -243,13 +261,15 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     ],
     approvalGates: [
       'OAuth token、password、API key、refresh tokenはチャットへ貼らない。',
+      '接続診断や候補JSONを初回オンボーディングの完了扱いにしない。最初の価値体験を先に見る。',
       'メール、カレンダー、ドライブ、タスクは最初はmetadata-firstで扱う。',
       'Google Driveとローカルファイルは明示されたfolder allowlistだけを見る。',
       'sources/ と candidates/ は二次材料であり、本人承認前にMCPの正本文脈へ入れない。',
       'プロジェクト、関係者、判断基準はdry-run確認後だけ --write または onboard:seed で正本化する。'
     ],
     completionCheck: [
-      'doctor の missing が空になる。',
+      'brainbase onboard:demo が ready=true / first_value_demo_ready を返す。',
+      'doctor の valueDemo.ready が true になる。',
       `${targetLabel(input.target)} のMCP設定に Brainbase が入っている。`,
       '最初のプロジェクトが get_context/search で見える。',
       '外部ソースは許可範囲、保存先、正本化前レビューの流れが説明できる。'
@@ -280,7 +300,7 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
       ...section.questions.map((question) => `- ${question}`)
     ]),
     '',
-    '## 接続準備',
+    '## 接続準備（デモ後の任意ステップ）',
     ...guide.sourceReadiness.flatMap((source) => [
       '',
       `### ${source.title}`,
@@ -314,11 +334,21 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
 function buildJapaneseInterview(): GuidedInterviewSection[] {
   return [
     {
+      id: 'value_target',
+      title: '最初の価値体験',
+      questions: [
+        'Codex / Claude Code に毎回説明し直したくない仕事文脈は何ですか？',
+        '今日のオンボーディングで「これは便利」と判断できる実リクエストは何ですか？',
+        '最初のデモは仕事前提、関係者、判断基準、プロジェクトのどれを使えれば成功ですか？'
+      ]
+    },
+    {
       id: 'self',
-      title: '本人情報',
+      title: '最小の本人・仕事文脈',
       questions: [
         'あなたの名前、呼ばれ方、Codex / Claude Code に覚えてほしい仕事上の前提は何ですか？',
-        '判断基準、重視する価値観、避けたい進め方は何ですか？'
+        '判断基準、重視する価値観、避けたい進め方は何ですか？',
+        '最初のデモに必要な関係者は誰で、どういう文脈を覚えておくべきですか？'
       ]
     },
     {
@@ -331,25 +361,46 @@ function buildJapaneseInterview(): GuidedInterviewSection[] {
       ]
     },
     {
-      id: 'sources',
-      title: 'メール・カレンダー・ドライブ・タスク',
+      id: 'approval',
+      title: '正本化の承認',
       questions: [
-        'メールは Gmail / Google Workspace / Outlook / Apple Mail / その他のどれですか？',
-        'カレンダーは Google Calendar / Outlook Calendar / Apple Calendar / その他のどれですか？',
-        'ドキュメントは Google Drive / OneDrive / Dropbox / Notion / ローカルフォルダのどこにありますか？',
-        'タスク管理は Notion / Todoist / Linear / GitHub Issues / NocoDB / CSV / カレンダーやメモ散在 / なし のどれですか？',
-        '最初に読んでよいアカウント、カレンダー、Driveフォルダ、ローカルフォルダはどれですか？'
+        '最初のデモに必要な本人、仕事、関係性の事実をこのままローカル正本に入れてよいですか？',
+        '候補JSONではなく、会話上の要約として承認できますか？',
+        'まだ正本化しない事実や除外したい文脈はありますか？'
       ]
     },
     {
-      id: 'approval',
-      title: '承認',
+      id: 'first_value_demo',
+      title: 'デモ確認',
       questions: [
-        'metadataだけなら先に収集してよいですか？本文やファイル本文の抜粋はどこまで許可しますか？',
-        '候補として抽出した人物、組織、プロジェクト、関係性、判断基準のどれを正本へ入れますか？'
+        'seed直後に brainbase onboard:demo を実行し、説明し直しが減ったか確認してください。',
+        'デモが足りない場合、どの文脈が不足していましたか？'
+      ]
+    },
+    {
+      id: 'sources',
+      title: 'デモ後のメール・カレンダー・ドライブ・タスク',
+      questions: [
+        '最初のデモ後に追加文脈が必要なら、メールは Gmail / Google Workspace / Outlook / Apple Mail / その他のどれですか？',
+        'カレンダーは Google Calendar / Outlook Calendar / Apple Calendar / その他のどれですか？',
+        'ドキュメントは Google Drive / OneDrive / Dropbox / Notion / ローカルフォルダのどこにありますか？',
+        'タスク管理は Notion / Todoist / Linear / GitHub Issues / NocoDB / CSV / カレンダーやメモ散在 / なし のどれですか？',
+        '読んでよいアカウント、カレンダー、Driveフォルダ、ローカルフォルダはどれですか？'
       ]
     }
   ];
+}
+
+function firstProjectStakeholder(project: ProjectRegistrationInput | undefined): ProjectStakeholder | undefined {
+  return project?.stakeholders?.find((stakeholder) => stakeholder.person && stakeholder.context);
+}
+
+function buildFirstValueScenario(projectName: string | undefined, person: string | undefined): string {
+  const project = projectName || '<最初のプロジェクト>';
+  if (person) {
+    return `${person}さんに${project}の相談を投げるための論点メモを作って`;
+  }
+  return `${project}について、保存済み文脈を使った最初の作業メモを作って`;
 }
 
 function toGuidedSourceReadiness(diagnosis: SourceDiagnosis): GuidedSourceReadiness {

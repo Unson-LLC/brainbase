@@ -63,7 +63,7 @@ export const toolDefinitions = [
   },
   {
     name: 'onboarding_status',
-    description: 'Report seeded areas, missing setup, and local connection status.',
+    description: 'Report seeded areas, first value demo readiness, missing setup, and local connection status.',
     inputSchema: {
       type: 'object',
       properties: {
