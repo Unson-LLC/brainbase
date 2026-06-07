@@ -13,10 +13,12 @@ Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. The fi
 ```bash
 npm install
 npm run build
-node dist/cli.js onboard:start --target codex
+npm run onboard:start -- --target codex
 ```
 
 `onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not promote self, project, relationship, decision, mail, calendar, drive, or task facts into canonical SSOT. It asks Codex or Claude Code what context you do not want to explain repeatedly, then prints the next commands for minimum seed, `onboard:demo`, project registration, optional source diagnosis, candidate review, MCP install, and `doctor`. The demo command appears before source diagnosis.
+
+If the user says "I want to onboard Brainbase", the agent should run this flow instead of returning a checklist. The expected sequence is: build if needed, run `onboard:start`, ask for the smallest context the user wants Brainbase to remember, seed only approved facts, then run `onboard:demo` with a real request. `onboard:install --dry-run` is only a configuration preview; it is not the completion signal.
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 

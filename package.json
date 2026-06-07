@@ -25,6 +25,7 @@
     "start": "node dist/index.js",
     "doctor": "node dist/cli.js doctor",
     "onboard:init": "node dist/cli.js onboard:init",
+    "onboard:start": "node dist/cli.js onboard:start",
     "onboard:seed": "node dist/cli.js onboard:seed",
     "onboard:demo": "node dist/cli.js onboard:demo",
     "onboard:install": "node dist/cli.js onboard:install"
