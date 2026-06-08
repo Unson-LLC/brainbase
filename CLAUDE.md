@@ -17,5 +17,6 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 - Do not stop after printing commands. Ask for the one context the user does not want to explain repeatedly: a work premise, key relationship, decision principle, or active project.
 - Seed only facts the user approves with `brainbase onboard:seed`.
 - Run `brainbase onboard:demo --scenario "<real request>"` before source diagnosis or MCP install, and use the first useful answer as the onboarding completion signal.
+- Do not stop at `ready: true` or `first_value_demo_ready`. Show the first useful output, the prompt the user should try, and the plain-language value: what the user did not have to explain again.
 - Treat `brainbase onboard:install --target <agent> --dry-run` as configuration preview only. It is not onboarding completion.
 - Do not modify `package-lock.json`, `tsconfig.json`, or dependency metadata just to onboard a user unless build or install actually fails and the fix is scoped.
