@@ -18,7 +18,7 @@ npm run onboard:start -- --target codex
 
 `onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not save self, project, relationship, decision, mail, calendar, drive, or task facts until the user approves them. It asks Codex or Claude Code what context you do not want to explain repeatedly, then shows the first prompt to try, the expected value, the minimum seed command, `onboard:demo`, project registration, optional source diagnosis, candidate review, MCP install, and `doctor`. The demo command appears before source diagnosis.
 
-If the user says "I want to onboard Brainbase", the agent should run this flow instead of returning a checklist. The expected sequence is: build if needed, run `onboard:start`, ask for the smallest context the user wants Brainbase to remember, seed only approved facts, then run `onboard:demo` with a real request. The agent must show the prompt, sample result, and what the user no longer had to explain. `ready: true` and `onboard:install --dry-run` are not completion signals by themselves.
+If the user says "I want to onboard Brainbase", the agent should run this flow instead of returning a checklist. The expected sequence is: build if needed, run `onboard:start`, ask for the smallest context the user wants Brainbase to remember, seed only approved facts, then run `onboard:demo` with a real request. The agent must show the prompt, sample result, what the user no longer had to explain, and the still-unfinished operationalization work. `ready: true`, `first_value_demo_ready`, generated skills, generated routines, and `onboard:install --dry-run` are not completion signals by themselves.
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 
@@ -71,7 +71,20 @@ brainbase onboard:demo --scenario "Draft the first note I should send to Key Par
 
 `onboard:demo` reads only locally saved, approved facts. It does not call an LLM, hosted backend, or raw source collector. If it returns `ready: true`, the agent still needs to show the try-this prompt, sample result, and plain-language value: the user did not have to explain the saved work premise or person context again.
 
-After the demo, install the MCP config:
+After the demo, keep onboarding open until the operationalization checklist is either completed or explicitly deferred:
+
+```bash
+brainbase onboard:skills --target codex
+brainbase onboard:routines --target codex --cwd /path/to/brainbase
+brainbase onboard:install --target codex --dry-run
+brainbase doctor
+```
+
+The recommended order is public skills, `ohayo` / `oyasumi` / `retro` routines registered paused or confirmation-gated, real MCP config merge after approving the dry-run snippet, source allowlist / import / candidate review decisions, then `doctor` plus MCP `get_context` / `search` verification from a fresh agent session.
+
+The commands above are still safe by default. `onboard:skills` and `onboard:routines` generate output unless you provide an explicit `--out`, and `onboard:install --dry-run` is only a preview. Do not treat those generated artifacts as installed until the user approves file writes, scheduler registration, and live config changes.
+
+Preview the MCP config before merging it into the real agent config:
 
 ```bash
 brainbase onboard:install --target codex --dry-run

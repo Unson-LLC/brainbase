@@ -1,4 +1,5 @@
 import type { EntityKind, PersonalOs, SearchResult } from './types.js';
+import { buildOperationalizationPlan } from './operationalization.js';
 
 export function getContext(os: PersonalOs): Record<string, unknown> {
   const selfEntries = os.personalKg.filter((entry) => entry.type === 'self' || entry.type === 'value' || entry.type === 'judgment');
@@ -113,6 +114,10 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
     .filter(([, value]) => !value)
     .map(([key]) => key);
   const valueDemoReady = missing.length === 0;
+  const operationalization = buildOperationalizationPlan({
+    dataDir: os.dataDir,
+    firstValueReady: valueDemoReady
+  });
 
   return {
     connected: true,
@@ -125,6 +130,7 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
       command: 'brainbase onboard:demo --scenario "<real request>"',
       completionSignal: valueDemoReady ? 'first_value_demo_ready' : 'needs_seed'
     },
+    operationalization,
     counts: {
       graphEntities: os.graph.entities.length,
       personalKgEntries: os.personalKg.length,

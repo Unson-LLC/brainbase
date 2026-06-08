@@ -102,11 +102,24 @@ describe('MCP-only repository hygiene', () => {
   it('onboarding-first-value-experience S-4 C-4 agent instructions require useful output, not only readiness', async () => {
     const agents = await readFile(join(repoRoot, 'AGENTS.md'), 'utf8');
     const claude = await readFile(join(repoRoot, 'CLAUDE.md'), 'utf8');
+    const readme = await readFile(join(repoRoot, 'README.md'), 'utf8');
 
     for (const text of [agents, claude]) {
       expect(text).toContain('Do not stop at `ready: true`');
       expect(text).toContain('Show the first useful output');
       expect(text).toContain('what the user did not have to explain again');
+      expect(text, 'onboarding-operationalization-next-actions S-5 C-5 agent instructions require operationalization next actions').toContain('Commands existing in the product are not enough');
+      expect(text).toContain('public skills placement');
+      expect(text).toContain('ohayo` / `oyasumi` / `retro');
+      expect(text).toContain('MCP `get_context` / `search` verification');
     }
+
+    expect(readme, 'onboarding-operationalization-next-actions S-5 C-5 README guidance must keep onboarding open after the demo').toContain('After the demo, keep onboarding open');
+    expect(readme).toContain('brainbase onboard:skills --target codex');
+    expect(readme).toContain('brainbase onboard:routines --target codex --cwd /path/to/brainbase');
+    expect(readme).toContain('brainbase onboard:install --target codex --dry-run');
+    expect(readme).toContain('source allowlist / import / candidate review decisions');
+    expect(readme).toContain('MCP `get_context` / `search` verification');
+    expect(readme).toContain('Do not treat those generated artifacts as installed');
   });
 });
