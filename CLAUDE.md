@@ -18,5 +18,7 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 - Seed only facts the user approves with `brainbase onboard:seed`.
 - Run `brainbase onboard:demo --scenario "<real request>"` before source diagnosis or MCP install, and use the first useful answer as the onboarding completion signal.
 - Do not stop at `ready: true` or `first_value_demo_ready`. Show the first useful output, the prompt the user should try, and the plain-language value: what the user did not have to explain again.
+- Commands existing in the product are not enough. A completion report must still list unfinished operationalization: public skills placement, `ohayo` / `oyasumi` / `retro` routines, real MCP config merge, source allowlist / import / candidate review, and MCP `get_context` / `search` verification.
+- Keep operationalization safe by default: generated skills, generated routines, and `onboard:install --dry-run` are previews until the user approves file writes, scheduler registration, and live config changes.
 - Treat `brainbase onboard:install --target <agent> --dry-run` as configuration preview only. It is not onboarding completion.
 - Do not modify `package-lock.json`, `tsconfig.json`, or dependency metadata just to onboard a user unless build or install actually fails and the fix is scoped.

@@ -1,4 +1,5 @@
 import { buildSourceDiagnosis, type SourceArea, type SourceDiagnosis } from './onboarding.js';
+import { buildOperationalizationPlan, type OperationalizationPlan } from './operationalization.js';
 import { buildProjectRegistrationPlan, type ProjectRegistrationInput, type ProjectSourceReference, type ProjectStakeholder } from './projects.js';
 
 export type GuidedTarget = 'codex' | 'claude' | 'codecode';
@@ -72,6 +73,7 @@ export interface GuidedFirstRun {
     expectedValue: string;
     sampleResult: string;
   };
+  operationalization: OperationalizationPlan;
   interview: GuidedInterviewSection[];
   answers: {
     selfName?: string;
@@ -149,6 +151,11 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     : '<関係者>|<役割>|<AIに覚えてほしい文脈>';
   const firstValueScenario = buildFirstValueScenario(input.project?.name, firstRelationship?.person);
   const firstValueExperience = buildFirstValueExperience(input.project?.name, firstRelationship?.person);
+  const operationalization = buildOperationalizationPlan({
+    target: input.target,
+    dataDir: input.dataDir,
+    firstValueReady: false
+  });
   const selfSeedCommand = command([
     'brainbase',
     'onboard:seed',
@@ -187,6 +194,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
       missing: input.missing ?? ['self', 'work', 'relationships']
     },
     firstValueExperience,
+    operationalization,
     interview: buildJapaneseInterview(),
     answers: {
       selfName: input.name,
@@ -223,6 +231,30 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
         when: '最小文脈のseed直後。接続診断より先に実行する',
         command: demoCommand
       },
+      {
+        id: 'skills',
+        title: '公開オンボーディングskillsを配置する',
+        when: 'first value demoを見せた後。agentが次回も同じ運用を辿れるようにする',
+        command: operationalization.pending.find((item) => item.id === 'public-skills')?.command ?? 'brainbase onboard:skills --target codex'
+      },
+      {
+        id: 'routines',
+        title: 'ohayo / oyasumi / retroを確認付きで登録する',
+        when: 'first value demoを見せた後。最初はPAUSEDまたは確認付きで登録する',
+        command: operationalization.pending.find((item) => item.id === 'routines')?.command ?? 'brainbase onboard:routines --target codex --cwd <brainbase-checkout>'
+      },
+      {
+        id: 'install',
+        title: `${targetLabel(input.target)} 用のMCP設定を実configへmergeする`,
+        when: 'first value demoとskills/routines確認後。dry-runをプレビューにして承認後に実configへ反映する',
+        command: operationalization.pending.find((item) => item.id === 'mcp-config')?.command ?? command(['brainbase', 'onboard:install', '--target', input.target, '--dir', input.dataDir, '--dry-run'])
+      },
+      {
+        id: 'doctor',
+        title: 'doctor と MCP get_context/search で確認する',
+        when: 'MCP設定を実configへmergeし、対象エージェントを再起動した後',
+        command: operationalization.pending.find((item) => item.id === 'verification')?.command ?? command(['brainbase', 'doctor', '--dir', input.dataDir])
+      },
       ...(projectDryRunCommand ? [{
         id: 'project-dry-run',
         title: 'プロジェクト登録内容を確認する',
@@ -253,18 +285,6 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
           '--name', input.name || '<あなたの名前>',
           '--project', input.project?.name || '<現在のプロジェクト>'
         ])
-      },
-      {
-        id: 'install',
-        title: `${targetLabel(input.target)} 用のMCP設定を確認する`,
-        when: 'Personal OSの最小seed後',
-        command: command(['brainbase', 'onboard:install', '--target', input.target, '--dir', input.dataDir, '--dry-run'])
-      },
-      {
-        id: 'doctor',
-        title: '不足しているseedと接続状態を確認する',
-        when: '各ステップの後',
-        command: command(['brainbase', 'doctor', '--dir', input.dataDir])
       }
     ],
     approvalGates: [
@@ -279,7 +299,8 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
       'brainbase onboard:demo が、保存済み文脈を使った自然なプロンプトとサンプル回答を返す。',
       'ready=true / first_value_demo_ready だけで完了扱いにせず、ユーザーが「説明し直さなくてよい」と分かる回答を見る。',
       'doctor の valueDemo.ready が true になる。',
-      `${targetLabel(input.target)} のMCP設定に Brainbase が入っている。`,
+      '完了報告には、公開skills、ohayo/oyasumi/retro、MCP実config merge、source allowlist/import/candidate review、MCP get_context/search確認の未完了タスクを必ず出す。',
+      `${targetLabel(input.target)} のMCP設定に Brainbase が実登録されている。`,
       '最初のプロジェクトが get_context/search で見える。',
       '外部ソースは許可範囲、保存先、正本化前レビューの流れが説明できる。'
     ]
@@ -310,6 +331,15 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
     '',
     '### サンプル回答',
     guide.firstValueExperience.sampleResult,
+    '',
+    '## まだ残っている運用化',
+    guide.operationalization.goal,
+    '',
+    '### 未完了の次アクション',
+    ...guide.operationalization.pending.map((item) => `- ${item.title}: \`${item.command}\` (${item.safety})`),
+    '',
+    '### 推奨順序',
+    ...guide.operationalization.recommendedOrder.map((item, index) => `${index + 1}. ${item}`),
     '',
     '## エージェントの聞き取り',
     ...guide.interview.flatMap((section) => [
