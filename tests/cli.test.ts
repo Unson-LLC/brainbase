@@ -152,10 +152,11 @@ describe('onboarding CLI', () => {
     expect(demo.ready).toBe(false);
     expect(demo.completionSignal).toBe('needs_seed');
     expect(demo.missing).toEqual(['self', 'work', 'relationships']);
-    expect(demo.answer).toContain('first value demo is not ready');
+    expect(demo.answer).toContain('まだ最初の価値体験はできません');
+    expect(demo.valueExplanation).toContain('最小メモが足りません');
   });
 
-  it('value-first-onboarding S-3 S-4 C-5 C-6 onboard:demo succeeds after minimum seed and doctor exposes valueDemo', async () => {
+  it('value-first-onboarding S-3 S-4 C-5 C-6 and onboarding-first-value-experience S-2 C-1 onboard:demo shows first useful output after minimum seed', async () => {
     const dir = await tempDir();
     const seed = capture();
     const seedCode = await runCli([
@@ -186,9 +187,13 @@ describe('onboarding CLI', () => {
       person: 'Yamamoto Rikiya',
       role: 'CSO'
     });
-    expect(demo.answer).toContain('without asking the user to explain the background again');
+    expect(demo.tryPrompt).toBe('Draft the first note to Yamamoto about AI Dojo.');
+    expect(demo.sampleResult).toContain('Yamamoto Rikiya');
+    expect(demo.sampleResult).toContain('AI Dojo');
+    expect(demo.valueExplanation).toContain('もう一度説明しなくても');
     expect(demo.answer).toContain('Yamamoto Rikiya');
     expect(demo.answer).toContain('AI Dojo');
+    expect(demo.answer).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
 
     const doctorOutput = capture();
     const doctorCode = await runCli(['doctor', '--dir', dir], doctorOutput.io);
@@ -199,6 +204,41 @@ describe('onboarding CLI', () => {
       missing: [],
       completionSignal: 'first_value_demo_ready'
     });
+  });
+
+  it('onboarding-first-value-experience S-3 C-3 onboard:demo markdown shows try prompt, sample result, and value explanation', async () => {
+    const dir = await tempDir();
+    const seed = capture();
+    const seedCode = await runCli([
+      'onboard:seed',
+      '--dir', dir,
+      '--name', 'Owner',
+      '--value', 'Do not make me re-explain the AI Dojo premise.',
+      '--project', 'AI Dojo',
+      '--relationship', 'Yamamoto Rikiya|CSO|Owns CSO perspective for AI Dojo decisions.',
+      '--decision-principle', 'First prove value, then configure sources.'
+    ], seed.io);
+    expect(seedCode).toBe(0);
+
+    const output = capture();
+    const code = await runCli([
+      'onboard:demo',
+      '--dir', dir,
+      '--scenario', 'Draft the first note to Yamamoto about AI Dojo.'
+    ], output.io);
+
+    expect(code).toBe(0);
+    const markdown = output.stdout();
+    expect(markdown).toContain('## Try This Now');
+    expect(markdown).toContain('Draft the first note to Yamamoto about AI Dojo.');
+    expect(markdown).toContain('## Sample Result');
+    expect(markdown).toContain('Yamamoto Rikiya');
+    expect(markdown).toContain('AI Dojo');
+    expect(markdown).toContain('## What Changed');
+    expect(markdown).toContain('もう一度説明しなくても');
+    expect(markdown.indexOf('## Try This Now')).toBeLessThan(markdown.indexOf('## Sample Result'));
+    expect(markdown.indexOf('## Sample Result')).toBeLessThan(markdown.indexOf('## What Changed'));
+    expect(markdown).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
   });
 
   it('S-9b onboard:start initializes Personal OS and prints a Japanese guided first-run plan', async () => {
@@ -234,6 +274,12 @@ describe('onboarding CLI', () => {
       personalOs: true,
       canonicalFactWrites: false
     });
+    expect(guide.firstValueExperience, 'onboarding-first-value-experience S-1 C-2 onboard:start returns firstValueExperience').toMatchObject({
+      tryPrompt: '佐藤圭吾さんにBrainbase個人オンボーディングの相談を投げるための論点メモを作って'
+    });
+    expect(guide.firstValueExperience.expectedValue).toContain('説明し直さなくても');
+    expect(guide.firstValueExperience.sampleResult).toContain('保存した仕事メモ');
+    expect(JSON.stringify(guide.firstValueExperience)).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
     expect(JSON.stringify(guide.interview)).toContain('メール');
     expect(JSON.stringify(guide.interview)).toContain('Google Drive');
     expect(guide.interview.map((section: { id: string }) => section.id)).toEqual([
@@ -276,13 +322,14 @@ describe('onboarding CLI', () => {
     expect(guide.approvalGates.join('\n')).toContain('OAuth token');
     expect(guide.approvalGates.join('\n')).toContain('最初の価値体験');
     expect(guide.completionCheck.join('\n')).toContain('first_value_demo_ready');
+    expect(guide.completionCheck.join('\n'), 'onboarding-first-value-experience INV-1 completion check is user-facing, not only ready=true').toContain('説明し直さなくてよい');
 
     const os = await loadPersonalOs(dir);
     expect(os.graph.entities).toHaveLength(0);
     expect(os.personalKg).toHaveLength(0);
   });
 
-  it('S-9c onboard:start markdown shows missing source setup in Japanese', async () => {
+  it('S-9c and onboarding-first-value-experience S-1 onboard:start markdown shows first prompt before optional source setup', async () => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli([
@@ -298,8 +345,11 @@ describe('onboarding CLI', () => {
     expect(code).toBe(0);
     expect(output.stdout()).toContain('# Brainbase 初回オンボーディング開始');
     expect(output.stdout()).toContain('対象エージェント: Claude Code');
+    expect(output.stdout()).toContain('## まず試すこと');
+    expect(output.stdout()).toContain('### サンプル回答');
     expect(output.stdout()).toContain('メール');
     expect(output.stdout()).toContain('接続準備（デモ後の任意ステップ）');
+    expect(output.stdout().indexOf('## まず試すこと')).toBeLessThan(output.stdout().indexOf('## 接続準備（デモ後の任意ステップ）'));
     expect(output.stdout()).toContain('onboard:demo');
     expect(output.stdout()).toContain('ローカル設定が必要');
     expect(output.stdout()).toContain('ローカルGoGコマンドをインストールまたは設定する: __missing_brainbase_gog__');

@@ -98,4 +98,15 @@ describe('MCP-only repository hygiene', () => {
       || file.startsWith('dist/')
     ))).toBe(true);
   });
+
+  it('onboarding-first-value-experience S-4 C-4 agent instructions require useful output, not only readiness', async () => {
+    const agents = await readFile(join(repoRoot, 'AGENTS.md'), 'utf8');
+    const claude = await readFile(join(repoRoot, 'CLAUDE.md'), 'utf8');
+
+    for (const text of [agents, claude]) {
+      expect(text).toContain('Do not stop at `ready: true`');
+      expect(text).toContain('Show the first useful output');
+      expect(text).toContain('what the user did not have to explain again');
+    }
+  });
 });

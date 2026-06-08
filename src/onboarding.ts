@@ -150,6 +150,7 @@ export interface ValueDemo {
   ready: boolean;
   missing: string[];
   scenario: string;
+  tryPrompt: string;
   contextUsed: {
     ownerName?: string;
     self: string[];
@@ -170,6 +171,8 @@ export interface ValueDemo {
     }>;
   };
   answer: string;
+  sampleResult: string;
+  valueExplanation: string;
   nextStep: string;
   completionSignal: 'needs_seed' | 'first_value_demo_ready';
 }
@@ -200,7 +203,7 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
         id: 'approval',
         title: 'Approval',
         questions: [
-          'Ask the user to approve the exact facts that will become canonical SSOT.',
+          'Ask the user to approve the exact facts that Brainbase will save locally.',
           'Confirm that the facts are safe to store locally under the Personal OS directory.',
           'Do not show candidate JSON as the first user-facing review surface.'
         ]
@@ -219,8 +222,8 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
         title: 'First value demo',
         questions: [
           'Run brainbase onboard:demo with the real request the user chose.',
-          'Show the answer and ask whether it saved explanation effort.',
-          'Treat this demo, not connector readiness, as the onboarding completion signal.'
+          'Show the try-this prompt, sample result, and what the user did not have to explain again.',
+          'Treat the useful output, not ready=true or connector readiness, as the onboarding completion signal.'
         ]
       },
       {
@@ -240,7 +243,7 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'Keep mail, calendar, drive, and task data under sources/ until the user approves candidates.',
       'Prefer metadata-first import. Body excerpts require explicit user approval.',
       'Drive collection must be folder allowlist based.',
-      'Canonical MCP context comes from graph.json, personal-kg.jsonl, relationships.json, and decisions.jsonl.'
+      'The first user-facing value explanation should use plain language before internal Brainbase terms.'
     ],
     nextCommands: [
       'brainbase onboard:init',
@@ -253,8 +256,9 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
     ],
     completionCheck: [
       'Personal OS directory exists.',
-      'The approved self, work, and relationship facts are canonical SSOT.',
-      'brainbase onboard:demo returns ready=true and a useful answer for the selected real request.',
+      'The approved self, work, and person context are saved locally.',
+      'brainbase onboard:demo returns a try-this prompt, sample result, and useful answer for the selected real request.',
+      'The user can see what they did not have to explain again.',
       'The selected MCP client has a Brainbase config snippet.',
       'Source diagnosis is optional follow-up work, not the onboarding completion condition.'
     ]
@@ -280,12 +284,19 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
   }));
   const selectedRelationship = selectRelationship(input.os.relationships.relationships, scenario);
   const ready = missing.length === 0;
+  const sampleResult = ready
+    ? buildReadySampleResult({ scenario, self, work, selectedRelationship, decisions })
+    : buildMissingDemoAnswer(missing);
+  const valueExplanation = ready
+    ? buildValueExplanation({ self, work, selectedRelationship, decisions })
+    : `まだ最初の価値を見せるための最小メモが足りません: ${missing.map(missingLabel).join(', ')}。`;
 
   return {
-    goal: 'Demonstrate Brainbase value from canonical local SSOT before source collector setup.',
+    goal: 'Show one useful answer from the context the user just saved before any setup follow-up.',
     ready,
     missing,
     scenario,
+    tryPrompt: scenario,
     contextUsed: {
       ownerName: input.os.graph.owner?.name,
       self,
@@ -298,12 +309,12 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
       } : undefined,
       decisions
     },
-    answer: ready
-      ? buildReadyDemoAnswer({ scenario, self, work, selectedRelationship, decisions })
-      : buildMissingDemoAnswer(missing),
+    answer: sampleResult,
+    sampleResult,
+    valueExplanation,
     nextStep: ready
-      ? 'Install the MCP config, then ask the same scenario from Codex or Claude Code. Use source diagnosis only if the demo exposed missing context.'
-      : `Seed the missing canonical areas first: ${missing.join(', ')}.`,
+      ? 'Try this prompt in Codex or Claude Code. If the answer still needs more context, add only that missing context next.'
+      : `First save the minimum missing memo: ${missing.map(missingLabel).join(', ')}.`,
     completionSignal: ready ? 'first_value_demo_ready' : 'needs_seed'
   };
 }
@@ -687,22 +698,16 @@ export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat)
     '',
     `- Ready: ${String(demo.ready)}`,
     `- Completion signal: ${demo.completionSignal}`,
-    `- Scenario: ${demo.scenario}`,
-    `- Missing: ${demo.missing.length === 0 ? 'none' : demo.missing.join(', ')}`,
+    `- Missing: ${demo.missing.length === 0 ? 'none' : demo.missing.map(missingLabel).join(', ')}`,
     '',
-    '## Context Used',
-    `- Owner: ${demo.contextUsed.ownerName ?? 'unknown'}`,
-    '- Self:',
-    ...(demo.contextUsed.self.length === 0 ? ['  - none'] : demo.contextUsed.self.map((item) => `  - ${item}`)),
-    '- Work:',
-    ...(demo.contextUsed.work.length === 0 ? ['  - none'] : demo.contextUsed.work.map((item) => `  - ${item}`)),
-    '- Relationships:',
-    ...(demo.contextUsed.relationships.length === 0
-      ? ['  - none']
-      : demo.contextUsed.relationships.map((relationship) => `  - ${relationship.person}${relationship.role ? ` (${relationship.role})` : ''}: ${relationship.context}`)),
+    '## Try This Now',
+    demo.tryPrompt,
     '',
-    '## Demo Answer',
-    demo.answer,
+    '## Sample Result',
+    demo.sampleResult,
+    '',
+    '## What Changed',
+    demo.valueExplanation,
     '',
     '## Next Step',
     demo.nextStep,
@@ -912,42 +917,67 @@ function normalizeForMatch(value: string): string {
   return value.toLowerCase().replace(/\s+/g, '');
 }
 
-function buildReadyDemoAnswer(input: {
+function buildReadySampleResult(input: {
   scenario: string;
   self: string[];
   work: string[];
   selectedRelationship?: RelationshipRecord;
   decisions: Array<{ title: string; decision: string }>;
 }): string {
+  const projectLine = input.work[0] ?? '保存済みの仕事メモ';
+  const ownerLine = input.self[0] ?? 'あなたの進め方';
   const relationshipLine = input.selectedRelationship
-    ? `Use saved relationship context for ${input.selectedRelationship.person}${input.selectedRelationship.role ? ` (${input.selectedRelationship.role})` : ''}: ${input.selectedRelationship.context}`
-    : 'No specific relationship matched the scenario, so use the saved work and self context first.';
-  const workLine = input.work[0] ? `Anchor the answer in current work: ${input.work[0]}` : 'No work premise was available.';
-  const selfLine = input.self[0] ? `Carry the owner premise: ${input.self[0]}` : 'No self premise was available.';
-  const decisionLine = input.decisions[0] ? `Respect the decision principle: ${input.decisions[0].decision}` : 'No decision principle was needed for this demo.';
+    ? `${input.selectedRelationship.person}${input.selectedRelationship.role ? `（${input.selectedRelationship.role}）` : ''}には、${input.selectedRelationship.context}を前提に相談します。`
+    : '特定の相談相手が未指定なので、まず保存済みの仕事メモから次の一手を整理します。';
+  const decisionLine = input.decisions[0]
+    ? `判断基準: ${input.decisions[0].decision}`
+    : '追加の判断基準はまだないので、次に動ける形へ絞ります。';
 
   return [
-    `For "${input.scenario}", Brainbase can start from local SSOT without asking the user to explain the background again.`,
+    `「${input.scenario}」への回答例:`,
     '',
+    `次に進める作業は、${projectLine}を前提に一つのメモへ整理することです。`,
+    `進め方は、${ownerLine}を崩さず、説明を足しすぎない形にします。`,
     relationshipLine,
-    workLine,
-    selfLine,
     decisionLine,
     '',
-    'Suggested first response:',
+    'そのまま送れる最初のアウトプット:',
     input.selectedRelationship
-      ? `Start by acknowledging ${input.selectedRelationship.person}'s role/context, then propose the next concrete action using the saved work premise.`
-      : 'Start from the saved work premise, then ask only for the one missing detail needed to act.',
-    'Completion: this is the first value demo. Source diagnosis is optional follow-up, not the proof of onboarding.'
+      ? `${input.selectedRelationship.person}さんに確認したい論点を、背景説明ではなく「次に判断したいこと」と「相談したいこと」に分けて出します。`
+      : '保存済みの仕事メモから、今日進める作業と追加で確認したい一点だけを出します。'
   ].join('\n');
+}
+
+function buildValueExplanation(input: {
+  self: string[];
+  work: string[];
+  selectedRelationship?: RelationshipRecord;
+  decisions: Array<{ title: string; decision: string }>;
+}): string {
+  const remembered: string[] = [];
+  if (input.self[0]) remembered.push('あなたの前提');
+  if (input.work[0]) remembered.push('今の仕事');
+  if (input.selectedRelationship) remembered.push(`${input.selectedRelationship.person}さんの文脈`);
+  if (input.decisions[0]) remembered.push('判断基準');
+
+  return remembered.length === 0
+    ? 'まだ十分なメモがないため、説明し直しを減らせていません。'
+    : `${remembered.join('、')}をもう一度説明しなくても、回答がそこから始まります。`;
 }
 
 function buildMissingDemoAnswer(missing: string[]): string {
   return [
-    'Brainbase is connected, but the first value demo is not ready because canonical context is still missing.',
-    `Missing canonical areas: ${missing.join(', ')}.`,
-    'Seed the minimum approved facts, then rerun brainbase onboard:demo with the real request.'
+    'まだ最初の価値体験はできません。',
+    `足りない最小メモ: ${missing.map(missingLabel).join(', ')}。`,
+    'まず、あなたが毎回説明したくないことを一つだけ保存してから、同じプロンプトをもう一度試します。'
   ].join('\n');
+}
+
+function missingLabel(value: string): string {
+  if (value === 'self') return 'あなた自身の前提';
+  if (value === 'work') return '今の仕事';
+  if (value === 'relationships') return '相談相手や関係者';
+  return value;
 }
 
 function isGoogleDiagnosis(recommendation: ConnectorRecommendation): boolean {

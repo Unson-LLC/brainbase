@@ -66,6 +66,12 @@ export interface GuidedFirstRun {
     connected: boolean;
     missing: string[];
   };
+  firstValueExperience: {
+    title: string;
+    tryPrompt: string;
+    expectedValue: string;
+    sampleResult: string;
+  };
   interview: GuidedInterviewSection[];
   answers: {
     selfName?: string;
@@ -142,6 +148,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     ? `${firstRelationship.person}|${firstRelationship.role ?? ''}|${firstRelationship.context}`
     : '<関係者>|<役割>|<AIに覚えてほしい文脈>';
   const firstValueScenario = buildFirstValueScenario(input.project?.name, firstRelationship?.person);
+  const firstValueExperience = buildFirstValueExperience(input.project?.name, firstRelationship?.person);
   const selfSeedCommand = command([
     'brainbase',
     'onboard:seed',
@@ -179,6 +186,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
       connected: input.connected ?? false,
       missing: input.missing ?? ['self', 'work', 'relationships']
     },
+    firstValueExperience,
     interview: buildJapaneseInterview(),
     answers: {
       selfName: input.name,
@@ -268,7 +276,8 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
       'プロジェクト、関係者、判断基準はdry-run確認後だけ --write または onboard:seed で正本化する。'
     ],
     completionCheck: [
-      'brainbase onboard:demo が ready=true / first_value_demo_ready を返す。',
+      'brainbase onboard:demo が、保存済み文脈を使った自然なプロンプトとサンプル回答を返す。',
+      'ready=true / first_value_demo_ready だけで完了扱いにせず、ユーザーが「説明し直さなくてよい」と分かる回答を見る。',
       'doctor の valueDemo.ready が true になる。',
       `${targetLabel(input.target)} のMCP設定に Brainbase が入っている。`,
       '最初のプロジェクトが get_context/search で見える。',
@@ -292,6 +301,15 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
     `- データディレクトリ: \`${guide.dataDir}\``,
     `- 正本ファクト書き込み: ${guide.initialized.canonicalFactWrites ? 'あり' : 'なし'}`,
     `- 現在の不足: ${guide.currentStatus.missing.length > 0 ? guide.currentStatus.missing.join(', ') : 'なし'}`,
+    '',
+    '## まず試すこと',
+    guide.firstValueExperience.title,
+    '',
+    `- 試すプロンプト: 「${guide.firstValueExperience.tryPrompt}」`,
+    `- 期待する価値: ${guide.firstValueExperience.expectedValue}`,
+    '',
+    '### サンプル回答',
+    guide.firstValueExperience.sampleResult,
     '',
     '## エージェントの聞き取り',
     ...guide.interview.flatMap((section) => [
@@ -401,6 +419,30 @@ function buildFirstValueScenario(projectName: string | undefined, person: string
     return `${person}さんに${project}の相談を投げるための論点メモを作って`;
   }
   return `${project}について、保存済み文脈を使った最初の作業メモを作って`;
+}
+
+function buildFirstValueExperience(projectName: string | undefined, person: string | undefined): GuidedFirstRun['firstValueExperience'] {
+  const project = projectName || '<最初のプロジェクト>';
+  const tryPrompt = buildFirstValueScenario(projectName, person);
+  const expectedValue = person
+    ? `${project}と${person}さんの文脈を説明し直さなくても、相談論点が出ること。`
+    : `${project}の前提を説明し直さなくても、次に進める作業メモが出ること。`;
+  const sampleResult = person
+    ? [
+      `${person}さんに相談するなら、まず「何を判断したいか」と「どこで迷っているか」を分けます。`,
+      `${project}の前提説明から始めず、保存した仕事メモを使って次の確認事項を出します。`
+    ].join('\n')
+    : [
+      `${project}の次に進める作業を一つに絞ります。`,
+      '背景説明をもう一度求めず、保存した仕事メモを前提に最初の作業メモを出します。'
+    ].join('\n');
+
+  return {
+    title: '最小メモを保存したら、まずこの一問で価値を確認します。',
+    tryPrompt,
+    expectedValue,
+    sampleResult
+  };
 }
 
 function toGuidedSourceReadiness(diagnosis: SourceDiagnosis): GuidedSourceReadiness {

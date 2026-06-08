@@ -16,9 +16,9 @@ npm run build
 npm run onboard:start -- --target codex
 ```
 
-`onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not promote self, project, relationship, decision, mail, calendar, drive, or task facts into canonical SSOT. It asks Codex or Claude Code what context you do not want to explain repeatedly, then prints the next commands for minimum seed, `onboard:demo`, project registration, optional source diagnosis, candidate review, MCP install, and `doctor`. The demo command appears before source diagnosis.
+`onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not save self, project, relationship, decision, mail, calendar, drive, or task facts until the user approves them. It asks Codex or Claude Code what context you do not want to explain repeatedly, then shows the first prompt to try, the expected value, the minimum seed command, `onboard:demo`, project registration, optional source diagnosis, candidate review, MCP install, and `doctor`. The demo command appears before source diagnosis.
 
-If the user says "I want to onboard Brainbase", the agent should run this flow instead of returning a checklist. The expected sequence is: build if needed, run `onboard:start`, ask for the smallest context the user wants Brainbase to remember, seed only approved facts, then run `onboard:demo` with a real request. `onboard:install --dry-run` is only a configuration preview; it is not the completion signal.
+If the user says "I want to onboard Brainbase", the agent should run this flow instead of returning a checklist. The expected sequence is: build if needed, run `onboard:start`, ask for the smallest context the user wants Brainbase to remember, seed only approved facts, then run `onboard:demo` with a real request. The agent must show the prompt, sample result, and what the user no longer had to explain. `ready: true` and `onboard:install --dry-run` are not completion signals by themselves.
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 
@@ -69,7 +69,7 @@ Run the first value demo with a real request. This is the onboarding completion 
 brainbase onboard:demo --scenario "Draft the first note I should send to Key Partner about Current project"
 ```
 
-`onboard:demo` reads only canonical `graph.json`, `relationships.json`, `personal-kg.jsonl`, and `decisions.jsonl`. It does not call an LLM, hosted backend, or raw source collector. If it returns `ready: true` and the answer uses the saved relationship or work premise, Brainbase has reached the first value moment.
+`onboard:demo` reads only locally saved, approved facts. It does not call an LLM, hosted backend, or raw source collector. If it returns `ready: true`, the agent still needs to show the try-this prompt, sample result, and plain-language value: the user did not have to explain the saved work premise or person context again.
 
 After the demo, install the MCP config:
 
