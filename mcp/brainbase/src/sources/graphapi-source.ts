@@ -8,31 +8,35 @@ import type {
   Project,
   Person,
   Organization,
+  Brand,
   RACI,
   App,
   Customer,
+  Partner,
   Decision,
+  GlossaryTerm,
+  Document,
+  ExtensionEntity,
   PositionEntry,
   DecisionEntry,
   AssignmentEntry,
 } from '../indexer/types.js';
 import { TokenManager } from '../auth/token-manager.js';
+import {
+  EXTENSION_ENTITY_TYPE_SET,
+  getExtensionRegistrations,
+  getGraphFetchTypes,
+  getPublicType,
+  getStorageType,
+  type EntityTypeRegistration,
+} from '../indexer/ontology.js';
 
-/**
- * Graph API Entity Response
- */
 interface GraphEntity {
   entity_id: string;
   entity_type: string;
   payload: Record<string, unknown>;
+  project_code?: string;
   updated_at?: string;
-}
-
-/**
- * Graph API Response
- */
-interface GraphEntitiesResponse {
-  entities: GraphEntity[];
 }
 
 export interface PhilosophyContextRequest {
@@ -53,10 +57,6 @@ export interface PhilosophyContext {
   anti_patterns?: string[];
 }
 
-/**
- * GraphAPISource
- * Fetches entities from Graph SSOT API
- */
 export class GraphAPISource implements EntitySource {
   private apiUrl: string;
   private tokenManager: TokenManager;
@@ -69,22 +69,15 @@ export class GraphAPISource implements EntitySource {
     this.projectCodes = projectCodes;
   }
 
-  /**
-   * Initialize: Fetch all entities from Graph API
-   */
   async initialize(): Promise<void> {
     console.error('[GraphAPISource] Fetching entities from Graph API...');
 
     const token = await this.tokenManager.getToken();
     const baseUrl = `${this.apiUrl}/api/info/graph/entities`;
-
-    // Fetch each entity type separately to avoid LIMIT truncation
-    const types = ['project', 'person', 'org', 'raci', 'app', 'customer', 'decision'];
     const allEntities: GraphEntity[] = [];
 
-    for (const type of types) {
-      const url = `${baseUrl}?type=${type}&limit=500`;
-      const response = await this.fetchWithRetry(url, token);
+    for (const type of getGraphFetchTypes()) {
+      const response = await this.fetchWithRetry(`${baseUrl}?type=${type}&limit=500`, token);
 
       if (!response.ok) {
         console.error(`[GraphAPISource] Failed to fetch ${type}: ${response.status}`);
@@ -94,11 +87,11 @@ export class GraphAPISource implements EntitySource {
       const data = await response.json() as Record<string, unknown>;
       const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => {
         const raw = r as unknown as Record<string, unknown>;
-        return ({
-        ...r,
-        entity_id: r.entity_id || raw.id as string,
-        entity_type: r.entity_type || type,
-      });
+        return {
+          ...r,
+          entity_id: r.entity_id || raw.id as string,
+          entity_type: getPublicType((r.entity_type || type) as string),
+        };
       });
       allEntities.push(...records);
       if (records.length > 0) {
@@ -110,20 +103,15 @@ export class GraphAPISource implements EntitySource {
     console.error(`[GraphAPISource] Loaded ${this.entities.length} entities from Graph API`);
   }
 
-  /**
-   * Fetch with retry on 401 (token expired)
-   */
   private async fetchWithRetry(url: string, token: string): Promise<Response> {
     let response = await fetch(url, {
       headers: this.buildHeaders(token),
     });
 
-    // Retry on 401 (token expired)
     if (response.status === 401) {
       console.error('[GraphAPISource] Token expired, refreshing...');
       await this.tokenManager.refresh();
       const newToken = await this.tokenManager.getToken();
-
       response = await fetch(url, {
         headers: this.buildHeaders(newToken),
       });
@@ -142,9 +130,6 @@ export class GraphAPISource implements EntitySource {
     };
   }
 
-  /**
-   * Filter entities by project codes (if specified)
-   */
   private filterByProjectCodes(entities: GraphEntity[]): GraphEntity[] {
     if (!this.projectCodes || this.projectCodes.length === 0) {
       return entities;
@@ -155,68 +140,64 @@ export class GraphAPISource implements EntitySource {
         const projectCode = (entity.payload.code as string) || '';
         return this.projectCodes!.includes(projectCode);
       }
-      // For non-project entities, include all for now
-      // (In the future, we could filter by related projects)
       return true;
     });
   }
 
-  /**
-   * Get all projects
-   */
   async getProjects(): Promise<Project[]> {
-    const projectEntities = this.entities.filter(e => e.entity_type === 'project');
-    const filtered = this.filterByProjectCodes(projectEntities);
-
-    return filtered.map(e => this.convertToProject(e));
+    return this.filterByProjectCodes(this.entities.filter(e => e.entity_type === 'project')).map(e => this.convertToProject(e));
   }
 
-  /**
-   * Get all people
-   */
   async getPeople(): Promise<Person[]> {
-    const peopleEntities = this.entities.filter(e => e.entity_type === 'person');
-    return peopleEntities.map(e => this.convertToPerson(e));
+    return this.entities.filter(e => e.entity_type === 'person').map(e => this.convertToPerson(e));
   }
 
-  /**
-   * Get all organizations
-   */
   async getOrganizations(): Promise<Organization[]> {
-    const orgEntities = this.entities.filter(e => e.entity_type === 'org');
-    return orgEntities.map(e => this.convertToOrg(e));
+    return this.entities.filter(e => e.entity_type === 'org').map(e => this.convertToOrg(e));
   }
 
-  /**
-   * Get all RACI definitions
-   */
+  async getBrands(): Promise<Brand[]> {
+    return this.entities.filter(e => e.entity_type === 'brand').map(e => this.convertToBrand(e));
+  }
+
   async getRACIs(): Promise<RACI[]> {
-    const raciEntities = this.entities.filter(e => e.entity_type === 'raci');
-    return raciEntities.map(e => this.convertToRACI(e));
+    return this.entities.filter(e => e.entity_type === 'raci').map(e => this.convertToRACI(e));
   }
 
-  /**
-   * Get all apps
-   */
   async getApps(): Promise<App[]> {
-    const appEntities = this.entities.filter(e => e.entity_type === 'app');
-    return appEntities.map(e => this.convertToApp(e));
+    return this.entities.filter(e => e.entity_type === 'app').map(e => this.convertToApp(e));
   }
 
-  /**
-   * Get all customers
-   */
   async getCustomers(): Promise<Customer[]> {
-    const customerEntities = this.entities.filter(e => e.entity_type === 'customer');
-    return customerEntities.map(e => this.convertToCustomer(e));
+    return this.entities.filter(e => e.entity_type === 'customer').map(e => this.convertToCustomer(e));
   }
 
-  /**
-   * Get all decisions
-   */
+  async getPartners(): Promise<Partner[]> {
+    return this.entities.filter(e => e.entity_type === 'partner').map(e => this.convertToPartner(e));
+  }
+
   async getDecisions(): Promise<Decision[]> {
-    const decisionEntities = this.entities.filter(e => e.entity_type === 'decision');
-    return decisionEntities.map(e => this.convertToDecision(e));
+    return this.entities.filter(e => e.entity_type === 'decision').map(e => this.convertToDecision(e));
+  }
+
+  async getGlossaryTerms(): Promise<GlossaryTerm[]> {
+    return this.entities.filter(e => e.entity_type === 'glossary_term').map(e => this.convertToGlossaryTerm(e));
+  }
+
+  async getDocuments(): Promise<Document[]> {
+    return this.entities.filter(e => e.entity_type === 'document').map(e => this.convertToDocument(e));
+  }
+
+  async getExtensionTypeRegistrations(): Promise<EntityTypeRegistration[]> {
+    return getExtensionRegistrations();
+  }
+
+  async getExtensionEntities(type: string): Promise<ExtensionEntity[]> {
+    const publicType = getPublicType(getStorageType(type));
+    if (!EXTENSION_ENTITY_TYPE_SET.has(publicType)) {
+      return [];
+    }
+    return this.entities.filter(e => e.entity_type === publicType).map(e => this.convertToExtensionEntity(e));
   }
 
   async getPhilosophyContext(request: PhilosophyContextRequest): Promise<PhilosophyContext> {
@@ -242,9 +223,6 @@ export class GraphAPISource implements EntitySource {
     return data.philosophy_context;
   }
 
-  /**
-   * Convert Graph Entity to Project
-   */
   private convertToProject(entity: GraphEntity): Project {
     const payload = entity.payload;
     return {
@@ -258,15 +236,12 @@ export class GraphAPISource implements EntitySource {
       orgs: this.ensureArray(payload.orgs),
       apps: this.ensureArray(payload.apps),
       customers: this.ensureArray(payload.customers),
-      content: (payload.description as string) || '',
+      content: this.contentFromPayload(payload),
       beta_partners: payload.beta_partners as number | undefined,
       updated: entity.updated_at,
     };
   }
 
-  /**
-   * Convert Graph Entity to Person
-   */
   private convertToPerson(entity: GraphEntity): Person {
     const payload = entity.payload;
     return {
@@ -280,14 +255,11 @@ export class GraphAPISource implements EntitySource {
       projects: this.ensureArray(payload.projects),
       aliases: this.ensureArray(payload.aliases),
       status: (payload.status as string) || 'active',
-      content: (payload.bio as string) || '',
+      content: (payload.bio as string) || this.contentFromPayload(payload),
       updated: entity.updated_at,
     };
   }
 
-  /**
-   * Convert Graph Entity to Organization
-   */
   private convertToOrg(entity: GraphEntity): Organization {
     const payload = entity.payload;
     return {
@@ -298,54 +270,48 @@ export class GraphAPISource implements EntitySource {
       name: (payload.name as string) || '',
       aliases: this.ensureArray(payload.aliases),
       orgType: (payload.type as string) || 'unknown',
-      content: (payload.description as string) || '',
+      content: this.contentFromPayload(payload),
       updated: entity.updated_at,
     };
   }
 
-  /**
-   * Convert Graph Entity to RACI
-   */
+  private convertToBrand(entity: GraphEntity): Brand {
+    const payload = entity.payload;
+    return {
+      id: entity.entity_id,
+      filePath: `[Graph API: ${entity.entity_id}]`,
+      type: 'brand',
+      name: (payload.name as string) || (payload.title as string) || entity.entity_id,
+      scope: payload.scope as Brand['scope'],
+      owner_entity_id: (payload.owner_entity_id as string) || undefined,
+      related_orgs: this.ensureArray(payload.related_orgs ?? payload.orgs),
+      related_apps: this.ensureArray(payload.related_apps ?? payload.apps),
+      tagline: (payload.tagline as string) || undefined,
+      positioning: (payload.positioning as string) || undefined,
+      voice: (payload.voice as string | string[]) || undefined,
+      do: this.ensureArray(payload.do),
+      dont: this.ensureArray(payload.dont),
+      visual_assets: this.ensureArray(payload.visual_assets),
+      aliases: this.ensureArray(payload.aliases),
+      content: this.contentFromPayload(payload),
+      updated: entity.updated_at,
+    };
+  }
+
   private convertToRACI(entity: GraphEntity): RACI {
     const payload = entity.payload;
-
-    // Parse positions
     const positions: PositionEntry[] = [];
-    const positionsData = payload.positions as Array<Record<string, unknown>> | undefined;
-    if (Array.isArray(positionsData)) {
-      for (const pos of positionsData) {
-        positions.push({
-          person: (pos.person as string) || '',
-          assets: (pos.assets as string) || '',
-          authority: (pos.authority as string) || '',
-        });
-      }
+    for (const pos of (Array.isArray(payload.positions) ? payload.positions : []) as Array<Record<string, unknown>>) {
+      positions.push({ person: (pos.person as string) || '', assets: (pos.assets as string) || '', authority: (pos.authority as string) || '' });
     }
-
-    // Parse decisions
     const decisions: DecisionEntry[] = [];
-    const decisionsData = payload.decisions as Array<Record<string, unknown>> | undefined;
-    if (Array.isArray(decisionsData)) {
-      for (const dec of decisionsData) {
-        decisions.push({
-          domain: (dec.domain as string) || '',
-          decider: (dec.decider as string) || '',
-        });
-      }
+    for (const dec of (Array.isArray(payload.decisions) ? payload.decisions : []) as Array<Record<string, unknown>>) {
+      decisions.push({ domain: (dec.domain as string) || '', decider: (dec.decider as string) || '' });
     }
-
-    // Parse assignments
     const assignments: AssignmentEntry[] = [];
-    const assignmentsData = payload.assignments as Array<Record<string, unknown>> | undefined;
-    if (Array.isArray(assignmentsData)) {
-      for (const assign of assignmentsData) {
-        assignments.push({
-          person: (assign.person as string) || '',
-          areas: (assign.areas as string) || '',
-        });
-      }
+    for (const assign of (Array.isArray(payload.assignments) ? payload.assignments : []) as Array<Record<string, unknown>>) {
+      assignments.push({ person: (assign.person as string) || '', areas: (assign.areas as string) || '' });
     }
-
     return {
       id: (payload.org_id as string) || entity.entity_id,
       filePath: `[Graph API: ${entity.entity_id}]`,
@@ -357,14 +323,11 @@ export class GraphAPISource implements EntitySource {
       decisions,
       assignments,
       products: this.ensureArray(payload.products),
-      content: (payload.description as string) || '',
+      content: this.contentFromPayload(payload),
       updated: entity.updated_at,
     };
   }
 
-  /**
-   * Convert Graph Entity to App
-   */
   private convertToApp(entity: GraphEntity): App {
     const payload = entity.payload;
     return {
@@ -381,9 +344,6 @@ export class GraphAPISource implements EntitySource {
     };
   }
 
-  /**
-   * Convert Graph Entity to Customer
-   */
   private convertToCustomer(entity: GraphEntity): Customer {
     const payload = entity.payload;
     return {
@@ -403,9 +363,22 @@ export class GraphAPISource implements EntitySource {
     };
   }
 
-  /**
-   * Convert Graph Entity to Decision
-   */
+  private convertToPartner(entity: GraphEntity): Partner {
+    const payload = entity.payload;
+    return {
+      id: entity.entity_id,
+      filePath: `[Graph API: ${entity.entity_id}]`,
+      type: 'partner',
+      name: (payload.name as string) || (payload.company as string) || entity.entity_id,
+      status: (payload.status as string) || '',
+      org: (payload.org as string) || '',
+      projects: this.ensureArray(payload.projects),
+      aliases: this.ensureArray(payload.aliases),
+      content: this.contentFromPayload(payload),
+      updated: entity.updated_at,
+    };
+  }
+
   private convertToDecision(entity: GraphEntity): Decision {
     const payload = entity.payload;
     return {
@@ -414,7 +387,7 @@ export class GraphAPISource implements EntitySource {
       type: 'decision',
       decision_id: (payload.decision_id as string) || entity.entity_id,
       title: (payload.title as string) || '',
-      content: (payload.content as string) || (payload.description as string) || '',
+      content: this.contentFromPayload(payload),
       decided_at: (payload.decided_at as string) || '',
       decider: (payload.decider as string) || '',
       project_id: (payload.project_id as string) || undefined,
@@ -425,9 +398,66 @@ export class GraphAPISource implements EntitySource {
     };
   }
 
-  /**
-   * Ensure value is an array
-   */
+  private convertToGlossaryTerm(entity: GraphEntity): GlossaryTerm {
+    const payload = entity.payload;
+    const term = (payload.term as string) || (payload.name as string) || entity.entity_id;
+    return {
+      id: entity.entity_id,
+      filePath: `[Graph API: ${entity.entity_id}]`,
+      type: 'glossary_term',
+      term,
+      name: term,
+      canonical: (payload.canonical as string) || undefined,
+      aliases: this.ensureArray(payload.aliases),
+      description: (payload.description as string) || '',
+      content: this.contentFromPayload(payload),
+      updated: entity.updated_at,
+    };
+  }
+
+  private convertToDocument(entity: GraphEntity): Document {
+    const payload = entity.payload;
+    const title = (payload.title as string) || (payload.name as string) || entity.entity_id;
+    return {
+      id: entity.entity_id,
+      filePath: `[Graph API: ${entity.entity_id}]`,
+      type: 'document',
+      title,
+      name: title,
+      path: (payload.path as string) || (payload.source_path as string) || undefined,
+      tags: this.ensureArray(payload.tags),
+      content: this.contentFromPayload(payload),
+      updated: entity.updated_at,
+    };
+  }
+
+  private convertToExtensionEntity(entity: GraphEntity): ExtensionEntity {
+    const payload = entity.payload;
+    const title = (payload.title as string) || (payload.name as string) || (payload.term as string) || entity.entity_id;
+    return {
+      id: entity.entity_id,
+      filePath: `[Graph API: ${entity.entity_id}]`,
+      type: entity.entity_type,
+      name: title,
+      title,
+      payload,
+      content: this.contentFromPayload(payload),
+      project_code: entity.project_code,
+      updated: entity.updated_at,
+    };
+  }
+
+  private contentFromPayload(payload: Record<string, unknown>): string {
+    return (
+      (payload.content as string) ||
+      (payload.markdown as string) ||
+      (payload.body_summary as string) ||
+      (payload.description as string) ||
+      (payload.notes as string) ||
+      ''
+    );
+  }
+
   private ensureArray(value: unknown): string[] {
     if (Array.isArray(value)) {
       return value.filter(v => typeof v === 'string') as string[];

@@ -8,7 +8,9 @@ import type {
   EntityIndex,
   Entity,
   EntityType,
+  ExtensionEntity,
 } from './types.js';
+import { getExtensionRegistrations, type EntityTypeRegistration } from './ontology.js';
 
 /**
  * Create an empty entity index
@@ -18,12 +20,18 @@ export function createEmptyIndex(): EntityIndex {
     projects: new Map(),
     people: new Map(),
     orgs: new Map(),
+    brands: new Map(),
     raci: new Map(),
     apps: new Map(),
     customers: new Map(),
+    partners: new Map(),
     decisions: new Map(),
+    glossaryTerms: new Map(),
+    documents: new Map(),
+    extensions: new Map(),
     aliasToPersonId: new Map(),
     aliasToOrgId: new Map(),
+    aliasToBrandId: new Map(),
   };
 }
 
@@ -64,6 +72,17 @@ function buildOrgAliases(index: EntityIndex): void {
   }
 }
 
+function buildBrandAliases(index: EntityIndex): void {
+  for (const brand of index.brands.values()) {
+    if (brand.name) {
+      index.aliasToBrandId.set(brand.name, brand.id);
+    }
+    for (const alias of brand.aliases) {
+      index.aliasToBrandId.set(alias, brand.id);
+    }
+  }
+}
+
 /**
  * Build the complete entity index from EntitySource
  */
@@ -74,14 +93,19 @@ export async function buildIndex(source: EntitySource): Promise<EntityIndex> {
   await source.initialize();
 
   // Load all entities in parallel
-  const [projects, people, orgs, racis, apps, customers, decisions] = await Promise.all([
+  const [projects, people, orgs, brands, racis, apps, customers, partners, decisions, glossaryTerms, documents, extensionTypeRegistrations] = await Promise.all([
     source.getProjects(),
     source.getPeople(),
     source.getOrganizations(),
+    source.getBrands(),
     source.getRACIs(),
     source.getApps(),
     source.getCustomers(),
+    source.getPartners(),
     source.getDecisions(),
+    source.getGlossaryTerms(),
+    source.getDocuments(),
+    source.getExtensionTypeRegistrations(),
   ]);
 
   // Populate index
@@ -97,6 +121,10 @@ export async function buildIndex(source: EntitySource): Promise<EntityIndex> {
     index.orgs.set(org.id, org);
   }
 
+  for (const brand of brands) {
+    index.brands.set(brand.id, brand);
+  }
+
   for (const raci of racis) {
     index.raci.set(raci.id, raci);
   }
@@ -109,15 +137,46 @@ export async function buildIndex(source: EntitySource): Promise<EntityIndex> {
     index.customers.set(customer.id, customer);
   }
 
+  for (const partner of partners) {
+    index.partners.set(partner.id, partner);
+  }
+
   for (const decision of decisions) {
     index.decisions.set(decision.id, decision);
   }
 
+  for (const glossaryTerm of glossaryTerms) {
+    index.glossaryTerms.set(glossaryTerm.id, glossaryTerm);
+  }
+
+  for (const document of documents) {
+    index.documents.set(document.id, document);
+  }
+
+  await populateExtensionEntities(index, source, extensionTypeRegistrations);
+
   // Build alias mappings
   buildPersonAliases(index);
   buildOrgAliases(index);
+  buildBrandAliases(index);
 
   return index;
+}
+
+async function populateExtensionEntities(index: EntityIndex, source: EntitySource, registrations: EntityTypeRegistration[]): Promise<void> {
+  const extensions = registrations.length > 0 ? registrations : getExtensionRegistrations();
+  const extensionEntries = await Promise.all(extensions.map(async (registration) => {
+    const entities = await source.getExtensionEntities(registration.type);
+    return [registration.type, entities] as const;
+  }));
+
+  for (const [type, entities] of extensionEntries) {
+    const byId = new Map<string, ExtensionEntity>();
+    for (const entity of entities) {
+      byId.set(entity.id, entity);
+    }
+    index.extensions.set(type, byId);
+  }
 }
 
 /**
@@ -144,6 +203,13 @@ export function resolveOrgId(index: EntityIndex, nameOrAlias: string): string | 
   return index.aliasToOrgId.get(nameOrAlias);
 }
 
+export function resolveBrandId(index: EntityIndex, nameOrAlias: string): string | undefined {
+  if (index.brands.has(nameOrAlias)) {
+    return nameOrAlias;
+  }
+  return index.aliasToBrandId.get(nameOrAlias);
+}
+
 /**
  * Get all entities of a specific type
  */
@@ -155,14 +221,22 @@ export function getEntitiesByType(index: EntityIndex, type: EntityType): Entity[
       return Array.from(index.people.values());
     case 'org':
       return Array.from(index.orgs.values());
+    case 'brand':
+      return Array.from(index.brands.values());
     case 'raci':
       return Array.from(index.raci.values());
     case 'app':
       return Array.from(index.apps.values());
     case 'customer':
       return Array.from(index.customers.values());
+    case 'partner':
+      return Array.from(index.partners.values());
     case 'decision':
       return Array.from(index.decisions.values());
+    case 'glossary_term':
+      return Array.from(index.glossaryTerms.values());
+    case 'document':
+      return Array.from(index.documents.values());
     default:
       return [];
   }
@@ -179,14 +253,22 @@ export function getEntity(index: EntityIndex, type: EntityType, id: string): Ent
       return index.people.get(id) || index.people.get(resolvePersonId(index, id) || '');
     case 'org':
       return index.orgs.get(id) || index.orgs.get(resolveOrgId(index, id) || '');
+    case 'brand':
+      return index.brands.get(id) || index.brands.get(resolveBrandId(index, id) || '');
     case 'raci':
       return index.raci.get(id);
     case 'app':
       return index.apps.get(id);
     case 'customer':
       return index.customers.get(id);
+    case 'partner':
+      return index.partners.get(id);
     case 'decision':
       return index.decisions.get(id);
+    case 'glossary_term':
+      return index.glossaryTerms.get(id);
+    case 'document':
+      return index.documents.get(id);
     default:
       return undefined;
   }
@@ -204,10 +286,14 @@ export function searchEntities(index: EntityIndex, query: string): Entity[] {
     ...index.projects.values(),
     ...index.people.values(),
     ...index.orgs.values(),
+    ...index.brands.values(),
     ...index.raci.values(),
     ...index.apps.values(),
     ...index.customers.values(),
+    ...index.partners.values(),
     ...index.decisions.values(),
+    ...index.glossaryTerms.values(),
+    ...index.documents.values(),
   ];
 
   for (const entity of allEntities) {
@@ -236,10 +322,33 @@ export function searchEntities(index: EntityIndex, query: string): Entity[] {
     // Check description for apps
     if (entity.type === 'app' && entity.description.toLowerCase().includes(lowerQuery)) {
       results.push(entity);
+      continue;
+    }
+
+    if ('description' in entity && typeof entity.description === 'string' && entity.description.toLowerCase().includes(lowerQuery)) {
+      results.push(entity);
+      continue;
+    }
+
+    if ('title' in entity && typeof entity.title === 'string' && entity.title.toLowerCase().includes(lowerQuery)) {
+      results.push(entity);
+      continue;
+    }
+
+    if ('term' in entity && typeof entity.term === 'string' && entity.term.toLowerCase().includes(lowerQuery)) {
+      results.push(entity);
     }
   }
 
   return results;
+}
+
+export function getExtensionTypeRegistrations(): EntityTypeRegistration[] {
+  return getExtensionRegistrations();
+}
+
+export function getExtensionEntitiesByType(index: EntityIndex, type: string): ExtensionEntity[] {
+  return Array.from(index.extensions.get(type)?.values() || []);
 }
 
 /**

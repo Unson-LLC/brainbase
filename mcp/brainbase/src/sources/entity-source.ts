@@ -7,11 +7,17 @@ import type {
   Project,
   Person,
   Organization,
+  Brand,
   RACI,
   App,
   Customer,
+  Partner,
   Decision,
+  GlossaryTerm,
+  Document,
+  ExtensionEntity,
 } from '../indexer/types.js';
+import type { EntityTypeRegistration } from '../indexer/ontology.js';
 
 /**
  * EntitySource interface
@@ -38,6 +44,8 @@ export interface EntitySource {
    */
   getOrganizations(): Promise<Organization[]>;
 
+  getBrands(): Promise<Brand[]>;
+
   /**
    * Get all RACI definitions
    */
@@ -53,8 +61,18 @@ export interface EntitySource {
    */
   getCustomers(): Promise<Customer[]>;
 
+  getPartners(): Promise<Partner[]>;
+
   /**
    * Get all decisions
    */
   getDecisions(): Promise<Decision[]>;
+
+  getGlossaryTerms(): Promise<GlossaryTerm[]>;
+
+  getDocuments(): Promise<Document[]>;
+
+  getExtensionTypeRegistrations(): Promise<EntityTypeRegistration[]>;
+
+  getExtensionEntities(type: string): Promise<ExtensionEntity[]>;
 }

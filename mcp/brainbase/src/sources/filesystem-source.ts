@@ -12,11 +12,17 @@ import type {
   Project,
   Person,
   Organization,
+  Brand,
   RACI,
   App,
   Customer,
+  Partner,
   Decision,
+  GlossaryTerm,
+  Document,
+  ExtensionEntity,
 } from '../indexer/types.js';
+import type { EntityTypeRegistration } from '../indexer/ontology.js';
 import { parseMarkdownFile, parseMarkdownString, ensureArray, extractIdFromPath } from '../indexer/frontmatter.js';
 import { parseAppsTable, parseCustomersTable, parseRACITable, parsePositionTable, parseDecisionTable, parseAssignmentTable, parseProductsList } from '../indexer/table.js';
 
@@ -180,6 +186,10 @@ export class FilesystemSource implements EntitySource {
     return orgs;
   }
 
+  async getBrands(): Promise<Brand[]> {
+    return [];
+  }
+
   /**
    * Get all RACI definitions
    */
@@ -314,6 +324,10 @@ export class FilesystemSource implements EntitySource {
     return customers;
   }
 
+  async getPartners(): Promise<Partner[]> {
+    return [];
+  }
+
   /**
    * Get all decisions
    */
@@ -413,6 +427,22 @@ export class FilesystemSource implements EntitySource {
     }
 
     return decisions;
+  }
+
+  async getGlossaryTerms(): Promise<GlossaryTerm[]> {
+    return [];
+  }
+
+  async getDocuments(): Promise<Document[]> {
+    return [];
+  }
+
+  async getExtensionTypeRegistrations(): Promise<EntityTypeRegistration[]> {
+    return [];
+  }
+
+  async getExtensionEntities(_type: string): Promise<ExtensionEntity[]> {
+    return [];
   }
 
   /**

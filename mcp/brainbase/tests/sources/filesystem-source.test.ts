@@ -57,5 +57,33 @@ describe('FilesystemSource', () => {
       }
     });
   });
-});
 
+  describe('getCustomers', () => {
+    it('SPEC-brainbase-mcp-core-ontology INV-13 S-6: skips legacy customer rows without customer_id', async () => {
+      const codexRoot = await mkdtemp(join(tmpdir(), 'brainbase-fs-'));
+
+      try {
+        const metaDir = join(codexRoot, 'common', 'meta');
+        await mkdir(metaDir, { recursive: true });
+
+        await writeFile(
+          join(metaDir, 'customers.md'),
+          [
+            '| 顧客 | customer_id | 営業組織タグ | 実装組織タグ | プロジェクト | 契約形態メモ | 前受け | ステータス | 備考 |',
+            '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+            '| BAAO顧客 | cus_baao | unson | unson | baao | monthly | yes | active | ok |',
+            '| IDなし顧客 |  | unson | unson | baao | monthly | no | draft | skip |',
+          ].join('\n'),
+          'utf-8'
+        );
+
+        const source = new FilesystemSource(codexRoot);
+        const customers = await source.getCustomers();
+
+        assert.deepStrictEqual(customers.map((customer) => customer.id), ['cus_baao']);
+      } finally {
+        await rm(codexRoot, { recursive: true, force: true });
+      }
+    });
+  });
+});

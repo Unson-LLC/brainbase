@@ -7,6 +7,7 @@ import { describe, it, mock } from 'node:test';
 import assert from 'node:assert';
 import { GraphAPISource } from '../../src/sources/graphapi-source.js';
 import { TokenManager } from '../../src/auth/token-manager.js';
+import { getGraphFetchTypes } from '../../src/indexer/ontology.js';
 
 describe('GraphAPISource', () => {
   describe('initialize', () => {
@@ -56,7 +57,7 @@ describe('GraphAPISource', () => {
       await source.initialize();
 
       // Verify fetch was called with correct parameters
-      assert.strictEqual(mockFetch.mock.callCount(), 7);
+      assert.strictEqual(mockFetch.mock.callCount(), getGraphFetchTypes().length);
       const [url, options] = mockFetch.mock.calls[0].arguments;
       assert.strictEqual(url, 'http://localhost:31013/api/info/graph/entities?type=project&limit=500');
       assert.strictEqual(options.headers['Authorization'], 'Bearer mock-token');
@@ -100,7 +101,75 @@ describe('GraphAPISource', () => {
       // Verify refresh was called
       assert.strictEqual((mockTokenManager.refresh as any).mock.callCount(), 1);
       // Verify retry succeeded for the first entity type, then continued with remaining types.
-      assert.strictEqual(mockFetch.mock.callCount(), 8);
+      assert.strictEqual(mockFetch.mock.callCount(), getGraphFetchTypes().length + 1);
+    });
+
+    it('SPEC-brainbase-mcp-core-ontology INV-3 S-2: should fetch raci from raci_assignment storage type', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const requestedTypes: string[] = [];
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type') || '';
+        requestedTypes.push(type);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            entities: type === 'raci_assignment' ? [{
+              entity_id: 'raci_unson',
+              entity_type: 'raci_assignment',
+              payload: { org_id: 'unson', name: 'UNSON', products: ['Brainbase'] },
+            }] : [],
+          }),
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await source.initialize();
+      const racis = await source.getRACIs();
+
+      assert.ok(requestedTypes.includes('raci_assignment'));
+      assert.strictEqual(racis.length, 1);
+      assert.strictEqual(racis[0].type, 'raci');
+      assert.strictEqual(racis[0].id, 'unson');
+      assert.deepStrictEqual(racis[0].products, ['Brainbase']);
+    });
+  });
+
+  describe('getBrands', () => {
+    it('SPEC-brainbase-mcp-core-ontology INV-2 S-1: should return brand core entities', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            entities: type === 'brand' ? [{
+              entity_id: 'brand_baao',
+              entity_type: 'brand',
+              payload: { name: 'BAAO Brand Guide', aliases: ['BAAO'], markdown: 'BAAOの語り方と約束。' },
+            }] : [],
+          }),
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await source.initialize();
+      const brands = await source.getBrands();
+
+      assert.strictEqual(brands.length, 1);
+      assert.strictEqual(brands[0].type, 'brand');
+      assert.strictEqual(brands[0].name, 'BAAO Brand Guide');
+      assert.deepStrictEqual(brands[0].aliases, ['BAAO']);
+      assert.strictEqual(brands[0].content, 'BAAOの語り方と約束。');
     });
   });
 

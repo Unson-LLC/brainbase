@@ -18,11 +18,14 @@ import {
   createEmptyIndex,
   getEntity,
   getEntitiesByType,
+  getExtensionEntitiesByType,
+  getExtensionTypeRegistrations,
   searchEntities,
   getContextForTopic,
   type EntityIndex,
   type EntityType,
 } from './indexer/index.js';
+import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
 import { loadConfig } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import { TokenManager } from './auth/token-manager.js';
@@ -80,6 +83,11 @@ function formatEntity(entity: unknown): string {
   if (e.status) lines.push(`- **Status**: ${e.status}`);
   if (e.role) lines.push(`- **Role**: ${e.role}`);
   if (e.org) lines.push(`- **Organization**: ${e.org}`);
+  if (e.scope) lines.push(`- **Scope**: ${e.scope}`);
+  if (e.positioning) lines.push(`- **Positioning**: ${e.positioning}`);
+  if (e.term) lines.push(`- **Term**: ${e.term}`);
+  if (e.canonical) lines.push(`- **Canonical**: ${e.canonical}`);
+  if (e.path) lines.push(`- **Path**: ${e.path}`);
 
   // Decision-specific fields
   if (e.type === 'decision') {
@@ -104,6 +112,26 @@ function formatEntity(entity: unknown): string {
   }
   if (Array.isArray(e.tags) && e.tags.length > 0) {
     lines.push(`- **Tags**: ${e.tags.join(', ')}`);
+  }
+  if (Array.isArray(e.related_orgs) && e.related_orgs.length > 0) {
+    lines.push(`- **Related Orgs**: ${e.related_orgs.join(', ')}`);
+  }
+  if (Array.isArray(e.related_apps) && e.related_apps.length > 0) {
+    lines.push(`- **Related Apps**: ${e.related_apps.join(', ')}`);
+  }
+  if (Array.isArray(e.do) && e.do.length > 0) {
+    lines.push('');
+    lines.push('### Do');
+    for (const item of e.do as string[]) {
+      lines.push(`- ${item}`);
+    }
+  }
+  if (Array.isArray(e.dont) && e.dont.length > 0) {
+    lines.push('');
+    lines.push("### Don't");
+    for (const item of e.dont as string[]) {
+      lines.push(`- ${item}`);
+    }
   }
 
   // Content
@@ -308,13 +336,13 @@ const tools: Tool[] = [
   },
   {
     name: 'list_entities',
-    description: 'List all entities of a specific type. Available types: project, person, org, raci, app, customer, decision.',
+    description: 'List all core entities of a specific type. Extension types are exposed through list_extension_types/list_extension_entities.',
     inputSchema: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
-          enum: ['project', 'person', 'org', 'raci', 'app', 'customer', 'decision'],
+          enum: [...CORE_ENTITY_TYPES],
           description: 'The entity type to list',
         },
         project: {
@@ -335,13 +363,13 @@ const tools: Tool[] = [
   },
   {
     name: 'get_entity',
-    description: 'Get a specific entity by type and ID. Supports name/alias lookup for people and organizations.',
+    description: 'Get a specific core entity by type and ID. Supports name/alias lookup for people, organizations, and brands.',
     inputSchema: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
-          enum: ['project', 'person', 'org', 'raci', 'app', 'customer', 'decision'],
+          enum: [...CORE_ENTITY_TYPES],
           description: 'The entity type',
         },
         id: {
@@ -362,6 +390,28 @@ const tools: Tool[] = [
         },
       },
       required: ['type', 'id'],
+    },
+  },
+  {
+    name: 'list_extension_types',
+    description: 'List registered Graph SSOT extension entity types. Extensions are discoverable but excluded from default core search.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'list_extension_entities',
+    description: 'List entities for an explicitly requested extension type.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          description: 'The registered extension entity type to list, e.g. frame or speaking.',
+        },
+      },
+      required: ['type'],
     },
   },
   {
@@ -518,6 +568,29 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       });
     }
 
+    case 'list_extension_types': {
+      const registrations = getExtensionTypeRegistrations();
+      const lines = ['# Extension Entity Types', ''];
+      for (const registration of registrations) {
+        lines.push(`- **${registration.type}**: ${registration.description}`);
+      }
+      return lines.join('\n');
+    }
+
+    case 'list_extension_entities': {
+      const type = args.type as string;
+      const entities = getExtensionEntitiesByType(entityIndex, type);
+      if (entities.length === 0) {
+        return `No extension entities found for type "${type}".`;
+      }
+      const lines = [`# ${type} extension entities (${entities.length})`, ''];
+      for (const entity of entities) {
+        lines.push(formatEntity(entity));
+        lines.push('');
+      }
+      return lines.join('\n');
+    }
+
     case 'search': {
       const query = args.query as string;
       const results = searchEntities(entityIndex, query);
@@ -596,6 +669,14 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return `Unknown tool: ${name}`;
   }
 }
+
+export const __testing = {
+  tools,
+  setEntityIndex(index: EntityIndex): void {
+    entityIndex = index;
+  },
+  handleToolCall,
+};
 
 /**
  * Create and run the MCP server

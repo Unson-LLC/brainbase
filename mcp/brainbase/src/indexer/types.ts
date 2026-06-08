@@ -46,6 +46,23 @@ export interface Organization extends BaseEntity {
   content: string;
 }
 
+export interface Brand extends BaseEntity {
+  type: 'brand';
+  name: string;
+  scope?: 'org' | 'product' | 'personal' | 'campaign' | string;
+  owner_entity_id?: string;
+  related_orgs: string[];
+  related_apps: string[];
+  tagline?: string;
+  positioning?: string;
+  voice?: string | string[];
+  do: string[];
+  dont: string[];
+  visual_assets: string[];
+  aliases: string[];
+  content: string;
+}
+
 // RACI entity from common/meta/raci/*.md
 // Updated to support new "立ち位置" (position-based) format
 export interface RACI extends BaseEntity {
@@ -116,6 +133,16 @@ export interface Customer extends BaseEntity {
   notes: string;
 }
 
+export interface Partner extends BaseEntity {
+  type: 'partner';
+  name: string;
+  status: string;
+  org: string;
+  projects: string[];
+  aliases: string[];
+  content: string;
+}
+
 // Decision entity from common/meta/decisions/*.md or projects/*/decisions/*.md
 export interface Decision extends BaseEntity {
   type: 'decision';
@@ -130,23 +157,57 @@ export interface Decision extends BaseEntity {
   tags: string[];          // タグ
 }
 
+export interface GlossaryTerm extends BaseEntity {
+  type: 'glossary_term';
+  term: string;
+  name: string;
+  canonical?: string;
+  aliases: string[];
+  description: string;
+  content: string;
+}
+
+export interface Document extends BaseEntity {
+  type: 'document';
+  title: string;
+  name: string;
+  path?: string;
+  tags: string[];
+  content: string;
+}
+
+export interface ExtensionEntity extends BaseEntity {
+  type: string;
+  name: string;
+  title?: string;
+  payload: Record<string, unknown>;
+  content: string;
+  project_code?: string;
+}
+
 // Union type for all entities
-export type Entity = Project | Person | Organization | RACI | App | Customer | Decision;
-export type EntityType = 'project' | 'person' | 'org' | 'raci' | 'app' | 'customer' | 'decision';
+export type Entity = Project | Person | Organization | Brand | RACI | App | Customer | Partner | Decision | GlossaryTerm | Document;
+export type EntityType = 'project' | 'person' | 'org' | 'brand' | 'raci' | 'app' | 'customer' | 'partner' | 'decision' | 'glossary_term' | 'document';
 
 // Index structure
 export interface EntityIndex {
   projects: Map<string, Project>;
   people: Map<string, Person>;
   orgs: Map<string, Organization>;
+  brands: Map<string, Brand>;
   raci: Map<string, RACI>;
   apps: Map<string, App>;
   customers: Map<string, Customer>;
+  partners: Map<string, Partner>;
   decisions: Map<string, Decision>;
+  glossaryTerms: Map<string, GlossaryTerm>;
+  documents: Map<string, Document>;
+  extensions: Map<string, Map<string, ExtensionEntity>>;
 
   // Alias mappings for name resolution
   aliasToPersonId: Map<string, string>;
   aliasToOrgId: Map<string, string>;
+  aliasToBrandId: Map<string, string>;
 }
 
 // Frontmatter parsing result

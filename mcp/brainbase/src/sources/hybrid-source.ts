@@ -8,11 +8,17 @@ import type {
   Project,
   Person,
   Organization,
+  Brand,
   RACI,
   App,
   Customer,
+  Partner,
   Decision,
+  GlossaryTerm,
+  Document,
+  ExtensionEntity,
 } from '../indexer/types.js';
+import type { EntityTypeRegistration } from '../indexer/ontology.js';
 
 /**
  * HybridSource
@@ -70,6 +76,10 @@ export class HybridSource implements EntitySource {
     return this.executeWithFallback(() => this.apiSource.getOrganizations(), () => this.fsSource.getOrganizations());
   }
 
+  async getBrands(): Promise<Brand[]> {
+    return this.executeWithFallback(() => this.apiSource.getBrands(), () => this.fsSource.getBrands());
+  }
+
   /**
    * Get all RACI definitions
    */
@@ -91,11 +101,37 @@ export class HybridSource implements EntitySource {
     return this.executeWithFallback(() => this.apiSource.getCustomers(), () => this.fsSource.getCustomers());
   }
 
+  async getPartners(): Promise<Partner[]> {
+    return this.executeWithFallback(() => this.apiSource.getPartners(), () => this.fsSource.getPartners());
+  }
+
   /**
    * Get all decisions
    */
   async getDecisions(): Promise<Decision[]> {
     return this.executeWithFallback(() => this.apiSource.getDecisions(), () => this.fsSource.getDecisions());
+  }
+
+  async getGlossaryTerms(): Promise<GlossaryTerm[]> {
+    return this.executeWithFallback(() => this.apiSource.getGlossaryTerms(), () => this.fsSource.getGlossaryTerms());
+  }
+
+  async getDocuments(): Promise<Document[]> {
+    return this.executeWithFallback(() => this.apiSource.getDocuments(), () => this.fsSource.getDocuments());
+  }
+
+  async getExtensionTypeRegistrations(): Promise<EntityTypeRegistration[]> {
+    return this.executeWithFallback(
+      () => this.apiSource.getExtensionTypeRegistrations(),
+      () => this.fsSource.getExtensionTypeRegistrations()
+    );
+  }
+
+  async getExtensionEntities(type: string): Promise<ExtensionEntity[]> {
+    return this.executeWithFallback(
+      () => this.apiSource.getExtensionEntities(type),
+      () => this.fsSource.getExtensionEntities(type)
+    );
   }
 
   /**
