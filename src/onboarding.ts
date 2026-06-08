@@ -1,4 +1,5 @@
 import type { PersonalOs, RelationshipRecord } from './types.js';
+import { buildOperationalizationPlan, type OperationalizationPlan } from './operationalization.js';
 
 export type OnboardingFormat = 'markdown' | 'json';
 
@@ -173,6 +174,7 @@ export interface ValueDemo {
   answer: string;
   sampleResult: string;
   valueExplanation: string;
+  operationalization: OperationalizationPlan;
   nextStep: string;
   completionSignal: 'needs_seed' | 'first_value_demo_ready';
 }
@@ -223,7 +225,8 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
         questions: [
           'Run brainbase onboard:demo with the real request the user chose.',
           'Show the try-this prompt, sample result, and what the user did not have to explain again.',
-          'Treat the useful output, not ready=true or connector readiness, as the onboarding completion signal.'
+          'Treat the useful output, not ready=true or connector readiness, as the onboarding completion signal.',
+          'After showing the useful output, report the remaining operationalization actions instead of calling onboarding done.'
         ]
       },
       {
@@ -250,6 +253,8 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'brainbase onboard:seed --name "<name>" --value "<what should not be re-explained>" --project "<current project>" --relationship "<person>|<role>|<context>"',
       'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
       'brainbase onboard:demo --scenario "<real request that should now work>"',
+      'brainbase onboard:skills --target codex',
+      'brainbase onboard:routines --target codex --cwd <brainbase-checkout>',
       'brainbase onboard:install --target codex --dry-run',
       'brainbase doctor',
       'brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion'
@@ -259,8 +264,9 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'The approved self, work, and person context are saved locally.',
       'brainbase onboard:demo returns a try-this prompt, sample result, and useful answer for the selected real request.',
       'The user can see what they did not have to explain again.',
-      'The selected MCP client has a Brainbase config snippet.',
-      'Source diagnosis is optional follow-up work, not the onboarding completion condition.'
+      'The completion report lists public skills, ohayo/oyasumi/retro routines, real MCP config merge, source allowlists, and MCP get_context/search verification as unfinished operationalization work.',
+      'The selected MCP client has a Brainbase config snippet merged into its real config after user approval.',
+      'Source diagnosis is optional follow-up work, but source allowlist/import/candidate review must be explicitly completed or deferred.'
     ]
   };
 }
@@ -290,6 +296,10 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
   const valueExplanation = ready
     ? buildValueExplanation({ self, work, selectedRelationship, decisions })
     : `まだ最初の価値を見せるための最小メモが足りません: ${missing.map(missingLabel).join(', ')}。`;
+  const operationalization = buildOperationalizationPlan({
+    dataDir: input.os.dataDir,
+    firstValueReady: ready
+  });
 
   return {
     goal: 'Show one useful answer from the context the user just saved before any setup follow-up.',
@@ -312,8 +322,9 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
     answer: sampleResult,
     sampleResult,
     valueExplanation,
+    operationalization,
     nextStep: ready
-      ? 'Try this prompt in Codex or Claude Code. If the answer still needs more context, add only that missing context next.'
+      ? 'Do not stop here. Use the operationalization checklist below to install skills, register routines with confirmation, merge MCP config, decide source allowlists, and verify MCP get_context/search.'
       : `First save the minimum missing memo: ${missing.map(missingLabel).join(', ')}.`,
     completionSignal: ready ? 'first_value_demo_ready' : 'needs_seed'
   };
@@ -708,6 +719,18 @@ export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat)
     '',
     '## What Changed',
     demo.valueExplanation,
+    '',
+    '## Operationalization Still Pending',
+    demo.operationalization.goal,
+    '',
+    '### Completed',
+    ...demo.operationalization.completed.map((item) => `- ${item}`),
+    '',
+    '### Next Actions',
+    ...demo.operationalization.pending.map((item) => `- ${item.title}: \`${item.command}\` (${item.safety})`),
+    '',
+    '### Recommended Order',
+    ...demo.operationalization.recommendedOrder.map((item, index) => `${index + 1}. ${item}`),
     '',
     '## Next Step',
     demo.nextStep,

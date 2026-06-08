@@ -137,9 +137,26 @@ describe('onboarding CLI', () => {
     expect(protocol.safetyRules.join('\n')).toContain('Do not treat raw source diagnosis');
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:projects');
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:demo');
+    expect(protocol.nextCommands.join('\n'), 'onboarding-operationalization-next-actions C-5 onboard:agent JSON includes operationalization commands').toContain('brainbase onboard:skills --target codex');
+    expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:routines --target codex');
+    expect(protocol.completionCheck.join('\n')).toContain('unfinished operationalization');
+    expect(protocol.completionCheck.join('\n')).toContain('MCP get_context/search verification');
     expect(protocol.nextCommands.indexOf('brainbase onboard:demo --scenario "<real request that should now work>"')).toBeLessThan(
       protocol.nextCommands.indexOf('brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion')
     );
+  });
+
+  it('onboarding-operationalization-next-actions C-5 onboard:agent markdown shows operationalization completion guidance', async () => {
+    const output = capture();
+    const code = await runCli(['onboard:agent'], output.io);
+
+    expect(code).toBe(0);
+    const markdown = output.stdout();
+    expect(markdown).toContain('# Brainbase Agent Onboarding Protocol');
+    expect(markdown).toContain('brainbase onboard:skills --target codex');
+    expect(markdown).toContain('brainbase onboard:routines --target codex');
+    expect(markdown).toContain('unfinished operationalization');
+    expect(markdown).toContain('MCP get_context/search verification');
   });
 
   it('value-first-onboarding S-2 C-5 onboard:demo reports missing canonical areas before seed', async () => {
@@ -191,6 +208,17 @@ describe('onboarding CLI', () => {
     expect(demo.sampleResult).toContain('Yamamoto Rikiya');
     expect(demo.sampleResult).toContain('AI Dojo');
     expect(demo.valueExplanation).toContain('もう一度説明しなくても');
+    expect(demo.operationalization.pending.map((item: { id: string }) => item.id), 'onboarding-operationalization-next-actions S-1 C-1 onboard:demo reports unfinished operationalization actions').toEqual([
+      'public-skills',
+      'routines',
+      'mcp-config',
+      'source-allowlist',
+      'verification'
+    ]);
+    expect(demo.operationalization.pending.find((item: { id: string }) => item.id === 'mcp-config').command).toContain(`--dir ${dir}`);
+    expect(demo.operationalization.pending.find((item: { id: string }) => item.id === 'verification').command).toContain(`--dir ${dir}`);
+    expect(demo.operationalization.recommendedOrder.join('\n')).toContain('ohayo / oyasumi / retro');
+    expect(demo.operationalization.safetyRules.join('\n')).toContain('Do not write live config');
     expect(demo.answer).toContain('Yamamoto Rikiya');
     expect(demo.answer).toContain('AI Dojo');
     expect(demo.answer).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
@@ -204,6 +232,13 @@ describe('onboarding CLI', () => {
       missing: [],
       completionSignal: 'first_value_demo_ready'
     });
+    expect(status.operationalization.pending.map((item: { id: string }) => item.id), 'onboarding-operationalization-next-actions S-4 C-4 doctor keeps operationalization separate from valueDemo.ready').toEqual([
+      'public-skills',
+      'routines',
+      'mcp-config',
+      'source-allowlist',
+      'verification'
+    ]);
   });
 
   it('onboarding-first-value-experience S-3 C-3 onboard:demo markdown shows try prompt, sample result, and value explanation', async () => {
@@ -236,8 +271,14 @@ describe('onboarding CLI', () => {
     expect(markdown).toContain('AI Dojo');
     expect(markdown).toContain('## What Changed');
     expect(markdown).toContain('もう一度説明しなくても');
+    expect(markdown, 'onboarding-operationalization-next-actions S-2 C-2 markdown shows unfinished operationalization').toContain('## Operationalization Still Pending');
+    expect(markdown).toContain('brainbase onboard:skills --target');
+    expect(markdown).toContain('brainbase onboard:routines --target');
+    expect(markdown).toContain('brainbase onboard:install --target');
+    expect(markdown).toContain('MCP get_context');
     expect(markdown.indexOf('## Try This Now')).toBeLessThan(markdown.indexOf('## Sample Result'));
     expect(markdown.indexOf('## Sample Result')).toBeLessThan(markdown.indexOf('## What Changed'));
+    expect(markdown.indexOf('## What Changed')).toBeLessThan(markdown.indexOf('## Operationalization Still Pending'));
     expect(markdown).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
   });
 
@@ -280,6 +321,14 @@ describe('onboarding CLI', () => {
     expect(guide.firstValueExperience.expectedValue).toContain('説明し直さなくても');
     expect(guide.firstValueExperience.sampleResult).toContain('保存した仕事メモ');
     expect(JSON.stringify(guide.firstValueExperience)).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
+    expect(guide.operationalization.pending.map((item: { id: string }) => item.id), 'onboarding-operationalization-next-actions S-3 C-3 onboard:start returns operationalization actions').toEqual([
+      'public-skills',
+      'routines',
+      'mcp-config',
+      'source-allowlist',
+      'verification'
+    ]);
+    expect(guide.operationalization.recommendedOrder.join('\n')).toContain('confirmation-gated');
     expect(JSON.stringify(guide.interview)).toContain('メール');
     expect(JSON.stringify(guide.interview)).toContain('Google Drive');
     expect(guide.interview.map((section: { id: string }) => section.id)).toEqual([
@@ -308,15 +357,19 @@ describe('onboarding CLI', () => {
     expect(guide.nextCommands.map((item: { id: string }) => item.id)).toEqual([
       'self-seed',
       'first-value-demo',
+      'skills',
+      'routines',
+      'install',
+      'doctor',
       'project-dry-run',
       'project-write',
       'source-diagnosis',
-      'candidates',
-      'install',
-      'doctor'
+      'candidates'
     ]);
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'self-seed').command).toContain('--relationship');
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'first-value-demo').command).toContain('onboard:demo');
+    expect(guide.nextCommands.find((item: { id: string }) => item.id === 'skills').command).toContain('onboard:skills --target codex');
+    expect(guide.nextCommands.find((item: { id: string }) => item.id === 'routines').command).toContain('onboard:routines --target codex');
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'source-diagnosis').command).toContain('--assume-gog');
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'install').command).toContain('onboard:install --target codex');
     expect(guide.approvalGates.join('\n')).toContain('OAuth token');
@@ -347,9 +400,13 @@ describe('onboarding CLI', () => {
     expect(output.stdout()).toContain('対象エージェント: Claude Code');
     expect(output.stdout()).toContain('## まず試すこと');
     expect(output.stdout()).toContain('### サンプル回答');
+    expect(output.stdout(), 'onboarding-operationalization-next-actions S-3 markdown start shows operationalization before source setup').toContain('## まだ残っている運用化');
+    expect(output.stdout()).toContain('brainbase onboard:skills --target');
+    expect(output.stdout()).toContain('brainbase onboard:routines --target');
     expect(output.stdout()).toContain('メール');
     expect(output.stdout()).toContain('接続準備（デモ後の任意ステップ）');
     expect(output.stdout().indexOf('## まず試すこと')).toBeLessThan(output.stdout().indexOf('## 接続準備（デモ後の任意ステップ）'));
+    expect(output.stdout().indexOf('## まだ残っている運用化')).toBeLessThan(output.stdout().indexOf('## 接続準備（デモ後の任意ステップ）'));
     expect(output.stdout()).toContain('onboard:demo');
     expect(output.stdout()).toContain('ローカル設定が必要');
     expect(output.stdout()).toContain('ローカルGoGコマンドをインストールまたは設定する: __missing_brainbase_gog__');
