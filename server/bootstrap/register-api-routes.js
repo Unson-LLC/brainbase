@@ -13,6 +13,7 @@ import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
+import { createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
@@ -24,6 +25,7 @@ import {
     createWorkflowRunRouter
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
+import { AdminVisualizationService } from '../services/admin-visualization-service.js';
 import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
 import {
@@ -156,6 +158,10 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+    app.use('/api/admin', requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
+        infoSSOTService,
+        candidateRepository
+    })));
     if (candidateRepository) {
         // cross-repo source (mana / salestailor / zeims / SNS) からの
         // Raw Ledger envelope 受信。 STR-006 / ADR-010 で確定した
