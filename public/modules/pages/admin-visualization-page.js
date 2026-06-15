@@ -3,17 +3,18 @@
 export const SOURCE_CLASS_LABELS = Object.freeze({
     graph_ssot: 'Graph正本',
     candidate_store: '候補ストア',
+    personal_kg: '個人KG',
     ai_context: 'AI参照文脈',
-    derived_index: '派生インデックス',
     runtime_config: '設定/実行環境'
 });
 
 export const JA_LABELS = Object.freeze({
     title: 'Brainbase 管理画面',
-    subtitle: '正本、候補、AI参照文脈、派生index、設定状態を分けて確認します。',
+    subtitle: '正本、候補、個人KG、AI参照文脈、設定状態を分けて確認します。',
     overview: '概要',
     graph: 'Graph正本',
     candidates: '候補ストア',
+    personalKg: '個人KG',
     context: 'AI文脈',
     flow: 'データフロー',
     health: '設定/ヘルス',
@@ -25,10 +26,13 @@ export const JA_LABELS = Object.freeze({
     query: '検索',
     status: '状態',
     redaction: '秘匿状態',
+    layer: '記憶層',
+    owner: '所有者',
     runPreview: '文脈を確認',
     noRecords: '表示できるレコードがありません',
     available: '接続済み',
     unavailable: '未接続',
+    partial: '一部不足',
     configured: '設定あり',
     not_configured: '未設定',
     secretSafe: '値は表示しません'
@@ -37,8 +41,11 @@ export const JA_LABELS = Object.freeze({
 const STATUS_LABELS = {
     available: JA_LABELS.available,
     unavailable: JA_LABELS.unavailable,
+    partial: JA_LABELS.partial,
     configured: JA_LABELS.configured,
     not_configured: JA_LABELS.not_configured,
+    connected: '接続済み',
+    not_checked: '未確認',
     present: '存在',
     missing: '不足',
     candidate: '候補',
@@ -54,10 +61,12 @@ const STATUS_LABELS = {
     not_requested: '未指定'
 };
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const MAX_PERSONAL_KG_LIMIT = 500;
 const NAV = [
     ['overview', JA_LABELS.overview, 'layout-dashboard'],
     ['graph', JA_LABELS.graph, 'database'],
     ['candidates', JA_LABELS.candidates, 'inbox'],
+    ['personal-kg', JA_LABELS.personalKg, 'network'],
     ['context', JA_LABELS.context, 'brain-circuit'],
     ['flow', JA_LABELS.flow, 'git-branch'],
     ['health', JA_LABELS.health, 'shield-check']
@@ -68,7 +77,7 @@ function escapeHtml(value) {
 }
 
 function badge(sourceClass) {
-    const style = sourceClass === 'graph_ssot' ? 'graph' : sourceClass === 'candidate_store' ? 'candidate' : sourceClass === 'ai_context' ? 'context' : sourceClass === 'derived_index' ? 'derived' : 'runtime';
+    const style = sourceClass === 'graph_ssot' ? 'graph' : sourceClass === 'candidate_store' ? 'candidate' : sourceClass === 'personal_kg' ? 'personal' : sourceClass === 'ai_context' ? 'context' : 'runtime';
     return `<span class="badge ${style}">${escapeHtml(SOURCE_CLASS_LABELS[sourceClass] || sourceClass)}</span>`;
 }
 
@@ -97,9 +106,45 @@ function renderWarnings(warnings = []) {
     return rows.length ? `<ul class="warning-list">${rows.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>` : '';
 }
 
+function sourceUnavailableReason(sourceClass, data = {}) {
+    const text = String(data.reason || data.message || '');
+    if (sourceClass === 'graph_ssot' && /InfoSSOTService is not configured/i.test(text)) {
+        return 'Graph正本サービスが未設定です';
+    }
+    if (sourceClass === 'candidate_store' && /candidateRepository is not configured/i.test(text)) {
+        return '候補ストアリポジトリが未設定です';
+    }
+    if (text) return text;
+    return `${SOURCE_CLASS_LABELS[sourceClass] || sourceClass}に接続できません`;
+}
+
+function renderUnavailableSource(sourceClass, data = {}) {
+    return `<div class="empty-state"><strong>${status(data.status || 'unavailable')}</strong><p>${escapeHtml(sourceUnavailableReason(sourceClass, data))}</p></div>`;
+}
+
+function personalKgReason(data = {}) {
+    const text = String(data.reason || data.message || '');
+    if (!text) return '個人KGソースに接続できません';
+    if (/candidate repository unavailable|candidateRepository is not configured/i.test(text)) {
+        return '候補ストアリポジトリが未設定のため個人KGを取得できません';
+    }
+    return text;
+}
+
 export function getAuthHeaders(storage = globalThis.localStorage) {
     const token = storage?.getItem?.('brainbase.auth.token');
     return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function friendlyHttpError(statusCode, text) {
+    let payload = null;
+    try { payload = JSON.parse(text); } catch { payload = null; }
+    const raw = payload?.error || payload?.message || text || '';
+    if (statusCode === 401 || /Authorization token required|unauthorized|auth/i.test(raw)) {
+        return '認証が必要です。通常画面でログインしてから再読み込みしてください。';
+    }
+    if (statusCode === 403) return 'この管理情報を表示する権限がありません。';
+    return raw ? `読み込みに失敗しました: ${raw}` : `読み込みに失敗しました: HTTP ${statusCode}`;
 }
 
 export class AdminPage {
@@ -110,6 +155,7 @@ export class AdminPage {
         this.active = 'overview';
         this.state = {};
         this.csrfToken = null;
+        this.personalKgLimit = 50;
     }
 
     fetch(path, options = {}) {
@@ -132,7 +178,10 @@ export class AdminPage {
         const headers = { Accept: 'application/json', ...getAuthHeaders(this.storage), ...await this.csrfHeaders(method) };
         if (options.body) headers['Content-Type'] = 'application/json';
         const response = await this.fetch(path, { ...options, method, headers, body: options.body ? JSON.stringify(options.body) : null });
-        if (!response.ok) throw new Error(await response.text().catch(() => `HTTP ${response.status}`));
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            throw Object.assign(new Error(friendlyHttpError(response.status, text)), { status: response.status });
+        }
         return response.json();
     }
 
@@ -146,6 +195,7 @@ export class AdminPage {
         this.root.querySelector('[data-refresh]')?.addEventListener('click', () => this.load(true));
         this.root.querySelector('[data-load-graph]')?.addEventListener('click', () => this.loadGraph());
         this.root.querySelector('[data-load-candidates]')?.addEventListener('click', () => this.loadCandidates());
+        this.root.querySelector('[data-load-personal-kg]')?.addEventListener('click', () => this.loadPersonalKgFromControl({ resetLimit: true }));
         this.root.querySelector('[data-run-context]')?.addEventListener('click', () => this.loadContext());
         this.root.querySelector('[data-load-flow]')?.addEventListener('click', () => this.loadFlow());
         this.load();
@@ -157,7 +207,7 @@ export class AdminPage {
     }
 
     sections() {
-        return `<section class="admin-section active" data-section="overview"><div data-overview class="empty-state">概要を読み込みます</div></section><section class="admin-section" data-section="graph">${this.graphPanel()}</section><section class="admin-section" data-section="candidates">${this.candidatePanel()}</section><section class="admin-section" data-section="context">${this.contextPanel()}</section><section class="admin-section" data-section="flow">${this.flowPanel()}</section><section class="admin-section" data-section="health"><div data-health class="empty-state">ヘルスを読み込みます</div></section>`;
+        return `<section class="admin-section active" data-section="overview"><div data-overview class="empty-state">概要を読み込みます</div></section><section class="admin-section" data-section="graph">${this.graphPanel()}</section><section class="admin-section" data-section="candidates">${this.candidatePanel()}</section><section class="admin-section" data-section="personal-kg">${this.personalKgPanel()}</section><section class="admin-section" data-section="context">${this.contextPanel()}</section><section class="admin-section" data-section="flow">${this.flowPanel()}</section><section class="admin-section" data-section="health"><div data-health class="empty-state">ヘルスを読み込みます</div></section>`;
     }
 
     sync() {
@@ -171,18 +221,41 @@ export class AdminPage {
             if (this.active === 'overview' && (!this.state.overview || force)) await this.loadOverview();
             if (this.active === 'graph' && (!this.state.graph || force)) await this.loadGraph();
             if (this.active === 'candidates' && (!this.state.candidates || force)) await this.loadCandidates();
+            if (this.active === 'personal-kg' && (!this.state.personalKg || force)) await this.loadPersonalKg();
             if (this.active === 'context' && (this.state.context || force)) await this.loadContext();
             if (this.active === 'flow' && (!this.state.flow || force)) await this.loadFlow();
             if (this.active === 'health' && (!this.state.health || force)) await this.loadHealth();
         } catch (error) {
-            this.toast(error.message || '読み込みに失敗しました');
+            this.handleLoadError(error);
         }
+    }
+
+    handleLoadError(error) {
+        this.renderLoadError(error);
+        this.toast(error.message || '読み込みに失敗しました');
+    }
+
+    renderLoadError(error) {
+        const message = error?.message || '読み込みに失敗しました';
+        const html = `<div class="empty-state"><strong>表示できません</strong><p>${escapeHtml(message)}</p></div>`;
+        const targets = {
+            overview: '[data-overview]',
+            graph: '[data-graph-list]',
+            candidates: '[data-candidate-list]',
+            'personal-kg': '[data-personal-kg-list]',
+            context: '[data-context-result]',
+            flow: '[data-flow-list]',
+            health: '[data-health]'
+        };
+        const target = this.root.querySelector(targets[this.active]);
+        if (target) target.innerHTML = html;
     }
 
     async loadOverview() {
         this.state.overview = await this.request('/api/admin/overview');
         const overview = this.state.overview;
-        this.root.querySelector('[data-overview]').innerHTML = `<div class="overview-grid">${(overview.sources || []).map((s) => `<article class="source-card"><div class="record-title"><h3>${escapeHtml(s.label)}</h3>${badge(s.source_class)}</div><p>${status(s.status)}</p></article>`).join('')}</div><div class="metric-row"><div class="metric"><strong>${overview.graph?.total ?? 0}</strong><span>Graph正本</span></div><div class="metric"><strong>${overview.candidates?.total ?? 0}</strong><span>候補</span></div><div class="metric"><strong>${overview.derived_indexes?.length ?? 0}</strong><span>派生index</span></div></div>`;
+        const kg = overview.personal_kg?.summary || {};
+        this.root.querySelector('[data-overview]').innerHTML = `<div class="overview-grid">${(overview.sources || []).map((s) => `<article class="source-card"><div class="record-title"><h3>${escapeHtml(s.label)}</h3>${badge(s.source_class)}</div><p>${status(s.status)}</p></article>`).join('')}</div><div class="metric-row"><div class="metric"><strong>${overview.graph?.total ?? 0}</strong><span>Graph正本</span></div><div class="metric"><strong>${overview.candidates?.total ?? 0}</strong><span>候補</span></div><div class="metric"><strong>${overview.personal_kg?.total ?? 0}</strong><span>個人KG</span></div><div class="metric"><strong>${kg.sns_ready_count ?? 0}</strong><span>SNS利用可</span></div><div class="metric"><strong>${kg.review_count ?? 0}</strong><span>要レビュー</span></div></div>`;
     }
 
     filters(scope) {
@@ -198,6 +271,10 @@ export class AdminPage {
 
     async loadGraph() {
         this.state.graph = await this.request(`/api/admin/graph/entities${this.filters('graph-filter')}`);
+        if (this.state.graph.status && this.state.graph.status !== 'available') {
+            this.root.querySelector('[data-graph-list]').innerHTML = renderUnavailableSource('graph_ssot', this.state.graph);
+            return;
+        }
         const records = this.state.graph.records || [];
         this.root.querySelector('[data-graph-list]').innerHTML = records.length ? records.map((r) => `<article class="record-row"><div class="record-title"><strong>${escapeHtml(r.label || r.id)}</strong>${badge(r.source_class)}</div><div class="record-meta"><span>ID: ${escapeHtml(r.id)}</span><span>種別: ${escapeHtml(r.entity_type)}</span><span>project: ${escapeHtml(r.project_code || '-')}</span><span>sensitivity: ${escapeHtml(r.sensitivity || '-')}</span><span>role_min: ${escapeHtml(r.role_min || '-')}</span><span>updated_at: ${escapeHtml(r.updated_at || '-')}</span></div><p class="preview-text">${escapeHtml(r.payload_preview || '')}</p></article>`).join('') : `<div class="empty-state">${JA_LABELS.noRecords}</div>`;
     }
@@ -208,10 +285,66 @@ export class AdminPage {
 
     async loadCandidates() {
         this.state.candidates = await this.request(`/api/admin/candidates${this.filters('candidate-filter')}`);
-        const records = this.state.candidates.records || [];
         const warningHtml = renderWarnings(this.state.candidates.warnings);
+        if (this.state.candidates.status && this.state.candidates.status !== 'available') {
+            this.root.querySelector('[data-candidate-list]').innerHTML = `${warningHtml}${renderUnavailableSource('candidate_store', this.state.candidates)}`;
+            return;
+        }
+        const records = this.state.candidates.records || [];
         const recordsHtml = records.length ? records.map((r) => `<article class="record-row"><div class="record-title"><strong>${escapeHtml(r.id)}</strong>${badge(r.source_class)}</div><div class="record-meta"><span>promotion: ${escapeHtml(formatStatusLabel(r.promotion_status))}</span><span>redaction: ${escapeHtml(formatStatusLabel(r.redaction_status))}</span><span>cognitive: ${escapeHtml(r.cognitive_type || '-')}</span><span>visibility: ${escapeHtml(r.visibility || '-')}</span><span>sensitivity: ${escapeHtml(r.sensitivity || '-')}</span><span>role_min: ${escapeHtml(r.role_min || '-')}</span><span>created_at: ${escapeHtml(r.created_at || '-')}</span></div><p class="preview-text">${escapeHtml(r.body_preview || '')}</p></article>`).join('') : `<div class="empty-state">${JA_LABELS.noRecords}</div>`;
         this.root.querySelector('[data-candidate-list]').innerHTML = `${warningHtml}${recordsHtml}`;
+    }
+
+    personalKgPanel() {
+        return `<section class="panel"><div class="panel-header"><h2>${JA_LABELS.personalKg}</h2>${badge('personal_kg')}</div><div class="filter-bar"><label>${JA_LABELS.owner}<input data-personal-kg-filter="owner" placeholder="現在のログイン主体"></label><label>${JA_LABELS.layer}<input data-personal-kg-filter="layer" placeholder="personal_kg_core"></label><label>${JA_LABELS.status}<input data-personal-kg-filter="status" placeholder="candidate"></label><label>${JA_LABELS.type}<input data-personal-kg-filter="type" placeholder="insight"></label><label>${JA_LABELS.redaction}<input data-personal-kg-filter="redaction" placeholder="none"></label><button class="secondary-button" type="button" data-load-personal-kg>${JA_LABELS.filter}</button></div><div data-personal-kg-list class="empty-state">個人KGを読み込みます</div></section>`;
+    }
+
+    personalKgFiltersWithLimit() {
+        const params = new URLSearchParams(this.filters('personal-kg-filter').replace(/^\?/, ''));
+        params.set('limit', String(this.personalKgLimit));
+        return `?${params.toString()}`;
+    }
+
+    async loadPersonalKg({ resetLimit = false } = {}) {
+        if (resetLimit) this.personalKgLimit = 50;
+        this.state.personalKg = await this.request(`/api/admin/personal-kg${this.personalKgFiltersWithLimit()}`);
+        const data = this.state.personalKg;
+        const warningHtml = renderWarnings(data.warnings);
+        if (data.status && data.status !== 'available') {
+            const reason = personalKgReason(data);
+            this.root.querySelector('[data-personal-kg-list]').innerHTML = `${warningHtml}<div class="empty-state"><strong>${status(data.status)}</strong><p>${escapeHtml(reason)}</p></div>`;
+            return;
+        }
+        if (data.requested_owner_person_id && !data.owner_person_id) {
+            this.root.querySelector('[data-personal-kg-list]').innerHTML = `${warningHtml}<div class="empty-state"><strong>表示対象外</strong><p>指定された所有者は現在の権限では表示できません。</p></div>`;
+            return;
+        }
+        const records = data.records || [];
+        const summary = data.summary || {};
+        const summaryHtml = `<div class="metric-row"><div class="metric"><strong>${escapeHtml(summary.total ?? 0)}</strong><span>個人KG候補</span></div><div class="metric"><strong>${escapeHtml(summary.active_count ?? 0)}</strong><span>有効</span></div><div class="metric"><strong>${escapeHtml(summary.sns_ready_count ?? 0)}</strong><span>SNS利用可</span></div><div class="metric"><strong>${escapeHtml(summary.review_count ?? 0)}</strong><span>要レビュー</span></div><div class="metric"><strong>${escapeHtml(summary.needs_redaction_count ?? 0)}</strong><span>秘匿要</span></div><div class="metric"><strong>${escapeHtml(summary.agency_none_count ?? 0)}</strong><span>AI利用不可</span></div></div><div class="record-meta"><span>所有者: ${escapeHtml(data.owner_person_id || '-')}</span><span>表示: ${escapeHtml(summary.returned_count ?? records.length)} / ${escapeHtml(summary.total ?? records.length)}</span><span>${summary.truncated ? '上限で省略あり' : '全件表示'}</span><span>最新: ${escapeHtml(summary.latest_seen_at || '-')}</span></div>`;
+        const returnedCount = Number(summary.returned_count ?? records.length) || 0;
+        const reachedLimit = summary.truncated && this.personalKgLimit >= MAX_PERSONAL_KG_LIMIT;
+        const continuationHtml = summary.truncated
+            ? reachedLimit
+                ? `<div class="continuation-row"><span>最新${escapeHtml(returnedCount)}件の上限に達しました。所有者、記憶層、状態で絞り込んでください。</span></div>`
+                : `<div class="continuation-row"><span>現在は最新${escapeHtml(returnedCount)}件を表示しています。</span><button class="secondary-button" type="button" data-load-more-personal-kg>さらに表示</button></div>`
+            : '';
+        const recordsHtml = records.length ? records.map((r) => `<article class="record-row"><div class="record-title"><strong>${escapeHtml(r.id)}</strong>${badge(r.source_class)}</div><div class="record-meta"><span>記憶層: ${escapeHtml(r.memory_layer || '-')}</span><span>SNS利用可: ${r.sns_ready ? 'はい' : 'いいえ'}</span><span>反映状態: ${escapeHtml(formatStatusLabel(r.promotion_status))}</span><span>秘匿状態: ${escapeHtml(formatStatusLabel(r.redaction_status))}</span><span>レビュー: ${r.requires_approval ? '要' : '不要'}</span><span>認知タイプ: ${escapeHtml(r.cognitive_type || '-')}</span><span>AI利用: ${escapeHtml(r.agency_level || '-')}</span><span>入力元: ${escapeHtml(r.source_system || '-')}</span><span>作成日時: ${escapeHtml(r.created_at || '-')}</span></div><p class="preview-text">${escapeHtml(r.body_preview || '')}</p></article>`).join('') : `<div class="empty-state">${JA_LABELS.noRecords}</div>`;
+        this.root.querySelector('[data-personal-kg-list]').innerHTML = `${warningHtml}${summaryHtml}${continuationHtml}${recordsHtml}`;
+        this.root.querySelector('[data-load-more-personal-kg]')?.addEventListener('click', () => {
+            this.loadPersonalKgFromControl({ nextLimit: Math.min(this.personalKgLimit * 2, MAX_PERSONAL_KG_LIMIT) });
+        });
+    }
+
+    async loadPersonalKgFromControl({ resetLimit = false, nextLimit = null } = {}) {
+        const previousLimit = this.personalKgLimit;
+        try {
+            if (nextLimit !== null) this.personalKgLimit = nextLimit;
+            await this.loadPersonalKg({ resetLimit });
+        } catch (error) {
+            this.personalKgLimit = previousLimit;
+            this.handleLoadError(error);
+        }
     }
 
     contextPanel() {
@@ -251,7 +384,11 @@ export class AdminPage {
 
     async loadHealth() {
         this.state.health = await this.request('/api/admin/health');
-        this.root.querySelector('[data-health]').innerHTML = `<div class="health-grid"><section class="panel"><div class="panel-header"><h2>データソース状態</h2></div>${(this.state.health.sources || []).map((s) => `<div class="health-row"><div class="record-title"><strong>${escapeHtml(s.label)}</strong>${badge(s.source_class)}</div><div class="record-meta">${status(s.status)}</div></div>`).join('')}</section><section class="panel"><div class="panel-header"><h2>${JA_LABELS.health}</h2><span class="muted">${JA_LABELS.secretSafe}</span></div>${(this.state.health.runtime_config?.keys || []).map((k) => `<div class="health-row"><div class="record-title"><strong>${escapeHtml(k.key)}</strong>${badge(k.source_class)}</div><div class="record-meta">${status(k.status)}<span>値: 非表示</span></div></div>`).join('')}</section></div>`;
+        const db = this.state.health.runtime_config?.database;
+        const dbReason = db?.reason ? `<span>${escapeHtml(db.reason)}</span>` : '';
+        const dbHtml = db ? `<div class="health-row"><div class="record-title"><strong>${escapeHtml(db.label)}</strong>${badge(db.source_class)}</div><div class="record-meta">${status(db.status)}<span>接続: ${escapeHtml(formatStatusLabel(db.connection_status || db.status))}</span><span>keys: ${escapeHtml((db.keys || []).join(', '))}</span><span>値: 非表示</span>${dbReason}</div></div>` : '';
+        const checkHtml = (this.state.health.runtime_config?.checks || []).map((check) => `<div class="health-row"><div class="record-title"><strong>${escapeHtml(check.label)}</strong>${badge(check.source_class)}</div><div class="record-meta">${status(check.status)}${check.reason ? `<span>${escapeHtml(check.reason)}</span>` : ''}</div></div>`).join('');
+        this.root.querySelector('[data-health]').innerHTML = `<div class="health-grid"><section class="panel"><div class="panel-header"><h2>データソース状態</h2></div>${(this.state.health.sources || []).map((s) => `<div class="health-row"><div class="record-title"><strong>${escapeHtml(s.label)}</strong>${badge(s.source_class)}</div><div class="record-meta">${status(s.status)}${s.reason ? `<span>${escapeHtml(s.reason)}</span>` : ''}</div></div>`).join('')}</section><section class="panel"><div class="panel-header"><h2>${JA_LABELS.health}</h2><span class="muted">${JA_LABELS.secretSafe}</span></div>${dbHtml}${checkHtml}${(this.state.health.runtime_config?.keys || []).map((k) => `<div class="health-row"><div class="record-title"><strong>${escapeHtml(k.key)}</strong>${badge(k.source_class)}</div><div class="record-meta">${status(k.status)}<span>値: 非表示</span></div></div>`).join('')}</section></div>`;
     }
 
     toast(message) {

@@ -11,6 +11,7 @@ const SENSITIVITY = new Set(['internal', 'restricted', 'confidential', 'top-secr
 const ROLE_MIN = new Set(['member', 'gm', 'ceo']);
 const AGENCY = new Set(['none', 'read-only', 'synthesize', 'write-back']);
 const STATUS = new Set(['candidate', 'pending_approval', 'approved', 'rejected', 'expired', 'promoted_to_graph']);
+const PERSONAL_KG_TYPES = ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result'];
 
 const ALLOWED_TRANSITIONS = {
     candidate: new Set(['pending_approval', 'rejected', 'expired']),
@@ -91,6 +92,64 @@ function normalizeAudit(row) {
         decided_at: toIso(row.decided_at),
         evidence_ids: row.evidence_ids || null
     };
+}
+
+function clampLimit(value, fallback = 50, max = 500) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(Math.max(Math.trunc(parsed), 1), max) : fallback;
+}
+
+function allowedRolesFor(role) {
+    if (role === 'ceo') return ['member', 'gm', 'ceo'];
+    if (role === 'gm') return ['member', 'gm'];
+    return ['member'];
+}
+
+function personalKgMemoryLayerSql() {
+    return `COALESCE(
+        permission_snapshot->'oyasumi_meeting_personal_kg'->>'memory_layer',
+        permission_snapshot->'personal_kg'->>'memory_layer',
+        permission_snapshot->'seed'->>'memory_layer',
+        permission_snapshot->>'memory_layer',
+        'personal_kg_core'
+    )`;
+}
+
+function personalKgSnsReadySql() {
+    const layer = personalKgMemoryLayerSql();
+    return `(COALESCE(permission_snapshot->>'sns_ready', 'false') = 'true'
+        OR (${layer} = 'sns_ready'
+            AND COALESCE(
+                permission_snapshot->'oyasumi_meeting_personal_kg'->>'projection_allowed',
+                permission_snapshot->'personal_kg'->>'projection_allowed',
+                permission_snapshot->'seed'->>'projection_allowed',
+                permission_snapshot->>'projection_allowed',
+                'true'
+            ) <> 'false'))`;
+}
+
+function buildPersonalKgWhere(filter = {}) {
+    const clauses = [];
+    const params = [];
+    const add = (sql, value) => {
+        params.push(value);
+        clauses.push(sql.replace('?', `$${params.length}`));
+    };
+    const owner = filter.owner_person_id || filter.ownerPersonId;
+    if (!owner) throw new Error('owner_person_id is required');
+    add('owner_person_id = ?', owner);
+    clauses.push(`visibility IN ('owner', 'private')`);
+    add('cognitive_type = ANY(?::text[])', Array.isArray(filter.cognitive_types) && filter.cognitive_types.length ? filter.cognitive_types : PERSONAL_KG_TYPES);
+    if (!filter.bypass_acl) {
+        add('role_min = ANY(?::text[])', allowedRolesFor(filter.role));
+        add('sensitivity = ANY(?::text[])', Array.isArray(filter.clearance) && filter.clearance.length ? filter.clearance : ['internal']);
+    }
+    if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
+    if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);
+    if (filter.redaction_status) add('redaction_status = ?', filter.redaction_status);
+    if (filter.memory_layer) add(`${personalKgMemoryLayerSql()} = ?`, filter.memory_layer);
+    return { where: `WHERE ${clauses.join(' AND ')}`, params };
 }
 
 function normalizeScanBlock(row) {
@@ -175,12 +234,18 @@ export class InMemoryCandidateRepository {
 
     list(filter = {}) {
         const all = Array.from(this.candidates.values());
-        return all.filter((r) => {
+        let rows = all.filter((r) => {
             if (filter.owner_person_id && r.owner_person_id !== filter.owner_person_id) return false;
             if (filter.promotion_status && r.promotion_status !== filter.promotion_status) return false;
             if (filter.cognitive_type && r.cognitive_type !== filter.cognitive_type) return false;
             return true;
-        }).map((r) => ({ ...r }));
+        });
+        if (filter.order_by === 'created_at') {
+            const direction = filter.order_direction === 'desc' ? -1 : 1;
+            rows = rows.slice().sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) * direction);
+        }
+        if (filter.limit) rows = rows.slice(0, clampLimit(filter.limit));
+        return rows.map((r) => ({ ...r }));
     }
 
     transition(id, nextStatus, audit) {
@@ -352,8 +417,94 @@ export class PgCandidateRepository {
         if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
         if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);
         const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
-        const { rows } = await this.pool.query(`SELECT * FROM memory_candidates${where} ORDER BY created_at ASC, id ASC`, params);
+        const orderDirection = filter.order_direction === 'desc' ? 'DESC' : 'ASC';
+        const orderBy = filter.order_by === 'created_at' ? `created_at ${orderDirection}, id ${orderDirection}` : 'created_at ASC, id ASC';
+        let sql = `SELECT * FROM memory_candidates${where} ORDER BY ${orderBy}`;
+        if (filter.limit) {
+            params.push(clampLimit(filter.limit));
+            sql += ` LIMIT $${params.length}`;
+        }
+        const { rows } = await this.pool.query(sql, params);
         return rows.map(normalizeCandidate);
+    }
+
+    async listPersonalKg(filter = {}) {
+        const { where, params } = buildPersonalKgWhere(filter);
+        params.push(clampLimit(filter.limit, 50, 500));
+        const layerSql = personalKgMemoryLayerSql();
+        const snsReadySql = personalKgSnsReadySql();
+        const { rows } = await this.pool.query(
+            `SELECT *, ${layerSql} AS memory_layer, ${snsReadySql} AS sns_ready
+             FROM memory_candidates
+             ${where}
+             ORDER BY created_at DESC, id DESC
+             LIMIT $${params.length}`,
+            params
+        );
+        return rows.map(normalizeCandidate);
+    }
+
+    async summarizePersonalKg(filter = {}) {
+        const { where, params } = buildPersonalKgWhere(filter);
+        const layerSql = personalKgMemoryLayerSql();
+        const snsReadySql = personalKgSnsReadySql();
+        const { rows } = await this.pool.query(
+            `WITH filtered AS (
+                SELECT *, ${layerSql} AS memory_layer, ${snsReadySql} AS sns_ready
+                FROM memory_candidates
+                ${where}
+             ),
+             cognitive_counts AS (
+                SELECT COALESCE(cognitive_type, 'unknown') AS key, COUNT(*)::int AS value FROM filtered GROUP BY 1
+             ),
+             promotion_counts AS (
+                SELECT COALESCE(promotion_status, 'unknown') AS key, COUNT(*)::int AS value FROM filtered GROUP BY 1
+             ),
+             redaction_counts AS (
+                SELECT COALESCE(redaction_status, 'unknown') AS key, COUNT(*)::int AS value FROM filtered GROUP BY 1
+             ),
+             source_counts AS (
+                SELECT COALESCE(source_system, 'unknown') AS key, COUNT(*)::int AS value FROM filtered GROUP BY 1
+             ),
+             layer_counts AS (
+                SELECT COALESCE(memory_layer, 'unknown') AS key, COUNT(*)::int AS value FROM filtered GROUP BY 1
+             )
+             SELECT
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE promotion_status NOT IN ('rejected', 'expired'))::int AS active_count,
+                COUNT(*) FILTER (WHERE memory_layer = 'personal_kg_core')::int AS core_count,
+                COUNT(*) FILTER (WHERE sns_ready = true)::int AS sns_ready_count,
+                COUNT(*) FILTER (WHERE requires_approval = true OR promotion_status = 'pending_approval')::int AS review_count,
+                COUNT(*) FILTER (WHERE redaction_status = 'needs_redaction')::int AS needs_redaction_count,
+                COUNT(*) FILTER (WHERE agency_level = 'none')::int AS agency_none_count,
+                MAX(COALESCE(updated_at, created_at)) AS latest_seen_at,
+                COALESCE((SELECT jsonb_object_agg(key, value) FROM cognitive_counts), '{}'::jsonb) AS counts_by_cognitive_type,
+                COALESCE((SELECT jsonb_object_agg(key, value) FROM promotion_counts), '{}'::jsonb) AS counts_by_promotion_status,
+                COALESCE((SELECT jsonb_object_agg(key, value) FROM redaction_counts), '{}'::jsonb) AS counts_by_redaction_status,
+                COALESCE((SELECT jsonb_object_agg(key, value) FROM source_counts), '{}'::jsonb) AS counts_by_source_system,
+                COALESCE((SELECT jsonb_object_agg(key, value) FROM layer_counts), '{}'::jsonb) AS counts_by_memory_layer
+             FROM filtered`,
+            params
+        );
+        const row = rows[0] || {};
+        return {
+            total: row.total || 0,
+            returned_count: 0,
+            limit: 0,
+            truncated: false,
+            active_count: row.active_count || 0,
+            core_count: row.core_count || 0,
+            sns_ready_count: row.sns_ready_count || 0,
+            review_count: row.review_count || 0,
+            needs_redaction_count: row.needs_redaction_count || 0,
+            agency_none_count: row.agency_none_count || 0,
+            counts_by_cognitive_type: row.counts_by_cognitive_type || {},
+            counts_by_promotion_status: row.counts_by_promotion_status || {},
+            counts_by_redaction_status: row.counts_by_redaction_status || {},
+            counts_by_source_system: row.counts_by_source_system || {},
+            counts_by_memory_layer: row.counts_by_memory_layer || {},
+            latest_seen_at: toIso(row.latest_seen_at) || null
+        };
     }
 
     async transition(id, nextStatus, audit) {

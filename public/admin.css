@@ -54,19 +54,20 @@ button { cursor: pointer; }
 .badge { display: inline-flex; min-height: 22px; padding: 0 8px; border: 1px solid rgba(196,207,222,0.24); border-radius: 999px; font-size: 12px; white-space: nowrap; }
 .badge.graph { color: #9fc0ff; }
 .badge.candidate { color: #8ee8b4; }
+.badge.personal { color: #73d6d0; }
 .badge.context { color: #c5b8ff; }
-.badge.derived { color: #f0cd80; }
 .badge.runtime { color: #c8d0da; }
 .status-available, .status-configured { color: var(--green); }
 .status-unavailable, .status-missing { color: var(--red); }
-.status-not_configured { color: var(--yellow); }
+.status-not_configured, .status-partial { color: var(--yellow); }
 .metric-row, .health-grid, .context-grid { display: grid; gap: 14px; margin-top: 14px; }
-.metric-row { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+.metric-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 .health-grid, .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .metric, .context-form, .context-result, .flow-list, .empty-state { padding: 14px; }
 .metric { border: 1px solid var(--line); border-radius: 8px; background: #151b23; }
 .metric strong { display: block; font-size: 22px; }
 .health-row { padding: 12px 14px; margin: 8px 14px; }
+.continuation-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #151b23; color: var(--muted); font-size: 12px; }
 .admin-toast { position: fixed; right: 18px; bottom: 18px; max-width: min(420px, calc(100vw - 36px)); padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #161d26; display: none; }
 .admin-toast.visible { display: block; }
 @media (max-width: 980px) { .admin-shell, .overview-grid, .health-grid, .context-grid, .metric-row { grid-template-columns: 1fr; } .admin-sidebar { border-right: 0; border-bottom: 1px solid var(--line); } .admin-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -3,13 +3,16 @@
 const SOURCE_CLASSES = Object.freeze({
     GRAPH: 'graph_ssot',
     CANDIDATE: 'candidate_store',
+    PERSONAL_KG: 'personal_kg',
     CONTEXT: 'ai_context',
-    DERIVED: 'derived_index',
     RUNTIME: 'runtime_config'
 });
 
-const RUNTIME_KEYS = ['INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL', 'AUTH_SESSION_SECRET', 'CANDIDATE_STORE_ALLOWED_SOURCES', 'BRAINBASE_PORT', 'BRAINBASE_VAR_DIR'];
-const DERIVED_INDEX_KEYS = ['LIGHTRAG_URL', 'LIGHTRAG_BASE_URL', 'LIGHTRAG_API_URL'];
+const RUNTIME_KEYS = ['BRAINBASE_ENV_PATH', 'INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL', 'AUTH_SESSION_SECRET', 'CANDIDATE_STORE_ALLOWED_SOURCES', 'BRAINBASE_PORT', 'BRAINBASE_VAR_DIR'];
+const DEFAULT_PERSONAL_KG_OWNER_PERSON_ID = 'sato_keigo';
+const HEALTH_CHECK_TIMEOUT_MS = 1500;
+const PERSONAL_KG_INCLUDED_TYPES = new Set(['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result']);
+const PERSONAL_KG_EXCLUDED_STATUSES = new Set(['rejected', 'expired']);
 const SECRET_PATTERNS = [
     /postgres(?:ql)?:\/\/[^\s"'<>]+/ig,
     /Bearer\s+[A-Za-z0-9._~+/-]+=*/ig,
@@ -26,6 +29,7 @@ function hasMethod(service, method) {
 }
 
 function limit(value, fallback = 100, max = 500) {
+    if (value === undefined || value === null || value === '') return fallback;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.min(Math.max(Math.trunc(parsed), 1), max) : fallback;
 }
@@ -116,6 +120,21 @@ function candidateQueryFilter(access, filters) {
     };
 }
 
+function personalKgRepositoryFilter(access, ownerPersonId, filters, safeLimit) {
+    return {
+        owner_person_id: ownerPersonId,
+        limit: safeLimit,
+        memory_layer: filters.layer || null,
+        promotion_status: filters.status || null,
+        cognitive_type: filters.type || null,
+        redaction_status: filters.redaction || null,
+        role: access.role,
+        clearance: access.clearance,
+        bypass_acl: access.personId === 'internal_api',
+        cognitive_types: Array.from(PERSONAL_KG_INCLUDED_TYPES)
+    };
+}
+
 function boolInput(value, defaultValue = false) {
     if (value === undefined || value === null || value === '') return defaultValue;
     if (typeof value === 'boolean') return value;
@@ -135,6 +154,139 @@ function countBy(records, key) {
     }, {});
 }
 
+function inspectableOwner(access, requestedOwner, env = {}) {
+    const explicitOwner = requestedOwner || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || null;
+    if (explicitOwner && (access.personId === explicitOwner || access.personId === 'internal_api')) return explicitOwner;
+    if (access.personId && access.personId !== 'internal_api') return access.personId;
+    if (access.personId === 'internal_api') return explicitOwner || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID;
+    return null;
+}
+
+function readPermissionSnapshot(record) {
+    return parsePayload(record?.permission_snapshot);
+}
+
+function personalKgPolicy(record) {
+    const snapshot = readPermissionSnapshot(record);
+    return snapshot?.oyasumi_meeting_personal_kg || snapshot?.personal_kg || null;
+}
+
+function memoryLayer(record) {
+    if (record?.memory_layer) return record.memory_layer;
+    const policy = personalKgPolicy(record);
+    const snapshot = readPermissionSnapshot(record);
+    return policy?.memory_layer || snapshot?.seed?.memory_layer || snapshot?.memory_layer || 'personal_kg_core';
+}
+
+function isSnsReady(record) {
+    if (typeof record?.sns_ready === 'boolean') return record.sns_ready;
+    const snapshot = readPermissionSnapshot(record);
+    if (record?.sns_ready === true || snapshot?.sns_ready === true) return true;
+    if (memoryLayer(record) === 'sns_ready') return projectionAllowed(snapshot);
+    return false;
+}
+
+function projectionAllowed(snapshot = {}) {
+    for (const source of [
+        snapshot?.oyasumi_meeting_personal_kg,
+        snapshot?.personal_kg,
+        snapshot?.seed,
+        snapshot
+    ]) {
+        if (!source || source.projection_allowed === undefined) continue;
+        return !['false', '0', 'no', 'off'].includes(String(source.projection_allowed).toLowerCase());
+    }
+    return true;
+}
+
+function isPersonalKgReadable(record, ownerPersonId, access) {
+    if (!record || record.owner_person_id !== ownerPersonId) return false;
+    if (!['owner', 'private'].includes(record.visibility)) return false;
+    if (!PERSONAL_KG_INCLUDED_TYPES.has(record.cognitive_type)) return false;
+    if (access.personId === 'internal_api') return true;
+    return canReadCandidate(record, access);
+}
+
+function applyPersonalKgFilters(records, ownerPersonId, access, filters) {
+    return records
+        .filter((record) => isPersonalKgReadable(record, ownerPersonId, access))
+        .filter((record) => !filters.layer || memoryLayer(record) === filters.layer)
+        .filter((record) => !filters.status || record.promotion_status === filters.status)
+        .filter((record) => !filters.type || record.cognitive_type === filters.type)
+        .filter((record) => !filters.redaction || record.redaction_status === filters.redaction);
+}
+
+function personalKgSummary(records) {
+    const reviewRecords = records.filter((record) => record.requires_approval || record.promotion_status === 'pending_approval');
+    const agencyNoneRecords = records.filter((record) => record.agency_level === 'none');
+    const redactionRecords = records.filter((record) => record.redaction_status === 'needs_redaction');
+    const activeRecords = records.filter((record) => !PERSONAL_KG_EXCLUDED_STATUSES.has(record.promotion_status));
+        const sortedDates = records
+        .flatMap((record) => [record.created_at, record.updated_at])
+        .filter(Boolean)
+        .sort();
+    return {
+        total: records.length,
+        returned_count: records.length,
+        limit: records.length,
+        truncated: false,
+        active_count: activeRecords.length,
+        core_count: records.filter((record) => memoryLayer(record) === 'personal_kg_core').length,
+        sns_ready_count: records.filter(isSnsReady).length,
+        review_count: reviewRecords.length,
+        needs_redaction_count: redactionRecords.length,
+        agency_none_count: agencyNoneRecords.length,
+        counts_by_cognitive_type: countBy(records, 'cognitive_type'),
+        counts_by_promotion_status: countBy(records, 'promotion_status'),
+        counts_by_redaction_status: countBy(records, 'redaction_status'),
+        counts_by_source_system: countBy(records, 'source_system'),
+        counts_by_memory_layer: records.reduce((acc, record) => {
+            const layer = memoryLayer(record);
+            acc[layer] = (acc[layer] || 0) + 1;
+            return acc;
+        }, {}),
+        latest_seen_at: sortedDates[sortedDates.length - 1] || null
+    };
+}
+
+function emptyPersonalKgSummary({ limit: summaryLimit = 0 } = {}) {
+    return {
+        ...personalKgSummary([]),
+        limit: summaryLimit
+    };
+}
+
+function normalizeSummaryObject(summary = {}, { returnedCount = 0, summaryLimit = 0, truncated = false } = {}) {
+    const empty = emptyPersonalKgSummary();
+    return {
+        ...empty,
+        ...summary,
+        total: Number(summary.total ?? empty.total) || 0,
+        returned_count: returnedCount,
+        limit: summaryLimit,
+        truncated
+    };
+}
+
+function runtimeHealthStatus(runtimeConfig = {}) {
+    const database = runtimeConfig.database || {};
+    const keys = Array.isArray(runtimeConfig.keys) ? runtimeConfig.keys : [];
+    const checks = Array.isArray(runtimeConfig.checks) ? runtimeConfig.checks : [];
+    if (database.status === 'unavailable') return 'unavailable';
+    if (checks.some((item) => item.status === 'unavailable')) return 'unavailable';
+    if (database.connection_status === 'not_configured') return 'partial';
+    if (checks.some((item) => item.status === 'partial')) return 'partial';
+    if (keys.length && keys.some((item) => item.status === 'missing')) return 'partial';
+    return keys.some((item) => item.status === 'present') || database.status === 'available' ? 'available' : 'unavailable';
+}
+
+function withHealthTimeout(promise, message) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), HEALTH_CHECK_TIMEOUT_MS))
+    ]);
+}
+
 export class AdminVisualizationService {
     constructor({ infoSSOTService = null, candidateRepository = null, env = process.env, clock = () => new Date() } = {}) {
         this.infoSSOTService = infoSSOTService;
@@ -144,18 +296,31 @@ export class AdminVisualizationService {
     }
 
     async getOverview(access = {}) {
-        const [graph, candidates, health] = await Promise.all([
+        const [graph, candidates, personalKg, health] = await Promise.all([
             this.listGraphEntities(access, { limit: 500 }),
             this.listCandidates(access, { limit: 500 }),
+            this.listPersonalKg(access, { records: false }),
             this.getHealth(access)
         ]);
         return {
             generated_at: this.clock().toISOString(),
             locale: { default: 'ja', fallback: 'ja' },
-            sources: health.sources,
+            sources: [
+                { source_class: SOURCE_CLASSES.GRAPH, label: 'Graph正本', status: graph.status },
+                { source_class: SOURCE_CLASSES.CANDIDATE, label: '候補ストア', status: candidates.status },
+                { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG', status: personalKg.status },
+                { source_class: SOURCE_CLASSES.CONTEXT, label: 'AI文脈リゾルバ', status: hasMethod(this.infoSSOTService, 'getContext') ? 'available' : 'unavailable' },
+                { source_class: SOURCE_CLASSES.RUNTIME, label: '設定/実行環境', status: runtimeHealthStatus(health.runtime_config) }
+            ],
             graph: { source_class: SOURCE_CLASSES.GRAPH, status: graph.status, total: graph.records.length, counts_by_type: countBy(graph.records, 'entity_type') },
             candidates: { source_class: SOURCE_CLASSES.CANDIDATE, status: candidates.status, total: candidates.records.length, counts_by_promotion_status: countBy(candidates.records, 'promotion_status'), counts_by_redaction_status: countBy(candidates.records, 'redaction_status') },
-            derived_indexes: health.derived_indexes,
+            personal_kg: {
+                source_class: SOURCE_CLASSES.PERSONAL_KG,
+                status: personalKg.status,
+                owner_person_id: personalKg.owner_person_id || null,
+                total: personalKg.summary?.total || 0,
+                summary: personalKg.summary || personalKgSummary([])
+            },
             runtime_config: health.runtime_config
         };
     }
@@ -171,8 +336,8 @@ export class AdminVisualizationService {
                 .slice(0, limit(filters.limit))
                 .map((record) => this.normalizeGraphRecord(record));
             return { source_class: SOURCE_CLASSES.GRAPH, status: 'available', records };
-        } catch (error) {
-            return { source_class: SOURCE_CLASSES.GRAPH, status: 'unavailable', reason: error?.message || 'Graph unavailable', records: [] };
+        } catch {
+            return { source_class: SOURCE_CLASSES.GRAPH, status: 'unavailable', reason: 'Graph正本を取得できません。接続または権限をサーバーログで確認してください', records: [] };
         }
     }
 
@@ -192,8 +357,89 @@ export class AdminVisualizationService {
                 .slice(0, limit(filters.limit))
                 .map((record) => this.normalizeCandidateRecord(record));
             return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'available', records, warnings: [] };
-        } catch (error) {
-            return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'unavailable', reason: error?.message || 'candidate-store unavailable', records: [] };
+        } catch {
+            return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'unavailable', reason: '候補ストアを取得できません。接続または権限をサーバーログで確認してください', records: [] };
+        }
+    }
+
+    async listPersonalKg(access = {}, filters = {}) {
+        if (!hasMethod(this.candidateRepository, 'list')) {
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, status: 'unavailable', reason: '候補ストアリポジトリが未設定のため個人KGを取得できません', owner_person_id: null, summary: emptyPersonalKgSummary(), records: [], warnings: [] };
+        }
+        const safeAccess = accessSafe(access);
+        const requestedOwnerPersonId = filters.owner || null;
+        const safeLimit = limit(filters.limit, 50, 500);
+        if (requestedOwnerPersonId && safeAccess.personId !== 'internal_api' && requestedOwnerPersonId !== safeAccess.personId) {
+            return {
+                source_class: SOURCE_CLASSES.PERSONAL_KG,
+                status: 'available',
+                owner_person_id: null,
+                requested_owner_person_id: requestedOwnerPersonId,
+                summary: emptyPersonalKgSummary({ limit: safeLimit }),
+                records: [],
+                warnings: [`指定された所有者(${requestedOwnerPersonId})は現在の権限では表示できません`]
+            };
+        }
+        const ownerPersonId = inspectableOwner(safeAccess, requestedOwnerPersonId, this.env);
+        if (!ownerPersonId) {
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, status: 'available', owner_person_id: null, summary: emptyPersonalKgSummary({ limit: safeLimit }), records: [], warnings: ['personIdがないため個人KGは表示しません'] };
+        }
+        try {
+            const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, filters, safeLimit);
+            if (hasMethod(this.candidateRepository, 'summarizePersonalKg')) {
+                const summary = normalizeSummaryObject(await this.candidateRepository.summarizePersonalKg(repoFilter), {
+                    returnedCount: 0,
+                    summaryLimit: filters.records === false ? 0 : safeLimit,
+                    truncated: false
+                });
+                if (filters.records === false) {
+                    return {
+                        source_class: SOURCE_CLASSES.PERSONAL_KG,
+                        status: 'available',
+                        owner_person_id: ownerPersonId,
+                        summary: { ...summary, returned_count: 0, limit: 0, truncated: false },
+                        records: [],
+                        warnings: []
+                    };
+                }
+                const rows = hasMethod(this.candidateRepository, 'listPersonalKg')
+                    ? await this.candidateRepository.listPersonalKg(repoFilter)
+                    : await this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
+                const records = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters)
+                    .slice(0, safeLimit)
+                    .map((record) => this.normalizePersonalKgRecord(record));
+                summary.returned_count = records.length;
+                summary.limit = safeLimit;
+                summary.truncated = summary.total > records.length;
+                return {
+                    source_class: SOURCE_CLASSES.PERSONAL_KG,
+                    status: 'available',
+                    owner_person_id: ownerPersonId,
+                    summary,
+                    records,
+                    warnings: []
+                };
+            }
+
+            const rows = await this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
+            const allRecords = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters)
+                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+                .map((record) => this.normalizePersonalKgRecord(record));
+            const records = filters.records === false ? [] : allRecords.slice(0, safeLimit);
+            const summary = personalKgSummary(allRecords);
+            summary.returned_count = records.length;
+            summary.limit = filters.records === false ? 0 : safeLimit;
+            summary.truncated = filters.records === false ? false : allRecords.length > records.length;
+            return {
+                source_class: SOURCE_CLASSES.PERSONAL_KG,
+                status: 'available',
+                owner_person_id: ownerPersonId,
+                summary,
+                records,
+                warnings: []
+            };
+        } catch {
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, status: 'unavailable', reason: '個人KGを取得できません。接続またはクエリをサーバーログで確認してください', owner_person_id: ownerPersonId, summary: emptyPersonalKgSummary({ limit: safeLimit }), records: [], warnings: [] };
         }
     }
 
@@ -265,8 +511,8 @@ export class AdminVisualizationService {
                 },
                 warnings: [...warnings, ...(denied.length ? [`${denied.length}件のmemoryは除外されました`] : [])]
             };
-        } catch (error) {
-            return { source_class: SOURCE_CLASSES.CONTEXT, status: 'unavailable', preview: null, warnings: [error?.message || 'Context preview is unavailable'] };
+        } catch {
+            return { source_class: SOURCE_CLASSES.CONTEXT, status: 'unavailable', preview: null, warnings: ['AI文脈プレビューを取得できません。接続または権限をサーバーログで確認してください'] };
         }
     }
 
@@ -275,45 +521,127 @@ export class AdminVisualizationService {
             filters.candidate ? this.listCandidates(access, { id: filters.candidate, project: filters.project || null, limit: 1 }) : Promise.resolve(null),
             filters.entity ? this.listGraphEntities(access, { id: filters.entity, project: filters.project || null, limit: 1 }) : Promise.resolve(null)
         ]);
+        const candidateUnavailable = candidateResult?.status && candidateResult.status !== 'available';
+        const graphUnavailable = entityResult?.status && entityResult.status !== 'available';
+        const personalKgReadiness = await this.getPersonalKgReadiness(access);
         const steps = [
             {
                 source_class: SOURCE_CLASSES.CANDIDATE,
                 label: '候補ストア',
-                status: filters.candidate ? (candidateResult?.records?.length ? 'available' : 'not_found') : 'not_requested',
-                reason: filters.candidate ? (candidateResult?.records?.length ? '候補IDは現在の権限で参照できます' : '候補IDは存在しないか現在の権限では参照できません') : '候補ID未指定'
+                status: filters.candidate ? (candidateUnavailable ? candidateResult.status : candidateResult?.records?.length ? 'available' : 'not_found') : 'not_requested',
+                reason: filters.candidate
+                    ? candidateUnavailable
+                        ? (candidateResult.reason || '候補ストアを取得できません')
+                        : candidateResult?.records?.length ? '候補IDは現在の権限で参照できます' : '候補IDは存在しないか現在の権限では参照できません'
+                    : '候補ID未指定'
             },
             {
                 source_class: SOURCE_CLASSES.GRAPH,
                 label: 'Graph正本',
-                status: filters.entity ? (entityResult?.records?.length ? 'available' : 'not_found') : 'not_requested',
-                reason: filters.entity ? (entityResult?.records?.length ? '正本IDは現在の権限で参照できます' : '正本IDは存在しないか現在の権限では参照できません') : '正本ID未指定'
+                status: filters.entity ? (graphUnavailable ? entityResult.status : entityResult?.records?.length ? 'available' : 'not_found') : 'not_requested',
+                reason: filters.entity
+                    ? graphUnavailable
+                        ? (entityResult.reason || 'Graph正本を取得できません')
+                        : entityResult?.records?.length ? '正本IDは現在の権限で参照できます' : '正本IDは存在しないか現在の権限では参照できません'
+                    : '正本ID未指定'
             }
         ];
         steps.push({ source_class: SOURCE_CLASSES.CONTEXT, label: 'AI文脈リゾルバ', status: hasMethod(this.infoSSOTService, 'getContext') ? 'available' : 'unavailable' });
-        steps.push({ source_class: SOURCE_CLASSES.DERIVED, label: '派生index', status: this.getDerivedIndexHealth().status });
+        steps.push({ source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG', status: personalKgReadiness.status, reason: personalKgReadiness.reason || null });
         return { source_class: SOURCE_CLASSES.CONTEXT, generated_at: this.clock().toISOString(), steps };
     }
 
-    async getHealth() {
-        const derived = this.getDerivedIndexHealth();
+    async getHealth(access = {}) {
         const runtimeKeys = RUNTIME_KEYS.map((key) => ({ source_class: SOURCE_CLASSES.RUNTIME, key, status: this.env?.[key] ? 'present' : 'missing', value: null, value_redacted: true }));
+        const [database, personalKgReadiness] = await Promise.all([
+            this.getDatabaseHealth(),
+            this.getPersonalKgReadiness(access)
+        ]);
+        const databaseBackedCandidateUnavailable = database.status === 'unavailable' && Boolean(this.candidateRepository?.pool || this.env?.INFO_SSOT_DATABASE_URL || this.env?.INFO_SSOT_DB_URL);
+        const databaseConfiguredWithoutClient = database.connection_status === 'not_configured' && Boolean(this.env?.INFO_SSOT_DATABASE_URL || this.env?.INFO_SSOT_DB_URL);
+        const candidateStatus = !hasMethod(this.candidateRepository, 'list')
+            ? 'unavailable'
+            : databaseBackedCandidateUnavailable
+                ? 'unavailable'
+                : databaseConfiguredWithoutClient
+                    ? 'partial'
+                    : 'available';
         return {
             generated_at: this.clock().toISOString(),
             sources: [
                 { source_class: SOURCE_CLASSES.GRAPH, label: 'Graph正本', status: hasMethod(this.infoSSOTService, 'listGraphEntities') ? 'available' : 'unavailable' },
-                { source_class: SOURCE_CLASSES.CANDIDATE, label: '候補ストア', status: hasMethod(this.candidateRepository, 'list') ? 'available' : 'unavailable' },
+                { source_class: SOURCE_CLASSES.CANDIDATE, label: '候補ストア', status: candidateStatus },
+                { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG', status: personalKgReadiness.status, reason: personalKgReadiness.reason || null },
                 { source_class: SOURCE_CLASSES.CONTEXT, label: 'AI文脈リゾルバ', status: hasMethod(this.infoSSOTService, 'getContext') ? 'available' : 'unavailable' },
-                { source_class: SOURCE_CLASSES.DERIVED, label: 'LightRAG / 派生index', status: derived.status },
-                { source_class: SOURCE_CLASSES.RUNTIME, label: '設定/実行環境', status: runtimeKeys.some((item) => item.status === 'present') ? 'available' : 'unavailable' }
+                { source_class: SOURCE_CLASSES.RUNTIME, label: '設定/実行環境', status: runtimeHealthStatus({ database, keys: runtimeKeys, checks: [personalKgReadiness] }) }
             ],
-            derived_indexes: [derived],
-            runtime_config: { source_class: SOURCE_CLASSES.RUNTIME, keys: runtimeKeys }
+            runtime_config: {
+                source_class: SOURCE_CLASSES.RUNTIME,
+                database,
+                checks: [personalKgReadiness],
+                keys: runtimeKeys
+            }
         };
     }
 
-    getDerivedIndexHealth() {
-        const configured_keys = DERIVED_INDEX_KEYS.filter((key) => Boolean(this.env?.[key]));
-        return { source_class: SOURCE_CLASSES.DERIVED, id: 'lightrag', label: 'LightRAG', status: configured_keys.length ? 'configured' : 'not_configured', configured_keys, value_redacted: true, note: 'LightRAGは派生indexであり、Brainbaseの正本ではありません。' };
+    async getPersonalKgReadiness(access = {}) {
+        if (!hasMethod(this.candidateRepository, 'list')) {
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'unavailable', reason: '候補ストアリポジトリが未設定です' };
+        }
+
+        const safeAccess = accessSafe(access);
+        const ownerPersonId = inspectableOwner(safeAccess, null, this.env);
+        if (!ownerPersonId) {
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'partial', reason: 'personIdがないため個人KG read pathは未確認です' };
+        }
+
+        const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, {}, 1);
+        try {
+            if (hasMethod(this.candidateRepository, 'summarizePersonalKg')) {
+                await withHealthTimeout(this.candidateRepository.summarizePersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');
+                if (hasMethod(this.candidateRepository, 'listPersonalKg')) {
+                    await withHealthTimeout(this.candidateRepository.listPersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');
+                } else {
+                    await withHealthTimeout(this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 1 }), '個人KG read path確認がタイムアウトしました');
+                }
+            } else if (hasMethod(this.candidateRepository, 'listPersonalKg')) {
+                await withHealthTimeout(this.candidateRepository.listPersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');
+            } else {
+                await withHealthTimeout(this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 1 }), '個人KG read path確認がタイムアウトしました');
+            }
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'available' };
+        } catch {
+            return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'unavailable', reason: '個人KG read path確認に失敗しました。migrationまたは権限をサーバーログで確認してください' };
+        }
+    }
+
+    async getDatabaseHealth() {
+        const configured = Boolean(this.env?.INFO_SSOT_DATABASE_URL || this.env?.INFO_SSOT_DB_URL);
+        const base = {
+            source_class: SOURCE_CLASSES.RUNTIME,
+            label: 'DB接続先',
+            status: configured ? 'configured' : 'missing',
+            connection_status: configured ? 'not_checked' : 'missing',
+            keys: ['INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL'],
+            value: null,
+            value_redacted: true
+        };
+        if (!configured) return base;
+
+        const pool = this.candidateRepository?.pool || this.infoSSOTService?.pool || null;
+        if (!pool || typeof pool.query !== 'function') {
+            return { ...base, status: 'configured', connection_status: 'not_configured', reason: 'DB接続クライアントが未設定です' };
+        }
+
+        try {
+            await Promise.race([
+                pool.query('SELECT 1 AS ok'),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('DB接続確認がタイムアウトしました')), HEALTH_CHECK_TIMEOUT_MS))
+            ]);
+            return { ...base, status: 'available', connection_status: 'connected' };
+        } catch {
+            return { ...base, status: 'unavailable', connection_status: 'unavailable', reason: 'DB接続確認に失敗しました。接続先または認証情報をサーバーログで確認してください' };
+        }
     }
 
     normalizeGraphRecord(record) {
@@ -322,6 +650,28 @@ export class AdminVisualizationService {
 
     normalizeCandidateRecord(record) {
         return { source_class: SOURCE_CLASSES.CANDIDATE, id: record?.id || null, cognitive_type: record?.cognitive_type || null, source_system: record?.source_system || null, project_code: record?.project_code || null, promotion_status: record?.promotion_status || null, promoted_graph_entity_id: record?.promoted_graph_entity_id || null, redaction_status: record?.redaction_status || null, visibility: record?.visibility || null, sensitivity: record?.sensitivity || null, role_min: record?.role_min || null, confidence: record?.confidence ?? null, requires_approval: Boolean(record?.requires_approval), body_preview: preview(record?.body || '', 360), created_at: record?.created_at || null, updated_at: record?.updated_at || null };
+    }
+
+    normalizePersonalKgRecord(record) {
+        return {
+            source_class: SOURCE_CLASSES.PERSONAL_KG,
+            id: record?.id || null,
+            cognitive_type: record?.cognitive_type || null,
+            source_system: record?.source_system || null,
+            project_code: record?.project_code || null,
+            memory_layer: memoryLayer(record),
+            sns_ready: isSnsReady(record),
+            promotion_status: record?.promotion_status || null,
+            redaction_status: record?.redaction_status || null,
+            agency_level: record?.agency_level || null,
+            visibility: record?.visibility || null,
+            confidence: record?.confidence ?? null,
+            requires_approval: Boolean(record?.requires_approval),
+            source_event_count: Array.isArray(record?.source_event_ids) ? record.source_event_ids.length : 0,
+            body_preview: preview(record?.body || '', 360),
+            created_at: record?.created_at || null,
+            updated_at: record?.updated_at || null
+        };
     }
 }
 

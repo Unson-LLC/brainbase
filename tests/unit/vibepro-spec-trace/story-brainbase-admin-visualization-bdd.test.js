@@ -13,7 +13,7 @@ describe('story-brainbase-admin-visualization-bdd VibePro trace', () => {
         expect(story).toContain('source_class');
         expect(architecture).toContain('graph_ssot');
         expect(architecture).toContain('candidate_store');
-        expect(architecture).toContain('derived_index');
+        expect(architecture).toContain('personal_kg');
         expect(spec).toContain('INV-1');
         expect(spec).toContain('INV-2');
         expect(spec).toContain('INV-5');
@@ -32,5 +32,13 @@ describe('story-brainbase-admin-visualization-bdd VibePro trace', () => {
         expect(spec).toContain('INV-10');
         expect(spec).toContain('Contract-6');
         expect(spec).toContain('S-8');
+    });
+
+    it('INV-7 Contract-7: live smoke keeps authenticated headers on denied-owner Personal KG checks', () => {
+        const smoke = read('scripts/admin-personal-kg-smoke.mjs');
+        expect(smoke).toContain('assert(tokenAuth,');
+        expect(smoke).toContain('const deniedOwnerHeaders = { Authorization: `Bearer ${tokenAuth.token}` };');
+        expect(smoke).toContain('denied_owner_auth');
+        expect(smoke).toContain('/api/admin/personal-kg?owner=umeda&limit=5');
     });
 });

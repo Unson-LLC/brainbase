@@ -58,7 +58,7 @@ const dbRow = (overrides = {}) => ({
 
 describe('PgCandidateRepository contract', () => {
     it('creates candidate rows with JSON/array fields and returns normalized records', async () => {
-        const pg = new ScriptedPg([{ rows: [dbRow()] }]);
+        const pg = new ScriptedPg([{ rows: [] }, { rows: [dbRow()] }]);
         const repo = new PgCandidateRepository({ pool: pg });
         const created = await repo.create(baseDraft({
             id: 'cand_pg_1',
@@ -68,9 +68,88 @@ describe('PgCandidateRepository contract', () => {
 
         expect(created.created_at).toBe('2026-05-11T00:00:00.000Z');
         expect(created.source_event_ids).toEqual(['session:pg:1']);
-        expect(pg.calls[0].sql).toContain('INSERT INTO memory_candidates');
-        expect(pg.calls[0].params).toContain('cand_pg_1');
-        expect(pg.calls[0].params).toContain(JSON.stringify(['session:pg:1']));
+        expect(pg.calls[1].sql).toContain('INSERT INTO memory_candidates');
+        expect(pg.calls[1].params).toContain('cand_pg_1');
+        expect(pg.calls[1].params).toContain(JSON.stringify(['session:pg:1']));
+    });
+
+    it('lists rows with DB-side owner filter, created_at ordering, and limit', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow()] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        const rows = await repo.list({ owner_person_id: 'sato_keigo', order_by: 'created_at', order_direction: 'desc', limit: 1 });
+
+        expect(rows).toHaveLength(1);
+        expect(pg.calls[0].sql).toContain('WHERE owner_person_id = $1');
+        expect(pg.calls[0].sql).toContain('ORDER BY created_at DESC, id DESC');
+        expect(pg.calls[0].sql).toContain('LIMIT $2');
+        expect(pg.calls[0].params).toEqual(['sato_keigo', 1]);
+    });
+
+    it('lists Personal KG rows with owner ACL, derived policy fields, and bounded limit', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow({ memory_layer: 'personal_kg_core', sns_ready: true })] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        const rows = await repo.listPersonalKg({
+            owner_person_id: 'sato_keigo',
+            role: 'gm',
+            clearance: ['internal'],
+            cognitive_types: ['observation', 'insight'],
+            memory_layer: 'personal_kg_core',
+            limit: 1
+        });
+
+        expect(rows[0]).toMatchObject({ id: 'cand_pg_1', memory_layer: 'personal_kg_core', sns_ready: true });
+        expect(pg.calls[0].sql).toContain('FROM memory_candidates');
+        expect(pg.calls[0].sql).toContain('owner_person_id = $1');
+        expect(pg.calls[0].sql).toContain("visibility IN ('owner', 'private')");
+        expect(pg.calls[0].sql).toContain('role_min = ANY');
+        expect(pg.calls[0].sql).toContain('sensitivity = ANY');
+        expect(pg.calls[0].sql).toContain("permission_snapshot->'seed'->>'projection_allowed'");
+        expect(pg.calls[0].sql).toContain("permission_snapshot->>'projection_allowed'");
+        expect(pg.calls[0].sql).toContain('ORDER BY created_at DESC, id DESC');
+        expect(pg.calls[0].sql).toContain('LIMIT $6');
+        expect(pg.calls[0].params).toEqual(['sato_keigo', ['observation', 'insight'], ['member', 'gm'], ['internal'], 'personal_kg_core', 1]);
+    });
+
+    it('summarizes Personal KG rows with DB-side aggregation', async () => {
+        const pg = new ScriptedPg([{
+            rows: [{
+                total: 2,
+                active_count: 2,
+                core_count: 1,
+                sns_ready_count: 1,
+                review_count: 1,
+                needs_redaction_count: 1,
+                agency_none_count: 0,
+                latest_seen_at: new Date('2026-06-13T18:03:15.814Z'),
+                counts_by_cognitive_type: { observation: 1, insight: 1 },
+                counts_by_promotion_status: { candidate: 1, approved: 1 },
+                counts_by_redaction_status: { none: 1, needs_redaction: 1 },
+                counts_by_source_system: { brainbase: 2 },
+                counts_by_memory_layer: { personal_kg_core: 1, sns_ready: 1 }
+            }]
+        }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        const summary = await repo.summarizePersonalKg({ owner_person_id: 'sato_keigo', role: 'member', clearance: ['internal'] });
+
+        expect(summary).toMatchObject({
+            total: 2,
+            active_count: 2,
+            core_count: 1,
+            sns_ready_count: 1,
+            review_count: 1,
+            needs_redaction_count: 1,
+            agency_none_count: 0,
+            counts_by_cognitive_type: { observation: 1, insight: 1 }
+        });
+        expect(summary.latest_seen_at).toBe('2026-06-13T18:03:15.814Z');
+        expect(pg.calls[0].sql).toContain('WITH filtered AS');
+        expect(pg.calls[0].sql).toContain('jsonb_object_agg');
+        expect(pg.calls[0].sql).toContain("permission_snapshot->'seed'->>'projection_allowed'");
+        expect(pg.calls[0].sql).toContain("permission_snapshot->>'projection_allowed'");
+        expect(pg.calls[0].params).toEqual(['sato_keigo', ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result'], ['member'], ['internal']]);
     });
 
     it('maps unique source constraint violations to DuplicateCandidateError', async () => {

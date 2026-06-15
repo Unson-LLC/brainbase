@@ -11,6 +11,7 @@ function makeService() {
         getOverview: vi.fn(async () => ({ ok: true })),
         listGraphEntities: vi.fn(async () => ({ source_class: 'graph_ssot', records: [] })),
         listCandidates: vi.fn(async () => ({ source_class: 'candidate_store', records: [] })),
+        listPersonalKg: vi.fn(async () => ({ source_class: 'personal_kg', records: [] })),
         previewContext: vi.fn(async () => ({ source_class: 'ai_context', preview: {}, warnings: [] })),
         getDataFlow: vi.fn(async () => ({ source_class: 'ai_context', steps: [] })),
         getHealth: vi.fn(async () => ({ sources: [] }))
@@ -59,6 +60,7 @@ describe('admin visualization routes', () => {
         const app = makeAuthedApp(makeService());
         expect((await request(app).get('/api/admin/graph/entities').expect(200)).body.source_class).toBe('graph_ssot');
         expect((await request(app).get('/api/admin/candidates').expect(200)).body.source_class).toBe('candidate_store');
+        expect((await request(app).get('/api/admin/personal-kg').expect(200)).body.source_class).toBe('personal_kg');
         expect((await request(app).post('/api/admin/context-preview').send({ project: 'brainbase' }).expect(200)).body.source_class).toBe('ai_context');
     });
 
@@ -67,6 +69,8 @@ describe('admin visualization routes', () => {
         const app = makeAuthedApp(service);
         expect((await request(app).get('/api/admin/data-flow?project=brainbase&candidate=cand_1&entity=project_brainbase').expect(200)).body.source_class).toBe('ai_context');
         expect(service.getDataFlow).toHaveBeenCalledWith(expect.objectContaining({ personId: 'sato' }), expect.objectContaining({ project: 'brainbase', candidate: 'cand_1', entity: 'project_brainbase' }));
+        await request(app).get('/api/admin/personal-kg?owner=sato&layer=personal_kg_core').expect(200);
+        expect(service.listPersonalKg).toHaveBeenCalledWith(expect.objectContaining({ personId: 'sato' }), expect.objectContaining({ owner: 'sato', layer: 'personal_kg_core' }));
         await request(app).get('/api/admin/health').expect(200);
         expect(service.getHealth).toHaveBeenCalledWith(expect.objectContaining({ role: 'gm' }));
     });
