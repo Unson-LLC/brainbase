@@ -30,11 +30,14 @@ Brainbase管理画面は正本を作らない。各データソースから読�
 
 All `/api/admin/*` routes are mounted behind `requireAuth(authService)`. Route handlers use `req.access` as the access context for Graph queries.
 
+Personal KG owner identity is normalized on the server. `BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID` is the canonical saved-memory owner, and `BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS` maps authenticated person IDs that represent the same owner to that canonical owner. Owner-read is limited to the canonical owner, configured aliases, and internal service probes. That owner-read path may inspect owner-visible Personal KG rows without applying generic candidate-store `role_min`/`sensitivity` hiding, because Personal KG core can intentionally contain the owner's restricted judgment context. Non-owner filters return an out-of-scope warning and no records.
+
 ## Data Boundaries
 
 - Graph SSOT reads use `InfoSSOTService.listGraphEntities` / `getContext`.
 - candidate-store reads use `PgCandidateRepository.list` when present.
 - Personal KG reads reuse the same server-side `candidateRepository` and never expose DB URLs to the browser. DB-backed repositories use `summarizePersonalKg` for aggregate counts and `listPersonalKg` for a bounded latest-record page.
+- `/api/admin/*` responses set no-store/no-cache headers, and the browser admin module sends no-store/no-cache requests so saved-state counts are not hidden by stale cache.
 - The admin screen does not show unimplemented external RAG or derived-index product names unless a real Brainbase integration is introduced by a separate story.
 - Missing DB/services return partial health instead of failing the whole dashboard.
 - DB health reports configured keys separately from an actual server-side `SELECT 1` connectivity check.

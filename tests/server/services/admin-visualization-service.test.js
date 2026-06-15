@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AdminVisualizationService } from '../../../server/services/admin-visualization-service.js';
+import { AdminVisualizationService, scrubSecretValue } from '../../../server/services/admin-visualization-service.js';
 
 const access = { role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'sato' };
 
@@ -26,7 +26,7 @@ const infoSSOTService = {
 const candidateRepository = {
     async list(filter = {}) {
         return [
-            { id: 'cand_1', cognitive_type: 'preference', owner_person_id: 'sato', source_system: 'codex', project_code: 'brainbase', visibility: 'owner', sensitivity: 'internal', role_min: 'member', promotion_status: 'candidate', redaction_status: 'none', agency_level: 'synthesize', permission_snapshot: { personal_kg: { memory_layer: 'personal_kg_core' } }, body: '候補本文 postgres://user:password@example.com/db xoxb-123456789012-abcdefghijkl ghp_abcdefghijklmnopqrstuvwxyz123456 {"access_token":"oauth-secret","client_secret":"client-secret","hmac_secret":"hmac-secret"}', created_at: '2026-06-04T00:00:00.000Z' },
+            { id: 'cand_1', cognitive_type: 'preference', owner_person_id: 'sato', source_system: 'codex', project_code: 'brainbase', visibility: 'owner', sensitivity: 'internal', role_min: 'member', promotion_status: 'candidate', redaction_status: 'none', agency_level: 'synthesize', permission_snapshot: { personal_kg: { memory_layer: 'personal_kg_core' } }, body: '候補本文 postgres://user:password@example.com/db xoxb-123456789012-abcdefghijkl xoxc-123456789012-abcdefghijkl xoxd-123456789012-abcdefghijkl xapp-123456789012-abcdefghijkl ghp_abcdefghijklmnopqrstuvwxyz123456 {"access_token":"oauth-secret","client_secret":"client-secret","hmac_secret":"hmac-secret"}', created_at: '2026-06-04T00:00:00.000Z' },
             { id: 'cand_2', cognitive_type: 'observation', owner_person_id: 'umeda', source_system: 'slack', project_code: 'brainbase', visibility: 'team', sensitivity: 'restricted', role_min: 'gm', promotion_status: 'approved', redaction_status: 'redacted', body: '承認済み候補', created_at: '2026-06-05T00:00:00.000Z' }
         ].filter((record) => {
             if (filter.owner_person_id && record.owner_person_id !== filter.owner_person_id) return false;
@@ -76,6 +76,50 @@ describe('AdminVisualizationService', () => {
         expect(calls[0]).not.toHaveProperty('owner_person_id');
         expect(result.records.map((record) => record.id)).toEqual(['own']);
         expect(JSON.stringify(result)).not.toContain('secret');
+    });
+
+    it('INV-7: candidate-store reads are DB-bounded before service ACL filtering', async () => {
+        const calls = [];
+        const repository = {
+            async list(filter) {
+                calls.push(filter);
+                return [
+                    { id: 'new', owner_person_id: 'sato', cognitive_type: 'preference', source_system: 'codex', project_code: 'brainbase', visibility: 'owner', sensitivity: 'internal', role_min: 'member', promotion_status: 'candidate', redaction_status: 'none', body: 'new', created_at: '2026-06-15T00:00:00.000Z' }
+                ];
+            }
+        };
+
+        const result = await new AdminVisualizationService({ candidateRepository: repository }).listCandidates(access, { limit: 1 });
+
+        expect(calls[0]).toMatchObject({ limit: 500, order_by: 'created_at', order_direction: 'desc' });
+        expect(result.records.map((record) => record.id)).toEqual(['new']);
+    });
+
+    it('INV-7: candidate-store bounded scans surface underfill as a visible warning', async () => {
+        const repository = {
+            async list() {
+                return Array.from({ length: 500 }, (_, index) => ({
+                    id: `other_${index}`,
+                    owner_person_id: 'other',
+                    cognitive_type: 'preference',
+                    source_system: 'codex',
+                    project_code: 'brainbase',
+                    visibility: 'owner',
+                    sensitivity: 'internal',
+                    role_min: 'member',
+                    promotion_status: 'candidate',
+                    redaction_status: 'none',
+                    body: 'not visible',
+                    created_at: '2026-06-15T00:00:00.000Z'
+                }));
+            }
+        };
+
+        const result = await new AdminVisualizationService({ candidateRepository: repository }).listCandidates(access, { limit: 50 });
+
+        expect(result.records).toEqual([]);
+        expect(result.scan_limited).toBe(true);
+        expect(result.warnings[0]).toContain('最新500件');
     });
 
     it('INV-7: candidate-store ACL supports owner, recommended owner, team, org, project, and public paths', async () => {
@@ -196,7 +240,54 @@ describe('AdminVisualizationService', () => {
         expect(result.records.map((record) => record.id)).toEqual(['latest']);
     });
 
-    it('INV-5 Contract-7: Personal KG summary fallback still applies ACL and filters', async () => {
+    it('INV-5 Contract-7: Personal KG resolves configured owner aliases to the legacy sato_keigo memory owner', async () => {
+        const calls = [];
+        const repository = {
+            async list() {
+                throw new Error('generic list should not be called');
+            },
+            async summarizePersonalKg(filter) {
+                calls.push(['summarizePersonalKg', filter]);
+                return {
+                    total: 3146,
+                    active_count: 3144,
+                    core_count: 2507,
+                    sns_ready_count: 634,
+                    review_count: 2959,
+                    needs_redaction_count: 990,
+                    agency_none_count: 2,
+                    latest_seen_at: '2026-06-13T18:03:15.814Z'
+                };
+            },
+            async listPersonalKg(filter) {
+                calls.push(['listPersonalKg', filter]);
+                return [
+                    { id: 'legacy-owner-row', owner_person_id: 'sato_keigo', cognitive_type: 'insight', source_system: 'brainbase', visibility: 'owner', sensitivity: 'confidential', role_min: 'member', promotion_status: 'approved', redaction_status: 'none', agency_level: 'synthesize', body: 'legacy owner memory', memory_layer: 'personal_kg_core', created_at: '2026-06-13T18:03:15.814Z' }
+                ];
+            }
+        };
+
+        const result = await new AdminVisualizationService({
+            candidateRepository: repository,
+            env: {
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_current,per_stale'
+            }
+        }).listPersonalKg({
+            role: 'ceo',
+            projectCodes: ['brainbase'],
+            clearance: ['internal'],
+            personId: 'per_current'
+        }, { limit: 5 });
+
+        expect(calls.map(([method]) => method)).toEqual(['summarizePersonalKg', 'listPersonalKg']);
+        expect(calls[0][1]).toMatchObject({ owner_person_id: 'sato_keigo', role: 'ceo', clearance: ['internal'], owner_read: true });
+        expect(result.owner_person_id).toBe('sato_keigo');
+        expect(result.summary.total).toBe(3146);
+        expect(result.records.map((record) => record.id)).toEqual(['legacy-owner-row']);
+    });
+
+    it('INV-5 Contract-7: Personal KG summary fallback still applies owner visibility and filters', async () => {
         const repository = {
             async summarizePersonalKg() {
                 return { total: 4, active_count: 4, review_count: 1 };
@@ -269,11 +360,19 @@ describe('AdminVisualizationService', () => {
         expect(payload).not.toContain('postgres://user:secret@example.com/db');
         expect(payload).not.toContain('postgres://user:password@example.com/db');
         expect(payload).not.toContain('xoxb-123456789012-abcdefghijkl');
+        expect(payload).not.toContain('xoxc-123456789012-abcdefghijkl');
+        expect(payload).not.toContain('xoxd-123456789012-abcdefghijkl');
+        expect(payload).not.toContain('xapp-123456789012-abcdefghijkl');
         expect(payload).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz123456');
         expect(payload).not.toContain('oauth-secret');
         expect(payload).not.toContain('client-secret');
         expect(payload).not.toContain('hmac-secret');
         expect(payload).toContain('[masked]');
+    });
+
+    it('INV-8 AP-3: scrubSecretValue masks Slack browser and app credentials', () => {
+        const payload = scrubSecretValue('xoxc-123456789012-abcdefghijkl xoxd-123456789012-abcdefghijkl xapp-123456789012-abcdefghijkl');
+        expect(payload).toBe('[masked] [masked] [masked]');
     });
 
     it('INV-8 Contract-6: health checks actual DB connectivity while keeping connection strings redacted', async () => {
@@ -500,6 +599,26 @@ describe('AdminVisualizationService', () => {
         const missing = await service.getDataFlow(access, { project: 'brainbase', candidate: 'other-owner', entity: 'missing_entity' });
         expect(missing.steps[0]).toMatchObject({ source_class: 'candidate_store', status: 'not_found' });
         expect(missing.steps[1]).toMatchObject({ source_class: 'graph_ssot', status: 'not_found' });
+    });
+
+    it('Contract-5: data-flow uses direct candidate id lookup before bounded list scans', async () => {
+        const calls = [];
+        const repository = {
+            async findById(id) {
+                calls.push(['findById', id]);
+                return { id, owner_person_id: 'sato', cognitive_type: 'preference', source_system: 'codex', project_code: 'brainbase', visibility: 'owner', sensitivity: 'internal', role_min: 'member', promotion_status: 'candidate', redaction_status: 'none', body: 'older candidate' };
+            },
+            async list(filter) {
+                calls.push(['list', filter]);
+                return [];
+            }
+        };
+        const service = new AdminVisualizationService({ infoSSOTService, candidateRepository: repository });
+
+        const flow = await service.getDataFlow(access, { project: 'brainbase', candidate: 'older_candidate' });
+
+        expect(flow.steps[0]).toMatchObject({ source_class: 'candidate_store', status: 'available' });
+        expect(calls[0]).toEqual(['findById', 'older_candidate']);
     });
 
     it('INV-9 Contract-5: data-flow preserves unavailable source statuses instead of reporting not_found', async () => {

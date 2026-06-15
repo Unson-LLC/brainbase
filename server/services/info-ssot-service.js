@@ -1146,10 +1146,18 @@ export class InfoSSOTService {
         });
     }
 
-    async listGraphEntities(access, { projectCode, entityType }) {
+    async listGraphEntities(access, { id, ids, projectCode, entityType, limit } = {}) {
         this.assertReady();
         return this.withAccessContext(access, async (client) => {
-            return this.fetchGraphEntities(client, access, { projectCode, entityType });
+            const entityIds = [
+                ...(id ? [id] : []),
+                ...(Array.isArray(ids) ? ids : [])
+            ].filter(Boolean);
+            if (entityIds.length) {
+                const rows = await this.fetchGraphEntitiesByIds(client, access, { ids: entityIds, projectCode });
+                return entityType ? rows.filter((row) => row.entity_type === entityType) : rows;
+            }
+            return this.fetchGraphEntities(client, access, { projectCode, entityType, limit });
         });
     }
 

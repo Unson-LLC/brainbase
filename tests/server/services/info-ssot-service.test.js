@@ -65,6 +65,18 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         );
     });
 
+    it('listGraphEntities呼び出し時_id指定はlimit付き一覧ではなくID検索を使う', async () => {
+        const { service } = buildService();
+        const byIdsSpy = vi.spyOn(service, 'fetchGraphEntitiesByIds').mockResolvedValue([{ id: 'project_brainbase', entity_type: 'project' }]);
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities');
+
+        const rows = await service.listGraphEntities(accessContext, { id: 'project_brainbase', projectCode: 'brainbase' });
+
+        expect(rows).toEqual([{ id: 'project_brainbase', entity_type: 'project' }]);
+        expect(byIdsSpy).toHaveBeenCalledWith(expect.anything(), accessContext, { ids: ['project_brainbase'], projectCode: 'brainbase' });
+        expect(listSpy).not.toHaveBeenCalled();
+    });
+
     it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {
         const { service } = buildService();
         vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {

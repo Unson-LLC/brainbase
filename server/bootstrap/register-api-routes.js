@@ -13,7 +13,7 @@ import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
-import { createAdminVisualizationRouter } from '../routes/admin-visualization.js';
+import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
@@ -158,7 +158,7 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
-    app.use('/api/admin', requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
+    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,
         candidateRepository
     })));

@@ -156,16 +156,17 @@ export class AdminPage {
         this.state = {};
         this.csrfToken = null;
         this.personalKgLimit = 50;
+        this.personalKgRequestSeq = 0;
     }
 
     fetch(path, options = {}) {
-        return this.fetchImpl.call(globalThis, path, options);
+        return this.fetchImpl.call(globalThis, path, { cache: 'no-store', ...options });
     }
 
     async csrfHeaders(method) {
         if (!MUTATING_METHODS.has(String(method || 'GET').toUpperCase())) return {};
         if (!this.csrfToken) {
-            const response = await this.fetch('/api/csrf-token', { headers: { Accept: 'application/json', ...getAuthHeaders(this.storage) } });
+            const response = await this.fetch('/api/csrf-token', { headers: { Accept: 'application/json', 'Cache-Control': 'no-cache', ...getAuthHeaders(this.storage) } });
             if (!response.ok) throw new Error(`CSRF token fetch failed: ${response.status}`);
             const payload = await response.json();
             this.csrfToken = payload.token || null;
@@ -175,7 +176,7 @@ export class AdminPage {
 
     async request(path, options = {}) {
         const method = options.method || 'GET';
-        const headers = { Accept: 'application/json', ...getAuthHeaders(this.storage), ...await this.csrfHeaders(method) };
+        const headers = { Accept: 'application/json', 'Cache-Control': 'no-cache', ...getAuthHeaders(this.storage), ...await this.csrfHeaders(method) };
         if (options.body) headers['Content-Type'] = 'application/json';
         const response = await this.fetch(path, { ...options, method, headers, body: options.body ? JSON.stringify(options.body) : null });
         if (!response.ok) {
@@ -255,7 +256,8 @@ export class AdminPage {
         this.state.overview = await this.request('/api/admin/overview');
         const overview = this.state.overview;
         const kg = overview.personal_kg?.summary || {};
-        this.root.querySelector('[data-overview]').innerHTML = `<div class="overview-grid">${(overview.sources || []).map((s) => `<article class="source-card"><div class="record-title"><h3>${escapeHtml(s.label)}</h3>${badge(s.source_class)}</div><p>${status(s.status)}</p></article>`).join('')}</div><div class="metric-row"><div class="metric"><strong>${overview.graph?.total ?? 0}</strong><span>Graph正本</span></div><div class="metric"><strong>${overview.candidates?.total ?? 0}</strong><span>候補</span></div><div class="metric"><strong>${overview.personal_kg?.total ?? 0}</strong><span>個人KG</span></div><div class="metric"><strong>${kg.sns_ready_count ?? 0}</strong><span>SNS利用可</span></div><div class="metric"><strong>${kg.review_count ?? 0}</strong><span>要レビュー</span></div></div>`;
+        const warningHtml = renderWarnings(overview.candidates?.warnings);
+        this.root.querySelector('[data-overview]').innerHTML = `<div class="overview-grid">${(overview.sources || []).map((s) => `<article class="source-card"><div class="record-title"><h3>${escapeHtml(s.label)}</h3>${badge(s.source_class)}</div><p>${status(s.status)}</p></article>`).join('')}</div>${warningHtml}<div class="metric-row"><div class="metric"><strong>${overview.graph?.total ?? 0}</strong><span>Graph正本</span></div><div class="metric"><strong>${overview.candidates?.total ?? 0}</strong><span>候補</span></div><div class="metric"><strong>${overview.personal_kg?.total ?? 0}</strong><span>個人KG</span></div><div class="metric"><strong>${kg.sns_ready_count ?? 0}</strong><span>SNS利用可</span></div><div class="metric"><strong>${kg.review_count ?? 0}</strong><span>要レビュー</span></div></div>`;
     }
 
     filters(scope) {
@@ -307,8 +309,17 @@ export class AdminPage {
 
     async loadPersonalKg({ resetLimit = false } = {}) {
         if (resetLimit) this.personalKgLimit = 50;
-        this.state.personalKg = await this.request(`/api/admin/personal-kg${this.personalKgFiltersWithLimit()}`);
-        const data = this.state.personalKg;
+        const requestSeq = this.personalKgRequestSeq + 1;
+        this.personalKgRequestSeq = requestSeq;
+        let data;
+        try {
+            data = await this.request(`/api/admin/personal-kg${this.personalKgFiltersWithLimit()}`);
+        } catch (error) {
+            if (requestSeq !== this.personalKgRequestSeq) return { stale: true };
+            throw error;
+        }
+        if (requestSeq !== this.personalKgRequestSeq) return { stale: true };
+        this.state.personalKg = data;
         const warningHtml = renderWarnings(data.warnings);
         if (data.status && data.status !== 'available') {
             const reason = personalKgReason(data);
@@ -323,7 +334,8 @@ export class AdminPage {
         const summary = data.summary || {};
         const summaryHtml = `<div class="metric-row"><div class="metric"><strong>${escapeHtml(summary.total ?? 0)}</strong><span>個人KG候補</span></div><div class="metric"><strong>${escapeHtml(summary.active_count ?? 0)}</strong><span>有効</span></div><div class="metric"><strong>${escapeHtml(summary.sns_ready_count ?? 0)}</strong><span>SNS利用可</span></div><div class="metric"><strong>${escapeHtml(summary.review_count ?? 0)}</strong><span>要レビュー</span></div><div class="metric"><strong>${escapeHtml(summary.needs_redaction_count ?? 0)}</strong><span>秘匿要</span></div><div class="metric"><strong>${escapeHtml(summary.agency_none_count ?? 0)}</strong><span>AI利用不可</span></div></div><div class="record-meta"><span>所有者: ${escapeHtml(data.owner_person_id || '-')}</span><span>表示: ${escapeHtml(summary.returned_count ?? records.length)} / ${escapeHtml(summary.total ?? records.length)}</span><span>${summary.truncated ? '上限で省略あり' : '全件表示'}</span><span>最新: ${escapeHtml(summary.latest_seen_at || '-')}</span></div>`;
         const returnedCount = Number(summary.returned_count ?? records.length) || 0;
-        const reachedLimit = summary.truncated && this.personalKgLimit >= MAX_PERSONAL_KG_LIMIT;
+        const effectiveLimit = Number(summary.limit ?? this.personalKgLimit) || this.personalKgLimit;
+        const reachedLimit = summary.truncated && effectiveLimit >= MAX_PERSONAL_KG_LIMIT;
         const continuationHtml = summary.truncated
             ? reachedLimit
                 ? `<div class="continuation-row"><span>最新${escapeHtml(returnedCount)}件の上限に達しました。所有者、記憶層、状態で絞り込んでください。</span></div>`

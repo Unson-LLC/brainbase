@@ -15,10 +15,11 @@ Brainbaseを運用する人として、設定状態と保存されている内�
 - OverviewでGraph SSOT、candidate-store、Personal KG、AI Context、設定/healthの状態が見える。
 - Graph SSOT一覧はentity type、project、sensitivity、role_min、updated_atを持ち、読み取り専用である。
 - candidate-store一覧はpromotion_status、redaction_status、cognitive_type、visibility、sensitivity、created_atを持ち、Graph正本と混ぜて表示しない。
-- Personal KGは現在のログイン主体に紐づく owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。
+- Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。
 - Personal KGでアクセス外ownerを指定した場合は、別ownerへ黙ってフォールバックせず、表示対象外の状態と理由を日本語で表示する。
 - AI Context Previewはproject/entity type/edge/memory条件を指定でき、含まれた文脈と除外・未接続理由を区別して表示する。
 - 設定/healthはSSOTサーバーパターンのDB接続先キーの存在有無と、サーバー側の実接続チェック結果を分けて示すが、secret値そのものは返さない。
 - Graph、candidate-store、Personal KG、DB接続の一部が失敗した場合でも、管理画面全体を500にせず、該当sourceを `unavailable` または `partial` として表示する。
 - UIの主表示は日本語である。言語切り替えを入れる場合も日本語をdefault/fallbackにする。
 - `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。
+- `/api/admin/*` と管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。

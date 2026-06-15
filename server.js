@@ -47,6 +47,7 @@ import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
 import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
+import { adminNoCacheMiddleware } from './server/routes/admin-visualization.js';
 
 // Import mesh modules (optional, enabled when MESH_RELAY_URL is set)
 import { MeshService } from './server/mesh/mesh-service.js';
@@ -377,6 +378,7 @@ app.use((req, res, next) => {
 });
 
 // CSRF Protection Middleware
+app.use('/api/admin', adminNoCacheMiddleware);
 app.use(csrfMiddleware());
 
 // CSRF Token Endpoint

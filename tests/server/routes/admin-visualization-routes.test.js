@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { requireAuth } from '../../../server/middleware/auth.js';
 import { csrfMiddleware, generateCsrfToken } from '../../../server/middleware/csrf.js';
-import { createAdminVisualizationRouter } from '../../../server/routes/admin-visualization.js';
+import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../../../server/routes/admin-visualization.js';
+import { AdminVisualizationService } from '../../../server/services/admin-visualization-service.js';
 
 function makeService() {
     return {
@@ -32,6 +33,7 @@ function makeAuthedApp(service) {
 function makeAuthedCsrfApp(service) {
     const app = express();
     app.use(express.json());
+    app.use('/api/admin', adminNoCacheMiddleware);
     app.use(csrfMiddleware());
     app.use((req, _res, next) => {
         req.access = { role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'sato' };
@@ -41,12 +43,19 @@ function makeAuthedCsrfApp(service) {
     return app;
 }
 
+function expectAdminNoCacheHeaders(response) {
+    expect(response.headers['cache-control']).toBe('no-store, no-cache, must-revalidate, proxy-revalidate');
+    expect(response.headers.pragma).toBe('no-cache');
+    expect(response.headers.expires).toBe('0');
+}
+
 describe('admin visualization routes', () => {
     it('S-7 INV-7: unauthenticated /api/admin request is rejected by requireAuth before route data', async () => {
         const service = makeService();
         const app = express();
-        app.use('/api/admin', requireAuth({ verifyToken: () => { throw new Error('no token'); } }), createAdminVisualizationRouter(service));
-        await request(app).get('/api/admin/overview').expect(401);
+        app.use('/api/admin', adminNoCacheMiddleware, requireAuth({ verifyToken: () => { throw new Error('no token'); } }), createAdminVisualizationRouter(service));
+        const response = await request(app).get('/api/admin/overview').expect(401);
+        expectAdminNoCacheHeaders(response);
         expect(service.getOverview).not.toHaveBeenCalled();
     });
 
@@ -62,6 +71,53 @@ describe('admin visualization routes', () => {
         expect((await request(app).get('/api/admin/candidates').expect(200)).body.source_class).toBe('candidate_store');
         expect((await request(app).get('/api/admin/personal-kg').expect(200)).body.source_class).toBe('personal_kg');
         expect((await request(app).post('/api/admin/context-preview').send({ project: 'brainbase' }).expect(200)).body.source_class).toBe('ai_context');
+    });
+
+    it('Contract-7: admin API responses disable caching so saved-state counts refresh', async () => {
+        const response = await request(makeAuthedApp(makeService())).get('/api/admin/personal-kg').expect(200);
+        expectAdminNoCacheHeaders(response);
+    });
+
+    it('INV-8 AP-3: admin API masks Slack browser and app tokens in candidate and Personal KG previews', async () => {
+        const secretText = 'xoxc-123456789012-abcdefghijkl xoxd-123456789012-abcdefghijkl xapp-123456789012-abcdefghijkl';
+        const row = {
+            id: 'token_candidate',
+            owner_person_id: 'sato',
+            cognitive_type: 'insight',
+            source_system: 'codex',
+            project_code: 'brainbase',
+            visibility: 'owner',
+            sensitivity: 'internal',
+            role_min: 'member',
+            promotion_status: 'candidate',
+            redaction_status: 'none',
+            agency_level: 'synthesize',
+            permission_snapshot: { personal_kg: { memory_layer: 'personal_kg_core' } },
+            body: `credential preview ${secretText}`,
+            created_at: '2026-06-15T00:00:00.000Z'
+        };
+        const repository = {
+            async list(filter = {}) {
+                expect(filter.limit).toBeGreaterThan(0);
+                return [row];
+            },
+            async listPersonalKg() {
+                return [row];
+            },
+            async summarizePersonalKg() {
+                return { total: 1, returned_count: 0, latest_seen_at: row.created_at };
+            }
+        };
+        const service = new AdminVisualizationService({ candidateRepository: repository });
+        const app = makeAuthedApp(service);
+        const candidates = await request(app).get('/api/admin/candidates?limit=1').expect(200);
+        const personalKg = await request(app).get('/api/admin/personal-kg?limit=1').expect(200);
+        const payload = JSON.stringify({ candidates: candidates.body, personalKg: personalKg.body });
+
+        expect(payload).toContain('[masked]');
+        expect(payload).not.toContain('xoxc-123456789012-abcdefghijkl');
+        expect(payload).not.toContain('xoxd-123456789012-abcdefghijkl');
+        expect(payload).not.toContain('xapp-123456789012-abcdefghijkl');
     });
 
     it('Contract-5: data-flow and health endpoints pass access and query filters to service', async () => {
@@ -81,7 +137,8 @@ describe('admin visualization routes', () => {
         try {
             const service = makeService();
             const app = makeAuthedCsrfApp(service);
-            await request(app).post('/api/admin/context-preview').send({ project: 'brainbase' }).expect(403);
+            const rejected = await request(app).post('/api/admin/context-preview').send({ project: 'brainbase' }).expect(403);
+            expectAdminNoCacheHeaders(rejected);
             expect(service.previewContext).not.toHaveBeenCalled();
             const token = generateCsrfToken('admin-test');
             await request(app)

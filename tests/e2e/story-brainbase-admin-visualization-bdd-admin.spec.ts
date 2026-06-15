@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 renders Japanese admin visualization surfaces', async ({ page }) => {
+test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:11 renders Japanese admin visualization surfaces', async ({ page }) => {
   const personalKgRequests: string[] = [];
+  const personalKgRequestHeaders: Record<string, string>[] = [];
   await page.route('**/api/admin/overview', async (route) => route.fulfill({
     json: {
       sources: [
@@ -34,9 +35,15 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   }));
   await page.route('**/api/admin/personal-kg**', async (route) => {
     personalKgRequests.push(route.request().url());
+    personalKgRequestHeaders.push(route.request().headers());
     const url = new URL(route.request().url());
     if (url.searchParams.get('owner') === 'umeda') {
       await route.fulfill({
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0'
+        },
         json: {
           source_class: 'personal_kg',
           status: 'available',
@@ -50,13 +57,18 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
       return;
     }
     await route.fulfill({
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0'
+      },
       json: {
         source_class: 'personal_kg',
         status: 'available',
         owner_person_id: 'sato_keigo',
-        summary: { total: 2, returned_count: 1, active_count: 2, sns_ready_count: 1, review_count: 1, needs_redaction_count: 0, agency_none_count: 1, latest_seen_at: '2026-06-14T00:00:00.000Z', truncated: true },
+        summary: { total: 2, returned_count: 1, limit: 50, active_count: 2, sns_ready_count: 1, review_count: 1, needs_redaction_count: 0, agency_none_count: 1, latest_seen_at: '2026-06-14T00:00:00.000Z', truncated: true },
         records: [
-          { source_class: 'personal_kg', id: 'cand_kg', memory_layer: 'personal_kg_core', sns_ready: false, promotion_status: 'candidate', redaction_status: 'none', requires_approval: true, cognitive_type: 'insight', agency_level: 'synthesize', source_system: 'codex', created_at: '2026-06-14T00:00:00.000Z', body_preview: '判断基準' }
+          { source_class: 'personal_kg', id: 'cand_kg', memory_layer: 'personal_kg_core', sns_ready: false, promotion_status: 'candidate', redaction_status: 'none', requires_approval: true, cognitive_type: 'insight', agency_level: 'synthesize', source_system: 'codex', created_at: '2026-06-14T00:00:00.000Z', body_preview: '判断基準 restricted/confidential owner-read' }
         ],
         warnings: []
       }
@@ -150,7 +162,9 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
 
   // story-brainbase-admin-visualization-bdd ac:4
   // Personal KGは現在のログイン主体に紐づく owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。
+  const personalKgResponsePromise = page.waitForResponse((response) => response.url().includes('/api/admin/personal-kg') && !response.url().includes('owner=umeda'));
   await page.getByRole('button', { name: '個人KG' }).click();
+  const personalKgResponse = await personalKgResponsePromise;
   const personalKg = page.locator('[data-section="personal-kg"]');
   await expect(personalKg.locator('.panel-header .badge.personal')).toHaveText('個人KG');
   await expect(personalKg.getByText('所有者: sato_keigo')).toBeVisible();
@@ -167,8 +181,10 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   await expect(personalKg.getByText('最新: 2026-06-14T00:00:00.000Z')).toBeVisible();
   await expect(personalKg.getByText('要レビュー')).toBeVisible();
   await expect(personalKg.getByRole('button', { name: 'さらに表示' })).toBeVisible();
-  await expect(personalKg.getByText('判断基準')).toBeVisible();
-  expect(personalKgRequests.some((url) => url.includes('/api/admin/personal-kg')), 'Personal KGはサーバーAPI経由で集計する').toBe(true);
+  await expect(personalKg.getByText('判断基準 restricted/confidential owner-read'), 'story-brainbase-admin-visualization-bdd ac:4 Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。').toBeVisible();
+  expect(personalKgRequests.some((url) => url.includes('/api/admin/personal-kg')), 'story-brainbase-admin-visualization-bdd ac:4 Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。').toBe(true);
+  expect(personalKgResponse.headers()['cache-control'], 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` と管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toContain('no-store');
+  expect(personalKgRequestHeaders.some((headers) => headers['cache-control'] === 'no-cache'), 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` と管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toBe(true);
 
   // story-brainbase-admin-visualization-bdd ac:5
   // Personal KGでアクセス外ownerを指定した場合は、別ownerへ黙ってフォールバックせず、表示対象外の状態と理由を日本語で表示する。

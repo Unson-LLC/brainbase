@@ -141,9 +141,9 @@ function buildPersonalKgWhere(filter = {}) {
     add('owner_person_id = ?', owner);
     clauses.push(`visibility IN ('owner', 'private')`);
     add('cognitive_type = ANY(?::text[])', Array.isArray(filter.cognitive_types) && filter.cognitive_types.length ? filter.cognitive_types : PERSONAL_KG_TYPES);
-    if (!filter.bypass_acl) {
-        add('role_min = ANY(?::text[])', allowedRolesFor(filter.role));
-        add('sensitivity = ANY(?::text[])', Array.isArray(filter.clearance) && filter.clearance.length ? filter.clearance : ['internal']);
+    if (!filter.bypass_acl && !filter.owner_read) {
+        add('(role_min IS NULL OR role_min = ANY(?::text[]))', allowedRolesFor(filter.role));
+        add('(sensitivity IS NULL OR sensitivity = ANY(?::text[]))', Array.isArray(filter.clearance) && filter.clearance.length ? filter.clearance : ['internal']);
     }
     if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
     if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);
@@ -235,6 +235,7 @@ export class InMemoryCandidateRepository {
     list(filter = {}) {
         const all = Array.from(this.candidates.values());
         let rows = all.filter((r) => {
+            if (filter.id && r.id !== filter.id) return false;
             if (filter.owner_person_id && r.owner_person_id !== filter.owner_person_id) return false;
             if (filter.promotion_status && r.promotion_status !== filter.promotion_status) return false;
             if (filter.cognitive_type && r.cognitive_type !== filter.cognitive_type) return false;
@@ -413,6 +414,7 @@ export class PgCandidateRepository {
             params.push(value);
             clauses.push(sql.replace('?', `$${params.length}`));
         };
+        if (filter.id) add('id = ?', filter.id);
         if (filter.owner_person_id) add('owner_person_id = ?', filter.owner_person_id);
         if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
         if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);

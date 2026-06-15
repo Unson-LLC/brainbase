@@ -15,6 +15,8 @@
 - INV-11: Unimplemented external RAG or derived-index product names are not shown in the admin UI unless a real configured integration exists in Brainbase.
 - INV-12: Personal KG owner filters must not silently fall back to the logged-in owner when the requested owner is outside the caller access scope.
 - INV-13: The browser never receives a DB connection string; Personal KG and DB health are read through Brainbase server endpoints.
+- INV-14: Personal KG owner-read can bypass generic `role_min`/`sensitivity` hiding only for the canonical owner or configured owner aliases; outside-owner requests remain denied with warnings.
+- INV-15: `/api/admin/*` responses and browser requests avoid cached admin data so hard reload and reload controls reflect the current server-pattern SSOT state.
 
 ## Contracts
 
@@ -27,12 +29,14 @@
 - Contract-7: `GET /api/admin/personal-kg` returns `{ source_class: "personal_kg", owner_person_id, summary, records, warnings }`; DB-backed repositories aggregate Personal KG summary server-side and return only a bounded record page.
 - Contract-8: `GET /api/admin/personal-kg?owner=<other>` returns an out-of-scope result with `requested_owner_person_id`, no records, and a warning when the caller cannot inspect that owner.
 - Contract-9: Health source summaries use `available`, `partial`, or `unavailable` to represent source-specific readiness without claiming whole-dashboard health.
+- Contract-10: Admin API responses include `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`, `Pragma: no-cache`, and `Expires: 0`; UI fetches use `cache: "no-store"` and `Cache-Control: no-cache`.
 
 ## Scenarios
 
 - S-1: As an admin viewer, I open Overview and see Graph SSOT, candidate-store, Personal KG, AI context, and runtime health as separate source classes.
 - S-2: As an admin viewer, I open Graph SSOT and candidate-store tabs and can distinguish promoted truth from candidate records.
 - S-3: As an admin viewer, I open Personal KG and see owner-visible memory candidate summary plus a bounded latest-record page.
+- S-3a: As the configured Personal KG owner or owner alias, I can inspect my canonical Personal KG owner-read records even when generic role/sensitivity filters would hide internal implementation rows from non-owner candidate-store reads.
 - S-4: As an admin viewer, I request a Personal KG owner outside my access scope and the UI transitions to a denied/out-of-scope state instead of silently falling back or showing empty success.
 - S-5: As an admin viewer, I open Settings/health and see DB key presence plus actual server-side DB connection status, with values redacted.
 - S-6: As an admin viewer, I run AI Context Preview and see included context separately from denied memory and unavailable warnings.
@@ -52,3 +56,5 @@
 - AP-6: Reporting the dashboard as healthy when a source returned `unavailable`.
 - AP-7: Reading Personal KG directly from the browser with a DB connection string instead of through the Brainbase server API.
 - AP-8: Treating DB env-key presence as a successful DB connection without a server-side ping.
+- AP-9: Applying Personal KG owner-read to non-owner callers or configured aliases that do not resolve to the canonical owner.
+- AP-10: Reporting Personal KG as empty because the browser reused stale admin API data.

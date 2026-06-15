@@ -86,6 +86,17 @@ describe('PgCandidateRepository contract', () => {
         expect(pg.calls[0].params).toEqual(['sato_keigo', 1]);
     });
 
+    it('lists rows with DB-side id filter before limit', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow()] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await repo.list({ id: 'cand_pg_1', limit: 1 });
+
+        expect(pg.calls[0].sql).toContain('WHERE id = $1');
+        expect(pg.calls[0].sql).toContain('LIMIT $2');
+        expect(pg.calls[0].params).toEqual(['cand_pg_1', 1]);
+    });
+
     it('lists Personal KG rows with owner ACL, derived policy fields, and bounded limit', async () => {
         const pg = new ScriptedPg([{ rows: [dbRow({ memory_layer: 'personal_kg_core', sns_ready: true })] }]);
         const repo = new PgCandidateRepository({ pool: pg });
@@ -103,13 +114,30 @@ describe('PgCandidateRepository contract', () => {
         expect(pg.calls[0].sql).toContain('FROM memory_candidates');
         expect(pg.calls[0].sql).toContain('owner_person_id = $1');
         expect(pg.calls[0].sql).toContain("visibility IN ('owner', 'private')");
-        expect(pg.calls[0].sql).toContain('role_min = ANY');
-        expect(pg.calls[0].sql).toContain('sensitivity = ANY');
+        expect(pg.calls[0].sql).toContain('role_min IS NULL OR role_min = ANY');
+        expect(pg.calls[0].sql).toContain('sensitivity IS NULL OR sensitivity = ANY');
         expect(pg.calls[0].sql).toContain("permission_snapshot->'seed'->>'projection_allowed'");
         expect(pg.calls[0].sql).toContain("permission_snapshot->>'projection_allowed'");
         expect(pg.calls[0].sql).toContain('ORDER BY created_at DESC, id DESC');
         expect(pg.calls[0].sql).toContain('LIMIT $6');
         expect(pg.calls[0].params).toEqual(['sato_keigo', ['observation', 'insight'], ['member', 'gm'], ['internal'], 'personal_kg_core', 1]);
+    });
+
+    it('lists Personal KG owner-read rows without applying generic role or sensitivity filters', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow({ sensitivity: 'confidential' })] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await repo.listPersonalKg({
+            owner_person_id: 'sato_keigo',
+            role: 'member',
+            clearance: ['internal'],
+            owner_read: true,
+            limit: 5
+        });
+
+        expect(pg.calls[0].sql).not.toContain('role_min IS NULL OR role_min = ANY');
+        expect(pg.calls[0].sql).not.toContain('sensitivity IS NULL OR sensitivity = ANY');
+        expect(pg.calls[0].params).toEqual(['sato_keigo', ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result'], 5]);
     });
 
     it('summarizes Personal KG rows with DB-side aggregation', async () => {

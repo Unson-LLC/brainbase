@@ -56,8 +56,12 @@ describe('admin visualization page', () => {
 
         expect(calls[0].url).toBe('/api/csrf-token');
         expect(calls[0].thisValue).toBe(globalThis);
+        expect(calls[0].options.cache).toBe('no-store');
+        expect(calls[0].options.headers['Cache-Control']).toBe('no-cache');
         expect(calls[1].url).toBe('/api/admin/context-preview');
         expect(calls[1].thisValue).toBe(globalThis);
+        expect(calls[1].options.cache).toBe('no-store');
+        expect(calls[1].options.headers['Cache-Control']).toBe('no-cache');
         expect(calls[1].options.headers.Authorization).toBe('Bearer token-123');
         expect(calls[1].options.headers['X-CSRF-Token']).toBe('csrf-123');
     });
@@ -265,6 +269,47 @@ describe('admin visualization page', () => {
         expect(root.textContent).toContain('最新500件の上限に達しました');
         expect(root.textContent).toContain('絞り込んでください');
         expect(root.querySelector('[data-load-more-personal-kg]')).toBeNull();
+    });
+
+    it('INV-5 Contract-7: Personal KG ignores stale load-more responses', async () => {
+        const root = document.createElement('div');
+        const pending = new Map();
+        const responseFor = (limit) => ({
+            ok: true,
+            json: async () => ({
+                source_class: 'personal_kg',
+                status: 'available',
+                owner_person_id: 'sato_keigo',
+                warnings: [],
+                summary: { total: 3146, returned_count: limit, limit, active_count: 3146, sns_ready_count: 1, review_count: 1, needs_redaction_count: 0, agency_none_count: 0, truncated: true },
+                records: [{ source_class: 'personal_kg', id: `cand_${limit}`, memory_layer: 'personal_kg_core', sns_ready: false, promotion_status: 'candidate', redaction_status: 'none', requires_approval: false, cognitive_type: 'insight', body_preview: `bounded ${limit}` }]
+            })
+        });
+        const fetchImpl = (url) => {
+            const limit = Number(new URL(`http://localhost${url}`).searchParams.get('limit'));
+            return new Promise((resolve) => pending.set(limit, resolve));
+        };
+        const page = new AdminPage({ root, fetchImpl, storage: { getItem: () => null } });
+        root.innerHTML = page.shell();
+        page.personalKgLimit = 400;
+
+        const staleRequest = page.loadPersonalKg();
+        await Promise.resolve();
+        page.personalKgLimit = 500;
+        const latestRequest = page.loadPersonalKg();
+        await Promise.resolve();
+        pending.get(500)(responseFor(500));
+        await latestRequest;
+
+        expect(root.textContent).toContain('表示: 500 / 3146');
+        expect(root.textContent).toContain('最新500件の上限に達しました');
+
+        pending.get(400)(responseFor(400));
+        await staleRequest;
+
+        expect(root.textContent).toContain('表示: 500 / 3146');
+        expect(root.textContent).toContain('最新500件の上限に達しました');
+        expect(root.textContent).not.toContain('bounded 400');
     });
 
     it('INV-7 Contract-7: Personal KG direct controls render HTTP errors instead of leaving stale records', async () => {

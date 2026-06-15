@@ -11,13 +11,14 @@ const SOURCE_CLASSES = Object.freeze({
 const RUNTIME_KEYS = ['BRAINBASE_ENV_PATH', 'INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL', 'AUTH_SESSION_SECRET', 'CANDIDATE_STORE_ALLOWED_SOURCES', 'BRAINBASE_PORT', 'BRAINBASE_VAR_DIR'];
 const DEFAULT_PERSONAL_KG_OWNER_PERSON_ID = 'sato_keigo';
 const HEALTH_CHECK_TIMEOUT_MS = 1500;
+const CANDIDATE_SCAN_LIMIT = 500;
 const PERSONAL_KG_INCLUDED_TYPES = new Set(['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result']);
 const PERSONAL_KG_EXCLUDED_STATUSES = new Set(['rejected', 'expired']);
 const SECRET_PATTERNS = [
     /postgres(?:ql)?:\/\/[^\s"'<>]+/ig,
     /Bearer\s+[A-Za-z0-9._~+/-]+=*/ig,
     /bbsvc_[A-Za-z0-9._-]+/ig,
-    /\b(?:xox[abprs]-|ghp_|github_pat_|sk-(?:proj-)?)[A-Za-z0-9._-]{12,}\b/g,
+    /\b(?:(?:xox[a-z]|xapp)-|ghp_|github_pat_|sk-(?:proj-)?)[A-Za-z0-9._-]{12,}\b/ig,
     /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
     /(["'](?:access_token|refresh_token|id_token|client_secret|clientSecret|api_key|apiKey|hmac_secret|hmacSecret|oauth_token|oauthToken|jwt|password|secret|private_key|privateKey)["']\s*:\s*)["'][^"']+["']/ig,
     /-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g
@@ -76,6 +77,28 @@ function toList(value) {
     return [];
 }
 
+function personalKgOwnerConfig(env = {}) {
+    const ownerPersonId = env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID;
+    return {
+        ownerPersonId,
+        aliasIds: new Set(toList(env.BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS))
+    };
+}
+
+function canonicalPersonalKgOwner(ownerPersonId, env = {}) {
+    if (!ownerPersonId) return ownerPersonId;
+    const config = personalKgOwnerConfig(env);
+    return ownerPersonId === config.ownerPersonId || config.aliasIds.has(ownerPersonId)
+        ? config.ownerPersonId
+        : ownerPersonId;
+}
+
+function isConfiguredPersonalKgOwner(ownerPersonId, env = {}) {
+    if (!ownerPersonId) return false;
+    const config = personalKgOwnerConfig(env);
+    return ownerPersonId === config.ownerPersonId || config.aliasIds.has(ownerPersonId);
+}
+
 function candidateProjectCodes(record) {
     return Array.from(new Set([
         record?.project_code,
@@ -116,11 +139,14 @@ function canReadCandidate(record, access) {
 function candidateQueryFilter(access, filters) {
     return {
         promotion_status: filters.status || null,
-        cognitive_type: filters.type || null
+        cognitive_type: filters.type || null,
+        order_by: 'created_at',
+        order_direction: 'desc',
+        limit: CANDIDATE_SCAN_LIMIT
     };
 }
 
-function personalKgRepositoryFilter(access, ownerPersonId, filters, safeLimit) {
+function personalKgRepositoryFilter(access, ownerPersonId, filters, safeLimit, env = {}) {
     return {
         owner_person_id: ownerPersonId,
         limit: safeLimit,
@@ -131,6 +157,7 @@ function personalKgRepositoryFilter(access, ownerPersonId, filters, safeLimit) {
         role: access.role,
         clearance: access.clearance,
         bypass_acl: access.personId === 'internal_api',
+        owner_read: canInspectPersonalKgOwner(access, ownerPersonId, env),
         cognitive_types: Array.from(PERSONAL_KG_INCLUDED_TYPES)
     };
 }
@@ -154,11 +181,27 @@ function countBy(records, key) {
     }, {});
 }
 
+function canInspectPersonalKgOwner(access, ownerPersonId, env = {}) {
+    if (!ownerPersonId) return false;
+    const canonicalOwner = canonicalPersonalKgOwner(ownerPersonId, env);
+    if (access.personId === 'internal_api') return true;
+    const config = personalKgOwnerConfig(env);
+    return canonicalOwner === config.ownerPersonId
+        && (access.personId === config.ownerPersonId || config.aliasIds.has(access.personId));
+}
+
+function canSelectPersonalKgOwner(access, ownerPersonId, env = {}) {
+    if (!ownerPersonId) return false;
+    if (canInspectPersonalKgOwner(access, ownerPersonId, env)) return true;
+    return !isConfiguredPersonalKgOwner(ownerPersonId, env) && access.personId === ownerPersonId;
+}
+
 function inspectableOwner(access, requestedOwner, env = {}) {
-    const explicitOwner = requestedOwner || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || null;
-    if (explicitOwner && (access.personId === explicitOwner || access.personId === 'internal_api')) return explicitOwner;
-    if (access.personId && access.personId !== 'internal_api') return access.personId;
-    if (access.personId === 'internal_api') return explicitOwner || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID;
+    const config = personalKgOwnerConfig(env);
+    if (requestedOwner) return canSelectPersonalKgOwner(access, requestedOwner, env) ? canonicalPersonalKgOwner(requestedOwner, env) : null;
+    if (access.personId === 'internal_api') return config.ownerPersonId;
+    if (canInspectPersonalKgOwner(access, config.ownerPersonId, env)) return config.ownerPersonId;
+    if (access.personId) return access.personId;
     return null;
 }
 
@@ -199,17 +242,21 @@ function projectionAllowed(snapshot = {}) {
     return true;
 }
 
-function isPersonalKgReadable(record, ownerPersonId, access) {
+function isPersonalKgReadable(record, ownerPersonId, access, env = {}) {
     if (!record || record.owner_person_id !== ownerPersonId) return false;
     if (!['owner', 'private'].includes(record.visibility)) return false;
     if (!PERSONAL_KG_INCLUDED_TYPES.has(record.cognitive_type)) return false;
     if (access.personId === 'internal_api') return true;
+    if (canInspectPersonalKgOwner(access, ownerPersonId, env)) return true;
+    const roleAllowed = roleRank(access.role) >= roleRank(record.role_min || 'member');
+    const sensitivityAllowed = !record.sensitivity || access.clearance.includes(record.sensitivity);
+    if (!roleAllowed || !sensitivityAllowed) return false;
     return canReadCandidate(record, access);
 }
 
-function applyPersonalKgFilters(records, ownerPersonId, access, filters) {
+function applyPersonalKgFilters(records, ownerPersonId, access, filters, env = {}) {
     return records
-        .filter((record) => isPersonalKgReadable(record, ownerPersonId, access))
+        .filter((record) => isPersonalKgReadable(record, ownerPersonId, access, env))
         .filter((record) => !filters.layer || memoryLayer(record) === filters.layer)
         .filter((record) => !filters.status || record.promotion_status === filters.status)
         .filter((record) => !filters.type || record.cognitive_type === filters.type)
@@ -313,7 +360,7 @@ export class AdminVisualizationService {
                 { source_class: SOURCE_CLASSES.RUNTIME, label: '設定/実行環境', status: runtimeHealthStatus(health.runtime_config) }
             ],
             graph: { source_class: SOURCE_CLASSES.GRAPH, status: graph.status, total: graph.records.length, counts_by_type: countBy(graph.records, 'entity_type') },
-            candidates: { source_class: SOURCE_CLASSES.CANDIDATE, status: candidates.status, total: candidates.records.length, counts_by_promotion_status: countBy(candidates.records, 'promotion_status'), counts_by_redaction_status: countBy(candidates.records, 'redaction_status') },
+            candidates: { source_class: SOURCE_CLASSES.CANDIDATE, status: candidates.status, total: candidates.records.length, counts_by_promotion_status: countBy(candidates.records, 'promotion_status'), counts_by_redaction_status: countBy(candidates.records, 'redaction_status'), warnings: candidates.warnings || [], scan_limited: Boolean(candidates.scan_limited) },
             personal_kg: {
                 source_class: SOURCE_CLASSES.PERSONAL_KG,
                 status: personalKg.status,
@@ -328,7 +375,7 @@ export class AdminVisualizationService {
     async listGraphEntities(access = {}, filters = {}) {
         if (!hasMethod(this.infoSSOTService, 'listGraphEntities')) return { source_class: SOURCE_CLASSES.GRAPH, status: 'unavailable', reason: 'InfoSSOTService is not configured', records: [] };
         try {
-            const rows = await this.infoSSOTService.listGraphEntities(accessSafe(access), { projectCode: filters.project || null, entityType: filters.type || null, limit: limit(filters.limit) });
+            const rows = await this.infoSSOTService.listGraphEntities(accessSafe(access), { id: filters.id || null, projectCode: filters.project || null, entityType: filters.type || null, limit: filters.id ? 1 : limit(filters.limit) });
             const q = String(filters.q || '').toLowerCase();
             const records = rows
                 .filter((record) => !filters.id || record.id === filters.id)
@@ -348,15 +395,32 @@ export class AdminVisualizationService {
             return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'available', records: [], warnings: ['personIdがないため候補ストアは表示しません'] };
         }
         try {
-            const rows = await this.candidateRepository.list(candidateQueryFilter(safeAccess, filters));
-            const records = rows
+            const queryFilter = candidateQueryFilter(safeAccess, filters);
+            const rows = await this.candidateRepository.list(queryFilter);
+            const displayLimit = limit(filters.limit);
+            const visibleRows = rows
                 .filter((record) => canReadCandidate(record, safeAccess))
                 .filter((record) => !filters.id || record.id === filters.id)
                 .filter((record) => !filters.project || candidateProjectCodes(record).includes(filters.project))
-                .filter((record) => !filters.redaction || record.redaction_status === filters.redaction)
-                .slice(0, limit(filters.limit))
+                .filter((record) => !filters.redaction || record.redaction_status === filters.redaction);
+            const records = visibleRows
+                .slice(0, displayLimit)
                 .map((record) => this.normalizeCandidateRecord(record));
-            return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'available', records, warnings: [] };
+            const scanLimited = rows.length >= queryFilter.limit;
+            const warnings = [];
+            if (scanLimited && visibleRows.length < displayLimit) {
+                warnings.push(`候補ストアは最新${queryFilter.limit}件を先読みして権限確認しています。条件に合う古い候補がある可能性があります。状態、種別、projectで絞り込んでください`);
+            }
+            return {
+                source_class: SOURCE_CLASSES.CANDIDATE,
+                status: 'available',
+                records,
+                warnings,
+                scan_limit: queryFilter.limit,
+                scan_limited: scanLimited,
+                pre_acl_count: rows.length,
+                post_acl_count: visibleRows.length
+            };
         } catch {
             return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'unavailable', reason: '候補ストアを取得できません。接続または権限をサーバーログで確認してください', records: [] };
         }
@@ -369,7 +433,7 @@ export class AdminVisualizationService {
         const safeAccess = accessSafe(access);
         const requestedOwnerPersonId = filters.owner || null;
         const safeLimit = limit(filters.limit, 50, 500);
-        if (requestedOwnerPersonId && safeAccess.personId !== 'internal_api' && requestedOwnerPersonId !== safeAccess.personId) {
+        if (requestedOwnerPersonId && !canSelectPersonalKgOwner(safeAccess, requestedOwnerPersonId, this.env)) {
             return {
                 source_class: SOURCE_CLASSES.PERSONAL_KG,
                 status: 'available',
@@ -385,7 +449,7 @@ export class AdminVisualizationService {
             return { source_class: SOURCE_CLASSES.PERSONAL_KG, status: 'available', owner_person_id: null, summary: emptyPersonalKgSummary({ limit: safeLimit }), records: [], warnings: ['personIdがないため個人KGは表示しません'] };
         }
         try {
-            const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, filters, safeLimit);
+            const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, filters, safeLimit, this.env);
             if (hasMethod(this.candidateRepository, 'summarizePersonalKg')) {
                 const summary = normalizeSummaryObject(await this.candidateRepository.summarizePersonalKg(repoFilter), {
                     returnedCount: 0,
@@ -405,7 +469,7 @@ export class AdminVisualizationService {
                 const rows = hasMethod(this.candidateRepository, 'listPersonalKg')
                     ? await this.candidateRepository.listPersonalKg(repoFilter)
                     : await this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
-                const records = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters)
+                const records = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters, this.env)
                     .slice(0, safeLimit)
                     .map((record) => this.normalizePersonalKgRecord(record));
                 summary.returned_count = records.length;
@@ -422,7 +486,7 @@ export class AdminVisualizationService {
             }
 
             const rows = await this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
-            const allRecords = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters)
+            const allRecords = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters, this.env)
                 .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
                 .map((record) => this.normalizePersonalKgRecord(record));
             const records = filters.records === false ? [] : allRecords.slice(0, safeLimit);
@@ -518,7 +582,7 @@ export class AdminVisualizationService {
 
     async getDataFlow(access = {}, filters = {}) {
         const [candidateResult, entityResult] = await Promise.all([
-            filters.candidate ? this.listCandidates(access, { id: filters.candidate, project: filters.project || null, limit: 1 }) : Promise.resolve(null),
+            filters.candidate ? this.getCandidateByIdForFlow(access, filters.candidate, { project: filters.project || null }) : Promise.resolve(null),
             filters.entity ? this.listGraphEntities(access, { id: filters.entity, project: filters.project || null, limit: 1 }) : Promise.resolve(null)
         ]);
         const candidateUnavailable = candidateResult?.status && candidateResult.status !== 'available';
@@ -549,6 +613,29 @@ export class AdminVisualizationService {
         steps.push({ source_class: SOURCE_CLASSES.CONTEXT, label: 'AI文脈リゾルバ', status: hasMethod(this.infoSSOTService, 'getContext') ? 'available' : 'unavailable' });
         steps.push({ source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG', status: personalKgReadiness.status, reason: personalKgReadiness.reason || null });
         return { source_class: SOURCE_CLASSES.CONTEXT, generated_at: this.clock().toISOString(), steps };
+    }
+
+    async getCandidateByIdForFlow(access = {}, candidateId, filters = {}) {
+        if (!hasMethod(this.candidateRepository, 'findById') && !hasMethod(this.candidateRepository, 'list')) {
+            return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'unavailable', reason: 'candidateRepository is not configured', records: [] };
+        }
+        const safeAccess = accessSafe(access);
+        try {
+            const row = hasMethod(this.candidateRepository, 'findById')
+                ? await this.candidateRepository.findById(candidateId)
+                : (await this.candidateRepository.list({ ...candidateQueryFilter(safeAccess, { limit: CANDIDATE_SCAN_LIMIT }), id: candidateId })).find((candidate) => candidate.id === candidateId);
+            const visible = row
+                && canReadCandidate(row, safeAccess)
+                && (!filters.project || candidateProjectCodes(row).includes(filters.project));
+            return {
+                source_class: SOURCE_CLASSES.CANDIDATE,
+                status: 'available',
+                records: visible ? [this.normalizeCandidateRecord(row)] : [],
+                warnings: []
+            };
+        } catch {
+            return { source_class: SOURCE_CLASSES.CANDIDATE, status: 'unavailable', reason: '候補ストアを取得できません。接続または権限をサーバーログで確認してください', records: [] };
+        }
     }
 
     async getHealth(access = {}) {
@@ -595,7 +682,7 @@ export class AdminVisualizationService {
             return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'partial', reason: 'personIdがないため個人KG read pathは未確認です' };
         }
 
-        const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, {}, 1);
+        const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, {}, 1, this.env);
         try {
             if (hasMethod(this.candidateRepository, 'summarizePersonalKg')) {
                 await withHealthTimeout(this.candidateRepository.summarizePersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');

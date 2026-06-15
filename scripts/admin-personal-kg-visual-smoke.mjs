@@ -24,6 +24,22 @@ function readToken() {
     return { token: parsed.access_token, source: '~/.brainbase/tokens.json' };
 }
 
+function personalKgReturnedCount(text) {
+    const match = String(text || '').match(/表示:\s*(\d+)\s*\/\s*(\d+)/);
+    return match ? Number(match[1]) : 0;
+}
+
+async function waitForPanelSettled(page, selector, loadingText) {
+    await page.waitForFunction(({ targetSelector, pendingText }) => {
+        const text = document.querySelector(targetSelector)?.textContent || '';
+        return text.trim().length > 0 && !text.includes(pendingText);
+    }, { targetSelector: selector, pendingText: loadingText }, { timeout: 60000 });
+}
+
+async function panelText(page, selector) {
+    return page.locator(selector).textContent();
+}
+
 fs.mkdirSync(outDir, { recursive: true });
 const auth = readToken();
 const browser = await chromium.launch();
@@ -50,6 +66,52 @@ page.on('console', (message) => {
 
 await page.goto(baseUrl, { waitUntil: 'networkidle' });
 await page.screenshot({ path: path.join(outDir, 'overview.png'), fullPage: true });
+const overviewText = await page.textContent('body');
+if (!overviewText.includes('Graph正本')) failures.push('overview graph source missing');
+if (!overviewText.includes('候補ストア')) failures.push('overview candidate source missing');
+
+await page.getByRole('button', { name: /Graph正本/ }).click();
+await page.waitForLoadState('networkidle');
+await waitForPanelSettled(page, '[data-graph-list]', 'Graph正本を読み込みます');
+await page.screenshot({ path: path.join(outDir, 'graph.png'), fullPage: true });
+const graphText = await page.textContent('body');
+const graphPanelText = await panelText(page, '[data-graph-list]');
+if (!graphText.includes('Graph正本')) failures.push('graph tab label missing');
+if (graphPanelText.includes('Graph正本を読み込みます')) failures.push('graph tab still loading');
+if (graphPanelText.includes('読み込みに失敗しました')) failures.push('graph tab load failed');
+
+await page.getByRole('button', { name: /候補ストア/ }).click();
+await page.waitForLoadState('networkidle');
+await waitForPanelSettled(page, '[data-candidate-list]', '候補ストアを読み込みます');
+await page.screenshot({ path: path.join(outDir, 'candidates.png'), fullPage: true });
+const candidateText = await page.textContent('body');
+const candidatePanelText = await panelText(page, '[data-candidate-list]');
+if (!candidateText.includes('候補ストア')) failures.push('candidate tab label missing');
+if (candidatePanelText.includes('候補ストアを読み込みます')) failures.push('candidate tab still loading');
+if (candidatePanelText.includes('読み込みに失敗しました')) failures.push('candidate tab load failed');
+
+await page.getByRole('button', { name: /AI文脈/ }).click();
+await page.getByRole('button', { name: /文脈を確認/ }).click();
+await page.waitForLoadState('networkidle');
+await page.waitForFunction(() => {
+    const text = document.querySelector('[data-context-result]')?.textContent || '';
+    return text.includes('project:');
+}, null, { timeout: 60000 });
+await page.screenshot({ path: path.join(outDir, 'context.png'), fullPage: true });
+const contextText = await page.textContent('body');
+const contextPanelText = await panelText(page, '[data-context-result]');
+if (!contextText.includes('プレビュー')) failures.push('context preview label missing');
+if (contextPanelText.includes('読み込みに失敗しました')) failures.push('context preview load failed');
+
+await page.getByRole('button', { name: /データフロー/ }).click();
+await page.waitForLoadState('networkidle');
+await page.waitForSelector('[data-flow-list] .health-row');
+await page.screenshot({ path: path.join(outDir, 'flow.png'), fullPage: true });
+const flowText = await page.textContent('body');
+const flowPanelText = await panelText(page, '[data-flow-list]');
+if (!flowPanelText.includes('候補ID未指定')) failures.push('flow default candidate state missing');
+if (!flowPanelText.includes('正本ID未指定')) failures.push('flow default graph state missing');
+if (flowPanelText.includes('読み込みに失敗しました')) failures.push('flow tab load failed');
 
 await page.getByRole('button', { name: /個人KG/ }).click();
 await page.waitForLoadState('networkidle');
@@ -59,12 +121,18 @@ const personalTopText = await page.textContent('body');
 if (!personalTopText.includes('レビュー:')) failures.push('personal kg review label missing');
 if (!personalTopText.includes('さらに表示')) failures.push('personal kg load-more missing at initial limit');
 
-for (let index = 0; index < 4; index += 1) {
+for (let index = 0; index < 6; index += 1) {
     const button = page.locator('[data-load-more-personal-kg]');
     if (await button.count() === 0) break;
+    const beforeReturned = personalKgReturnedCount(await page.textContent('body'));
     await button.first().click();
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(250);
+    await page.waitForFunction(({ before }) => {
+        const text = document.body?.innerText || '';
+        const match = text.match(/表示:\s*(\d+)\s*\/\s*(\d+)/);
+        const returned = match ? Number(match[1]) : 0;
+        return returned > before || text.includes('最新500件の上限に達しました') || !document.querySelector('[data-load-more-personal-kg]');
+    }, { before: beforeReturned }, { timeout: 60000 });
+    await page.waitForTimeout(100);
 }
 await page.screenshot({ path: path.join(outDir, 'personal-kg.png'), fullPage: true });
 const personalText = await page.textContent('body');
@@ -105,6 +173,10 @@ const result = {
     auth: `${auth.source}; credential value not recorded`,
     screenshots: {
         overview: path.join(outDir, 'overview.png'),
+        graph: path.join(outDir, 'graph.png'),
+        candidates: path.join(outDir, 'candidates.png'),
+        context: path.join(outDir, 'context.png'),
+        flow: path.join(outDir, 'flow.png'),
         personal_kg_top: path.join(outDir, 'personal-kg-top.png'),
         personal_kg: path.join(outDir, 'personal-kg.png'),
         health: path.join(outDir, 'health.png'),
@@ -118,6 +190,10 @@ const result = {
     healthReadPathVisible: healthText.includes('個人KG read path'),
     healthValuesRedacted: healthText.includes('値: 非表示') && !healthText.includes('postgres://') && !healthText.includes(auth.token),
     deniedOwnerVisible: deniedText.includes('表示対象外'),
+    graphVisible: graphText.includes('Graph正本') && !graphPanelText.includes('Graph正本を読み込みます') && !graphPanelText.includes('読み込みに失敗しました'),
+    candidateStoreVisible: candidateText.includes('候補ストア') && !candidatePanelText.includes('候補ストアを読み込みます') && !candidatePanelText.includes('読み込みに失敗しました'),
+    contextPreviewVisible: contextText.includes('プレビュー') && !contextPanelText.includes('読み込みに失敗しました'),
+    dataFlowVisible: flowPanelText.includes('候補ID未指定') && flowPanelText.includes('正本ID未指定') && !flowPanelText.includes('読み込みに失敗しました'),
     oldRagLabelVisible,
     apiErrors,
     consoleErrors,

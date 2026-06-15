@@ -41,4 +41,14 @@ describe('story-brainbase-admin-visualization-bdd VibePro trace', () => {
         expect(smoke).toContain('denied_owner_auth');
         expect(smoke).toContain('/api/admin/personal-kg?owner=umeda&limit=5');
     });
+
+    it('INV-14 Contract-10: docs capture Personal KG owner-read and no-cache contracts', () => {
+        const architecture = read('docs/architecture/brainbase-admin-visualization-architecture.md');
+        const spec = read('docs/specs/story-brainbase-admin-visualization-bdd-spec.md');
+        expect(architecture).toContain('BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS');
+        expect(architecture).toContain('Owner-read is limited');
+        expect(spec).toContain('INV-14');
+        expect(spec).toContain('Contract-10');
+        expect(spec).toContain('no-store');
+    });
 });
