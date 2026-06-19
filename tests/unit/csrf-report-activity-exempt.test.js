@@ -25,7 +25,7 @@ describe('csrfMiddleware report_activity exemption', () => {
     beforeEach(() => { process.env.NODE_ENV = 'production'; });
     afterEach(() => { process.env.NODE_ENV = origEnv; vi.restoreAllMocks(); });
 
-    it('本番でも /api/sessions/report_activity はトークン無しで CSRF を通す（ローカルフックのテレメトリ）', () => {
+    it('S-007 本番でも /api/sessions/report_activity はトークン無しで CSRF を通す（ローカルフックのテレメトリ）', () => {
         const { nextCalled, statusCode } = runMiddleware({
             method: 'POST', path: '/api/sessions/report_activity', headers: {}
         });

@@ -20,13 +20,13 @@ The resolver is a deterministic MCP read path. It must not mutate Graph records,
 import local notes, or treat non-Graph files as canonical data.
 
 ```mermaid
-flowchart LR
-  Q[Raw query] --> N[Normalize and tokenize]
-  N --> M[Field-aware matcher]
-  M --> S[Scorer]
-  S --> V[Absence verdict]
-  V --> R[Structured resolver response]
-  G[(Graph SSOT entities)] --> M
+flowchart LR;
+  Q[Raw query] --> N[Normalize and tokenize];
+  N --> M[Field-aware matcher];
+  M --> S[Scorer];
+  S --> V[Absence verdict];
+  V --> R[Structured resolver response];
+  G[(Graph SSOT entities)] --> M;
 ```
 
 ## Components

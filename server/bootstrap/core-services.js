@@ -26,6 +26,7 @@ import { LearningHealthService } from '../services/learning-health-service.js';
 import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
+import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
@@ -94,6 +95,10 @@ export function createCoreServices({
     const candidateRepository = infoSSOTService.pool
         ? new PgCandidateRepository({ pool: infoSSOTService.pool })
         : null;
+    const externalRunnerIngestService = new ExternalRunnerIngestService({
+        workflowRepository,
+        candidateRepository
+    });
 
     const worktreeService = new WorktreeService(
         worktreesDir,
@@ -207,6 +212,7 @@ export function createCoreServices({
         conversationLinker,
         tokenUsageService,
         workflowService,
+        externalRunnerIngestService,
         uploadMiddleware: upload.single('file')
     };
 }

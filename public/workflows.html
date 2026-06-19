@@ -377,6 +377,8 @@
         const filterEl = document.getElementById('project-filter');
         const refreshBtn = document.getElementById('refresh-btn');
         const AUTH_TOKEN_KEY = 'brainbase.auth.token';
+        let csrfToken = '';
+        let csrfTokenPromise = null;
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -408,8 +410,35 @@
                 headers
             };
         }
+        function isUnsafeMethod(method) {
+            return !['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase());
+        }
+        async function getCsrfToken() {
+            if (csrfToken) return csrfToken;
+            if (!csrfTokenPromise) {
+                csrfTokenPromise = fetch('/api/csrf-token', withAuthOptions({ headers: { Accept: 'application/json' } }))
+                    .then(async (response) => {
+                        if (!response.ok) throw new Error(`CSRF ${response.status}`);
+                        const data = await response.json();
+                        csrfToken = data.token || data.csrfToken || '';
+                        return csrfToken;
+                    })
+                    .finally(() => {
+                        csrfTokenPromise = null;
+                    });
+            }
+            return csrfTokenPromise;
+        }
         async function apiFetch(url, options = {}) {
-            return await fetch(url, withAuthOptions(options));
+            const requestOptions = withAuthOptions(options);
+            if (isUnsafeMethod(requestOptions.method)) {
+                const headers = { ...(requestOptions.headers || {}) };
+                if (!headers['x-csrf-token'] && !headers['X-CSRF-Token']) {
+                    headers['x-csrf-token'] = await getCsrfToken();
+                }
+                requestOptions.headers = headers;
+            }
+            return await fetch(url, requestOptions);
         }
         function setView(name) {
             Object.entries(views).forEach(([key, el]) => el.classList.toggle('active', key === name));
@@ -641,6 +670,25 @@
                 return;
             }
             const { run, run_steps = [], context_snapshots = [], human_steps = [], outputs = [], audit_logs = [] } = state.runDetail;
+            const runMetadata = run.metadata && typeof run.metadata === 'object' ? run.metadata : {};
+            const judgmentDagSource = run.judgment_dag_trace || runMetadata.judgment_dag_trace;
+            const judgmentDag = judgmentDagSource && typeof judgmentDagSource === 'object' ? judgmentDagSource : {};
+            const dagNodes = Array.isArray(judgmentDag.nodes) ? judgmentDag.nodes : [];
+            const dagEvidence = Array.isArray(judgmentDag.evidence_refs) ? judgmentDag.evidence_refs : [];
+            const loopControl = runMetadata.loop_control && typeof runMetadata.loop_control === 'object' ? runMetadata.loop_control : {};
+            const stopConditionSource = run.stop_conditions || runMetadata.stop_conditions || loopControl.stop_conditions;
+            const stopConditions = Array.isArray(stopConditionSource) ? stopConditionSource : [];
+            const decisionMeta = [
+                ['Role Agent', run.role_agent_id || runMetadata.role_agent_id],
+                ['Workflow Reason', run.selected_workflow_reason || runMetadata.selected_workflow_reason],
+                ['Judgment DAG', [judgmentDag.dag_id, judgmentDag.version || judgmentDag.dag_version].filter(Boolean).join(' · ')],
+                ['DAG Nodes', dagNodes.join(' · ')],
+                ['DAG Evidence', dagEvidence.join(' · ')],
+                ['Stop Conditions', stopConditions.join(' · ')],
+                ['Loop Owner', run.owner_id || runMetadata.owner_id || loopControl.owner_id],
+                ['Cost Owner', run.cost_owner_id || runMetadata.cost_owner_id || loopControl.cost_owner_id],
+                ['Approval Owner', run.approval_owner_id || runMetadata.approval_owner_id || loopControl.approval_owner_id]
+            ].filter(([, value]) => value);
             state.selectedProjectId = run.project_id;
             state.selectedWorkflowId = run.workflow_id;
             views.run.innerHTML = `
@@ -652,15 +700,42 @@
                     </div>
                     <button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button>
                 </div>
+                <section class="panel" style="margin-bottom:18px;"><div class="panel-title"><h3>Decision Context</h3></div><div class="trace-list">${decisionMeta.map(([label, value]) => `<div class="trace-item"><strong>${escapeHtml(label)}</strong><div class="sub">${escapeHtml(value)}</div></div>`).join('') || '<div class="empty">No decision context</div>'}</div></section>
                 <div class="layout-two">
                     <section class="panel"><div class="panel-title"><h3>Step timeline</h3></div><div class="trace-list">${run_steps.map((step) => `<div class="trace-item"><strong>${escapeHtml(step.step_name || step.step_key || step.id)}</strong><div class="sub">${escapeHtml(step.status)} · ${escapeHtml(step.message || step.error_message || '-')}</div></div>`).join('') || '<div class="empty">No step trace</div>'}</div></section>
                     <section class="panel"><div class="panel-title"><h3>Resolved context</h3></div><div class="trace-list">${context_snapshots.map((snapshot) => `<div class="trace-item"><strong>${escapeHtml(snapshot.source_type || 'context')}</strong><div class="sub">${escapeHtml(snapshot.source_ref || '-')}</div><div class="sub">${escapeHtml(snapshot.preview || '')}</div></div>`).join('') || '<div class="empty">No context snapshot</div>'}</div></section>
                 </div>
                 <div class="layout-two" style="margin-top:18px;">
-                    <section class="panel"><div class="panel-title"><h3>Outputs</h3></div><div class="trace-list">${outputs.map((output) => `<div class="trace-item"><strong>${escapeHtml(output.title || output.type || output.id)}</strong><div class="sub">${escapeHtml(output.preview || output.content_ref || '-')}</div></div>`).join('') || '<div class="empty">No outputs</div>'}</div></section>
+                    <section class="panel"><div class="panel-title"><h3>Outputs</h3></div><div class="trace-list">${outputs.map((output) => `<div class="trace-item"><strong>${escapeHtml(output.title || output.type || output.id)}</strong><div class="sub">${escapeHtml(output.preview || output.body || output.content || output.content_ref || '-')}</div></div>`).join('') || '<div class="empty">No outputs</div>'}</div></section>
                     <section class="panel"><div class="panel-title"><h3>Human / Audit</h3></div><div class="trace-list">
-                        ${human_steps.map((step) => `<div class="trace-item"><strong>${escapeHtml(step.step_type || 'human')}</strong><div class="sub">${escapeHtml(step.status)} · ${escapeHtml(step.prompt || '-')}</div>${step.status === 'pending' ? `<div class="toolbar"><button class="btn soft" type="button" data-action="resolve-human-step" data-resolution="approved" data-run-id="${escapeHtml(run.id)}" data-step-id="${escapeHtml(step.id)}">Approve</button><button class="btn soft" type="button" data-action="resolve-human-step" data-resolution="rejected" data-run-id="${escapeHtml(run.id)}" data-step-id="${escapeHtml(step.id)}">Reject</button></div>` : ''}</div>`).join('')}
-                        ${audit_logs.map((log) => `<div class="trace-item"><strong>${escapeHtml(log.action)}</strong><div class="sub">${escapeHtml(log.created_at || '-')}</div></div>`).join('') || '<div class="empty">No audit logs</div>'}
+                        ${human_steps.map((step) => {
+                            const approvalReason = step.approval_reason || step.metadata?.approval_reason || '';
+                            return `<div class="trace-item"><strong>${escapeHtml(step.step_type || 'human')}</strong><div class="sub">${escapeHtml(step.status)} · ${escapeHtml(step.prompt || '-')}</div>${approvalReason ? `<div class="sub">approval_reason · ${escapeHtml(approvalReason)}</div>` : ''}${step.status === 'pending' ? `<div class="toolbar"><button class="btn soft" type="button" data-action="resolve-human-step" data-resolution="approved" data-run-id="${escapeHtml(run.id)}" data-step-id="${escapeHtml(step.id)}">Approve</button><button class="btn soft" type="button" data-action="resolve-human-step" data-resolution="rejected" data-run-id="${escapeHtml(run.id)}" data-step-id="${escapeHtml(step.id)}">Reject</button></div>` : ''}</div>`;
+                        }).join('')}
+                        ${audit_logs.map((log) => {
+                            const after = log.after || {};
+                            const evidenceRefs = Array.isArray(after.evidence_refs) ? after.evidence_refs : [];
+                            const detail = [
+                                after.runner_type,
+                                after.external_run_id,
+                                after.eve_trace_ref,
+                                after.contract_version,
+                                after.candidate_id,
+                                after.stored_candidate_id,
+                                after.persistence_status,
+                                after.cognitive_type,
+                                after.promotion_policy,
+                                after.redaction_status,
+                                after.confidence,
+                                after.owner_person_id,
+                                after.actor_person_id,
+                                after.reason,
+                                after.error,
+                                after.body,
+                                ...evidenceRefs
+                            ].filter(Boolean).join(' · ');
+                            return `<div class="trace-item"><strong>${escapeHtml(log.action)}</strong><div class="sub">${escapeHtml(log.created_at || '-')}</div>${detail ? `<div class="sub">${escapeHtml(detail)}</div>` : ''}</div>`;
+                        }).join('') || '<div class="empty">No audit logs</div>'}
                     </div></section>
                 </div>
             `;

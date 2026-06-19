@@ -323,6 +323,7 @@ const {
     conversationLinker,
     tokenUsageService,
     workflowService,
+    externalRunnerIngestService,
     uploadMiddleware
 } = createCoreServices({
     tasksFile: TASKS_FILE,
@@ -448,6 +449,7 @@ registerApiRoutes(app, {
     wikiService,
     tokenUsageService,
     workflowService,
+    externalRunnerIngestService,
     uploadMiddleware,
     appVersion: APP_VERSION,
     workspaceRoot,

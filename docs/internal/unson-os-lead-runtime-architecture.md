@@ -84,84 +84,84 @@ UI 面との対応は、[UI×制御面 整合性マトリクス](./unson-os-ui-a
 ### 全体構成
 
 ```mermaid
-flowchart TB
-    subgraph human["人間の利用者"]
-        exec["経営者"]
-        gm["事業責任者"]
-        lead["現場責任者"]
-    end
+flowchart TB;
+    subgraph human["人間の利用者"];
+        exec["経営者"];
+        gm["事業責任者"];
+        lead["現場責任者"];
+    end;
 
-    subgraph control["UnsonOS 制御面 / 正本"]
-        ui["現場責任者コンソール\n- 注力テーマ・施策一覧\n- 進行レーン\n- 判断待ち一覧\n- 稼働状況パネル\n- 即応パネル"]
-        domain["運営対象の正本\n事業 / 区画 / 施策 / 配分 / ポリシー版"]
-        execution["実行の正本\n実行要求 / 実行権 / 実行状態"]
-        decision["判断の正本\n判断項目 / 決定記録 / 上申"]
-        comm["連絡項目\n指示 / 報告 / 相談 / 判断依頼 / 承認依頼 /\n証跡要求 / 差戻し / 上申"]
-        projectors["投影生成器\n施策状態 / 稼働状況 / 判断待ち / 証跡不足"]
-    end
+    subgraph control["UnsonOS 制御面 / 正本"];
+        ui["現場責任者コンソール\n- 注力テーマ・施策一覧\n- 進行レーン\n- 判断待ち一覧\n- 稼働状況パネル\n- 即応パネル"];
+        domain["運営対象の正本\n事業 / 区画 / 施策 / 配分 / ポリシー版"];
+        execution["実行の正本\n実行要求 / 実行権 / 実行状態"];
+        decision["判断の正本\n判断項目 / 決定記録 / 上申"];
+        comm["連絡項目\n指示 / 報告 / 相談 / 判断依頼 / 承認依頼 /\n証跡要求 / 差戻し / 上申"];
+        projectors["投影生成器\n施策状態 / 稼働状況 / 判断待ち / 証跡不足"];
+    end;
 
-    subgraph runtime["UnsonOS 実行層"]
-        queue["実行要求キュー"]
-        launcher["起動器"]
-        gate["ゲート判定器"]
-        heartbeat["heartbeat 監視器"]
-        trace["トレース収集器"]
-        projection["状態返却器"]
-        allocator["配分変換器"]
-        briefGen["判断資料生成器"]
-    end
+    subgraph runtime["UnsonOS 実行層"];
+        queue["実行要求キュー"];
+        launcher["起動器"];
+        gate["ゲート判定器"];
+        heartbeat["heartbeat 監視器"];
+        trace["トレース収集器"];
+        projection["状態返却器"];
+        allocator["配分変換器"];
+        briefGen["判断資料生成器"];
+    end;
 
-    subgraph adapters["実行アダプター"]
-        pcAdapter["Paperclip アダプター"]
-        ogAdapter["OpenGoat アダプター"]
-    end
+    subgraph adapters["実行アダプター"];
+        pcAdapter["Paperclip アダプター"];
+        ogAdapter["OpenGoat アダプター"];
+    end;
 
-    subgraph substrates["下層 runtime"]
-        paperclip["Paperclip\ncompany / ticket / approval / audit / heartbeat"]
-        opengoat["OpenGoat\nmanager / worker / task / session / provider"]
-    end
+    subgraph substrates["下層 runtime"];
+        paperclip["Paperclip\ncompany / ticket / approval / audit / heartbeat"];
+        opengoat["OpenGoat\nmanager / worker / task / session / provider"];
+    end;
 
-    subgraph records["痕跡と参照"]
-        traceStore["作業痕跡保管庫\ntranscript / tool call / stdout / 添付"]
-        artifactRefs["成果物参照\nGitHub / Drive / Notion / Calendar / Gmail"]
-    end
+    subgraph records["痕跡と参照"];
+        traceStore["作業痕跡保管庫\ntranscript / tool call / stdout / 添付"];
+        artifactRefs["成果物参照\nGitHub / Drive / Notion / Calendar / Gmail"];
+    end;
 
-    subgraph detail["詳細作業面"]
-        brainbase["Brainbase\n作業台 / raw session 閲覧 / files"]
-    end
+    subgraph detail["詳細作業面"];
+        brainbase["Brainbase\n作業台 / raw session 閲覧 / files"];
+    end;
 
-    exec --> ui
-    gm --> ui
-    lead --> ui
-    ui <--> domain
-    ui <--> decision
-    ui <--> comm
-    ui <--> projectors
+    exec --> ui;
+    gm --> ui;
+    lead --> ui;
+    ui <--> domain;
+    ui <--> decision;
+    ui <--> comm;
+    ui <--> projectors;
 
-    domain --> queue
-    decision --> queue
-    comm --> queue
-    allocator --> queue
-    queue --> launcher
-    launcher --> pcAdapter
-    launcher --> ogAdapter
+    domain --> queue;
+    decision --> queue;
+    comm --> queue;
+    allocator --> queue;
+    queue --> launcher;
+    launcher --> pcAdapter;
+    launcher --> ogAdapter;
 
-    pcAdapter <--> paperclip
-    ogAdapter <--> opengoat
-    pcAdapter --> heartbeat
-    ogAdapter --> heartbeat
-    pcAdapter --> trace
-    ogAdapter --> trace
-    heartbeat --> gate
-    trace --> gate
-    gate --> projection
-    projection --> projectors
-    trace --> traceStore
-    paperclip --> artifactRefs
-    opengoat --> artifactRefs
-    briefGen --> decision
-    brainbase --> traceStore
-    brainbase --> artifactRefs
+    pcAdapter <--> paperclip;
+    ogAdapter <--> opengoat;
+    pcAdapter --> heartbeat;
+    ogAdapter --> heartbeat;
+    pcAdapter --> trace;
+    ogAdapter --> trace;
+    heartbeat --> gate;
+    trace --> gate;
+    gate --> projection;
+    projection --> projectors;
+    trace --> traceStore;
+    paperclip --> artifactRefs;
+    opengoat --> artifactRefs;
+    briefGen --> decision;
+    brainbase --> traceStore;
+    brainbase --> artifactRefs;
 ```
 
 この図で重要なのは、`Paperclip` や `OpenGoat` が直接 UI に繋がっていないこと。  
@@ -180,18 +180,18 @@ flowchart TB
 ### 現場責任者の 1 サイクル
 
 ```mermaid
-flowchart LR
-    A["稼働状況パネル\n停滞・承認待ち・成果物不足を検知"] --> B["判断待ち一覧 / 停滞一覧\n裁く対象を選ぶ"]
-    B --> C["即応パネル\n状況要約 / 割り振り支援 / リスク確認 / 証跡確認"]
-    C --> D{"その場で裁ける？"}
-    D -- はい --> E["承認 / 差戻し / 成果物要求 / 再割り振り"]
-    D -- いいえ --> F["論点整理室\n深掘り壁打ち / 上申整理"]
-    F --> G["判断資料生成器\n判断メモ / 上申資料 / 判断理由"]
-    G --> H["事業責任者へ上申\nまたは運転ルール更新依頼"]
-    E --> I["実行要求キューへ反映\nAI 作業者群が再実行"]
-    H --> I
-    I --> J["作業痕跡保管庫へ記録\nBrainbase は必要時だけ閲覧"]
-    J --> A
+flowchart LR;
+    A["稼働状況パネル\n停滞・承認待ち・成果物不足を検知"] --> B["判断待ち一覧 / 停滞一覧\n裁く対象を選ぶ"];
+    B --> C["即応パネル\n状況要約 / 割り振り支援 / リスク確認 / 証跡確認"];
+    C --> D{"その場で裁ける？"};
+    D -- はい --> E["承認 / 差戻し / 成果物要求 / 再割り振り"];
+    D -- いいえ --> F["論点整理室\n深掘り壁打ち / 上申整理"];
+    F --> G["判断資料生成器\n判断メモ / 上申資料 / 判断理由"];
+    G --> H["事業責任者へ上申\nまたは運転ルール更新依頼"];
+    E --> I["実行要求キューへ反映\nAI 作業者群が再実行"];
+    H --> I;
+    I --> J["作業痕跡保管庫へ記録\nBrainbase は必要時だけ閲覧"];
+    J --> A;
 ```
 
 ## 正準 object 一覧

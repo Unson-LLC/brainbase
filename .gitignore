@@ -294,3 +294,4 @@ apps/vibepro-panel/.next/
 .vibepro/**/raw/
 .vibepro/**/secrets*
 .vibepro/**/*.log
+.worktrees/vibepro/

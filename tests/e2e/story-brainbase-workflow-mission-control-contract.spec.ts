@@ -437,6 +437,18 @@ test('story-brainbase-workflow-mission-control /workflows covers detail and acti
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     const method = route.request().method();
+    if (url.pathname === '/api/config/projects' && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ projects: [{ id: 'sample-project', session_select: true }] })
+      });
+      return;
+    }
+    if (url.pathname === '/api/csrf-token' && method === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: 'csrf-test-token' }) });
+      return;
+    }
     if (url.pathname === '/api/workflows' && method === 'GET') {
       await route.fulfill({
         status: 200,
@@ -455,7 +467,8 @@ test('story-brainbase-workflow-mission-control /workflows covers detail and acti
       });
       return;
     }
-    if (url.pathname === '/api/workflows' && method === 'POST') {
+    if (url.pathname === '/api/workflows/draft' && method === 'POST') {
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf-test-token');
       await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'create failed' }) });
       return;
     }
@@ -485,6 +498,7 @@ test('story-brainbase-workflow-mission-control /workflows covers detail and acti
       return;
     }
     if (url.pathname === '/api/workflows/approval-workflow/run' && method === 'POST') {
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf-test-token');
       await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'run failed' }) });
       return;
     }
@@ -509,10 +523,12 @@ test('story-brainbase-workflow-mission-control /workflows covers detail and acti
       return;
     }
     if (url.pathname === '/api/workflow-runs/run-1/rerun' && method === 'POST') {
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf-test-token');
       await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'rerun failed' }) });
       return;
     }
     if (url.pathname === '/api/workflow-runs/run-1/human-steps/human-1/resolve' && method === 'POST') {
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf-test-token');
       await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'forbidden' }) });
       return;
     }
@@ -521,9 +537,9 @@ test('story-brainbase-workflow-mission-control /workflows covers detail and acti
 
   await page.goto('/workflows');
   await page.getByLabel('Project filter').selectOption('sample-project');
-  await page.getByLabel('Name').fill('Failure Path');
-  await page.getByRole('button', { name: '保存' }).click();
-  await expect(page.getByText('保存できません: HTTP 500')).toBeVisible();
+  await page.getByLabel('やりたいこと').fill('Failure Path');
+  await page.getByRole('button', { name: 'Generate Draft' }).click();
+  await expect(page.getByText('Draft生成に失敗しました: create failed')).toBeVisible();
 
   await page.getByRole('button', { name: /Approval Workflow Project: sample-project/ }).click();
   await expect(page.getByText('Workflow を読み込めません: HTTP 500')).toBeVisible();
@@ -545,13 +561,196 @@ test('story-brainbase-workflow-mission-control /workflows covers detail and acti
   await expect(page.getByText('人間判断を処理できません: HTTP 403')).toBeVisible();
 });
 
+test('story-brainbase-workflow-mission-control /workflows Run Trace surfaces output body', async ({ page }) => {
+  await page.route('**/api/config/projects', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ projects: [{ id: 'sample-project', session_select: true }] })
+    });
+  });
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (url.pathname === '/api/config/projects' && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ projects: [{ id: 'sample-project', session_select: true }] })
+      });
+      return;
+    }
+    if (url.pathname === '/api/workflows' && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          workflows: [{
+            id: 'external-runner-workflow',
+            name: 'External Runner Workflow',
+            project_id: 'sample-project',
+            owner_id: 'sato',
+            context_sources: [{ source_type: 'project', source_ref: 'sample-project' }],
+            latest_run: { id: 'run-eve-1', status: 'success', action_required: 'none', human_waiting: false },
+            latest_context_snapshots: [{ source_type: 'project', source_ref: 'sample-project', status: 'resolved' }]
+          }]
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/workflows/external-runner-workflow' && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          workflow: {
+            id: 'external-runner-workflow',
+            name: 'External Runner Workflow',
+            project_id: 'sample-project',
+            owner_id: 'sato',
+            context_sources: [{ source_type: 'project', source_ref: 'sample-project', required: true, permission: 'read' }]
+          },
+          context_sources: [{ source_type: 'project', source_ref: 'sample-project', required: true, permission: 'read' }],
+          runs: [{ id: 'run-eve-1', status: 'success', started_at: '2026-06-01T09:00:00.000Z', action_required: 'none' }]
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/workflow-runs/run-eve-1' && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          run: {
+            id: 'run-eve-1',
+            workflow_id: 'external-runner-workflow',
+            project_id: 'sample-project',
+            status: 'success',
+            trigger_type: 'external_runner',
+            env: 'external',
+            metadata: {
+              role_agent_id: 'sales',
+              selected_workflow_reason: '案件の次回接触期限が近い',
+              judgment_dag_trace: {
+                dag_id: 'sales-followup-v1',
+                version: '1',
+                nodes: ['classify', 'draft'],
+                evidence_refs: ['graph://customer/acme']
+              },
+              loop_control: {
+                owner_id: 'sato',
+                cost_owner_id: 'sales-budget',
+                stop_conditions: ['external_send_requires_approval'],
+                approval_owner_id: 'sato'
+              }
+            }
+          },
+          run_steps: [],
+          context_snapshots: [],
+          human_steps: [{
+            id: 'hs-approve-1',
+            step_type: 'approval',
+            status: 'pending',
+            prompt: 'Slack送信を承認する',
+            metadata: {
+              approval_reason: '外部送信前に人間承認が必要'
+            }
+          }],
+          outputs: [{ id: 'out-1', title: 'Slack返信案', body: '次回提案の返信案' }],
+          audit_logs: [{
+            action: 'external_runner.ingested',
+            created_at: '2026-06-01T09:00:30.000Z',
+            after: {
+              contract_version: 'external_runner.v0',
+              runner_type: 'eve',
+              external_run_id: 'eve-run-001',
+              eve_trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-001'
+            }
+          }, {
+            action: 'external_runner.learning_candidate.deferred',
+            created_at: '2026-06-01T09:01:00.000Z',
+            after: {
+              candidate_id: 'lc-1',
+              reason: 'candidate_store_write_failed',
+              error: 'candidate store unavailable',
+              cognitive_type: 'insight',
+              promotion_policy: 'manual_review',
+              redaction_status: 'not_required',
+              body: '営業フォローでは期限と顧客温度感を同時に見る',
+              evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+            }
+          }, {
+            action: 'external_runner.learning_candidate.stored',
+            created_at: '2026-06-01T09:02:00.000Z',
+            after: {
+              candidate_id: 'lc-2',
+              stored_candidate_id: 'stored-lc-2',
+              persistence_status: 'stored',
+              cognitive_type: 'claim',
+              promotion_policy: 'manual_review',
+              redaction_status: 'not_required',
+              body: '保存済み候補もRun Traceから確認できる',
+              evidence_refs: ['eve://trace/eve-run-001/output/out-2']
+            }
+          }]
+        })
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not mocked' }) });
+  });
+
+  await page.goto('/workflows');
+  await page.getByLabel('Project filter').selectOption('sample-project');
+  await page.getByRole('button', { name: /External Runner Workflow Project: sample-project/ }).click();
+  await page.getByText('run-eve-1').click();
+  await expect(page.getByRole('heading', { name: 'Run Trace' })).toBeVisible();
+  await expect(page.getByText('Decision Context')).toBeVisible();
+  await expect(page.getByText('Role Agent')).toBeVisible();
+  await expect(page.locator('.trace-item').filter({ hasText: 'Role Agent' }).getByText('sales', { exact: true })).toBeVisible();
+  await expect(page.getByText('Workflow Reason')).toBeVisible();
+  await expect(page.getByText('案件の次回接触期限が近い')).toBeVisible();
+  await expect(page.getByText('Judgment DAG')).toBeVisible();
+  await expect(page.getByText(/sales-followup-v1 .*1/)).toBeVisible();
+  await expect(page.getByText('DAG Nodes')).toBeVisible();
+  await expect(page.getByText(/classify .*draft/)).toBeVisible();
+  await expect(page.getByText('DAG Evidence')).toBeVisible();
+  await expect(page.getByText('graph://customer/acme')).toBeVisible();
+  await expect(page.getByText('Stop Conditions')).toBeVisible();
+  await expect(page.getByText('external_send_requires_approval')).toBeVisible();
+  await expect(page.getByText('Loop Owner')).toBeVisible();
+  await expect(page.locator('.trace-item').filter({ hasText: 'Loop Owner' }).getByText('sato', { exact: true })).toBeVisible();
+  await expect(page.getByText('Cost Owner')).toBeVisible();
+  await expect(page.locator('.trace-item').filter({ hasText: 'Cost Owner' }).getByText('sales-budget', { exact: true })).toBeVisible();
+  await expect(page.getByText('Approval Owner')).toBeVisible();
+  await expect(page.locator('.trace-item').filter({ hasText: 'Approval Owner' }).getByText('sato', { exact: true })).toBeVisible();
+  await expect(page.getByText('Slack返信案')).toBeVisible();
+  await expect(page.getByText('次回提案の返信案')).toBeVisible();
+  await expect(page.getByText(/Slack送信を承認する/)).toBeVisible();
+  await expect(page.getByText(/approval_reason .*外部送信前に人間承認が必要/)).toBeVisible();
+  await expect(page.getByText('external_runner.ingested')).toBeVisible();
+  await expect(page.getByText(/eve .*eve-run-001 .*https:\/\/vercel\.com\/acme\/eve\/traces\/eve-run-001 .*external_runner\.v0/)).toBeVisible();
+  await expect(page.getByText('external_runner.learning_candidate.deferred')).toBeVisible();
+  await expect(page.getByText(/lc-1 .*candidate_store_write_failed .*candidate store unavailable/)).toBeVisible();
+  await expect(page.getByText(/insight .*manual_review .*not_required/)).toBeVisible();
+  await expect(page.getByText(/営業フォローでは期限と顧客温度感を同時に見る/)).toBeVisible();
+  await expect(page.getByText(/eve:\/\/trace\/eve-run-001\/output\/out-1/)).toBeVisible();
+  await expect(page.getByText('external_runner.learning_candidate.stored')).toBeVisible();
+  await expect(page.getByText(/lc-2 .*stored-lc-2 .*stored .*claim .*manual_review .*not_required/)).toBeVisible();
+  await expect(page.getByText(/保存済み候補もRun Traceから確認できる/)).toBeVisible();
+  await expect(page.getByText(/eve:\/\/trace\/eve-run-001\/output\/out-2/)).toBeVisible();
+});
+
 test('story-brainbase-workflow-mission-control /workflows real API path surfaces latest resolved context', async ({ page, request }) => {
   const headers = {
     'x-brainbase-role': 'member',
     'x-brainbase-projects': 'general'
   };
+  const csrfResponse = await request.get('/api/csrf-token');
+  expect(csrfResponse.ok()).toBeTruthy();
+  const csrfBody = await csrfResponse.json();
   const runResponse = await request.post('/api/workflows/brainbase-alive/run', {
-    headers,
+    headers: { ...headers, 'x-csrf-token': csrfBody.token },
     data: { trigger_type: 'manual', env: 'local' }
   });
   expect(runResponse.ok()).toBeTruthy();

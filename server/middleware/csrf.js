@@ -120,6 +120,12 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // External runner ingest is a server-to-server API guarded by workflow auth
+        // (bearer/service/internal key). It cannot rely on browser session CSRF tokens.
+        if (req.path?.startsWith('/api/external-runner/')) {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;

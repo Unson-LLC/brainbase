@@ -13,6 +13,7 @@ import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
+import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
@@ -108,6 +109,7 @@ export function registerApiRoutes(app, {
     wikiService,
     tokenUsageService,
     workflowService,
+    externalRunnerIngestService,
     uploadMiddleware,
     appVersion,
     workspaceRoot,
@@ -189,6 +191,7 @@ export function registerApiRoutes(app, {
     app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService));
     app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
     app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
+    app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
     app.use('/api', createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo, {
         brainbaseRoot,
