@@ -29,3 +29,11 @@ sender: agent
 status: pending
 message: 📊 週次レトロ完了 — コミット101件、Ship 34件（マージPR）、目標達成率 N/A（Wiki API 不到達）。詳細: /tmp/retro/weekly_report_2026-06-05.md
 ---
+
+---
+id: INBOX-1781859708
+channel: retro
+sender: agent
+status: pending
+message: 📊 週次レトロ完了 — コミット8件、Ship 6件、目標達成率 N/A（Wiki API 不到達）。詳細: /tmp/retro/weekly_report_2026-06-19.md
+---
