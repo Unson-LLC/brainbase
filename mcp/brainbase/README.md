@@ -114,6 +114,27 @@ mcp__brainbase__get_entity({ type: "person", id: "sato_keigo" })
 mcp__brainbase__search({ query: "brainbase" })
 ```
 
+### `resolve_entity`
+
+自然文や複合クエリからGraph正本の候補を解決する。人物・組織・プロジェクトなどが
+Graphに存在しないと判断する前に使う。
+
+`resolve_entity` は正規化、token分割、field-aware matchingを行い、
+`candidates`, `matched_terms`, `matched_fields`, `confidence`,
+`absence_verdict`, `searched_terms`, `fallbacks_used`, `unsupported_types` を返す。
+`project` は周辺contextの指定であり、候補を厳密除外するfilterではない。
+`contact` などCore indexに未実装のtype filterは黙って落とさず、
+`unsupported_types` と `fallbacks_used=["unsupported_type_reported"]` に明示する。
+`search` の1回のno-resultだけでGraph未登録と断定しない。
+
+**例**:
+```typescript
+mcp__brainbase__resolve_entity({
+  query: "若松 Lecaldo レカルド TechKnight 役員",
+  types: ["person", "org"],
+})
+```
+
 ## エンティティタイプ
 
 | タイプ | 説明 | 例 |

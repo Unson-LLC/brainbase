@@ -14,7 +14,9 @@ The resolver accepts:
 - `query`: raw user or agent text.
 - `types`: optional entity type filters such as `person`, `org`, `contact`,
   `customer`, `project`, `decision`, or `document`.
-- `project`: optional project code.
+- `project`: optional project code used as request context. It must not act as
+  a strict candidate filter because the original failure mode can include
+  `project=brainbase` while the matching entity belongs to another project.
 - `scope`: optional Graph scope.
 - `includePhilosophy`: optional philosophy-context toggle.
 
@@ -36,6 +38,7 @@ The resolver returns:
 - `absence_verdict`
 - `searched_terms`
 - `fallbacks_used`
+- `unsupported_types`
 
 ## Invariants
 
@@ -44,8 +47,12 @@ The resolver returns:
 - Exact `name` and exact `aliases` matches must survive noisy extra tokens.
 - Field-level evidence must distinguish name, alias, org, project, source, and
   content matches.
+- `project` request context must not suppress name or alias candidates from
+  other project-linked records.
 - Resolver decisions must be deterministic code behavior, not model judgment.
 - Existing Graph MCP tools remain backward-compatible.
+- Unsupported type filters must be reported in `unsupported_types` and must add
+  `unsupported_type_reported` to `fallbacks_used`.
 
 ## Normalization
 
@@ -70,13 +77,15 @@ Person matching covers:
 - `legacy_source_path`
 - `content`
 
-Organization, contact, customer, project, decision, and document matching use
-the same field-aware pattern where equivalent structured fields exist.
+Organization, customer, project, decision, and document matching use the same
+field-aware pattern where equivalent structured fields exist. `contact` is a
+forward-compatible filter until a Core contact index surface exists; it is
+reported in `unsupported_types` rather than silently dropped.
 
 ## Regression Cases
 
-- `若松 Lecaldo レカルド TechKnight 役員` returns `per_wakamatsu_fuyumi` with a
-  high-confidence `name` match on `若松`.
+- `若松 Lecaldo レカルド TechKnight 役員` with `project=brainbase` returns
+  `per_wakamatsu_fuyumi` with a high-confidence `name` match on `若松`.
 - `若松さん` resolves to `per_wakamatsu_fuyumi`.
 - `若松冬美` resolves to `per_wakamatsu_fuyumi`.
 - `Wakamatsu Fuyumi` resolves to `per_wakamatsu_fuyumi`.

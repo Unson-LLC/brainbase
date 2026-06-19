@@ -38,6 +38,9 @@ flowchart LR
 - Field-aware matcher: evaluates terms against canonical fields by entity type,
   including person `name`, `aliases`, `role`, `org`, `org_tags`, `projects`,
   `source`, `source_path`, `legacy_source_path`, and `content`.
+- Project context: `project` on a resolver request scopes surrounding Graph
+  context, but is not a strict candidate filter. Exact name and alias evidence
+  must survive even when the matching entity is linked to another project.
 - Scorer: favors exact `name` and exact `aliases`, then structured fields, then
   content matches. Noisy unmatched tokens must not suppress exact person matches.
 - Verdict builder: returns `no_candidate_after_resolver_checks` only after
@@ -58,6 +61,7 @@ explain why the candidate was returned. The response contract includes:
 - `searched_terms`
 - `fallbacks_used`
 - `absence_verdict`
+- `unsupported_types`
 
 ## Failure Modes
 
@@ -68,6 +72,9 @@ explain why the candidate was returned. The response contract includes:
 - If Graph has no standalone org entity but person records mention the term in
   structured fields, the resolver returns those person candidates with field
   evidence.
+- If a forward-compatible type filter such as `contact` is not backed by a Core
+  index surface yet, the resolver reports it in `unsupported_types` and
+  `fallbacks_used` instead of silently treating that surface as searched.
 
 ## Compatibility
 

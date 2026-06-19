@@ -7,6 +7,10 @@ export interface BaseEntity {
   id: string;
   filePath: string;
   updated?: string;
+  project_code?: string;
+  source?: string;
+  source_path?: string;
+  legacy_source_path?: string;
 }
 
 // Project entity from projects/*/project.md
@@ -182,7 +186,6 @@ export interface ExtensionEntity extends BaseEntity {
   title?: string;
   payload: Record<string, unknown>;
   content: string;
-  project_code?: string;
 }
 
 // Union type for all entities

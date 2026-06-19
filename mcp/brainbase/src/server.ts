@@ -20,6 +20,7 @@ import {
   getEntitiesByType,
   getExtensionEntitiesByType,
   getExtensionTypeRegistrations,
+  resolveEntities,
   searchEntities,
   getContextForTopic,
   type EntityIndex,
@@ -64,6 +65,29 @@ async function prependPhilosophyContext(
   });
 
   return `${context.prompt_block}\n\n---\n\n${body}`;
+}
+
+async function philosophyContextPrompt(
+  args: Record<string, unknown>,
+  defaults: { scope: string; objectType?: string; operation?: string }
+): Promise<string | undefined> {
+  const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
+  if (!includePhilosophy || !globalGraphSource) return undefined;
+
+  let context;
+  try {
+    context = await globalGraphSource.getPhilosophyContext({
+      projectCode: (args.project as string) || defaultProjectCode,
+      scope: (args.scope as string) || defaults.scope,
+      objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+      operation: (args.operation as string) || defaults.operation,
+      maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+    });
+  } catch {
+    return undefined;
+  }
+
+  return context.prompt_block;
 }
 
 /**
@@ -441,6 +465,40 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'resolve_entity',
+    description: 'Resolve raw user or agent text to canonical Graph entity candidates with field-level evidence. Use this before claiming Graph absence from a broad phrase.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Raw user or agent text to resolve into Graph entity candidates.',
+        },
+        types: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: [...CORE_ENTITY_TYPES, 'contact'],
+          },
+          description: 'Optional entity type filters. contact is accepted as a forward-compatible filter but returns no core candidates until a contact entity type exists.',
+        },
+        project: {
+          type: 'string',
+          description: 'Optional project code filter and Philosophy Context project.',
+        },
+        scope: {
+          type: 'string',
+          description: 'Philosophy context scope. Defaults to graph.',
+        },
+        includePhilosophy: {
+          type: 'boolean',
+          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'search_wiki',
     description: 'Search wiki pages by keyword. Returns matching page titles and paths from the brainbase wiki. Optionally filter by project_id.',
     inputSchema: {
@@ -619,6 +677,26 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       });
     }
 
+    case 'resolve_entity': {
+      const query = args.query as string;
+      const types = Array.isArray(args.types)
+        ? args.types.filter((type): type is string => typeof type === 'string')
+        : undefined;
+      const result = resolveEntities(entityIndex, {
+        query,
+        types,
+        project: args.project as string | undefined,
+        scope: args.scope as string | undefined,
+      });
+      const philosophy_context = await philosophyContextPrompt(args, {
+        scope: (args.scope as string) || 'graph',
+        objectType: 'entity_resolution',
+        operation: 'read',
+      });
+
+      return JSON.stringify({ philosophy_context: philosophy_context ?? null, ...result }, null, 2);
+    }
+
     case 'search_wiki': {
       const query = args.query as string;
       const projectId = args.project_id as string | undefined;
@@ -674,6 +752,9 @@ export const __testing = {
   tools,
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
+  },
+  setGraphSource(source: GraphAPISource | null): void {
+    globalGraphSource = source;
   },
   handleToolCall,
 };

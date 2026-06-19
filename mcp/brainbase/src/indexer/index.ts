@@ -12,6 +12,62 @@ import type {
 } from './types.js';
 import { getExtensionRegistrations, type EntityTypeRegistration } from './ontology.js';
 
+export type EntityResolverConfidence = 'high' | 'medium' | 'low';
+export type EntityResolverAbsenceVerdict = 'candidates_found' | 'no_candidate_after_resolver_checks';
+
+export interface EntityResolverCandidate {
+  entity_id: string;
+  type: EntityType;
+  name: string;
+  aliases: string[];
+  matched_terms: string[];
+  matched_fields: string[];
+  score: number;
+  confidence: EntityResolverConfidence;
+  project_code?: string;
+  why: string;
+}
+
+export interface EntityResolverResult {
+  query: string;
+  candidates: EntityResolverCandidate[];
+  absence_verdict: EntityResolverAbsenceVerdict;
+  searched_terms: string[];
+  fallbacks_used: string[];
+  unsupported_types: string[];
+}
+
+export interface EntityResolverOptions {
+  query: string;
+  types?: string[];
+  project?: string;
+  scope?: string;
+}
+
+const RESOLVER_ENTITY_TYPES: EntityType[] = [
+  'project',
+  'person',
+  'org',
+  'brand',
+  'app',
+  'customer',
+  'partner',
+  'decision',
+  'raci',
+  'glossary_term',
+  'document',
+];
+
+const RESOLVER_ENTITY_TYPE_SET = new Set<string>(RESOLVER_ENTITY_TYPES);
+const HONORIFIC_SUFFIXES = ['さん', '氏', '様', '先生'];
+const TERM_EQUIVALENTS: Record<string, string[]> = {
+  lecaldo: ['レカルド', 'リカルド', 'riccardo'],
+  'le caldo': ['レカルド', 'リカルド', 'riccardo'],
+  riccardo: ['レカルド', 'リカルド', 'lecaldo'],
+  レカルド: ['リカルド', 'lecaldo', 'riccardo'],
+  リカルド: ['レカルド', 'lecaldo', 'riccardo'],
+};
+
 /**
  * Create an empty entity index
  */
@@ -341,6 +397,230 @@ export function searchEntities(index: EntityIndex, query: string): Entity[] {
   }
 
   return results;
+}
+
+function normalizeResolverText(value: string): string {
+  return value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function stripHonorificSuffix(value: string): string {
+  let stripped = value;
+  for (const suffix of HONORIFIC_SUFFIXES) {
+    if (stripped.endsWith(suffix) && stripped.length > suffix.length) {
+      stripped = stripped.slice(0, -suffix.length);
+    }
+  }
+  return stripped;
+}
+
+function pushUnique(values: string[], value: string): void {
+  if (value && !values.includes(value)) values.push(value);
+}
+
+function pushTermWithEquivalents(values: string[], value: string): void {
+  pushUnique(values, value);
+  for (const equivalent of TERM_EQUIVALENTS[value] || []) {
+    pushUnique(values, normalizeResolverText(equivalent));
+  }
+}
+
+export function tokenizeEntityQuery(query: string): string[] {
+  const terms: string[] = [];
+  const normalizedQuery = normalizeResolverText(query);
+  const noSpaceQuery = normalizedQuery.replace(/\s+/g, '');
+
+  pushTermWithEquivalents(terms, normalizedQuery);
+  if (noSpaceQuery !== normalizedQuery) pushTermWithEquivalents(terms, noSpaceQuery);
+
+  for (const rawPart of normalizedQuery.split(/[\s,，、/／|｜;；:：()[\]{}<>「」『』]+/u)) {
+    const part = normalizeResolverText(rawPart);
+    if (!part) continue;
+    pushTermWithEquivalents(terms, part);
+    const stripped = stripHonorificSuffix(part);
+    if (stripped !== part) pushTermWithEquivalents(terms, stripped);
+    const noSpace = part.replace(/\s+/g, '');
+    if (noSpace !== part) pushTermWithEquivalents(terms, noSpace);
+  }
+
+  return terms.filter(term => term.length >= 2 || /[^\x00-\x7F]/u.test(term));
+}
+
+function normalizedFieldVariants(value: string): string[] {
+  const variants: string[] = [];
+  const normalized = normalizeResolverText(value);
+  const noSpace = normalized.replace(/\s+/g, '');
+  pushUnique(variants, normalized);
+  if (noSpace !== normalized) pushUnique(variants, noSpace);
+  return variants;
+}
+
+function stringValues(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(item => stringValues(item));
+  if (typeof value === 'string' && value.trim()) return [value];
+  if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
+  if (value && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).flatMap(item => stringValues(item));
+  }
+  return [];
+}
+
+function getEntityDisplayName(entity: Entity): string {
+  if ('name' in entity && entity.name) return entity.name;
+  if ('title' in entity && entity.title) return entity.title;
+  if ('term' in entity && entity.term) return entity.term;
+  return entity.id;
+}
+
+function getEntityAliases(entity: Entity): string[] {
+  return 'aliases' in entity && Array.isArray(entity.aliases) ? entity.aliases : [];
+}
+
+function getEntityProjectCode(entity: Entity): string | undefined {
+  if (entity.project_code) return entity.project_code;
+  if (entity.type === 'project') return entity.project_id;
+  if ('project_id' in entity && typeof entity.project_id === 'string') return entity.project_id;
+  if ('project' in entity && typeof entity.project === 'string') return entity.project;
+  if ('projects' in entity && Array.isArray(entity.projects) && entity.projects.length > 0) return entity.projects[0];
+  return undefined;
+}
+
+function searchableFields(entity: Entity): Array<{ field: string; value: string }> {
+  const record = entity as unknown as Record<string, unknown>;
+  const fields: Array<{ field: string; value: string }> = [];
+  const addField = (field: string, value: unknown) => {
+    for (const text of stringValues(value)) {
+      fields.push({ field, value: text });
+    }
+  };
+
+  addField('id', entity.id);
+  addField('name', getEntityDisplayName(entity));
+  addField('aliases', getEntityAliases(entity));
+  addField('role', record.role);
+  addField('org', record.org);
+  addField('org_tags', record.org_tags);
+  addField('orgs', record.orgs);
+  addField('projects', record.projects);
+  addField('project', record.project);
+  addField('project_id', record.project_id);
+  addField('source', record.source);
+  addField('source_path', record.source_path);
+  addField('legacy_source_path', record.legacy_source_path);
+  addField('content', record.content);
+  addField('description', record.description);
+  addField('title', record.title);
+  addField('term', record.term);
+  addField('canonical', record.canonical);
+  addField('path', record.path);
+  addField('tags', record.tags);
+  addField('decider', record.decider);
+  addField('salesOrg', record.salesOrg);
+  addField('implOrg', record.implOrg);
+  addField('notes', record.notes);
+  addField('members', record.members);
+  addField('positions', record.positions);
+  addField('decisions', record.decisions);
+  addField('assignments', record.assignments);
+  addField('products', record.products);
+  addField('related_orgs', record.related_orgs);
+  addField('related_apps', record.related_apps);
+
+  return fields;
+}
+
+function fieldWeight(field: string, exact: boolean): number {
+  if (field === 'name') return exact ? 100 : 85;
+  if (field === 'aliases') return exact ? 95 : 80;
+  if (['id', 'term', 'title'].includes(field)) return exact ? 90 : 75;
+  if (['role', 'org', 'org_tags', 'orgs', 'projects', 'project', 'project_id', 'decider'].includes(field)) return exact ? 70 : 55;
+  if (['source', 'source_path', 'legacy_source_path', 'path', 'tags'].includes(field)) return exact ? 60 : 45;
+  return exact ? 40 : 25;
+}
+
+function confidenceForScore(score: number): EntityResolverConfidence {
+  if (score >= 80) return 'high';
+  if (score >= 50) return 'medium';
+  return 'low';
+}
+
+function requestedResolverTypes(types?: string[]): { supported: EntityType[]; unsupported: string[] } {
+  if (!types || types.length === 0) {
+    return { supported: RESOLVER_ENTITY_TYPES, unsupported: [] };
+  }
+
+  const supported: EntityType[] = [];
+  const unsupported: string[] = [];
+  for (const type of types) {
+    if (RESOLVER_ENTITY_TYPE_SET.has(type)) {
+      pushUnique(supported, type as EntityType);
+    } else {
+      pushUnique(unsupported, type);
+    }
+  }
+
+  return { supported, unsupported };
+}
+
+export function resolveEntities(index: EntityIndex, options: EntityResolverOptions): EntityResolverResult {
+  const searchedTerms = tokenizeEntityQuery(options.query);
+  const candidatesByKey = new Map<string, EntityResolverCandidate>();
+  const fallbacksUsed = ['normalized_query', 'tokenized_field_match'];
+  const requestedTypes = requestedResolverTypes(options.types);
+
+  if (requestedTypes.unsupported.length > 0) {
+    fallbacksUsed.push('unsupported_type_reported');
+  }
+
+  for (const type of requestedTypes.supported) {
+    for (const entity of getEntitiesByType(index, type)) {
+      const matchedTerms: string[] = [];
+      const matchedFields: string[] = [];
+      let score = 0;
+
+      for (const { field, value } of searchableFields(entity)) {
+        const variants = normalizedFieldVariants(value);
+        for (const term of searchedTerms) {
+          const exact = variants.includes(term);
+          const partial = !exact && variants.some(variant => variant.includes(term));
+          if (!exact && !partial) continue;
+
+          pushUnique(matchedTerms, term);
+          pushUnique(matchedFields, field);
+          score = Math.max(score, fieldWeight(field, exact));
+        }
+      }
+
+      if (matchedTerms.length === 0) continue;
+
+      const name = getEntityDisplayName(entity);
+      candidatesByKey.set(`${entity.type}:${entity.id}`, {
+        entity_id: entity.id,
+        type: entity.type,
+        name,
+        aliases: getEntityAliases(entity),
+        matched_terms: matchedTerms,
+        matched_fields: matchedFields,
+        score,
+        confidence: confidenceForScore(score),
+        project_code: getEntityProjectCode(entity),
+        why: `${name} matched ${matchedTerms.join(', ')} in ${matchedFields.join(', ')}`,
+      });
+    }
+  }
+
+  const candidates = Array.from(candidatesByKey.values()).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
+  return {
+    query: options.query,
+    candidates,
+    absence_verdict: candidates.length > 0 ? 'candidates_found' : 'no_candidate_after_resolver_checks',
+    searched_terms: searchedTerms,
+    fallbacks_used: fallbacksUsed,
+    unsupported_types: requestedTypes.unsupported,
+  };
 }
 
 export function getExtensionTypeRegistrations(): EntityTypeRegistration[] {

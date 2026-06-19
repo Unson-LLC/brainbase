@@ -12,6 +12,7 @@ surfaces:
     - brainbase MCP list_entities
     - brainbase MCP get_entity
     - brainbase MCP search
+    - brainbase MCP resolve_entity
   code:
     - .claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts
     - .claude/skills/brainbase-graph-philosophy-context/SKILL.md
@@ -27,6 +28,9 @@ visibility_rules:
   - Meeting notes, transcripts, local memory, and generated summaries are secondary evidence.
   - If Graph conflicts with secondary evidence, prefer Graph and state the conflict when it matters.
   - For Graph operations, include Brainbase Philosophy Context unless the tool explicitly disables it.
+  - Use resolve_entity for raw user phrases or broad compound queries before claiming Graph absence.
+  - One search no-result is not sufficient evidence that Graph lacks an entity.
+  - Treat resolve_entity unsupported_types as unsearched surfaces, not as Graph absence.
 verification:
   commands:
     - curl -s -H "Authorization: Bearer $(cat ~/.brainbase/tokens.json | jq -r .access_token)" "https://bb.unson.jp/api/info/graph/entities?type=project&limit=500"
@@ -34,10 +38,13 @@ verification:
   expected:
     - The relevant entity exists in Graph or the absence is explicitly reported.
     - Aliases are checked when matching names from user text or secondary records.
+    - Raw user phrases are resolved with tokenized, field-aware evidence before absence is reported.
+    - Unsupported type filters are surfaced as unsupported_types instead of being silently dropped.
     - Philosophy Context is available before Graph mutation or interpretation.
 common_failures:
   - Trusting meeting-note spellings over Graph aliases.
   - Treating search query filters as proof without checking the returned record body.
+  - Treating one compound search no-result as proof that a person or organization is absent.
   - Mutating Graph without checking Philosophy Context.
 runbooks:
   - ../runbooks/graph-ssot-lookup.md

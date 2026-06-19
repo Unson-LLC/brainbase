@@ -57,6 +57,20 @@ export interface PhilosophyContext {
   anti_patterns?: string[];
 }
 
+function graphMetadata(entity: GraphEntity): {
+  project_code?: string;
+  source?: string;
+  source_path?: string;
+  legacy_source_path?: string;
+} {
+  return {
+    project_code: entity.project_code,
+    source: entity.payload.source as string | undefined,
+    source_path: entity.payload.source_path as string | undefined,
+    legacy_source_path: entity.payload.legacy_source_path as string | undefined,
+  };
+}
+
 export class GraphAPISource implements EntitySource {
   private apiUrl: string;
   private tokenManager: TokenManager;
@@ -239,6 +253,7 @@ export class GraphAPISource implements EntitySource {
       content: this.contentFromPayload(payload),
       beta_partners: payload.beta_partners as number | undefined,
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -257,6 +272,7 @@ export class GraphAPISource implements EntitySource {
       status: (payload.status as string) || 'active',
       content: (payload.bio as string) || this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -272,6 +288,7 @@ export class GraphAPISource implements EntitySource {
       orgType: (payload.type as string) || 'unknown',
       content: this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -295,6 +312,7 @@ export class GraphAPISource implements EntitySource {
       aliases: this.ensureArray(payload.aliases),
       content: this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -325,6 +343,7 @@ export class GraphAPISource implements EntitySource {
       products: this.ensureArray(payload.products),
       content: this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -341,6 +360,7 @@ export class GraphAPISource implements EntitySource {
       status: (payload.status as string) || '',
       description: (payload.description as string) || '',
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -360,6 +380,7 @@ export class GraphAPISource implements EntitySource {
       status: (payload.status as string) || '',
       notes: (payload.notes as string) || '',
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -376,6 +397,7 @@ export class GraphAPISource implements EntitySource {
       aliases: this.ensureArray(payload.aliases),
       content: this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -395,6 +417,7 @@ export class GraphAPISource implements EntitySource {
       status: (payload.status as string) || 'active',
       tags: this.ensureArray(payload.tags),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -412,6 +435,7 @@ export class GraphAPISource implements EntitySource {
       description: (payload.description as string) || '',
       content: this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
@@ -428,6 +452,7 @@ export class GraphAPISource implements EntitySource {
       tags: this.ensureArray(payload.tags),
       content: this.contentFromPayload(payload),
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 
