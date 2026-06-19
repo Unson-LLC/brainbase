@@ -1,13 +1,14 @@
 ---
 story_id: story-graph-entity-resolver
 title: Graph entity resolver prevents false not-found results
+reason: Existing Graph MCP entity resolver architecture is extended with an additive search fallback; no new storage boundary, runtime process, or external dependency is introduced.
 source:
   type: conversation
   origin: user
   date: 2026-06-19
 architecture_docs:
   - path: docs/architecture/graph-entity-resolver-architecture.md
-    status: pending
+    status: accepted
 related_specs:
   - docs/specs/graph-entity-resolver-spec.md
 status: active

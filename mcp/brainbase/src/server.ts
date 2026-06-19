@@ -56,13 +56,19 @@ async function prependPhilosophyContext(
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
   if (!includePhilosophy || !globalGraphSource) return body;
 
-  const context = await globalGraphSource.getPhilosophyContext({
-    projectCode: (args.project as string) || defaultProjectCode,
-    scope: (args.scope as string) || defaults.scope,
-    objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
-    operation: (args.operation as string) || defaults.operation,
-    maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
-  });
+  let context;
+  try {
+    context = await globalGraphSource.getPhilosophyContext({
+      projectCode: (args.project as string) || defaultProjectCode,
+      scope: (args.scope as string) || defaults.scope,
+      objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+      operation: (args.operation as string) || defaults.operation,
+      maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+    });
+  } catch (error) {
+    console.error('[brainbase] Failed to prepend philosophy context:', error);
+    return body;
+  }
 
   return `${context.prompt_block}\n\n---\n\n${body}`;
 }
@@ -654,7 +660,48 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const results = searchEntities(entityIndex, query);
 
       if (results.length === 0) {
-        return `No results found for "${query}".`;
+        const resolved = resolveEntities(entityIndex, {
+          query,
+          project: args.project as string | undefined,
+          scope: args.scope as string | undefined,
+        });
+
+        if (resolved.candidates.length === 0) {
+          return `No results found for "${query}". Resolver also found no candidates after normalized/tokenized checks.`;
+        }
+
+        const lines: string[] = [];
+        lines.push(`# Search Results for "${query}"`);
+        lines.push('');
+        lines.push('No exact text-search results found. Resolver candidates:');
+        lines.push('');
+
+        for (const candidate of resolved.candidates.slice(0, 10)) {
+          lines.push(`## ${candidate.name}`);
+          lines.push(`- Type: ${candidate.type}`);
+          lines.push(`- ID: ${candidate.entity_id}`);
+          lines.push(`- Confidence: ${candidate.confidence}`);
+          lines.push(`- Matched Terms: ${candidate.matched_terms.join(', ') || '(none)'}`);
+          lines.push(`- Matched Fields: ${candidate.matched_fields.join(', ') || '(none)'}`);
+          if (candidate.aliases.length > 0) {
+            lines.push(`- Aliases: ${candidate.aliases.join(', ')}`);
+          }
+          if (candidate.project_code) {
+            lines.push(`- Project: ${candidate.project_code}`);
+          }
+          lines.push(`- Why: ${candidate.why}`);
+          lines.push('');
+        }
+
+        if (resolved.candidates.length > 10) {
+          lines.push(`... and ${resolved.candidates.length - 10} more resolver candidates.`);
+        }
+
+        return prependPhilosophyContext(lines.join('\n'), args, {
+          scope: 'graph',
+          objectType: 'entity_resolution',
+          operation: 'read',
+        });
       }
 
       const lines: string[] = [];

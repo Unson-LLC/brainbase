@@ -153,6 +153,43 @@ describe('Graph entity resolver', () => {
     assert.ok(parsed.fallbacks_used.includes('tokenized_field_match'));
   });
 
+  it('story-graph-entity-resolver: falls back from search to resolver candidates for noisy compound queries', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+
+    const output = await __testing.handleToolCall('search', {
+      query: '若松 リカルド',
+      project: 'brainbase',
+      includePhilosophy: false,
+    });
+
+    assert.match(output, /No exact text-search results found/);
+    assert.match(output, /Resolver candidates/);
+    assert.match(output, /per_wakamatsu_fuyumi/);
+    assert.match(output, /若松 冬美/);
+  });
+
+  it('story-graph-entity-resolver: keeps search fallback output when philosophy context fetch fails', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    __testing.setGraphSource({
+      async getPhilosophyContext() {
+        throw new Error('context unavailable');
+      },
+    } as unknown as GraphAPISource);
+
+    try {
+      const output = await __testing.handleToolCall('search', {
+        query: '若松 リカルド',
+        project: 'brainbase',
+      });
+
+      assert.match(output, /No exact text-search results found/);
+      assert.match(output, /per_wakamatsu_fuyumi/);
+      assert.match(output, /若松 冬美/);
+    } finally {
+      __testing.setGraphSource(null);
+    }
+  });
+
   it('story-graph-entity-resolver: exposes unsupported type filters in MCP output', async () => {
     __testing.setEntityIndex(seedResolverIndex());
 
