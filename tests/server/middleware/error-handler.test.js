@@ -91,6 +91,25 @@ describe('errorHandler middleware', () => {
         expect(res._body.error.message).toBe('Bad request');
     });
 
+    it('malformed JSON parse failure_運用者が読めるparse_failureを返す', () => {
+        const error = new SyntaxError('Unexpected end of JSON input');
+        error.status = 400;
+        error.type = 'entity.parse.failed';
+        const req = { method: 'POST', url: '/api/external-runner/ingest' };
+        const res = createMockRes();
+        const next = vi.fn();
+
+        errorHandler(error, req, res, next);
+
+        expect(res.statusCode).toBe(400);
+        expect(res._body).toMatchObject({
+            error: 'parse_failure',
+            code: 'parse_failure',
+            message: 'Malformed JSON payload'
+        });
+        expect(next).not.toHaveBeenCalled();
+    });
+
     it('headersSent済み_nextに委譲する', () => {
         const error = new Error('test');
         const req = { method: 'GET', url: '/api/test' };

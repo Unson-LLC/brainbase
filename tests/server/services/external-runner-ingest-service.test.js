@@ -10,7 +10,7 @@ import {
 } from '../../../server/services/workflow/workflow-service.js';
 
 function makePayload(overrides = {}) {
-    return {
+    const payload = {
         contract_version: 'external_runner.v0',
         runner: {
             type: 'eve',
@@ -21,6 +21,7 @@ function makePayload(overrides = {}) {
             }
         },
         run: {
+            org_id: 'brainbase',
             project_id: 'brainbase',
             role_agent_id: 'sales',
             workflow_id: 'wf_sales_followup',
@@ -71,6 +72,13 @@ function makePayload(overrides = {}) {
         }],
         ...overrides
     };
+    if (overrides.run && !Object.prototype.hasOwnProperty.call(overrides.run, 'org_id') && overrides.run.project_id) {
+        payload.run = {
+            ...payload.run,
+            org_id: overrides.run.project_id
+        };
+    }
+    return payload;
 }
 
 function makeService() {
@@ -79,10 +87,70 @@ function makeService() {
     return { repository, service };
 }
 
+function seedLoopControlRefs(repository, {
+    orgId = 'salestailor',
+    projectId = 'salestailor',
+    roleAgentInstanceId = 'rai-salestailor-sales',
+    templateId = 'tmpl-sales-followup',
+    bindingId = 'bind-salestailor-sales-followup',
+    triggerId = 'trg-salestailor-human-sales',
+    loopIntentId = 'loop-salestailor-human-sales'
+} = {}) {
+    repository.upsertRoleAgentInstance({
+        id: roleAgentInstanceId,
+        workspace_id: 'default',
+        org_id: orgId,
+        project_id: projectId,
+        role_archetype_id: 'sales',
+        name: `${orgId} sales agent`
+    });
+    repository.upsertWorkflowTemplate({
+        id: templateId,
+        workspace_id: 'default',
+        org_id: orgId,
+        project_id: projectId,
+        name: `${orgId} sales followup`,
+        workflow_kind: 'sales'
+    });
+    repository.upsertWorkflowBinding({
+        id: bindingId,
+        workspace_id: 'default',
+        org_id: orgId,
+        project_id: projectId,
+        role_agent_instance_id: roleAgentInstanceId,
+        workflow_template_id: templateId,
+        autonomy_level: 'approval_required'
+    });
+    repository.upsertWorkflowTrigger({
+        id: triggerId,
+        workspace_id: 'default',
+        org_id: orgId,
+        project_id: projectId,
+        workflow_binding_id: bindingId,
+        trigger_type: 'human'
+    });
+    repository.upsertLoopIntent({
+        id: loopIntentId,
+        workspace_id: 'default',
+        org_id: orgId,
+        project_id: projectId,
+        role_agent_instance_id: roleAgentInstanceId,
+        workflow_template_id: templateId,
+        workflow_binding_id: bindingId,
+        trigger_id: triggerId,
+        trigger_type: 'human',
+        eligibility: {
+            status: 'needs_approval',
+            autonomy_level: 'approval_required',
+            requires_human_approval: true
+        }
+    });
+}
+
 describe('ExternalRunnerIngestService', () => {
     function expectRunIdForExternalRun(runId, externalRunId) {
         const readable = String(externalRunId || 'unknown').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 80);
-        expect(runId).toMatch(new RegExp(`^run_brainbase_eve_${readable}_[a-f0-9]{12}$`));
+        expect(runId).toMatch(new RegExp(`^run_brainbase_brainbase_eve_${readable}_[a-f0-9]{12}$`));
     }
 
     it('ingests S-001 runner.type=eve envelope into Workflow Mission Control surfaces', async () => {
@@ -117,6 +185,454 @@ describe('ExternalRunnerIngestService', () => {
         ]));
     });
 
+    it('propagates org agent loop control references from Eve payload into WMC and learning candidates', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository);
+
+        const result = await service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-org-loop-001',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-org-loop-001'
+                }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                workflow_name: 'SalesTailor営業フォローアップ',
+                status: 'completed',
+                selected_workflow_reason: 'SalesTailorの接触期限と商談状態から選択',
+                eligibility: {
+                    status: 'needs_approval',
+                    autonomy_level: 'approval_required',
+                    requires_human_approval: true
+                }
+            },
+            learning_candidates: [{
+                candidate_id: 'lc-1',
+                cognitive_type: 'insight',
+                body: '営業フォローでは期限と顧客温度感を同時に見る',
+                promotion_policy: 'manual_review',
+                redaction_status: 'not_required',
+                org_ids: [],
+                evidence_refs: ['eve://trace/eve-org-loop-001/output/out-1']
+            }]
+        }));
+
+        expect(result.run.id).toMatch(/^run_salestailor_salestailor_eve_eve-org-loop-001_[a-f0-9]{12}$/);
+        expect(result.workflow).toMatchObject({
+            id: 'external_runner_salestailor_salestailor_sales-agent',
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        });
+        expect(result.run).toMatchObject({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            role_agent_instance_id: 'rai-salestailor-sales',
+            workflow_template_id: 'tmpl-sales-followup',
+            workflow_binding_id: 'bind-salestailor-sales-followup',
+            trigger_id: 'trg-salestailor-human-sales',
+            loop_intent_id: 'loop-salestailor-human-sales',
+            metadata: {
+                org_id: 'salestailor',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                eligibility: {
+                    status: 'needs_approval',
+                    autonomy_level: 'approval_required',
+                    requires_human_approval: true
+                }
+            }
+        });
+        expect(result.context_snapshots).toEqual([
+            expect.objectContaining({ org_id: 'salestailor' })
+        ]);
+        expect(result.outputs).toEqual([
+            expect.objectContaining({ org_id: 'salestailor' })
+        ]);
+        expect(result.learning_candidates).toEqual([
+            expect.objectContaining({
+                candidate_id: 'lc-1',
+                org_ids: ['salestailor'],
+                project_ids: ['salestailor'],
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                persistence_status: 'deferred'
+            })
+        ]);
+        expect(repository.listAuditLogs({ targetId: result.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                org_id: 'salestailor',
+                action: 'external_runner.ingested',
+                after: expect.objectContaining({
+                    role_agent_instance_id: 'rai-salestailor-sales',
+                    loop_intent_id: 'loop-salestailor-human-sales'
+                })
+            }),
+            expect.objectContaining({
+                org_id: 'salestailor',
+                action: 'external_runner.learning_candidate.deferred',
+                after: expect.objectContaining({
+                    role_agent_instance_id: 'rai-salestailor-sales',
+                    workflow_template_id: 'tmpl-sales-followup',
+                    workflow_binding_id: 'bind-salestailor-sales-followup',
+                    trigger_id: 'trg-salestailor-human-sales',
+                    loop_intent_id: 'loop-salestailor-human-sales'
+                })
+            })
+        ]));
+    });
+
+    it('derives learning candidate org and project scope from validated run scope instead of Eve payload', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository);
+
+        const result = await service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-org-loop-scope-override',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-org-loop-scope-override'
+                }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                workflow_name: 'SalesTailor営業フォローアップ',
+                status: 'completed',
+                selected_workflow_reason: 'SalesTailorの接触期限と商談状態から選択'
+            },
+            learning_candidates: [{
+                candidate_id: 'lc-cross-org',
+                cognitive_type: 'insight',
+                body: '外部runnerはLearning Candidateのscopeを決められない',
+                promotion_policy: 'manual_review',
+                redaction_status: 'not_required',
+                org_ids: ['unson'],
+                project_ids: ['unson'],
+                project_id: 'unson',
+                evidence_refs: ['eve://trace/eve-org-loop-scope-override/output/out-1']
+            }]
+        }));
+
+        expect(result.learning_candidates).toEqual([
+            expect.objectContaining({
+                candidate_id: 'lc-cross-org',
+                org_ids: ['salestailor'],
+                project_ids: ['salestailor'],
+                project_id: 'salestailor',
+                persistence_status: 'deferred'
+            })
+        ]);
+        expect(repository.listAuditLogs({ targetId: result.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                org_id: 'salestailor',
+                action: 'external_runner.learning_candidate.deferred',
+                after: expect.objectContaining({
+                    candidate_id: 'lc-cross-org',
+                    org_ids: ['salestailor'],
+                    project_ids: ['salestailor'],
+                    project_id: 'salestailor'
+                })
+            })
+        ]));
+    });
+
+    it('requires run.org_id when Eve payload carries loop control references', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository);
+
+        await expect(service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-loop-ref-missing-org',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-loop-ref-missing-org'
+                }
+            },
+            run: {
+                org_id: undefined,
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                status: 'completed'
+            }
+        }))).rejects.toMatchObject({
+            code: 'missing_org_id_for_loop_ref'
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+    });
+
+    it('rejects unknown org references from Eve payloads without loop-control refs before persistence', async () => {
+        const { repository, service } = makeService();
+
+        await expect(service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-unknown-org-no-loop-refs',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-unknown-org-no-loop-refs'
+                }
+            },
+            run: {
+                org_id: 'unknown-org',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                workflow_id: 'wf_unknown_org_sales',
+                workflow_name: 'Unknown Org Sales',
+                status: 'completed'
+            }
+        }))).rejects.toMatchObject({
+            code: 'unknown_org_reference',
+            details: {
+                org_id: 'unknown-org',
+                project_id: 'salestailor'
+            }
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listWorkflows()).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
+    });
+
+    for (const { field, type } of [
+        { field: 'role_agent_instance_id', type: 'role_agent_instance' },
+        { field: 'workflow_binding_id', type: 'workflow_binding' },
+        { field: 'trigger_id', type: 'workflow_trigger' },
+        { field: 'loop_intent_id', type: 'loop_intent' }
+    ]) {
+        it(`rejects orgless ${type} refs for org-scoped Eve payloads`, async () => {
+            const { repository, service } = makeService();
+            seedLoopControlRefs(repository, { orgId: null });
+            const refIds = {
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales'
+            };
+
+            await expect(service.ingest(makePayload({
+                runner: {
+                    type: 'eve',
+                    external_run_id: `eve-orgless-${type}`,
+                    agent_id: 'sales-agent',
+                    eve: {
+                        trace_ref: `https://vercel.com/acme/eve/traces/eve-orgless-${type}`
+                    }
+                },
+                run: {
+                    org_id: 'salestailor',
+                    project_id: 'salestailor',
+                    role_agent_id: 'sales',
+                    [field]: refIds[field],
+                    status: 'completed'
+                }
+            }))).rejects.toMatchObject({
+                code: 'loop_control_ref_scope_mismatch',
+                details: {
+                    type,
+                    expected_org_id: 'salestailor',
+                    actual_org_id: null
+                }
+            });
+            expect(repository.listRuns()).toHaveLength(0);
+            expect(repository.listAuditLogs()).toHaveLength(0);
+        });
+    }
+
+    it('rejects org-scoped loop control workflow_id collisions with orgless workflows before WMC persistence', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository);
+        repository.upsertWorkflow({
+            id: 'wf_orgless_sales_followup',
+            workspace_id: 'default',
+            project_id: 'salestailor',
+            name: 'Legacy project workflow',
+            owner_id: 'owner-a',
+            default_assignee_id: 'owner-a',
+            default_approver_id: 'owner-a',
+            execution_env: 'local',
+            implementation_key: 'manual-placeholder',
+            context_sources: []
+        });
+
+        await expect(service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-org-loop-workflow-collision',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-org-loop-workflow-collision'
+                }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                workflow_id: 'wf_orgless_sales_followup',
+                workflow_name: 'SalesTailor営業フォローアップ',
+                status: 'completed'
+            }
+        }))).rejects.toMatchObject({
+            code: 'workflow_org_mismatch',
+            details: {
+                workflow_id: 'wf_orgless_sales_followup',
+                workflow_org_id: null,
+                run_org_id: 'salestailor'
+            }
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
+    });
+
+    it('rejects cross-org loop control refs before WMC persistence', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository, {
+            orgId: 'unson',
+            projectId: 'unson',
+            roleAgentInstanceId: 'rai-unson-sales',
+            templateId: 'tmpl-unson-sales',
+            bindingId: 'bind-unson-sales',
+            triggerId: 'trg-unson-human-sales',
+            loopIntentId: 'loop-unson-human-sales'
+        });
+
+        await expect(service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-cross-loop-ref',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-cross-loop-ref'
+                }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-unson-sales',
+                workflow_template_id: 'tmpl-unson-sales',
+                workflow_binding_id: 'bind-unson-sales',
+                trigger_id: 'trg-unson-human-sales',
+                loop_intent_id: 'loop-unson-human-sales',
+                status: 'completed'
+            }
+        }))).rejects.toMatchObject({
+            code: 'loop_control_ref_scope_mismatch'
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'run_salestailor_salestailor_eve_eve-cross-loop-ref_fallback' })).toHaveLength(0);
+    });
+
+    it('rejects same-scope partial loop refs when lineage points to a different binding', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository, {
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            roleAgentInstanceId: 'rai-a',
+            templateId: 'tmpl-a',
+            bindingId: 'bind-a',
+            triggerId: 'trg-a',
+            loopIntentId: 'loop-a'
+        });
+        seedLoopControlRefs(repository, {
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            roleAgentInstanceId: 'rai-b',
+            templateId: 'tmpl-b',
+            bindingId: 'bind-b',
+            triggerId: 'trg-b',
+            loopIntentId: 'loop-b'
+        });
+
+        await expect(service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-partial-loop-ref',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-partial-loop-ref'
+                }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-a',
+                workflow_template_id: 'tmpl-a',
+                loop_intent_id: 'loop-b',
+                status: 'completed'
+            }
+        }))).rejects.toMatchObject({
+            code: 'loop_control_ref_relationship_mismatch'
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+    });
+
+    it('rolls back WMC partial persistence when storage fails mid-ingest', async () => {
+        class FailingOutputRepository extends InMemoryWorkflowRepository {
+            createOutput() {
+                throw new Error('output storage unavailable');
+            }
+        }
+        const repository = new FailingOutputRepository();
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository });
+
+        await expect(service.ingest(makePayload())).rejects.toThrow('output storage unavailable');
+        expect(repository.listWorkflows()).toHaveLength(0);
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listContextSnapshots('run_brainbase_brainbase_eve_eve-run-001')).toHaveLength(0);
+        expect(repository.listOutputs('run_brainbase_brainbase_eve_eve-run-001')).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
+    });
+
+    it('rejects duplicate replay when an existing run has only partial WMC persistence', async () => {
+        const { repository, service } = makeService();
+        const normalized = service.adapter.normalize(makePayload());
+        repository.upsertWorkflow(normalized.workflow);
+        repository.createRun(normalized.run);
+
+        await expect(service.ingest(makePayload())).rejects.toMatchObject({
+            code: 'partial_ingest_state',
+            details: {
+                missing: expect.arrayContaining(['context_snapshots', 'outputs', 'audit_logs', 'learning_candidates'])
+            }
+        });
+        expect(repository.listRuns()).toHaveLength(1);
+        expect(repository.listOutputs(normalized.run.id)).toHaveLength(0);
+    });
+
     it('rejects S-003 Eve payloads without trace_ref before creating a completed run', async () => {
         const { repository, service } = makeService();
         const payload = makePayload({
@@ -132,6 +648,21 @@ describe('ExternalRunnerIngestService', () => {
             code: 'missing_string'
         });
         expect(repository.listRuns()).toHaveLength(0);
+    });
+
+    it('rejects top-level non-object payloads before creating workflow state', async () => {
+        const { repository, service } = makeService();
+
+        await expect(service.ingest([])).rejects.toMatchObject({
+            code: 'invalid_object',
+            message: 'payload must be an object'
+        });
+        await expect(service.ingest(null)).rejects.toMatchObject({
+            code: 'invalid_object',
+            message: 'payload must be an object'
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
     });
 
     it('rejects schema failure modes before creating workflow state', async () => {
@@ -403,6 +934,64 @@ describe('ExternalRunnerIngestService', () => {
                 code: 'unsupported_run_status'
             },
             {
+                name: 'unsupported run trigger type',
+                patch: {
+                    run: {
+                        project_id: 'brainbase',
+                        role_agent_id: 'sales',
+                        status: 'completed',
+                        trigger_type: 'webhook'
+                    }
+                },
+                code: 'unsupported_trigger_type'
+            },
+            {
+                name: 'unsupported run eligibility autonomy level',
+                patch: {
+                    run: {
+                        project_id: 'brainbase',
+                        role_agent_id: 'sales',
+                        status: 'completed',
+                        eligibility: {
+                            status: 'eligible',
+                            autonomy_level: 'root_access'
+                        }
+                    }
+                },
+                code: 'unsupported_autonomy_level'
+            },
+            {
+                name: 'unsupported run eligibility status',
+                patch: {
+                    run: {
+                        project_id: 'brainbase',
+                        role_agent_id: 'sales',
+                        status: 'completed',
+                        eligibility: {
+                            status: 'queued',
+                            autonomy_level: 'approval_required'
+                        }
+                    }
+                },
+                code: 'unsupported_eligibility_status'
+            },
+            {
+                name: 'invalid run eligibility approval flag',
+                patch: {
+                    run: {
+                        project_id: 'brainbase',
+                        role_agent_id: 'sales',
+                        status: 'completed',
+                        eligibility: {
+                            status: 'eligible',
+                            autonomy_level: 'auto_execute',
+                            requires_human_approval: 'false'
+                        }
+                    }
+                },
+                code: 'invalid_boolean'
+            },
+            {
                 name: 'invalid optional human_steps array',
                 patch: { human_steps: {} },
                 code: 'invalid_array'
@@ -487,7 +1076,7 @@ describe('ExternalRunnerIngestService', () => {
     });
 
     it('treats repeated Eve run ids as idempotent duplicates', async () => {
-        const { service } = makeService();
+        const { repository, service } = makeService();
 
         const first = await service.ingest(makePayload());
         const second = await service.ingest(makePayload());
@@ -498,6 +1087,186 @@ describe('ExternalRunnerIngestService', () => {
             run: { id: first.run.id }
         });
         expect(second.outputs).toHaveLength(1);
+        expect(second.audit_logs).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'external_runner.duplicate_replay_ignored',
+                target_id: first.run.id,
+                after: expect.objectContaining({
+                    reason: 'idempotent_duplicate',
+                    original_run_id: first.run.id
+                })
+            })
+        ]));
+        expect(repository.listAuditLogs({ targetId: first.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'external_runner.duplicate_replay_ignored' })
+        ]));
+    });
+
+    it('accepts the legacy explicit external_runner trigger type for external_runner.v0 payloads', async () => {
+        const { repository, service } = makeService();
+
+        const result = await service.ingest(makePayload({
+            run: {
+                project_id: 'brainbase',
+                role_agent_id: 'sales',
+                workflow_id: 'wf_sales_followup',
+                workflow_name: '営業フォローアップ',
+                status: 'completed',
+                trigger_type: 'external_runner'
+            }
+        }));
+
+        expect(result.run).toMatchObject({
+            trigger_type: 'external_runner',
+            status: 'success'
+        });
+        expect(repository.listRuns()).toHaveLength(1);
+    });
+
+    it('normalizes loop-control Eve trigger_type from the referenced workflow trigger', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository);
+
+        const result = await service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-loop-legacy-trigger-type',
+                agent_id: 'sales-agent',
+                eve: {
+                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-loop-legacy-trigger-type'
+                }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                loop_intent_id: 'loop-salestailor-human-sales',
+                workflow_name: 'SalesTailor営業フォローアップ',
+                status: 'completed',
+                trigger_type: 'external_runner'
+            }
+        }));
+
+        expect(result.run).toMatchObject({
+            trigger_id: 'trg-salestailor-human-sales',
+            trigger_type: 'human',
+            metadata: expect.objectContaining({
+                trigger_id: 'trg-salestailor-human-sales',
+                trigger_type: 'human'
+            })
+        });
+        expect(repository.listRuns()[0]).toMatchObject({
+            trigger_type: 'human'
+        });
+    });
+
+    it('rejects duplicate replay when the external run payload content changes', async () => {
+        const { repository, service } = makeService();
+
+        await service.ingest(makePayload());
+        await expect(service.ingest(makePayload({
+            outputs: [{
+                id: 'out-1',
+                output_type: 'draft',
+                title: 'Slack返信案',
+                body: '同じEve run idで本文が変わった返信案',
+                visibility: 'internal',
+                approval_required: true,
+                evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+            }],
+            learning_candidates: [{
+                candidate_id: 'lc-1',
+                cognitive_type: 'insight',
+                body: '同じEve run idで学習候補が変わった',
+                promotion_policy: 'manual_review',
+                redaction_status: 'not_required',
+                evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+            }]
+        }))).rejects.toMatchObject({
+            code: 'duplicate_payload_mismatch',
+            details: {
+                surface: 'outputs'
+            }
+        });
+        expect(repository.listRuns()).toHaveLength(1);
+        expect(repository.listOutputs(repository.listRuns()[0].id)).toEqual([
+            expect.objectContaining({ body: '次回提案の返信案' })
+        ]);
+    });
+
+    it('rejects duplicate replay when Loop Control references change under the same external run id', async () => {
+        const { repository, service } = makeService();
+        seedLoopControlRefs(repository, {
+            roleAgentInstanceId: 'rai-a',
+            templateId: 'tmpl-a',
+            bindingId: 'bind-a',
+            triggerId: 'trg-a',
+            loopIntentId: 'loop-a'
+        });
+        seedLoopControlRefs(repository, {
+            roleAgentInstanceId: 'rai-b',
+            templateId: 'tmpl-b',
+            bindingId: 'bind-b',
+            triggerId: 'trg-b',
+            loopIntentId: 'loop-b'
+        });
+
+        const first = await service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-conflicting-duplicate',
+                agent_id: 'sales-agent',
+                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-conflicting-duplicate' }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-a',
+                workflow_template_id: 'tmpl-a',
+                workflow_binding_id: 'bind-a',
+                trigger_id: 'trg-a',
+                loop_intent_id: 'loop-a',
+                workflow_name: 'SalesTailor営業フォローアップ',
+                status: 'completed'
+            }
+        }));
+
+        await expect(service.ingest(makePayload({
+            runner: {
+                type: 'eve',
+                external_run_id: 'eve-conflicting-duplicate',
+                agent_id: 'sales-agent',
+                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-conflicting-duplicate' }
+            },
+            run: {
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                role_agent_id: 'sales',
+                role_agent_instance_id: 'rai-b',
+                workflow_template_id: 'tmpl-b',
+                workflow_binding_id: 'bind-b',
+                trigger_id: 'trg-b',
+                loop_intent_id: 'loop-b',
+                workflow_name: 'SalesTailor営業フォローアップ',
+                status: 'completed'
+            }
+        }))).rejects.toMatchObject({
+            code: 'duplicate_payload_mismatch',
+            details: {
+                workflow_run_id: first.run.id,
+                surface: 'run'
+            }
+        });
+        expect(repository.listRuns()).toHaveLength(1);
+        expect(repository.listRuns()[0]).toMatchObject({
+            role_agent_instance_id: 'rai-a',
+            loop_intent_id: 'loop-a'
+        });
     });
 
     it('does not collapse distinct Eve run ids that normalize to the same readable prefix', async () => {
@@ -645,8 +1414,8 @@ describe('ExternalRunnerIngestService', () => {
 
         expect(first.status).toBe('created');
         expect(second.status).toBe('created');
-        expect(first.workflow.id).toBe('external_runner_brainbase_sales-agent');
-        expect(second.workflow.id).toBe('external_runner_salestailor_sales-agent');
+        expect(first.workflow.id).toBe('external_runner_brainbase_brainbase_sales-agent');
+        expect(second.workflow.id).toBe('external_runner_salestailor_salestailor_sales-agent');
         expect(repository.listRuns()).toHaveLength(2);
     });
 
@@ -1018,6 +1787,11 @@ describe('ExternalRunnerIngestService', () => {
             visibility: 'owner',
             sensitivity: 'internal',
             body: '営業フォローでは期限と顧客温度感を同時に見る'
+        });
+        expect(created[0].permission_snapshot).toMatchObject({
+            source: 'external_runner',
+            workflow_run_id: result.run.id,
+            org_id: 'brainbase'
         });
         expect(result.learning_candidates).toEqual([
             expect.objectContaining({ id: 'lc-1' })

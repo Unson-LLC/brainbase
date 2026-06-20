@@ -8,7 +8,7 @@ import { AppError } from '../lib/errors.js';
 /** @typedef {{ method?: string, url?: string }} RequestLike */
 /** @typedef {{ headersSent?: boolean, status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
 /** @typedef {(error?: unknown) => unknown} NextLike */
-/** @typedef {{ status?: number, statusCode?: number, message?: string, stack?: string }} BasicError */
+/** @typedef {{ status?: number, statusCode?: number, message?: string, stack?: string, type?: string, body?: unknown }} BasicError */
 
 /**
  * Express error-handling middleware
@@ -26,6 +26,21 @@ export function errorHandler(err, req, res, next) {
         return next(err);
     }
 
+    const normalizedError = /** @type {BasicError} */ (err ?? {});
+
+    if (normalizedError.type === 'entity.parse.failed') {
+        console.error(
+            `[parse_failure] ${req.method} ${req.url}: malformed JSON payload`,
+            { message: normalizedError.message }
+        );
+        return res.status(400).json({
+            error: 'parse_failure',
+            code: 'parse_failure',
+            message: 'Malformed JSON payload',
+            timestamp: new Date().toISOString()
+        });
+    }
+
     if (AppError.isAppError(err)) {
         // 構造化エラー: コード付きレスポンス + 詳細ログ
         console.error(
@@ -36,7 +51,6 @@ export function errorHandler(err, req, res, next) {
     }
 
     // 通常のError: 内部情報を隠して汎用メッセージ
-    const normalizedError = /** @type {BasicError} */ (err ?? {});
     const statusCode = normalizedError.status || normalizedError.statusCode || 500;
     const isClientError = statusCode >= 400 && statusCode < 500;
 

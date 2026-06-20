@@ -13,6 +13,27 @@ function actorFromRequest(req) {
     };
 }
 
+function workflowControlRequested(req) {
+    const prefer = String(req.get('prefer') || req.get('x-brainbase-api-mode') || '').toLowerCase();
+    return req.query.control === '1'
+        || req.query.mode === 'control'
+        || prefer.includes('workflow-control-v0')
+        || prefer.includes('workflow-control');
+}
+
+async function respondWorkflowOrControl({ req, res, workflowService, workflowId, controlResponse }) {
+    const actor = actorFromRequest(req);
+    if (!workflowControlRequested(req)) {
+        try {
+            res.json(await workflowService.getWorkflow(workflowId, actor));
+            return;
+        } catch (error) {
+            if (error?.statusCode !== 404) throw error;
+        }
+    }
+    res.json(await controlResponse(actor));
+}
+
 export function createWorkflowRouter(workflowService) {
     const router = express.Router();
 
@@ -32,6 +53,134 @@ export function createWorkflowRouter(workflowService) {
 
     router.post('/draft/test', asyncHandler(async (req, res) => {
         res.json(await workflowService.testDraft(req.body || {}, actorFromRequest(req)));
+    }));
+
+    function roleAgentQuery(req) {
+        return {
+            orgId: req.query.org_id || req.query.orgId || null,
+            projectId: req.query.project_id || req.query.projectId || null,
+            roleArchetypeId: req.query.role_archetype_id || req.query.roleArchetypeId || null
+        };
+    }
+    function templateQuery(req) {
+        return {
+            orgId: req.query.org_id || req.query.orgId || null,
+            projectId: req.query.project_id || req.query.projectId || null,
+            workflowKind: req.query.workflow_kind || req.query.workflowKind || null
+        };
+    }
+    function bindingQuery(req) {
+        return {
+            orgId: req.query.org_id || req.query.orgId || null,
+            projectId: req.query.project_id || req.query.projectId || null,
+            roleAgentInstanceId: req.query.role_agent_instance_id || req.query.roleAgentInstanceId || null
+        };
+    }
+    function triggerQuery(req) {
+        return {
+            orgId: req.query.org_id || req.query.orgId || null,
+            projectId: req.query.project_id || req.query.projectId || null,
+            workflowBindingId: req.query.workflow_binding_id || req.query.workflowBindingId || null,
+            triggerType: req.query.trigger_type || req.query.triggerType || null
+        };
+    }
+    function loopIntentQuery(req) {
+        return {
+            orgId: req.query.org_id || req.query.orgId || null,
+            projectId: req.query.project_id || req.query.projectId || null,
+            workflowBindingId: req.query.workflow_binding_id || req.query.workflowBindingId || null,
+            triggerId: req.query.trigger_id || req.query.triggerId || null
+        };
+    }
+
+    router.get('/control/role-agents', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
+    }));
+
+    router.post('/control/role-agents', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.createRoleAgentInstance(req.body || {}, actorFromRequest(req)));
+    }));
+
+    router.get('/control/templates', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listWorkflowTemplates(templateQuery(req), actorFromRequest(req)));
+    }));
+
+    router.post('/control/templates', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.createWorkflowTemplate(req.body || {}, actorFromRequest(req)));
+    }));
+
+    router.get('/control/bindings', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listWorkflowBindings(bindingQuery(req), actorFromRequest(req)));
+    }));
+
+    router.post('/control/bindings', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.createWorkflowBinding(req.body || {}, actorFromRequest(req)));
+    }));
+
+    router.get('/control/triggers', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listWorkflowTriggers(triggerQuery(req), actorFromRequest(req)));
+    }));
+
+    router.post('/control/triggers', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.createWorkflowTrigger(req.body || {}, actorFromRequest(req)));
+    }));
+
+    router.get('/control/loop-intents', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listLoopIntents(loopIntentQuery(req), actorFromRequest(req)));
+    }));
+
+    router.post('/control/loop-intents', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.createLoopIntent(req.body || {}, actorFromRequest(req)));
+    }));
+
+    router.get('/role-agents', asyncHandler(async (req, res) => {
+        await respondWorkflowOrControl({
+            req,
+            res,
+            workflowService,
+            workflowId: 'role-agents',
+            controlResponse: (actor) => workflowService.listRoleAgentInstances(roleAgentQuery(req), actor)
+        });
+    }));
+
+    router.get('/templates', asyncHandler(async (req, res) => {
+        await respondWorkflowOrControl({
+            req,
+            res,
+            workflowService,
+            workflowId: 'templates',
+            controlResponse: (actor) => workflowService.listWorkflowTemplates(templateQuery(req), actor)
+        });
+    }));
+
+    router.get('/bindings', asyncHandler(async (req, res) => {
+        await respondWorkflowOrControl({
+            req,
+            res,
+            workflowService,
+            workflowId: 'bindings',
+            controlResponse: (actor) => workflowService.listWorkflowBindings(bindingQuery(req), actor)
+        });
+    }));
+
+    router.get('/triggers', asyncHandler(async (req, res) => {
+        await respondWorkflowOrControl({
+            req,
+            res,
+            workflowService,
+            workflowId: 'triggers',
+            controlResponse: (actor) => workflowService.listWorkflowTriggers(triggerQuery(req), actor)
+        });
+    }));
+
+    router.get('/loop-intents', asyncHandler(async (req, res) => {
+        await respondWorkflowOrControl({
+            req,
+            res,
+            workflowService,
+            workflowId: 'loop-intents',
+            controlResponse: (actor) => workflowService.listLoopIntents(loopIntentQuery(req), actor)
+        });
     }));
 
     router.get('/:workflowId', asyncHandler(async (req, res) => {

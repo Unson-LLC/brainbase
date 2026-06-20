@@ -13,7 +13,12 @@ const EMPTY_LEDGER = {
     human_steps: [],
     outputs: [],
     audit_logs: [],
-    workflow_locks: []
+    workflow_locks: [],
+    role_agent_instances: [],
+    workflow_templates: [],
+    workflow_bindings: [],
+    workflow_triggers: [],
+    loop_intents: []
 };
 
 function clone(value) {
@@ -53,7 +58,12 @@ function readLedgerFile(filePath) {
         human_steps: Array.isArray(parsed.human_steps) ? parsed.human_steps : [],
         outputs: Array.isArray(parsed.outputs) ? parsed.outputs : [],
         audit_logs: Array.isArray(parsed.audit_logs) ? parsed.audit_logs : [],
-        workflow_locks: Array.isArray(parsed.workflow_locks) ? parsed.workflow_locks : []
+        workflow_locks: Array.isArray(parsed.workflow_locks) ? parsed.workflow_locks : [],
+        role_agent_instances: Array.isArray(parsed.role_agent_instances) ? parsed.role_agent_instances : [],
+        workflow_templates: Array.isArray(parsed.workflow_templates) ? parsed.workflow_templates : [],
+        workflow_bindings: Array.isArray(parsed.workflow_bindings) ? parsed.workflow_bindings : [],
+        workflow_triggers: Array.isArray(parsed.workflow_triggers) ? parsed.workflow_triggers : [],
+        loop_intents: Array.isArray(parsed.loop_intents) ? parsed.loop_intents : []
     };
 }
 
@@ -223,6 +233,95 @@ export class InMemoryWorkflowRepository {
         return clone(logs.slice(0, limit));
     }
 
+    async transaction(callback) {
+        const snapshot = clone(this.ledger);
+        try {
+            return await callback();
+        } catch (error) {
+            this.ledger = snapshot;
+            this._persist();
+            throw error;
+        }
+    }
+
+    upsertRoleAgentInstance(agent) {
+        return this._upsertCollectionItem('role_agent_instances', agent);
+    }
+
+    getRoleAgentInstance(agentId) {
+        return this._getCollectionItem('role_agent_instances', agentId);
+    }
+
+    listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}) {
+        return this._listCollectionItems('role_agent_instances')
+            .filter((agent) => !orgId || agent.org_id === orgId)
+            .filter((agent) => !projectId || agent.project_id === projectId)
+            .filter((agent) => !roleArchetypeId || agent.role_archetype_id === roleArchetypeId);
+    }
+
+    upsertWorkflowTemplate(template) {
+        return this._upsertCollectionItem('workflow_templates', template);
+    }
+
+    getWorkflowTemplate(templateId) {
+        return this._getCollectionItem('workflow_templates', templateId);
+    }
+
+    listWorkflowTemplates({ orgId = null, projectId = null, workflowKind = null } = {}) {
+        return this._listCollectionItems('workflow_templates')
+            .filter((template) => !orgId || !template.org_id || template.org_id === orgId)
+            .filter((template) => !projectId || !template.project_id || template.project_id === projectId)
+            .filter((template) => !workflowKind || template.workflow_kind === workflowKind);
+    }
+
+    upsertWorkflowBinding(binding) {
+        return this._upsertCollectionItem('workflow_bindings', binding);
+    }
+
+    getWorkflowBinding(bindingId) {
+        return this._getCollectionItem('workflow_bindings', bindingId);
+    }
+
+    listWorkflowBindings({ orgId = null, projectId = null, roleAgentInstanceId = null } = {}) {
+        return this._listCollectionItems('workflow_bindings')
+            .filter((binding) => !orgId || binding.org_id === orgId)
+            .filter((binding) => !projectId || binding.project_id === projectId)
+            .filter((binding) => !roleAgentInstanceId || binding.role_agent_instance_id === roleAgentInstanceId);
+    }
+
+    upsertWorkflowTrigger(trigger) {
+        return this._upsertCollectionItem('workflow_triggers', trigger);
+    }
+
+    getWorkflowTrigger(triggerId) {
+        return this._getCollectionItem('workflow_triggers', triggerId);
+    }
+
+    listWorkflowTriggers({ orgId = null, projectId = null, workflowBindingId = null, triggerType = null } = {}) {
+        return this._listCollectionItems('workflow_triggers')
+            .filter((trigger) => !orgId || trigger.org_id === orgId)
+            .filter((trigger) => !projectId || trigger.project_id === projectId)
+            .filter((trigger) => !workflowBindingId || trigger.workflow_binding_id === workflowBindingId)
+            .filter((trigger) => !triggerType || trigger.trigger_type === triggerType);
+    }
+
+    upsertLoopIntent(intent) {
+        return this._upsertCollectionItem('loop_intents', intent);
+    }
+
+    getLoopIntent(intentId) {
+        return this._getCollectionItem('loop_intents', intentId);
+    }
+
+    listLoopIntents({ orgId = null, projectId = null, workflowBindingId = null, triggerId = null } = {}) {
+        return this._listCollectionItems('loop_intents')
+            .filter((intent) => !orgId || intent.org_id === orgId)
+            .filter((intent) => !projectId || intent.project_id === projectId)
+            .filter((intent) => !workflowBindingId || intent.workflow_binding_id === workflowBindingId)
+            .filter((intent) => !triggerId || intent.trigger_id === triggerId)
+            .sort((a, b) => String(b.created_at || b.updated_at).localeCompare(String(a.created_at || a.updated_at)));
+    }
+
     acquireWorkflowLock({ workspace_id, workflow_id, locked_by, ttl_ms = 300000 }) {
         const now = Date.now();
         const existingIndex = this.ledger.workflow_locks.findIndex((item) => (
@@ -268,6 +367,7 @@ export class InMemoryWorkflowRepository {
             this.ledger.workflow_context_sources.push({
                 id: source.id || `wctx_${workflow.id}_${index + 1}`,
                 workspace_id: workflow.workspace_id || 'default',
+                org_id: workflow.org_id || source.org_id || null,
                 project_id: workflow.project_id,
                 workflow_id: workflow.id,
                 source_type: source.source_type || source.type || 'unknown',
@@ -280,6 +380,37 @@ export class InMemoryWorkflowRepository {
                 updated_at: nowIso()
             });
         });
+    }
+
+    _upsertCollectionItem(collectionName, item) {
+        if (!item?.id) {
+            throw new Error(`${collectionName}.id is required`);
+        }
+        const now = nowIso();
+        const collection = this.ledger[collectionName];
+        const next = {
+            enabled: true,
+            ...item,
+            updated_at: now,
+            created_at: item.created_at || now
+        };
+        const index = collection.findIndex((current) => current.id === next.id);
+        if (index === -1) {
+            collection.push(next);
+        } else {
+            collection[index] = { ...collection[index], ...next };
+        }
+        this._persist();
+        return clone(next);
+    }
+
+    _getCollectionItem(collectionName, itemId) {
+        const item = this.ledger[collectionName].find((current) => current.id === itemId);
+        return item ? clone(item) : null;
+    }
+
+    _listCollectionItems(collectionName) {
+        return clone(this.ledger[collectionName]);
     }
 
     _persist() {}

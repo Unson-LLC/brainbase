@@ -54,12 +54,19 @@ function firstNonBlank(...values) {
 export class EveRuntimeAdapter {
     normalize(payload) {
         const envelope = validateExternalRunnerEnvelope(payload);
-        const runId = `run_${idPart(envelope.run.project_id)}_${idPart(envelope.runner.type)}_${externalRunIdPart(envelope.runner.external_run_id)}`;
+        const workspaceId = envelope.run.workspace_id || 'default';
+        const orgId = envelope.run.org_id || null;
+        const projectId = envelope.run.project_id;
+        const runScope = orgId ? `${idPart(orgId)}_${idPart(projectId)}` : idPart(projectId);
+        const runId = `run_${runScope}_${idPart(envelope.runner.type)}_${externalRunIdPart(envelope.runner.external_run_id)}`;
         const workflowId = envelope.run.workflow_id
             || envelope.run.selected_workflow_id
-            || `external_runner_${idPart(envelope.run.project_id)}_${idPart(envelope.runner.agent_id)}`;
-        const workspaceId = envelope.run.workspace_id || 'default';
-        const projectId = envelope.run.project_id;
+            || `external_runner_${runScope}_${idPart(envelope.runner.agent_id)}`;
+        const roleAgentInstanceId = envelope.run.role_agent_instance_id || null;
+        const workflowTemplateId = envelope.run.workflow_template_id || null;
+        const workflowBindingId = envelope.run.workflow_binding_id || null;
+        const triggerId = envelope.run.trigger_id || null;
+        const loopIntentId = envelope.run.loop_intent_id || null;
         const status = envelope.run.status;
         const createdAt = envelope.run.started_at || nowIso();
         const finishedAt = envelope.run.finished_at || (status === 'completed' ? nowIso() : null);
@@ -67,6 +74,7 @@ export class EveRuntimeAdapter {
         const workflow = {
             id: workflowId,
             workspace_id: workspaceId,
+            org_id: orgId,
             project_id: projectId,
             name: envelope.run.workflow_name || `${envelope.run.role_agent_id} external runner workflow`,
             description: envelope.run.workflow_description || `External runner workflow for ${envelope.runner.agent_id}`,
@@ -93,8 +101,14 @@ export class EveRuntimeAdapter {
         const run = {
             id: runId,
             workspace_id: workspaceId,
+            org_id: orgId,
             project_id: projectId,
             workflow_id: workflowId,
+            role_agent_instance_id: roleAgentInstanceId,
+            workflow_template_id: workflowTemplateId,
+            workflow_binding_id: workflowBindingId,
+            trigger_id: triggerId,
+            loop_intent_id: loopIntentId,
             status: normalizeRunStatus(status),
             closure_state: normalizeClosureState(status),
             action_required: normalizeActionRequired(status),
@@ -108,8 +122,15 @@ export class EveRuntimeAdapter {
             metadata: {
                 contract_version: envelope.contract_version,
                 runner: envelope.runner,
+                org_id: orgId,
                 role_agent_id: envelope.run.role_agent_id,
+                role_agent_instance_id: roleAgentInstanceId,
+                workflow_template_id: workflowTemplateId,
+                workflow_binding_id: workflowBindingId,
+                trigger_id: triggerId,
+                loop_intent_id: loopIntentId,
                 selected_workflow_reason: envelope.run.selected_workflow_reason || null,
+                eligibility: envelope.run.eligibility || null,
                 judgment_dag_trace: envelope.judgment_dag_trace || null,
                 loop_control: envelope.loop_control
             }
@@ -118,6 +139,7 @@ export class EveRuntimeAdapter {
         const contextSnapshots = envelope.context_sources.map((source, index) => ({
             id: source.snapshot_id || `ctxsnap_${runId}_${index + 1}`,
             workspace_id: workspaceId,
+            org_id: orgId,
             project_id: projectId,
             workflow_id: workflowId,
             workflow_run_id: runId,
@@ -137,6 +159,7 @@ export class EveRuntimeAdapter {
             return {
                 id: step.id || `human_${runId}_${index + 1}`,
                 workspace_id: workspaceId,
+                org_id: orgId,
                 project_id: projectId,
                 workflow_id: workflowId,
                 workflow_run_id: runId,
@@ -158,6 +181,7 @@ export class EveRuntimeAdapter {
         const outputs = (envelope.outputs || []).map((output, index) => ({
             id: output.id || `output_${runId}_${index + 1}`,
             workspace_id: workspaceId,
+            org_id: orgId,
             project_id: projectId,
             workflow_id: workflowId,
             workflow_run_id: runId,
@@ -175,6 +199,7 @@ export class EveRuntimeAdapter {
         const auditEvents = [
             {
                 workspace_id: workspaceId,
+                org_id: orgId,
                 project_id: projectId,
                 actor_id: envelope.runner.agent_id,
                 action: 'external_runner.ingested',
@@ -182,13 +207,20 @@ export class EveRuntimeAdapter {
                 target_id: runId,
                 after: {
                     contract_version: envelope.contract_version,
+                    org_id: orgId,
                     runner_type: envelope.runner.type,
                     external_run_id: envelope.runner.external_run_id,
-                    eve_trace_ref: envelope.runner.eve?.trace_ref || null
+                    eve_trace_ref: envelope.runner.eve?.trace_ref || null,
+                    role_agent_instance_id: roleAgentInstanceId,
+                    workflow_template_id: workflowTemplateId,
+                    workflow_binding_id: workflowBindingId,
+                    trigger_id: triggerId,
+                    loop_intent_id: loopIntentId
                 }
             },
             ...envelope.rounds.map((round) => ({
                 workspace_id: workspaceId,
+                org_id: orgId,
                 project_id: projectId,
                 actor_id: envelope.runner.agent_id,
                 action: 'external_runner.round_recorded',
@@ -206,8 +238,16 @@ export class EveRuntimeAdapter {
             redaction_status: candidate.redaction_status || 'not_required',
             confidence: candidate.confidence || null,
             source: 'external_runner',
-            project_id: candidate.project_id || projectId,
+            org_ids: orgId ? [orgId] : [],
+            project_ids: projectId ? [projectId] : [],
+            project_id: projectId,
             workflow_run_id: candidate.workflow_run_id || runId,
+            org_id: orgId,
+            role_agent_instance_id: roleAgentInstanceId,
+            workflow_template_id: workflowTemplateId,
+            workflow_binding_id: workflowBindingId,
+            trigger_id: triggerId,
+            loop_intent_id: loopIntentId,
             evidence_refs: candidate.evidence_refs || [],
             owner_person_id: candidate.owner_person_id || envelope.loop_control.owner_id,
             actor_person_id: candidate.actor_person_id || envelope.runner.agent_id

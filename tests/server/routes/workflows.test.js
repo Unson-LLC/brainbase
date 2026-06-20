@@ -26,7 +26,7 @@ function makeApp({ handlers = createDefaultWorkflowHandlers(), accessProjectCode
             return {
                 root: '/workspace',
                 projects: [
-                    { id: 'sample-project', session_select: true, aliases: ['sample'] },
+                    { id: 'sample-project', session_select: true, aliases: ['sample', 'salestailor'] },
                     { id: 'archived-project', archived: true }
                 ]
             };
@@ -730,6 +730,225 @@ describe('workflow routes', () => {
             status: 'success',
             closure_state: 'closed'
         });
+    });
+
+    it('exposes org role-agent control routes under the control namespace', async () => {
+        const { app, repository } = makeApp();
+
+        const agentRes = await request(app)
+            .post('/api/workflows/control/role-agents')
+            .send({
+                id: 'rai-salestailor-sales',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                role_archetype_id: 'sales',
+                name: 'SalesTailor Sales Agent',
+                context_policy: { graph_refs: ['org:salestailor'] },
+                tool_scope: { allow: ['crm.read', 'gmail.draft'], deny: ['gmail.send'] },
+                workflow_constraints: { external_send_requires_approval: true }
+            })
+            .expect(201);
+        expect(agentRes.body.role_agent_instance).toMatchObject({
+            id: 'rai-salestailor-sales',
+            org_id: 'salestailor',
+            project_id: 'sample-project',
+            role_archetype_id: 'sales',
+            owner_id: 'sato',
+            context_policy: { graph_refs: ['org:salestailor'] },
+            tool_scope: { allow: ['crm.read', 'gmail.draft'], deny: ['gmail.send'] },
+            workflow_constraints: { external_send_requires_approval: true }
+        });
+
+        await request(app)
+            .post('/api/workflows/control/templates')
+            .send({
+                id: 'tmpl-sales-followup',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                name: 'Sales Followup',
+                workflow_kind: 'sales',
+                judgment_dag_id: 'sales-followup-v1'
+            })
+            .expect(201);
+
+        const bindingRes = await request(app)
+            .post('/api/workflows/control/bindings')
+            .send({
+                id: 'bind-salestailor-sales-followup',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                role_agent_instance_id: 'rai-salestailor-sales',
+                workflow_template_id: 'tmpl-sales-followup',
+                autonomy_level: 'approval_required',
+                workflow_selection_reason: '顧客接触期限を見て営業Agentが選ぶ'
+            })
+            .expect(201);
+        expect(bindingRes.body.workflow_binding).toMatchObject({
+            org_id: 'salestailor',
+            autonomy_level: 'approval_required',
+            judgment_dag_id: 'sales-followup-v1',
+            workflow_selection_reason: '顧客接触期限を見て営業Agentが選ぶ'
+        });
+
+        const triggerRes = await request(app)
+            .post('/api/workflows/control/triggers')
+            .send({
+                id: 'trg-salestailor-human-sales',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_type: 'human',
+                name: 'Human sales request'
+            })
+            .expect(201);
+        expect(triggerRes.body.workflow_trigger).toMatchObject({
+            trigger_type: 'human',
+            org_id: 'salestailor'
+        });
+
+        const intentRes = await request(app)
+            .post('/api/workflows/control/loop-intents')
+            .send({
+                id: 'loop-salestailor-human-sales',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                workflow_binding_id: 'bind-salestailor-sales-followup',
+                trigger_id: 'trg-salestailor-human-sales',
+                input_summary: 'フォローアップ対象を洗い出す',
+                input_payload: {
+                    source: 'human',
+                    customer_ids: ['cus_salestailor_001'],
+                    requested_output: 'draft_followup'
+                }
+            })
+            .expect(201);
+        expect(intentRes.body.loop_intent).toMatchObject({
+            org_id: 'salestailor',
+            role_agent_instance_id: 'rai-salestailor-sales',
+            workflow_template_id: 'tmpl-sales-followup',
+            input_summary: 'フォローアップ対象を洗い出す',
+            input_payload: {
+                source: 'human',
+                customer_ids: ['cus_salestailor_001'],
+                requested_output: 'draft_followup'
+            },
+            selected_workflow_reason: '顧客接触期限を見て営業Agentが選ぶ',
+            eligibility: {
+                status: 'needs_approval',
+                autonomy_level: 'approval_required',
+                requires_human_approval: true
+            }
+        });
+
+        const listRes = await request(app)
+            .get('/api/workflows/control/role-agents?org_id=salestailor')
+            .expect(200);
+        expect(listRes.body.role_agent_instances).toHaveLength(1);
+        expect(repository.listAuditLogs({ targetId: 'loop-salestailor-human-sales' })).toEqual([
+            expect.objectContaining({ action: 'workflow.loop_intent.created', target_type: 'loop_intent' })
+        ]);
+    });
+
+    it('keeps existing workflow-id GET semantics for legacy control path names', async () => {
+        const { app } = makeApp();
+
+        await request(app)
+            .post('/api/workflows')
+            .send({
+                id: 'role-agents',
+                name: 'Legacy Role Agents Workflow',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+
+        const workflowRes = await request(app)
+            .get('/api/workflows/role-agents')
+            .expect(200);
+        expect(workflowRes.body.workflow).toMatchObject({
+            id: 'role-agents',
+            name: 'Legacy Role Agents Workflow'
+        });
+
+        const legacyControlRes = await request(app)
+            .get('/api/workflows/role-agents?control=1&project_id=sample-project')
+            .expect(200);
+        expect(legacyControlRes.body.role_agent_instances).toEqual([]);
+
+        const canonicalControlRes = await request(app)
+            .get('/api/workflows/control/role-agents?project_id=sample-project')
+            .expect(200);
+        expect(canonicalControlRes.body.role_agent_instances).toEqual([]);
+    });
+
+    it('keeps workflow control POST writes scoped to the canonical control namespace', async () => {
+        const { app, repository } = makeApp();
+
+        await request(app)
+            .post('/api/workflows/role-agents')
+            .send({
+                id: 'rai-legacy-post-alias',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                role_archetype_id: 'sales',
+                name: 'Legacy POST Alias Agent'
+            })
+            .expect(404);
+
+        expect(repository.listRoleAgentInstances({ projectId: 'sample-project' })).toEqual([]);
+
+        await request(app)
+            .post('/api/workflows/control/role-agents')
+            .send({
+                id: 'rai-canonical-control',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                role_archetype_id: 'sales',
+                name: 'Canonical Control Agent'
+            })
+            .expect(201);
+
+        expect(repository.listRoleAgentInstances({ projectId: 'sample-project' })).toEqual([
+            expect.objectContaining({ id: 'rai-canonical-control' })
+        ]);
+    });
+
+    it('denies workflow template create and list paths when project grants are empty', async () => {
+        const { app, repository } = makeApp({ accessProjectCodes: [] });
+
+        await request(app)
+            .post('/api/workflows/control/templates')
+            .send({
+                id: 'tmpl-denied-project',
+                org_id: 'salestailor',
+                project_id: 'sample-project',
+                name: 'Denied Project Template',
+                workflow_kind: 'sales'
+            })
+            .expect(403);
+
+        await request(app)
+            .post('/api/workflows/control/templates')
+            .send({
+                id: 'tmpl-denied-global',
+                name: 'Denied Global Template',
+                workflow_kind: 'sales'
+            })
+            .expect(403);
+
+        repository.upsertWorkflowTemplate({
+            id: 'tmpl-hidden-project',
+            workspace_id: 'default',
+            org_id: 'salestailor',
+            project_id: 'sample-project',
+            name: 'Hidden Project Template',
+            workflow_kind: 'sales'
+        });
+
+        const res = await request(app)
+            .get('/api/workflows/control/templates?org_id=salestailor')
+            .expect(200);
+
+        expect(res.body.workflow_templates).toEqual([]);
     });
 
     it('documents workflow API auth mounting in register-api-routes', () => {

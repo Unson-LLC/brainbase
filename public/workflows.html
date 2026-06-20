@@ -365,7 +365,8 @@
             workflowDetail: null,
             runDetail: null,
             workflowDraft: null,
-            workflowDraftTest: null
+            workflowDraftTest: null,
+            workflowControl: {}
         };
         const views = {
             workspace: document.getElementById('workspace-view'),
@@ -483,6 +484,142 @@
             const failed = workflows.filter((workflow) => workflow.latest_run?.status === 'failed').length;
             return { workflows, contextCount, human, action, failed };
         }
+        const WORKFLOW_CONTROL_ENDPOINTS = {
+            'role-agents': '/api/workflows/control/role-agents',
+            templates: '/api/workflows/control/templates',
+            bindings: '/api/workflows/control/bindings',
+            triggers: '/api/workflows/control/triggers',
+            'loop-intents': '/api/workflows/control/loop-intents'
+        };
+        function controlEndpoint(resource, params = {}) {
+            const query = new URLSearchParams();
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && String(value).trim() !== '') {
+                    query.set(key, value);
+                }
+            });
+            const endpoint = WORKFLOW_CONTROL_ENDPOINTS[resource] || `/api/workflows/control/${resource}`;
+            return `${endpoint}${query.toString() ? `?${query}` : ''}`;
+        }
+        function controlResourceData(projectId) {
+            return state.workflowControl[projectId] || null;
+        }
+        function summarizeJson(value) {
+            if (!value || typeof value !== 'object') return '';
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return '';
+            }
+        }
+        function optionList(items, labelKey = 'name', labelFormatter) {
+            return (items || []).map((item) => {
+                const label = labelFormatter ? labelFormatter(item) : (item[labelKey] || item.name || item.id);
+                return `<option value="${escapeHtml(item.id)}">${escapeHtml(label || item.id)}</option>`;
+            }).join('');
+        }
+        function roleAgentOptionLabel(agent) {
+            const policy = agent.context_policy?.customer_scope || agent.context_policy?.graph_refs?.join(',');
+            const tools = agent.tool_scope?.allow?.join(',');
+            const constraints = agent.workflow_constraints?.max_autonomy_level;
+            return [agent.name || agent.id, agent.org_id, agent.role_archetype_id, policy && `context:${policy}`, tools && `tools:${tools}`, constraints && `max:${constraints}`].filter(Boolean).join(' · ');
+        }
+        function bindingOptionLabel(binding) {
+            const status = binding.enabled === false ? 'disabled' : 'enabled';
+            return [binding.name || binding.id, status, binding.autonomy_level, binding.workflow_selection_reason].filter(Boolean).join(' · ');
+        }
+        function triggerOptionLabel(trigger) {
+            const status = trigger.enabled === false ? 'disabled' : 'enabled';
+            return [trigger.name || trigger.id, status, trigger.trigger_type, trigger.workflow_binding_id].filter(Boolean).join(' · ');
+        }
+        function compactList(items, emptyText, formatter) {
+            return (items || []).length
+                ? items.map(formatter).join('')
+                : `<div class="empty">${escapeHtml(emptyText)}</div>`;
+        }
+        function renderWorkflowControlPanel(projectId) {
+            const panel = document.getElementById('workflow-control-panel');
+            if (!panel) return;
+            const data = controlResourceData(projectId);
+            if (!data) {
+                panel.innerHTML = '<div class="panel-title"><h3>Agent Loop Control</h3><span class="badge">loading</span></div><div class="empty">Loading role agents and loop controls...</div>';
+                return;
+            }
+            if (data.error) {
+                panel.innerHTML = `<div class="panel-title"><h3>Agent Loop Control</h3><span class="badge bad">error</span></div><div class="error">${escapeHtml(data.error)}</div>`;
+                return;
+            }
+            const agents = data.role_agent_instances || [];
+            const templates = data.workflow_templates || [];
+            const bindings = data.workflow_bindings || [];
+            const triggers = data.workflow_triggers || [];
+            const intents = data.loop_intents || [];
+            const bindingOptions = optionList(bindings, 'name', bindingOptionLabel);
+            panel.innerHTML = `
+                <div class="panel-title"><h3>Agent Loop Control</h3><span class="badge">${agents.length} agents · ${intents.length} intents</span></div>
+                <div class="trace-list" style="margin-bottom:14px;">
+                    ${compactList(agents, 'No role agents', (agent) => {
+                        const contextPolicy = summarizeJson(agent.context_policy);
+                        const toolScope = summarizeJson(agent.tool_scope);
+                        const constraints = summarizeJson(agent.workflow_constraints);
+                        const approvalOwner = agent.default_approver_id || agent.default_approval_owner_id;
+                        return `<div class="trace-item"><strong>${escapeHtml(agent.name || agent.id)}</strong><div class="sub">${escapeHtml(agent.org_id || '-')} · ${escapeHtml(agent.role_archetype_id || '-')} · ${escapeHtml(agent.project_id || '-')} · ${escapeHtml(agent.enabled === false ? 'disabled' : 'enabled')}</div>${contextPolicy ? `<div class="sub">context_policy · ${escapeHtml(contextPolicy)}</div>` : ''}${toolScope ? `<div class="sub">tool_scope · ${escapeHtml(toolScope)}</div>` : ''}${constraints ? `<div class="sub">workflow_constraints · ${escapeHtml(constraints)}</div>` : ''}${agent.owner_id || approvalOwner ? `<div class="sub">owner · ${escapeHtml(agent.owner_id || '-')} · approval ${escapeHtml(approvalOwner || '-')}</div>` : ''}</div>`;
+                    })}
+                    ${compactList(bindings, 'No workflow bindings', (binding) => `<div class="trace-item"><strong>${escapeHtml(binding.name || binding.id)}</strong><div class="sub">${escapeHtml(binding.role_agent_instance_id || '-')} -> ${escapeHtml(binding.workflow_template_id || '-')}</div><div class="sub">${escapeHtml(binding.autonomy_level || '-')} · ${escapeHtml(binding.enabled === false ? 'disabled' : 'enabled')} · ${escapeHtml(binding.workflow_selection_reason || 'no selection reason')}</div></div>`)}
+                    ${compactList(triggers, 'No triggers', (trigger) => `<div class="trace-item"><strong>${escapeHtml(trigger.name || trigger.id)}</strong><div class="sub">${escapeHtml(trigger.trigger_type || '-')} · ${escapeHtml(trigger.workflow_binding_id || '-')} · ${escapeHtml(trigger.enabled === false ? 'disabled' : 'enabled')}</div></div>`)}
+                    ${compactList(intents, 'No loop intents', (intent) => {
+                        const eligibility = intent.eligibility || {};
+                        const reasons = Array.isArray(eligibility.reasons) ? eligibility.reasons.join(' · ') : '';
+                        const inputPayload = intent.input_payload ? JSON.stringify(intent.input_payload) : '';
+                        return `<div class="trace-item"><strong>${escapeHtml(intent.id)}</strong><div class="sub">${escapeHtml(intent.trigger_type || '-')} · ${escapeHtml(eligibility.status || '-')} · approval ${eligibility.requires_human_approval ? 'required' : 'not required'}</div>${intent.input_summary ? `<div class="sub">${escapeHtml(intent.input_summary)}</div>` : ''}${inputPayload ? `<div class="sub">${escapeHtml(inputPayload)}</div>` : ''}${reasons ? `<div class="sub">${escapeHtml(reasons)}</div>` : ''}</div>`;
+                    })}
+                </div>
+                <form class="field-grid" data-workflow-control-resource="role-agents">
+                    <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
+                    <label>Org<input name="org_id" required value="${escapeHtml(projectId)}"></label>
+                    <label>Role<input name="role_archetype_id" required placeholder="sales"></label>
+                    <label class="full">Agent name<input name="name" required placeholder="Sales Agent"></label>
+                    <label class="full">Context policy<textarea name="context_policy" placeholder='{"graph_refs":["org:salestailor"],"customer_scope":"salestailor:active_accounts"}'></textarea></label>
+                    <label class="full">Tool scope<textarea name="tool_scope" placeholder='{"allow":["crm.read","gmail.draft"],"deny":["gmail.send"]}'></textarea></label>
+                    <label class="full">Workflow constraints<textarea name="workflow_constraints" placeholder='{"max_autonomy_level":"approval_required","external_send_requires_approval":true}'></textarea></label>
+                    <div class="full toolbar"><button class="btn soft" type="submit">Add Role Agent</button></div>
+                </form>
+                <form class="field-grid" data-workflow-control-resource="templates" style="margin-top:12px;">
+                    <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
+                    <label>Kind<input name="workflow_kind" required value="operational"></label>
+                    <label>Template name<input name="name" required placeholder="Sales Followup"></label>
+                    <div class="full toolbar"><button class="btn soft" type="submit">Add Template</button></div>
+                </form>
+                <form class="field-grid" data-workflow-control-resource="bindings" style="margin-top:12px;">
+                    <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
+                    <label>Org<input name="org_id" required value="${escapeHtml(projectId)}"></label>
+                    <label>Autonomy<select name="autonomy_level"><option value="approval_required">approval_required</option><option value="human_only">human_only</option><option value="draft_only">draft_only</option><option value="auto_execute">auto_execute</option></select></label>
+                    <label>Binding enabled<select name="enabled"><option value="true">enabled</option><option value="false">disabled</option></select></label>
+                    <label>Role Agent<select name="role_agent_instance_id" required>${optionList(agents, 'name', roleAgentOptionLabel)}</select></label>
+                    <label>Template<select name="workflow_template_id" required>${optionList(templates)}</select></label>
+                    <label class="full">Selection reason<input name="workflow_selection_reason" placeholder="顧客接触期限を見て営業Agentが選ぶ"></label>
+                    <div class="full toolbar"><button class="btn soft" type="submit" ${agents.length && templates.length ? '' : 'disabled'}>Bind Workflow</button></div>
+                </form>
+                <form class="field-grid" data-workflow-control-resource="triggers" style="margin-top:12px;">
+                    <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
+                    <label>Org<input name="org_id" required value="${escapeHtml(projectId)}"></label>
+                    <label>Trigger<select name="trigger_type"><option value="human">human</option><option value="event">event</option><option value="schedule">schedule</option></select></label>
+                    <label>Trigger enabled<select name="enabled"><option value="true">enabled</option><option value="false">disabled</option></select></label>
+                    <label class="full">Binding<select name="workflow_binding_id" required>${bindingOptions}</select></label>
+                    <div class="full toolbar"><button class="btn soft" type="submit" ${bindings.length ? '' : 'disabled'}>Add Trigger</button></div>
+                </form>
+                <form class="field-grid" data-workflow-control-resource="loop-intents" style="margin-top:12px;">
+                    <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
+                    <label>Org<input name="org_id" required value="${escapeHtml(projectId)}"></label>
+                    <label>Binding<select name="workflow_binding_id" required>${bindingOptions}</select></label>
+                    <label>Trigger<select name="trigger_id"><option value="">manual</option>${optionList(triggers, 'name', triggerOptionLabel)}</select></label>
+                    <label>Blocked reasons<input name="blocked_reasons" placeholder="comma separated"></label>
+                    <label class="full">Input summary<input name="input_summary" placeholder="フォローアップ対象を洗い出す"></label>
+                    <label class="full">Input payload<textarea name="input_payload" placeholder='{"source":"human","customer_ids":["cus_123"]}'></textarea></label>
+                    <div class="full toolbar"><button class="btn primary" type="submit" ${bindings.length ? '' : 'disabled'}>Create Loop Intent</button><span class="draft-status" id="workflow-control-status"></span></div>
+                </form>
+            `;
+        }
         function orderedWorkflows() {
             const priority = (workflow) => {
                 const run = workflow.latest_run || {};
@@ -590,20 +727,23 @@
                         <div class="section-title"><h2>ワークフロー</h2></div>
                         <div class="stack">${workflows.map(renderWorkflowCard).join('') || '<div class="empty">No workflows in this project</div>'}</div>
                     </section>
-                    <section class="panel">
-                        <div class="panel-title"><h3>Workflow Draft Builder</h3><span class="badge">Project固定</span></div>
-                        <form id="workflow-draft-form" class="field-grid">
-                            <label class="full">やりたいこと<textarea name="prompt" required placeholder="例: 毎朝、予定と未完了タスクをまとめるワークフローを作りたい"></textarea></label>
-                            <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
-                            <div class="full toolbar">
-                                <button class="btn primary" type="submit">Generate Draft</button>
-                                <button class="btn soft" type="button" data-action="test-draft" disabled>Test</button>
-                                <button class="btn soft" type="button" data-action="publish-draft" disabled>Publish</button>
-                            </div>
-                        </form>
-                        <div class="draft-status" id="workflow-draft-status"></div>
-                        <div class="draft-preview" id="workflow-draft-preview"></div>
-                    </section>
+                    <aside class="stack">
+                        <section class="panel">
+                            <div class="panel-title"><h3>Workflow Draft Builder</h3><span class="badge">Project固定</span></div>
+                            <form id="workflow-draft-form" class="field-grid">
+                                <label class="full">やりたいこと<textarea name="prompt" required placeholder="例: 毎朝、予定と未完了タスクをまとめるワークフローを作りたい"></textarea></label>
+                                <input type="hidden" name="project_id" value="${escapeHtml(projectId)}">
+                                <div class="full toolbar">
+                                    <button class="btn primary" type="submit">Generate Draft</button>
+                                    <button class="btn soft" type="button" data-action="test-draft" disabled>Test</button>
+                                    <button class="btn soft" type="button" data-action="publish-draft" disabled>Publish</button>
+                                </div>
+                            </form>
+                            <div class="draft-status" id="workflow-draft-status"></div>
+                            <div class="draft-preview" id="workflow-draft-preview"></div>
+                        </section>
+                        <section class="panel" id="workflow-control-panel"></section>
+                    </aside>
                 </div>
                 <section class="section-title"><h2>ドキュメント / Context</h2></section>
                 <div class="row-table">
@@ -612,6 +752,8 @@
                 </div>
             `;
             setView('project');
+            renderWorkflowControlPanel(projectId);
+            loadWorkflowControl(projectId);
         }
         async function renderWorkflow(workflowId) {
             state.selectedWorkflowId = workflowId;
@@ -676,11 +818,35 @@
             const dagNodes = Array.isArray(judgmentDag.nodes) ? judgmentDag.nodes : [];
             const dagEvidence = Array.isArray(judgmentDag.evidence_refs) ? judgmentDag.evidence_refs : [];
             const loopControl = runMetadata.loop_control && typeof runMetadata.loop_control === 'object' ? runMetadata.loop_control : {};
+            const eligibility = run.eligibility || runMetadata.eligibility || {};
+            const eligibilityLabel = eligibility && typeof eligibility === 'object'
+                ? [eligibility.status, eligibility.autonomy_level].filter(Boolean).join(' · ')
+                : eligibility;
+            const eligibilityReasons = eligibility && typeof eligibility === 'object' && Array.isArray(eligibility.reasons)
+                ? eligibility.reasons.join(' · ')
+                : '';
+            const eligibilityApproval = eligibility && typeof eligibility === 'object' && eligibility.requires_human_approval !== undefined
+                ? (eligibility.requires_human_approval ? 'required' : 'not required')
+                : '';
             const stopConditionSource = run.stop_conditions || runMetadata.stop_conditions || loopControl.stop_conditions;
             const stopConditions = Array.isArray(stopConditionSource) ? stopConditionSource : [];
+            const inputPayload = run.input_payload || runMetadata.input_payload || loopControl.input_payload;
+            const inputPayloadSummary = summarizeJson(inputPayload);
             const decisionMeta = [
+                ['Org', run.org_id || runMetadata.org_id],
+                ['Project', run.project_id || runMetadata.project_id],
                 ['Role Agent', run.role_agent_id || runMetadata.role_agent_id],
+                ['Role Agent Instance', run.role_agent_instance_id || runMetadata.role_agent_instance_id],
+                ['Workflow Template', run.workflow_template_id || runMetadata.workflow_template_id],
+                ['Workflow Binding', run.workflow_binding_id || runMetadata.workflow_binding_id],
+                ['Trigger', run.trigger_id || runMetadata.trigger_id],
+                ['Loop Intent', run.loop_intent_id || runMetadata.loop_intent_id],
+                ['Eligibility', eligibilityLabel],
+                ['Eligibility Approval', eligibilityApproval],
+                ['Eligibility Reasons', eligibilityReasons],
                 ['Workflow Reason', run.selected_workflow_reason || runMetadata.selected_workflow_reason],
+                ['Run Message', run.message || runMetadata.message],
+                ['Input Payload', inputPayloadSummary],
                 ['Judgment DAG', [judgmentDag.dag_id, judgmentDag.version || judgmentDag.dag_version].filter(Boolean).join(' · ')],
                 ['DAG Nodes', dagNodes.join(' · ')],
                 ['DAG Evidence', dagEvidence.join(' · ')],
@@ -893,6 +1059,86 @@
             await load({ keepView: true });
             await renderRun(result.resumed_run?.id || runId);
         }
+        async function fetchControlJson(resource, projectId) {
+            const response = await apiFetch(controlEndpoint(resource, { project_id: projectId }));
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+            return data;
+        }
+        async function loadWorkflowControl(projectId) {
+            try {
+                const [
+                    roleAgents,
+                    templates,
+                    bindings,
+                    triggers,
+                    intents
+                ] = await Promise.all([
+                    fetchControlJson('role-agents', projectId),
+                    fetchControlJson('templates', projectId),
+                    fetchControlJson('bindings', projectId),
+                    fetchControlJson('triggers', projectId),
+                    fetchControlJson('loop-intents', projectId)
+                ]);
+                state.workflowControl[projectId] = {
+                    role_agent_instances: roleAgents.role_agent_instances || [],
+                    workflow_templates: templates.workflow_templates || [],
+                    workflow_bindings: bindings.workflow_bindings || [],
+                    workflow_triggers: triggers.workflow_triggers || [],
+                    loop_intents: intents.loop_intents || []
+                };
+            } catch (error) {
+                state.workflowControl[projectId] = { error: error.message };
+            }
+            if (state.selectedProjectId === projectId) renderWorkflowControlPanel(projectId);
+        }
+        function controlPayloadFromForm(form) {
+            const formData = new FormData(form);
+            const payload = {};
+            formData.forEach((value, key) => {
+                const text = String(value || '').trim();
+                if (!text) return;
+                if (key === 'blocked_reasons') {
+                    payload.blocked_reasons = text.split(',').map((item) => item.trim()).filter(Boolean);
+                    return;
+                }
+                if (['context_policy', 'tool_scope', 'workflow_constraints', 'input_payload'].includes(key)) {
+                    try {
+                        payload[key] = JSON.parse(text);
+                    } catch {
+                        throw new Error(`${key} must be valid JSON`);
+                    }
+                    return;
+                }
+                if (key === 'enabled') {
+                    payload.enabled = text !== 'false';
+                    return;
+                }
+                payload[key] = text;
+            });
+            return payload;
+        }
+        async function createWorkflowControlItem(form) {
+            const resource = form.dataset.workflowControlResource;
+            const projectId = String(new FormData(form).get('project_id') || state.selectedProjectId || '').trim();
+            const statusEl = document.getElementById('workflow-control-status');
+            if (!resource || !projectId) return;
+            if (statusEl) statusEl.textContent = 'Saving...';
+            try {
+                const response = await apiFetch(controlEndpoint(resource), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(controlPayloadFromForm(form))
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+                if (statusEl) statusEl.textContent = 'Saved';
+                await loadWorkflowControl(projectId);
+                form.reset();
+            } catch (error) {
+                if (statusEl) statusEl.textContent = `保存できません: ${error.message}`;
+            }
+        }
         async function load({ keepView = false } = {}) {
             if (!keepView) {
                 views.workspace.innerHTML = '<div class="empty">Loading workflows...</div>';
@@ -959,6 +1205,11 @@
             }
         });
         document.addEventListener('submit', async (event) => {
+            if (event.target.dataset.workflowControlResource) {
+                event.preventDefault();
+                await createWorkflowControlItem(event.target);
+                return;
+            }
             if (event.target.id !== 'workflow-draft-form') return;
             event.preventDefault();
             await generateWorkflowDraft(event.target);

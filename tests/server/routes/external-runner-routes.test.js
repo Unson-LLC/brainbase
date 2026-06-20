@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createExternalRunnerRouter } from '../../../server/routes/external-runner.js';
 import { requireAuth } from '../../../server/middleware/auth.js';
 import { csrfMiddleware } from '../../../server/middleware/csrf.js';
+import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { ExternalRunnerIngestService } from '../../../server/services/external-runner/ingest-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 
@@ -38,6 +39,7 @@ function createGuardedApp() {
     };
     app.use(express.json());
     app.use('/api/external-runner', requireAuth(authService), createExternalRunnerRouter(ingestService));
+    app.use(errorHandler);
     return { app, repository };
 }
 
@@ -51,6 +53,7 @@ function makePayload() {
             eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-route-001' }
         },
         run: {
+            org_id: 'brainbase',
             project_id: 'brainbase',
             role_agent_id: 'marketing',
             workflow_id: 'wf_marketing_post',
@@ -79,7 +82,7 @@ function makePayload() {
 
 function expectRunIdForExternalRun(runId, externalRunId) {
     const readable = String(externalRunId || 'unknown').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 80);
-    expect(runId).toMatch(new RegExp(`^run_brainbase_eve_${readable}_[a-f0-9]{12}$`));
+    expect(runId).toMatch(new RegExp(`^run_brainbase_brainbase_eve_${readable}_[a-f0-9]{12}$`));
 }
 
 describe('external runner routes', () => {
@@ -140,6 +143,23 @@ describe('external runner routes', () => {
         expect(repository.getRun(response.body.run.id)).toMatchObject({
             workflow_id: 'wf_marketing_post'
         });
+    });
+
+    it('returns parse_failure for malformed JSON before persistence', async () => {
+        const { app, repository } = createGuardedApp();
+
+        const response = await request(app)
+            .post('/api/external-runner/ingest')
+            .set('Authorization', 'Bearer valid-token')
+            .set('Content-Type', 'application/json')
+            .send('{"contract_version":')
+            .expect(400);
+
+        expect(response.body).toMatchObject({
+            error: 'parse_failure',
+            code: 'parse_failure'
+        });
+        expect(repository.listRuns()).toHaveLength(0);
     });
 
     it('rejects bearer owner and approver spoofing before persistence', async () => {
@@ -365,6 +385,7 @@ describe('external runner routes', () => {
     it('denies authenticated external runner ingest for inaccessible projects', async () => {
         const { app, repository } = createGuardedApp();
         const payload = makePayload();
+        payload.run.org_id = 'salestailor';
         payload.run.project_id = 'salestailor';
 
         const response = await request(app)
