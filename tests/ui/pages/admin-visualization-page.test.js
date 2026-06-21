@@ -18,6 +18,17 @@ describe('admin visualization page', () => {
         expect(SOURCE_CLASS_LABELS.personal_kg).toBe('個人KG');
     });
 
+    it('Contract-6: admin shell is the primary operating surface without a normal-screen escape link', () => {
+        const root = document.createElement('div');
+        const page = new AdminPage({ root, fetchImpl: async () => ({ ok: true, json: async () => ({}) }), storage: { getItem: () => null } });
+
+        root.innerHTML = page.shell();
+
+        expect(root.querySelector('a[href="/"]')).toBeNull();
+        expect(root.textContent).not.toContain('通常画面');
+        expect(root.querySelector('[data-refresh]')?.textContent).toContain('再読み込み');
+    });
+
     it('INV-7: getAuthHeaders reuses existing Brainbase auth token without inventing auth state', () => {
         const storage = { getItem: (key) => key === 'brainbase.auth.token' ? 'token-123' : null };
         expect(getAuthHeaders(storage)).toEqual({ Authorization: 'Bearer token-123' });
@@ -101,6 +112,38 @@ describe('admin visualization page', () => {
         expect(root.textContent).toContain('除外理由');
         expect(root.textContent).toContain('private_scope_denied: 1');
         expect(root.textContent).toContain('philosophy: 含む');
+    });
+
+    it('Contract-4 S-4: denied memory count remains visible when reason buckets are unavailable', async () => {
+        const root = document.createElement('div');
+        const fetchImpl = async (url) => {
+            if (url === '/api/csrf-token') return { ok: true, json: async () => ({ token: 'csrf-123' }) };
+            return {
+                ok: true,
+                json: async () => ({
+                    source_class: 'ai_context',
+                    status: 'available',
+                    preview: {
+                        project_code: 'brainbase',
+                        entity_count: 0,
+                        edge_count: 0,
+                        report_preview: '',
+                        included: [],
+                        memory: { included_count: 0, denied_count: 2, denied_reasons: {} },
+                        philosophy_context: { included_in_agent_context: false }
+                    }
+                })
+            };
+        };
+        const page = new AdminPage({ root, fetchImpl, storage: { getItem: () => null } });
+        root.innerHTML = page.shell();
+        root.querySelector('[name="includeMemory"]').checked = true;
+
+        await page.loadContext();
+
+        expect(root.textContent).toContain('memory denied: 2');
+        expect(root.textContent).toContain('理由未取得: 2');
+        expect(root.textContent).not.toContain('除外された記憶はありません');
     });
 
     it('INV-7: candidate-store warnings are visible when records are suppressed', async () => {
@@ -448,7 +491,7 @@ describe('admin visualization page', () => {
         const fetchImpl = async () => ({
             ok: true,
             json: async () => ({
-                sources: [{ source_class: 'runtime_config', label: '設定/実行環境', status: 'available' }],
+                sources: [{ source_class: 'runtime_config', label: '設定/実行環境', status: 'partial', reason: 'DB tunnel is reachable but optional key is missing' }],
                 runtime_config: {
                     database: { source_class: 'runtime_config', label: 'DB接続先', status: 'available', connection_status: 'connected', keys: ['INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL'], value: null, value_redacted: true },
                     checks: [{ source_class: 'personal_kg', label: '個人KG read path', status: 'unavailable', reason: '個人KG read path確認に失敗しました。migrationまたは権限をサーバーログで確認してください' }],
@@ -465,6 +508,7 @@ describe('admin visualization page', () => {
         expect(root.textContent).toContain('接続: 接続済み');
         expect(root.textContent).toContain('個人KG read path');
         expect(root.textContent).toContain('migrationまたは権限');
+        expect(root.textContent).toContain('DB tunnel is reachable but optional key is missing');
         expect(root.textContent).toContain('値: 非表示');
     });
 
@@ -501,6 +545,39 @@ describe('admin visualization page', () => {
 
         expect(calls.map((call) => call.url)).toEqual(['/api/csrf-token', '/api/admin/context-preview']);
         expect(root.textContent).toContain('refresh preview');
+    });
+
+    it('Contract-4: JSON context report preview is collapsed behind a summary', async () => {
+        const root = document.createElement('div');
+        const fetchImpl = async (url) => {
+            if (url === '/api/csrf-token') return { ok: true, json: async () => ({ token: 'csrf-123' }) };
+            return {
+                ok: true,
+                json: async () => ({
+                    source_class: 'ai_context',
+                    status: 'available',
+                    warnings: [],
+                    preview: {
+                        project_code: 'brainbase',
+                        entity_count: 1,
+                        edge_count: 0,
+                        report_preview: JSON.stringify({ project: 'brainbase', entities: [{ id: 'project_brainbase' }] }),
+                        included: [{ type: 'project', count: 1 }],
+                        memory: { included_count: 0, denied_count: 0, denied_reasons: {} },
+                        philosophy_context: { included_in_agent_context: false }
+                    }
+                })
+            };
+        };
+        const page = new AdminPage({ root, fetchImpl, storage: { getItem: () => 'token-123' } });
+        root.innerHTML = page.shell();
+        page.active = 'context';
+
+        await page.loadContext();
+
+        const report = root.querySelector('details.report-block');
+        expect(report).toBeTruthy();
+        expect(report?.querySelector('summary')?.textContent).toContain('JSONを取得済み');
     });
 
     it('Contract-6: admin.html mounts the Japanese admin visualization module', () => {

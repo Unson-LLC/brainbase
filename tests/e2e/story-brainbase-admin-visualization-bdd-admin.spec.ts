@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:11 renders Japanese admin visualization surfaces', async ({ page }) => {
+test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 renders Japanese admin visualization surfaces', async ({ page }) => {
   const personalKgRequests: string[] = [];
   const personalKgRequestHeaders: Record<string, string>[] = [];
   await page.route('**/api/admin/overview', async (route) => route.fulfill({
@@ -109,7 +109,7 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   }));
   await page.route('**/api/admin/health', async (route) => route.fulfill({
     json: {
-      sources: [{ source_class: 'runtime_config', label: '設定/実行環境', status: 'partial' }],
+      sources: [{ source_class: 'runtime_config', label: '設定/実行環境', status: 'partial', reason: 'DB tunnel is reachable but optional key is missing' }],
       runtime_config: {
         database: { source_class: 'runtime_config', label: 'DB接続先', status: 'available', connection_status: 'connected', keys: ['INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL'] },
         keys: [
@@ -126,6 +126,9 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   // UIの主表示は日本語である。言語切り替えを入れる場合も日本語をdefault/fallbackにする。
   await expect(page.getByRole('heading', { name: 'Brainbase 管理画面' })).toBeVisible();
   await expect(page.getByText('正本、候補、個人KG、AI参照文脈、設定状態を分けて確認します。'), '日本語 default/fallback labels are visible').toBeVisible();
+  // story-brainbase-admin-visualization-bdd ac:10
+  // 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。
+  await expect(page.getByRole('link', { name: '通常画面' }), 'story-brainbase-admin-visualization-bdd ac:10 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。').toHaveCount(0);
   await expect(page.getByRole('button', { name: '候補ストア' })).toBeVisible();
   await expect(page.getByRole('button', { name: '個人KG' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Graph正本' })).toBeVisible();
@@ -183,8 +186,8 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   await expect(personalKg.getByRole('button', { name: 'さらに表示' })).toBeVisible();
   await expect(personalKg.getByText('判断基準 restricted/confidential owner-read'), 'story-brainbase-admin-visualization-bdd ac:4 Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。').toBeVisible();
   expect(personalKgRequests.some((url) => url.includes('/api/admin/personal-kg')), 'story-brainbase-admin-visualization-bdd ac:4 Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。').toBe(true);
-  expect(personalKgResponse.headers()['cache-control'], 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` と管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toContain('no-store');
-  expect(personalKgRequestHeaders.some((headers) => headers['cache-control'] === 'no-cache'), 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` と管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toBe(true);
+  expect(personalKgResponse.headers()['cache-control'], 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toContain('no-store');
+  expect(personalKgRequestHeaders.some((headers) => headers['cache-control'] === 'no-cache'), 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toBe(true);
 
   // story-brainbase-admin-visualization-bdd ac:5
   // Personal KGでアクセス外ownerを指定した場合は、別ownerへ黙ってフォールバックせず、表示対象外の状態と理由を日本語で表示する。
@@ -224,6 +227,7 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   const health = page.locator('[data-section="health"]');
   await expect(health.getByText('DB接続先')).toBeVisible();
   await expect(health.getByText('接続: 接続済み')).toBeVisible();
+  await expect(health.getByText('DB tunnel is reachable but optional key is missing'), 'source-level health reason is not hidden').toBeVisible();
   await expect(health.getByText('値: 非表示').first()).toBeVisible();
   // story-brainbase-admin-visualization-bdd ac:8
   // Graph、candidate-store、Personal KG、DB接続の一部が失敗した場合でも、管理画面全体を500にせず、該当sourceを `unavailable` または `partial` として表示する。
@@ -278,9 +282,25 @@ test('story-brainbase-admin-visualization-bdd ac:8 shows Graph and candidate-sto
   await expect(candidates.getByText('表示できるレコードがありません')).not.toBeVisible();
 });
 
-test('story-brainbase-admin-visualization-bdd ac:10 /api/admin/* requires authenticated access', async ({ request }) => {
-  // story-brainbase-admin-visualization-bdd ac:10
-  // `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。
+test('story-brainbase-admin-visualization-bdd ac:11 /api/admin/* requires authenticated access', async ({ request }) => {
+  // story-brainbase-admin-visualization-bdd ac:11
+  // `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。
   const response = await request.get('/api/admin/overview');
-  expect(response.status(), '未認証では使えない').toBe(401);
+  expect(response.status(), 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toBe(401);
+});
+
+test('story-brainbase-admin-visualization-bdd ac:12 renders Japanese auth errors for admin fetch 401 and hides raw backend text', async ({ page }) => {
+  // story-brainbase-admin-visualization-bdd ac:12
+  // 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示する。
+  await page.route('**/api/admin/overview', async (route) => route.fulfill({
+    status: 401,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'Authorization token required' })
+  }));
+
+  await page.goto('/admin.html');
+
+  await expect(page.getByRole('main').getByText('認証が必要です。ログイン状態を確認してから再読み込みしてください。'), 'story-brainbase-admin-visualization-bdd ac:12 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示する。').toBeVisible();
+  await expect(page.getByText('通常画面'), 'story-brainbase-admin-visualization-bdd ac:10 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。').not.toBeVisible();
+  await expect(page.getByText('Authorization token required'), 'story-brainbase-admin-visualization-bdd ac:12 raw errorをそのまま表示しない。').not.toBeVisible();
 });

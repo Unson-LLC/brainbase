@@ -1,3 +1,10 @@
+---
+story_id: story-brainbase-admin-visualization-bdd
+title: Brainbase管理画面で個人KGとDB接続状態を可視化する
+architecture_docs:
+  reason: 既存の読み取り専用 admin visualization boundary と server-pattern SSOT を維持し、/api/admin/* の認証・CSRF・no-cache・DB秘匿契約を変えない表示層更新として扱うため。
+---
+
 # Brainbase管理画面で個人KGとDB接続状態を可視化する
 
 Story ID: `story-brainbase-admin-visualization-bdd`
@@ -21,5 +28,6 @@ Brainbaseを運用する人として、設定状態と保存されている内�
 - 設定/healthはSSOTサーバーパターンのDB接続先キーの存在有無と、サーバー側の実接続チェック結果を分けて示すが、secret値そのものは返さない。
 - Graph、candidate-store、Personal KG、DB接続の一部が失敗した場合でも、管理画面全体を500にせず、該当sourceを `unavailable` または `partial` として表示する。
 - UIの主表示は日本語である。言語切り替えを入れる場合も日本語をdefault/fallbackにする。
-- `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。
-- `/api/admin/*` と管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。
+- 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。
+- `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。
+- 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示する。
