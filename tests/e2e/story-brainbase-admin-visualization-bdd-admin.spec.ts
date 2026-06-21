@@ -1,8 +1,21 @@
 import { expect, test } from '@playwright/test';
 
+const AC11 = 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面HTML、管理画面asset、管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数と最新の認証復旧導線を表示する。';
+
 test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 renders Japanese admin visualization surfaces', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('brainbase.auth.token', 'valid-token');
+    window.localStorage.setItem('brainbase.auth.access', JSON.stringify({ personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] }));
+  });
   const personalKgRequests: string[] = [];
   const personalKgRequestHeaders: Record<string, string>[] = [];
+  await page.route('**/api/auth/verify', async (route) => route.fulfill({
+    json: {
+      ok: true,
+      access: { personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] },
+      authMode: 'token'
+    }
+  }));
   await page.route('**/api/admin/overview', async (route) => route.fulfill({
     json: {
       sources: [
@@ -186,8 +199,8 @@ test('story-brainbase-admin-visualization-bdd ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7
   await expect(personalKg.getByRole('button', { name: 'さらに表示' })).toBeVisible();
   await expect(personalKg.getByText('判断基準 restricted/confidential owner-read'), 'story-brainbase-admin-visualization-bdd ac:4 Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。').toBeVisible();
   expect(personalKgRequests.some((url) => url.includes('/api/admin/personal-kg')), 'story-brainbase-admin-visualization-bdd ac:4 Personal KGは現在のログイン主体または設定済みowner aliasからcanonical ownerへ解決した owner-visible `memory_candidates` をサーバーAPI経由で集計し、memory layer、SNS利用可否、review/redaction状態、最新候補を表示する。本人owner-readでは、判断再現用のrestricted/confidentialな個人KG coreも本人だけが確認できる。').toBe(true);
-  expect(personalKgResponse.headers()['cache-control'], 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toContain('no-store');
-  expect(personalKgRequestHeaders.some((headers) => headers['cache-control'] === 'no-cache'), 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toBe(true);
+  expect(personalKgResponse.headers()['cache-control'], AC11).toContain('no-store');
+  expect(personalKgRequestHeaders.some((headers) => headers['cache-control'] === 'no-cache'), AC11).toBe(true);
 
   // story-brainbase-admin-visualization-bdd ac:5
   // Personal KGでアクセス外ownerを指定した場合は、別ownerへ黙ってフォールバックせず、表示対象外の状態と理由を日本語で表示する。
@@ -284,14 +297,109 @@ test('story-brainbase-admin-visualization-bdd ac:8 shows Graph and candidate-sto
 
 test('story-brainbase-admin-visualization-bdd ac:11 /api/admin/* requires authenticated access', async ({ request }) => {
   // story-brainbase-admin-visualization-bdd ac:11
-  // `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。
+  // `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面HTML、管理画面asset、管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数と最新の認証復旧導線を表示する。
   const response = await request.get('/api/admin/overview');
-  expect(response.status(), 'story-brainbase-admin-visualization-bdd ac:11 `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。').toBe(401);
+  expect(response.status(), AC11).toBe(401);
+});
+
+test('story-brainbase-admin-visualization-bdd ac:11 admin shell and assets are no-store/cache-busted after hard reload', async ({ page }) => {
+  // story-brainbase-admin-visualization-bdd ac:11
+  // `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面HTML、管理画面asset、管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数と最新の認証復旧導線を表示する。
+  const adminResponses: Array<{ url: string; cacheControl: string | undefined }> = [];
+  page.on('response', (response) => {
+    const url = response.url();
+    if (url.endsWith('/admin.html') || url.includes('/admin.css') || url.includes('admin-visualization-page.js')) {
+      adminResponses.push({ url, cacheControl: response.headers()['cache-control'] });
+    }
+  });
+
+  await page.goto('/admin.html', { waitUntil: 'networkidle' });
+
+  expect(adminResponses.find((entry) => entry.url.endsWith('/admin.html'))?.cacheControl, AC11).toContain('no-store');
+  expect(adminResponses.find((entry) => entry.url.includes('/admin.css'))?.url, AC11).toContain('?v=');
+  expect(adminResponses.find((entry) => entry.url.includes('admin-visualization-page.js'))?.url, AC11).toContain('?v=');
+  expect(adminResponses.find((entry) => entry.url.includes('/admin.css'))?.cacheControl, AC11).toContain('no-store');
+  expect(adminResponses.find((entry) => entry.url.includes('admin-visualization-page.js'))?.cacheControl, AC11).toContain('no-store');
+  await expect(page.getByRole('button', { name: 'ログイン', exact: true }), AC11).toBeVisible();
+  await expect(page.getByRole('button', { name: /Slackでログイン/ }), AC11).toBeVisible();
+});
+
+test('story-brainbase-admin-visualization-bdd ac:11 hard reload fetches the current SSOT counts instead of reusing stale overview state', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('brainbase.auth.token', 'valid-token');
+    window.localStorage.setItem('brainbase.auth.access', JSON.stringify({ personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] }));
+  });
+
+  let graphTotal = 2;
+  const overviewRequestHeaders: Record<string, string>[] = [];
+
+  await page.route('**/api/auth/verify', async (route) => route.fulfill({
+    json: {
+      ok: true,
+      access: { personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] },
+      authMode: 'token'
+    }
+  }));
+  await page.route('**/api/admin/overview', async (route) => {
+    overviewRequestHeaders.push(route.request().headers());
+    await route.fulfill({
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0'
+      },
+      json: {
+        sources: [
+          { source_class: 'graph_ssot', label: 'Graph正本', status: 'available' },
+          { source_class: 'candidate_store', label: '候補ストア', status: 'available' },
+          { source_class: 'personal_kg', label: '個人KG', status: 'available' },
+          { source_class: 'ai_context', label: 'AI文脈リゾルバ', status: 'available' },
+          { source_class: 'runtime_config', label: '設定/実行環境', status: 'available' }
+        ],
+        graph: { total: graphTotal },
+        candidates: { total: 11 },
+        personal_kg: { total: 13, summary: { sns_ready_count: 3, review_count: 5 } }
+      }
+    });
+  });
+
+  await page.goto('/admin.html', { waitUntil: 'networkidle' });
+
+  const graphMetric = page.locator('[data-overview] .metric.graph strong');
+  await expect(graphMetric, AC11).toHaveText('2');
+
+  graphTotal = 7;
+  await page.reload({ waitUntil: 'networkidle' });
+
+  await expect(graphMetric, AC11).toHaveText('7');
+  await expect(page.locator('[data-overview] .metric.graph strong', { hasText: '2' }), AC11).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Brainbase 管理画面' }), AC11).toBeVisible();
+  await expect(page.getByText('通常画面'), 'story-brainbase-admin-visualization-bdd ac:10 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。').not.toBeVisible();
+  expect(overviewRequestHeaders.length, AC11).toBeGreaterThanOrEqual(2);
+  expect(overviewRequestHeaders.every((headers) => headers['cache-control'] === 'no-cache'), AC11).toBe(true);
+  expect(overviewRequestHeaders.every((headers) => headers.authorization === 'Bearer valid-token'), AC11).toBe(true);
 });
 
 test('story-brainbase-admin-visualization-bdd ac:12 renders Japanese auth errors for admin fetch 401 and hides raw backend text', async ({ page }) => {
   // story-brainbase-admin-visualization-bdd ac:12
-  // 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示する。
+  // 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示し、通常画面に移動せず管理画面内のログイン導線から復旧できる。
+  await page.addInitScript(() => {
+    window.localStorage.setItem('brainbase.auth.token', 'stale-token');
+    window.localStorage.setItem('brainbase.auth.access', JSON.stringify({ personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] }));
+  });
+  await page.route('**/api/auth/verify', async (route) => route.fulfill({
+    json: {
+      ok: true,
+      access: { personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] },
+      authMode: 'token'
+    }
+  }));
+  await page.route('**/api/csrf-token', async (route) => route.fulfill({ json: { token: 'csrf-refresh' } }));
+  await page.route('**/api/auth/refresh', async (route) => route.fulfill({
+    status: 401,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'Refresh failed' })
+  }));
   await page.route('**/api/admin/overview', async (route) => route.fulfill({
     status: 401,
     contentType: 'application/json',
@@ -300,7 +408,182 @@ test('story-brainbase-admin-visualization-bdd ac:12 renders Japanese auth errors
 
   await page.goto('/admin.html');
 
-  await expect(page.getByRole('main').getByText('認証が必要です。ログイン状態を確認してから再読み込みしてください。'), 'story-brainbase-admin-visualization-bdd ac:12 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示する。').toBeVisible();
+  await expect(page.getByRole('main').getByText('認証が必要です。管理画面でログインしてから再読み込みしてください。'), 'story-brainbase-admin-visualization-bdd ac:12 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示し、通常画面に移動せず管理画面内のログイン導線から復旧できる。').toBeVisible();
+  await expect(page.getByRole('button', { name: /Slackでログイン/ }), 'story-brainbase-admin-visualization-bdd ac:12 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示し、通常画面に移動せず管理画面内のログイン導線から復旧できる。').toBeVisible();
   await expect(page.getByText('通常画面'), 'story-brainbase-admin-visualization-bdd ac:10 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。').not.toBeVisible();
   await expect(page.getByText('Authorization token required'), 'story-brainbase-admin-visualization-bdd ac:12 raw errorをそのまま表示しない。').not.toBeVisible();
+});
+
+test('story-brainbase-admin-visualization-bdd ac:12 renders Japanese permission errors for admin fetch 403 and keeps admin login surface', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('brainbase.auth.token', 'valid-token');
+    window.localStorage.setItem('brainbase.auth.access', JSON.stringify({ personId: 'per_001', role: 'member', projectCodes: ['brainbase'] }));
+  });
+  await page.route('**/api/auth/verify', async (route) => route.fulfill({
+    json: {
+      ok: true,
+      access: { personId: 'per_001', role: 'member', projectCodes: ['brainbase'] },
+      authMode: 'token'
+    }
+  }));
+  await page.route('**/api/admin/overview', async (route) => route.fulfill({
+    status: 403,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'Access is not granted' })
+  }));
+
+  await page.goto('/admin.html');
+
+  await expect(page.getByRole('main').getByText('この管理情報を表示する権限がありません。'), 'story-brainbase-admin-visualization-bdd ac:12 403は日本語の権限エラーを表示する。').toBeVisible();
+  await expect(page.getByRole('button', { name: 'ログイン' }), 'story-brainbase-admin-visualization-bdd ac:12 管理画面内のログイン導線を保つ。').toBeVisible();
+  await expect(page.getByText('通常画面'), 'story-brainbase-admin-visualization-bdd ac:10 通常画面への導線を表示しない。').not.toBeVisible();
+  await expect(page.getByText('Access is not granted'), 'story-brainbase-admin-visualization-bdd ac:12 raw errorをそのまま表示しない。').not.toBeVisible();
+});
+
+test('story-brainbase-admin-visualization-bdd ac:12 admin Slack login click starts OAuth with the current admin URL as redirect', async ({ page }) => {
+  let slackStartUrl: string | null = null;
+
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
+  await page.route('**/api/admin/overview', async (route) => route.fulfill({
+    status: 401,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'Authorization token required' })
+  }));
+  await page.route('https://bb.brain-base.work/api/auth/slack/start**', async (route) => {
+    slackStartUrl = route.request().url();
+    await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>slack start</title>' });
+  });
+
+  await page.goto('/admin.html');
+  const adminOrigin = new URL(page.url()).origin;
+  await Promise.all([
+    page.waitForRequest((request) => request.url().startsWith('https://bb.brain-base.work/api/auth/slack/start')),
+    page.getByRole('button', { name: /Slackでログイン/ }).click()
+  ]);
+
+  expect(slackStartUrl).not.toBeNull();
+  const url = new URL(slackStartUrl || '');
+  expect(url.searchParams.get('origin'), 'S-12a OAuth state keeps the original admin origin for callback messaging/cookies').toBe(adminOrigin);
+  expect(url.searchParams.get('redirect'), 'S-12a OAuth state keeps the original admin URL for same-window fallback').toBe(`${adminOrigin}/admin.html`);
+});
+
+test('story-brainbase-admin-visualization-bdd ac:12 admin fetch 401 refreshes the session once before showing auth recovery', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('brainbase.auth.token', 'stale-token');
+    window.localStorage.setItem('brainbase.auth.refresh', 'refresh-token');
+    window.localStorage.setItem('brainbase.auth.access', JSON.stringify({ personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] }));
+  });
+
+  const overviewAuthHeaders: Array<string | undefined> = [];
+  let refreshCalls = 0;
+  let csrfSessionId: string | undefined;
+
+  await page.route('**/api/auth/verify', async (route) => route.fulfill({
+    json: {
+      ok: true,
+      access: { personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] },
+      authMode: 'token'
+    }
+  }));
+  await page.route('**/api/csrf-token', async (route) => {
+    csrfSessionId = route.request().headers()['x-session-id'];
+    await route.fulfill({ json: { token: 'csrf-refresh' } });
+  });
+  await page.route('**/api/auth/refresh', async (route) => {
+    refreshCalls += 1;
+    expect(route.request().postDataJSON(), 'S-12g refresh retry sends the stored refresh token').toEqual({ refresh_token: 'refresh-token' });
+    expect(route.request().headers()['x-csrf-token'], 'S-12g same-origin refresh retry includes CSRF for production middleware').toBe('csrf-refresh');
+    expect(route.request().headers()['x-session-id'], 'S-12g refresh retry uses the CSRF session id that fetched the token').toBe(csrfSessionId);
+    await route.fulfill({
+      json: {
+        token: 'fresh-token',
+        refresh_token: 'refresh-token-2',
+        access: { personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] }
+      }
+    });
+  });
+  await page.route('**/api/admin/overview', async (route) => {
+    const authorization = route.request().headers().authorization;
+    overviewAuthHeaders.push(authorization);
+    if (authorization === 'Bearer stale-token') {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Authorization token required' })
+      });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        sources: [
+          { source_class: 'graph_ssot', label: 'Graph正本', status: 'available' },
+          { source_class: 'candidate_store', label: '候補ストア', status: 'available' },
+          { source_class: 'personal_kg', label: '個人KG', status: 'available' },
+          { source_class: 'ai_context', label: 'AI文脈リゾルバ', status: 'available' },
+          { source_class: 'runtime_config', label: '設定/実行環境', status: 'available' }
+        ],
+        graph: { total: 1 },
+        candidates: { total: 1 },
+        personal_kg: { total: 1, summary: { sns_ready_count: 0, review_count: 0 } }
+      }
+    });
+  });
+
+  await page.goto('/admin.html');
+
+  await expect(page.locator('[data-overview]').getByRole('heading', { name: '個人KG' })).toBeVisible();
+  expect(refreshCalls, 'S-12g admin fetch 401 is retried through AuthManager refresh once').toBe(1);
+  expect(overviewAuthHeaders, 'S-12g admin fetch retry uses the refreshed token').toEqual(['Bearer stale-token', 'Bearer fresh-token']);
+  await expect(page.getByText('認証が必要です。管理画面でログインしてから再読み込みしてください。'), 'S-12g successful refresh avoids the auth recovery dead end').not.toBeVisible();
+  await expect(page.getByText('通常画面'), 'S-12g refresh retry still avoids the normal screen').not.toBeVisible();
+  await expect.poll(async () => page.evaluate(() => window.localStorage.getItem('brainbase.auth.token')), { message: 'S-12g refreshed token is persisted for later admin fetches' }).toBe('fresh-token');
+});
+
+test('story-brainbase-admin-visualization-bdd ac:12 same-window auth callback fragment is consumed before admin data reload', async ({ page }) => {
+  const payload = {
+    token: 'fragment-token',
+    refresh_token: 'fragment-refresh',
+    access: { personId: 'per_001', role: 'gm', projectCodes: ['brainbase'] }
+  };
+  const authFragment = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  let verifyAuthorization: string | undefined;
+  let overviewAuthorization: string | undefined;
+
+  await page.route('**/api/auth/verify', async (route) => {
+    verifyAuthorization = route.request().headers().authorization;
+    await route.fulfill({
+      json: {
+        ok: true,
+        access: payload.access,
+        authMode: 'token'
+      }
+    });
+  });
+  await page.route('**/api/admin/overview', async (route) => {
+    overviewAuthorization = route.request().headers().authorization;
+    await route.fulfill({
+      json: {
+        sources: [
+          { source_class: 'graph_ssot', label: 'Graph正本', status: 'available' },
+          { source_class: 'candidate_store', label: '候補ストア', status: 'available' },
+          { source_class: 'personal_kg', label: '個人KG', status: 'available' },
+          { source_class: 'ai_context', label: 'AI文脈リゾルバ', status: 'available' },
+          { source_class: 'runtime_config', label: '設定/実行環境', status: 'available' }
+        ],
+        graph: { total: 1 },
+        candidates: { total: 1 },
+        personal_kg: { total: 1, summary: { sns_ready_count: 0, review_count: 0 } }
+      }
+    });
+  });
+
+  await page.goto(`/admin.html#brainbase_auth=${authFragment}`);
+
+  await expect(page.getByRole('heading', { name: 'Brainbase 管理画面' })).toBeVisible();
+  await expect(page.locator('[data-overview]').getByRole('heading', { name: '個人KG' })).toBeVisible();
+  expect(verifyAuthorization, 'S-12a fragment token is verified as a local admin token').toBe('Bearer fragment-token');
+  expect(overviewAuthorization, 'S-12a admin data reload uses the callback token').toBe('Bearer fragment-token');
+  expect(page.url(), 'S-12a auth fragment is removed after consumption').not.toContain('brainbase_auth');
 });

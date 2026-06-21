@@ -29,5 +29,7 @@ Brainbaseを運用する人として、設定状態と保存されている内�
 - Graph、candidate-store、Personal KG、DB接続の一部が失敗した場合でも、管理画面全体を500にせず、該当sourceを `unavailable` または `partial` として表示する。
 - UIの主表示は日本語である。言語切り替えを入れる場合も日本語をdefault/fallbackにする。
 - 管理画面をBrainbaseの主運用画面として扱い、通常画面への導線や通常画面前提の認証案内を表示しない。
-- `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数を表示する。
-- 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示する。
+- `/api/admin/*` は認証済みユーザーの `req.access` に従い、未認証では使えない。管理画面HTML、管理画面asset、管理画面fetchはno-store/no-cacheで、ハードリロード後も現在のSSOT保存件数と最新の認証復旧導線を表示する。
+- 管理画面のfetchが401/403を受けた場合は、raw errorをそのまま出さず、日本語の認証/権限エラーを表示し、通常画面に移動せず管理画面内のログイン導線から復旧できる。
+- 管理画面のSlackログイン開始はOAuth stateに現在origin付きの管理画面URLを復帰先として保持し、localhostと許可済み本番originのどちらでも、popupが使えない同一ウィンドウcallbackから元の管理画面へtoken fragmentを渡して戻る。Slack OAuth modeでないcallback、Slack identityが解決できないcallback、不正な署名stateはfail closedとして401/400を返し、通常画面へフォールバックしない。
+- 管理画面の認証初期化は既存のBrainbase認証分岐を維持し、Bearer token、same-origin cookie session、refresh token/401 retry、Slack callback fragmentのいずれかで成立する場合は管理画面内で復旧する。

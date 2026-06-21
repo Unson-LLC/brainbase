@@ -26,6 +26,20 @@ function decodeJwtPayload(token) {
     }
 }
 
+function decodeBase64UrlJson(value) {
+    if (!value) return null;
+    try {
+        const normalized = String(value).replace(/-/g, '+').replace(/_/g, '/');
+        const padding = (4 - (normalized.length % 4 || 4)) % 4;
+        const padded = normalized.padEnd(normalized.length + padding, '=');
+        const binary = atob(padded);
+        const encoded = Array.from(binary, (char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join('');
+        return JSON.parse(decodeURIComponent(encoded));
+    } catch (error) {
+        return null;
+    }
+}
+
 export class AuthManager {
     constructor({ httpClient, store, eventBus, storagePrefix = DEFAULT_STORAGE_PREFIX, authBaseURL } = {}) {
         this.httpClient = httpClient;
@@ -71,6 +85,7 @@ export class AuthManager {
         if (typeof window === 'undefined' || !window.localStorage) return;
 
         this._ensureMessageListener();
+        this._consumeAuthHash();
 
         const token = window.localStorage.getItem(this.storageKeys.token);
         const access = safeJsonParse(window.localStorage.getItem(this.storageKeys.access));
@@ -297,6 +312,7 @@ export class AuthManager {
 
     async refreshSession({ refreshToken = this.refreshToken } = {}) {
         if (typeof window === 'undefined') return false;
+        if (!this.canRefreshSession({ refreshToken })) return false;
         const authBase = this.resolveAuthBaseURL() || window.location.origin;
         const useRemote = this._shouldUseRemoteAuth(authBase);
 
@@ -328,14 +344,15 @@ export class AuthManager {
 
         try {
             const headers = { 'content-type': 'application/json' };
-            if (useRemote) {
-                const sessionId = this._ensureCsrfSessionId();
-                const csrfToken = await this._fetchRemoteCsrfToken(authBase);
-                if (csrfToken) {
-                    headers['X-CSRF-Token'] = csrfToken;
-                }
-                headers['X-Session-Id'] = sessionId;
+            if (!refreshToken && this.token) {
+                headers.Authorization = `Bearer ${this.token}`;
             }
+            const sessionId = this._ensureCsrfSessionId();
+            const csrfToken = await this._fetchRemoteCsrfToken(authBase);
+            if (csrfToken) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
+            headers['X-Session-Id'] = sessionId;
             const response = await fetch(url.toString(), {
                 method: 'POST',
                 headers,
@@ -356,6 +373,10 @@ export class AuthManager {
         } catch (error) {
             return false;
         }
+    }
+
+    canRefreshSession({ refreshToken = this.refreshToken } = {}) {
+        return Boolean(refreshToken || this.token || this.sessionAuthenticated);
     }
 
     resolveAuthBaseURL() {
@@ -391,6 +412,36 @@ export class AuthManager {
             return DEFAULT_REMOTE_AUTH_BASE;
         }
         return this.resolveAuthBaseURL();
+    }
+
+    _consumeAuthHash() {
+        if (typeof window === 'undefined' || !window.localStorage) return false;
+        const rawHash = window.location.hash || '';
+        if (!rawHash.includes('brainbase_auth=')) return false;
+
+        const hashValue = rawHash.startsWith('#') ? rawHash.slice(1) : rawHash;
+        const params = new URLSearchParams(hashValue);
+        const payload = decodeBase64UrlJson(params.get('brainbase_auth'));
+        params.delete('brainbase_auth');
+
+        const nextHash = params.toString();
+        const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`;
+        try {
+            window.history.replaceState(null, '', nextUrl);
+        } catch (error) {
+            // ignore history cleanup errors
+        }
+
+        if (!payload?.token) return false;
+        window.localStorage.setItem(this.storageKeys.token, payload.token);
+        if (payload.access) {
+            window.localStorage.setItem(this.storageKeys.access, JSON.stringify(payload.access));
+        }
+        const refreshToken = payload.refresh_token || payload.refreshToken || null;
+        if (refreshToken) {
+            window.localStorage.setItem(this.storageKeys.refresh, refreshToken);
+        }
+        return true;
     }
 
     getAllowedOrigins() {

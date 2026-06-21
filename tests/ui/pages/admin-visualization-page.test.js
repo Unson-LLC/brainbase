@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { AuthManager } from '../../../public/modules/auth/auth-manager.js';
 import { AdminPage, getAuthHeaders, JA_LABELS, SOURCE_CLASS_LABELS, formatStatusLabel } from '../../../public/modules/pages/admin-visualization-page.js';
 
 describe('admin visualization page', () => {
@@ -26,7 +27,279 @@ describe('admin visualization page', () => {
 
         expect(root.querySelector('a[href="/"]')).toBeNull();
         expect(root.textContent).not.toContain('通常画面');
+        expect(root.querySelector('[data-login]')?.textContent).toContain('ログイン');
         expect(root.querySelector('[data-refresh]')?.textContent).toContain('再読み込み');
+    });
+
+    it('Contract-6 S-12: auth errors can recover from the admin page without a normal-screen dependency', () => {
+        const root = document.createElement('div');
+        let started = null;
+        const authManager = {
+            startSlackLogin: (args) => { started = args; }
+        };
+        const page = new AdminPage({
+            root,
+            fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
+            storage: { getItem: () => null },
+            authManager
+        });
+
+        root.innerHTML = page.shell();
+        page.renderLoadError(Object.assign(new Error('認証が必要です。管理画面でログインしてから再読み込みしてください。'), { status: 401 }));
+        page.startLogin();
+
+        expect(root.textContent).toContain('認証が必要です。管理画面でログインしてから再読み込みしてください。');
+        expect(root.querySelector('.empty-actions [data-login]')?.textContent).toContain('Slackでログイン');
+        expect(root.textContent).not.toContain('通常画面');
+        expect(started).toEqual({ redirectPath: new URL('/admin.html', window.location.origin).toString() });
+    });
+
+    it('S-12a: AuthManager consumes same-window auth callback fragments on the admin origin', async () => {
+        window.localStorage.clear();
+        const payload = {
+            token: 'fragment-token',
+            refresh_token: 'fragment-refresh',
+            access: { personId: 'per_001', role: 'gm' }
+        };
+        const json = JSON.stringify(payload);
+        const binary = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_match, hex) => String.fromCharCode(parseInt(hex, 16)));
+        const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+        window.history.replaceState(null, '', `/admin.html#brainbase_auth=${encoded}&keep=1`);
+
+        const authManager = new AuthManager();
+
+        await authManager.initFromStorage();
+
+        expect(window.localStorage.getItem('brainbase.auth.token')).toBe('fragment-token');
+        expect(window.localStorage.getItem('brainbase.auth.refresh')).toBe('fragment-refresh');
+        expect(JSON.parse(window.localStorage.getItem('brainbase.auth.access'))).toEqual({ personId: 'per_001', role: 'gm' });
+        expect(window.location.hash).toBe('#keep=1');
+    });
+
+    it('S-12f: AuthManager preserves same-origin cookie-session verification for admin initialization', async () => {
+        window.localStorage.clear();
+        const authManager = new AuthManager();
+        const verifyCalls = [];
+        authManager.verifyToken = async ({ token = authManager.token } = {}) => {
+            verifyCalls.push(token);
+            if (token === null) {
+                authManager.access = { personId: 'per_cookie', role: 'gm' };
+                return true;
+            }
+            return false;
+        };
+
+        await authManager.initFromStorage();
+
+        expect(verifyCalls).toContain(null);
+        expect(authManager.getStatus()).toBe('authenticated');
+        expect(authManager.authMode).toBe('session');
+        expect(authManager.access).toEqual({ personId: 'per_cookie', role: 'gm' });
+    });
+
+    it('S-12g: AuthManager keeps the 401 retry refresh hook for admin fetches', async () => {
+        let unauthorizedHandler = null;
+        const authManager = new AuthManager({
+            httpClient: {
+                setUnauthorizedHandler: (handler) => { unauthorizedHandler = handler; }
+            }
+        });
+        authManager.refreshToken = 'refresh-token';
+        authManager.refreshSession = async () => true;
+
+        await expect(unauthorizedHandler()).resolves.toBe(true);
+    });
+
+    it('S-12g: AuthManager same-origin refresh attaches CSRF headers for production middleware', async () => {
+        window.localStorage.clear();
+        const originalFetch = globalThis.fetch;
+        const calls = [];
+        globalThis.fetch = vi.fn(async (url, options = {}) => {
+            calls.push({ url: String(url), headers: options.headers || {}, body: options.body || '' });
+            if (String(url).endsWith('/api/csrf-token')) {
+                return { ok: true, json: async () => ({ token: 'csrf-refresh' }) };
+            }
+            if (String(url).endsWith('/api/auth/refresh')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        token: 'fresh-token',
+                        refresh_token: 'refresh-token-2',
+                        access: { personId: 'per_001', role: 'gm' }
+                    })
+                };
+            }
+            return { ok: false, json: async () => ({}) };
+        });
+        try {
+            const authManager = new AuthManager();
+            authManager.refreshToken = 'refresh-token';
+
+            await expect(authManager.refreshSession()).resolves.toBe(true);
+
+            expect(calls[0].url).toContain('/api/csrf-token');
+            expect(calls[1].url).toContain('/api/auth/refresh');
+            expect(calls[1].headers['X-CSRF-Token']).toBe('csrf-refresh');
+            expect(calls[1].headers['X-Session-Id']).toBe(calls[0].headers['X-Session-Id']);
+            expect(JSON.parse(calls[1].body)).toEqual({ refresh_token: 'refresh-token' });
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
+    it('S-12g: AuthManager does not call refresh when no token, refresh token, or session exists', async () => {
+        window.localStorage.clear();
+        const originalFetch = globalThis.fetch;
+        const calls = [];
+        globalThis.fetch = vi.fn(async (url, options = {}) => {
+            calls.push({ url: String(url), headers: options.headers || {}, body: options.body || '' });
+            return { ok: false, json: async () => ({}) };
+        });
+        try {
+            const authManager = new AuthManager();
+
+            await expect(authManager.refreshSession()).resolves.toBe(false);
+
+            expect(authManager.canRefreshSession()).toBe(false);
+            expect(calls).toEqual([]);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
+    it('S-12g: AuthManager direct refresh sends bearer token when no refresh token is available', async () => {
+        window.localStorage.clear();
+        const originalFetch = globalThis.fetch;
+        const calls = [];
+        globalThis.fetch = vi.fn(async (url, options = {}) => {
+            calls.push({ url: String(url), headers: options.headers || {}, body: options.body || '' });
+            if (String(url).endsWith('/api/csrf-token')) {
+                return { ok: true, json: async () => ({ token: 'csrf-refresh' }) };
+            }
+            if (String(url).endsWith('/api/auth/refresh')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        token: 'fresh-token',
+                        access: { personId: 'per_001', role: 'gm' }
+                    })
+                };
+            }
+            return { ok: false, json: async () => ({}) };
+        });
+        try {
+            const authManager = new AuthManager();
+            authManager.token = 'stale-token';
+
+            await expect(authManager.refreshSession()).resolves.toBe(true);
+
+            expect(calls[1].url).toContain('/api/auth/refresh');
+            expect(calls[1].headers.Authorization).toBe('Bearer stale-token');
+            expect(calls[1].headers['X-CSRF-Token']).toBe('csrf-refresh');
+            expect(JSON.parse(calls[1].body)).toEqual({});
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
+    it('S-12g: AdminPage retries an admin fetch after AuthManager refreshes the session', async () => {
+        let token = 'stale-token';
+        const calls = [];
+        const authManager = {
+            getToken: () => token,
+            refreshSession: async () => {
+                token = 'fresh-token';
+                return true;
+            }
+        };
+        const page = new AdminPage({
+            root: document.createElement('div'),
+            fetchImpl: async (url, options = {}) => {
+                calls.push({ url, authorization: options.headers?.Authorization });
+                if (calls.length === 1) {
+                    return {
+                        ok: false,
+                        status: 401,
+                        text: async () => '{"error":"Authorization token required"}'
+                    };
+                }
+                return {
+                    ok: true,
+                    json: async () => ({ sources: [], graph: { total: 0 }, candidates: { total: 0 }, personal_kg: { total: 0, summary: {} } })
+                };
+            },
+            storage: { getItem: () => 'stale-token' },
+            authManager
+        });
+
+        const payload = await page.request('/api/admin/overview');
+
+        expect(payload.graph.total).toBe(0);
+        expect(calls).toEqual([
+            { url: '/api/admin/overview', authorization: 'Bearer stale-token' },
+            { url: '/api/admin/overview', authorization: 'Bearer fresh-token' }
+        ]);
+    });
+
+    it('S-12g: AdminPage does not issue a refresh request from a fully anonymous admin load', async () => {
+        const calls = [];
+        const authManager = {
+            getToken: () => null,
+            canRefreshSession: () => false,
+            refreshSession: async () => {
+                calls.push('refresh');
+                return false;
+            }
+        };
+        const page = new AdminPage({
+            root: document.createElement('div'),
+            fetchImpl: async (url, options = {}) => {
+                calls.push({ url, authorization: options.headers?.Authorization });
+                return {
+                    ok: false,
+                    status: 401,
+                    text: async () => '{"error":"Authorization token required"}'
+                };
+            },
+            storage: { getItem: () => null },
+            authManager
+        });
+
+        await expect(page.request('/api/admin/overview')).rejects.toMatchObject({ status: 401 });
+
+        expect(calls).toEqual([
+            { url: '/api/admin/overview', authorization: undefined }
+        ]);
+    });
+
+    it('S-12h: AdminPage renders auth recovery without fetching admin data when init remains anonymous', async () => {
+        const root = document.createElement('div');
+        const calls = [];
+        const page = new AdminPage({
+            root,
+            fetchImpl: async (url) => {
+                calls.push(url);
+                return {
+                    ok: false,
+                    status: 401,
+                    text: async () => '{"error":"Authorization token required"}'
+                };
+            },
+            storage: { getItem: () => null },
+            authManager: {
+                initFromStorage: async () => {},
+                getStatus: () => 'anonymous',
+                startSlackLogin: () => {}
+            }
+        });
+
+        page.mount();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(calls).toEqual([]);
+        expect(root.textContent).toContain('認証が必要です。管理画面でログインしてから再読み込みしてください。');
+        expect(root.textContent).toContain('Slackでログイン');
+        expect(root.textContent).not.toContain('通常画面');
     });
 
     it('INV-7: getAuthHeaders reuses existing Brainbase auth token without inventing auth state', () => {
@@ -378,7 +651,8 @@ describe('admin visualization page', () => {
                 }
                 return { ok: true, json: async () => ({ sources: [] }) };
             },
-            storage: { getItem: () => null }
+            storage: { getItem: () => null },
+            authManager: { initFromStorage: async () => {}, getStatus: () => 'authenticated' }
         });
         filterPage.active = 'personal-kg';
         filterPage.mount();
@@ -403,7 +677,8 @@ describe('admin visualization page', () => {
                 loadMoreCalls += 1;
                 return loadMoreCalls === 1 ? { ok: true, json: async () => successPayload } : failedResponse;
             },
-            storage: { getItem: () => null }
+            storage: { getItem: () => null },
+            authManager: { refreshSession: async () => false }
         });
         loadMorePage.active = 'personal-kg';
         loadMoreRoot.innerHTML = loadMorePage.shell();
@@ -583,7 +858,8 @@ describe('admin visualization page', () => {
     it('Contract-6: admin.html mounts the Japanese admin visualization module', () => {
         const html = fs.readFileSync(path.join(process.cwd(), 'public/admin.html'), 'utf-8');
         expect(html).toContain('data-admin-root');
-        expect(html).toContain('modules/pages/admin-visualization-page.js');
+        expect(html).toContain('modules/pages/admin-visualization-page.js?v=');
+        expect(html).toContain('admin.css?v=');
         expect(html).toContain('lang="ja"');
     });
 });

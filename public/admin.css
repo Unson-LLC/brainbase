@@ -253,6 +253,7 @@ h1, h2, h3 { margin: 0; }
 .warning-list { margin: 16px 0 0; padding: 12px 14px 12px 30px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; color: #9a3412; font-size: 12.5px; }
 .empty-state { padding: 40px; text-align: center; color: var(--faint); font-size: 13px; }
 .empty-state strong { display: block; color: var(--text); margin-bottom: 6px; }
+.empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 18px; }
 .continuation-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
 .muted { color: var(--muted); }
 .admin-toast { position: fixed; right: 24px; bottom: 24px; z-index: 50; display: none; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 36px)); padding: 12px 16px; border-radius: 10px; background: var(--text); color: #f4f3ef; font-size: 13px; box-shadow: 0 8px 24px rgba(33,31,27,0.18); }

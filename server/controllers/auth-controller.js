@@ -96,17 +96,27 @@ function resolveRedirectPath(value) {
     if (typeof value !== 'string') return '/';
     // 相対パスを許可
     if (value.startsWith('/') && !value.startsWith('//')) return value;
-    // localhostへの絶対URLを許可（Device Code Flow用）
+    // 許可済みoriginへの絶対URLを許可（管理画面のsame-window OAuth復帰用）
     try {
         const url = new URL(value);
         const origin = normalizeOrigin(url.origin);
-        if (origin && isLocalOrigin(origin)) {
+        const allowed = getAllowedOrigins();
+        if (origin && (isLocalOrigin(origin) || allowed.has(origin))) {
             return value;
         }
     } catch (e) {
         // Invalid URL
     }
     return '/';
+}
+
+/** @param {string} value */
+function escapeHtmlAttribute(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 /**
@@ -116,7 +126,8 @@ function resolveRedirectPath(value) {
  */
 function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, redirectTo = '/', postMessageOrigin = null) {
     const payloadJson = JSON.stringify({ token, access, refresh_token: refreshToken }).replace(/</g, '\\u003c');
-    const redirectJson = JSON.stringify(redirectTo);
+    const redirectJson = JSON.stringify(redirectTo).replace(/</g, '\\u003c');
+    const redirectHref = escapeHtmlAttribute(redirectTo);
     const postMessageOriginJson = JSON.stringify(postMessageOrigin || '');
     return `<!doctype html>
 <html lang="en">
@@ -136,12 +147,26 @@ function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, 
     <div class="card">
       <div class="title">Login completed</div>
       <div class="desc">Returning to brainbase-ui...</div>
-      <a class="btn" href=${redirectJson}>Continue</a>
+      <a class="btn" data-continue href="${redirectHref}">Continue</a>
     </div>
     <script>
       const payload = ${payloadJson};
       const redirectTo = ${redirectJson};
       const postMessageOrigin = ${postMessageOriginJson};
+      const encodeAuthPayload = (value) => {
+        const json = JSON.stringify(value || {});
+        const binary = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_match, hex) => String.fromCharCode(parseInt(hex, 16)));
+        return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+      };
+      const buildFallbackRedirect = () => {
+        try {
+          const target = new URL(redirectTo, window.location.href);
+          target.hash = 'brainbase_auth=' + encodeAuthPayload(payload);
+          return target.toString();
+        } catch (e) {
+          return redirectTo;
+        }
+      };
       try {
         localStorage.setItem('${STORAGE_TOKEN_KEY}', payload.token);
         localStorage.setItem('${STORAGE_ACCESS_KEY}', JSON.stringify(payload.access || {}));
@@ -156,9 +181,14 @@ function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, 
           window.close();
         }
       } catch (e) {}
+      const fallbackRedirectTo = buildFallbackRedirect();
+      try {
+        const continueLink = document.querySelector('[data-continue]');
+        if (continueLink) continueLink.setAttribute('href', fallbackRedirectTo);
+      } catch (e) {}
       setTimeout(() => {
         if (!window.opener) {
-          window.location.replace(redirectTo);
+          window.location.replace(fallbackRedirectTo);
         }
       }, 150);
     </script>
@@ -178,7 +208,8 @@ export class AuthController {
             this.authService.assertReady();
             const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
             const codeChallenge = typeof req.query.code_challenge === 'string' ? req.query.code_challenge : '';
-            const state = this.authService.createState({ origin, codeChallenge });
+            const redirect = typeof req.query.redirect === 'string' ? req.query.redirect : '';
+            const state = this.authService.createState({ origin, codeChallenge, redirect });
             const url = this.authService.buildAuthorizeUrl(state, req);
             if (String(req.query.json || '').toLowerCase() === 'true') {
                 return res.json({ url, state });
@@ -291,7 +322,7 @@ export class AuthController {
             });
 
             if (wantsHtmlResponse(req)) {
-                const redirectTo = resolveRedirectPath(req.query.redirect || stateResult.origin);
+                const redirectTo = resolveRedirectPath(stateResult.redirect || req.query.redirect || stateResult.origin);
                 const postMessageOrigin = resolvePostMessageOrigin(stateResult.origin);
                 return res.status(200).type('html').send(renderAuthCallbackHtml(
                     responsePayload,

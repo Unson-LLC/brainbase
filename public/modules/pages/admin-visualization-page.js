@@ -1,5 +1,7 @@
 // @ts-check
 
+import { AuthManager } from '../auth/auth-manager.js';
+
 export const SOURCE_CLASS_LABELS = Object.freeze({
     graph_ssot: 'Graph正本',
     candidate_store: '候補ストア',
@@ -34,7 +36,9 @@ export const JA_LABELS = Object.freeze({
     partial: '一部不足',
     configured: '設定あり',
     not_configured: '未設定',
-    secretSafe: '値は表示しません'
+    secretSafe: '値は表示しません',
+    login: 'ログイン',
+    loginWithSlack: 'Slackでログイン'
 });
 
 const STATUS_LABELS = {
@@ -200,8 +204,8 @@ function personalKgReason(data = {}) {
     return text;
 }
 
-export function getAuthHeaders(storage = globalThis.localStorage) {
-    const token = storage?.getItem?.('brainbase.auth.token');
+export function getAuthHeaders(storage = globalThis.localStorage, authManager = null) {
+    const token = authManager?.getToken?.() || authManager?.token || storage?.getItem?.('brainbase.auth.token');
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -210,22 +214,33 @@ function friendlyHttpError(statusCode, text) {
     try { payload = JSON.parse(text); } catch { payload = null; }
     const raw = payload?.error || payload?.message || text || '';
     if (statusCode === 401 || /Authorization token required|unauthorized|auth/i.test(raw)) {
-        return '認証が必要です。ログイン状態を確認してから再読み込みしてください。';
+        return '認証が必要です。管理画面でログインしてから再読み込みしてください。';
     }
     if (statusCode === 403) return 'この管理情報を表示する権限がありません。';
     return raw ? `読み込みに失敗しました: ${raw}` : `読み込みに失敗しました: HTTP ${statusCode}`;
 }
 
 export class AdminPage {
-    constructor({ root, fetchImpl = globalThis.fetch, storage = globalThis.localStorage }) {
+    constructor({ root, fetchImpl = globalThis.fetch, storage = globalThis.localStorage, authManager = null } = {}) {
         this.root = root;
         this.fetchImpl = fetchImpl;
         this.storage = storage;
+        this.authManager = authManager || new AuthManager({
+            eventBus: {
+                emit: (eventName) => {
+                    if (eventName === 'auth:changed' && !this.suppressAuthChangedReload && this.authManager?.getStatus?.() === 'authenticated') {
+                        void this.load(true);
+                    }
+                }
+            }
+        });
         this.active = 'overview';
         this.state = {};
         this.csrfToken = null;
         this.personalKgLimit = 50;
         this.personalKgRequestSeq = 0;
+        this.authRefreshRetry = null;
+        this.suppressAuthChangedReload = false;
     }
 
     fetch(path, options = {}) {
@@ -235,7 +250,7 @@ export class AdminPage {
     async csrfHeaders(method) {
         if (!MUTATING_METHODS.has(String(method || 'GET').toUpperCase())) return {};
         if (!this.csrfToken) {
-            const response = await this.fetch('/api/csrf-token', { headers: { Accept: 'application/json', 'Cache-Control': 'no-cache', ...getAuthHeaders(this.storage) } });
+            const response = await this.fetch('/api/csrf-token', { headers: { Accept: 'application/json', 'Cache-Control': 'no-cache', ...getAuthHeaders(this.storage, this.authManager) } });
             if (!response.ok) throw new Error(`CSRF token fetch failed: ${response.status}`);
             const payload = await response.json();
             this.csrfToken = payload.token || null;
@@ -243,11 +258,36 @@ export class AdminPage {
         return this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : {};
     }
 
-    async request(path, options = {}) {
+    async refreshAuthForRetry() {
+        if (!this.authManager?.refreshSession) return false;
+        if (this.authManager?.canRefreshSession && !this.authManager.canRefreshSession()) return false;
+        if (this.authRefreshRetry) return await this.authRefreshRetry;
+        this.authRefreshRetry = (async () => {
+            this.suppressAuthChangedReload = true;
+            try {
+                return await this.authManager.refreshSession();
+            } catch {
+                return false;
+            } finally {
+                this.suppressAuthChangedReload = false;
+                this.authRefreshRetry = null;
+            }
+        })();
+        return await this.authRefreshRetry;
+    }
+
+    async requestOnce(path, options = {}) {
         const method = options.method || 'GET';
-        const headers = { Accept: 'application/json', 'Cache-Control': 'no-cache', ...getAuthHeaders(this.storage), ...await this.csrfHeaders(method) };
+        const headers = { Accept: 'application/json', 'Cache-Control': 'no-cache', ...getAuthHeaders(this.storage, this.authManager), ...await this.csrfHeaders(method) };
         if (options.body) headers['Content-Type'] = 'application/json';
-        const response = await this.fetch(path, { ...options, method, headers, body: options.body ? JSON.stringify(options.body) : null });
+        return this.fetch(path, { ...options, method, headers, body: options.body ? JSON.stringify(options.body) : null });
+    }
+
+    async request(path, options = {}) {
+        let response = await this.requestOnce(path, options);
+        if (response.status === 401 && await this.refreshAuthForRetry()) {
+            response = await this.requestOnce(path, options);
+        }
         if (!response.ok) {
             const text = await response.text().catch(() => '');
             throw Object.assign(new Error(friendlyHttpError(response.status, text)), { status: response.status });
@@ -268,14 +308,40 @@ export class AdminPage {
                 return;
             }
             if (button.hasAttribute('data-refresh')) void this.load(true);
+            if (button.hasAttribute('data-login')) this.startLogin();
             if (button.hasAttribute('data-load-graph')) void this.loadGraph().catch((error) => this.handleLoadError(error));
             if (button.hasAttribute('data-load-candidates')) void this.loadCandidates().catch((error) => this.handleLoadError(error));
             if (button.hasAttribute('data-load-personal-kg')) void this.loadPersonalKgFromControl({ resetLimit: true });
             if (button.hasAttribute('data-run-context')) void this.loadContext().catch((error) => this.handleLoadError(error));
             if (button.hasAttribute('data-load-flow')) void this.loadFlow().catch((error) => this.handleLoadError(error));
         });
-        this.load();
+        void this.initAuthAndLoad();
         this.icons();
+    }
+
+    async initAuthAndLoad() {
+        this.suppressAuthChangedReload = true;
+        try {
+            await this.authManager?.initFromStorage?.();
+        } finally {
+            this.suppressAuthChangedReload = false;
+        }
+        if (this.authManager?.getStatus?.() === 'anonymous') {
+            this.renderLoadError(Object.assign(
+                new Error('認証が必要です。管理画面でログインしてから再読み込みしてください。'),
+                { status: 401 }
+            ));
+            return;
+        }
+        await this.load();
+    }
+
+    startLogin() {
+        const redirectPath = typeof window !== 'undefined'
+            ? new URL('/admin.html', window.location.origin).toString()
+            : '/admin.html';
+        this.authManager?.startSlackLogin?.({ redirectPath });
+        this.toast('ログイン画面を開きました。完了後に管理画面を再読み込みします。');
     }
 
     shell() {
@@ -287,7 +353,7 @@ export class AdminPage {
             + `</aside>`
             + `<main class="admin-main">`
             + `<header class="admin-topbar"><div class="admin-title"><h1>${JA_LABELS.title}</h1><p>${JA_LABELS.subtitle}</p></div>`
-            + `<div class="admin-actions"><button class="primary-button" type="button" data-refresh><i data-lucide="refresh-cw"></i>${JA_LABELS.refresh}</button></div></header>`
+            + `<div class="admin-actions"><button class="secondary-button" type="button" data-login><i data-lucide="log-in"></i>${JA_LABELS.login}</button><button class="primary-button" type="button" data-refresh><i data-lucide="refresh-cw"></i>${JA_LABELS.refresh}</button></div></header>`
             + this.sections()
             + `</main></div><div class="admin-toast" data-toast></div>`;
     }
@@ -329,7 +395,10 @@ export class AdminPage {
 
     renderLoadError(error) {
         const message = error?.message || '読み込みに失敗しました';
-        const html = `<div class="empty-state"><strong>表示できません</strong><p>${escapeHtml(message)}</p></div>`;
+        const loginAction = error?.status === 401
+            ? `<div class="empty-actions"><button class="primary-button" type="button" data-login><i data-lucide="log-in"></i>${JA_LABELS.loginWithSlack}</button><button class="secondary-button" type="button" data-refresh><i data-lucide="refresh-cw"></i>${JA_LABELS.refresh}</button></div>`
+            : '';
+        const html = `<div class="empty-state"><strong>表示できません</strong><p>${escapeHtml(message)}</p>${loginAction}</div>`;
         const targets = {
             overview: '[data-overview]',
             graph: '[data-graph-list]',
@@ -341,6 +410,7 @@ export class AdminPage {
         };
         const target = this.root.querySelector(targets[this.active]);
         if (target) target.innerHTML = html;
+        this.icons();
     }
 
     async loadOverview() {

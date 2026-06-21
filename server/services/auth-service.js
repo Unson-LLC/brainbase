@@ -116,15 +116,16 @@ export class AuthService {
         return `${prefix}_${ulid()}`;
     }
 
-    createState({ origin, codeChallenge } = {}) {
+    createState({ origin, codeChallenge, redirect } = {}) {
         if (this.stateSecret) {
-            return this.createSignedState({ origin, codeChallenge });
+            return this.createSignedState({ origin, codeChallenge, redirect });
         }
         const state = crypto.randomBytes(16).toString('hex');
         this.stateStore.set(state, {
             createdAt: Date.now(),
             origin: typeof origin === 'string' ? origin : null,
-            codeChallenge: typeof codeChallenge === 'string' ? codeChallenge : null
+            codeChallenge: typeof codeChallenge === 'string' ? codeChallenge : null,
+            redirect: typeof redirect === 'string' ? redirect : null
         });
         return state;
     }
@@ -136,13 +137,13 @@ export class AuthService {
         const record = this.stateStore.get(state);
         this.stateStore.delete(state);
         if (!record || !record.createdAt) {
-            return { ok: false, origin: null, codeChallenge: null };
+            return { ok: false, origin: null, codeChallenge: null, redirect: null };
         }
         const ok = Date.now() - record.createdAt < this.stateTtlMs;
-        return { ok, origin: record.origin || null, codeChallenge: record.codeChallenge || null };
+        return { ok, origin: record.origin || null, codeChallenge: record.codeChallenge || null, redirect: record.redirect || null };
     }
 
-    createSignedState({ origin, codeChallenge } = {}) {
+    createSignedState({ origin, codeChallenge, redirect } = {}) {
         const ts = Date.now();
         const nonce = crypto.randomBytes(16).toString('hex');
         const originValue = typeof origin === 'string' && origin.length > 0
@@ -151,10 +152,17 @@ export class AuthService {
         const codeChallengeValue = typeof codeChallenge === 'string' && codeChallenge.length > 0
             ? Buffer.from(codeChallenge, 'utf8').toString('base64url')
             : '';
+        const redirectValue = typeof redirect === 'string' && redirect.length > 0
+            ? Buffer.from(redirect, 'utf8').toString('base64url')
+            : '';
 
         let payload = `${ts}.${nonce}`;
-        if (originValue) payload += `.${originValue}`;
-        if (codeChallengeValue) payload += `.${codeChallengeValue}`;
+        const fields = [originValue, codeChallengeValue, redirectValue];
+        let lastFieldIndex = fields.length - 1;
+        while (lastFieldIndex >= 0 && !fields[lastFieldIndex]) lastFieldIndex -= 1;
+        for (let i = 0; i <= lastFieldIndex; i += 1) {
+            payload += `.${fields[i]}`;
+        }
 
         const signature = crypto
             .createHmac('sha256', this.stateSecret)
@@ -164,29 +172,29 @@ export class AuthService {
     }
 
     consumeSignedState(state) {
-        if (typeof state !== 'string') return { ok: false, origin: null, codeChallenge: null };
+        if (typeof state !== 'string') return { ok: false, origin: null, codeChallenge: null, redirect: null };
         const parts = state.split('.');
         // 3: ts.nonce.signature
         // 4: ts.nonce.origin.signature
         // 5: ts.nonce.origin.codeChallenge.signature
-        if (parts.length < 3 || parts.length > 5) {
-            return { ok: false, origin: null, codeChallenge: null };
+        // 6: ts.nonce.origin.codeChallenge.redirect.signature
+        if (parts.length < 3 || parts.length > 6) {
+            return { ok: false, origin: null, codeChallenge: null, redirect: null };
         }
 
         const signature = parts[parts.length - 1];
         const tsRaw = parts[0];
         const nonce = parts[1];
-        const originEncoded = parts.length >= 4 ? parts[2] : '';
-        const codeChallengeEncoded = parts.length === 5 ? parts[3] : '';
+        const fields = parts.slice(2, -1);
+        const originEncoded = fields[0] || '';
+        const codeChallengeEncoded = fields[1] || '';
+        const redirectEncoded = fields[2] || '';
 
         if (!tsRaw || !nonce || !signature) {
-            return { ok: false, origin: null, codeChallenge: null };
+            return { ok: false, origin: null, codeChallenge: null, redirect: null };
         }
 
-        // Reconstruct payload
-        let payload = `${tsRaw}.${nonce}`;
-        if (originEncoded) payload += `.${originEncoded}`;
-        if (codeChallengeEncoded) payload += `.${codeChallengeEncoded}`;
+        const payload = parts.slice(0, -1).join('.');
 
         const expected = crypto
             .createHmac('sha256', this.stateSecret)
@@ -196,19 +204,19 @@ export class AuthService {
             const sigBuf = Buffer.from(signature, 'hex');
             const expBuf = Buffer.from(expected, 'hex');
             if (sigBuf.length !== expBuf.length) {
-                return { ok: false, origin: null, codeChallenge: null };
+                return { ok: false, origin: null, codeChallenge: null, redirect: null };
             }
             if (!crypto.timingSafeEqual(sigBuf, expBuf)) {
-                return { ok: false, origin: null, codeChallenge: null };
+                return { ok: false, origin: null, codeChallenge: null, redirect: null };
             }
         } catch {
-            return { ok: false, origin: null, codeChallenge: null };
+            return { ok: false, origin: null, codeChallenge: null, redirect: null };
         }
         const ts = Number(tsRaw);
-        if (!Number.isFinite(ts)) return { ok: false, origin: null, codeChallenge: null };
+        if (!Number.isFinite(ts)) return { ok: false, origin: null, codeChallenge: null, redirect: null };
         const ageMs = Math.abs(Date.now() - ts);
         if (ageMs >= this.stateTtlMs) {
-            return { ok: false, origin: null, codeChallenge: null };
+            return { ok: false, origin: null, codeChallenge: null, redirect: null };
         }
 
         let origin = null;
@@ -229,7 +237,16 @@ export class AuthService {
             }
         }
 
-        return { ok: true, origin, codeChallenge };
+        let redirect = null;
+        if (redirectEncoded) {
+            try {
+                redirect = Buffer.from(redirectEncoded, 'base64url').toString('utf8');
+            } catch {
+                redirect = null;
+            }
+        }
+
+        return { ok: true, origin, codeChallenge, redirect };
     }
 
     buildAuthorizeUrl(state, req) {
