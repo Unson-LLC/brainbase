@@ -21,7 +21,8 @@ diagrams:
 - INV-002: Workflow Definitions は prompt template ではなく、input / trigger / human gate / write-back / audit evidence を持つ業務定義として表示する。
 - INV-003: Human Gate の承認操作は v1 では画面内状態に閉じ、Task Store、Graph SSOT、外部チャネルには書き込まない。
 - INV-004: Graph SSOT への Decision 昇格は `Candidate Store -> promotion` の候補として扱い、未承認の runner output を正本扱いしない。
-- INV-005: zip prototype の主要 layout marker は HTML 上で E2E 検証可能な `data-*` selector を持つ。
+- INV-005: `public/meeting-workflow-pack.html` is byte-for-byte aligned with `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html`.
+- INV-006: `public/support.js` is byte-for-byte aligned with `docs/design/prototypes/meeting-workflow-pack/support.js` so the DC prototype renders the same in the app route.
 
 ## Scenarios
 
@@ -36,43 +37,24 @@ diagrams:
 
 ## UI Contract
 
-`public/meeting-workflow-pack.html` must include these selectors.
+`public/meeting-workflow-pack.html` is the promoted zip prototype surface. The visible and interactive contract is inherited from `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html`.
 
-| Selector | Meaning |
+| Marker | Meaning |
 |---|---|
-| `[data-agent-loop-control]` | Cockpit root |
-| `[data-agent-header]` | black Agent Loop Control header |
-| `[data-instance-switcher]` | Instance switcher |
-| `[data-agent-switcher]` | Role Agent switcher |
-| `[data-left-rail]` | left rail |
-| `[data-review-queue]` | human approval queue |
-| `[data-review-card]` | one approval item |
-| `[data-review-detail]` | selected review detail |
-| `[data-run-trace]` | run trace view |
-| `[data-definition-card]` | workflow definition card |
-| `[data-agent-stub]` | non-Meeting Ops placeholder |
+| `AGENT LOOP CONTROL` | black header |
+| `button[data-menu="instance"]` | Instance menu |
+| `button[data-menu="agent"]` | Role Agent menu |
+| `button[data-nav="review"]` | review queue navigation |
+| `button[data-rk]` | selected human gate review |
+| `button[data-run]` | selected run trace |
+| `button[data-wf]` | workflow definition |
+| `button[data-agent]` | role agent switching |
 
 ## Data Contract
 
-The page reads Workflow Control resources with `project_id` query.
+This Story does not require Workflow Control API reads. It preserves the zip prototype's deterministic local state so the user can verify the screen and interaction model.
 
-```text
-GET /api/workflows/control/role-agents
-GET /api/workflows/control/templates
-GET /api/workflows/control/bindings
-GET /api/workflows/control/triggers
-GET /api/workflows/control/loop-intents
-```
-
-The page must accept both existing API response envelopes and empty arrays.
-
-```text
-role_agent_instances[]
-workflow_templates[]
-workflow_bindings[]
-workflow_triggers[]
-loop_intents[]
-```
+The next Story may replace prototype local state with Workflow Control API data, but must preserve the same visible structure unless VibePro records a design change.
 
 ## Diagrams
 
@@ -86,7 +68,7 @@ loop_intents[]
 ## Acceptance Tests
 
 - `tests/e2e/story-meeting-workflow-pack-cockpit-ui-v1-cockpit.spec.ts` validates Story/Architecture/Spec trace text.
-- The same E2E test mocks Workflow Control APIs and validates:
+- The same E2E test renders the promoted prototype and validates:
   - `AGENT LOOP CONTROL` header.
   - three trigger lanes.
   - five meeting workflow definitions.
@@ -94,11 +76,12 @@ loop_intents[]
   - Review Detail editing and high-risk approval.
   - Agent stub switching.
   - `/workflows` link to Cockpit.
+- The same E2E test proves public HTML/runtime are byte-for-byte equal to the promoted zip prototype files.
 
 ## Anti-Patterns
 
 - AP-001: Rendering only a small Meeting Pack panel inside `/workflows` and claiming zip prototype reproduction.
-- AP-002: Embedding the Decap prototype runtime as production UI.
+- AP-002: Reimplementing the zip screen with a visually different custom surface and claiming prototype reproduction.
 - AP-003: Treating local approve state as actual Graph / Task / external write-back.
 - AP-004: Hiding schedule / event / human trigger separation.
 - AP-005: Removing existing Workflow Mission Control behavior from `/workflows`.

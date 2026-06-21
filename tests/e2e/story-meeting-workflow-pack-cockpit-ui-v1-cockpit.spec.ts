@@ -22,6 +22,9 @@ function readArtifacts() {
     architecture: readFileSync('docs/architecture/meeting-workflow-pack-cockpit-ui-architecture.md', 'utf8'),
     spec: readFileSync('docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md', 'utf8'),
     html: readFileSync('public/meeting-workflow-pack.html', 'utf8'),
+    support: readFileSync('public/support.js', 'utf8'),
+    prototypeHtml: readFileSync('docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html', 'utf8'),
+    prototypeSupport: readFileSync('docs/design/prototypes/meeting-workflow-pack/support.js', 'utf8'),
     workflows: readFileSync('public/workflows.html', 'utf8')
   };
 }
@@ -58,7 +61,7 @@ async function mockWorkflowControlApis(page) {
 }
 
 test(`${storyId} Story/Architecture/Spec が zip Cockpit 再現を契約化している`, async () => {
-  const { story, architecture, spec, html, workflows } = readArtifacts();
+  const { story, architecture, spec, html, support, prototypeHtml, prototypeSupport, workflows } = readArtifacts();
 
   expect(story).toContain('zip の `AGENT LOOP CONTROL` 画面');
   for (const criterion of acceptanceCriteria) {
@@ -97,11 +100,13 @@ test(`${storyId} Story/Architecture/Spec が zip Cockpit 再現を契約化し�
   expect(architecture).toContain('`/meeting-workflow-pack.html` は Meeting Workflow Pack の専用 Cockpit');
   expect(architecture).toContain('v1 の承認操作は local UI state のみ');
   expect(spec).toContain('INV-005');
-  expect(spec).toContain('[data-agent-loop-control]');
+  expect(spec).toContain('public/meeting-workflow-pack.html` is byte-for-byte aligned');
   expect(spec).toContain('S-004');
+  expect(html).toBe(prototypeHtml);
+  expect(support).toBe(prototypeSupport);
   expect(html).toContain('AGENT LOOP CONTROL');
-  expect(html).toContain('data-review-queue');
-  expect(html).toContain('data-review-detail');
+  expect(html).toContain('data-nav="review"');
+  expect(html).toContain('data-rk="{{ q.rk }}"');
   expect(workflows).toContain('data-open-meeting-workflow-cockpit');
 });
 
@@ -156,54 +161,54 @@ test(`${storyId} ac:10 E2E は zip prototype の主要構造 marker と Review Q
 });
 
 test(`${storyId} ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:10 zip prototype 相当の Cockpit 構造と HITL interaction を表示する`, async ({ page }) => {
-  await mockWorkflowControlApis(page);
-
   await page.goto('/meeting-workflow-pack.html?project=salestailor');
 
-  await expect(page.locator('[data-agent-loop-control]')).toBeVisible();
-  await expect(page.locator('[data-agent-header]')).toContainText('AGENT LOOP CONTROL');
-  await expect(page.locator('[data-instance-switcher]')).toContainText('salestailor');
-  await expect(page.locator('[data-agent-switcher]')).toContainText('Meeting Ops Agent');
-  await expect(page.locator('[data-left-rail]')).toContainText('対応 · OPERATE');
-  await expect(page.locator('[data-left-rail]')).toContainText('リファレンス · REFERENCE');
-  await expect(page.locator('[data-left-rail]')).toContainText('SCHEDULE');
-  await expect(page.locator('[data-left-rail]')).toContainText('EVENT');
-  await expect(page.locator('[data-left-rail]')).toContainText('HUMAN');
+  await expect(page.getByText('AGENT LOOP CONTROL')).toBeVisible();
+  await expect(page.locator('button[data-menu="instance"]')).toContainText('unson');
+  await expect(page.locator('button[data-menu="agent"]')).toContainText('Meeting Ops Agent');
+  await expect(page.getByText('対応 · OPERATE')).toBeVisible();
+  await expect(page.getByText('リファレンス · REFERENCE')).toBeVisible();
+  await expect(page.getByText('SCHEDULE', { exact: true })).toBeVisible();
+  await expect(page.getByText('EVENT', { exact: true })).toBeVisible();
+  await expect(page.getByText('HUMAN', { exact: true })).toBeVisible();
 
+  await expect(page.getByRole('heading', { name: '承認待ち' })).toBeVisible();
+  await expect(page.getByText('Decisions 昇格').first()).toBeVisible();
+  await expect(page.getByText('Graph SSOT').first()).toBeVisible();
+  await expect(page.getByText('Follow-up 送信').first()).toBeVisible();
+  await expect(page.getByText('Tasks 作成').first()).toBeVisible();
+
+  await page.locator('button[data-rk="welfare:decisions"]').click();
+  await expect(page.getByRole('heading', { name: 'Decisions 昇格' })).toBeVisible();
+  await expect(page.getByText('Graph SSOT（正本）に記録します。取り消せません。')).toBeVisible();
+
+  const firstDecision = page.locator('textarea[data-k^="welfare:decisions:"]').first();
+  await firstDecision.fill('Meeting Workflow Pack は会議業務を業務ループとして扱う');
+  await page.getByText('取り消せない操作であることを確認しました').click();
+  await expect(page.getByRole('button', { name: /承認して/ })).toBeEnabled();
+  await page.getByRole('button', { name: /承認して/ }).click();
+  await expect(page.getByText('承認済 · Graph SSOT へ反映')).toBeVisible();
+
+  await page.locator('button[data-nav="overview"]').click();
   await expect(page.getByRole('heading', { name: 'Meeting Ops Agent' })).toBeVisible();
   await expect(page.getByText('会議ライフサイクル')).toBeVisible();
-  const definitionCards = page.locator('[data-definition-card]');
-  await expect(definitionCards).toHaveCount(5);
-  await expect(definitionCards.filter({ hasText: 'Pre-Meeting Briefing' })).toBeVisible();
-  await expect(definitionCards.filter({ hasText: 'Transcript → Meeting Note' })).toBeVisible();
-  await expect(definitionCards.filter({ hasText: 'Meeting Note → Tasks' })).toBeVisible();
-  await expect(definitionCards.filter({ hasText: 'Meeting Note → Decisions' })).toBeVisible();
-  await expect(definitionCards.filter({ hasText: 'Post-Meeting Follow-up' })).toBeVisible();
+  await expect(page.locator('button[data-wf]')).toHaveCount(10);
+  await expect(page.locator('button[data-wf="pre-meeting-briefing"]').first()).toContainText('Pre-Meeting Briefing');
+  await expect(page.locator('button[data-wf="transcript-to-meeting-note"]').first()).toContainText('Transcript → Meeting Note');
+  await expect(page.locator('button[data-wf="meeting-note-to-tasks"]').first()).toContainText('Meeting Note → Tasks');
+  await expect(page.locator('button[data-wf="meeting-note-to-decisions"]').first()).toContainText('Meeting Note → Decisions');
+  await expect(page.locator('button[data-wf="post-meeting-follow-up-message"]').first()).toContainText('Post-Meeting Follow-up');
 
-  await page.getByRole('button', { name: /承認待ち/ }).first().click();
-  await expect(page.locator('[data-review-queue]')).toBeVisible();
-  await expect(page.locator('[data-review-card]')).toHaveCount(3);
-  await expect(page.locator('[data-review-card]').filter({ hasText: 'Tasks 作成' })).toContainText('Task Store');
-  await expect(page.locator('[data-review-card]').filter({ hasText: 'Decisions 昇格' })).toContainText('Graph SSOT');
-  await expect(page.locator('[data-review-card]').filter({ hasText: 'Follow-up 送信' })).toContainText('External channel');
+  await page.locator('button[data-run="welfare"]').first().click();
+  await expect(page.getByRole('heading', { name: '2026-06-15 福祉施設 AI経営コンサル' })).toBeVisible();
+  await expect(page.getByText('Write-back Ledger')).toBeVisible();
+  await expect(page.getByText('TASK STORE', { exact: true })).toBeVisible();
+  await expect(page.getByText('GRAPH SSOT', { exact: true })).toBeVisible();
 
-  await page.locator('[data-review-card]').filter({ hasText: 'Decisions 昇格' }).click();
-  await expect(page.locator('[data-review-detail]')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Decisions 昇格' })).toBeVisible();
-  await expect(page.getByText('Task Store、Graph SSOT、外部チャネルにはまだ書き込みません。')).toBeVisible();
-
-  const firstDecision = page.locator('textarea[data-edit-candidate]').first();
-  await firstDecision.fill('Meeting Workflow Pack は会議業務を業務ループとして扱う');
-  await expect(page.getByRole('button', { name: '承認済みにする' })).toBeDisabled();
-  await page.locator('#high-risk-confirm').check();
-  await expect(page.getByRole('button', { name: '承認済みにする' })).toBeEnabled();
-  await page.getByRole('button', { name: '承認済みにする' }).click();
-  await expect(page.locator('[data-review-detail]')).toContainText('approved');
-
-  await page.locator('#agent-select').selectOption('sales');
-  await expect(page.locator('[data-agent-stub]')).toBeVisible();
-  await expect(page.locator('[data-agent-stub]')).toContainText('Sales Agent');
-  await expect(page.locator('[data-agent-stub]')).toContainText('Workflow Pack 未構築');
+  await page.locator('button[data-menu="agent"]').click();
+  await page.locator('button[data-agent="sales"]').click();
+  await expect(page.getByRole('heading', { name: 'Sales Agent' })).toBeVisible();
+  await expect(page.getByText('v0 · 未構築')).toBeVisible();
 });
 
 test(`${storyId} ac:9 /workflows から専用 Cockpit へ遷移できる`, async ({ page }) => {

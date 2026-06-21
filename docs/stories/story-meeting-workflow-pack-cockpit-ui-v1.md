@@ -28,8 +28,8 @@ Brainbase operator として、Mana の会議業務ループを `Meeting Ops Age
 
 - `/meeting-workflow-pack.html` に zip prototype 相当の Agent Loop Control Cockpit を追加する。
 - `/workflows` の Meeting Workflow Pack パネルから Cockpit へ遷移できるようにする。
-- Cockpit は既存 Workflow Control API から Role Agent / Workflow Template / Binding / Trigger / Loop Intent を読む。
-- API が空または未接続でも、Meeting Pack の定義と human gate のデモ構造は決定的 fallback で表示する。
+- Cockpit は zip prototype と一致する DC runtime surface として提供し、画面再現を最優先にする。
+- Workflow Control API 接続は次Storyで扱い、このStoryでは prototype の state / interaction を壊さない。
 - Approve / Reject は v1 では画面内状態だけを更新し、Graph SSOT、Task Store、外部送信には書き込まない。
 
 ## Acceptance Criteria
@@ -51,7 +51,7 @@ Brainbase operator として、Mana の会議業務ループを `Meeting Ops Age
 - Graph SSOT Decision 昇格。
 - Slack / Gmail への外部送信。
 - Eve runner の実接続。
-- zip prototype の Decap runtime そのものの埋め込み。
+- Workflow Control API との実データ同期。
 
 ## Risk
 

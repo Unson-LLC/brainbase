@@ -18,12 +18,8 @@ updated_at: 2026-06-21
 flowchart LR
   user["Human Operator"] --> cockpit["Meeting Workflow Pack Cockpit"]
   workflows["/workflows<br/>Workflow Mission Control"] --> cockpit
-  cockpit --> api["Workflow Control APIs"]
-  api --> role["role_agent_instances"]
-  api --> templates["workflow_templates"]
-  api --> bindings["workflow_bindings"]
-  api --> triggers["workflow_triggers"]
-  api --> intents["loop_intents"]
+  cockpit --> prototype["Promoted zip prototype<br/>meeting-workflow-pack.dc.html"]
+  prototype --> localState["Prototype Local State<br/>review / run / definition / agent"]
   cockpit --> localState["Local HITL State<br/>approve / reject / edit"]
   localState -. "v1: no write-back" .-> taskStore["Task Store"]
   localState -. "v1: no promotion" .-> graph["Graph SSOT"]
@@ -32,7 +28,7 @@ flowchart LR
 
 ## UI構造
 
-zip prototype の構造をそのまま採用する。
+zip prototype の構造をそのまま採用する。今回の目的は画面再現であり、`public/meeting-workflow-pack.html` は `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html` と同一内容にする。runtime も `public/support.js` として同一内容を配信する。
 
 - Header: `AGENT LOOP CONTROL`、Instance switcher、Role Agent switcher、承認待ち count。
 - Left Rail: `対応 · OPERATE` と `リファレンス · REFERENCE`。
@@ -44,34 +40,25 @@ zip prototype の構造をそのまま採用する。
 
 ## データ投影
 
-Cockpit は以下の既存 API を読む。
+このStoryでは実データ投影を行わない。zip prototype の local state をそのまま使い、以下を再現する。
 
-- `GET /api/workflows/control/role-agents?project_id=:projectId`
-- `GET /api/workflows/control/templates?project_id=:projectId`
-- `GET /api/workflows/control/bindings?project_id=:projectId`
-- `GET /api/workflows/control/triggers?project_id=:projectId`
-- `GET /api/workflows/control/loop-intents?project_id=:projectId`
-
-読み取った実データは以下へ写す。
-
-| Source | Cockpit projection |
+| Prototype State | Cockpit projection |
 |---|---|
-| `role_agent_instances` | Instance / Role Agent rail |
-| `workflow_templates` | Workflow Definition cards |
-| `workflow_bindings` | autonomy / enabled / org-specific binding |
-| `workflow_triggers` | schedule / event / human lane |
-| `loop_intents` | Review Queue / Run Trace / human gate count |
-| `loop_intents.input_payload` | task candidates / decision candidates / follow-up draft |
-| `loop_intents.eligibility` | gate required / risk / approval state |
+| `ORGS` | Instance menu |
+| `AGENTS` | Role Agent menu / stubs |
+| `WF` | Workflow Definition cards |
+| `RUNS` | Review Queue / Run Trace |
+| `steps` | approve / reject local state |
+| `excl` / `edits` / `reason` | review detail editing state |
 
-API が空でも、Meeting Pack の5定義は画面で確認できる必要があるため、静的 definition fallback を持つ。ただし fallback は「正本」ではなく表示用の未接続状態として扱う。
+Workflow Control API 接続は次Storyで扱う。その際も、今回再現した header、left rail、review queue、review detail、run trace、stub agent の画面構造を壊さない。
 
 ## State Machine
 
 ```mermaid
 stateDiagram-v2
   [*] --> Loading
-  Loading --> Overview: API loaded or fallback ready
+  Loading --> ReviewQueue: DC runtime booted
   Overview --> ReviewQueue: open approval queue
   Overview --> Definition: open workflow definition
   ReviewQueue --> ReviewDetail: select gate
