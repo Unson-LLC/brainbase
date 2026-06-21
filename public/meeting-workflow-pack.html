@@ -27,7 +27,7 @@
     <div style="max-width:1480px;margin:0 auto;display:flex;align-items:center;gap:13px;height:52px;">
       <div style="display:flex;align-items:center;gap:9px;">
         <span style="width:23px;height:23px;border-radius:7px;background:#7c4dff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">◎</span>
-        <span class="mono" style="font-size:10.5px;font-weight:600;color:#fff;letter-spacing:.05em;">AGENT LOOP CONTROL</span>
+        <span class="mono" style="font-size:10.5px;font-weight:600;color:#fff;letter-spacing:.05em;">業務ループ制御</span>
       </div>
       <span style="width:1px;height:20px;background:#2c333d;"></span>
 
@@ -38,7 +38,7 @@
           <sc-if value="{{ menuInstanceOpen }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:39;"></div>
             <div style="position:absolute;top:40px;left:0;z-index:40;width:304px;background:#fff;border:1px solid #e0e6ed;border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.18);padding:8px;display:grid;gap:2px;">
-              <span class="mono" style="font-size:9.5px;color:#9aa4b1;letter-spacing:.06em;padding:4px 8px 6px;">INSTANCE を切替（同 archetype・別 org）</span>
+              <span class="mono" style="font-size:9.5px;color:#9aa4b1;letter-spacing:.06em;padding:4px 8px 6px;">組織を切替（同じ型・別組織）</span>
               <sc-for list="{{ instanceMenu }}" as="o" hint-placeholder-count="2">
                 <button data-org="{{ o.id }}" onClick="{{ setOrg }}" style="display:grid;gap:3px;padding:9px 10px;border-radius:9px;border:none;text-align:left;width:100%;{{ o.rowStyle }}">
                   <span style="display:flex;align-items:center;gap:8px;"><strong style="font-size:12.5px;">{{ o.label }}</strong><span class="mono" style="font-size:9px;color:#8893a2;">{{ o.project }}</span><span class="mono" style="margin-left:auto;font-size:9px;{{ o.activeStyle }}">{{ o.activeLabel }}</span></span>
@@ -54,7 +54,7 @@
           <sc-if value="{{ menuAgentOpen }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:39;"></div>
             <div style="position:absolute;top:40px;left:0;z-index:40;width:286px;background:#fff;border:1px solid #e0e6ed;border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.18);padding:8px;display:grid;gap:2px;">
-              <span class="mono" style="font-size:9.5px;color:#9aa4b1;letter-spacing:.06em;padding:4px 8px 6px;">ROLE AGENT を切替</span>
+              <span class="mono" style="font-size:9.5px;color:#9aa4b1;letter-spacing:.06em;padding:4px 8px 6px;">担当エージェントを切替</span>
               <sc-for list="{{ agentMenu }}" as="a" hint-placeholder-count="4">
                 <button data-agent="{{ a.id }}" onClick="{{ setAgent }}" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;text-align:left;width:100%;{{ a.rowStyle }}">
                   <span style="flex:1;display:grid;gap:1px;line-height:1.25;"><strong style="font-size:12.5px;">{{ a.name }}</strong><span class="mono" style="font-size:9.5px;color:#8893a2;">{{ a.sub }}</span></span>
@@ -79,14 +79,14 @@
 
       <!-- OPERATE: the daily job, first -->
       <div style="display:grid;gap:10px;">
-        <span class="mono" style="font-size:9.5px;color:#8893a2;letter-spacing:.07em;">対応 · OPERATE</span>
+        <span class="mono" style="font-size:9.5px;color:#8893a2;letter-spacing:.07em;">対応</span>
         <button data-nav="review" onClick="{{ openQueue }}" style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;border:1.5px solid;text-align:left;{{ reviewNavStyle }}">
           <span style="font-size:14px;">✎</span>
           <span style="flex:1;font-size:13px;font-weight:600;">承認待ち</span>
           <span class="mono" style="font-size:10px;padding:1px 7px;border-radius:5px;{{ queueBadgeStyle }}">{{ queueCount }}</span>
         </button>
         <div style="display:grid;gap:5px;padding-top:2px;">
-          <span class="mono" style="font-size:9px;color:#aab3bf;letter-spacing:.06em;padding-left:2px;">進行中 · RUNS</span>
+          <span class="mono" style="font-size:9px;color:#aab3bf;letter-spacing:.06em;padding-left:2px;">進行中</span>
           <sc-for list="{{ inboxRows }}" as="row" hint-placeholder-count="3">
             <button data-run="{{ row.id }}" onClick="{{ openRun }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;border:1.5px solid;text-align:left;width:100%;{{ row.railStyle }}">
               <span style="width:7px;height:7px;border-radius:50%;flex:none;{{ row.dotStyle }}"></span>
@@ -101,11 +101,11 @@
 
       <!-- REFERENCE: design-time, below -->
       <div style="display:grid;gap:11px;border-top:1px solid #e1e6ec;padding-top:18px;">
-        <span class="mono" style="font-size:9.5px;color:#8893a2;letter-spacing:.07em;">リファレンス · REFERENCE</span>
+        <span class="mono" style="font-size:9.5px;color:#8893a2;letter-spacing:.07em;">参照</span>
         <button data-nav="overview" onClick="{{ goHome }}" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;border:1.5px solid;text-align:left;{{ overviewNavStyle }}">
           <span style="font-size:13px;">▥</span>
           <span style="flex:1;font-size:12.5px;font-weight:600;">概要</span>
-          <span class="mono" style="font-size:9px;color:#8893a2;">system map</span>
+          <span class="mono" style="font-size:9px;color:#8893a2;">全体</span>
         </button>
         <div style="display:grid;gap:9px;padding-top:2px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;padding-left:2px;">
@@ -114,7 +114,7 @@
           </div>
 
           <div style="display:grid;gap:5px;">
-            <div style="display:flex;align-items:center;gap:6px;padding:0 2px;"><span style="width:6px;height:6px;border-radius:50%;background:#2a6fb0;"></span><span class="mono" style="font-size:9px;color:#2a6fb0;font-weight:600;letter-spacing:.05em;">SCHEDULE</span></div>
+            <div style="display:flex;align-items:center;gap:6px;padding:0 2px;"><span style="width:6px;height:6px;border-radius:50%;background:#2a6fb0;"></span><span class="mono" style="font-size:9px;color:#2a6fb0;font-weight:600;letter-spacing:.05em;">時間起点</span></div>
             <sc-for list="{{ laneSchedule }}" as="w" hint-placeholder-count="1">
               <button data-wf="{{ w.id }}" onClick="{{ openDef }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;border:1.5px solid;text-align:left;width:100%;{{ w.railStyle }}">
                 <span style="flex:1;display:grid;line-height:1.22;"><strong style="font-size:11.5px;">{{ w.name }}</strong><span class="mono" style="font-size:9px;color:#8893a2;">{{ w.jp }}</span></span>
@@ -124,7 +124,7 @@
           </div>
 
           <div style="display:grid;gap:5px;">
-            <div style="display:flex;align-items:center;gap:6px;padding:0 2px;"><span style="width:6px;height:6px;border-radius:50%;background:#b06a16;"></span><span class="mono" style="font-size:9px;color:#b06a16;font-weight:600;letter-spacing:.05em;">EVENT</span></div>
+            <div style="display:flex;align-items:center;gap:6px;padding:0 2px;"><span style="width:6px;height:6px;border-radius:50%;background:#b06a16;"></span><span class="mono" style="font-size:9px;color:#b06a16;font-weight:600;letter-spacing:.05em;">イベント起点</span></div>
             <sc-for list="{{ laneEvent }}" as="w" hint-placeholder-count="2">
               <button data-wf="{{ w.id }}" onClick="{{ openDef }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;border:1.5px solid;text-align:left;width:100%;{{ w.railStyle }}">
                 <span style="flex:1;display:grid;line-height:1.22;"><strong style="font-size:11.5px;">{{ w.name }}</strong><span class="mono" style="font-size:9px;color:#8893a2;">{{ w.jp }}</span></span>
@@ -134,7 +134,7 @@
           </div>
 
           <div style="display:grid;gap:5px;">
-            <div style="display:flex;align-items:center;gap:6px;padding:0 2px;"><span style="width:6px;height:6px;border-radius:50%;background:#6b3fb0;"></span><span class="mono" style="font-size:9px;color:#6b3fb0;font-weight:600;letter-spacing:.05em;">HUMAN</span></div>
+            <div style="display:flex;align-items:center;gap:6px;padding:0 2px;"><span style="width:6px;height:6px;border-radius:50%;background:#6b3fb0;"></span><span class="mono" style="font-size:9px;color:#6b3fb0;font-weight:600;letter-spacing:.05em;">人間起点</span></div>
             <sc-for list="{{ laneHuman }}" as="w" hint-placeholder-count="2">
               <button data-wf="{{ w.id }}" onClick="{{ openDef }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;border:1.5px solid;text-align:left;width:100%;{{ w.railStyle }}">
                 <span style="flex:1;display:grid;line-height:1.22;"><strong style="font-size:11.5px;">{{ w.name }}</strong><span class="mono" style="font-size:9px;color:#8893a2;">{{ w.jp }}</span></span>
@@ -149,8 +149,8 @@
       <!-- stub agent sidebar (keeps chrome consistent across agents) -->
       <sc-if value="{{ isOtherAgent }}" hint-placeholder-val="{{ false }}">
       <div style="display:grid;gap:11px;">
-        <span class="mono" style="font-size:9.5px;color:#8893a2;letter-spacing:.07em;">対応 · OPERATE</span>
-        <div style="padding:11px 12px;border:1.5px dashed #c2cad4;border-radius:10px;background:#fff;font-size:11.5px;color:#9aa4b1;line-height:1.5;">承認待ちなし<br>（Workflow Pack 未構築）</div>
+        <span class="mono" style="font-size:9.5px;color:#8893a2;letter-spacing:.07em;">対応</span>
+        <div style="padding:11px 12px;border:1.5px dashed #c2cad4;border-radius:10px;background:#fff;font-size:11.5px;color:#9aa4b1;line-height:1.5;">承認待ちなし<br>（業務パック未構築）</div>
       </div>
       <div style="display:grid;gap:9px;border-top:1px solid #e1e6ec;padding-top:18px;">
         <div style="display:flex;align-items:baseline;justify-content:space-between;padding-left:2px;"><span class="mono" style="font-size:9px;color:#aab3bf;letter-spacing:.06em;">想定ワークフロー</span><span class="mono" style="font-size:9px;color:#c2cad4;">未定義</span></div>
@@ -180,13 +180,13 @@
         <!-- identity -->
         <div style="display:grid;gap:14px;">
           <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
-            <h1 style="margin:0;font-size:27px;letter-spacing:-.02em;">Meeting Ops Agent</h1>
-            <span style="font-size:12.5px;font-weight:600;color:#5a2fc2;">Role Agent</span>
+            <h1 style="margin:0;font-size:27px;letter-spacing:-.02em;">会議業務エージェント</h1>
+            <span style="font-size:12.5px;font-weight:600;color:#5a2fc2;">担当エージェント</span>
           </div>
-          <span style="font-size:14.5px;color:#374049;line-height:1.6;max-width:680px;">会議という入力に対し、<strong style="color:#13171c;font-weight:600;">どの Workflow Definition を起動するか</strong>を選択・束ねる。正本（SSOT）は持たない — 実行は runner、検証・記録・正本化は Brainbase が担う。</span>
+          <span style="font-size:14.5px;color:#374049;line-height:1.6;max-width:680px;">会議という入力に対し、<strong style="color:#13171c;font-weight:600;">どの ワークフロー定義 を起動するか</strong>を選択・束ねる。正本（SSOT）は持たない — 実行は外部実行基盤、検証・記録・正本化は Brainbase が担う。</span>
           <div style="display:flex;gap:32px;flex-wrap:wrap;padding-top:6px;">
-            <div style="display:grid;gap:3px;"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em;">5</span><span class="mono" style="font-size:10.5px;color:#9aa4b1;">definitions</span></div>
-            <div style="display:grid;gap:3px;"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em;">2</span><span class="mono" style="font-size:10.5px;color:#9aa4b1;">instances</span></div>
+            <div style="display:grid;gap:3px;"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em;">5</span><span class="mono" style="font-size:10.5px;color:#9aa4b1;">定義</span></div>
+            <div style="display:grid;gap:3px;"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em;">2</span><span class="mono" style="font-size:10.5px;color:#9aa4b1;">組織</span></div>
             <div style="display:grid;gap:3px;"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em;color:#b3471b;">{{ humanWaiting }}</span><span class="mono" style="font-size:10.5px;color:#9aa4b1;">承認待ち</span></div>
           </div>
         </div>
@@ -228,7 +228,7 @@
 
         <!-- guardrails -->
         <div style="display:grid;gap:12px;">
-          <span class="mono" style="font-size:10.5px;color:#9aa4b1;letter-spacing:.06em;">GUARDRAILS · 全 instance 常時適用</span>
+          <span class="mono" style="font-size:10.5px;color:#9aa4b1;letter-spacing:.06em;">ガードレール · 全組織に常時適用</span>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 28px;max-width:820px;">
             <sc-for list="{{ guardrails }}" as="g" hint-placeholder-count="5">
               <div style="display:flex;gap:9px;align-items:baseline;font-size:12.5px;color:#46505d;line-height:1.5;"><span style="color:#d99a16;font-size:9px;">●</span>{{ g }}</div>
@@ -301,7 +301,7 @@
         <sc-if value="{{ review.resolved }}" hint-placeholder-val="{{ false }}">
           <div style="border-radius:11px;padding:15px 17px;display:grid;gap:7px;{{ review.statusStyle }}">
             <div style="display:flex;align-items:center;gap:11px;"><span style="font-size:13px;">●</span><strong style="font-size:13.5px;">{{ review.statusLabel }}</strong></div>
-            <sc-if value="{{ review.isRejected }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;line-height:1.55;padding-left:24px;">runner へ返却した修正指示: 「{{ review.rejectedReasonLabel }}」</span></sc-if>
+            <sc-if value="{{ review.isRejected }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;line-height:1.55;padding-left:24px;">実行エージェントへ返却した修正指示: 「{{ review.rejectedReasonLabel }}」</span></sc-if>
           </div>
         </sc-if>
 
@@ -338,7 +338,7 @@
               <button data-k="{{ review.msgKey }}" onClick="{{ toggleItem }}" style="display:flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;font-weight:600;padding:0;{{ review.msgToggleTextStyle }}"><span style="width:16px;height:16px;border-radius:5px;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;">{{ review.msgToggleMark }}</span>送信に含める</button>
             </div>
             <textarea data-k="{{ review.msgKey }}" value="{{ review.msgBody }}" onInput="{{ editItem }}" rows="6" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:15px;line-height:1.7;color:#13171c;border:1px solid #e7ebf0;border-radius:11px;padding:15px 17px;resize:vertical;{{ review.msgTaStyle }}"></textarea>
-            <span class="mono" style="font-size:10.5px;color:#aab3bf;">scope: attendees only ・ #exec 除外 ・ dedup 1 send</span>
+            <span class="mono" style="font-size:10.5px;color:#aab3bf;">範囲: 参加者のみ ・ #exec 除外 ・ 重複防止・1回送信</span>
           </div>
           </sc-if>
 
@@ -378,20 +378,20 @@
         <div style="display:grid;gap:11px;">
           <div style="display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;">
             <h1 style="margin:0;font-size:25px;letter-spacing:-.02em;">{{ def.name }}</h1>
-            <span style="font-size:12.5px;{{ def.riskTextStyle }}">risk {{ def.risk }}</span>
-            <span style="font-size:12.5px;{{ def.eligTextStyle }}">{{ def.eligibility }}</span>
+            <span style="font-size:12.5px;{{ def.riskTextStyle }}">リスク {{ def.riskLabel }}</span>
+            <span style="font-size:12.5px;{{ def.eligTextStyle }}">{{ def.eligibilityLabel }}</span>
           </div>
           <span style="font-size:14.5px;color:#374049;line-height:1.55;">{{ def.jp }} — {{ def.triggerDesc }}。</span>
-          <span class="mono" style="font-size:11px;color:#9aa4b1;">{{ def.id }} ・ autonomy: {{ def.autonomy }} ・ instance: {{ org.label }}</span>
-          <sc-if value="{{ hasRuns }}" hint-placeholder-val="{{ true }}"><button data-run="welfare" onClick="{{ openRun }}" style="justify-self:start;margin-top:4px;height:34px;padding:0 15px;border:none;border-radius:9px;background:#13171c;color:#fff;font-size:12.5px;font-weight:600;">最新 Run Trace を見る →</button></sc-if>
+          <span class="mono" style="font-size:11px;color:#9aa4b1;">{{ def.id }} ・ 自律度: {{ def.autonomyLabel }} ・ 組織: {{ org.label }}</span>
+          <sc-if value="{{ hasRuns }}" hint-placeholder-val="{{ true }}"><button data-run="welfare" onClick="{{ openRun }}" style="justify-self:start;margin-top:4px;height:34px;padding:0 15px;border:none;border-radius:9px;background:#13171c;color:#fff;font-size:12.5px;font-weight:600;">最新の実行履歴を見る →</button></sc-if>
           <sc-if value="{{ noRuns }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:#9aa4b1;">この org にはまだ run がありません</span></sc-if>
         </div>
 
         <!-- judgment DAG -->
         <div style="display:grid;gap:13px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
-            <h2 style="margin:0;font-size:16px;letter-spacing:-.01em;">Judgment DAG</h2>
-            <span class="mono" style="font-size:10.5px;color:#9aa4b1;">input → context → judge → output → gate → write-back</span>
+            <h2 style="margin:0;font-size:16px;letter-spacing:-.01em;">判断フロー</h2>
+            <span class="mono" style="font-size:10.5px;color:#9aa4b1;">入力 → 文脈 → 判断 → 出力 → 確認 → 書き戻し</span>
           </div>
           <div class="rail-scroll" style="overflow-x:auto;padding:2px 2px 12px;">
             <div style="display:flex;align-items:stretch;gap:0;min-width:max-content;">
@@ -411,7 +411,7 @@
 
         <!-- contracts -->
         <div style="display:grid;gap:14px;">
-          <h2 style="margin:0;font-size:16px;letter-spacing:-.01em;">Contracts</h2>
+          <h2 style="margin:0;font-size:16px;letter-spacing:-.01em;">契約</h2>
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px 32px;">
             <sc-for list="{{ def.contracts }}" as="c" hint-placeholder-count="6">
               <div style="display:grid;gap:0;align-content:start;">
@@ -455,7 +455,7 @@
             <div style="padding-bottom:30px;display:grid;gap:8px;min-width:0;">
               <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;"><strong style="font-size:14.5px;">議事録ドラフト</strong><span style="font-size:11.5px;color:#1f9d57;font-weight:600;">承認済</span></div>
               <span style="font-size:13px;color:#46505d;line-height:1.6;">{{ run.noteSummary }}</span>
-              <span class="mono" style="font-size:10.5px;color:#aab3bf;">transcript_ready ・ verified・recorded → project docs</span>
+              <span class="mono" style="font-size:10.5px;color:#aab3bf;">文字起こし確認済み ・ レビュー済み ・ 記録済み → プロジェクト文書</span>
             </div>
           </div>
 
@@ -514,7 +514,7 @@
                 <span class="mono" style="font-size:10.5px;color:#9aa4b1;">{{ run.msgChannel }} → {{ run.msgTo }}</span>
                 <span style="font-size:13px;color:#46505d;line-height:1.65;white-space:pre-line;">{{ run.msgBody }}</span>
               </div>
-              <span class="mono" style="font-size:10.5px;color:#aab3bf;">scope: attendees only ・ #exec 除外 ・ dedup 1 send</span>
+              <span class="mono" style="font-size:10.5px;color:#aab3bf;">範囲: 参加者のみ ・ #exec 除外 ・ 重複防止・1回送信</span>
               <sc-if value="{{ gMessage.pending }}" hint-placeholder-val="{{ false }}"><button data-rk="{{ gMessage.key }}" onClick="{{ openReview }}" style="justify-self:start;border:none;background:none;padding:0;color:#13171c;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:3px;">承認待ちで処理 →</button></sc-if>
             </div>
           </div>
@@ -524,22 +524,22 @@
         <!-- write-back ledger -->
         <div style="border-radius:14px;background:#13171c;color:#fff;padding:18px 20px;">
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;">
-            <strong style="font-size:13.5px;">Write-back Ledger</strong>
+            <strong style="font-size:13.5px;">書き戻し台帳</strong>
             <span class="mono" style="font-size:10px;color:#8a96a4;">正本反映は承認後のみ</span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
             <div style="display:grid;gap:7px;align-content:start;">
-              <span class="mono" style="font-size:10px;color:#8a96a4;letter-spacing:.04em;">TASK STORE</span>
+              <span class="mono" style="font-size:10px;color:#8a96a4;letter-spacing:.04em;">タスク台帳</span>
               <span style="font-size:12.5px;line-height:1.45;">{{ wbTasks.detail }}</span>
               <span style="font-size:10.5px;padding:3px 9px;border-radius:999px;font-weight:600;width:fit-content;{{ wbTasks.pillStyle }}">{{ wbTasks.pill }}</span>
             </div>
             <div style="display:grid;gap:7px;align-content:start;">
-              <span class="mono" style="font-size:10px;color:#8a96a4;letter-spacing:.04em;">GRAPH SSOT</span>
+              <span class="mono" style="font-size:10px;color:#8a96a4;letter-spacing:.04em;">Graph正本</span>
               <span style="font-size:12.5px;line-height:1.45;">{{ wbDecisions.detail }}</span>
               <span style="font-size:10.5px;padding:3px 9px;border-radius:999px;font-weight:600;width:fit-content;{{ wbDecisions.pillStyle }}">{{ wbDecisions.pill }}</span>
             </div>
             <div style="display:grid;gap:7px;align-content:start;">
-              <span class="mono" style="font-size:10px;color:#8a96a4;letter-spacing:.04em;">EXTERNAL CHANNEL</span>
+              <span class="mono" style="font-size:10px;color:#8a96a4;letter-spacing:.04em;">外部チャネル</span>
               <span style="font-size:12.5px;line-height:1.45;">{{ wbMessage.detail }}</span>
               <span style="font-size:10.5px;padding:3px 9px;border-radius:999px;font-weight:600;width:fit-content;{{ wbMessage.pillStyle }}">{{ wbMessage.pill }}</span>
             </div>
@@ -556,24 +556,24 @@
         <div style="display:grid;gap:11px;">
           <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
             <h1 style="margin:0;font-size:25px;letter-spacing:-.02em;">{{ stub.name }}</h1>
-            <span class="mono" style="font-size:11px;padding:3px 9px;border-radius:7px;background:#fbf3e2;border:1px solid #ead2a8;color:#9a6512;">v0 · 未構築</span>
+            <span class="mono" style="font-size:11px;padding:3px 9px;border-radius:7px;background:#fbf3e2;border:1px solid #ead2a8;color:#9a6512;">未構築</span>
           </div>
-          <span style="font-size:14px;color:#374049;line-height:1.6;max-width:720px;">{{ stub.jp }} 業務の Role Agent。Meeting Ops Agent と同じ制御面（instance × workflow binding × trigger × gate × audit）に乗るが、Workflow Pack は未実装。下記は想定パックの骨子。</span>
-          <span class="mono" style="font-size:11px;color:#9aa4b1;">archetype: {{ stub.archetype }}</span>
+          <span style="font-size:14px;color:#374049;line-height:1.6;max-width:720px;">{{ stub.jp }} 業務の 担当エージェント。会議業務エージェント と同じ制御面（組織単位の設定 × ワークフロー紐付け × 起動条件 × 人間確認 × 監査証跡）に乗るが、業務パックは未実装。下記は想定パックの骨子。</span>
+          <span class="mono" style="font-size:11px;color:#9aa4b1;">型: {{ stub.archetype }}</span>
         </div>
         <div style="display:grid;gap:14px;">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;"><h2 style="margin:0;font-size:16px;letter-spacing:-.01em;">想定 Workflow Pack</h2><span style="font-size:12px;color:#8893a2;">未構築 · Meeting Ops をテンプレに複製予定</span></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;"><h2 style="margin:0;font-size:16px;letter-spacing:-.01em;">想定業務パック</h2><span style="font-size:12px;color:#8893a2;">未構築 · 会議業務を型として複製予定</span></div>
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
             <sc-for list="{{ stub.workflows }}" as="wf" hint-placeholder-count="4">
               <div style="border:1px dashed #d8dee6;border-radius:11px;background:#fafbfd;padding:14px;display:flex;align-items:center;gap:10px;">
                 <span style="width:7px;height:7px;border-radius:50%;border:1.5px dashed #c2cad4;flex:none;"></span>
                 <strong class="mono" style="font-size:12px;color:#5a6573;">{{ wf.name }}</strong>
-                <span class="mono" style="margin-left:auto;font-size:9.5px;color:#aab3bf;">not defined</span>
+                <span class="mono" style="margin-left:auto;font-size:9.5px;color:#aab3bf;">未定義</span>
               </div>
             </sc-for>
           </div>
         </div>
-        <div style="border:1px solid #e7ebf0;border-radius:11px;background:#f5f8fb;padding:14px 16px;font-size:12.5px;color:#5a6573;line-height:1.65;">この pack を起こすには、Meeting Ops Agent の Workflow Definition（input / context / output contract ＋ human gate ＋ write-back mapping ＋ audit evidence）を参照テンプレとして複製し、{{ stub.archetype }} 用に input / context / write-back を差し替える。</div>
+        <div style="border:1px solid #e7ebf0;border-radius:11px;background:#f5f8fb;padding:14px 16px;font-size:12.5px;color:#5a6573;line-height:1.65;">この業務パックを起こすには、会議業務エージェントのワークフロー定義（入力・参照文脈・出力契約・人間確認・書き戻し先・監査証跡）を参照テンプレートとして複製し、{{ stub.archetype }} 用に入力・参照文脈・書き戻し先を差し替える。</div>
       </div>
       </sc-if>
 
@@ -587,13 +587,13 @@ class Component extends DCLogic {
   state = { view: 'review', defId: 'transcript-to-meeting-note', runId: 'welfare', steps: {}, orgId: 'unson', agent: 'meeting-ops', reviewKey: 'welfare:tasks', excl: {}, edits: {}, reason: '', reasons: {}, hiConfirm: false, menu: null };
 
   KIND = {
-    input:{label:'input', c:'#2a6fb0', b:'#e7f0f8'},
-    context:{label:'context', c:'#0f766e', b:'#e3f4f1'},
-    judge:{label:'judge', c:'#6b3fb0', b:'#efe9f8'},
-    output:{label:'output', c:'#b06a16', b:'#f8efe1'},
-    gate:{label:'human gate', c:'#b7791f', b:'#fbf3e2'},
-    writeback:{label:'write-back', c:'#027a48', b:'#e7f6ee'},
-    none:{label:'advisory', c:'#667085', b:'#eef1f5'}
+    input:{label:'入力', c:'#2a6fb0', b:'#e7f0f8'},
+    context:{label:'参照文脈', c:'#0f766e', b:'#e3f4f1'},
+    judge:{label:'判断', c:'#6b3fb0', b:'#efe9f8'},
+    output:{label:'出力', c:'#b06a16', b:'#f8efe1'},
+    gate:{label:'人間確認', c:'#b7791f', b:'#fbf3e2'},
+    writeback:{label:'書き戻し', c:'#027a48', b:'#e7f6ee'},
+    none:{label:'助言のみ', c:'#667085', b:'#eef1f5'}
   };
 
   TONE = {
@@ -610,33 +610,33 @@ class Component extends DCLogic {
   };
 
   WBTARGET = {
-    'pre-meeting-briefing':'advisory（非正本）',
-    'transcript-to-meeting-note':'project docs',
-    'meeting-note-to-tasks':'Task Store',
-    'meeting-note-to-decisions':'Graph SSOT',
-    'post-meeting-follow-up-message':'External send'
+    'pre-meeting-briefing':'助言のみ（非正本）',
+    'transcript-to-meeting-note':'プロジェクト文書',
+    'meeting-note-to-tasks':'タスク台帳',
+    'meeting-note-to-decisions':'Graph正本',
+    'post-meeting-follow-up-message':'外部送信'
   };
   PRODUCES = {
-    'pre-meeting-briefing':'Briefing doc',
-    'transcript-to-meeting-note':'Meeting Note',
-    'meeting-note-to-tasks':'Task candidates',
-    'meeting-note-to-decisions':'Decision candidates',
-    'post-meeting-follow-up-message':'Follow-up message'
+    'pre-meeting-briefing':'事前ブリーフィング',
+    'transcript-to-meeting-note':'議事録',
+    'meeting-note-to-tasks':'タスク候補',
+    'meeting-note-to-decisions':'決定事項候補',
+    'post-meeting-follow-up-message':'フォローアップ文'
   };
 
   // phases of the meeting lifecycle (overview map)
   PHASES = [
-    { label:'事前 / BEFORE',   ids:['pre-meeting-briefing'] },
-    { label:'記録 / CAPTURE',  ids:['transcript-to-meeting-note'] },
-    { label:'抽出 / EXTRACT',  ids:['meeting-note-to-tasks','meeting-note-to-decisions'] },
-    { label:'展開 / FOLLOW-UP', ids:['post-meeting-follow-up-message'] }
+    { label:'事前準備',   ids:['pre-meeting-briefing'] },
+    { label:'記録',  ids:['transcript-to-meeting-note'] },
+    { label:'抽出',  ids:['meeting-note-to-tasks','meeting-note-to-decisions'] },
+    { label:'展開', ids:['post-meeting-follow-up-message'] }
   ];
 
   ORGS = [
     { id:'unson', label:'unson', project:'salestailor-project', owner:'sato_keigo',
-      context:'meeting-bound · same-attendee history', toolScope:'transcript.read · docs.draft · deny gmail.send', maxAutonomy:'approval_required' },
+      context:'会議単位・同席者の過去履歴', toolScope:'文字起こし閲覧・文書下書き・Gmail送信不可', maxAutonomy:'approval_required' },
     { id:'salestailor', label:'salestailor', project:'salestailor-ops', owner:'morita_shin',
-      context:'meeting-bound · clinic-sensitive redaction', toolScope:'transcript.read · docs.draft · deny external.send', maxAutonomy:'draft_only' }
+      context:'会議単位・クリニック情報は要マスキング', toolScope:'文字起こし閲覧・文書下書き・外部送信不可', maxAutonomy:'draft_only' }
   ];
   BIND = {
     salestailor: {
@@ -651,124 +651,124 @@ class Component extends DCLogic {
 
   // Human-in-the-loop gate metadata: what the human is approving, the side-effect, and risk-calibrated friction
   GMETA = {
-    tasks:    { label:'Tasks 作成',    wb:'Task Store', risk:'medium', verb:'作成', side:'Task Store への書き込み（idempotent・取消可）', irreversible:false },
-    decisions:{ label:'Decisions 昇格', wb:'Graph SSOT', risk:'high',   verb:'昇格', side:'Graph SSOT（正本）への昇格',                 irreversible:true },
-    message:  { label:'Follow-up 送信', wb:'External',   risk:'high',   verb:'送信', side:'外部チャネルへの送信 — 取消不可',            irreversible:true }
+    tasks:    { label:'タスク作成',    wb:'タスク台帳', risk:'medium', verb:'作成', side:'タスク台帳への書き込み（重複防止・取消可）', irreversible:false },
+    decisions:{ label:'決定事項の昇格', wb:'Graph正本', risk:'high',   verb:'昇格', side:'Graph正本（正本）への昇格',                 irreversible:true },
+    message:  { label:'フォローアップ送信', wb:'外部',   risk:'high',   verb:'送信', side:'外部チャネルへの送信 — 取消不可',            irreversible:true }
   };
   GAGE = { 'welfare:tasks':'12分待ち', 'welfare:decisions':'12分待ち', 'welfare:message':'12分待ち', 'omni:tasks':'2時間待ち' };
   GUARDRAILS = [
-    'Task / Decision / message は人間承認が必須',
-    'runner output は Brainbase 記録まで正本ではない',
-    'Graph SSOT への昇格は承認 gate 通過後のみ',
-    'event retry が起きても重複を作らない',
-    'private channel / 限定 scope の情報を leak させない'
+    'タスク / 決定事項 / 外部メッセージは人間承認が必須',
+    '実行結果は Brainbase 記録まで正本ではない',
+    'Graph正本 への昇格は承認ゲート通過後のみ',
+    'イベント再試行が起きても重複を作らない',
+    '限定チャンネル / 限定範囲の情報を外部に漏らさない'
   ];
   RUNORG = { welfare:'unson', omni:'unson', sales:'unson' };
 
   AGENTS = [
-    { id:'meeting-ops', name:'Meeting Ops Agent', glyph:'◎', jp:'会議業務', archetype:'meeting-ops', built:true },
-    { id:'sales', name:'Sales Agent', glyph:'➤', jp:'営業', archetype:'sales', built:false,
+    { id:'meeting-ops', name:'会議業務エージェント', glyph:'◎', jp:'会議業務', archetype:'meeting-ops', built:true },
+    { id:'sales', name:'営業エージェント', glyph:'➤', jp:'営業', archetype:'sales', built:false,
       workflows:['lead-triage','outreach-draft','meeting-scheduler','pipeline-review'], orgs:['unson','salestailor'] },
-    { id:'backoffice', name:'Back-office Agent', glyph:'▤', jp:'バックオフィス', archetype:'back-office', built:false,
+    { id:'backoffice', name:'バックオフィスエージェント', glyph:'▤', jp:'バックオフィス', archetype:'back-office', built:false,
       workflows:['invoice-intake','contract-review','expense-classify'], orgs:['unson'] },
-    { id:'marketing', name:'Marketing Agent', glyph:'◐', jp:'マーケ', archetype:'marketing', built:false,
+    { id:'marketing', name:'マーケティングエージェント', glyph:'◐', jp:'マーケ', archetype:'marketing', built:false,
       workflows:['content-draft','sns-schedule','campaign-report'], orgs:['salestailor'] }
   ];
 
   WF = [
     {
-      id:'pre-meeting-briefing', name:'Pre-Meeting Briefing', jp:'事前ブリーフィング',
+      id:'pre-meeting-briefing', name:'会議前ブリーフィング', jp:'事前ブリーフィング',
       trigger:'schedule', autonomy:'auto_execute', eligibility:'eligible', risk:'low',
       dag:[
-        {kind:'input', title:'Calendar Event', sub:'meeting_id / attendees / start'},
-        {kind:'context', title:'Resolve Context', sub:'同一相手の過去 note · Graph person/org'},
-        {kind:'judge', title:'Compose Briefing', sub:'論点・前回宿題・関係者'},
-        {kind:'none', title:'Advisory Output', sub:'briefing doc（正本化しない）'}
+        {kind:'input', title:'カレンダー予定', sub:'会議ID / 参加者 / 開始時刻'},
+        {kind:'context', title:'文脈収集', sub:'同一相手の過去議事録・Graphの人物/組織'},
+        {kind:'judge', title:'ブリーフィング作成', sub:'論点・前回宿題・関係者'},
+        {kind:'none', title:'助言出力', sub:'事前ブリーフィング（正本化しない）'}
       ],
       contracts:[
-        {title:'Input Contract', subtitle:'入力契約', tone:'neutral', rows:[{k:'calendar_event',v:'required · {meeting_id, attendees, start}'},{k:'source',v:'Google Calendar'}]},
-        {title:'Context Policy', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'scope',v:'same project / same attendees のみ'},{k:'graph_refs',v:'person · org'},{k:'exclude',v:'private channel · 限定 meeting context'}]},
-        {title:'Output Contract', subtitle:'出力契約', tone:'neutral', rows:[{k:'briefing_doc',v:'markdown · non-canonical'},{k:'canonical',v:'false'}]},
-        {title:'Human Gate', subtitle:'人間ゲート', tone:'neutral', rows:[{k:'gate',v:'none（read-only 出力のため）'}]},
-        {title:'Write-back Mapping', subtitle:'書き戻し', tone:'neutral', rows:[{k:'target',v:'なし（助言のみ・正本に触れない）'}]},
-        {title:'Audit Evidence', subtitle:'監査要件', tone:'neutral', rows:[{k:'evidence',v:'context_snapshot refs · source note ids'}]}
+        {title:'入力条件', subtitle:'入力契約', tone:'neutral', rows:[{k:'カレンダー予定',v:'必須 · 会議ID / 参加者 / 開始時刻'},{k:'入力元',v:'Googleカレンダー'}]},
+        {title:'参照範囲', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'範囲',v:'同じプロジェクト / 同じ参加者のみ'},{k:'Graph参照',v:'人物・組織'},{k:'除外',v:'限定チャンネル・限定会議文脈'}]},
+        {title:'出力形式', subtitle:'出力契約', tone:'neutral', rows:[{k:'ブリーフィング',v:'Markdown・非正本'},{k:'正本扱い',v:'しない'}]},
+        {title:'人間確認', subtitle:'人間ゲート', tone:'neutral', rows:[{k:'確認',v:'なし（読むだけの出力のため）'}]},
+        {title:'書き戻し先', subtitle:'書き戻し', tone:'neutral', rows:[{k:'target',v:'なし（助言のみ・正本に触れない）'}]},
+        {title:'監査証跡', subtitle:'監査要件', tone:'neutral', rows:[{k:'証跡',v:'文脈スナップショット参照・参照議事録ID'}]}
       ]
     },
     {
-      id:'transcript-to-meeting-note', name:'Transcript → Meeting Note', jp:'議事録ドラフト生成',
+      id:'transcript-to-meeting-note', name:'文字起こし → 議事録', jp:'議事録ドラフト生成',
       trigger:'event', autonomy:'draft_only', eligibility:'eligible', risk:'low',
       dag:[
-        {kind:'input', title:'Transcript', sub:'meeting_id / text / source_system'},
-        {kind:'context', title:'Meeting Meta', sub:'attendee graph refs'},
-        {kind:'judge', title:'Structure Note', sub:'summary / agenda / decisions_raw / actions_raw'},
-        {kind:'output', title:'Draft Note', sub:'non-canonical'},
-        {kind:'gate', title:'Review Gate', sub:'公開前レビュー'},
-        {kind:'writeback', title:'Publish Docs', sub:'project docs'}
+        {kind:'input', title:'文字起こし', sub:'会議ID / 本文 / 入力システム'},
+        {kind:'context', title:'会議メタ情報', sub:'参加者のGraph参照'},
+        {kind:'judge', title:'議事録構造化', sub:'要約 / 議題 / 決定候補 / アクション候補'},
+        {kind:'output', title:'議事録ドラフト', sub:'非正本'},
+        {kind:'gate', title:'確認ゲート', sub:'公開前レビュー'},
+        {kind:'writeback', title:'文書公開', sub:'プロジェクト文書'}
       ],
       contracts:[
-        {title:'Input Contract', subtitle:'入力契約', tone:'neutral', rows:[{k:'transcript',v:'required · {meeting_id, text, source_system}'},{k:'source',v:'Omi / Zoom transcript'}]},
-        {title:'Context Policy', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'scope',v:'meeting-bound（当該会議のみ）'},{k:'graph_refs',v:'attendee person'}]},
-        {title:'Output Contract', subtitle:'出力契約', tone:'neutral', rows:[{k:'meeting_note',v:'draft · {summary, agenda, decisions_raw, actions_raw}'},{k:'canonical',v:'false（runner output 未検証）'}]},
-        {title:'Human Gate', subtitle:'人間ゲート', tone:'warn', rows:[{k:'gate',v:'review — 公開前にレビュー'},{k:'on_reject',v:'再生成 / 破棄'}]},
-        {title:'Write-back Mapping', subtitle:'書き戻し', tone:'neutral', rows:[{k:'target',v:'project docs（meeting note）'},{k:'when',v:'review gate 通過後'}]},
-        {title:'Audit Evidence', subtitle:'監査要件', tone:'neutral', rows:[{k:'evidence',v:'transcript ref · model · prompt_version'}]}
+        {title:'入力条件', subtitle:'入力契約', tone:'neutral', rows:[{k:'文字起こし',v:'必須 · 会議ID / 本文 / 入力システム'},{k:'入力元',v:'Omi / Zoom文字起こし'}]},
+        {title:'参照範囲', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'範囲',v:'当該会議のみ'},{k:'Graph参照',v:'参加者人物'}]},
+        {title:'出力形式', subtitle:'出力契約', tone:'neutral', rows:[{k:'議事録',v:'下書き · 要約 / 議題 / 決定候補 / アクション候補'},{k:'正本扱い',v:'しない（実行結果は未検証）'}]},
+        {title:'人間確認', subtitle:'人間ゲート', tone:'warn', rows:[{k:'確認',v:'公開前にレビュー'},{k:'差し戻し時',v:'再生成 / 破棄'}]},
+        {title:'書き戻し先', subtitle:'書き戻し', tone:'neutral', rows:[{k:'対象',v:'プロジェクト文書（議事録）'},{k:'時点',v:'確認ゲート通過後'}]},
+        {title:'監査証跡', subtitle:'監査要件', tone:'neutral', rows:[{k:'証跡',v:'文字起こし参照・モデル・プロンプト版'}]}
       ]
     },
     {
-      id:'meeting-note-to-tasks', name:'Meeting Note → Tasks', jp:'タスク候補抽出',
+      id:'meeting-note-to-tasks', name:'議事録 → タスク', jp:'タスク候補抽出',
       trigger:'event', autonomy:'approval_required', eligibility:'needs_approval', risk:'medium',
       dag:[
-        {kind:'input', title:'Meeting Note', sub:'note_id'},
-        {kind:'judge', title:'Extract Actions', sub:'担当 / 期限 / source span'},
-        {kind:'context', title:'Dedup', sub:'既存 open task と突合'},
-        {kind:'gate', title:'Approve Gate', sub:'Task 作成は承認必須'},
-        {kind:'writeback', title:'Create Tasks', sub:'Task store'}
+        {kind:'input', title:'議事録', sub:'議事録ID'},
+        {kind:'judge', title:'アクション抽出', sub:'担当 / 期限 / 根拠箇所'},
+        {kind:'context', title:'重複確認', sub:'既存の未完了タスクと突合'},
+        {kind:'gate', title:'承認ゲート', sub:'タスク作成は承認必須'},
+        {kind:'writeback', title:'タスク作成', sub:'タスク台帳'}
       ],
       contracts:[
-        {title:'Input Contract', subtitle:'入力契約', tone:'neutral', rows:[{k:'meeting_note',v:'required · {id}'}]},
-        {title:'Context Policy', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'dedup_key',v:'(meeting_id + normalized title + assignee)'},{k:'graph_refs',v:'assignee person'},{k:'scope',v:'既存 open tasks（dedup 用）'}]},
-        {title:'Output Contract', subtitle:'出力契約', tone:'neutral', rows:[{k:'task_candidates[]',v:'{title, assignee, due, source_span}'},{k:'canonical',v:'false'}]},
-        {title:'Human Gate', subtitle:'人間ゲート', tone:'warn', rows:[{k:'gate',v:'approve — Task 作成は人間承認必須', tone:'warn'},{k:'on_reject',v:'候補破棄 / 編集'}]},
-        {title:'Write-back Mapping', subtitle:'書き戻し', tone:'good', rows:[{k:'target',v:'Task store（NocoDB）'},{k:'when',v:'承認後のみ'},{k:'idempotency',v:'event retry で重複 task を作らない', tone:'good'}]},
-        {title:'Audit Evidence', subtitle:'監査要件', tone:'neutral', rows:[{k:'evidence',v:'source_span · dedup decision · approver'}]}
+        {title:'入力条件', subtitle:'入力契約', tone:'neutral', rows:[{k:'議事録',v:'必須 · 議事録ID'}]},
+        {title:'参照範囲', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'重複キー',v:'会議ID + 正規化タイトル + 担当者'},{k:'Graph参照',v:'担当者人物'},{k:'範囲',v:'既存の未完了タスク（重複確認用）'}]},
+        {title:'出力形式', subtitle:'出力契約', tone:'neutral', rows:[{k:'タスク候補',v:'タイトル / 担当者 / 期限 / 根拠箇所'},{k:'正本扱い',v:'しない'}]},
+        {title:'人間確認', subtitle:'人間ゲート', tone:'warn', rows:[{k:'確認',v:'承認 — タスク作成は人間承認必須', tone:'warn'},{k:'差し戻し時',v:'候補破棄 / 編集'}]},
+        {title:'書き戻し先', subtitle:'書き戻し', tone:'good', rows:[{k:'対象',v:'タスク台帳（NocoDB）'},{k:'時点',v:'承認後のみ'},{k:'重複防止',v:'イベント再試行で重複タスクを作らない', tone:'good'}]},
+        {title:'監査証跡', subtitle:'監査要件', tone:'neutral', rows:[{k:'証跡',v:'根拠箇所・重複判断・承認者'}]}
       ]
     },
     {
-      id:'meeting-note-to-decisions', name:'Meeting Note → Decisions', jp:'意思決定の昇格候補',
+      id:'meeting-note-to-decisions', name:'議事録 → 決定事項', jp:'意思決定の昇格候補',
       trigger:'human', autonomy:'approval_required', eligibility:'needs_approval', risk:'high',
       dag:[
-        {kind:'input', title:'Meeting Note', sub:'note_id'},
-        {kind:'judge', title:'Extract Decisions', sub:'statement / rationale / span'},
-        {kind:'context', title:'Candidate Store', sub:'Graph 既存 decision と dedup'},
-        {kind:'gate', title:'Approve Gate', sub:'昇格は gate 通過後'},
-        {kind:'writeback', title:'Promote', sub:'Graph SSOT decision'}
+        {kind:'input', title:'議事録', sub:'議事録ID'},
+        {kind:'judge', title:'決定事項抽出', sub:'決定文 / 根拠 / 根拠箇所'},
+        {kind:'context', title:'候補ストア', sub:'Graph既存決定と重複確認'},
+        {kind:'gate', title:'承認ゲート', sub:'昇格は ゲート通過後'},
+        {kind:'writeback', title:'正本へ昇格', sub:'Graph正本の決定エンティティ'}
       ],
       contracts:[
-        {title:'Input Contract', subtitle:'入力契約', tone:'neutral', rows:[{k:'meeting_note',v:'required · {id}'}]},
-        {title:'Context Policy', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'scope',v:'Graph existing decisions（dedup）'},{k:'graph_refs',v:'org · project'}]},
-        {title:'Output Contract', subtitle:'出力契約', tone:'neutral', rows:[{k:'decision_candidates[]',v:'{statement, rationale, source_span}'},{k:'store',v:'Candidate Store first（Graph 直入れ不可）'}]},
-        {title:'Human Gate', subtitle:'人間ゲート', tone:'warn', rows:[{k:'gate',v:'approve — Decision 昇格は gate 通過後', tone:'warn'},{k:'on_reject',v:'Candidate のまま保留'}]},
-        {title:'Write-back Mapping', subtitle:'書き戻し', tone:'good', rows:[{k:'target',v:'Graph SSOT（decision entity）'},{k:'path',v:'Candidate Store → promote'},{k:'when',v:'承認 gate 通過後のみ', tone:'good'}]},
-        {title:'Audit Evidence', subtitle:'監査要件', tone:'neutral', rows:[{k:'evidence',v:'candidate_id · source_span · promotion gate record'}]}
+        {title:'入力条件', subtitle:'入力契約', tone:'neutral', rows:[{k:'議事録',v:'必須 · 議事録ID'}]},
+        {title:'参照範囲', subtitle:'文脈ポリシー', tone:'neutral', rows:[{k:'範囲',v:'Graph既存決定（重複確認）'},{k:'Graph参照',v:'組織・プロジェクト'}]},
+        {title:'出力形式', subtitle:'出力契約', tone:'neutral', rows:[{k:'決定候補',v:'決定文 / 根拠 / 根拠箇所'},{k:'保存先',v:'まず候補ストア（Graph 直入れ不可）'}]},
+        {title:'人間確認', subtitle:'人間ゲート', tone:'warn', rows:[{k:'確認',v:'承認 — 決定事項の昇格はゲート通過後', tone:'warn'},{k:'差し戻し時',v:'候補のまま保留'}]},
+        {title:'書き戻し先', subtitle:'書き戻し', tone:'good', rows:[{k:'対象',v:'Graph正本（決定エンティティ）'},{k:'経路',v:'候補ストア → 昇格'},{k:'時点',v:'承認ゲート通過後のみ', tone:'good'}]},
+        {title:'監査証跡', subtitle:'監査要件', tone:'neutral', rows:[{k:'証跡',v:'候補ID・根拠箇所・昇格ゲート記録'}]}
       ]
     },
     {
-      id:'post-meeting-follow-up-message', name:'Post-Meeting Follow-up', jp:'フォローアップ message',
+      id:'post-meeting-follow-up-message', name:'会議後フォローアップ', jp:'フォローアップ文面',
       trigger:'human', autonomy:'approval_required', eligibility:'needs_approval', risk:'high',
       dag:[
-        {kind:'input', title:'Note + Decisions', sub:'approved decisions'},
-        {kind:'judge', title:'Compose Message', sub:'recap / next action'},
-        {kind:'context', title:'Scope Check', sub:'attendees only · leak 防止'},
-        {kind:'gate', title:'Approve Gate', sub:'外部送信は承認必須'},
-        {kind:'writeback', title:'Send', sub:'Slack / Gmail'}
+        {kind:'input', title:'議事録 + 決定事項', sub:'承認済み決定事項'},
+        {kind:'judge', title:'文面作成', sub:'要約 / 次アクション'},
+        {kind:'context', title:'送信範囲確認', sub:'参加者のみ・漏洩防止'},
+        {kind:'gate', title:'承認ゲート', sub:'外部送信は承認必須'},
+        {kind:'writeback', title:'送信', sub:'Slack / Gmail'}
       ],
       contracts:[
-        {title:'Input Contract', subtitle:'入力契約', tone:'neutral', rows:[{k:'input',v:'required · meeting_note + approved_decisions'}]},
-        {title:'Context Policy', subtitle:'文脈ポリシー', tone:'bad', rows:[{k:'scope',v:'attendees only', tone:'bad'},{k:'leak_guard',v:'private channel / 限定 meeting context を除外', tone:'bad'},{k:'graph_refs',v:'recipient person · channel'}]},
-        {title:'Output Contract', subtitle:'出力契約', tone:'neutral', rows:[{k:'draft_message',v:'{channel, recipients, body}'},{k:'canonical',v:'false（draft_only）'}]},
-        {title:'Human Gate', subtitle:'人間ゲート', tone:'warn', rows:[{k:'gate',v:'approve — 外部 message 送信は人間承認必須', tone:'warn'},{k:'on_reject',v:'下書き保持 / 編集'}]},
-        {title:'Write-back Mapping', subtitle:'書き戻し', tone:'good', rows:[{k:'target',v:'external send（Slack / Gmail）'},{k:'when',v:'承認後のみ'},{k:'idempotency',v:'dedup(meeting_id + recipient) で 1 回だけ送信', tone:'good'}]},
-        {title:'Audit Evidence', subtitle:'監査要件', tone:'neutral', rows:[{k:'evidence',v:'recipient list · channel · approval record'}]}
+        {title:'入力条件', subtitle:'入力契約', tone:'neutral', rows:[{k:'入力',v:'必須 · 議事録 + 承認済み決定事項'}]},
+        {title:'参照範囲', subtitle:'文脈ポリシー', tone:'bad', rows:[{k:'範囲',v:'参加者のみ', tone:'bad'},{k:'漏洩防止',v:'限定チャンネル / 限定会議文脈を除外', tone:'bad'},{k:'Graph参照',v:'送信先人物・チャネル'}]},
+        {title:'出力形式', subtitle:'出力契約', tone:'neutral', rows:[{k:'下書き文面',v:'チャネル / 宛先 / 本文'},{k:'正本扱い',v:'しない（下書きのみ）'}]},
+        {title:'人間確認', subtitle:'人間ゲート', tone:'warn', rows:[{k:'確認',v:'承認 — 外部メッセージ送信は人間承認必須', tone:'warn'},{k:'差し戻し時',v:'下書き保持 / 編集'}]},
+        {title:'書き戻し先', subtitle:'書き戻し', tone:'good', rows:[{k:'対象',v:'外部送信（Slack / Gmail）'},{k:'時点',v:'承認後のみ'},{k:'重複防止',v:'会議ID + 宛先で 1 回だけ送信', tone:'good'}]},
+        {title:'監査証跡', subtitle:'監査要件', tone:'neutral', rows:[{k:'証跡',v:'宛先リスト・チャネル・承認記録'}]}
       ]
     }
   ];
@@ -777,7 +777,7 @@ class Component extends DCLogic {
     welfare:{
       id:'run_welfare_0615', title:'2026-06-15 福祉施設 AI経営コンサル',
       meta:'meetings/minutes/2026-06-15_welfare-facility-ai-management-consultation.md',
-      attendees:'林崎雅哉 / 佐藤圭吾', source:'Zoom transcript',
+      attendees:'林崎雅哉 / 佐藤圭吾', source:'Zoom文字起こし',
       noteSummary:'福祉施設運営とFC展開を行う林崎氏が AI駆動経営の導入を相談。既存LINE/Zoom議事録から着手し、FC加盟店サポート向けAIマネージャー構築を最もROIが高い領域として提案。19日に追加面談を設定。',
       gates:{ tasks:'pending', decisions:'pending', message:'pending' },
       tasks:[
@@ -787,16 +787,16 @@ class Component extends DCLogic {
         {title:'次回打ち合わせ(19日 18:00-18:30)の Zoom 招待を送付', assignee:'佐藤圭吾', due:'今週中', span:'§アクション'}
       ],
       decisions:[
-        {statement:'本会議トランスクリプトを AI に読み込ませ、データ収集・構築アプローチを社内検討する', span:'source: §決定事項 / line 32'},
-        {statement:'次回打ち合わせを 6/19 18:00-18:30 に Zoom で実施する', span:'source: §決定事項 / line 33'}
+        {statement:'本会議トランスクリプトを AI に読み込ませ、データ収集・構築アプローチを社内検討する', span:'出典: §決定事項 / line 32'},
+        {statement:'次回打ち合わせを 6/19 18:00-18:30 に Zoom で実施する', span:'出典: §決定事項 / line 33'}
       ],
-      msgChannel:'Email + Zoom invite', msgTo:'林崎雅哉',
+      msgChannel:'メール + Zoom招待', msgTo:'林崎雅哉',
       msgBody:'林崎様\n本日はお打ち合わせのお時間をいただきありがとうございました。\n次回は 6/19 18:00–18:30、Zoom にて進め方を再協議いたします（招待を別途お送りします）。本日の議事 recap を添付します。'
     },
     omni:{
       id:'run_omni_0603', title:'2026-06-03 Omi 購入 / サーバー構成',
       meta:'meetings/minutes/2026-06-03_omni-japan-purchase-investigation.md',
-      attendees:'大沢将行 / 佐藤圭吾', source:'Zoom transcript',
+      attendees:'大沢将行 / 佐藤圭吾', source:'Zoom文字起こし',
       noteSummary:'音声デバイス Omi と自社サーバーを連携し録音をテキスト化・蓄積する方針を決定。竹プラン（個別サーバー）を標準とし、音声 raw は破棄しテキストのみ保存。',
       gates:{ tasks:'pending', decisions:'approved', message:'approved' },
       tasks:[
@@ -806,8 +806,8 @@ class Component extends DCLogic {
         {title:'5Pro リポジトリ情報と README を共有', assignee:'佐藤圭吾', due:'未定', span:'§アクション'}
       ],
       decisions:[
-        {statement:'竹プラン（個別サーバー）を標準提供方針とする', span:'source: §サーバー構成'},
-        {statement:'音声 raw データは文字起こし後に破棄しテキストのみ保存する', span:'source: §Brainbase活用'}
+        {statement:'竹プラン（個別サーバー）を標準提供方針とする', span:'出典: §サーバー構成'},
+        {statement:'音声 raw データは文字起こし後に破棄しテキストのみ保存する', span:'出典: §Brainbase活用'}
       ],
       msgChannel:'Email', msgTo:'大沢将行',
       msgBody:'大沢様\n本日はありがとうございました。契約書および Brainbase オンボーディング手順を順次お送りします。Omi 購入判断は今週中にご共有ください。'
@@ -815,7 +815,7 @@ class Component extends DCLogic {
     sales:{
       id:'run_sales_0530', title:'2026-05-30 AI駆動経営 キックオフ',
       meta:'meetings/minutes/2026-05-30_ai-driven-sales-system-discussion.md',
-      attendees:'大田原雅之 / 佐藤圭吾', source:'Zoom transcript',
+      attendees:'大田原雅之 / 佐藤圭吾', source:'Zoom文字起こし',
       noteSummary:'クリニック院長向けに、ウェアラブルで会話を自動蓄積・分析する AI駆動経営パッケージの共同開発を協議。大田原氏が第1号として Omi 検証を進める。',
       gates:{ tasks:'approved', decisions:'approved', message:'approved' },
       tasks:[
@@ -824,8 +824,8 @@ class Component extends DCLogic {
         {title:'セキュリティ最適解（Workspace / Bedrock）を調査', assignee:'佐藤圭吾', due:'6月中', span:'§アクション'}
       ],
       decisions:[
-        {statement:'Omi デバイス活用でログを自動収集する方針で合意', span:'source: §議題3'},
-        {statement:'レベニューシェア + トッピング課金モデルで協業する', span:'source: §議題4'}
+        {statement:'Omi デバイス活用でログを自動収集する方針で合意', span:'出典: §議題3'},
+        {statement:'レベニューシェア + トッピング課金モデルで協業する', span:'出典: §議題4'}
       ],
       msgChannel:'Email', msgTo:'大田原雅之',
       msgBody:'大田原様\nキックオフありがとうございました。Omi セットアップ支援とセキュリティ調査を進めます。6/3 のミーティングでテストサイクルを確認しましょう。'
@@ -868,7 +868,7 @@ class Component extends DCLogic {
   gate(runId, key, count, pendingLabel, doneLabel){
     const s = (this.state.steps||{})[`${runId}:${key}`] || 'pending';
     const tone = s==='approved' ? 'good' : s==='rejected' ? 'bad' : 'warn';
-    const label = s==='approved' ? doneLabel : s==='rejected' ? '差し戻し / rejected' : pendingLabel;
+    const label = s==='approved' ? doneLabel : s==='rejected' ? '差し戻し' : pendingLabel;
     return {
       key:`${runId}:${key}`, status:s, count,
       label, toneStyle:this.pill(tone),
@@ -882,9 +882,9 @@ class Component extends DCLogic {
   }
 
   writeback(g, doneDetail, pendingDetail){
-    if(g.status==='approved') return { detail:doneDetail, pill:'recorded ✓', pillStyle:'background:#0c3a26;color:#5fe3a1;', label:doneDetail.split(' ')[0]+' 反映済' };
-    if(g.status==='rejected') return { detail:pendingDetail, pill:'rejected', pillStyle:'background:#3a1614;color:#f3897f;', label:'差し戻し' };
-    return { detail:pendingDetail, pill:'awaiting gate', pillStyle:'background:#3a3214;color:#e8c558;', label:'承認待ち' };
+    if(g.status==='approved') return { detail:doneDetail, pill:'記録済み ✓', pillStyle:'background:#0c3a26;color:#5fe3a1;', label:doneDetail.split(' ')[0]+' 反映済' };
+    if(g.status==='rejected') return { detail:pendingDetail, pill:'差し戻し', pillStyle:'background:#3a1614;color:#f3897f;', label:'差し戻し' };
+    return { detail:pendingDetail, pill:'承認待ち', pillStyle:'background:#3a3214;color:#e8c558;', label:'承認待ち' };
   }
 
   renderVals(){
@@ -903,7 +903,7 @@ class Component extends DCLogic {
       const elig = b.eligibility==='eligible';
       return {
         id:w.id, name:w.name, jp:w.jp, autonomy:b.autonomy, eligibility:b.eligibility,
-        eligStyle:this.pill(elig?'good':'warn'), eligShort: elig ? 'auto' : 'gate',
+      eligStyle:this.pill(elig?'good':'warn'), eligShort: elig ? '自動' : '確認',
         active,
         railStyle: active ? 'background:#f3edff;border-color:#7c4dff;box-shadow:0 1px 2px rgba(124,77,255,.15);' : 'background:#fff;border-color:#e4e9ef;'
       };
@@ -912,14 +912,14 @@ class Component extends DCLogic {
     const laneEvent = this.WF.filter(w => w.trigger==='event').map(wdCard);
     const laneHuman = this.WF.filter(w => w.trigger==='human').map(wdCard);
 
-    const roster = this.ORGS.map(o => ({ id:o.id, label:o.label, project:o.project, active:o.id===orgId, style:o.id===orgId?'background:#f3edff;border-color:#7c4dff;':'background:#fff;border-color:#d4dbe4;', activeDot:o.id===orgId?'color:#7c4dff;font-weight:700;':'color:#b6bec9;', activeLabel:o.id===orgId?'● active':'○ bound' }));
+    const roster = this.ORGS.map(o => ({ id:o.id, label:o.label, project:o.project, active:o.id===orgId, style:o.id===orgId?'background:#f3edff;border-color:#7c4dff;':'background:#fff;border-color:#d4dbe4;', activeDot:o.id===orgId?'color:#7c4dff;font-weight:700;':'color:#b6bec9;', activeLabel:o.id===orgId?'● 選択中':'○ 紐付け' }));
 
     // agent directory
     const agentId = this.state.agent;
     const agentBar = this.AGENTS.map(a => { const sel = a.id===agentId; return { id:a.id, name:a.name, glyph:a.glyph, sub:a.jp+' · '+a.archetype,
       style: sel?'background:#7c4dff;border-color:#9b78ff;':'background:#1a1f26;border-color:#2c333d;',
       iconStyle: sel?'background:#fff;color:#7c4dff;':(a.built?'background:#7c4dff;color:#fff;':'background:#2c333d;color:#9aa4b1;'),
-      badge: sel?'● active':(a.built?'built':'v0 stub'),
+      badge: sel?'● 選択中':(a.built?'構築済':'未構築'),
       badgeStyle: sel?'color:#fff;font-weight:700;':(a.built?'color:#b89bff;':'color:#6b7682;') }; });
     const selAgent = this.AGENTS.find(a => a.id===agentId) || this.AGENTS[0];
     const stub = { name:selAgent.name, glyph:selAgent.glyph, jp:selAgent.jp, archetype:selAgent.archetype,
@@ -929,7 +929,7 @@ class Component extends DCLogic {
       badge: a.built?'実装済':'未構築', badgeStyle: a.built?'color:#1f9d57;':'color:#aab3bf;' }));
     const instanceMenu = this.ORGS.map(o => ({ id:o.id, label:o.label, project:o.project, scope:o.toolScope,
       rowStyle: o.id===orgId?'background:#f3edff;':'background:#fff;',
-      activeStyle: o.id===orgId?'color:#5a2fc2;font-weight:700;':'color:#b6bec9;', activeLabel: o.id===orgId?'● active':'○ bound' }));
+      activeStyle: o.id===orgId?'color:#5a2fc2;font-weight:700;':'color:#b6bec9;', activeLabel: o.id===orgId?'● 選択中':'○ 紐付け' }));
 
     // overview phase map
     const phaseCard = (id) => {
@@ -937,7 +937,7 @@ class Component extends DCLogic {
       return {
         id, name:w.name, jp:w.jp, trigger:w.trigger, triggerStyle:this.TRIG[w.trigger],
         produces:this.PRODUCES[id], wbTarget:this.WBTARGET[id],
-        gateChip:'gate: '+g, gateStyle: g==='none'?this.TONE.neutral:this.TONE.warn,
+        gateChip:g==='none'?'確認なし':g==='review'?'人間レビュー':'人間承認', gateStyle: g==='none'?this.TONE.neutral:this.TONE.warn,
         triggerTextStyle:`font-size:11px;font-weight:600;color:${w.trigger==='schedule'?'#2a6fb0':w.trigger==='event'?'#b06a16':'#6b3fb0'};`,
         gateTextStyle: g==='none'?'color:#9aa4b1;':'color:#b7791f;'
       };
@@ -947,10 +947,16 @@ class Component extends DCLogic {
     // selected definition (detail)
     const base = this.WF.find(w => w.id === this.state.defId) || this.WF[0];
     const dbound = boundOf(base);
+    const riskLabel = base.risk==='high'?'高':base.risk==='medium'?'中':'低';
+    const autonomyLabel = dbound.autonomy==='auto_execute'?'自動実行':dbound.autonomy==='approval_required'?'承認必須':'下書きのみ';
+    const eligibilityLabel = dbound.eligibility==='eligible'?'実行可能':dbound.eligibility==='needs_review'?'レビュー必要':'承認必要';
     const def = {
       ...base,
       autonomy: dbound.autonomy,
       eligibility: dbound.eligibility,
+      autonomyLabel,
+      eligibilityLabel,
+      riskLabel,
       triggerStyle: this.TRIG[base.trigger],
       eligStyle: this.pill(dbound.eligibility==='eligible' ? 'good' : 'warn'),
       riskStyle: this.pill(base.risk==='high' ? 'bad' : base.risk==='medium' ? 'warn' : 'good'),
@@ -972,9 +978,9 @@ class Component extends DCLogic {
 
     // selected run
     const r = this.RUNS[this.state.runId] || this.RUNS.welfare;
-    const gTasks = this.gate(this.state.runId, 'tasks', r.tasks.length, `${r.tasks.length} task pending`, `${r.tasks.length} task 作成済`);
-    const gDecisions = this.gate(this.state.runId, 'decisions', r.decisions.length, `${r.decisions.length} decision pending`, `${r.decisions.length} decision 昇格済`);
-    const gMessage = this.gate(this.state.runId, 'message', 1, '送信 pending', '送信済');
+    const gTasks = this.gate(this.state.runId, 'tasks', r.tasks.length, `${r.tasks.length} 件のタスク承認待ち`, `${r.tasks.length} 件のタスク作成済`);
+    const gDecisions = this.gate(this.state.runId, 'decisions', r.decisions.length, `${r.decisions.length} 件の決定事項承認待ち`, `${r.decisions.length} 件の決定事項昇格済`);
+    const gMessage = this.gate(this.state.runId, 'message', 1, '送信承認待ち', '送信済');
     const runState = (gTasks.status==='approved'&&gDecisions.status==='approved'&&gMessage.status==='approved') ? 'closed' : 'waiting_human';
     const inclOf = (gate,total)=>{ let n=0; for(let i=0;i<total;i++){ if(!(this.state.excl||{})[`${this.state.runId}:${gate}:${i}`]) n++; } return n; };
     const inclTasks = inclOf('tasks', r.tasks.length), inclDecisions = inclOf('decisions', r.decisions.length);
@@ -987,8 +993,8 @@ class Component extends DCLogic {
       const active = id===activeRun;
       return {
         id, title: run.title, meta: run.id,
-        action: closed ? 'closed · 完了' : `${pend} human gate 待ち`,
-        state: closed ? 'closed' : 'waiting_human',
+        action: closed ? '完了' : `${pend} 件の人間確認待ち`,
+        state: closed ? '完了' : '人間確認待ち',
         stateStyle: this.pill(closed ? 'good' : 'warn'),
         dotStyle: closed ? 'background:#027a48;' : 'background:#e8a33d;',
         active,
@@ -1009,8 +1015,8 @@ class Component extends DCLogic {
         const count = gt==='tasks'?run.tasks.length:gt==='decisions'?run.decisions.length:1;
         const age = this.GAGE[`${id}:${gt}`]||'待機中';
         const tag = gt==='tasks'?'登録のみ・取消可': gt==='decisions'?'正本化・取消不可':'外部送信・取消不可';
-        const summary = gt==='tasks'? `${count} 件のタスク候補。承認すると Task Store に登録します。`
-          : gt==='decisions'? `${count} 件の決定候補。承認すると正本（Graph SSOT）に記録します。`
+        const summary = gt==='tasks'? `${count} 件のタスク候補。承認すると タスク台帳 に登録します。`
+          : gt==='decisions'? `${count} 件の決定候補。承認すると正本（Graph正本）に記録します。`
           : `フォローアップ文面 1 件。承認すると ${run.msgTo} 宛に送信します。`;
         queue.push({
           rk:`${id}:${gt}`, runId:id, runTitle:run.title,
@@ -1054,11 +1060,11 @@ class Component extends DCLogic {
     const canApprove = includedCount>0 && (!isHi || this.state.hiConfirm);
     const rTag = rkGate==='tasks'?'登録のみ・取消可': rkGate==='decisions'?'正本化・取消不可':'外部送信・取消不可';
     const consequence = rkGate==='tasks'
-      ? `承認すると ${includedCount} 件を Task Store に登録します。`
+      ? `承認すると ${includedCount} 件を タスク台帳 に登録します。`
       : rkGate==='decisions'
-      ? `承認すると ${includedCount} 件を Graph SSOT（正本）に記録します。取り消せません。`
+      ? `承認すると ${includedCount} 件を Graph正本（正本）に記録します。取り消せません。`
       : `承認すると、この文面を ${rRun.msgTo} 宛に ${rRun.msgChannel} で送信します。取り消せません。`;
-    const provenanceLine = `${rRun.source} ・ ${rRun.attendees} ・ claude-runner / prompt v3`;
+    const provenanceLine = `${rRun.source} ・ ${rRun.attendees} ・ Claude実行 / プロンプト v3`;
     const review = {
       rk, runTitle:rRun.title, meta:rRun.id, attendees:rRun.attendees, source:rRun.source,
       gateLabel:rMeta.label, wb:rMeta.wb, side:rMeta.side, verb:rMeta.verb, irreversible:rMeta.irreversible,
@@ -1075,7 +1081,7 @@ class Component extends DCLogic {
       approveStyle: canApprove?'background:#1f9d57;color:#fff;':'background:#2c333d;color:#6b7682;cursor:not-allowed;',
       reason: this.state.reason||'',
       resolved: rStep!=='pending', status:rStep,
-      statusLabel: rStep==='approved'?`承認済 · ${rMeta.wb} へ反映`:rStep==='rejected'?'差し戻し · 変更依頼を runner へ返却':'',
+      statusLabel: rStep==='approved'?`承認済 · ${rMeta.wb} へ反映`:rStep==='rejected'?'差し戻し · 変更依頼を実行エージェントへ返却':'',
       statusStyle: rStep==='approved'?'background:#e7f6ee;border-color:#a6f4c5;color:#027a48;':'background:#fdecea;border-color:#f6c4bf;color:#d92d20;',
       isRejected: rStep==='rejected', rejectedReasonLabel: ((this.state.reasons||{})[rk]||'').trim() || '（修正指示なし）',
       isTasks: rkGate==='tasks', isDecisions: rkGate==='decisions', isMessage: rkGate==='message',
@@ -1087,11 +1093,11 @@ class Component extends DCLogic {
     };
 
     // breadcrumb
-    let crumb = 'Overview';
-    if(view==='definition') crumb = `Definitions · ${def.name}`;
-    else if(view==='run') crumb = `Inbox · ${r.title}`;
-    else if(view==='review') crumb = 'Review Queue';
-    else if(view==='reviewItem') crumb = `Review · ${rMeta.label}`;
+    let crumb = '概要';
+    if(view==='definition') crumb = `定義 · ${def.name}`;
+    else if(view==='run') crumb = `進行中 · ${r.title}`;
+    else if(view==='review') crumb = '承認待ち一覧';
+    else if(view==='reviewItem') crumb = `承認 · ${rMeta.label}`;
 
     return {
       isOverview: view==='overview', isDefinition: view==='definition', isRun: view==='run',
@@ -1114,12 +1120,12 @@ class Component extends DCLogic {
       waitingBadgeStyle: waiting>0 ? 'background:#fbf3e2;color:#b7791f;border:1px solid #f6d58f;' : 'background:#e7f6ee;color:#027a48;border:1px solid #a6f4c5;',
       inboxRows,
       def,
-      run: { ...r, state: runState, stateStyle: this.pill(runState==='closed' ? 'good' : 'warn'), stateTextStyle: runState==='closed'?'color:#1f9d57;font-weight:600;':'color:#b7791f;font-weight:600;' },
+      run: { ...r, state: runState==='closed'?'完了':'人間確認待ち', stateStyle: this.pill(runState==='closed' ? 'good' : 'warn'), stateTextStyle: runState==='closed'?'color:#1f9d57;font-weight:600;':'color:#b7791f;font-weight:600;' },
       guardrails: this.GUARDRAILS,
       gTasks, gDecisions, gMessage,
-      wbTasks: this.writeback(gTasks, `Task store · ${inclTasks} 件`, `Task store · ${r.tasks.length} 候補`),
-      wbDecisions: this.writeback(gDecisions, `Graph SSOT · ${inclDecisions} decision`, `Candidate Store · ${r.decisions.length} 候補`),
-      wbMessage: this.writeback(gMessage, `${r.msgChannel} · 1 send`, `${r.msgChannel} · draft`)
+      wbTasks: this.writeback(gTasks, `タスク台帳 · ${inclTasks} 件`, `タスク台帳 · ${r.tasks.length} 候補`),
+      wbDecisions: this.writeback(gDecisions, `Graph正本 · ${inclDecisions} 件`, `候補ストア · ${r.decisions.length} 候補`),
+      wbMessage: this.writeback(gMessage, `${r.msgChannel} · 1 件送信`, `${r.msgChannel} · 下書き`)
     };
   }
 }

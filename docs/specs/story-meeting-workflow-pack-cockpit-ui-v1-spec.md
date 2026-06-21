@@ -17,31 +17,31 @@ diagrams:
 
 ## Invariants
 
-- INV-001: Meeting Ops Agent は会議 output の正本ではなく、会議 workflow を選択・束ねる Role Agent として表示する。
-- INV-002: Workflow Definitions は prompt template ではなく、input / trigger / human gate / write-back / audit evidence を持つ業務定義として表示する。
+- INV-001: 会議業務エージェントは会議 output の正本ではなく、会議 workflow を選択・束ねる Role Agent として表示する。
+- INV-002: ワークフロー定義は prompt template ではなく、入力 / trigger / 人間確認 / 書き戻し / 監査証跡を持つ業務定義として表示する。
 - INV-003: Human Gate の承認操作は v1 では画面内状態に閉じ、Task Store、Graph SSOT、外部チャネルには書き込まない。
 - INV-004: Graph SSOT への Decision 昇格は `Candidate Store -> promotion` の候補として扱い、未承認の runner output を正本扱いしない。
-- INV-005: `public/meeting-workflow-pack.html` is byte-for-byte aligned with `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html`.
+- INV-005: `public/meeting-workflow-pack.html` は zip prototype の layout / interaction / marker を継承しつつ、画面表示は日本語で理解できる状態にする。
 - INV-006: `public/support.js` is byte-for-byte aligned with `docs/design/prototypes/meeting-workflow-pack/support.js` so the DC prototype renders the same in the app route.
 
 ## Scenarios
 
-- S-001: Operator opens `/meeting-workflow-pack.html?project=salestailor` and sees the `AGENT LOOP CONTROL` shell with Meeting Ops Agent selected.
+- S-001: Operator opens `/meeting-workflow-pack.html?project=salestailor` and sees the `業務ループ制御` shell with `会議業務エージェント` selected.
 - S-002: Operator switches Instance between `unson` and `salestailor`, and the scope / tool policy panel changes without leaving the Cockpit.
-- S-003: Operator opens Review Queue and sees pending `Tasks 作成`, `Decisions 昇格`, and `Follow-up 送信` gates.
+- S-003: Operator opens Review Queue and sees pending `タスク作成`, `決定事項の昇格`, and `フォローアップ送信` gates.
 - S-004: Operator opens `Decisions 昇格`, edits a candidate, checks high-risk confirmation, and approves it in local UI state.
-- S-005: Operator rejects a Follow-up draft with a reason, and the queue keeps an audit-visible rejected state without sending externally.
+- S-005: Operator rejects a follow-up draft with a reason, and the queue keeps an audit-visible rejected state without sending externally.
 - S-006: Operator opens a Run Trace and sees meeting source, note summary, write-back status, and audit evidence.
-- S-007: Operator opens Sales / Back-office / Marketing Agent and sees a stub shell that communicates the agent is not built yet.
+- S-007: Operator opens 営業 / バックオフィス / マーケティング Agent and sees a stub shell that communicates the agent is not built yet.
 - S-008: Operator opens `/workflows` and can navigate to the dedicated Cockpit from the Meeting Workflow Pack panel.
 
 ## UI Contract
 
-`public/meeting-workflow-pack.html` is the promoted zip prototype surface. The visible and interactive contract is inherited from `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html`.
+`public/meeting-workflow-pack.html` is the promoted zip prototype surface. The interactive contract is inherited from `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html`; visible labels are localized to Japanese for actual use.
 
 | Marker | Meaning |
 |---|---|
-| `AGENT LOOP CONTROL` | black header |
+| `業務ループ制御` | black header label |
 | `button[data-menu="instance"]` | Instance menu |
 | `button[data-menu="agent"]` | Role Agent menu |
 | `button[data-nav="review"]` | review queue navigation |
@@ -68,15 +68,15 @@ The next Story may replace prototype local state with Workflow Control API data,
 ## Acceptance Tests
 
 - `tests/e2e/story-meeting-workflow-pack-cockpit-ui-v1-cockpit.spec.ts` validates Story/Architecture/Spec trace text.
-- The same E2E test renders the promoted prototype and validates:
-  - `AGENT LOOP CONTROL` header.
-  - three trigger lanes.
+- The same E2E test renders the promoted prototype-derived UI and validates:
+  - `業務ループ制御` header.
+  - three Japanese trigger lanes.
   - five meeting workflow definitions.
   - Review Queue cards.
   - Review Detail editing and high-risk approval.
   - Agent stub switching.
   - `/workflows` link to Cockpit.
-- The same E2E test proves public HTML/runtime are byte-for-byte equal to the promoted zip prototype files.
+  - The same E2E test proves public `support.js` remains byte-for-byte equal to the promoted zip prototype runtime.
 
 ## Anti-Patterns
 

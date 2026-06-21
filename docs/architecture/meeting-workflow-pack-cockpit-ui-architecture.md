@@ -12,31 +12,31 @@ updated_at: 2026-06-21
 
 `/workflows` は Workflow Mission Control の横断 inbox であり、全 project の action required、human waiting、failed、recent run を扱う。
 
-`/meeting-workflow-pack.html` は Meeting Workflow Pack の専用 Cockpit である。Role Agent が workflow を選び、会議から生まれた task / decision / follow-up の human gate をさばき、Brainbase に戻る証跡を確認するための画面とする。
+`/meeting-workflow-pack.html` は Meeting Workflow Pack の専用 Cockpit である。Role Agent が workflow を選び、会議から生まれたタスク / 決定事項 / フォローアップの人間確認をさばき、Brainbase に戻る証跡を確認するための画面とする。zip prototype の構造を維持しつつ、実運用で迷わないよう表示文言は日本語に寄せる。
 
 ```mermaid
 flowchart LR
-  user["Human Operator"] --> cockpit["Meeting Workflow Pack Cockpit"]
+  user["人間オペレーター"] --> cockpit["Meeting Workflow Pack Cockpit"]
   workflows["/workflows<br/>Workflow Mission Control"] --> cockpit
   cockpit --> prototype["Promoted zip prototype<br/>meeting-workflow-pack.dc.html"]
   prototype --> localState["Prototype Local State<br/>review / run / definition / agent"]
-  cockpit --> localState["Local HITL State<br/>approve / reject / edit"]
-  localState -. "v1: no write-back" .-> taskStore["Task Store"]
-  localState -. "v1: no promotion" .-> graph["Graph SSOT"]
-  localState -. "v1: no external send" .-> external["Slack / Gmail"]
+  cockpit --> localState["Local HITL State<br/>承認 / 差し戻し / 編集"]
+  localState -. "v1: 書き戻さない" .-> taskStore["Task Store"]
+  localState -. "v1: 昇格しない" .-> graph["Graph SSOT"]
+  localState -. "v1: 外部送信しない" .-> external["Slack / Gmail"]
 ```
 
 ## UI構造
 
-zip prototype の構造をそのまま採用する。今回の目的は画面再現であり、`public/meeting-workflow-pack.html` は `docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html` と同一内容にする。runtime も `public/support.js` として同一内容を配信する。
+zip prototype の構造を採用する。今回の目的は画面再現と実利用時の理解しやすさの両立であり、`public/meeting-workflow-pack.html` は prototype の layout / marker / interaction を維持しつつ日本語表示へ変換する。runtime は `public/support.js` として同一内容を配信する。
 
-- Header: `AGENT LOOP CONTROL`、Instance switcher、Role Agent switcher、承認待ち count。
-- Left Rail: `対応 · OPERATE` と `リファレンス · REFERENCE`。
-- Overview: Meeting Ops Agent の説明、metrics、会議ライフサイクル。
-- Review Queue: human gate が必要な候補の一覧。
+- Header: `業務ループ制御`、組織切替、担当エージェント切替、承認待ち count。
+- Left Rail: `対応` と `参照`。
+- Overview: 会議業務エージェントの説明、metrics、会議ライフサイクル。
+- Review Queue: 人間確認が必要な候補の一覧。
 - Review Detail: 候補選択、編集、差し戻し、承認。
-- Run Trace: source、note summary、write-back status、audit evidence。
-- Stub Agents: Sales / Back-office / Marketing の未構築 agent shell。
+- Run Trace: 入力元、議事録要約、書き戻し状態、監査証跡。
+- Stub Agents: 営業 / バックオフィス / マーケティングの未構築 agent shell。
 
 ## データ投影
 
@@ -51,7 +51,7 @@ zip prototype の構造をそのまま採用する。今回の目的は画面再
 | `steps` | approve / reject local state |
 | `excl` / `edits` / `reason` | review detail editing state |
 
-Workflow Control API 接続は次Storyで扱う。その際も、今回再現した header、left rail、review queue、review detail、run trace、stub agent の画面構造を壊さない。
+Workflow Control API 接続は次Storyで扱う。その際も、今回再現した header、left rail、review queue、review detail、run trace、stub agent の画面構造と日本語表示を壊さない。
 
 ## State Machine
 
@@ -59,15 +59,15 @@ Workflow Control API 接続は次Storyで扱う。その際も、今回再現し
 stateDiagram-v2
   [*] --> Loading
   Loading --> ReviewQueue: DC runtime booted
-  Overview --> ReviewQueue: open approval queue
-  Overview --> Definition: open workflow definition
-  ReviewQueue --> ReviewDetail: select gate
-  ReviewDetail --> ApprovedLocal: approve in UI
-  ReviewDetail --> RejectedLocal: request changes
+  Overview --> ReviewQueue: 承認待ちを開く
+  Overview --> Definition: ワークフロー定義を開く
+  ReviewQueue --> ReviewDetail: 確認対象を選ぶ
+  ReviewDetail --> ApprovedLocal: 画面内で承認
+  ReviewDetail --> RejectedLocal: 差し戻し
   ApprovedLocal --> ReviewQueue
   RejectedLocal --> ReviewQueue
-  Overview --> RunTrace: open run
-  RunTrace --> ReviewDetail: open pending gate
+  Overview --> RunTrace: 実行履歴を開く
+  RunTrace --> ReviewDetail: 承認待ちを開く
 ```
 
 ## 安全境界
@@ -78,4 +78,4 @@ v1 の承認操作は local UI state のみである。次の副作用は実行�
 - Graph SSOT への Decision 昇格。
 - Slack / Gmail への外部送信。
 
-高リスクの `Decisions 昇格` と `Follow-up 送信` には確認 checkbox を表示し、実 write-back ではないことを明示する。
+高リスクの `決定事項の昇格` と `フォローアップ送信` には確認 checkbox を表示し、実 write-back ではないことを明示する。
