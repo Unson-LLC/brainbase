@@ -3,13 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
+    MEETING_WORKFLOW_DEFINITIONS,
+    meetingPackIds
+} from '../../../server/services/workflow/meeting-workflow-pack.js';
+import {
     WorkflowService,
     createDefaultWorkflowHandlers
 } from '../../../server/services/workflow/workflow-service.js';
 
-function makeService() {
-    const repository = new InMemoryWorkflowRepository();
-    const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
+function makeService({ repository = new InMemoryWorkflowRepository(), handlers = createDefaultWorkflowHandlers() } = {}) {
+    const runner = new WorkflowRunner({ repository, handlers });
     const configParser = {
         async getProjects() {
             return {
@@ -29,6 +32,15 @@ function makeService() {
         projectCodes: ['unson', 'salestailor']
     };
     return { repository, service, actor };
+}
+
+class TriggerPersistenceFailureRepository extends InMemoryWorkflowRepository {
+    upsertWorkflowTrigger(trigger) {
+        if (trigger?.id?.includes('transcript_to_meeting_note')) {
+            throw new Error('persistence_failure: workflow_triggers write failed');
+        }
+        return super.upsertWorkflowTrigger(trigger);
+    }
 }
 
 async function createAgentStack(service, actor, {
@@ -80,6 +92,192 @@ async function createAgentStack(service, actor, {
 }
 
 describe('WorkflowService org agent loop control', () => {
+    it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {
+        const { repository, service, actor } = makeService();
+
+        const result = await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+
+        expect(result.meeting_workflow_pack.role_agent_instance).toMatchObject({
+            name: 'Meeting Ops Agent',
+            role_archetype_id: 'meeting-ops',
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        });
+        expect(result.meeting_workflow_pack.workflow_templates.map((template) => template.id)).toEqual([
+            'wft_salestailor_salestailor_pre_meeting_briefing',
+            'wft_salestailor_salestailor_transcript_to_meeting_note',
+            'wft_salestailor_salestailor_meeting_note_to_tasks',
+            'wft_salestailor_salestailor_meeting_note_to_decisions',
+            'wft_salestailor_salestailor_post_meeting_follow_up_message'
+        ]);
+        expect(result.meeting_workflow_pack.workflow_bindings).toHaveLength(5);
+        expect(result.meeting_workflow_pack.workflow_bindings.every((binding) => (
+            binding.autonomy_level === 'approval_required'
+                && binding.role_agent_instance_id === result.meeting_workflow_pack.role_agent_instance.id
+                && binding.enabled === true
+        ))).toBe(true);
+        expect(result.meeting_workflow_pack.workflow_triggers.map((trigger) => trigger.trigger_type).sort()).toEqual([
+            'event',
+            'event',
+            'event',
+            'event',
+            'human',
+            'human',
+            'human',
+            'human',
+            'human',
+            'schedule'
+        ]);
+        for (const definition of MEETING_WORKFLOW_DEFINITIONS) {
+            const ids = meetingPackIds({
+                orgId: 'salestailor',
+                projectId: 'salestailor',
+                definitionId: definition.id
+            });
+            const binding = result.meeting_workflow_pack.workflow_bindings.find((candidate) => candidate.id === ids.bindingId);
+            expect(binding).toMatchObject({
+                id: ids.bindingId,
+                workflow_template_id: ids.templateId,
+                autonomy_level: 'approval_required',
+                enabled: true
+            });
+
+            const definitionTriggers = result.meeting_workflow_pack.workflow_triggers
+                .filter((trigger) => trigger.workflow_binding_id === ids.bindingId)
+                .sort((left, right) => left.trigger_type.localeCompare(right.trigger_type));
+            expect(definitionTriggers.map((trigger) => trigger.trigger_type)).toEqual([...definition.trigger_types].sort());
+            for (const triggerType of definition.trigger_types) {
+                const trigger = definitionTriggers.find((candidate) => candidate.trigger_type === triggerType);
+                expect(trigger).toMatchObject({
+                    id: meetingPackIds({
+                        orgId: 'salestailor',
+                        projectId: 'salestailor',
+                        definitionId: definition.id,
+                        triggerType
+                    }).triggerId,
+                    org_id: 'salestailor',
+                    project_id: 'salestailor',
+                    workflow_binding_id: ids.bindingId,
+                    enabled: true
+                });
+                expect(trigger.event_source).toBe(triggerType === 'event' ? 'mana.meeting' : null);
+                expect(trigger.schedule).toEqual(triggerType === 'schedule' ? { offset: 'before_meeting', minutes: 30 } : null);
+                expect(trigger.human_prompt_ref).toBe(triggerType === 'human' ? `mana:${definition.id}` : null);
+            }
+        }
+        expect(result.meeting_workflow_pack.loop_intents).toHaveLength(5);
+        expect(result.meeting_workflow_pack.loop_intents).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                input_payload: expect.objectContaining({
+                    meeting_identity: null,
+                    source: 'meeting_pack_bootstrap'
+                }),
+                eligibility: expect.objectContaining({
+                    status: 'needs_approval',
+                    requires_human_approval: true
+                })
+            })
+        ]));
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toEqual([
+            expect.objectContaining({ action: 'workflow.meeting_pack.bootstrapped', target_type: 'meeting_workflow_pack' })
+        ]);
+    });
+
+    it('story-mana-meeting-workflow-pack-data-v1 INV-001 INV-003 INV-004 INV-005 INV-006 INV-007 executable coverage marker', async () => {
+        const { repository, service, actor } = makeService();
+
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toEqual([
+            expect.objectContaining({ role_archetype_id: 'meeting-ops', name: 'Meeting Ops Agent' })
+        ]);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(5);
+        const persistedBindings = repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' });
+        expect(persistedBindings).toHaveLength(5);
+        expect(persistedBindings.every((binding) => binding.autonomy_level === 'approval_required')).toBe(true);
+        for (const definition of MEETING_WORKFLOW_DEFINITIONS) {
+            const ids = meetingPackIds({
+                orgId: 'salestailor',
+                projectId: 'salestailor',
+                definitionId: definition.id
+            });
+            expect(persistedBindings.find((binding) => binding.id === ids.bindingId)).toMatchObject({
+                workflow_template_id: ids.templateId,
+                autonomy_level: 'approval_required'
+            });
+        }
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                input_payload: expect.objectContaining({ meeting_identity: null }),
+                eligibility: expect.objectContaining({ status: 'needs_approval' })
+            })
+        ]));
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
+    it('story-mana-meeting-workflow-pack-data-v1 S-009 INV-002 keeps meeting pack bootstrap idempotent', async () => {
+        const { repository, service, actor } = makeService();
+
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(1);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(5);
+        expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(5);
+        expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(10);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(5);
+    });
+
+    it('story-mana-meeting-workflow-pack-data-v1 FM-002 persistence_failure rolls back partial meeting pack records', async () => {
+        const repository = new TriggerPersistenceFailureRepository();
+        const { service, actor } = makeService({ repository });
+
+        await expect(service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor)).rejects.toThrow('persistence_failure');
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
+    });
+
+    it('story-mana-meeting-workflow-pack-data-v1 FM-003 provider_failure is not invoked during bootstrap', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        let providerCalls = 0;
+        const { service, actor } = makeService({
+            repository,
+            handlers: {
+                ...createDefaultWorkflowHandlers(),
+                'manual-placeholder': async () => {
+                    providerCalls += 1;
+                    throw new Error('provider_failure should not be reachable from bootstrap');
+                }
+            }
+        });
+
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+
+        expect(providerCalls).toBe(0);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
     it('keeps Unson and SalesTailor role agent instances separate for the same archetype', async () => {
         const { repository, service, actor } = makeService();
         await createAgentStack(service, actor, {

@@ -133,6 +133,10 @@ export function createWorkflowRouter(workflowService) {
         res.status(201).json(await workflowService.createLoopIntent(req.body || {}, actorFromRequest(req)));
     }));
 
+    router.post('/control/meeting-pack/bootstrap', asyncHandler(async (req, res) => {
+        res.status(201).json(await workflowService.bootstrapMeetingWorkflowPack(req.body || {}, actorFromRequest(req)));
+    }));
+
     router.get('/role-agents', asyncHandler(async (req, res) => {
         await respondWorkflowOrControl({
             req,

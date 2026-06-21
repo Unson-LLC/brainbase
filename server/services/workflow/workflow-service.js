@@ -6,6 +6,7 @@ import {
     generateWorkflowDraft,
     testWorkflowDraft
 } from './workflow-draft-generator.js';
+import { buildMeetingWorkflowPackRecords } from './meeting-workflow-pack.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -593,6 +594,60 @@ export class WorkflowService {
             targetType: 'loop_intent'
         });
         return { loop_intent: intent };
+    }
+
+    async bootstrapMeetingWorkflowPack(input = {}, actor = {}) {
+        await this._loadProjectConfigCache();
+        const orgId = requireInputString(input, 'org_id', 'orgId');
+        const projectId = requireInputString(input, 'project_id', 'projectId');
+        await this._assertProjectSelectable(projectId);
+        this._assertOrgReferenceAllowed(orgId);
+        this._assertActorCanAccessProject(projectId, actor);
+        const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
+        const records = buildMeetingWorkflowPackRecords({
+            orgId,
+            projectId,
+            actorId,
+            seedLoopIntents: input.seed_loop_intents !== false && input.seedLoopIntents !== false
+        });
+
+        const result = await this.repository.transaction(async () => {
+            const roleAgent = this.repository.upsertRoleAgentInstance(records.role_agent_instance);
+            const templates = records.workflow_templates.map((template) => this.repository.upsertWorkflowTemplate(template));
+            const bindings = records.workflow_bindings.map((binding) => this.repository.upsertWorkflowBinding(binding));
+            const triggers = records.workflow_triggers.map((trigger) => this.repository.upsertWorkflowTrigger(trigger));
+            const loopIntents = records.loop_intents.map((intent) => this.repository.upsertLoopIntent(intent));
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                project_id: projectId,
+                actor_id: actorId,
+                action: 'workflow.meeting_pack.bootstrapped',
+                target_type: 'meeting_workflow_pack',
+                target_id: records.pack_id,
+                after: {
+                    org_id: orgId,
+                    project_id: projectId,
+                    role_agent_instance_id: roleAgent.id,
+                    workflow_template_ids: templates.map((template) => template.id),
+                    workflow_binding_ids: bindings.map((binding) => binding.id),
+                    workflow_trigger_ids: triggers.map((trigger) => trigger.id),
+                    loop_intent_ids: loopIntents.map((intent) => intent.id)
+                }
+            });
+            return {
+                meeting_workflow_pack: {
+                    pack_id: records.pack_id,
+                    org_id: orgId,
+                    project_id: projectId,
+                    role_agent_instance: roleAgent,
+                    workflow_templates: templates,
+                    workflow_bindings: bindings,
+                    workflow_triggers: triggers,
+                    loop_intents: loopIntents
+                }
+            };
+        });
+        return result;
     }
 
     async generateDraft(input, actor = {}) {

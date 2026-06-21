@@ -102,6 +102,58 @@ describe('workflow routes', () => {
         ]);
     });
 
+    it('story-mana-meeting-workflow-pack-data-v1 S-001 exposes meeting pack bootstrap under Workflow Control namespace', async () => {
+        const { app, repository } = makeApp();
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+
+        expect(res.body.meeting_workflow_pack).toMatchObject({
+            pack_id: 'mana-meeting-workflow-pack-v1',
+            org_id: 'sample-project',
+            project_id: 'sample-project',
+            role_agent_instance: expect.objectContaining({
+                name: 'Meeting Ops Agent',
+                role_archetype_id: 'meeting-ops'
+            })
+        });
+        expect(res.body.meeting_workflow_pack.workflow_templates).toHaveLength(5);
+        expect(res.body.meeting_workflow_pack.workflow_triggers).toHaveLength(10);
+        expect(res.body.meeting_workflow_pack.loop_intents).toHaveLength(5);
+
+        const templatesRes = await request(app)
+            .get('/api/workflows/control/templates?project_id=sample-project&workflow_kind=meeting')
+            .expect(200);
+        expect(templatesRes.body.workflow_templates.map((template) => template.id)).toEqual(expect.arrayContaining([
+            'wft_sample_project_sample_project_pre_meeting_briefing',
+            'wft_sample_project_sample_project_meeting_note_to_decisions'
+        ]));
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
+    it('story-mana-meeting-workflow-pack-data-v1 FM-001 auth_denied rejects meeting pack bootstrap before writes', async () => {
+        const { app, repository } = makeApp({ accessProjectCodes: ['general'] });
+
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(403);
+
+        expect(repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
+    });
+
     it('generates a schema-bound workflow draft without persisting a workflow', async () => {
         const { app, repository } = makeApp();
 

@@ -484,7 +484,8 @@
             runDetail: null,
             workflowDraft: null,
             workflowDraftTest: null,
-            workflowControl: {}
+            workflowControl: {},
+            meetingPackBootstrapStatus: {}
         };
         const views = {
             workspace: document.getElementById('workspace-view'),
@@ -727,17 +728,95 @@
             return `<span class="badge ${tone}">risk ${escapeHtml(risk)}</span>`;
         }
         function meetingDefinitionConfigured(definition, templates) {
-            return (templates || []).some((template) => {
-                const values = [
-                    template.id,
-                    template.name,
-                    template.workflow_kind,
-                    template.judgment_dag_id
-                ].filter(Boolean).join(' ').toLowerCase();
-                return values.includes(definition.id.toLowerCase())
-                    || values.includes(definition.name.toLowerCase())
-                    || values.includes(definition.label.toLowerCase());
+            return Boolean(meetingDefinitionTemplate(definition, templates));
+        }
+        function meetingDefinitionTemplate(definition, templates) {
+            return meetingDefinitionTemplates(definition, templates)[0] || null;
+        }
+        function meetingDefinitionTemplates(definition, templates) {
+            return (templates || []).filter((template) => {
+                const tags = Array.isArray(template.tags) ? template.tags.map((tag) => String(tag).toLowerCase()) : [];
+                return template.workflow_kind === 'meeting'
+                    && tags.includes('meeting-workflow-definition')
+                    && tags.includes('mana-meeting-workflow-pack-v1')
+                    && tags.includes(definition.id.toLowerCase());
             });
+        }
+        function meetingPackAgent(data, projectId) {
+            return (data.role_agent_instances || []).find((agent) => (
+                agent.project_id === projectId
+                    && agent.role_archetype_id === 'meeting-ops'
+                    && agent.enabled !== false
+            ));
+        }
+        function meetingPackBinding(data, template, agent) {
+            if (!template || !agent) return null;
+            return (data.workflow_bindings || []).find((binding) => (
+                binding.workflow_template_id === template.id
+                    && binding.role_agent_instance_id === agent.id
+                    && binding.org_id === agent.org_id
+                    && binding.project_id === agent.project_id
+                    && binding.autonomy_level === 'approval_required'
+                    && binding.enabled !== false
+            ));
+        }
+        function meetingDefinitionTriggerTypes(definition) {
+            return [definition.trigger, ...(definition.also || [])];
+        }
+        function meetingPackTriggersReady(data, definition, binding) {
+            if (!binding) return false;
+            const triggers = meetingPackTriggers(data, definition, binding);
+            return meetingDefinitionTriggerTypes(definition).every((triggerType) => triggers.some((trigger) => (
+                trigger.trigger_type === triggerType
+            )));
+        }
+        function meetingPackTriggers(data, definition, binding) {
+            if (!binding) return [];
+            const expectedTypes = new Set(meetingDefinitionTriggerTypes(definition));
+            return (data.workflow_triggers || []).filter((trigger) => (
+                trigger.org_id === binding.org_id
+                    && trigger.project_id === binding.project_id
+                    && trigger.workflow_binding_id === binding.id
+                    && expectedTypes.has(trigger.trigger_type)
+                    && trigger.enabled !== false
+            ));
+        }
+        function meetingPackLoopIntentReady(data, binding, template, triggers) {
+            if (!binding || !template) return false;
+            const triggerIds = new Set((triggers || []).map((trigger) => trigger.id));
+            return (data.loop_intents || []).some((intent) => {
+                const eligibility = intent.eligibility || {};
+                return intent.org_id === binding.org_id
+                    && intent.project_id === binding.project_id
+                    && intent.role_agent_instance_id === binding.role_agent_instance_id
+                    && intent.workflow_template_id === template.id
+                    && intent.workflow_binding_id === binding.id
+                    && triggerIds.has(intent.workflow_trigger_id)
+                    && intent.enabled !== false
+                    && (eligibility.status === 'needs_approval' || eligibility.requires_human_approval);
+            });
+        }
+        function meetingPackDefinitionReady(projectId, definition, data) {
+            return Boolean(meetingPackDefinitionConnection(projectId, definition, data));
+        }
+        function meetingPackDefinitionConnection(projectId, definition, data) {
+            const agent = meetingPackAgent(data, projectId);
+            if (!agent) return null;
+            for (const template of meetingDefinitionTemplates(definition, data.workflow_templates || [])) {
+                const binding = meetingPackBinding(data, template, agent);
+                const triggers = meetingPackTriggers(data, definition, binding);
+                if (binding
+                    && meetingPackTriggersReady(data, definition, binding)
+                    && meetingPackLoopIntentReady(data, binding, template, triggers)) {
+                    return { template, binding, triggers };
+                }
+            }
+            return null;
+        }
+        function meetingPackDataReady(projectId, data) {
+            const hasAgent = Boolean(meetingPackAgent(data, projectId));
+            const hasDefinitions = MEETING_WORKFLOW_DEFINITIONS.every((definition) => meetingPackDefinitionReady(projectId, definition, data));
+            return hasAgent && hasDefinitions;
         }
         function meetingHumanGateQueue(data) {
             const intents = data.loop_intents || [];
@@ -776,14 +855,24 @@
         }
         function renderMeetingWorkflowPackPanel(projectId, data) {
             const templates = data.workflow_templates || [];
-            const configuredCount = MEETING_WORKFLOW_DEFINITIONS.filter((definition) => meetingDefinitionConfigured(definition, templates)).length;
+            const configuredCount = MEETING_WORKFLOW_DEFINITIONS.filter((definition) => meetingPackDefinitionReady(projectId, definition, data)).length;
+            const missingDefinitions = MEETING_WORKFLOW_DEFINITIONS.filter((definition) => !meetingPackDefinitionReady(projectId, definition, data));
+            const dataReady = meetingPackDataReady(projectId, data);
             const humanGateItems = meetingHumanGateQueue(data);
+            const bootstrapStatus = state.meetingPackBootstrapStatus[projectId];
+            const statusText = bootstrapStatus?.message
+                || (missingDefinitions.length ? `${missingDefinitions.length} missing definitions` : 'All definitions connected to Workflow Control data');
             const triggerLanes = ['schedule', 'event', 'human'].map((trigger) => {
                 const definitions = MEETING_WORKFLOW_DEFINITIONS.filter((definition) => definition.trigger === trigger || definition.also.includes(trigger));
                 return `
                     <div class="trigger-lane" data-meeting-trigger-lane="${escapeHtml(trigger)}">
                         <h4>${escapeHtml(trigger)}</h4>
-                        ${definitions.map((definition) => `<div class="meeting-definition-card" data-meeting-definition="${escapeHtml(definition.id)}"><strong>${escapeHtml(definition.name)}</strong><span class="sub">${escapeHtml(definition.label)}</span><div class="chips">${triggerBadge(definition.trigger)}${definition.also.map(triggerBadge).join('')}${riskBadge(definition.risk)}</div><span class="sub">gate: ${escapeHtml(definition.humanGate)}</span><span class="sub">write-back: ${escapeHtml(definition.writeBack)}</span></div>`).join('')}
+                        ${definitions.map((definition) => {
+                            const connection = meetingPackDefinitionConnection(projectId, definition, data);
+                            const template = connection?.template || meetingDefinitionTemplate(definition, templates);
+                            const ready = Boolean(connection);
+                            return `<div class="meeting-definition-card" data-meeting-definition="${escapeHtml(definition.id)}"><strong>${escapeHtml(definition.name)}</strong><span class="sub">${escapeHtml(definition.label)}</span><div class="chips">${triggerBadge(definition.trigger)}${definition.also.map(triggerBadge).join('')}${riskBadge(definition.risk)}<span class="badge ${ready ? 'good' : 'warn'}">${ready ? 'configured' : 'missing'}</span></div><span class="sub">gate: ${escapeHtml(definition.humanGate)}</span><span class="sub">write-back: ${escapeHtml(definition.writeBack)}</span>${template ? `<span class="sub">template: ${escapeHtml(template.id)}</span>` : ''}</div>`;
+                        }).join('')}
                     </div>
                 `;
             }).join('');
@@ -795,7 +884,7 @@
                                 <h4>Meeting Workflow Pack</h4>
                                 <p>Manaの会議業務をWorkflow Definitionとして管理する投影です。Meeting Ops Agentは正本ではなく、会議入力に対して定義を選択するRole Agentです。</p>
                             </div>
-                            <div class="chips"><span class="badge">project ${escapeHtml(projectId)}</span><span class="badge">design imported</span></div>
+                            <div class="chips"><span class="badge">project ${escapeHtml(projectId)}</span><span class="badge ${dataReady ? 'good' : 'warn'}">${dataReady ? 'data connected' : 'bootstrap needed'}</span></div>
                         </div>
                         <div class="meeting-metrics">
                             <div class="meeting-metric"><strong>${MEETING_WORKFLOW_DEFINITIONS.length}</strong><span>definitions</span></div>
@@ -804,6 +893,10 @@
                             <div class="meeting-metric"><strong>${configuredCount}</strong><span>configured templates</span></div>
                         </div>
                         <div class="guardrail-list">${MEETING_GUARDRAILS.map((guardrail) => `<span class="badge">${escapeHtml(guardrail)}</span>`).join('')}</div>
+                        <div class="toolbar" style="margin-top:12px;">
+                            <button class="btn primary" type="button" data-action="bootstrap-meeting-pack" data-project-id="${escapeHtml(projectId)}" ${dataReady ? 'disabled' : ''}>Bootstrap Meeting Pack</button>
+                            <span class="draft-status" id="meeting-pack-bootstrap-status">${escapeHtml(statusText)}</span>
+                        </div>
                     </div>
                     <div class="panel">
                         <div class="panel-title"><h3>Workflow Definitions</h3><span class="badge">schedule / event / human</span></div>
@@ -1440,6 +1533,32 @@
                 if (statusEl) statusEl.textContent = `保存できません: ${error.message}`;
             }
         }
+        async function bootstrapMeetingWorkflowPack(projectId) {
+            const statusEl = document.getElementById('meeting-pack-bootstrap-status');
+            if (statusEl) statusEl.textContent = 'Bootstrapping...';
+            try {
+                const response = await apiFetch('/api/workflows/control/meeting-pack/bootstrap', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        org_id: projectId,
+                        project_id: projectId,
+                        seed_loop_intents: true
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+                const pack = data.meeting_workflow_pack || {};
+                delete state.meetingPackBootstrapStatus[projectId];
+                if (statusEl) {
+                    statusEl.textContent = `Connected ${pack.workflow_templates?.length || 0} definitions, ${pack.workflow_triggers?.length || 0} triggers`;
+                }
+                await loadWorkflowControl(projectId);
+            } catch (error) {
+                state.meetingPackBootstrapStatus[projectId] = { message: `Bootstrapできません: ${error.message}` };
+                if (state.selectedProjectId === projectId) renderWorkflowControlPanel(projectId);
+            }
+        }
         async function load({ keepView = false } = {}) {
             if (!keepView) {
                 views.workspace.innerHTML = '<div class="empty">Loading workflows...</div>';
@@ -1503,6 +1622,9 @@
             if (target.dataset.action === 'focus-workflow-draft') {
                 document.querySelector('#workflow-draft-form textarea[name="prompt"]')?.focus();
                 document.getElementById('workflow-draft-form')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+            if (target.dataset.action === 'bootstrap-meeting-pack') {
+                await bootstrapMeetingWorkflowPack(target.dataset.projectId || state.selectedProjectId);
             }
         });
         document.addEventListener('submit', async (event) => {
