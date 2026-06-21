@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Workflow Pack Cockpit</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --ink: #13171c;
+      --muted: #697586;
+      --soft: #eef2f6;
+      --line: #d6dee8;
+      --panel: #ffffff;
+      --rail: #f4f6f9;
+      --purple: #7c4dff;
+      --green: #1f9d57;
+      --orange: #b7791f;
+      --red: #d92d20;
+      --blue: #2a6fb0;
+    }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #e8edf3;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+    button, textarea, select {
+      font: inherit;
+    }
+    button {
+      cursor: pointer;
+    }
+    .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0;
+    }
+    .shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 52px;
+      background: #13171c;
+      border-bottom: 1px solid #2c333d;
+      color: #fff;
+    }
+    .topbar-inner {
+      max-width: 1480px;
+      height: 52px;
+      margin: 0 auto;
+      padding: 0 22px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: max-content;
+    }
+    .brand-mark {
+      width: 23px;
+      height: 23px;
+      border-radius: 7px;
+      background: var(--purple);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .brand-text {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .divider {
+      width: 1px;
+      height: 20px;
+      background: #2c333d;
+    }
+    .switchers {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+    .switcher {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 11px;
+      border-radius: 8px;
+      border: 1px solid #2c333d;
+      background: #1a1f26;
+      color: #d3dae4;
+      font-size: 12.5px;
+      font-weight: 650;
+      min-width: 0;
+    }
+    .switcher select {
+      appearance: none;
+      max-width: 210px;
+      color: inherit;
+      border: 0;
+      background: transparent;
+      outline: 0;
+      font-weight: 650;
+    }
+    .queue-button {
+      margin-left: auto;
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      background: var(--green);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .queue-count {
+      background: rgba(255, 255, 255, .24);
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-size: 11px;
+    }
+    .layout {
+      width: 100%;
+      max-width: 1480px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 286px minmax(0, 1fr);
+      flex: 1;
+    }
+    .rail {
+      position: sticky;
+      top: 52px;
+      height: calc(100vh - 52px);
+      overflow-y: auto;
+      border-right: 1px solid var(--line);
+      background: var(--rail);
+      padding: 18px 14px 30px;
+      display: grid;
+      gap: 20px;
+      align-content: start;
+    }
+    .rail::-webkit-scrollbar { width: 7px; }
+    .rail::-webkit-scrollbar-thumb { background: #cbd4df; border-radius: 4px; }
+    .rail-section {
+      display: grid;
+      gap: 10px;
+    }
+    .rail-title {
+      color: #8893a2;
+      font-size: 9.5px;
+      font-weight: 700;
+    }
+    .rail-separator {
+      border-top: 1px solid #e1e6ec;
+      padding-top: 18px;
+    }
+    .nav-card, .definition-rail-card, .run-rail-card {
+      width: 100%;
+      text-align: left;
+      border-radius: 10px;
+      border: 1.5px solid #e3e9f0;
+      background: #fff;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+    }
+    .nav-card.active, .definition-rail-card.active, .run-rail-card.active {
+      border-color: var(--purple);
+      background: #f3edff;
+    }
+    .run-rail-card.waiting {
+      border-color: #efd69d;
+      background: #fffaf0;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      flex: none;
+      border-radius: 999px;
+      background: #a7b0bd;
+    }
+    .dot.waiting { background: #e8a33d; }
+    .dot.closed { background: #027a48; }
+    .rail-row-body {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+      line-height: 1.25;
+    }
+    .rail-row-body strong {
+      font-size: 11.5px;
+    }
+    .rail-row-body span {
+      color: #8893a2;
+      font-size: 9px;
+    }
+    .trigger-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 2px;
+      font-size: 9px;
+      font-weight: 800;
+    }
+    .trigger-label::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .trigger-label.schedule { color: var(--blue); }
+    .trigger-label.event { color: #b06a16; }
+    .trigger-label.human { color: #6b3fb0; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      width: max-content;
+      min-height: 20px;
+      border-radius: 6px;
+      padding: 2px 7px;
+      border: 1px solid #d8e0ea;
+      background: #f8fafc;
+      color: #526071;
+      font-size: 10.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge.good { color: #027a48; background: #e7f6ee; border-color: #b9e4cb; }
+    .badge.warn { color: var(--orange); background: #fff7df; border-color: #ecd08d; }
+    .badge.bad { color: var(--red); background: #fdecea; border-color: #f2b8b5; }
+    .badge.dark { color: #b9c2cf; background: #232a33; border-color: #343d48; }
+    .main {
+      min-width: 0;
+      padding: 22px 28px 60px;
+    }
+    .crumb {
+      margin-bottom: 18px;
+      color: #a0aaba;
+      font-size: 11.5px;
+    }
+    .crumb strong { color: var(--ink); }
+    .view {
+      max-width: 1040px;
+      display: grid;
+      gap: 28px;
+    }
+    .identity {
+      display: grid;
+      gap: 14px;
+    }
+    h1, h2, h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+    h1 { font-size: 27px; }
+    h2 { font-size: 16px; }
+    h3 { font-size: 14px; }
+    p {
+      margin: 0;
+      color: #374049;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .metrics {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .metric {
+      display: grid;
+      gap: 3px;
+    }
+    .metric strong {
+      font-size: 22px;
+      line-height: 1;
+    }
+    .metric span {
+      color: #9aa4b1;
+      font-size: 10.5px;
+    }
+    .panel {
+      border: 1px solid #e4e9ef;
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .lifecycle {
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+    .phase-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      min-width: max-content;
+    }
+    .phase {
+      min-width: 214px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .phase-arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: #c2cad4;
+    }
+    .definition-card {
+      border: 1px solid #e7ebf0;
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      text-align: left;
+      color: var(--ink);
+    }
+    .definition-card:hover {
+      border-color: #c4b5fd;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .review-list {
+      display: grid;
+      gap: 10px;
+    }
+    .review-card {
+      border: 1px solid #e3e9f0;
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 4px 1fr auto;
+      gap: 13px;
+      text-align: left;
+      color: var(--ink);
+    }
+    .review-card:hover {
+      border-color: #c4b5fd;
+    }
+    .risk-bar {
+      border-radius: 3px;
+      background: #d99a16;
+    }
+    .risk-bar.high {
+      background: var(--red);
+    }
+    .review-main {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+    .review-main strong {
+      font-size: 14px;
+    }
+    .sub {
+      color: #778294;
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+    .candidate-list {
+      display: grid;
+      gap: 10px;
+    }
+    .candidate {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .candidate-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    textarea {
+      width: 100%;
+      min-height: 74px;
+      resize: vertical;
+      border: 1px solid #d2dae5;
+      border-radius: 9px;
+      padding: 10px;
+      background: #fff;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      align-items: center;
+    }
+    .btn {
+      border: 1px solid #d5dde8;
+      background: #fff;
+      color: #283241;
+      border-radius: 8px;
+      min-height: 34px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .btn.primary {
+      background: var(--purple);
+      border-color: var(--purple);
+      color: #fff;
+    }
+    .btn.good {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+    .btn.danger {
+      color: var(--red);
+      border-color: #efb8b5;
+      background: #fff8f7;
+    }
+    .btn:disabled {
+      opacity: .48;
+      cursor: not-allowed;
+    }
+    .trace-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+    }
+    .trace-item {
+      border: 1px solid #e4e9ef;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      display: grid;
+      gap: 5px;
+    }
+    .agent-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .agent-tab {
+      min-height: 36px;
+      border-radius: 9px;
+      border: 1px solid #d8e0ea;
+      background: #fff;
+      color: #283241;
+      padding: 0 11px;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .agent-tab.active {
+      border-color: var(--purple);
+      background: #f3edff;
+      color: #5a2fc2;
+    }
+    .status-line {
+      min-height: 22px;
+      color: #687386;
+      font-size: 11.5px;
+    }
+    .empty {
+      color: #8893a2;
+      border: 1px dashed #c8d1dc;
+      border-radius: 10px;
+      padding: 14px;
+      background: #fff;
+      font-size: 12px;
+    }
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .rail {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar-inner {
+        padding: 0 12px;
+      }
+      .brand-text {
+        display: none;
+      }
+      .main {
+        padding: 18px 14px 42px;
+      }
+      .review-card {
+        grid-template-columns: 4px 1fr;
+      }
+      .review-card .badge {
+        grid-column: 2;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" data-agent-loop-control>
+    <header class="topbar" data-agent-header>
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark">◎</span>
+          <span class="brand-text mono">AGENT LOOP CONTROL</span>
+        </div>
+        <span class="divider"></span>
+        <div class="switchers">
+          <label class="switcher" data-instance-switcher>
+            <span class="brand-mark" style="width:14px;height:14px;border-radius:4px;font-size:8px;">◎</span>
+            <select id="instance-select" aria-label="Instance"></select>
+          </label>
+          <span style="color:#4a525d;">/</span>
+          <label class="switcher" data-agent-switcher>
+            <select id="agent-select" aria-label="Role Agent"></select>
+          </label>
+        </div>
+        <button class="queue-button" id="open-queue" type="button">承認待ち <span class="queue-count" id="queue-count">0</span></button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="rail" id="left-rail" data-left-rail></aside>
+      <main class="main">
+        <div class="crumb mono" id="crumb"></div>
+        <div id="main-view"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const AUTH_TOKEN_KEY = 'brainbase.auth.token';
+    const qs = new URLSearchParams(window.location.search);
+    const initialProjectId = qs.get('project') || qs.get('project_id') || 'salestailor';
+
+    const MEETING_DEFINITIONS = [
+      { id: 'pre-meeting-briefing', name: 'Pre-Meeting Briefing', jp: '事前ブリーフィング', trigger: 'schedule', also: ['human'], risk: 'low', gate: 'none', writeBack: 'Advisory Output', produces: 'Briefing doc', phase: '事前 / BEFORE' },
+      { id: 'transcript-to-meeting-note', name: 'Transcript → Meeting Note', jp: '議事録ドラフト生成', trigger: 'event', also: ['human'], risk: 'low', gate: 'review', writeBack: 'Project Docs', produces: 'Meeting Note', phase: '記録 / CAPTURE' },
+      { id: 'meeting-note-to-tasks', name: 'Meeting Note → Tasks', jp: 'タスク候補抽出', trigger: 'event', also: ['human'], risk: 'medium', gate: 'approve', writeBack: 'Task Store', produces: 'Task candidates', phase: '抽出 / EXTRACT' },
+      { id: 'meeting-note-to-decisions', name: 'Meeting Note → Decisions', jp: '意思決定の昇格候補', trigger: 'human', also: ['event'], risk: 'high', gate: 'approve', writeBack: 'Graph SSOT', produces: 'Decision candidates', phase: '抽出 / EXTRACT' },
+      { id: 'post-meeting-follow-up-message', name: 'Post-Meeting Follow-up', jp: 'フォローアップ message', trigger: 'human', also: ['event'], risk: 'high', gate: 'approve', writeBack: 'External channel', produces: 'Follow-up message', phase: '展開 / FOLLOW-UP' }
+    ];
+
+    const AGENTS = [
+      { id: 'meeting-ops', name: 'Meeting Ops Agent', jp: '会議業務', built: true, workflows: MEETING_DEFINITIONS.map((d) => d.id) },
+      { id: 'sales', name: 'Sales Agent', jp: '営業', built: false, workflows: ['lead-triage', 'outreach-draft', 'meeting-scheduler', 'pipeline-review'] },
+      { id: 'backoffice', name: 'Back-office Agent', jp: 'バックオフィス', built: false, workflows: ['invoice-intake', 'contract-review', 'expense-classify'] },
+      { id: 'marketing', name: 'Marketing Agent', jp: 'マーケ', built: false, workflows: ['content-draft', 'sns-schedule', 'campaign-report'] }
+    ];
+
+    const ORGS = [
+      { id: 'unson', label: 'unson', project: 'unson', owner: 'sato_keigo', context: 'meeting-bound · same-attendee history', tools: 'transcript.read · docs.draft · deny gmail.send', autonomy: 'approval_required' },
+      { id: 'salestailor', label: 'salestailor', project: 'salestailor', owner: 'sato_keigo', context: 'meeting-bound · customer-sensitive redaction', tools: 'transcript.read · docs.draft · deny external.send', autonomy: 'draft_only' }
+    ];
+
+    const FALLBACK_RUNS = [
+      {
+        id: 'run_salestailor_contract_review_20260620',
+        orgId: 'salestailor',
+        title: '2026-06-20 SalesTailor 契約レビュー',
+        source: 'Mana meeting note',
+        path: 'docs/operations/meeting-workflow-pack/2026-06-20-salestailor-contract-review-loop-closure.md',
+        noteSummary: '契約レビュー会議から、契約文面の確認、修正タスク、意思決定候補、フォローアップ文面を抽出し、Brainbase の会議業務ループとして閉じる。',
+        tasks: [
+          { title: '契約レビューの未確定論点を整理し、次回確認事項として残す', assignee: '佐藤圭吾', due: '次回MTG前', span: 'source: follow-up notes' },
+          { title: 'SalesTailor 側の契約修正依頼をタスク化する', assignee: 'SalesTailor owner', due: '今週中', span: 'source: action candidates' },
+          { title: 'フォローアップ文面を確認し送信可否を判断する', assignee: '佐藤圭吾', due: '会議後', span: 'source: post meeting follow-up' }
+        ],
+        decisions: [
+          { statement: 'Meeting Workflow Pack は会議業務をAI議事録ではなく業務ループとして扱う', span: 'source: design decision' },
+          { statement: 'Graph SSOT への昇格は human gate 通過後のみ行う', span: 'source: guardrail' }
+        ],
+        message: { to: 'SalesTailor 関係者', channel: 'Slack draft', body: '本日はありがとうございました。契約レビューで確認した論点、次アクション、保留事項を整理しました。内容を確認のうえ、必要な修正点をご連絡ください。' },
+        gates: { tasks: 'pending', decisions: 'pending', message: 'pending' }
+      },
+      {
+        id: 'run_mana_meeting_pack_demo',
+        orgId: 'unson',
+        title: 'Mana Meeting Workflow Pack デモ',
+        source: 'Design prototype',
+        path: 'docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html',
+        noteSummary: 'zip prototype の Agent Loop Control 画面を、Brainbase の Workflow Control data と human gate projection に接続する。',
+        tasks: [
+          { title: 'zip prototype の Cockpit 構造を専用画面へ移植', assignee: 'Codex', due: '本日', span: 'source: prototype' },
+          { title: 'Review Queue と Review Detail の操作契約を E2E で固定', assignee: 'Codex', due: '本日', span: 'source: acceptance criteria' }
+        ],
+        decisions: [
+          { statement: '/workflows は横断 inbox、/meeting-workflow-pack.html は会議業務 Cockpit として分ける', span: 'source: architecture' }
+        ],
+        message: { to: 'Brainbase operator', channel: 'Internal note', body: 'Meeting Workflow Pack Cockpit を専用画面として確認できます。承認操作は v1 では画面内状態のみです。' },
+        gates: { tasks: 'pending', decisions: 'approved', message: 'approved' }
+      }
+    ];
+
+    const state = {
+      projectId: initialProjectId,
+      orgId: initialProjectId === 'unson' ? 'unson' : 'salestailor',
+      agentId: 'meeting-ops',
+      view: 'overview',
+      selectedDefinitionId: 'pre-meeting-briefing',
+      selectedRunId: 'run_salestailor_contract_review_20260620',
+      selectedReviewKey: '',
+      resources: {},
+      localSteps: {},
+      excluded: {},
+      edits: {},
+      rejectReasons: {},
+      highRiskConfirmed: false,
+      status: 'loading'
+    };
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getAuthToken() {
+      try { return window.localStorage?.getItem(AUTH_TOKEN_KEY) || ''; } catch { return ''; }
+    }
+
+    async function apiFetch(path) {
+      const headers = { Accept: 'application/json' };
+      const token = getAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return fetch(path, { headers, credentials: 'same-origin' });
+    }
+
+    async function loadResource(name) {
+      const url = `/api/workflows/control/${name}?project_id=${encodeURIComponent(state.projectId)}`;
+      const response = await apiFetch(url);
+      if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
+      return response.json();
+    }
+
+    async function loadData() {
+      try {
+        const [agents, templates, bindings, triggers, intents] = await Promise.all([
+          loadResource('role-agents'),
+          loadResource('templates'),
+          loadResource('bindings'),
+          loadResource('triggers'),
+          loadResource('loop-intents')
+        ]);
+        state.resources = { agents, templates, bindings, triggers, intents };
+        state.status = 'connected';
+      } catch (error) {
+        state.resources = { error: error.message };
+        state.status = 'fallback';
+      }
+      seedLocalSteps();
+      render();
+    }
+
+    function arrayFromEnvelope(envelope, key) {
+      if (Array.isArray(envelope)) return envelope;
+      if (Array.isArray(envelope?.[key])) return envelope[key];
+      return [];
+    }
+
+    function resourceArrays() {
+      return {
+        roleAgents: arrayFromEnvelope(state.resources.agents, 'role_agent_instances'),
+        templates: arrayFromEnvelope(state.resources.templates, 'workflow_templates'),
+        bindings: arrayFromEnvelope(state.resources.bindings, 'workflow_bindings'),
+        triggers: arrayFromEnvelope(state.resources.triggers, 'workflow_triggers'),
+        intents: arrayFromEnvelope(state.resources.intents, 'loop_intents')
+      };
+    }
+
+    function definitionForTemplate(template) {
+      const haystack = [template.id, template.name, ...(template.tags || [])].join(' ');
+      return MEETING_DEFINITIONS.find((definition) => haystack.includes(definition.id) || haystack.includes(definition.id.replaceAll('-', '_')));
+    }
+
+    function runs() {
+      const { intents, templates } = resourceArrays();
+      const projected = intents
+        .map((intent) => {
+          const template = templates.find((item) => item.id === intent.workflow_template_id) || {};
+          const definition = definitionForTemplate(template) || MEETING_DEFINITIONS.find((item) => intent.id?.includes(item.id.replaceAll('-', '_')));
+          if (!definition) return null;
+          const payload = intent.input_payload || intent.payload || {};
+          return {
+            id: intent.id,
+            orgId: intent.org_id || state.orgId,
+            title: payload.meeting_title || payload.title || definition.jp,
+            source: payload.source || payload.source_system || 'Workflow Control loop_intent',
+            path: payload.source_ref || payload.note_ref || intent.id,
+            noteSummary: payload.summary || payload.note_summary || `${definition.jp} の Loop Intent。承認と証跡を Brainbase に残す。`,
+            tasks: payload.task_candidates || payload.tasks || [],
+            decisions: payload.decision_candidates || payload.decisions || [],
+            message: payload.follow_up_message || payload.message || { to: payload.recipient || '関係者', channel: 'draft', body: payload.body || 'フォローアップ文面を確認してください。' },
+            gates: {
+              tasks: definition.id === 'meeting-note-to-tasks' || payload.task_candidates ? 'pending' : 'approved',
+              decisions: definition.id === 'meeting-note-to-decisions' || payload.decision_candidates ? 'pending' : 'approved',
+              message: definition.id === 'post-meeting-follow-up-message' || payload.follow_up_message ? 'pending' : 'approved'
+            }
+          };
+        })
+        .filter(Boolean);
+      return projected.length ? normalizeRuns(projected) : FALLBACK_RUNS;
+    }
+
+    function normalizeRuns(items) {
+      return items.map((run) => ({
+        ...run,
+        tasks: run.tasks.length ? run.tasks.map((item, index) => ({
+          title: item.title || item.task || item.text || `Task candidate ${index + 1}`,
+          assignee: item.assignee || item.owner || '未確定',
+          due: item.due || item.due_date || '未確定',
+          span: item.source_span || item.span || 'source span'
+        })) : FALLBACK_RUNS[0].tasks,
+        decisions: run.decisions.length ? run.decisions.map((item, index) => ({
+          statement: item.statement || item.title || item.text || `Decision candidate ${index + 1}`,
+          span: item.source_span || item.span || 'source span'
+        })) : FALLBACK_RUNS[0].decisions,
+        message: typeof run.message === 'string' ? { to: '関係者', channel: 'draft', body: run.message } : run.message
+      }));
+    }
+
+    function currentOrg() {
+      return ORGS.find((org) => org.id === state.orgId) || ORGS[0];
+    }
+
+    function currentAgent() {
+      return AGENTS.find((agent) => agent.id === state.agentId) || AGENTS[0];
+    }
+
+    function currentRun() {
+      return runs().find((run) => run.id === state.selectedRunId) || runs()[0];
+    }
+
+    function seedLocalSteps() {
+      for (const run of runs()) {
+        for (const gate of ['tasks', 'decisions', 'message']) {
+          const key = `${run.id}:${gate}`;
+          if (!state.localSteps[key]) state.localSteps[key] = run.gates[gate] || 'pending';
+        }
+      }
+    }
+
+    function stepOf(run, gate) {
+      return state.localSteps[`${run.id}:${gate}`] || run.gates[gate] || 'pending';
+    }
+
+    function reviewQueue() {
+      const meta = {
+        tasks: { label: 'Tasks 作成', risk: 'medium', target: 'Task Store', count: (run) => run.tasks.length, summary: (run) => `${run.tasks.length} 件のタスク候補。承認すると Task Store 登録候補になります。` },
+        decisions: { label: 'Decisions 昇格', risk: 'high', target: 'Graph SSOT', count: (run) => run.decisions.length, summary: (run) => `${run.decisions.length} 件のDecision候補。承認すると Graph SSOT 昇格候補になります。` },
+        message: { label: 'Follow-up 送信', risk: 'high', target: 'External channel', count: () => 1, summary: (run) => `${run.message.to} 宛のフォローアップ draft。v1 では外部送信しません。` }
+      };
+      return runs()
+        .filter((run) => run.orgId === state.orgId)
+        .flatMap((run) => Object.entries(meta).map(([gate, gateMeta]) => ({ run, gate, ...gateMeta })))
+        .filter((item) => stepOf(item.run, item.gate) === 'pending')
+        .map((item) => ({
+          ...item,
+          key: `${item.run.id}:${item.gate}`,
+          countValue: item.count(item.run)
+        }));
+    }
+
+    function statusBadge(status) {
+      if (status === 'approved') return '<span class="badge good">approved</span>';
+      if (status === 'rejected') return '<span class="badge bad">rejected</span>';
+      return '<span class="badge warn">pending</span>';
+    }
+
+    function riskBadge(risk) {
+      if (risk === 'high') return '<span class="badge bad">high risk</span>';
+      if (risk === 'medium') return '<span class="badge warn">medium risk</span>';
+      return '<span class="badge good">low risk</span>';
+    }
+
+    function renderHeaderControls() {
+      const instanceSelect = document.getElementById('instance-select');
+      const agentSelect = document.getElementById('agent-select');
+      instanceSelect.innerHTML = ORGS.map((org) => `<option value="${escapeHtml(org.id)}" ${org.id === state.orgId ? 'selected' : ''}>${escapeHtml(org.label)}</option>`).join('');
+      agentSelect.innerHTML = AGENTS.map((agent) => `<option value="${escapeHtml(agent.id)}" ${agent.id === state.agentId ? 'selected' : ''}>${escapeHtml(agent.name)}</option>`).join('');
+      document.getElementById('queue-count').textContent = String(reviewQueue().length);
+    }
+
+    function renderRail() {
+      const rail = document.getElementById('left-rail');
+      const agent = currentAgent();
+      if (!agent.built) {
+        rail.innerHTML = `
+          <div class="rail-section">
+            <span class="rail-title mono">対応 · OPERATE</span>
+            <div class="empty">承認待ちなし<br>Workflow Pack 未構築</div>
+          </div>
+          <div class="rail-section rail-separator">
+            <span class="rail-title mono">想定ワークフロー</span>
+            ${agent.workflows.map((workflow) => `<div class="definition-rail-card"><span class="dot"></span><span class="rail-row-body"><strong>${escapeHtml(workflow)}</strong><span>未定義</span></span></div>`).join('')}
+          </div>
+        `;
+        return;
+      }
+      const runRows = runs().filter((run) => run.orgId === state.orgId).map((run) => {
+        const pending = ['tasks', 'decisions', 'message'].filter((gate) => stepOf(run, gate) === 'pending').length;
+        const closed = pending === 0;
+        return `
+          <button class="run-rail-card ${closed ? '' : 'waiting'} ${state.view === 'run' && state.selectedRunId === run.id ? 'active' : ''}" type="button" data-open-run="${escapeHtml(run.id)}">
+            <span class="dot ${closed ? 'closed' : 'waiting'}"></span>
+            <span class="rail-row-body"><strong>${escapeHtml(run.title)}</strong><span>${closed ? 'closed · 完了' : `${pending} human gate 待ち`}</span></span>
+          </button>
+        `;
+      }).join('');
+      const lane = (trigger, label) => `
+        <div class="rail-section" style="gap:5px;">
+          <div class="trigger-label mono ${trigger}">${label}</div>
+          ${MEETING_DEFINITIONS.filter((definition) => definition.trigger === trigger || definition.also.includes(trigger)).map((definition) => `
+            <button class="definition-rail-card ${state.view === 'definition' && state.selectedDefinitionId === definition.id ? 'active' : ''}" type="button" data-open-definition="${escapeHtml(definition.id)}">
+              <span class="rail-row-body"><strong>${escapeHtml(definition.name)}</strong><span>${escapeHtml(definition.jp)}</span></span>
+              <span class="badge ${definition.gate === 'none' ? 'good' : 'warn'}">${definition.gate === 'none' ? 'auto' : 'gate'}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      rail.innerHTML = `
+        <div class="rail-section">
+          <span class="rail-title mono">対応 · OPERATE</span>
+          <button class="nav-card ${state.view === 'review' ? 'active' : ''}" type="button" data-nav="review"><span>✎</span><span style="flex:1;font-size:13px;font-weight:700;">承認待ち</span><span class="badge warn">${reviewQueue().length}</span></button>
+          <div class="rail-section" style="gap:5px;">
+            <span class="mono" style="font-size:9px;color:#aab3bf;">進行中 · RUNS</span>
+            ${runRows || '<div class="empty">まだ run がありません。</div>'}
+          </div>
+        </div>
+        <div class="rail-section rail-separator">
+          <span class="rail-title mono">リファレンス · REFERENCE</span>
+          <button class="nav-card ${state.view === 'overview' ? 'active' : ''}" type="button" data-nav="overview"><span>▥</span><span style="flex:1;font-size:12.5px;font-weight:700;">概要</span><span class="mono sub">system map</span></button>
+          <div class="panel-title" style="padding-left:2px;"><span class="mono" style="font-size:9px;color:#aab3bf;">ワークフロー定義</span><span class="mono sub">5</span></div>
+          ${lane('schedule', 'SCHEDULE')}
+          ${lane('event', 'EVENT')}
+          ${lane('human', 'HUMAN')}
+        </div>
+      `;
+    }
+
+    function renderOverview() {
+      const org = currentOrg();
+      const phases = ['事前 / BEFORE', '記録 / CAPTURE', '抽出 / EXTRACT', '展開 / FOLLOW-UP'];
+      return `
+        <section class="view">
+          <div class="identity">
+            <div class="agent-tabs">
+              ${AGENTS.map((agent) => `<button class="agent-tab ${agent.id === state.agentId ? 'active' : ''}" type="button" data-agent-tab="${escapeHtml(agent.id)}">${agent.name}<span class="badge ${agent.built ? 'good' : ''}">${agent.built ? 'built' : 'stub'}</span></button>`).join('')}
+            </div>
+            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
+              <h1>Meeting Ops Agent</h1>
+              <span class="badge">Role Agent</span>
+              <span class="badge ${state.status === 'connected' ? 'good' : 'warn'}">${state.status === 'connected' ? 'Workflow Control connected' : 'fallback projection'}</span>
+            </div>
+            <p>会議という入力に対し、どの Workflow Definition を起動するかを選択・束ねる。正本は持たず、承認、証跡、正本化候補を Brainbase に戻すための Cockpit。</p>
+            <div class="metrics">
+              <div class="metric"><strong>5</strong><span class="mono">definitions</span></div>
+              <div class="metric"><strong>2</strong><span class="mono">instances</span></div>
+              <div class="metric"><strong style="color:#b3471b;">${reviewQueue().length}</strong><span class="mono">承認待ち</span></div>
+            </div>
+            <div class="panel">
+              <div class="panel-title"><h2>ROLE AGENT INSTANCE</h2><span class="badge">${escapeHtml(org.label)}</span></div>
+              <div class="trace-grid">
+                <div class="trace-item"><strong>owner</strong><span class="sub">${escapeHtml(org.owner)}</span></div>
+                <div class="trace-item"><strong>context scope</strong><span class="sub">${escapeHtml(org.context)}</span></div>
+                <div class="trace-item"><strong>tool scope</strong><span class="sub">${escapeHtml(org.tools)}</span></div>
+                <div class="trace-item"><strong>max autonomy</strong><span class="sub">${escapeHtml(org.autonomy)}</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><div><h2>会議ライフサイクル</h2><span class="sub">入力から正本化候補までの定義の流れ。カードで定義の詳細へ。</span></div></div>
+            <div class="lifecycle">
+              <div class="phase-row">
+                ${phases.map((phase, index) => `
+                  ${index ? '<div class="phase-arrow">→</div>' : ''}
+                  <div class="phase">
+                    <span class="mono sub" style="font-weight:800;">${escapeHtml(phase)}</span>
+                    ${MEETING_DEFINITIONS.filter((definition) => definition.phase === phase).map((definition) => renderDefinitionCard(definition)).join('')}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><h2>Human Gate Queue</h2><button class="btn primary" type="button" data-nav="review">承認待ちを見る</button></div>
+            ${renderReviewList(reviewQueue().slice(0, 3))}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderDefinitionCard(definition) {
+      return `
+        <button class="definition-card" type="button" data-definition-card data-open-definition="${escapeHtml(definition.id)}">
+          <div class="panel-title"><strong>${escapeHtml(definition.name)}</strong><span class="badge ${definition.risk === 'high' ? 'bad' : definition.risk === 'medium' ? 'warn' : 'good'}">${escapeHtml(definition.trigger)}</span></div>
+          <span class="sub">${escapeHtml(definition.jp)}</span>
+          <div style="display:grid;gap:4px;border-top:1px solid #f1f4f8;padding-top:10px;">
+            <span class="mono sub">${escapeHtml(definition.produces)} → ${escapeHtml(definition.writeBack)}</span>
+            <span class="mono sub">gate: ${escapeHtml(definition.gate)}</span>
+          </div>
+        </button>
+      `;
+    }
+
+    function renderDefinition() {
+      const definition = MEETING_DEFINITIONS.find((item) => item.id === state.selectedDefinitionId) || MEETING_DEFINITIONS[0];
+      const contracts = [
+        ['Input Contract', `${definition.trigger} input · meeting identity · project/org scope`],
+        ['Context Policy', 'meeting-bound context · same attendee history · private scope exclusion'],
+        ['Output Contract', `${definition.produces} · canonical=false until human gate`],
+        ['Human Gate', definition.gate === 'none' ? 'read-only output only' : `${definition.gate} required before write-back`],
+        ['Write-back Mapping', definition.writeBack],
+        ['Audit Evidence', 'source span · approver · retry evidence · candidate id']
+      ];
+      return `
+        <section class="view">
+          <div class="panel">
+            <div class="panel-title">
+              <div><h1>${escapeHtml(definition.name)}</h1><span class="sub">${escapeHtml(definition.jp)}</span></div>
+              <div class="actions">${riskBadge(definition.risk)}<span class="badge">${escapeHtml(definition.trigger)}</span></div>
+            </div>
+            <p>Workflow Definition は prompt ではなく、入力、判断、human gate、write-back、audit evidence を持つ業務定義です。</p>
+          </div>
+          <div class="card-grid">
+            ${contracts.map(([title, text]) => `<div class="trace-item"><strong>${escapeHtml(title)}</strong><span class="sub">${escapeHtml(text)}</span></div>`).join('')}
+          </div>
+          <div class="panel">
+            <div class="panel-title"><h2>Judgment DAG projection</h2><span class="badge">v1 display only</span></div>
+            <div class="trace-grid">
+              ${['Input', 'Resolve Context', 'Judge', 'Human Gate', 'Write-back', 'Audit'].map((step, index) => `<div class="trace-item"><strong>${index + 1}. ${escapeHtml(step)}</strong><span class="sub">${escapeHtml(definition.id)} · ${escapeHtml(definition.writeBack)}</span></div>`).join('')}
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderReviewList(items) {
+      if (!items.length) return '<div class="empty">この Instance の承認待ちはありません。</div>';
+      return `<div class="review-list" data-review-queue>
+        ${items.map((item) => `
+          <button class="review-card" type="button" data-review-card data-open-review="${escapeHtml(item.key)}">
+            <span class="risk-bar ${item.risk === 'high' ? 'high' : ''}"></span>
+            <span class="review-main">
+              <strong>${escapeHtml(item.label)}</strong>
+              <span class="sub">${escapeHtml(item.run.title)}</span>
+              <span class="sub">${escapeHtml(item.summary(item.run))}</span>
+              <span class="mono sub">write-back: ${escapeHtml(item.target)} · v1 local approval only</span>
+            </span>
+            ${riskBadge(item.risk)}
+          </button>
+        `).join('')}
+      </div>`;
+    }
+
+    function renderReviewQueue() {
+      return `
+        <section class="view">
+          <div class="panel">
+            <div class="panel-title"><div><h1>Review Queue</h1><span class="sub">Task / Decision / Follow-up の human gate をここで確認します。</span></div><span class="badge warn">${reviewQueue().length} pending</span></div>
+          </div>
+          ${renderReviewList(reviewQueue())}
+        </section>
+      `;
+    }
+
+    function reviewContext() {
+      const item = reviewQueue().find((entry) => entry.key === state.selectedReviewKey);
+      if (item) return item;
+      const [runId, gate = 'tasks'] = state.selectedReviewKey.split(':');
+      const run = runs().find((entry) => entry.id === runId) || currentRun();
+      const meta = {
+        tasks: { label: 'Tasks 作成', risk: 'medium', target: 'Task Store' },
+        decisions: { label: 'Decisions 昇格', risk: 'high', target: 'Graph SSOT' },
+        message: { label: 'Follow-up 送信', risk: 'high', target: 'External channel' }
+      }[gate] || { label: 'Tasks 作成', risk: 'medium', target: 'Task Store' };
+      return { run, gate, ...meta, key: `${run.id}:${gate}`, summary: () => '' };
+    }
+
+    function gateCandidates(run, gate) {
+      if (gate === 'tasks') return run.tasks.map((task) => ({ title: task.title, detail: `${task.assignee} · ${task.due}`, span: task.span }));
+      if (gate === 'decisions') return run.decisions.map((decision) => ({ title: decision.statement, detail: 'Graph SSOT promotion candidate', span: decision.span }));
+      return [{ title: run.message.body, detail: `${run.message.channel} · ${run.message.to}`, span: 'draft message' }];
+    }
+
+    function renderReviewDetail() {
+      const item = reviewContext();
+      const candidates = gateCandidates(item.run, item.gate);
+      const approvedDisabled = item.risk === 'high' && !state.highRiskConfirmed;
+      return `
+        <section class="view" data-review-detail>
+          <div class="panel">
+            <div class="panel-title">
+              <div><h1>${escapeHtml(item.label)}</h1><span class="sub">${escapeHtml(item.run.title)}</span></div>
+              <div class="actions">${riskBadge(item.risk)}<span class="badge">${escapeHtml(item.target)}</span></div>
+            </div>
+            <p>この操作は v1 では画面内状態のみを変更します。Task Store、Graph SSOT、外部チャネルにはまだ書き込みません。</p>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><h2>Candidates</h2><span class="badge warn">human gate</span></div>
+            <div class="candidate-list">
+              ${candidates.map((candidate, index) => {
+                const key = `${item.key}:${index}`;
+                const excluded = Boolean(state.excluded[key]);
+                const value = state.edits[key] ?? candidate.title;
+                return `
+                  <div class="candidate">
+                    <div class="candidate-row">
+                      <input type="checkbox" data-toggle-candidate="${escapeHtml(key)}" ${excluded ? '' : 'checked'} aria-label="candidate ${index + 1}">
+                      <div style="display:grid;gap:7px;">
+                        <textarea data-edit-candidate="${escapeHtml(key)}">${escapeHtml(value)}</textarea>
+                        <span class="sub">${escapeHtml(candidate.detail)} · ${escapeHtml(candidate.span)}</span>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><h2>Approval</h2>${statusBadge(stepOf(item.run, item.gate))}</div>
+            ${item.risk === 'high' ? `<label class="candidate-row" style="align-items:center;"><input id="high-risk-confirm" type="checkbox" ${state.highRiskConfirmed ? 'checked' : ''}><span class="sub">高リスク操作であることを確認した。v1 では外部副作用は実行しない。</span></label>` : ''}
+            <textarea id="reject-reason" placeholder="差し戻し理由">${escapeHtml(state.rejectReasons[item.key] || '')}</textarea>
+            <div class="actions">
+              <button class="btn good" type="button" data-approve-review="${escapeHtml(item.key)}" ${approvedDisabled ? 'disabled' : ''}>承認済みにする</button>
+              <button class="btn danger" type="button" data-reject-review="${escapeHtml(item.key)}">差し戻す</button>
+              <button class="btn" type="button" data-nav="review">Queueへ戻る</button>
+            </div>
+            <div class="status-line mono" id="approval-status">${approvedDisabled ? 'Graph / external 系の高リスク gate は確認 checkbox が必要です。' : 'ready'}</div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderRunTrace() {
+      const run = currentRun();
+      const writebacks = [
+        ['Tasks', `${run.tasks.length} candidates`, stepOf(run, 'tasks'), 'Task Store'],
+        ['Decisions', `${run.decisions.length} candidates`, stepOf(run, 'decisions'), 'Graph SSOT'],
+        ['Follow-up', '1 draft', stepOf(run, 'message'), 'External channel']
+      ];
+      return `
+        <section class="view" data-run-trace>
+          <div class="panel">
+            <div class="panel-title"><div><h1>${escapeHtml(run.title)}</h1><span class="sub">${escapeHtml(run.path)}</span></div><span class="badge warn">Run Trace</span></div>
+            <p>${escapeHtml(run.noteSummary)}</p>
+          </div>
+          <div class="trace-grid">
+            <div class="trace-item"><strong>Meeting Source</strong><span class="sub">${escapeHtml(run.source)}</span></div>
+            <div class="trace-item"><strong>Context Snapshot</strong><span class="sub">meeting identity · attendees · related decisions · open tasks</span></div>
+            <div class="trace-item"><strong>Human Steps</strong><span class="sub">${reviewQueue().filter((item) => item.run.id === run.id).length} pending gates</span></div>
+            <div class="trace-item"><strong>Audit Evidence</strong><span class="sub">source span · approver · retry evidence · candidate id</span></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><h2>Write-back Status</h2><span class="badge">v1 projection</span></div>
+            <div class="card-grid">
+              ${writebacks.map(([label, count, status, target]) => `<div class="trace-item"><strong>${escapeHtml(label)}</strong><span class="sub">${escapeHtml(count)} · ${escapeHtml(target)}</span>${statusBadge(status)}</div>`).join('')}
+            </div>
+          </div>
+          <div class="actions">
+            ${['tasks', 'decisions', 'message'].map((gate) => `<button class="btn" type="button" data-open-review="${escapeHtml(`${run.id}:${gate}`)}">${escapeHtml(gate)} gate</button>`).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderAgentStub() {
+      const agent = currentAgent();
+      return `
+        <section class="view" data-agent-stub>
+          <div class="agent-tabs">
+            ${AGENTS.map((item) => `<button class="agent-tab ${item.id === state.agentId ? 'active' : ''}" type="button" data-agent-tab="${escapeHtml(item.id)}">${item.name}<span class="badge ${item.built ? 'good' : ''}">${item.built ? 'built' : 'stub'}</span></button>`).join('')}
+          </div>
+          <div class="panel">
+            <div class="panel-title"><div><h1>${escapeHtml(agent.name)}</h1><span class="sub">${escapeHtml(agent.jp)} · Workflow Pack 未構築</span></div><span class="badge">v0 stub</span></div>
+            <p>Role Agent の横展開を前提にした shell です。営業、バックオフィス、マーケも同じ Agent Loop Control の形で Workflow Pack を持てます。</p>
+          </div>
+          <div class="card-grid">
+            ${agent.workflows.map((workflow) => `<div class="trace-item"><strong>${escapeHtml(workflow)}</strong><span class="sub">未定義 · future Workflow Definition</span></div>`).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderMain() {
+      if (!currentAgent().built) return renderAgentStub();
+      if (state.view === 'definition') return renderDefinition();
+      if (state.view === 'review') return renderReviewQueue();
+      if (state.view === 'review-detail') return renderReviewDetail();
+      if (state.view === 'run') return renderRunTrace();
+      return renderOverview();
+    }
+
+    function render() {
+      renderHeaderControls();
+      renderRail();
+      const org = currentOrg();
+      document.getElementById('crumb').innerHTML = `${escapeHtml(org.label)} / <strong>${escapeHtml(currentAgent().name)}</strong> / ${escapeHtml(state.view)}`;
+      document.getElementById('main-view').innerHTML = renderMain();
+    }
+
+    function navigate(view) {
+      state.view = view;
+      state.highRiskConfirmed = false;
+      window.scrollTo(0, 0);
+      render();
+    }
+
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (target.id === 'instance-select') {
+        state.orgId = target.value;
+        state.projectId = target.value;
+        state.view = 'overview';
+        seedLocalSteps();
+        render();
+      }
+      if (target.id === 'agent-select') {
+        state.agentId = target.value;
+        state.view = target.value === 'meeting-ops' ? 'overview' : 'stub';
+        render();
+      }
+      if (target.matches('[data-toggle-candidate]')) {
+        state.excluded[target.dataset.toggleCandidate] = !target.checked;
+      }
+      if (target.id === 'high-risk-confirm') {
+        state.highRiskConfirmed = target.checked;
+        render();
+      }
+    });
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (target.matches('[data-edit-candidate]')) {
+        state.edits[target.dataset.editCandidate] = target.value;
+      }
+      if (target.id === 'reject-reason') {
+        state.rejectReasons[state.selectedReviewKey] = target.value;
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('button, a');
+      if (!target) return;
+      if (target.dataset.nav) navigate(target.dataset.nav);
+      if (target.id === 'open-queue') navigate('review');
+      if (target.dataset.agentTab) {
+        state.agentId = target.dataset.agentTab;
+        state.view = state.agentId === 'meeting-ops' ? 'overview' : 'stub';
+        render();
+      }
+      if (target.dataset.openDefinition) {
+        state.selectedDefinitionId = target.dataset.openDefinition;
+        navigate('definition');
+      }
+      if (target.dataset.openRun) {
+        state.selectedRunId = target.dataset.openRun;
+        navigate('run');
+      }
+      if (target.dataset.openReview) {
+        state.selectedReviewKey = target.dataset.openReview;
+        const [runId] = state.selectedReviewKey.split(':');
+        state.selectedRunId = runId;
+        navigate('review-detail');
+      }
+      if (target.dataset.approveReview) {
+        state.localSteps[target.dataset.approveReview] = 'approved';
+        document.getElementById('approval-status').textContent = 'local approval recorded';
+        render();
+      }
+      if (target.dataset.rejectReview) {
+        state.localSteps[target.dataset.rejectReview] = 'rejected';
+        document.getElementById('approval-status').textContent = 'local rejection recorded';
+        render();
+      }
+    });
+
+    seedLocalSteps();
+    render();
+    loadData();
+  </script>
+</body>
+</html>

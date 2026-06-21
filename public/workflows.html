@@ -895,6 +895,7 @@
                         <div class="guardrail-list">${MEETING_GUARDRAILS.map((guardrail) => `<span class="badge">${escapeHtml(guardrail)}</span>`).join('')}</div>
                         <div class="toolbar" style="margin-top:12px;">
                             <button class="btn primary" type="button" data-action="bootstrap-meeting-pack" data-project-id="${escapeHtml(projectId)}" ${dataReady ? 'disabled' : ''}>Bootstrap Meeting Pack</button>
+                            <a class="btn" href="/meeting-workflow-pack.html?project=${encodeURIComponent(projectId)}" data-open-meeting-workflow-cockpit>Agent Loop Control Cockpit</a>
                             <span class="draft-status" id="meeting-pack-bootstrap-status">${escapeHtml(statusText)}</span>
                         </div>
                     </div>
