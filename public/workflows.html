@@ -265,6 +265,124 @@
             padding: 12px;
             background: #fff;
         }
+        .meeting-pack {
+            display: grid;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .meeting-pack-hero {
+            border: 2px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+        }
+        .meeting-pack-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+        .meeting-pack-title h4 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .meeting-pack-title p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.55;
+            max-width: 720px;
+        }
+        .meeting-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+            gap: 10px;
+        }
+        .meeting-metric {
+            border: 1px solid var(--soft-line);
+            border-radius: 8px;
+            background: #f8fafc;
+            padding: 10px;
+        }
+        .meeting-metric strong {
+            display: block;
+            font-size: 20px;
+        }
+        .meeting-metric span {
+            color: var(--muted);
+            font-size: 11px;
+        }
+        .meeting-lifecycle {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(150px, 1fr));
+            gap: 8px;
+        }
+        .meeting-definition-card {
+            border: 1px solid var(--soft-line);
+            border-radius: 8px;
+            background: #fff;
+            padding: 12px;
+            display: grid;
+            gap: 8px;
+        }
+        .meeting-definition-card strong {
+            font-size: 13px;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+        .meeting-definition-card .sub {
+            display: block;
+        }
+        .trigger-lanes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+        }
+        .trigger-lane {
+            border: 1px solid var(--soft-line);
+            border-radius: 8px;
+            background: #fff;
+            padding: 12px;
+            display: grid;
+            gap: 8px;
+            align-content: start;
+        }
+        .trigger-lane h4 {
+            margin: 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+        .human-gate-queue {
+            display: grid;
+            gap: 8px;
+        }
+        .human-gate-item {
+            border: 1px solid var(--soft-line);
+            border-radius: 8px;
+            background: #fffaf0;
+            padding: 12px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+        }
+        .human-gate-item.high {
+            background: #fff7f6;
+            border-color: #fecdca;
+        }
+        .guardrail-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .guardrail-list .badge {
+            border-color: #20242a;
+            color: #111418;
+        }
         .draft-preview {
             display: grid;
             gap: 12px;
@@ -291,7 +409,7 @@
         @media (max-width: 980px) {
             .shell { grid-template-columns: 1fr; padding: 12px; }
             .assistant { display: none; }
-            .project-grid, .layout-two { grid-template-columns: 1fr; }
+            .project-grid, .layout-two, .meeting-lifecycle { grid-template-columns: 1fr; }
             .content { padding: 22px; }
             .row, .row-button { grid-template-columns: 1fr; }
         }
@@ -380,6 +498,69 @@
         const AUTH_TOKEN_KEY = 'brainbase.auth.token';
         let csrfToken = '';
         let csrfTokenPromise = null;
+        const MEETING_WORKFLOW_DEFINITIONS = [
+            {
+                id: 'pre-meeting-briefing',
+                name: 'Pre-Meeting Briefing',
+                label: 'MTG前準備',
+                trigger: 'schedule',
+                also: ['human'],
+                output: 'agenda / context brief',
+                humanGate: 'optional_before_share',
+                writeBack: 'Workflow output',
+                risk: 'low'
+            },
+            {
+                id: 'transcript-to-meeting-note',
+                name: 'Transcript → Meeting Note',
+                label: '議事録ドラフト生成',
+                trigger: 'event',
+                also: ['human'],
+                output: 'meeting note draft',
+                humanGate: 'required_before_publish',
+                writeBack: 'Meeting Note draft',
+                risk: 'medium'
+            },
+            {
+                id: 'meeting-note-to-tasks',
+                name: 'Meeting Note → Tasks',
+                label: 'タスク候補抽出',
+                trigger: 'event',
+                also: ['human'],
+                output: 'task candidates',
+                humanGate: 'required_before_task_create',
+                writeBack: 'Task Store',
+                risk: 'medium'
+            },
+            {
+                id: 'meeting-note-to-decisions',
+                name: 'Meeting Note → Decisions',
+                label: 'Decision昇格候補',
+                trigger: 'human',
+                also: ['event'],
+                output: 'decision candidates',
+                humanGate: 'required_before_graph_promotion',
+                writeBack: 'Graph SSOT',
+                risk: 'high'
+            },
+            {
+                id: 'post-meeting-follow-up-message',
+                name: 'Post-Meeting Follow-up',
+                label: 'MTG後挨拶文',
+                trigger: 'human',
+                also: ['event'],
+                output: 'message draft',
+                humanGate: 'required_before_external_send',
+                writeBack: 'External channel',
+                risk: 'high'
+            }
+        ];
+        const MEETING_GUARDRAILS = [
+            'Graph SSOT昇格はHuman Gate後',
+            '外部送信はapproval必須',
+            'event retryで重複作成しない',
+            'private channel / 限定scopeのleak防止'
+        ];
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -537,6 +718,113 @@
                 ? items.map(formatter).join('')
                 : `<div class="empty">${escapeHtml(emptyText)}</div>`;
         }
+        function triggerBadge(trigger) {
+            const tone = trigger === 'schedule' ? 'good' : trigger === 'event' ? 'warn' : '';
+            return `<span class="badge ${tone}">${escapeHtml(trigger)}</span>`;
+        }
+        function riskBadge(risk) {
+            const tone = risk === 'high' ? 'bad' : risk === 'medium' ? 'warn' : 'good';
+            return `<span class="badge ${tone}">risk ${escapeHtml(risk)}</span>`;
+        }
+        function meetingDefinitionConfigured(definition, templates) {
+            return (templates || []).some((template) => {
+                const values = [
+                    template.id,
+                    template.name,
+                    template.workflow_kind,
+                    template.judgment_dag_id
+                ].filter(Boolean).join(' ').toLowerCase();
+                return values.includes(definition.id.toLowerCase())
+                    || values.includes(definition.name.toLowerCase())
+                    || values.includes(definition.label.toLowerCase());
+            });
+        }
+        function meetingHumanGateQueue(data) {
+            const intents = data.loop_intents || [];
+            const pending = intents.filter((intent) => {
+                const eligibility = intent.eligibility || {};
+                return eligibility.requires_human_approval || eligibility.status === 'needs_approval';
+            });
+            const projected = [
+                {
+                    id: 'meeting-note-to-tasks',
+                    title: 'Tasks 作成',
+                    detail: 'task候補をTask Storeへ登録する前の確認',
+                    risk: 'medium',
+                    target: 'Task Store'
+                },
+                {
+                    id: 'meeting-note-to-decisions',
+                    title: 'Decisions 昇格',
+                    detail: 'Decision候補をGraph SSOTへ昇格する前の確認',
+                    risk: 'high',
+                    target: 'Graph SSOT'
+                },
+                {
+                    id: 'post-meeting-follow-up-message',
+                    title: 'Follow-up 送信',
+                    detail: 'Slack/email/DMを外部送信する前の確認',
+                    risk: 'high',
+                    target: 'External channel'
+                }
+            ];
+            return projected.map((item) => ({
+                ...item,
+                pendingCount: pending.length,
+                state: pending.length ? 'pending' : 'projected'
+            }));
+        }
+        function renderMeetingWorkflowPackPanel(projectId, data) {
+            const templates = data.workflow_templates || [];
+            const configuredCount = MEETING_WORKFLOW_DEFINITIONS.filter((definition) => meetingDefinitionConfigured(definition, templates)).length;
+            const humanGateItems = meetingHumanGateQueue(data);
+            const triggerLanes = ['schedule', 'event', 'human'].map((trigger) => {
+                const definitions = MEETING_WORKFLOW_DEFINITIONS.filter((definition) => definition.trigger === trigger || definition.also.includes(trigger));
+                return `
+                    <div class="trigger-lane" data-meeting-trigger-lane="${escapeHtml(trigger)}">
+                        <h4>${escapeHtml(trigger)}</h4>
+                        ${definitions.map((definition) => `<div class="meeting-definition-card" data-meeting-definition="${escapeHtml(definition.id)}"><strong>${escapeHtml(definition.name)}</strong><span class="sub">${escapeHtml(definition.label)}</span><div class="chips">${triggerBadge(definition.trigger)}${definition.also.map(triggerBadge).join('')}${riskBadge(definition.risk)}</div><span class="sub">gate: ${escapeHtml(definition.humanGate)}</span><span class="sub">write-back: ${escapeHtml(definition.writeBack)}</span></div>`).join('')}
+                    </div>
+                `;
+            }).join('');
+            return `
+                <section class="meeting-pack" data-meeting-workflow-pack>
+                    <div class="meeting-pack-hero">
+                        <div class="meeting-pack-title">
+                            <div>
+                                <h4>Meeting Workflow Pack</h4>
+                                <p>Manaの会議業務をWorkflow Definitionとして管理する投影です。Meeting Ops Agentは正本ではなく、会議入力に対して定義を選択するRole Agentです。</p>
+                            </div>
+                            <div class="chips"><span class="badge">project ${escapeHtml(projectId)}</span><span class="badge">design imported</span></div>
+                        </div>
+                        <div class="meeting-metrics">
+                            <div class="meeting-metric"><strong>${MEETING_WORKFLOW_DEFINITIONS.length}</strong><span>definitions</span></div>
+                            <div class="meeting-metric"><strong>3</strong><span>trigger classes</span></div>
+                            <div class="meeting-metric"><strong>${humanGateItems.length}</strong><span>human gates</span></div>
+                            <div class="meeting-metric"><strong>${configuredCount}</strong><span>configured templates</span></div>
+                        </div>
+                        <div class="guardrail-list">${MEETING_GUARDRAILS.map((guardrail) => `<span class="badge">${escapeHtml(guardrail)}</span>`).join('')}</div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-title"><h3>Workflow Definitions</h3><span class="badge">schedule / event / human</span></div>
+                        <div class="trigger-lanes">${triggerLanes}</div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-title"><h3>Human Gate Queue</h3><span class="badge warn">approval projection</span></div>
+                        <div class="human-gate-queue">
+                            ${humanGateItems.map((item) => `<div class="human-gate-item ${item.risk === 'high' ? 'high' : ''}" data-human-gate="${escapeHtml(item.id)}"><div><strong>${escapeHtml(item.title)}</strong><div class="sub">${escapeHtml(item.detail)}</div><div class="sub">write-back: ${escapeHtml(item.target)} · ${escapeHtml(item.state)}</div></div>${riskBadge(item.risk)}</div>`).join('')}
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-title"><h3>Design Evidence</h3><span class="badge">prototype</span></div>
+                        <div class="trace-list">
+                            <div class="trace-item"><strong>Prototype</strong><div class="sub">docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html</div></div>
+                            <div class="trace-item"><strong>Screenshots</strong><div class="sub">docs/design/assets/meeting-workflow-pack/cockpit.png · hitl-queue.png · hitl-review.png</div></div>
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
         function renderWorkflowControlPanel(projectId) {
             const panel = document.getElementById('workflow-control-panel');
             if (!panel) return;
@@ -557,6 +845,7 @@
             const bindingOptions = optionList(bindings, 'name', bindingOptionLabel);
             panel.innerHTML = `
                 <div class="panel-title"><h3>Agent Loop Control</h3><span class="badge">${agents.length} agents · ${intents.length} intents</span></div>
+                ${renderMeetingWorkflowPackPanel(projectId, data)}
                 <div class="trace-list" style="margin-bottom:14px;">
                     ${compactList(agents, 'No role agents', (agent) => {
                         const contextPolicy = summarizeJson(agent.context_policy);
@@ -832,11 +1121,20 @@
             const stopConditions = Array.isArray(stopConditionSource) ? stopConditionSource : [];
             const inputPayload = run.input_payload || runMetadata.input_payload || loopControl.input_payload;
             const inputPayloadSummary = summarizeJson(inputPayload);
+            const meetingSource = run.meeting_source || runMetadata.meeting_source || inputPayload?.meeting_source || inputPayload?.source_ref;
+            const meetingIdentity = run.meeting_identity || runMetadata.meeting_identity || inputPayload?.meeting_identity || inputPayload?.meeting_id;
+            const workflowDefinitionId = run.workflow_definition_id || runMetadata.workflow_definition_id || run.workflow_template_id || runMetadata.workflow_template_id;
+            const humanGate = run.human_gate || runMetadata.human_gate || inputPayload?.human_gate;
+            const writeBackTarget = run.write_back_target || runMetadata.write_back_target || inputPayload?.write_back_target;
+            const writeBackStatus = run.write_back_status || runMetadata.write_back_status || inputPayload?.write_back_status;
             const decisionMeta = [
                 ['Org', run.org_id || runMetadata.org_id],
                 ['Project', run.project_id || runMetadata.project_id],
+                ['Meeting Source', meetingSource],
+                ['Meeting Identity', meetingIdentity],
                 ['Role Agent', run.role_agent_id || runMetadata.role_agent_id],
                 ['Role Agent Instance', run.role_agent_instance_id || runMetadata.role_agent_instance_id],
+                ['Workflow Definition', workflowDefinitionId],
                 ['Workflow Template', run.workflow_template_id || runMetadata.workflow_template_id],
                 ['Workflow Binding', run.workflow_binding_id || runMetadata.workflow_binding_id],
                 ['Trigger', run.trigger_id || runMetadata.trigger_id],
@@ -844,6 +1142,9 @@
                 ['Eligibility', eligibilityLabel],
                 ['Eligibility Approval', eligibilityApproval],
                 ['Eligibility Reasons', eligibilityReasons],
+                ['Human Gate', humanGate],
+                ['Write-back Target', writeBackTarget],
+                ['Write-back Status', writeBackStatus],
                 ['Workflow Reason', run.selected_workflow_reason || runMetadata.selected_workflow_reason],
                 ['Run Message', run.message || runMetadata.message],
                 ['Input Payload', inputPayloadSummary],
