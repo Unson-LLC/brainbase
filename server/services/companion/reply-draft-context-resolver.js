@@ -137,14 +137,15 @@ export class ReplyDraftContextResolver {
         if (!queries.length) return [];
 
         try {
-            const results = await Promise.all(queries.map((query) => (
-                this.learningService.searchPersonalKgCandidates({
+            const results = [];
+            for (const query of queries) {
+                results.push(await this.learningService.searchPersonalKgCandidates({
                     query,
                     ownerPersonId: this.ownerPersonId,
                     cognitiveTypes: ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'result'],
                     limit: 5
-                })
-            )));
+                }));
+            }
             const seen = new Set();
             return results.flat().filter((record) => {
                 if (!record?.id || seen.has(record.id)) return false;
