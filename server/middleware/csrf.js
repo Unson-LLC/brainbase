@@ -126,6 +126,12 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Brainbase Mac Companion is a native/server client API guarded by bearer,
+        // service-token, or internal header auth. It cannot rely on browser CSRF tokens.
+        if (req.path?.startsWith('/api/companion/')) {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;

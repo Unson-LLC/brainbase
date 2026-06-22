@@ -41,4 +41,17 @@ test.describe('story-csrf-exempt-report-activity', () => {
             process.env.NODE_ENV = prev;
         }
     });
+
+    test('AC: production companion native handoff without a CSRF token is allowed through', () => {
+        // story-companion-reply-draft-api ac:csrf-native-client
+        const prev = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        try {
+            const { nextCalled, statusCode } = runMiddleware({ method: 'POST', path: '/api/companion/reply-draft', headers: {} });
+            expect(nextCalled, 'Native companion handoff uses bearer/service auth and is not a browser form POST, so CSRF middleware must not block the route before auth.').toBe(true);
+            expect(statusCode).not.toBe(403);
+        } finally {
+            process.env.NODE_ENV = prev;
+        }
+    });
 });

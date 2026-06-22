@@ -13,6 +13,7 @@ import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
+import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
@@ -43,6 +44,7 @@ import {
 } from '../services/sns/sns-posting-auth-health.js';
 import { XApiClient } from '../services/sns/providers/x-client.js';
 import { buildXProvider } from '../services/sns/providers/x-provider.js';
+import { ReplyDraftService } from '../services/companion/reply-draft-service.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
@@ -160,6 +162,13 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+    app.use('/api/companion', createCompanionRouter({
+        replyDraftService: new ReplyDraftService({
+            infoSSOTService,
+            learningService
+        }),
+        authGuard: requireAuth(authService)
+    }));
     app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,
         candidateRepository
