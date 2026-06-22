@@ -86,7 +86,8 @@ export function createCoreServices({
     const workflowService = new WorkflowService({
         repository: workflowRepository,
         runner: workflowRunner,
-        configParser
+        configParser,
+        googleCalendarService
     });
 
     // candidate-store: cross-repo source からの Raw Ledger envelope 受信用。

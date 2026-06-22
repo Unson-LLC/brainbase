@@ -129,6 +129,9 @@ describe('GoogleCalendarService', () => {
             title: '定例MTG',
             start: '10:00',
             end: '11:00',
+            startDateTime: '2026-03-21T10:00:00+09:00',
+            endDateTime: '2026-03-21T11:00:00+09:00',
+            calendarEventId: 'evt-1',
             calendarId: 'primary',
             attendees: [
                 {
@@ -143,5 +146,120 @@ describe('GoogleCalendarService', () => {
                 }
             ]
         }));
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 S-003 S-004 listEvents呼び出し時_accountと会議入力情報を正規化する', async () => {
+        const execFileMock = createExecFileMock({
+            '--version': 'v0.9.0',
+            'auth status --json --no-input': {
+                account: {
+                    credentials_exists: true,
+                    email: 'gyaru@example.com'
+                }
+            },
+            'calendar events primary --from 2026-06-22T00:00:00+09:00 --to 2026-06-23T00:00:00+09:00 --json --no-input --max 200 --account k.sato@sales-tailor.jp': {
+                items: [
+                    {
+                        id: 'evt-3',
+                        iCalUID: 'uid-3@example.com',
+                        summary: '商談準備MTG',
+                        description: '事前確認 https://meet.google.com/abc-defg-hij',
+                        location: 'オンライン',
+                        htmlLink: 'https://calendar.google.com/event?eid=evt-3',
+                        organizer: {
+                            email: 'owner@example.com',
+                            displayName: 'Owner'
+                        },
+                        start: { dateTime: '2026-06-22T14:00:00+09:00' },
+                        end: { dateTime: '2026-06-22T14:30:00+09:00' },
+                        attendees: [
+                            { email: 'sato@example.com', responseStatus: 'accepted' }
+                        ]
+                    }
+                ]
+            }
+        });
+        const service = new GoogleCalendarService({ execFileImpl: execFileMock });
+
+        const events = await service.listEvents({
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'k.sato@sales-tailor.jp'
+        });
+
+        expect(events).toEqual([
+            expect.objectContaining({
+                id: 'gcal:primary:evt-3',
+                calendarEventId: 'evt-3',
+                iCalUID: 'uid-3@example.com',
+                account: 'k.sato@sales-tailor.jp',
+                title: '商談準備MTG',
+                start: '14:00',
+                end: '14:30',
+                startDateTime: '2026-06-22T14:00:00+09:00',
+                endDateTime: '2026-06-22T14:30:00+09:00',
+                description: '事前確認 https://meet.google.com/abc-defg-hij',
+                location: 'オンライン',
+                htmlLink: 'https://calendar.google.com/event?eid=evt-3',
+                conferenceUrl: 'https://meet.google.com/abc-defg-hij',
+                organizer: {
+                    email: 'owner@example.com',
+                    displayName: 'Owner'
+                },
+                attendees: [
+                    {
+                        email: 'sato@example.com',
+                        responseStatus: 'accepted'
+                    }
+                ]
+            })
+        ]);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 FM-003 listEventsWithDiagnostics呼び出し時_calendar単位の失敗をskippedCalendarsへ残す', async () => {
+        const execFileMock = createExecFileMock({
+            '--version': 'v0.9.0',
+            'auth status --json --no-input': {
+                account: {
+                    credentials_exists: true,
+                    email: 'gyaru@example.com'
+                }
+            },
+            'calendar events primary --from 2026-06-22T00:00:00+09:00 --to 2026-06-23T00:00:00+09:00 --json --no-input --max 200 --account k.sato@sales-tailor.jp': {
+                items: [
+                    {
+                        id: 'evt-ok',
+                        summary: '取得できたMTG',
+                        start: { dateTime: '2026-06-22T10:00:00+09:00' },
+                        end: { dateTime: '2026-06-22T11:00:00+09:00' }
+                    }
+                ]
+            },
+            'calendar events team --from 2026-06-22T00:00:00+09:00 --to 2026-06-23T00:00:00+09:00 --json --no-input --max 200 --account k.sato@sales-tailor.jp': new Error('calendar forbidden')
+        });
+        const service = new GoogleCalendarService({
+            calendarIds: ['primary', 'team'],
+            execFileImpl: execFileMock
+        });
+
+        const result = await service.listEventsWithDiagnostics({
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'k.sato@sales-tailor.jp'
+        });
+
+        expect(result.events).toEqual([
+            expect.objectContaining({
+                calendarEventId: 'evt-ok',
+                title: '取得できたMTG'
+            })
+        ]);
+        expect(result.skippedCalendars).toEqual([
+            {
+                calendar_id: 'team',
+                reason: 'calendar_fetch_failed',
+                message: 'calendar forbidden'
+            }
+        ]);
     });
 });

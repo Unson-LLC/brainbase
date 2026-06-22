@@ -16,7 +16,12 @@ import {
     createDefaultWorkflowHandlers
 } from '../../../server/services/workflow/workflow-service.js';
 
-function makeApp({ handlers = createDefaultWorkflowHandlers(), accessProjectCodes = ['general', 'sample-project'], role = 'member' } = {}) {
+function makeApp({
+    handlers = createDefaultWorkflowHandlers(),
+    accessProjectCodes = ['general', 'sample-project'],
+    role = 'member',
+    googleCalendarService = null
+} = {}) {
     const repository = new InMemoryWorkflowRepository({
         seedWorkflows: [createBrainbaseAliveWorkflow()]
     });
@@ -32,7 +37,7 @@ function makeApp({ handlers = createDefaultWorkflowHandlers(), accessProjectCode
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser });
+    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -152,6 +157,77 @@ describe('workflow routes', () => {
         expect(repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
         expect(repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project', workflowKind: 'meeting' })).toHaveLength(0);
         expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 exposes calendar input ingestion under Workflow Control namespace', async () => {
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return {
+                    connected: true,
+                    defaultAccount: 'k.sato@sales-tailor.jp'
+                };
+            },
+            async listEvents() {
+                return [
+                    {
+                        id: 'gcal:primary:evt-1',
+                        calendarEventId: 'evt-1',
+                        calendarId: 'primary',
+                        title: 'Mana定例',
+                        startDateTime: '2026-06-22T10:00:00+09:00',
+                        endDateTime: '2026-06-22T11:00:00+09:00',
+                        allDay: false
+                    }
+                ];
+            }
+        };
+        const { app, repository } = makeApp({ googleCalendarService });
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/calendar-inputs')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                from: '2026-06-22T00:00:00+09:00',
+                to: '2026-06-23T00:00:00+09:00'
+            })
+            .expect(201);
+
+        expect(res.body.meeting_calendar_inputs).toMatchObject({
+            org_id: 'sample-project',
+            project_id: 'sample-project',
+            workflow_definition_id: 'pre-meeting-briefing',
+            events_considered: 1
+        });
+        expect(res.body.meeting_calendar_inputs.loop_intents).toHaveLength(1);
+        expect(res.body.meeting_calendar_inputs.loop_intents[0].input_payload.meeting_identity).toMatchObject({
+            source: 'google_calendar',
+            calendar_id: 'primary',
+            event_id: 'evt-1',
+            title: 'Mana定例'
+        });
+        expect(repository.listLoopIntents({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(1);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 FM-001 returns 400 when calendar service is not configured', async () => {
+        const { app, repository } = makeApp();
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/calendar-inputs')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                from: '2026-06-22T00:00:00+09:00',
+                to: '2026-06-23T00:00:00+09:00'
+            })
+            .expect(400);
+
+        expect(res.body).toEqual({
+            error: 'google_calendar_service is not configured'
+        });
+        expect(repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listLoopIntents({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
     });
 
     it('generates a schema-bound workflow draft without persisting a workflow', async () => {

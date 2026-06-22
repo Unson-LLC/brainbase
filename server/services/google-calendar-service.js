@@ -54,6 +54,43 @@ function normalizeAttendee(rawAttendee) {
     return attendee;
 }
 
+function normalizeOrganizer(rawOrganizer) {
+    const organizer = normalizeAttendee(rawOrganizer);
+    return organizer || null;
+}
+
+function stripUrlTrailingPunctuation(value) {
+    return value.replace(/[),.;\]]+$/g, '');
+}
+
+function extractFirstUrl(...values) {
+    for (const value of values) {
+        if (typeof value !== 'string' || !value.trim()) continue;
+        const match = value.match(/https?:\/\/[^\s<>"']+/i);
+        if (match) {
+            return stripUrlTrailingPunctuation(match[0]);
+        }
+    }
+    return null;
+}
+
+function extractConferenceUrl(rawEvent, description, location) {
+    const explicitUrl = cleanString(rawEvent?.hangoutLink)
+        || cleanString(rawEvent?.conferenceUrl)
+        || cleanString(rawEvent?.conference_url);
+    if (explicitUrl) return explicitUrl;
+
+    const entryPoints = Array.isArray(rawEvent?.conferenceData?.entryPoints)
+        ? rawEvent.conferenceData.entryPoints
+        : [];
+    for (const entryPoint of entryPoints) {
+        const uri = cleanString(entryPoint?.uri);
+        if (uri) return uri;
+    }
+
+    return extractFirstUrl(description, location);
+}
+
 function getNextDate(date) {
     const next = new Date(`${date}T00:00:00+09:00`);
     next.setDate(next.getDate() + 1);
@@ -144,46 +181,95 @@ export class GoogleCalendarService {
     }
 
     async listEventsForDate(date) {
-        const status = await this.getAuthStatus();
-        if (!status.connected) {
-            return [];
+        const endDate = getNextDate(date);
+        return this.listEvents({ from: date, to: endDate });
+    }
+
+    async listEvents({ from, to, account = null, calendarIds = null, max = 200, failOnCalendarError = false } = {}) {
+        const result = await this.listEventsWithDiagnostics({
+            from,
+            to,
+            account,
+            calendarIds,
+            max,
+            failOnCalendarError
+        });
+        return result.events;
+    }
+
+    async listEventsWithDiagnostics({ from, to, account = null, calendarIds = null, max = 200, failOnCalendarError = false } = {}) {
+        if (!from || !to) {
+            throw new Error('from and to are required');
         }
 
-        const endDate = getNextDate(date);
-        const events = [];
+        if (!account) {
+            const status = await this.getAuthStatus();
+            if (!status.connected) {
+                return {
+                    events: [],
+                    skippedCalendars: this.calendarIds.map((calendarId) => ({
+                        calendar_id: calendarId,
+                        reason: status.reason || 'calendar_not_connected',
+                        message: status.error || null
+                    }))
+                };
+            }
+        }
 
-        for (const calendarId of this.calendarIds) {
+        const selectedCalendarIds = Array.isArray(calendarIds) && calendarIds.length > 0
+            ? calendarIds.map(value => String(value).trim()).filter(Boolean)
+            : this.calendarIds;
+        const eventLimit = Number.isFinite(Number(max)) && Number(max) > 0
+            ? String(Math.trunc(Number(max)))
+            : '200';
+        const events = [];
+        const skippedCalendars = [];
+
+        for (const calendarId of selectedCalendarIds) {
             try {
                 const payload = await this._runJsonCommand([
                     'calendar',
                     'events',
                     calendarId,
                     '--from',
-                    date,
+                    from,
                     '--to',
-                    endDate,
+                    to,
                     '--json',
                     '--no-input',
                     '--max',
-                    '200'
+                    eventLimit,
+                    ...(account ? ['--account', account] : [])
                 ]);
 
                 for (const rawEvent of this._extractEvents(payload)) {
-                    const normalized = this._normalizeEvent(rawEvent, calendarId);
+                    const normalized = this._normalizeEvent(rawEvent, calendarId, { account });
                     if (normalized) {
                         events.push(normalized);
                     }
                 }
             } catch (error) {
-                logger.warn(`[GoogleCalendarService] Failed to list events for ${calendarId}:`, error.message);
+                logger.warn(`[GoogleCalendarService] Failed to list events for ${calendarId}: ${error.message}`);
+                if (failOnCalendarError) {
+                    throw error;
+                }
+                skippedCalendars.push({
+                    calendar_id: calendarId,
+                    reason: 'calendar_fetch_failed',
+                    message: error.message
+                });
             }
         }
 
-        return events.sort((a, b) => {
+        const sortedEvents = events.sort((a, b) => {
             if (a.allDay && !b.allDay) return -1;
             if (!a.allDay && b.allDay) return 1;
             return (a.start || '').localeCompare(b.start || '');
         });
+        return {
+            events: sortedEvents,
+            skippedCalendars
+        };
     }
 
     async getEventsForDate(date) {
@@ -236,34 +322,52 @@ export class GoogleCalendarService {
         return [];
     }
 
-    _normalizeEvent(rawEvent, calendarId) {
+    _normalizeEvent(rawEvent, calendarId, { account = null } = {}) {
         if (!rawEvent || rawEvent.status === 'cancelled') {
             return null;
         }
 
-        const id = rawEvent.id || rawEvent.iCalUID;
-        const title = rawEvent.summary || rawEvent.title || rawEvent.task || '(無題)';
+        const calendarEventId = cleanString(rawEvent.id) || cleanString(rawEvent.iCalUID);
+        const iCalUID = cleanString(rawEvent.iCalUID);
+        const title = cleanString(rawEvent.summary) || cleanString(rawEvent.title) || cleanString(rawEvent.task) || '(無題)';
         const startValue = rawEvent?.start?.dateTime || rawEvent?.start?.date || rawEvent.startTime || rawEvent.start || null;
         const endValue = rawEvent?.end?.dateTime || rawEvent?.end?.date || rawEvent.endTime || rawEvent.end || null;
         const allDay = Boolean(rawEvent.allDay || isDateOnly(startValue));
         const attendees = Array.isArray(rawEvent.attendees)
             ? rawEvent.attendees.map(normalizeAttendee).filter(Boolean)
             : [];
+        const description = cleanString(rawEvent.description);
+        const location = cleanString(rawEvent.location);
+        const htmlLink = cleanString(rawEvent.htmlLink) || cleanString(rawEvent.html_link);
+        const organizer = normalizeOrganizer(rawEvent.organizer);
+        const conferenceUrl = extractConferenceUrl(rawEvent, description, location);
 
         const event = {
-            id: `gcal:${calendarId}:${id || `${title}:${startValue || 'all-day'}`}`,
+            id: `gcal:${calendarId}:${calendarEventId || `${title}:${startValue || 'all-day'}`}`,
+            calendarEventId,
+            iCalUID,
             title,
             start: allDay ? null : formatTimeFromRfc3339(startValue, this.timeZone),
             end: allDay ? null : formatTimeFromRfc3339(endValue, this.timeZone),
+            startDateTime: allDay ? null : startValue,
+            endDateTime: allDay ? null : endValue,
+            startDate: allDay ? startValue : null,
+            endDate: allDay ? endValue : null,
             allDay,
             source: GOOGLE_CALENDAR_SOURCE,
             calendarId,
             completed: false
         };
 
+        if (account) event.account = account;
         if (attendees.length > 0) {
             event.attendees = attendees;
         }
+        if (organizer) event.organizer = organizer;
+        if (description) event.description = description;
+        if (location) event.location = location;
+        if (htmlLink) event.htmlLink = htmlLink;
+        if (conferenceUrl) event.conferenceUrl = conferenceUrl;
 
         return event;
     }

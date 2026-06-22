@@ -137,6 +137,24 @@ export function createWorkflowRouter(workflowService) {
         res.status(201).json(await workflowService.bootstrapMeetingWorkflowPack(req.body || {}, actorFromRequest(req)));
     }));
 
+    router.post('/control/meeting-pack/calendar-inputs', asyncHandler(async (req, res) => {
+        try {
+            res.status(201).json(await workflowService.createMeetingPackCalendarLoopIntents(req.body || {}, actorFromRequest(req)));
+        } catch (error) {
+            if (error?.statusCode === 400 && Array.isArray(error?.details?.skipped_events)) {
+                res.status(400).json({
+                    error: error.message,
+                    skipped_events: error.details.skipped_events,
+                    ...(Array.isArray(error.details.state_transitions)
+                        ? { state_transitions: error.details.state_transitions }
+                        : {})
+                });
+                return;
+            }
+            throw error;
+        }
+    }));
+
     router.get('/role-agents', asyncHandler(async (req, res) => {
         await respondWorkflowOrControl({
             req,

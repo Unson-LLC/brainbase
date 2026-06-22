@@ -11,7 +11,11 @@ import {
     createDefaultWorkflowHandlers
 } from '../../../server/services/workflow/workflow-service.js';
 
-function makeService({ repository = new InMemoryWorkflowRepository(), handlers = createDefaultWorkflowHandlers() } = {}) {
+function makeService({
+    repository = new InMemoryWorkflowRepository(),
+    handlers = createDefaultWorkflowHandlers(),
+    googleCalendarService = null
+} = {}) {
     const runner = new WorkflowRunner({ repository, handlers });
     const configParser = {
         async getProjects() {
@@ -24,7 +28,7 @@ function makeService({ repository = new InMemoryWorkflowRepository(), handlers =
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser });
+    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService });
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',
@@ -40,6 +44,23 @@ class TriggerPersistenceFailureRepository extends InMemoryWorkflowRepository {
             throw new Error('persistence_failure: workflow_triggers write failed');
         }
         return super.upsertWorkflowTrigger(trigger);
+    }
+}
+
+class LoopIntentSecondWriteFailureRepository extends InMemoryWorkflowRepository {
+    constructor() {
+        super();
+        this.loopIntentWriteCount = 0;
+    }
+
+    upsertLoopIntent(intent) {
+        if (intent?.input_payload?.source === 'google_calendar') {
+            this.loopIntentWriteCount += 1;
+            if (this.loopIntentWriteCount === 2) {
+                throw new Error('persistence_failure: loop_intents write failed');
+            }
+        }
+        return super.upsertLoopIntent(intent);
     }
 }
 
@@ -276,6 +297,386 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.runs).toHaveLength(0);
         expect(repository.ledger.outputs).toHaveLength(0);
         expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 S-001 INV-002 INV-004 creates pre-meeting loop intents from Google Calendar events', async () => {
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return {
+                    connected: true,
+                    defaultAccount: 'k.sato@sales-tailor.jp'
+                };
+            },
+            async listEvents() {
+                return [
+                    {
+                        id: 'gcal:primary:evt-1',
+                        calendarEventId: 'evt-1',
+                        iCalUID: 'uid-1@example.com',
+                        calendarId: 'primary',
+                        account: 'k.sato@sales-tailor.jp',
+                        title: 'Mana定例',
+                        startDateTime: '2026-06-22T10:00:00+09:00',
+                        endDateTime: '2026-06-22T11:00:00+09:00',
+                        allDay: false,
+                        attendees: [{ email: 'sato@example.com', responseStatus: 'accepted' }],
+                        organizer: { email: 'owner@example.com' },
+                        conferenceUrl: 'https://meet.google.com/abc-defg-hij',
+                        location: 'Google Meet',
+                        htmlLink: 'https://calendar.google.com/event?eid=evt-1',
+                        description: '週次の実会議'
+                    }
+                ];
+            }
+        };
+        const { repository, service, actor } = makeService({ googleCalendarService });
+
+        const result = await service.createMeetingPackCalendarLoopIntents({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'k.sato@sales-tailor.jp',
+            calendar_ids: ['primary']
+        }, actor);
+
+        expect(result.meeting_calendar_inputs).toMatchObject({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            workflow_definition_id: 'pre-meeting-briefing',
+            events_considered: 1,
+            state_transitions: [
+                'requested',
+                'calendar_fetching',
+                'meeting_pack_ensured',
+                'loop_intents_ready',
+                'skipped_inputs_reported'
+            ],
+            skipped_events: []
+        });
+        expect(result.meeting_calendar_inputs.loop_intents).toHaveLength(1);
+        expect(result.meeting_calendar_inputs.loop_intents[0]).toMatchObject({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            trigger_type: 'schedule',
+            input_ref: 'google-calendar:k.sato@sales-tailor.jp:primary:evt-1',
+            input_payload: {
+                meeting_identity: {
+                    source: 'google_calendar',
+                    account: 'k.sato@sales-tailor.jp',
+                    calendar_id: 'primary',
+                    event_id: 'evt-1',
+                    title: 'Mana定例',
+                    start: '2026-06-22T10:00:00+09:00',
+                    end: '2026-06-22T11:00:00+09:00',
+                    conference_url: 'https://meet.google.com/abc-defg-hij',
+                    attendees: [{ email: 'sato@example.com', responseStatus: 'accepted' }]
+                },
+                workflow_definition_id: 'pre-meeting-briefing',
+                requested_output: 'agenda / context brief',
+                source: 'google_calendar'
+            },
+            eligibility: {
+                status: 'needs_approval',
+                autonomy_level: 'approval_required',
+                requires_human_approval: true,
+                reasons: ['autonomy_level_approval_required']
+            }
+        });
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(5);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(1);
+        const calendarIngestAudit = repository
+            .listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })
+            .find((entry) => entry.action === 'workflow.meeting_pack.calendar_inputs.ingested');
+        expect(calendarIngestAudit).toMatchObject({
+            after: {
+                state_transitions: [
+                    'requested',
+                    'calendar_fetching',
+                    'meeting_pack_ensured',
+                    'loop_intents_ready',
+                    'skipped_inputs_reported'
+                ],
+                skipped_events: [],
+                loop_intent_ids: [result.meeting_calendar_inputs.loop_intents[0].id]
+            }
+        });
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 S-002 INV-005 skips all-day calendar events', async () => {
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return { connected: true, defaultAccount: 'k.sato@sales-tailor.jp' };
+            },
+            async listEvents() {
+                return [
+                    {
+                        id: 'gcal:primary:holiday',
+                        calendarEventId: 'holiday',
+                        calendarId: 'primary',
+                        title: '祝日',
+                        startDate: '2026-06-22',
+                        endDate: '2026-06-23',
+                        allDay: true
+                    }
+                ];
+            }
+        };
+        const { repository, service, actor } = makeService({ googleCalendarService });
+
+        const result = await service.createMeetingPackCalendarLoopIntents({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00'
+        }, actor);
+
+        expect(result.meeting_calendar_inputs.loop_intents).toHaveLength(0);
+        expect(result.meeting_calendar_inputs.skipped_events).toEqual([
+            {
+                event_id: 'holiday',
+                title: '祝日',
+                reason: 'all_day_event'
+            }
+        ]);
+        expect(result.meeting_calendar_inputs.state_transitions).toEqual([
+            'requested',
+            'calendar_fetching',
+            'meeting_pack_ensured',
+            'loop_intents_ready',
+            'skipped_inputs_reported'
+        ]);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 FM-003 preserves successful calendars and reports failed calendars as skipped evidence', async () => {
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return { connected: true, defaultAccount: 'k.sato@sales-tailor.jp' };
+            },
+            async listEventsWithDiagnostics() {
+                return {
+                    events: [
+                        {
+                            id: 'gcal:primary:evt-ok',
+                            calendarEventId: 'evt-ok',
+                            calendarId: 'primary',
+                            title: '取得できたMTG',
+                            startDateTime: '2026-06-22T10:00:00+09:00',
+                            endDateTime: '2026-06-22T11:00:00+09:00',
+                            allDay: false
+                        }
+                    ],
+                    skippedCalendars: [
+                        {
+                            calendar_id: 'team',
+                            reason: 'calendar_fetch_failed',
+                            message: 'calendar forbidden'
+                        }
+                    ]
+                };
+            }
+        };
+        const { repository, service, actor } = makeService({ googleCalendarService });
+
+        const result = await service.createMeetingPackCalendarLoopIntents({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'k.sato@sales-tailor.jp',
+            calendar_ids: ['primary', 'team']
+        }, actor);
+
+        expect(result.meeting_calendar_inputs.loop_intents).toHaveLength(1);
+        expect(result.meeting_calendar_inputs.skipped_events).toEqual([
+            {
+                calendar_id: 'team',
+                reason: 'calendar_fetch_failed',
+                message: 'calendar forbidden'
+            }
+        ]);
+        expect(result.meeting_calendar_inputs.state_transitions).toEqual([
+            'requested',
+            'calendar_fetching',
+            'meeting_pack_ensured',
+            'loop_intents_ready',
+            'skipped_inputs_reported'
+        ]);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(1);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 INV-006 keeps calendar re-ingestion idempotent', async () => {
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return { connected: true, defaultAccount: 'k.sato@sales-tailor.jp' };
+            },
+            async listEventsWithDiagnostics() {
+                return {
+                    events: [
+                        {
+                            id: 'gcal:primary:evt-stable',
+                            calendarEventId: 'evt-stable',
+                            calendarId: 'primary',
+                            title: '再取り込みMTG',
+                            startDateTime: '2026-06-22T13:00:00+09:00',
+                            endDateTime: '2026-06-22T14:00:00+09:00',
+                            allDay: false
+                        }
+                    ],
+                    skippedCalendars: []
+                };
+            }
+        };
+        const { repository, service, actor } = makeService({ googleCalendarService });
+        const input = {
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'k.sato@sales-tailor.jp',
+            calendar_ids: ['primary']
+        };
+
+        const first = await service.createMeetingPackCalendarLoopIntents(input, actor);
+        const second = await service.createMeetingPackCalendarLoopIntents(input, actor);
+
+        expect(first.meeting_calendar_inputs.loop_intents[0].id).toBe(second.meeting_calendar_inputs.loop_intents[0].id);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(1);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 FM-002 INV-007 rejects disconnected calendar before meeting pack writes', async () => {
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return { connected: false, reason: 'no_credentials' };
+            },
+            async listEvents() {
+                throw new Error('listEvents should not be called');
+            }
+        };
+        const { repository, service, actor } = makeService({ googleCalendarService });
+
+        await expect(service.createMeetingPackCalendarLoopIntents({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00'
+        }, actor)).rejects.toMatchObject({
+            message: 'google calendar is not connected: no_credentials',
+            details: {
+                skipped_events: [
+                    {
+                        calendar_id: null,
+                        reason: 'no_credentials',
+                        message: 'no_credentials'
+                    }
+                ],
+                state_transitions: [
+                    'requested',
+                    'calendar_fetching',
+                    'calendar_fetch_failed_all',
+                    'failed_without_partial_write'
+                ]
+            }
+        });
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 FM-002 keeps account fetch failure from writing meeting pack records', async () => {
+        const googleCalendarService = {
+            async listEventsWithDiagnostics() {
+                return {
+                    events: [],
+                    skippedCalendars: [
+                        {
+                            calendar_id: 'primary',
+                            reason: 'calendar_fetch_failed',
+                            message: 'missing account token'
+                        }
+                    ]
+                };
+            }
+        };
+        const { repository, service, actor } = makeService({ googleCalendarService });
+
+        await expect(service.createMeetingPackCalendarLoopIntents({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'missing@example.com'
+        }, actor)).rejects.toMatchObject({
+            message: 'google calendar is not connected: calendar_fetch_failed',
+            details: {
+                state_transitions: [
+                    'requested',
+                    'calendar_fetching',
+                    'calendar_fetch_failed_all',
+                    'failed_without_partial_write'
+                ]
+            }
+        });
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+    });
+
+    it('story-meeting-workflow-calendar-input-v1 INV-007 rolls back meeting pack and partial loop intents when ingestion write fails', async () => {
+        const repository = new LoopIntentSecondWriteFailureRepository();
+        const googleCalendarService = {
+            async getAuthStatus() {
+                return { connected: true, defaultAccount: 'k.sato@sales-tailor.jp' };
+            },
+            async listEventsWithDiagnostics() {
+                return {
+                    events: [
+                        {
+                            id: 'gcal:primary:evt-1',
+                            calendarEventId: 'evt-1',
+                            calendarId: 'primary',
+                            title: '1件目MTG',
+                            startDateTime: '2026-06-22T10:00:00+09:00',
+                            endDateTime: '2026-06-22T11:00:00+09:00',
+                            allDay: false
+                        },
+                        {
+                            id: 'gcal:primary:evt-2',
+                            calendarEventId: 'evt-2',
+                            calendarId: 'primary',
+                            title: '2件目MTG',
+                            startDateTime: '2026-06-22T12:00:00+09:00',
+                            endDateTime: '2026-06-22T13:00:00+09:00',
+                            allDay: false
+                        }
+                    ],
+                    skippedCalendars: []
+                };
+            }
+        };
+        const { service, actor } = makeService({ repository, googleCalendarService });
+
+        await expect(service.createMeetingPackCalendarLoopIntents({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            from: '2026-06-22T00:00:00+09:00',
+            to: '2026-06-23T00:00:00+09:00',
+            account: 'k.sato@sales-tailor.jp'
+        }, actor)).rejects.toThrow('persistence_failure: loop_intents write failed');
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
     });
 
     it('keeps Unson and SalesTailor role agent instances separate for the same archetype', async () => {
