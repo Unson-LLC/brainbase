@@ -191,6 +191,67 @@ describe('companion reply draft route', () => {
         }));
     });
 
+    it('returns reply context without requiring a Brainbase-hosted draft generator', async () => {
+        const app = createApp({
+            service: new ReplyDraftService({ infoSSOTService, learningService })
+        });
+
+        const res = await request(app)
+            .post('/api/companion/reply-context')
+            .set('Authorization', 'Bearer user-token')
+            .send(createPayload({ workflowName: 'brainbase.reply_context' }))
+            .expect(200);
+
+        expect(res.body).toMatchObject({
+            contextPolicy: 'brainbase_workflow',
+            workflowName: 'brainbase.reply_context',
+            sourceURL: 'https://mail.google.com/mail/u/0/#inbox/msg-1',
+            guidance: {
+                cautions: expect.arrayContaining([
+                    expect.stringContaining('Mac Companion側の人間承認')
+                ]),
+                openQuestions: []
+            }
+        });
+        expect(res.body.auditID).toMatch(/^ctx_/);
+        expect(res.body.rationale).toEqual(expect.arrayContaining([
+            expect.stringContaining('Graph SSOT context loaded'),
+            expect.stringContaining('Personal KG search completed')
+        ]));
+        expect(res.body.contextSnippets).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                source: 'graph_ssot',
+                title: 'Graph SSOT'
+            }),
+            expect.objectContaining({
+                source: 'personal_kg',
+                title: 'preference',
+                text: expect.stringContaining('Prefer concise replies')
+            })
+        ]));
+        expect(res.body.guidance.replyPrinciples).toEqual(expect.arrayContaining([
+            expect.stringContaining('Prefer concise replies')
+        ]));
+        expect(draftGenerator.generate).not.toHaveBeenCalled();
+    });
+
+    it('rejects reply-context requests that use the old reply draft workflow name', async () => {
+        const app = createApp({
+            service: new ReplyDraftService({ infoSSOTService, learningService })
+        });
+
+        const res = await request(app)
+            .post('/api/companion/reply-context')
+            .set('Authorization', 'Bearer user-token')
+            .send(createPayload({ workflowName: 'brainbase.reply_draft' }))
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            code: 'invalid_request',
+            details: { field: 'workflowName' }
+        });
+    });
+
     it('INV-3 INV-4: always returns safe draft-only writeback intent', async () => {
         const app = createApp({ service });
 
@@ -367,7 +428,28 @@ describe('companion reply draft route', () => {
         expect(learningService.searchPersonalKgCandidates).not.toHaveBeenCalled();
     });
 
-    it('ac:1: registers /api/companion/reply-draft through registerApiRoutes production bootstrap surface', async () => {
+    it('ac:1: registers /api/companion/reply-context through registerApiRoutes production bootstrap surface', async () => {
+        const app = createBootstrapApp({
+            authService: createAuthService({ personId: 'sato_keigo' }),
+            infoSSOTService,
+            learningService
+        });
+
+        const res = await request(app)
+            .post('/api/companion/reply-context')
+            .set('Authorization', 'Bearer user-token')
+            .send(createPayload({ workflowName: 'brainbase.reply_context' }))
+            .expect(200);
+
+        expect(res.status).not.toBe(404);
+        expect(res.body).toMatchObject({
+            workflowName: 'brainbase.reply_context'
+        });
+        expect(infoSSOTService.getContext).toHaveBeenCalled();
+        expect(learningService.searchPersonalKgCandidates).toHaveBeenCalled();
+    });
+
+    it('ac:1: keeps /api/companion/reply-draft registered for compatibility', async () => {
         const app = createBootstrapApp({
             authService: createAuthService({ personId: 'sato_keigo' }),
             infoSSOTService,

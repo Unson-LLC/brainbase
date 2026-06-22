@@ -40,4 +40,19 @@ export class CompanionController {
             res.status(serialized.status).json(serialized.body);
         }
     };
+
+    createReplyContext = async (req, res) => {
+        try {
+            const result = await this.replyDraftService.createContext(req.body || {}, {
+                access: req.access || null,
+                auth: req.auth || null,
+                authSource: req.authSource || null
+            });
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to create companion reply context', { error });
+            const serialized = serializeError(error);
+            res.status(serialized.status).json(serialized.body);
+        }
+    };
 }

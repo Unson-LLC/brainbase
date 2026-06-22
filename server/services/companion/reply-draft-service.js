@@ -35,8 +35,8 @@ function normalizeRequest(payload = {}) {
             details: { field: 'contextPolicy' }
         });
     }
-    if (workflowName !== 'brainbase.reply_draft') {
-        throw new ReplyDraftServiceError('workflowName must be brainbase.reply_draft', {
+    if (!['brainbase.reply_draft', 'brainbase.reply_context'].includes(workflowName)) {
+        throw new ReplyDraftServiceError('workflowName must be brainbase.reply_draft or brainbase.reply_context', {
             code: 'invalid_request',
             status: 400,
             details: { field: 'workflowName' }
@@ -85,6 +85,63 @@ function normalizeGeneratorResult(result) {
     };
 }
 
+function compactText(value, max = 400) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
+function contextSnippet(source, title, text, extra = {}) {
+    const compacted = compactText(text);
+    if (!compacted) return null;
+    return {
+        source,
+        title,
+        text: compacted,
+        ...extra
+    };
+}
+
+function buildReplyContextResult(request, context) {
+    const personalKg = Array.isArray(context.personalKg) ? context.personalKg : [];
+    const graphSummary = context.rationale?.find((item) => String(item).includes('Graph SSOT')) || '';
+    const personalKgSummary = context.rationale?.find((item) => String(item).includes('Personal KG')) || '';
+    const personalKgSnippets = personalKg
+        .map((record) => contextSnippet(
+            'personal_kg',
+            record.cognitive_type || 'memory',
+            record.body,
+            {
+                id: record.id || null,
+                confidence: record.confidence ?? null,
+                sourceSystem: record.source_system || null,
+                createdAt: record.created_at || null
+            }
+        ))
+        .filter(Boolean);
+    const snippets = [
+        contextSnippet('graph_ssot', 'Graph SSOT', graphSummary),
+        contextSnippet('personal_kg_summary', 'Personal KG', personalKgSummary),
+        ...personalKgSnippets
+    ].filter(Boolean);
+
+    return {
+        contextPolicy: request.contextPolicy,
+        workflowName: 'brainbase.reply_context',
+        sourceURL: optionalString(request.sourceURL),
+        auditID: `ctx_${ulid()}`,
+        rationale: Array.isArray(context.rationale) ? context.rationale : [],
+        guidance: {
+            replyPrinciples: personalKgSnippets.map((snippet) => snippet.text).slice(0, 5),
+            cautions: [
+                'Slack/Gmailへの送信や投稿はMac Companion側の人間承認まで実行しない',
+                'Brainbase文脈は返信判断の材料であり、本文は現在のスレッド内容を優先して作る'
+            ],
+            openQuestions: []
+        },
+        contextSnippets: snippets
+    };
+}
+
 export class ReplyDraftService {
     constructor({
         contextResolver = null,
@@ -118,6 +175,22 @@ export class ReplyDraftService {
             auditID,
             writebackIntent: buildWritebackIntent(request)
         };
+    }
+
+    async createContext(payload, { access } = {}) {
+        if (payload?.workflowName && payload.workflowName !== 'brainbase.reply_context') {
+            throw new ReplyDraftServiceError('workflowName must be brainbase.reply_context for reply-context', {
+                code: 'invalid_request',
+                status: 400,
+                details: { field: 'workflowName' }
+            });
+        }
+        const request = normalizeRequest({
+            ...payload,
+            workflowName: 'brainbase.reply_context'
+        });
+        const context = await this.contextResolver.resolve(request, access || {});
+        return buildReplyContextResult(request, context);
     }
 }
 

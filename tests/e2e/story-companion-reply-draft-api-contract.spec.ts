@@ -35,6 +35,11 @@ const VALID_REQUEST = {
     workflowName: 'brainbase.reply_draft'
 };
 
+const CONTEXT_REQUEST = {
+    ...VALID_REQUEST,
+    workflowName: 'brainbase.reply_context'
+};
+
 function createInProcessApp({ configureGenerator = true, useCsrf = false, infoSSOTService: injectedInfoSSOTService } = {}) {
     const infoSSOTService = injectedInfoSSOTService || {
         getContext: async () => ({
@@ -89,11 +94,11 @@ function createInProcessApp({ configureGenerator = true, useCsrf = false, infoSS
 
 test('story-companion-reply-draft-api ac:6 unauthenticated native handoff is rejected', async () => {
     // **ac:6 auth-required**: Missing or invalid auth is rejected; the endpoint is not public.
-    // S-001: workflow state transition: handoff_received with missing or invalid auth returns 401 before Graph, Personal KG, or generator work.
-    // SCN-001: workflow state transition: handoff_received with missing or invalid auth returns 401 before Graph, Personal KG, or generator work.
+    // S-001: workflow state transition: handoff_received with missing or invalid auth returns 401 before Graph or Personal KG work.
+    // SCN-001: workflow state transition: handoff_received with missing or invalid auth returns 401 before Graph or Personal KG work.
     const response = await request(createInProcessApp())
-        .post('/api/companion/reply-draft')
-        .send(VALID_REQUEST)
+        .post('/api/companion/reply-context')
+        .send(CONTEXT_REQUEST)
         .expect(401);
 
     assert.equal(response.status, 401, 'story-companion-reply-draft-api ac:6 **ac:6 auth-required**: Missing or invalid auth is rejected; the endpoint is not public.');
@@ -103,9 +108,9 @@ test('story-companion-reply-draft-api ac:6 unauthenticated native handoff is rej
 });
 
 test('story-companion-reply-draft-api ac:1 ac:2 ac:5 ac:7 authenticated handoff reaches Brainbase context boundary without CSRF block', async () => {
-    // **ac:1 route**: Brainbase exposes `POST /api/companion/reply-draft` and does not return 404 for the Mac handoff path.
-    // **ac:2 request-shape**: The endpoint accepts the Mac `DraftHandoffRequest` fields, including `userInstruction`, `threadMessages`, `contextPolicy=brainbase_workflow`, and `workflowName=brainbase.reply_draft`.
-    // **ac:5 structured-failure**: If Graph/Personal KG context cannot be loaded or no generator is configured, the endpoint fails loudly with a structured error.
+    // **ac:1 route**: Brainbase exposes `POST /api/companion/reply-context` and does not return 404 for the Mac handoff path.
+    // **ac:2 request-shape**: The endpoint accepts the Mac `DraftHandoffRequest` fields, including `userInstruction`, `threadMessages`, `contextPolicy=brainbase_workflow`, and `workflowName=brainbase.reply_context`.
+    // **ac:5 structured-failure**: If Graph/Personal KG context cannot be loaded, the endpoint fails loudly with a structured error.
     // **ac:7 native-csrf**: Native/server-to-server companion POSTs are not blocked by browser CSRF middleware before auth.
     // S-002: workflow state transition: authenticated handoff moves from handoff_received to context_resolving, then Graph or Personal KG failure returns structured 503 context_unavailable.
     // S-005: workflow state transition: native companion POST without browser CSRF token passes CSRF middleware and then auth or context handling determines the response.
@@ -123,20 +128,20 @@ test('story-companion-reply-draft-api ac:1 ac:2 ac:5 ac:7 authenticated handoff 
     });
 
     const response = await request(app)
-        .post('/api/companion/reply-draft')
+        .post('/api/companion/reply-context')
         .set('Authorization', 'Bearer user-token')
-        .send(VALID_REQUEST)
+        .send(CONTEXT_REQUEST)
         .expect(503);
     process.env.NODE_ENV = prev;
     const body = response.body;
 
-    assert.notEqual(response.status, 404, 'story-companion-reply-draft-api ac:1 **ac:1 route**: Brainbase exposes `POST /api/companion/reply-draft` and does not return 404 for the Mac handoff path.');
-    assert.notEqual(body.code, 'invalid_request', 'story-companion-reply-draft-api ac:2 **ac:2 request-shape**: The endpoint accepts the Mac `DraftHandoffRequest` fields, including `userInstruction`, `threadMessages`, `contextPolicy=brainbase_workflow`, and `workflowName=brainbase.reply_draft`.');
-    assert.match(body.code, /^(context_unavailable|generator_unconfigured)$/, 'story-companion-reply-draft-api ac:5 **ac:5 structured-failure**: If Graph/Personal KG context cannot be loaded or no generator is configured, the endpoint fails loudly with a structured error.');
+    assert.notEqual(response.status, 404, 'story-companion-reply-draft-api ac:1 **ac:1 route**: Brainbase exposes `POST /api/companion/reply-context` and does not return 404 for the Mac handoff path.');
+    assert.notEqual(body.code, 'invalid_request', 'story-companion-reply-draft-api ac:2 **ac:2 request-shape**: The endpoint accepts the Mac `DraftHandoffRequest` fields, including `userInstruction`, `threadMessages`, `contextPolicy=brainbase_workflow`, and `workflowName=brainbase.reply_context`.');
+    assert.equal(body.code, 'context_unavailable', 'story-companion-reply-draft-api ac:5 **ac:5 structured-failure**: If Graph/Personal KG context cannot be loaded, the endpoint fails loudly with a structured error.');
     assert.notEqual(body.code, 'csrf_required', 'story-companion-reply-draft-api ac:7 **ac:7 native-csrf**: Native/server-to-server companion POSTs are not blocked by browser CSRF middleware before auth.');
     expect(body, 'story-companion-reply-draft-api S-002 SCN-002 ac:5 context unavailable failures are structured').toMatchObject({
         error: expect.any(String),
-        code: expect.stringMatching(/^(context_unavailable|generator_unconfigured)$/)
+        code: 'context_unavailable'
     });
     expect(body.code, 'ac:2 Mac DraftHandoffRequest shape reaches service validation/context handling instead of request-shape rejection').not.toBe('invalid_request');
     expect(body.code).not.toBe('csrf_required');
@@ -147,9 +152,9 @@ test('story-companion-reply-draft-api ac:6 ac:7 cookie-authenticated browser han
     process.env.NODE_ENV = 'production';
     try {
         const response = await request(createInProcessApp({ useCsrf: true }))
-            .post('/api/companion/reply-draft')
+            .post('/api/companion/reply-context')
             .set('Cookie', 'brainbase_session=user-token')
-            .send(VALID_REQUEST)
+            .send(CONTEXT_REQUEST)
             .expect(403);
 
         assert.equal(response.body.code, 'server_to_server_auth_required', 'story-companion-reply-draft-api ac:6 **ac:6 auth-required**: Missing or invalid auth is rejected; the endpoint is not public.');
@@ -185,6 +190,28 @@ test('story-companion-reply-draft-api ac:3 ac:4 ac:8 fake generator returns safe
         targetDedupeKey: 'gmail:thread-1',
         requiresHumanApproval: true,
         sendAllowed: false
+    });
+});
+
+test('story-companion-reply-draft-api ac:3 companion reply context returns Brainbase context without a hosted draft generator', async () => {
+    const response = await request(createInProcessApp({ configureGenerator: false }))
+        .post('/api/companion/reply-context')
+        .set('Authorization', 'Bearer user-token')
+        .send(CONTEXT_REQUEST)
+        .expect(200);
+
+    expect(response.body.workflowName, 'Brainbase is the context provider for Mac-side draft generation').toBe('brainbase.reply_context');
+    expect(response.body.auditID).toMatch(/^ctx_/);
+    expect(response.body.contextSnippets).toEqual(expect.arrayContaining([
+        expect.objectContaining({ source: 'graph_ssot' }),
+        expect.objectContaining({ source: 'personal_kg' })
+    ]));
+    expect(response.body.guidance).toMatchObject({
+        replyPrinciples: expect.any(Array),
+        cautions: expect.arrayContaining([
+            expect.stringContaining('Mac Companion')
+        ]),
+        openQuestions: []
     });
 });
 

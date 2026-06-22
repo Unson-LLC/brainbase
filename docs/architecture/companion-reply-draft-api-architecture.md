@@ -1,15 +1,17 @@
 ---
-title: Companion Reply Draft API Architecture
+title: Companion Reply Context API Architecture
 status: active
 date: 2026-06-22
 story_id: story-companion-reply-draft-api
 ---
 
-# Companion Reply Draft API Architecture
+# Companion Reply Context API Architecture
 
 ## Boundary
 
-`POST /api/companion/reply-draft` is a Brainbase server-side handoff boundary for native Mac clients. The Mac app sends source message metadata and user intent. Brainbase owns retrieval of Graph SSOT and Personal KG context, then delegates draft text creation to a replaceable generator.
+`POST /api/companion/reply-context` is the primary Brainbase server-side handoff boundary for native Mac clients. The Mac app sends source message metadata and user intent. Brainbase owns retrieval, ACL, and minimization of Graph SSOT and Personal KG context, then returns reply guidance for Mac-side draft generation.
+
+`POST /api/companion/reply-draft` remains as a compatibility endpoint for earlier experiments. It is not the preferred product boundary because Slack/Gmail thread state, regeneration intent, editing, approval, and provider draft writeback all live in Mac Companion.
 
 ## Components
 
@@ -17,7 +19,7 @@ story_id: story-companion-reply-draft-api
 - Controller: `server/controllers/companion-controller.js`
 - Service: `server/services/companion/reply-draft-service.js`
 - Context resolver: `server/services/companion/reply-draft-context-resolver.js`
-- Draft generator: `server/services/companion/draft-generator.js`
+- Draft generator: `server/services/companion/draft-generator.js` (compatibility endpoint only)
 
 ## Auth
 
@@ -31,17 +33,17 @@ The CSRF middleware already exempted `/api/sessions/report_activity` for local a
 
 1. Route authenticates the request.
 2. Controller passes the body and `req.access` to the service.
-3. Service validates `contextPolicy=brainbase_workflow` and `workflowName=brainbase.reply_draft`.
+3. Service validates `contextPolicy=brainbase_workflow` and `workflowName=brainbase.reply_context`.
 4. Context resolver reads:
    - Graph SSOT via `infoSSOTService.getContext()`.
    - Personal KG via `learningService.searchPersonalKgCandidates()`.
-5. Draft generator receives request, user instruction, thread messages, and resolved context.
-6. Service returns `DraftHandoffResult` with a draft-only writeback intent.
+5. Service returns `ReplyContextResult` with `contextSnippets`, `guidance`, `rationale`, and an audit id.
+6. Mac Companion uses the source thread, user instruction, and Brainbase context to create a local `DraftHandoffResult`.
 
 ## Failure Policy
 
-Graph or Personal KG lookup failure is a structured `503 context_unavailable` response. Missing generator is a structured `503 generator_unconfigured` response. The service does not fall back to a canned reply because that would hide missing context or missing generation infrastructure.
+Graph or Personal KG lookup failure is a structured `503 context_unavailable` response. The `reply-context` endpoint does not require a Brainbase-hosted draft generator. The compatibility `reply-draft` endpoint still returns structured `503 generator_unconfigured` when no generator is configured.
 
 ## Safety
 
-The writeback intent always sets `requiresHumanApproval: true` and `sendAllowed: false`. This API never sends or persists a Slack/Gmail message.
+The context endpoint returns guidance only. Mac Companion creates any provider writeback intent locally and must keep `requiresHumanApproval: true` and `sendAllowed: false`. Brainbase never sends or persists a Slack/Gmail message.

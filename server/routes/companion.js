@@ -61,6 +61,7 @@ export function createCompanionRouter({ replyDraftService, authGuard, accessGuar
     const controller = new CompanionController(replyDraftService);
     const guards = authGuard ? [authGuard, createCompanionAccessGuard(accessGuardOptions)] : [];
 
+    router.post('/reply-context', ...guards, controller.createReplyContext);
     router.post('/reply-draft', ...guards, controller.createReplyDraft);
 
     return router;

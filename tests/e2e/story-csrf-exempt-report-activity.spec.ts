@@ -47,7 +47,7 @@ test.describe('story-csrf-exempt-report-activity', () => {
         const prev = process.env.NODE_ENV;
         process.env.NODE_ENV = 'production';
         try {
-            const { nextCalled, statusCode } = runMiddleware({ method: 'POST', path: '/api/companion/reply-draft', headers: {} });
+            const { nextCalled, statusCode } = runMiddleware({ method: 'POST', path: '/api/companion/reply-context', headers: {} });
             expect(nextCalled, 'Native companion handoff uses bearer/service auth and is not a browser form POST, so CSRF middleware must not block the route before auth.').toBe(true);
             expect(statusCode).not.toBe(403);
         } finally {
