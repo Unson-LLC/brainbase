@@ -35,11 +35,22 @@ describe('MCP tool functions', () => {
 
   it('S-6 search_personal_kg searches only owner-local JSONL entries', async () => {
     const os = await fixture();
-    const results = searchPersonalKg(os, 'Otawara local MCP');
+    const results = searchPersonalKg(os, 'local MCP');
 
     expect(results.every((result) => result.source === 'personal-kg')).toBe(true);
     expect(results.map((result) => result.text).join('\n')).toContain('local MCP context');
     expect(results.map((result) => result.text).join('\n')).not.toContain('Otawara');
+  });
+
+  it('S-6 search_personal_kg ranks all-token compound matches across separators', async () => {
+    const os = await fixture();
+    const results = searchPersonalKg(os, 'Persona Brain Peer Circle Own Proof');
+
+    expect(results[0]).toMatchObject({
+      source: 'personal-kg',
+      id: 'sns-context-1'
+    });
+    expect(results[0]?.text).toContain('Persona Brain / Peer Circle / Own Proof');
   });
 
   it('INV-2 search crosses graph and Personal KG while preferring canonical data over sources', async () => {
@@ -48,6 +59,16 @@ describe('MCP tool functions', () => {
 
     expect(results.some((result) => result.text.includes('canonical Personal KG wins'))).toBe(true);
     expect(results.every((result) => !result.text.includes('Remote hosted server should be preferred'))).toBe(true);
+  });
+
+  it('INV-2 search ranks compound Personal KG matches inside the full SSOT search', async () => {
+    const os = await fixture();
+    const results = searchAll(os, 'Persona Brain|Peer Circle|Own Proof', 5);
+
+    expect(results[0]).toMatchObject({
+      source: 'personal-kg',
+      id: 'sns-context-1'
+    });
   });
 
   it('C-6 reports onboarding status', async () => {
