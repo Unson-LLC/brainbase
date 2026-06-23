@@ -56,6 +56,12 @@ export async function createFixturePersonalOs(dataDir: string): Promise<void> {
       type: 'judgment',
       text: 'Raw meeting notes are secondary materials; canonical Personal KG wins.',
       tags: ['ssot']
+    }),
+    JSON.stringify({
+      id: 'sns-context-1',
+      type: 'sns_context',
+      text: 'Persona Brain / Peer Circle / Own Proof is the content design center for trusted SNS operation.',
+      tags: ['Persona Brain', 'Peer Circle', 'Own Proof']
     })
   ].join('\n') + '\n');
   await writeFile(join(dataDir, 'decisions.jsonl'), `${JSON.stringify({

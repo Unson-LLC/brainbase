@@ -150,12 +150,39 @@ function rank(results: SearchResult[], limit: number): SearchResult[] {
 }
 
 function scoreText(query: string, fields: string[]): number {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const terms = searchTokens(query);
   if (terms.length === 0) {
     return 0;
   }
   const haystack = fields.join('\n').toLowerCase();
-  return terms.reduce((score, term) => score + (haystack.includes(term) ? 1 : 0), 0);
+  const phrase = query.trim().toLowerCase();
+  const matchedTerms = terms.filter((term) => haystack.includes(term));
+  if (phrase && haystack.includes(phrase)) {
+    return terms.length + 20;
+  }
+  if (matchedTerms.length === terms.length) {
+    return terms.length + 10;
+  }
+  return matchedTerms.length;
+}
+
+function searchTokens(query: string): string[] {
+  const seen = new Set<string>();
+  return query
+    .normalize('NFKC')
+    .replace(/[|/\\,;:()[\]{}"'`“”‘’、。・･，．：；（）［］｛｝「」『』【】]/g, ' ')
+    .replace(/[-_]+/g, ' ')
+    .toLowerCase()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .filter((term) => {
+      if (seen.has(term)) {
+        return false;
+      }
+      seen.add(term);
+      return true;
+    });
 }
 
 function metadataText(metadata: Record<string, unknown> | undefined): string {
