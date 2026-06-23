@@ -2004,5 +2004,95 @@
   "status": "merged",
   "stop_reason": null,
   "merge_commit_sha": "4c32e941df5a116ff3505344829f8061a188e682",
-  "merged_at": "2026-06-23T01:33:49Z"
+  "merged_at": "2026-06-23T01:33:49Z",
+  "canonical_audit": {
+    "bundle": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/audit-bundle.json",
+    "directory": "docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+    "artifact_count": 10,
+    "missing_artifact_count": 0,
+    "persistence": {
+      "schema_version": "0.1.0",
+      "status": "pushed",
+      "base": "develop",
+      "directory": "docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+      "worktree_path": "/var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/vibepro-canonical-audit-story-personal-kg-tokenized-search-1782178431142",
+      "base_head_sha": "4c32e941df5a116ff3505344829f8061a188e682",
+      "merge_commit_on_base": true,
+      "commit_sha": "683e3589e6453997e174d7aeeb7de96284716676",
+      "pushed": true,
+      "reason": "canonical audit bundle persisted after merge 4c32e941df5a116ff3505344829f8061a188e682",
+      "cleanup": {
+        "attempted": true,
+        "removed": true,
+        "exit_code": 0
+      },
+      "commands": [
+        "git fetch origin develop",
+        "git worktree add --detach /var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/vibepro-canonical-audit-story-personal-kg-tokenized-search-1782178431142 origin/develop",
+        "git add docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+        "git diff --cached --quiet -- docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+        "git commit -m 'docs: persist VibePro audit artifacts for story-personal-kg-tokenized-search'",
+        "git push origin HEAD:develop",
+        "git worktree remove --force /var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/vibepro-canonical-audit-story-personal-kg-tokenized-search-1782178431142"
+      ],
+      "results": [
+        {
+          "command": "git fetch origin develop",
+          "started_at": "2026-06-23T01:33:51.142Z",
+          "finished_at": "2026-06-23T01:33:53.045Z",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "From https://github.com/Unson-LLC/brainbase-unson\n * branch                develop    -> FETCH_HEAD\n   9419df1db..4c32e941d  develop    -> origin/develop"
+        },
+        {
+          "command": "git worktree add --detach /var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/vibepro-canonical-audit-story-personal-kg-tokenized-search-1782178431142 origin/develop",
+          "started_at": "2026-06-23T01:33:53.180Z",
+          "finished_at": "2026-06-23T01:33:54.486Z",
+          "exit_code": 0,
+          "stdout": "HEAD is now at 4c32e941d fix(personal-kg): support tokenized compound search (#985)",
+          "stderr": "Preparing worktree (detached HEAD 4c32e941d)\nUpdating files:  83% (2070/2481)\rUpdating files:  84% (2085/2481)\rUpdating files:  85% (2109/2481)\rUpdating files:  86% (2134/2481)\rUpdating files:  87% (2159/2481)\rUpdating files:  88% (2184/2481)\rUpdating files:  89% (2209/2481)\rUpdating files:  90% (2233/2481)\rUpdating files:  91% (2258/2481)\rUpdating files:  92% (2283/2481)\rUpdating files:  93% (2308/2481)\rUpdating files:  94% (2333/2481)\rUpdating files:  95% (2357/2481)\rUpdating files:  96% (2382/2481)\rUpdating files:  97% (2407/2481)\rUpdating files:  98% (2432/2481)\rUpdating files:  99% (2457/2481)\rUpdating files: 100% (2481/2481)\rUpdating files: 100% (2481/2481), done."
+        },
+        {
+          "command": "git add docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+          "started_at": "2026-06-23T01:33:54.540Z",
+          "finished_at": "2026-06-23T01:33:54.701Z",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "command": "git diff --cached --quiet -- docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+          "started_at": "2026-06-23T01:33:54.701Z",
+          "finished_at": "2026-06-23T01:33:54.796Z",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "command": "git commit -m 'docs: persist VibePro audit artifacts for story-personal-kg-tokenized-search'",
+          "started_at": "2026-06-23T01:33:54.796Z",
+          "finished_at": "2026-06-23T01:33:55.024Z",
+          "exit_code": 0,
+          "stdout": "[detached HEAD 683e3589e] docs: persist VibePro audit artifacts for story-personal-kg-tokenized-search\n 36 files changed, 17060 insertions(+)\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/audit-bundle.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/gate-dag.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-create.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-merge.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-prepare.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/traceability.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/verification-evidence.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-21e3a8457.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-21e3a8457.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-21e3a8457.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/architecture-review.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/decision-records.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/gate-dag.html\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/human-review.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-body.md\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-create.html\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-merge.html\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.html\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/review-cockpit.html\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/split-plan.html\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/split-plan.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-18-16.026Z.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-24-02.392Z.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-32-06.033Z.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/lifecycle.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-request-gate_evidence.md\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-result-gate_evidence.json\n create mode 100644 docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-summary.json",
+          "stderr": ""
+        },
+        {
+          "command": "git push origin HEAD:develop",
+          "started_at": "2026-06-23T01:33:55.074Z",
+          "finished_at": "2026-06-23T01:33:57.547Z",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "To https://github.com/Unson-LLC/brainbase-unson.git\n   4c32e941d..683e3589e  HEAD -> develop"
+        },
+        {
+          "command": "git worktree remove --force /var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/vibepro-canonical-audit-story-personal-kg-tokenized-search-1782178431142",
+          "started_at": "2026-06-23T01:33:57.547Z",
+          "finished_at": "2026-06-23T01:33:57.844Z",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    }
+  }
 }
