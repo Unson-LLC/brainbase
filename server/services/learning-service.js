@@ -99,6 +99,22 @@ function uniqueStrings(values = []) {
     return Array.from(new Set(toArray(values)));
 }
 
+function escapeLikePattern(value = '') {
+    return String(value).replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function personalKgSearchTokens(value = '') {
+    const normalized = String(value || '')
+        .normalize('NFKC')
+        .replace(/[「」『』"'`]+/g, ' ')
+        .replace(/[。、，,.!！?？:：;；/\\|()[\]{}<>]+/g, ' ')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!normalized) return [];
+    return Array.from(new Set(normalized.split(' ').filter(Boolean))).slice(0, 8);
+}
+
 function normalizeSemanticText(value = '') {
     return String(value || '')
         .normalize('NFKC')
@@ -775,7 +791,12 @@ export class LearningService {
         const owner = normalizeOptionalString(ownerPersonId) || 'sato_keigo';
         const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
 
-        const values = [owner, `%${q}%`];
+        const phrasePattern = `%${escapeLikePattern(q)}%`;
+        const tokens = personalKgSearchTokens(q);
+        const tokenPatterns = tokens.length > 1
+            ? tokens.map((token) => `%${escapeLikePattern(token)}%`)
+            : [];
+        const values = [owner, phrasePattern];
         let sql = `SELECT id, cognitive_type, body, confidence, source_system, created_at
                    FROM memory_candidates
                    WHERE owner_person_id = $1
@@ -783,7 +804,16 @@ export class LearningService {
                      AND redaction_status = 'none'
                      AND promotion_status <> 'rejected'
                      AND body IS NOT NULL AND length(body) > 0
-                     AND body ILIKE $2`;
+                     AND (body ILIKE $2 ESCAPE '\\'`;
+        if (tokenPatterns.length > 0) {
+            const tokenClauses = [];
+            for (const pattern of tokenPatterns) {
+                values.push(pattern);
+                tokenClauses.push(`body ILIKE $${values.length} ESCAPE '\\'`);
+            }
+            sql += ` OR (${tokenClauses.join(' AND ')})`;
+        }
+        sql += ')';
         const types = Array.isArray(cognitiveTypes)
             ? cognitiveTypes.map((t) => normalizeOptionalString(t)).filter(Boolean)
             : [];
@@ -792,7 +822,10 @@ export class LearningService {
             sql += ` AND cognitive_type = ANY($${values.length}::text[])`;
         }
         values.push(safeLimit);
-        sql += ` ORDER BY confidence DESC NULLS LAST, created_at DESC LIMIT $${values.length}`;
+        sql += ` ORDER BY CASE WHEN body ILIKE $2 ESCAPE '\\' THEN 0 ELSE 1 END,
+                         confidence DESC NULLS LAST,
+                         created_at DESC
+                 LIMIT $${values.length}`;
 
         const { rows } = await this.pool.query(sql, values);
         return rows.map((row) => ({

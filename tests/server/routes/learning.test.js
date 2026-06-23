@@ -17,6 +17,14 @@ describe('learning routes', () => {
             getPromotion: vi.fn(async () => ({ id: 'prm_1', pillar: 'wiki', status: 'evaluated' })),
             applyPromotion: vi.fn(async () => ({ success: true, candidate: { id: 'prm_1' } })),
             markPromotionRejected: vi.fn(async () => ({ success: true })),
+            searchPersonalKgCandidates: vi.fn(async () => [{
+                id: 'mem_1',
+                cognitive_type: 'claim',
+                body: 'AI駆動経営は判断とShipを経営進捗KPIにする。',
+                confidence: 0.95,
+                source_system: 'test',
+                created_at: '2026-05-16T00:00:00.000Z'
+            }]),
             recordSkillUsage: vi.fn(async (payload) => ({ id: 'sul_1', ...payload })),
             listStaleSkills: vi.fn(async () => [{ skill_name: 'old', last_used_at: new Date(), uses: 1, stale_threshold_days: 90 }])
         };
@@ -70,6 +78,29 @@ describe('learning routes', () => {
 
         expect(res.status).toBe(200);
         expect(service.getPromotion).toHaveBeenCalledWith('prm_1');
+    });
+
+    it('GET /memory-candidates/search forwards compound Personal KG query contract', async () => {
+        const res = await request(app)
+            .get('/api/learning/memory-candidates/search')
+            .query({
+                q: 'AI駆動経営 判断 Ship',
+                cognitive_type: 'claim,insight',
+                limit: '5'
+            });
+
+        expect(res.status).toBe(200);
+        expect(res.body.candidates).toHaveLength(1);
+        expect(res.body.candidates[0]).toMatchObject({
+            id: 'mem_1',
+            cognitive_type: 'claim'
+        });
+        expect(service.searchPersonalKgCandidates).toHaveBeenCalledWith({
+            query: 'AI駆動経営 判断 Ship',
+            ownerPersonId: undefined,
+            cognitiveTypes: ['claim', 'insight'],
+            limit: '5'
+        });
     });
 
     it('POST /promotions/:id/apply applies one candidate', async () => {

@@ -143,6 +143,54 @@ describe('LearningService', () => {
         expect(pool.query).toHaveBeenCalled();
     });
 
+    it('searchPersonalKgCandidates tokenizes compound queries as an all-token fallback', async () => {
+        await service.searchPersonalKgCandidates({
+            query: 'AI駆動経営 判断 Ship',
+            limit: 5
+        });
+
+        const searchCall = pool.query.mock.calls.find(
+            (call) => typeof call[0] === 'string' && call[0].includes('SELECT id, cognitive_type, body')
+        );
+
+        expect(searchCall).toBeTruthy();
+        expect(searchCall[0]).toContain("body ILIKE $2 ESCAPE '\\'");
+        expect(searchCall[0]).toContain("OR (body ILIKE $3 ESCAPE '\\' AND body ILIKE $4 ESCAPE '\\' AND body ILIKE $5 ESCAPE '\\')");
+        expect(searchCall[0]).toContain("CASE WHEN body ILIKE $2 ESCAPE '\\' THEN 0 ELSE 1 END");
+        expect(searchCall[1]).toEqual([
+            'sato_keigo',
+            '%AI駆動経営 判断 Ship%',
+            '%AI駆動経営%',
+            '%判断%',
+            '%Ship%',
+            5
+        ]);
+    });
+
+    it('searchPersonalKgCandidates keeps single-term queries as phrase search and preserves type filters', async () => {
+        await service.searchPersonalKgCandidates({
+            query: '判断',
+            cognitiveTypes: ['claim', 'insight'],
+            limit: 3
+        });
+
+        const searchCall = pool.query.mock.calls.find(
+            (call) => typeof call[0] === 'string' && call[0].includes('SELECT id, cognitive_type, body')
+        );
+
+        expect(searchCall).toBeTruthy();
+        expect(searchCall[0]).toContain("body ILIKE $2 ESCAPE '\\'");
+        expect(searchCall[0]).not.toContain('OR (');
+        expect(searchCall[0]).toContain('cognitive_type = ANY($3::text[])');
+        expect(searchCall[0]).toContain('LIMIT $4');
+        expect(searchCall[1]).toEqual([
+            'sato_keigo',
+            '%判断%',
+            ['claim', 'insight'],
+            3
+        ]);
+    });
+
     it('recordEpisode accepts session_log and codex_session_log sources', async () => {
         const sessionResult = await service.recordEpisode({
             source_type: 'session_log',
