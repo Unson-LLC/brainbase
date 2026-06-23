@@ -1,0 +1,1 @@
+{"command":"npm run test:run -- tests/server/services/learning-service.test.js","status":"passed","exit_code":0,"git_sha":"fa29056333fe807aff4a86f4866957ec38cb5d2f","log":".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.log"}

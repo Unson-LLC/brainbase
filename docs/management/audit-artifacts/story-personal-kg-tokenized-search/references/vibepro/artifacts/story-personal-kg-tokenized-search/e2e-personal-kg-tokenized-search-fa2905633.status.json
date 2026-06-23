@@ -1,0 +1,1 @@
+{"command":"BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts","status":"passed","exit_code":0,"git_sha":"fa29056333fe807aff4a86f4866957ec38cb5d2f","log":".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.log"}

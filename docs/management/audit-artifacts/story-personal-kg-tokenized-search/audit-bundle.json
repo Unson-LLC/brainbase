@@ -1,0 +1,458 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "source": "execute_merge",
+  "promoted_at": "2026-06-23T01:33:51.059Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-personal-kg-tokenized-search",
+  "source_workspace_dir": ".vibepro",
+  "artifact_policy": {
+    "scope": "audit_core_only",
+    "persisted_for_main_audit": true,
+    "excludes": [
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/985",
+    "merge_commit_sha": "4c32e941df5a116ff3505344829f8061a188e682",
+    "merged_at": "2026-06-23T01:33:49Z",
+    "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 39,
+    "copied_reference_count": 32,
+    "unresolved_reference_count": 3
+  },
+  "artifacts": [
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-prepare.json"
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-create.json"
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/gate-dag.json"
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-merge.json"
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/traceability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/traceability.json"
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/verification-evidence.json"
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/lifecycle.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/lifecycle.json"
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-request-gate_evidence.md"
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-result-gate_evidence.json"
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-summary.json"
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-21e3a8457.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-21e3a8457.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-c2e1fa7ed.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-c2e1fa7ed.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-21e3a8457.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-21e3a8457.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-c2e1fa7ed.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-c2e1fa7ed.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-21e3a8457.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-21e3a8457.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-c2e1fa7ed.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-c2e1fa7ed.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-18-16.026Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-18-16.026Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-24-02.392Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-24-02.392Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-32-06.033Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-32-06.033Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-21e3a8457.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-21e3a8457.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-c2e1fa7ed.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-c2e1fa7ed.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-21e3a8457.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-21e3a8457.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-c2e1fa7ed.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-c2e1fa7ed.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-21e3a8457.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-21e3a8457.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-c2e1fa7ed.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-c2e1fa7ed.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.log",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-personal-kg-tokenized-search/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/pr/story-personal-kg-tokenized-search/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-18-16.026Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-18-16.026Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-24-02.392Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-24-02.392Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-32-06.033Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-32-06.033Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-personal-kg-tokenized-search/references/vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/artifacts/story-personal-kg-tokenized-search/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/verification/",
+      "reason": "source_missing"
+    }
+  ]
+}

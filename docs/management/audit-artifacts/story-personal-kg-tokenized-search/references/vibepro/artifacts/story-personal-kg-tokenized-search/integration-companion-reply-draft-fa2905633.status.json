@@ -1,0 +1,1 @@
+{"command":"npm run test:run -- tests/server/routes/companion-reply-draft.test.js","status":"passed","exit_code":0,"git_sha":"fa29056333fe807aff4a86f4866957ec38cb5d2f","log":".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.log"}

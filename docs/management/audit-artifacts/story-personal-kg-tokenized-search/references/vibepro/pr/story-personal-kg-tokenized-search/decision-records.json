@@ -1,0 +1,182 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-personal-kg-tokenized-search",
+  "updated_at": "2026-06-23T01:27:47.948Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "expected_root": null,
+      "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782178067948-279d4476",
+      "story_id": "story-personal-kg-tokenized-search",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "needs_evidence",
+      "summary": "Personal KG search public contract remains additive and backward compatible",
+      "reason": "The public route remains GET /api/learning/memory-candidates/search and still returns { candidates: [...] }. Existing exact phrase behavior remains valid; the additive fallback only accepts rows where all normalized query tokens appear in body when phrase shape differs. Owner, visibility, redaction, rejected-status, cognitive_type, and limit filters remain in the same read path. Contract evidence is docs/architecture/personal-kg-tokenized-search-architecture.md, docs/specs/story-personal-kg-tokenized-search-spec.md C-001 through C-005, and tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts ac:1 through ac:6.",
+      "reviewer": null,
+      "artifact": "docs/architecture/personal-kg-tokenized-search-architecture.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "expected_root": null,
+          "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-06-23T01:27:47.947Z"
+      },
+      "recorded_at": "2026-06-23T01:27:47.948Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782177630208-7a6c31b3",
+      "story_id": "story-personal-kg-tokenized-search",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "needs_evidence",
+      "summary": "Personal KG search public contract remains additive and backward compatible",
+      "reason": "The public route remains GET /api/learning/memory-candidates/search and still returns { candidates: [...] }. Existing exact phrase behavior remains valid; the only additive behavior is accepting rows where all normalized query tokens appear in body when the exact phrase shape differs. Owner, visibility, redaction, rejected-status, cognitive_type, and limit filters remain in the same read path. Contract evidence is docs/specs/story-personal-kg-tokenized-search-spec.md C-001 through C-005 and tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts ac:1 through ac:6.",
+      "reviewer": null,
+      "artifact": "docs/specs/story-personal-kg-tokenized-search-spec.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "expected_root": null,
+          "expected_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+          "current_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-06-23T01:20:30.207Z"
+      },
+      "recorded_at": "2026-06-23T01:20:30.209Z"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "open": 0,
+    "by_type": {
+      "needs_review": 2
+    },
+    "by_status": {
+      "accepted": 2
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "expected_root": null,
+        "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782178067948-279d4476",
+      "story_id": "story-personal-kg-tokenized-search",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "needs_evidence",
+      "summary": "Personal KG search public contract remains additive and backward compatible",
+      "reason": "The public route remains GET /api/learning/memory-candidates/search and still returns { candidates: [...] }. Existing exact phrase behavior remains valid; the additive fallback only accepts rows where all normalized query tokens appear in body when phrase shape differs. Owner, visibility, redaction, rejected-status, cognitive_type, and limit filters remain in the same read path. Contract evidence is docs/architecture/personal-kg-tokenized-search-architecture.md, docs/specs/story-personal-kg-tokenized-search-spec.md C-001 through C-005, and tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts ac:1 through ac:6.",
+      "reviewer": null,
+      "artifact": "docs/architecture/personal-kg-tokenized-search-architecture.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "expected_root": null,
+          "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-06-23T01:27:47.947Z"
+      },
+      "recorded_at": "2026-06-23T01:27:47.948Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-personal-kg-tokenized-search/decision-records.json"
+}

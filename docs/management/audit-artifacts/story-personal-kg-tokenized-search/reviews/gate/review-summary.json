@@ -1,0 +1,241 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "stage": "gate",
+  "status": "pass",
+  "roles": [
+    {
+      "role": "gate_evidence",
+      "status": "pass",
+      "effective_status": "pass",
+      "stale": false,
+      "stale_reason": "review is bound to the current git state",
+      "binding_status": "current",
+      "merge_delta_reuse": null,
+      "provenance_status": "verified_agent",
+      "provenance_reason": "codex parallel subagent provenance is recorded and the subagent lifecycle is closed",
+      "agent_provenance": {
+        "schema_version": "0.1.0",
+        "system": "codex",
+        "execution_mode": "parallel_subagent",
+        "agent_id": "019ef218-b9b8-7051-87b1-012a2e03b825",
+        "agent_role": null,
+        "model": "inherited",
+        "reasoning_effort": null,
+        "cost_tier": null,
+        "thread_id": null,
+        "session_id": null,
+        "tool_call_id": null,
+        "transcript_artifact": "subagent_notification:019ef218-b9b8-7051-87b1-012a2e03b825",
+        "request_artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+        "recorded_by": null,
+        "lifecycle": {
+          "agent_closed": true,
+          "close_evidence": "subagent_notification:019ef218-b9b8-7051-87b1-012a2e03b825",
+          "close_note": null
+        },
+        "evidence_strength": "strong"
+      },
+      "summary": "Current-head gate evidence is sufficient for gate:gate_evidence: verification artifacts are bound to fa2905633, public contract has contract_doc/current_verification evidence, and regression/path coverage includes service SQL, direct API route, and companion consumer compatibility.",
+      "inspection": {
+        "summary": "Read the gate review request and dispatch lenses, inspected the current diff, service/controller/consumer paths, story/spec/architecture/PR/gate artifacts, current verification status/logs, and checked prompt-injection markers and diff whitespace.",
+        "evidence": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json;.vibepro/pr/story-personal-kg-tokenized-search/verification-evidence.json;.vibepro/artifacts/story-personal-kg-tokenized-search/*-fa2905633.status.json",
+        "inputs": [
+          ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+          ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+          "docs/architecture/personal-kg-tokenized-search-architecture.md",
+          "server/services/learning-service.js",
+          "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+        ]
+      },
+      "judgment_delta": [
+        "prior stale review blocked on missing contract_doc -> pass because current gate-dag has public_contract passed, current-bound verification artifacts, and subagent found no regression/path coverage findings"
+      ],
+      "findings": [],
+      "finding_dispositions": [],
+      "finding_count": 0,
+      "agent_usage": null,
+      "recorded_at": "2026-06-23T01:32:06.033Z",
+      "git_context": {
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "raw_dirty": false,
+        "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-06-23T01:32:06.033Z"
+      },
+      "source_git_context": null,
+      "lifecycle": {
+        "effective_status": "closed",
+        "running_count": 0,
+        "timed_out_count": 0,
+        "closed_count": 3,
+        "replaced_count": 0,
+        "latest": {
+          "schema_version": "0.1.0",
+          "lifecycle_id": "17fc6ad3-a98a-4daf-a32c-22c11ebb20de",
+          "story_id": "story-personal-kg-tokenized-search",
+          "stage": "gate",
+          "role": "gate_evidence",
+          "status": "closed",
+          "agent_system": "codex",
+          "agent_id": "019ef218-b9b8-7051-87b1-012a2e03b825",
+          "agent_model": null,
+          "agent_reasoning_effort": null,
+          "agent_cost_tier": null,
+          "intended_model_policy": null,
+          "model_policy_preflight": null,
+          "thread_id": null,
+          "session_id": null,
+          "tool_call_id": null,
+          "started_at": "2026-06-23T01:29:38.280Z",
+          "timeout_ms": 600000,
+          "replacement_for": null,
+          "close_reason": "completed",
+          "close_evidence": "subagent_notification:019ef218-b9b8-7051-87b1-012a2e03b825",
+          "closed_at": "2026-06-23T01:31:49.813Z",
+          "result_artifact": null,
+          "effective_status": "closed",
+          "timed_out": false,
+          "elapsed_ms": 131533
+        }
+      },
+      "artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-result-gate_evidence.json",
+      "history_artifacts": [
+        ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-18-16.026Z.json",
+        ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-24-02.392Z.json",
+        ".vibepro/reviews/story-personal-kg-tokenized-search/gate/history/review-result-gate_evidence-2026-06-23T01-32-06.033Z.json"
+      ]
+    }
+  ],
+  "pass_count": 1,
+  "stale_count": 0,
+  "missing_count": 0,
+  "unverified_agent_count": 0,
+  "block_count": 0,
+  "needs_changes_count": 0,
+  "lifecycle": {
+    "entry_count": 3,
+    "running_count": 0,
+    "timed_out_count": 0,
+    "closed_count": 3,
+    "replaced_count": 0,
+    "entries": [
+      {
+        "schema_version": "0.1.0",
+        "lifecycle_id": "511b2a68-9d8f-43e7-9dd4-0afcdc99816d",
+        "story_id": "story-personal-kg-tokenized-search",
+        "stage": "gate",
+        "role": "gate_evidence",
+        "status": "closed",
+        "agent_system": "codex",
+        "agent_id": "019ef20c-3d43-7e82-92c3-b5cc5b3f867a",
+        "agent_model": null,
+        "agent_reasoning_effort": null,
+        "agent_cost_tier": null,
+        "intended_model_policy": null,
+        "model_policy_preflight": null,
+        "thread_id": null,
+        "session_id": null,
+        "tool_call_id": null,
+        "started_at": "2026-06-23T01:16:00.831Z",
+        "timeout_ms": 600000,
+        "replacement_for": null,
+        "close_reason": "completed",
+        "close_evidence": "subagent_notification:019ef20c-3d43-7e82-92c3-b5cc5b3f867a",
+        "closed_at": "2026-06-23T01:18:15.350Z",
+        "result_artifact": null,
+        "effective_status": "closed",
+        "timed_out": false,
+        "elapsed_ms": 134519
+      },
+      {
+        "schema_version": "0.1.0",
+        "lifecycle_id": "467d9dd6-3ff5-44d5-8751-d228e1e03b72",
+        "story_id": "story-personal-kg-tokenized-search",
+        "stage": "gate",
+        "role": "gate_evidence",
+        "status": "closed",
+        "agent_system": "codex",
+        "agent_id": "019ef210-d15e-7a32-82cf-c8a3d00db91d",
+        "agent_model": null,
+        "agent_reasoning_effort": null,
+        "agent_cost_tier": null,
+        "intended_model_policy": null,
+        "model_policy_preflight": null,
+        "thread_id": null,
+        "session_id": null,
+        "tool_call_id": null,
+        "started_at": "2026-06-23T01:21:00.825Z",
+        "timeout_ms": 600000,
+        "replacement_for": null,
+        "close_reason": "completed",
+        "close_evidence": "subagent_notification:019ef210-d15e-7a32-82cf-c8a3d00db91d",
+        "closed_at": "2026-06-23T01:24:01.779Z",
+        "result_artifact": null,
+        "effective_status": "closed",
+        "timed_out": false,
+        "elapsed_ms": 180954
+      },
+      {
+        "schema_version": "0.1.0",
+        "lifecycle_id": "17fc6ad3-a98a-4daf-a32c-22c11ebb20de",
+        "story_id": "story-personal-kg-tokenized-search",
+        "stage": "gate",
+        "role": "gate_evidence",
+        "status": "closed",
+        "agent_system": "codex",
+        "agent_id": "019ef218-b9b8-7051-87b1-012a2e03b825",
+        "agent_model": null,
+        "agent_reasoning_effort": null,
+        "agent_cost_tier": null,
+        "intended_model_policy": null,
+        "model_policy_preflight": null,
+        "thread_id": null,
+        "session_id": null,
+        "tool_call_id": null,
+        "started_at": "2026-06-23T01:29:38.280Z",
+        "timeout_ms": 600000,
+        "replacement_for": null,
+        "close_reason": "completed",
+        "close_evidence": "subagent_notification:019ef218-b9b8-7051-87b1-012a2e03b825",
+        "closed_at": "2026-06-23T01:31:49.813Z",
+        "result_artifact": null,
+        "effective_status": "closed",
+        "timed_out": false,
+        "elapsed_ms": 131533
+      }
+    ]
+  },
+  "next_actions": [],
+  "updated_at": "2026-06-23T01:32:06.037Z",
+  "current_git_context": {
+    "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "current_branch": "codex/personal-kg-tokenized-search",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-06-23T01:32:06.033Z"
+  },
+  "parallel_dispatch": {
+    "mode": "policy_aware_parallel_reviews",
+    "prepared": true,
+    "artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+    "artifact_updated_at": "2026-06-23T01:29:19.777Z",
+    "prepare_command": "vibepro review prepare . --id story-personal-kg-tokenized-search --stage gate --role gate_evidence"
+  }
+}

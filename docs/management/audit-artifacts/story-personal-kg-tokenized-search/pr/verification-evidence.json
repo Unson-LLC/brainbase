@@ -1,0 +1,255 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "updated_at": "2026-06-23T01:29:07.921Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "verify record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "expected_root": null,
+      "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "managed_worktree": null
+    }
+  ],
+  "commands": [
+    {
+      "kind": "e2e",
+      "status": "pass",
+      "command": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+      "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract",
+      "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=passed)"
+      },
+      "observation": {
+        "targets": [
+          "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+        ],
+        "scenarios": [
+          "flow_replay: Personal KG search receives compound keyword query and exercises exact phrase, all-token fallback, and single-token route behavior",
+          "artifact_replay: VibePro artifact .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json is current-bound and exit_code=0",
+          "scenario_clause_e2e: AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003"
+        ],
+        "values": {
+          "status": "passed",
+          "exit_code": "0",
+          "compound_query": "all_tokens_required",
+          "exact_phrase_rank": "first",
+          "direct_route_response": "{candidates}"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "executed_at": "2026-06-23T01:29:07.921Z",
+      "git_context": {
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "raw_dirty": false,
+        "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-06-23T01:29:07.920Z"
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "expected_root": null,
+        "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "expected_root": null,
+          "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "managed_worktree": null
+        }
+      ]
+    },
+    {
+      "kind": "integration",
+      "status": "pass",
+      "command": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+      "summary": "Companion route Personal KG integration remains compatible",
+      "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=passed)"
+      },
+      "observation": {
+        "targets": [
+          "tests/server/routes/companion-reply-draft.test.js"
+        ],
+        "scenarios": [
+          "Personal KG consumer compatibility"
+        ],
+        "values": {
+          "status": "passed",
+          "exit_code": "0"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "executed_at": "2026-06-23T01:27:46.788Z",
+      "git_context": {
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "raw_dirty": false,
+        "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-06-23T01:27:46.787Z"
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "expected_root": null,
+        "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "expected_root": null,
+          "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "managed_worktree": null
+        }
+      ]
+    },
+    {
+      "kind": "unit",
+      "status": "pass",
+      "command": "npm run test:run -- tests/server/services/learning-service.test.js",
+      "summary": "LearningService Personal KG exact phrase and all-token fallback SQL passes",
+      "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=passed)"
+      },
+      "observation": {
+        "targets": [
+          "server/services/learning-service.js",
+          "tests/server/services/learning-service.test.js"
+        ],
+        "scenarios": [
+          "AC1 AC2 AC3 AC4 AC5"
+        ],
+        "values": {
+          "status": "passed",
+          "exit_code": "0"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "executed_at": "2026-06-23T01:27:45.502Z",
+      "git_context": {
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_branch": "codex/personal-kg-tokenized-search",
+        "dirty": false,
+        "raw_dirty": false,
+        "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-06-23T01:27:45.501Z"
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "expected_root": null,
+        "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+          "expected_root": null,
+          "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "managed_worktree": null
+        }
+      ]
+    }
+  ]
+}

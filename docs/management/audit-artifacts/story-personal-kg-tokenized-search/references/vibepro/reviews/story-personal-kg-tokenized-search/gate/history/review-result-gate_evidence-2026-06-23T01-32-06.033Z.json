@@ -1,0 +1,95 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Current-head gate evidence is sufficient for gate:gate_evidence: verification artifacts are bound to fa2905633, public contract has contract_doc/current_verification evidence, and regression/path coverage includes service SQL, direct API route, and companion consumer compatibility.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Read the gate review request and dispatch lenses, inspected the current diff, service/controller/consumer paths, story/spec/architecture/PR/gate artifacts, current verification status/logs, and checked prompt-injection markers and diff whitespace.",
+    "evidence": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json;.vibepro/pr/story-personal-kg-tokenized-search/verification-evidence.json;.vibepro/artifacts/story-personal-kg-tokenized-search/*-fa2905633.status.json",
+    "inputs": [
+      ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+      ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+      "docs/architecture/personal-kg-tokenized-search-architecture.md",
+      "server/services/learning-service.js",
+      "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+    ]
+  },
+  "judgment_delta": [
+    "prior stale review blocked on missing contract_doc -> pass because current gate-dag has public_contract passed, current-bound verification artifacts, and subagent found no regression/path coverage findings"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+    "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+    "expected_root": null,
+    "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "expected_root": null,
+      "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-06-23T01:32:06.033Z",
+  "git_context": {
+    "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "current_branch": "codex/personal-kg-tokenized-search",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-06-23T01:32:06.033Z"
+  },
+  "source_fingerprint": "1264f7879ccf4fcc123a3ba240bf2c9c51645f2b23da15e40355b21a9640649d",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019ef218-b9b8-7051-87b1-012a2e03b825",
+    "agent_role": null,
+    "model": "inherited",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "subagent_notification:019ef218-b9b8-7051-87b1-012a2e03b825",
+    "request_artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent_notification:019ef218-b9b8-7051-87b1-012a2e03b825",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

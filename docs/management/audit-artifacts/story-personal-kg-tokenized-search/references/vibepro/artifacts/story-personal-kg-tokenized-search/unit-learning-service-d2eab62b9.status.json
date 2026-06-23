@@ -1,0 +1,8 @@
+{
+  "status": "pass",
+  "exit_code": 0,
+  "observed": {
+    "tests": 25,
+    "command": "npm run test:run -- tests/server/services/learning-service.test.js"
+  }
+}

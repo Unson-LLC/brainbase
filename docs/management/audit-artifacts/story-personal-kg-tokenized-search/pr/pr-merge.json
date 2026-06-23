@@ -1,0 +1,2008 @@
+{
+  "schema_version": "0.1.0",
+  "created_at": "2026-06-23T01:33:45.624Z",
+  "mode": "execute_merge",
+  "dry_run": false,
+  "workspace_initialized": true,
+  "story": {
+    "story_id": "story-personal-kg-tokenized-search",
+    "title": "Personal KG search supports compound keyword queries",
+    "ssot": "local",
+    "status": "active",
+    "horizon": null,
+    "view": null,
+    "period": null,
+    "started_at": null,
+    "due_at": null,
+    "category": null
+  },
+  "output": {
+    "language": "ja"
+  },
+  "strategy": "squash",
+  "delete_branch": false,
+  "base": "develop",
+  "current_branch": "codex/personal-kg-tokenized-search",
+  "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+  "artifact_freshness": {
+    "kind": "pr_merge",
+    "status": "current",
+    "exists": true,
+    "artifact": null,
+    "report": null,
+    "artifact_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "checked_at": "2026-06-23T01:33:45.624Z",
+    "reason": "pr-merge artifact is bound to the current HEAD fa29056333fe"
+  },
+  "repository_slug": "Unson-LLC/vibepro",
+  "pr": {
+    "selector": "https://github.com/Unson-LLC/brainbase-unson/pull/985",
+    "url": "https://github.com/Unson-LLC/brainbase-unson/pull/985",
+    "state": "OPEN",
+    "is_draft": false,
+    "merge_state_status": "CLEAN",
+    "review_decision": "",
+    "head_ref_name": "codex/personal-kg-tokenized-search",
+    "head_ref_oid": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+    "base_ref_name": "develop",
+    "checks": [
+      {
+        "name": "Verify VibePro Graph SSOT",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "workflow_name": "VibePro Graph SSOT Check",
+        "details_url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/27995979977/job/82858155372"
+      },
+      {
+        "name": "Require Graphify Impact Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "workflow_name": "VibePro Graphify Impact Gate",
+        "details_url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/27995979979/job/82858155401"
+      }
+    ]
+  },
+  "gate_dag": {
+    "schema_version": "0.1.0",
+    "model": "story-acceptance-verification-dag",
+    "overall_status": "ready_for_review",
+    "story_id": "story-personal-kg-tokenized-search",
+    "summary": {
+      "acceptance_criteria_count": 6,
+      "required_gate_count": 36,
+      "needs_evidence_count": 0,
+      "engineering_judgment_route": "agent_workflow",
+      "engineering_judgment_dag": "agent_workflow_dag",
+      "active_judgment_axes": [
+        "public_contract"
+      ],
+      "suppressed_judgment_axes": [
+        {
+          "axis": "execution_topology",
+          "precision_status": "insufficient_signal",
+          "reason": "execution_topology has only text-derived candidates; suppressing activation until a changed-path, route, scope, docs, network-contract, or risk-surface corroboration exists",
+          "candidates": [
+            "surface:workflow_or_agent",
+            "text:execution_topology"
+          ]
+        }
+      ],
+      "judgment_axis_count": 1,
+      "judgment_axis_accepted_followup_count": 0,
+      "pr_scope_judgment_status": "passed",
+      "bug_physics_classes": [],
+      "bug_physics_profile_count": 0,
+      "pr_route": "runtime_change",
+      "pr_body_template": "runtime_contract_review",
+      "story_status": "present",
+      "story_source_integrity_status": "passed",
+      "architecture_status": "satisfied",
+      "architecture_axis_quality_status": "needs_review",
+      "spec_status": "present",
+      "path_surface_matrix_status": "passed",
+      "requirement_status": "passed",
+      "failure_mode_coverage_status": "passed",
+      "decision_record_status": "passed",
+      "review_inspection_required_status": "passed",
+      "artifact_consistency_status": "passed",
+      "managed_worktree_status": "needs_review",
+      "traceability_clause_coverage": {
+        "clause_count": 6,
+        "acceptance_criteria_count": 6,
+        "scenario_clause_count": 0,
+        "mapped_count": 5,
+        "weakly_mapped_count": 1,
+        "unmapped_count": 0,
+        "examples": [
+          {
+            "id": "AC-5",
+            "type": "acceptance_criterion",
+            "status": "weakly_mapped",
+            "source_text": "Owner-only, non-redacted, non-rejected filters remain intact.",
+            "weak_mapping_reason": "verification or PR evidence exists, but no AC/scenario-specific binding was found"
+          }
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "id": "story",
+        "type": "story",
+        "label": "story-personal-kg-tokenized-search - Personal KG search supports compound keyword queries",
+        "status": "present",
+        "required": true,
+        "artifact": "docs/stories/story-personal-kg-tokenized-search.md",
+        "reason": "Story source is present"
+      },
+      {
+        "id": "gate:story_source_integrity",
+        "type": "story_source_integrity_gate",
+        "label": "Story Source Integrity Gate",
+        "status": "passed",
+        "required": true,
+        "selected_story_id": "story-personal-kg-tokenized-search",
+        "source": {
+          "path": "docs/stories/story-personal-kg-tokenized-search.md",
+          "story_id": "story-personal-kg-tokenized-search",
+          "vibepro_story_id": null,
+          "title": "Personal KG search supports compound keyword queries",
+          "matches_selected_story": true
+        },
+        "changed_story_docs": [
+          {
+            "path": "docs/stories/story-personal-kg-tokenized-search.md",
+            "story_id": "story-personal-kg-tokenized-search",
+            "vibepro_story_id": null,
+            "title": "Personal KG search supports compound keyword queries",
+            "matches_selected_story": true
+          }
+        ],
+        "mismatched_changed_story_docs": [],
+        "required_actions": [],
+        "reason": "Resolved and changed Story documents match the selected Story, or no changed Story document needs binding."
+      },
+      {
+        "id": "gate:engineering_judgment_route",
+        "type": "engineering_judgment_route_gate",
+        "label": "Engineering Judgment Route Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "agent_workflow",
+        "route_dag": "agent_workflow_dag",
+        "confidence": 0.82,
+        "signals": [
+          "surface:agent_or_gate_workflow",
+          "risk_profile:api_contract"
+        ],
+        "reason": "Engineering judgment route selected: agent_workflow; DAG=agent_workflow_dag"
+      },
+      {
+        "id": "gate:common_judgment_spine",
+        "type": "engineering_judgment_spine_gate",
+        "label": "Common Judgment Spine Gate",
+        "status": "passed",
+        "required": true,
+        "spine": [
+          "intent",
+          "current_reality",
+          "invariants",
+          "domain_or_system_model",
+          "boundary",
+          "risk_classification",
+          "route_dag_selection",
+          "evidence_requirements",
+          "implementation_plan",
+          "verification",
+          "human_decision_contract",
+          "release_or_operation"
+        ],
+        "subchecks": [
+          {
+            "id": "intent",
+            "status": "passed",
+            "evidence": "docs/stories/story-personal-kg-tokenized-search.md",
+            "surface": "story",
+            "required_evidence_kind": [
+              "story_intent"
+            ],
+            "matched_evidence": [
+              {
+                "kind": "story_intent",
+                "ref": "docs/stories/story-personal-kg-tokenized-search.md"
+              }
+            ],
+            "missing_evidence": [],
+            "reason": "6 acceptance criterion/criteria or Story intent text found"
+          },
+          {
+            "id": "current_reality",
+            "status": "passed",
+            "evidence": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "surface": "workflow",
+            "optional_evidence_kind": [
+              "graph_impact_scope"
+            ],
+            "required_evidence_kind": [
+              "flow_replay",
+              "artifact_replay",
+              "scenario_clause_e2e"
+            ],
+            "minimum_strength": {
+              "flow_replay": "strong",
+              "artifact_replay": "strong",
+              "scenario_clause_e2e": "strong"
+            },
+            "matched_evidence": [
+              {
+                "kind": "flow_replay",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              },
+              {
+                "kind": "artifact_replay",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              },
+              {
+                "kind": "scenario_clause_e2e",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              }
+            ],
+            "missing_evidence": [],
+            "reason": "workflow current reality is backed by flow_replay"
+          },
+          {
+            "id": "invariants",
+            "status": "passed",
+            "evidence": "explicit spec/architecture docs",
+            "surface": "workflow",
+            "optional_evidence_kind": [
+              "graph_impact_scope"
+            ],
+            "required_evidence_kind": [
+              "spec_clause",
+              "architecture_doc",
+              "test_contract"
+            ],
+            "matched_evidence": [
+              {
+                "kind": "architecture_doc",
+                "ref": "explicit spec/architecture docs",
+                "strength": "supporting",
+                "strength_reason": "architecture/spec docs bound the invariant surface",
+                "binding_status": "n/a",
+                "artifact_quality": "architecture_doc"
+              },
+              {
+                "kind": "test_contract",
+                "ref": "test files in diff",
+                "strength": "supporting",
+                "strength_reason": "changed tests indicate intended contract coverage but are not focused proof by themselves",
+                "binding_status": "n/a",
+                "artifact_quality": "changed_test_files"
+              }
+            ],
+            "missing_evidence": [],
+            "reason": "High-risk changes need Spec, Architecture, or test evidence for invariants"
+          },
+          {
+            "id": "boundaries",
+            "status": "passed",
+            "evidence": "explicit spec/architecture docs",
+            "surface": "workflow",
+            "optional_evidence_kind": [
+              "graph_impact_scope"
+            ],
+            "required_evidence_kind": [
+              "architecture_doc",
+              "decision_record",
+              "current_verification"
+            ],
+            "minimum_strength": {
+              "architecture_doc": "supporting",
+              "decision_record": "supporting",
+              "current_verification": "supporting"
+            },
+            "matched_evidence": [
+              {
+                "kind": "architecture_doc",
+                "ref": "explicit spec/architecture docs",
+                "strength": "supporting",
+                "strength_reason": "architecture/spec docs describe the relevant boundary",
+                "binding_status": "n/a",
+                "artifact_quality": "architecture_doc"
+              },
+              {
+                "kind": "decision_record",
+                "ref": "decision-1782178067948-279d4476",
+                "strength": "supporting",
+                "strength_reason": "accepted decision records the boundary rationale",
+                "binding_status": "current",
+                "artifact_quality": "decision_record"
+              },
+              {
+                "kind": "current_verification",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current verification is tied to a durable artifact for the boundary path",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              }
+            ],
+            "missing_evidence": [],
+            "reason": "Boundary-sensitive changes need architecture/spec, decision, or current verification evidence"
+          },
+          {
+            "id": "failure_modes",
+            "status": "passed",
+            "evidence": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "surface": "workflow",
+            "required_evidence_kind": [
+              "flow_replay",
+              "artifact_replay",
+              "scenario_clause_e2e"
+            ],
+            "minimum_strength": {
+              "flow_replay": "strong",
+              "artifact_replay": "strong",
+              "scenario_clause_e2e": "strong"
+            },
+            "matched_evidence": [
+              {
+                "kind": "flow_replay",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              },
+              {
+                "kind": "artifact_replay",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              },
+              {
+                "kind": "scenario_clause_e2e",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              }
+            ],
+            "missing_evidence": [],
+            "reason": "workflow changes need failure-mode evidence matching flow_replay|artifact_replay|scenario_clause_e2e"
+          },
+          {
+            "id": "done_evidence",
+            "status": "passed",
+            "evidence": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "surface": "workflow",
+            "required_evidence_kind": [
+              "flow_replay",
+              "artifact_replay",
+              "scenario_clause_e2e"
+            ],
+            "minimum_strength": {
+              "flow_replay": "strong",
+              "artifact_replay": "strong",
+              "scenario_clause_e2e": "strong"
+            },
+            "matched_evidence": [
+              {
+                "kind": "flow_replay",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              },
+              {
+                "kind": "artifact_replay",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              },
+              {
+                "kind": "scenario_clause_e2e",
+                "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+                "strength": "strong",
+                "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+                "binding_status": "current",
+                "artifact_quality": "verified",
+                "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+              }
+            ],
+            "missing_evidence": [],
+            "reason": "workflow changes need done evidence matching flow_replay|artifact_replay|scenario_clause_e2e"
+          }
+        ],
+        "missing_subchecks": [],
+        "reason": "Intent, current reality, invariants, boundaries, failure modes, and done evidence have enough evidence for this route profile"
+      },
+      {
+        "id": "gate:judgment_axis_public_contract",
+        "type": "judgment_axis_gate",
+        "label": "Judgment Axis: public_contract",
+        "status": "passed",
+        "axis_status": "active_passed",
+        "required": true,
+        "axis": "public_contract",
+        "confidence": 0.8,
+        "decision_question": "この変更は外部利用者、CLI/API、設定、出力形式、またはPR本文契約を壊さないか。",
+        "required_evidence": [
+          "story_spec_traceability",
+          "contract_doc",
+          "compat_or_output_test",
+          "current_verification"
+        ],
+        "blocking_criteria": [
+          "public contract change lacks traceability or compatibility evidence",
+          "output/API/CLI behavior changed without reviewable old/new expectation"
+        ],
+        "acceptable_followup": "Current behavior is backward-compatible and the remaining doc or cleanup item is bounded with an artifact or issue reference.",
+        "signals": [
+          "pr_route:runtime_change",
+          "file_group:contract_docs",
+          "text:public_contract"
+        ],
+        "matched_evidence": [
+          {
+            "kind": "story_spec_traceability",
+            "ref": "story/spec docs in diff",
+            "strength": "supporting",
+            "strength_reason": "story/spec docs exist in the diff and provide traceability",
+            "binding_status": "n/a",
+            "artifact_quality": "story_doc"
+          },
+          {
+            "kind": "contract_doc",
+            "ref": "architecture/policy docs in diff",
+            "strength": "supporting",
+            "strength_reason": "architecture/policy docs are present for the changed contract surface",
+            "binding_status": "n/a",
+            "artifact_quality": "architecture_doc"
+          },
+          {
+            "kind": "topology_diagram",
+            "ref": "architecture docs in diff",
+            "strength": "supporting",
+            "strength_reason": "architecture docs describe topology but are not replay proof",
+            "binding_status": "n/a",
+            "artifact_quality": "architecture_doc"
+          },
+          {
+            "kind": "compat_or_output_test",
+            "ref": "test files in diff",
+            "strength": "supporting",
+            "strength_reason": "changed tests signal intent but do not prove focused runtime coverage alone",
+            "binding_status": "n/a",
+            "artifact_quality": "changed_test_files"
+          },
+          {
+            "kind": "semantic_invariant_test",
+            "ref": "test files in diff",
+            "strength": "supporting",
+            "strength_reason": "changed tests indicate semantic coverage intent but remain indirect",
+            "binding_status": "n/a",
+            "artifact_quality": "changed_test_files"
+          },
+          {
+            "kind": "focused_test",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "focused_test",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "runtime_path_evidence",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "runtime_path_evidence",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "e2e_runtime_path",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "e2e_runtime_path",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "flow_replay",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "flow_replay",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "artifact_replay",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "artifact_replay",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "scenario_clause_e2e",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "scenario_clause_e2e",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "focused_test",
+            "ref": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json"
+          },
+          {
+            "kind": "focused_test",
+            "ref": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json"
+          },
+          {
+            "kind": "integration_runtime_path",
+            "ref": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json"
+          },
+          {
+            "kind": "integration_runtime_path",
+            "ref": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json"
+          },
+          {
+            "kind": "focused_test",
+            "ref": "npm run test:run -- tests/server/services/learning-service.test.js",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json"
+          },
+          {
+            "kind": "focused_test",
+            "ref": "npm run test:run -- tests/server/services/learning-service.test.js",
+            "strength": "strong",
+            "strength_reason": "current-bound focused evidence includes recorded observation plus durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json"
+          },
+          {
+            "kind": "current_verification",
+            "ref": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "strength": "strong",
+            "strength_reason": "current verification includes a durable artifact",
+            "binding_status": "current",
+            "artifact_quality": "verified",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json"
+          },
+          {
+            "kind": "scope_reviewed",
+            "ref": "scope.status=reviewable",
+            "strength": "supporting",
+            "strength_reason": "scope classification says the current diff is reviewable",
+            "binding_status": "derived",
+            "artifact_quality": "scope_classification"
+          },
+          {
+            "kind": "decision_record",
+            "ref": "decision-1782178067948-279d4476",
+            "strength": "supporting",
+            "strength_reason": "accepted decision provides explicit follow-up rationale",
+            "binding_status": "current",
+            "artifact_quality": "decision_record",
+            "artifact": "docs/architecture/personal-kg-tokenized-search-architecture.md"
+          }
+        ],
+        "optional_evidence": [],
+        "missing_evidence": [],
+        "matched_blockers": [],
+        "blocker_waiver": null,
+        "reason": "public_contract: この変更は外部利用者、CLI/API、設定、出力形式、またはPR本文契約を壊さないか。 Evidence matched: story_spec_traceability, contract_doc, topology_diagram, compat_or_output_test, semantic_invariant_test, focused_test, focused_test, runtime_path_evidence, runtime_path_evidence, e2e_runtime_path, e2e_runtime_path, flow_replay, flow_replay, artifact_replay, artifact_replay, scenario_clause_e2e, scenario_clause_e2e, focused_test, focused_test, integration_runtime_path, integration_runtime_path, focused_test, focused_test, current_verification, scope_reviewed, decision_record."
+      },
+      {
+        "id": "gate:pr_scope_judgment",
+        "type": "pr_scope_judgment_gate",
+        "label": "PR Scope Judgment Gate",
+        "status": "passed",
+        "required": true,
+        "classification": "focused",
+        "scope_status": "reviewable",
+        "recommended_strategy": "current_branch_pr",
+        "changed_file_count": 7,
+        "reviewable_file_limit": 30,
+        "story_doc_count": 1,
+        "source_file_count": 1,
+        "test_file_count": 3,
+        "doc_file_count": 2,
+        "risk_surface_count": 0,
+        "accepted_decision": null,
+        "reasons": [],
+        "split_suggestions": [],
+        "required_actions": [],
+        "reason": "PR scope is focused; 7 changed file(s) are reviewable as one Story PR"
+      },
+      {
+        "id": "gate:bug_physics_triage",
+        "type": "bug_physics_triage_gate",
+        "label": "Bug Physics Triage Gate",
+        "status": "passed",
+        "required": true,
+        "classes": [],
+        "enum": [
+          "timing",
+          "state-invariant",
+          "deterministic-byte",
+          "observability",
+          "deployment"
+        ],
+        "probe_evidence": [],
+        "reason": "No bug-physics-specific route selected; ordinary gate profile remains in force"
+      },
+      {
+        "id": "gate:judgment_agent_workflow_context_acquisition",
+        "type": "route_specific_judgment_gate",
+        "label": "Context Acquisition Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "agent_workflow",
+        "route_dag": "agent_workflow_dag",
+        "reason": "agentが読むべきrepo/docs/log/graph/current stateを先に集める"
+      },
+      {
+        "id": "gate:judgment_agent_workflow_tool_boundary",
+        "type": "route_specific_judgment_gate",
+        "label": "Tool Boundary Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "agent_workflow",
+        "route_dag": "agent_workflow_dag",
+        "reason": "どのtool/agentがどの副作用を持つかを分離する"
+      },
+      {
+        "id": "gate:judgment_agent_workflow_delegation_policy",
+        "type": "route_specific_judgment_gate",
+        "label": "Delegation Policy Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "agent_workflow",
+        "route_dag": "agent_workflow_dag",
+        "reason": "どの段階でどのレビュー/サブエージェントを呼ぶかをDAGに置く"
+      },
+      {
+        "id": "gate:judgment_agent_workflow_evidence_lifecycle",
+        "type": "agent_evidence_lifecycle_gate",
+        "label": "Evidence Lifecycle Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "agent_workflow",
+        "route_dag": "agent_workflow_dag",
+        "reason": "Agent review evidence lifecycle is closed for the current git state (recorded review or explicit waiver)"
+      },
+      {
+        "id": "gate:judgment_agent_workflow_human_decision_contract",
+        "type": "route_specific_judgment_gate",
+        "label": "Human Decision Contract Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "agent_workflow",
+        "route_dag": "agent_workflow_dag",
+        "reason": "最後に人間が判断する問いと根拠をPRに出す"
+      },
+      {
+        "id": "gate:pr_route_classification",
+        "type": "pr_route_gate",
+        "label": "PR Route Classification Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "runtime_change",
+        "body_template": "runtime_contract_review",
+        "confidence": 0.7,
+        "required_gates": [
+          "story",
+          "spec",
+          "verification",
+          "pr_body_contract"
+        ],
+        "signals": [
+          "file_group:source"
+        ],
+        "reason": "PR route selected: runtime_change; body template: runtime_contract_review"
+      },
+      {
+        "id": "gate:pr_body_contract",
+        "type": "pr_body_contract_gate",
+        "label": "PR Body Contract Gate",
+        "status": "passed",
+        "required": true,
+        "route_type": "runtime_change",
+        "body_template": "runtime_contract_review",
+        "required_sections": [
+          "decision_question",
+          "story_or_source_of_truth",
+          "gate_status",
+          "verification_or_waiver"
+        ],
+        "scope_status": "reviewable",
+        "reason": "PR body must use runtime_contract_review and expose the route-specific decision contract"
+      },
+      {
+        "id": "gate:managed_worktree",
+        "type": "managed_worktree_gate",
+        "label": "Managed Worktree Gate",
+        "status": "needs_review",
+        "required": false,
+        "mode": "preferred",
+        "current_repo": "/private/tmp/brainbase-personal-kg-tokenized-search",
+        "managed_worktree_path": null,
+        "branch": null,
+        "current_head_sha": null,
+        "managed_worktree": null,
+        "reason": "VibePro managed worktree execution state is missing"
+      },
+      {
+        "id": "gate:change_classification",
+        "type": "change_classification_gate",
+        "label": "Change Classification Gate",
+        "status": "passed",
+        "required": true,
+        "profile": "api_contract",
+        "change_type": "api_contract_change",
+        "risk_surfaces": [
+          "server_api",
+          "service_orchestration",
+          "test_coverage"
+        ],
+        "reason": "API/server boundary changed; service/orchestration layer changed"
+      },
+      {
+        "id": "gate:pr_freshness",
+        "type": "pr_freshness_gate",
+        "label": "PR Freshness Gate",
+        "status": "passed",
+        "required": true,
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "base_sha": "9419df1db4f9c550458bd2821d17ff33ae0befaa",
+        "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "merge_base_sha": "9419df1db4f9c550458bd2821d17ff33ae0befaa",
+        "head_contains_base": true,
+        "pr_prepare_regenerated_at_runtime": true,
+        "required_actions": [],
+        "reason": "HEAD contains current origin/develop; PR prepare artifacts are based on the latest resolved base ref"
+      },
+      {
+        "id": "architecture",
+        "type": "architecture_gate",
+        "label": "Architecture Gate",
+        "status": "satisfied",
+        "required": true,
+        "reason": "ADRあり (docs/architecture/personal-kg-tokenized-search-architecture.md)",
+        "axis_quality": {
+          "status": "needs_review",
+          "active_axis_count": 1,
+          "missing_field_count": 1,
+          "evaluations": [
+            {
+              "axis": "public_contract",
+              "status": "needs_review",
+              "required_fields": [
+                "alternatives_considered",
+                "compatibility_impact",
+                "rollback_plan",
+                "boundary",
+                "accepted_followups"
+              ],
+              "missing_fields": [
+                "rollback_plan"
+              ],
+              "sources": [
+                "docs/architecture/personal-kg-tokenized-search-architecture.md"
+              ],
+              "reason": "public_contract architecture decision is missing: rollback_plan"
+            }
+          ],
+          "reason": "Active judgment axes have missing architecture decision quality fields"
+        }
+      },
+      {
+        "id": "spec",
+        "type": "spec_gate",
+        "label": "Spec Gate",
+        "status": "present",
+        "reason": "explicit Spec docs are present (docs/specs/story-personal-kg-tokenized-search-spec.md)",
+        "spec_docs": [
+          "docs/specs/story-personal-kg-tokenized-search-spec.md"
+        ],
+        "inferred_spec": null,
+        "drift": null,
+        "required": true
+      },
+      {
+        "id": "gate:design_diagrams",
+        "type": "design_diagrams_gate",
+        "label": "Design Diagrams (MUST-HAVE)",
+        "status": "not_required",
+        "required": false,
+        "blocking": true,
+        "reason": "該当する設計図トリガーなし",
+        "required_diagrams": [],
+        "provided_diagrams": [],
+        "missing_diagrams": [],
+        "detection_reasons": []
+      },
+      {
+        "id": "code",
+        "type": "code_gate",
+        "label": "Code Gate",
+        "status": "present",
+        "files": [
+          "server/services/learning-service.js"
+        ]
+      },
+      {
+        "id": "gate:network_contract",
+        "type": "verification_gate",
+        "label": "Network Contract Gate",
+        "status": "passed",
+        "required": true,
+        "reason": "No broken API client route contracts detected",
+        "summary": {
+          "api_client_call_count": 0,
+          "introduced_api_client_call_count": 0,
+          "missing_route_count": 0,
+          "dynamic_call_count": 0,
+          "server_action_replacement_count": 0
+        },
+        "missing_routes": []
+      },
+      {
+        "id": "gate:path_surface_matrix",
+        "type": "path_surface_matrix_gate",
+        "label": "Path Surface Matrix Gate",
+        "status": "passed",
+        "required": true,
+        "high_risk": false,
+        "row_count": 2,
+        "missing_surface_count": 0,
+        "accepted_decision": null,
+        "rows": [
+          {
+            "surface": "service",
+            "path_type": "transform_surface",
+            "reason": "Service/transform file changed: server/services/learning-service.js",
+            "required": false,
+            "status": "covered",
+            "evidence": "npm run test:run -- tests/server/services/learning-service.test.js"
+          },
+          {
+            "surface": "api",
+            "path_type": "story_surface",
+            "reason": "Story or classifier mentions API/network surface",
+            "required": false,
+            "status": "covered",
+            "evidence": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+          }
+        ],
+        "missing_surfaces": [],
+        "required_actions": [],
+        "reason": "2 path surface row(s) are covered or not critical for this route"
+      },
+      {
+        "id": "gate:requirement",
+        "type": "requirement_gate",
+        "label": "Requirement Gate",
+        "status": "passed",
+        "required": true,
+        "reason": "Story不変条件と変更コードの既知分岐に明確な矛盾は検出されていない"
+      },
+      {
+        "id": "gate:failure_mode_coverage",
+        "type": "failure_mode_coverage_gate",
+        "label": "Failure Mode Coverage Gate",
+        "status": "passed",
+        "required": true,
+        "high_risk": false,
+        "candidate_count": 1,
+        "missing_count": 0,
+        "modes": [
+          {
+            "id": "provider_failure",
+            "reason": "External provider/API/network dependency can fail or return incomplete data",
+            "keywords": [
+              "provider",
+              "external",
+              "api",
+              "http",
+              "network"
+            ],
+            "status": "not_required",
+            "evidence": null
+          }
+        ],
+        "missing_modes": [],
+        "required_actions": [],
+        "reason": "1 failure mode candidate(s) are covered or not critical for this route profile"
+      },
+      {
+        "id": "gate:decision_record",
+        "type": "decision_record_gate",
+        "label": "Decision Record Gate",
+        "status": "passed",
+        "required": true,
+        "reason": "Decision records are captured; total=2, waivers=0, noise=0, secret_exposure=0",
+        "artifact": ".vibepro/pr/story-personal-kg-tokenized-search/decision-records.json",
+        "summary": {
+          "total": 2,
+          "open": 0,
+          "by_type": {
+            "needs_review": 2
+          },
+          "by_status": {
+            "accepted": 2
+          },
+          "warnings": [
+            {
+              "id": "managed_worktree_locality",
+              "status": "needs_review",
+              "mode": "preferred",
+              "required": false,
+              "command_name": "decision record",
+              "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+              "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+              "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+              "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+              "expected_root": null,
+              "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+              "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+              "managed_worktree": null
+            }
+          ],
+          "latest": {
+            "schema_version": "0.1.0",
+            "decision_id": "decision-1782178067948-279d4476",
+            "story_id": "story-personal-kg-tokenized-search",
+            "type": "needs_review",
+            "status": "accepted",
+            "source": "gate:judgment_axis_public_contract",
+            "source_status": "needs_evidence",
+            "summary": "Personal KG search public contract remains additive and backward compatible",
+            "reason": "The public route remains GET /api/learning/memory-candidates/search and still returns { candidates: [...] }. Existing exact phrase behavior remains valid; the additive fallback only accepts rows where all normalized query tokens appear in body when phrase shape differs. Owner, visibility, redaction, rejected-status, cognitive_type, and limit filters remain in the same read path. Contract evidence is docs/architecture/personal-kg-tokenized-search-architecture.md, docs/specs/story-personal-kg-tokenized-search-spec.md C-001 through C-005, and tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts ac:1 through ac:6.",
+            "reviewer": null,
+            "artifact": "docs/architecture/personal-kg-tokenized-search-architecture.md",
+            "secret_exposure": null,
+            "redaction": {
+              "applied": false,
+              "hit_count": 0
+            },
+            "warnings": [
+              {
+                "id": "managed_worktree_locality",
+                "status": "needs_review",
+                "mode": "preferred",
+                "required": false,
+                "command_name": "decision record",
+                "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+                "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+                "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+                "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+                "expected_root": null,
+                "expected_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+                "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+                "managed_worktree": null
+              }
+            ],
+            "git_context": {
+              "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+              "current_branch": "codex/personal-kg-tokenized-search",
+              "dirty": false,
+              "status_fingerprint": "",
+              "recorded_at": "2026-06-23T01:27:47.947Z"
+            },
+            "recorded_at": "2026-06-23T01:27:47.948Z"
+          }
+        },
+        "open_decisions": [],
+        "secret_exposure_count": 0
+      },
+      {
+        "id": "gate:unit",
+        "type": "verification_gate",
+        "label": "Unit Gate",
+        "status": "passed",
+        "required": true,
+        "command": "npm run test:run -- tests/server/services/learning-service.test.js",
+        "reason": "LearningService Personal KG exact phrase and all-token fallback SQL passes; evidence: .vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+        "evidence": {
+          "kind": "unit",
+          "status": "pass",
+          "summary": "LearningService Personal KG exact phrase and all-token fallback SQL passes",
+          "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+          "executed_at": "2026-06-23T01:27:45.502Z",
+          "binding": {
+            "status": "current",
+            "reason": "verification evidence is bound to the current git state"
+          }
+        }
+      },
+      {
+        "id": "gate:integration",
+        "type": "verification_gate",
+        "label": "Integration Gate",
+        "status": "passed",
+        "required": true,
+        "command": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+        "reason": "Companion route Personal KG integration remains compatible; evidence: .vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+        "evidence": {
+          "kind": "integration",
+          "status": "pass",
+          "summary": "Companion route Personal KG integration remains compatible",
+          "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+          "executed_at": "2026-06-23T01:27:46.788Z",
+          "binding": {
+            "status": "current",
+            "reason": "verification evidence is bound to the current git state"
+          }
+        }
+      },
+      {
+        "id": "gate:e2e",
+        "type": "verification_gate",
+        "label": "E2E Gate",
+        "status": "passed",
+        "required": true,
+        "command": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "reason": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract; evidence: .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+        "flow_verification": null,
+        "acceptance_e2e_coverage": {
+          "schema_version": "0.1.0",
+          "story_id": "story-personal-kg-tokenized-search",
+          "required": true,
+          "status": "passed",
+          "expected_file_patterns": [
+            "tests/e2e/story-personal-kg-tokenized-search-*.spec.ts",
+            "test/e2e/story-personal-kg-tokenized-search-*.spec.ts",
+            "e2e/story-personal-kg-tokenized-search-*.spec.ts"
+          ],
+          "matched_files": [
+            "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+          ],
+          "executable_matched_files": [
+            "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+          ],
+          "acceptance_criteria_count": 6,
+          "covered_acceptance_criteria_count": 6,
+          "covered_acceptance_criteria": [
+            {
+              "id": "ac:1",
+              "criterion": "Exact phrase search remains supported and ranks before fallback matches.",
+              "covered": true,
+              "files": [
+                "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+              ],
+              "candidate_diagnostics": []
+            },
+            {
+              "id": "ac:2",
+              "criterion": "Compound queries are tokenized and can match entries that contain all tokens with different separators.",
+              "covered": true,
+              "files": [
+                "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+              ],
+              "candidate_diagnostics": []
+            },
+            {
+              "id": "ac:3",
+              "criterion": "Single-term queries do not add unnecessary token fallback SQL.",
+              "covered": true,
+              "files": [
+                "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+              ],
+              "candidate_diagnostics": []
+            },
+            {
+              "id": "ac:4",
+              "criterion": "`cognitive_type` filtering and bounded `limit` behavior remain intact.",
+              "covered": true,
+              "files": [
+                "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+              ],
+              "candidate_diagnostics": []
+            },
+            {
+              "id": "ac:5",
+              "criterion": "Owner-only, non-redacted, non-rejected filters remain intact.",
+              "covered": true,
+              "files": [
+                "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+              ],
+              "candidate_diagnostics": []
+            },
+            {
+              "id": "ac:6",
+              "criterion": "Direct `GET /api/learning/memory-candidates/search` callers keep the same `{ candidates }` response contract while benefiting from the fallback.",
+              "covered": true,
+              "files": [
+                "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+              ],
+              "candidate_diagnostics": []
+            }
+          ],
+          "missing_acceptance_criteria": [],
+          "scenario_clause_count": 0,
+          "covered_scenario_clause_count": 0,
+          "covered_scenario_clauses": [],
+          "missing_scenario_clauses": [],
+          "coverage_diagnostics": {
+            "missing_acceptance_criteria": [],
+            "missing_scenario_clauses": []
+          },
+          "scenario_e2e_coverage": {
+            "required": false,
+            "status": "not_applicable",
+            "scenario_clause_count": 0,
+            "covered_scenario_clause_count": 0,
+            "covered_scenario_clauses": [],
+            "missing_scenario_clauses": []
+          }
+        },
+        "artifact_expectation": ".vibepro/verification/<run-id>/ にPlaywright CLIのログとスクリーンショットを残す",
+        "evidence": {
+          "kind": "e2e",
+          "status": "pass",
+          "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract",
+          "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+          "executed_at": "2026-06-23T01:29:07.921Z",
+          "binding": {
+            "status": "current",
+            "reason": "verification evidence is bound to the current git state"
+          }
+        }
+      },
+      {
+        "id": "review:dispatch_batch:gate",
+        "type": "agent_review_dispatch_batch_gate",
+        "label": "Review Dispatch Batch: gate",
+        "status": "passed",
+        "required": true,
+        "serial_index": 1,
+        "depends_on_stage": null,
+        "next_stage": null,
+        "dispatch_state": "complete",
+        "role_count": 1,
+        "dispatch_ready_count": 1,
+        "dispatch_blocker_count": 0,
+        "dispatch_warning_count": 0,
+        "reason": "All gate role preflight checks passed and dispatch instructions are prepared"
+      },
+      {
+        "id": "review:preflight:gate:gate_evidence",
+        "type": "agent_review_dispatch_preflight_gate",
+        "label": "Review Dispatch Preflight: gate_evidence",
+        "status": "passed",
+        "required": true,
+        "stage": "gate",
+        "role": "gate_evidence",
+        "preflight_kind": "dedupe_current_pass",
+        "reason": "Current gate:gate_evidence review already passed; do not dispatch a duplicate reviewer for the same git state"
+      },
+      {
+        "id": "review:prepare:gate",
+        "type": "agent_review_prepare_gate",
+        "label": "Review Prepare: gate",
+        "status": "passed",
+        "required": true,
+        "serial_index": 1,
+        "depends_on_stage": null,
+        "next_stage": null,
+        "dispatch_state": "complete",
+        "command": "vibepro review prepare . --id story-personal-kg-tokenized-search --stage gate --role gate_evidence",
+        "artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md",
+        "reason": "Policy-aware agent review dispatch instructions were generated"
+      },
+      {
+        "id": "review:gate:gate_evidence",
+        "type": "agent_review_role_gate",
+        "label": "Agent Review: gate_evidence",
+        "status": "passed",
+        "required": true,
+        "reason": "Current-head gate evidence is sufficient for gate:gate_evidence: verification artifacts are bound to fa2905633, public contract has contract_doc/current_verification evidence, and regression/path coverage includes service SQL, direct API route, and companion consumer compatibility."
+      },
+      {
+        "id": "review:record:gate:gate_evidence",
+        "type": "agent_review_record_gate",
+        "label": "Review Record: gate_evidence",
+        "status": "passed",
+        "required": true,
+        "artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-result-gate_evidence.json",
+        "reason": "Recorded gate:gate_evidence review for the current git state"
+      },
+      {
+        "id": "review:join:gate",
+        "type": "agent_review_stage_join_gate",
+        "label": "Review Stage Join: gate",
+        "status": "passed",
+        "required": true,
+        "serial_index": 1,
+        "depends_on_stage": null,
+        "next_stage": null,
+        "role_count": 1,
+        "reason": "All parallel gate agent review roles are closed and recorded for the current git state"
+      },
+      {
+        "id": "gate:agent_review",
+        "type": "agent_review_gate",
+        "label": "Agent Review Gate",
+        "status": "passed",
+        "required": true,
+        "reason": "Required staged agent reviews passed for the current git state",
+        "summary": {
+          "required_review_count": 1,
+          "unmet_required_review_count": 0,
+          "checkpoint_required_review_count": 0,
+          "unmet_checkpoint_review_count": 0,
+          "stage_count": 1,
+          "stale_result_count": 0,
+          "block_result_count": 0,
+          "lifecycle_running_count": 0,
+          "lifecycle_timed_out_count": 0
+        },
+        "parallel_dispatch": {
+          "required": true,
+          "mode": "policy_aware_parallel_reviews",
+          "stage_execution": {
+            "serial_between_stages": true,
+            "parallel_within_stage": true,
+            "current_stage": null,
+            "max_parallel_subagents_per_stage": 1,
+            "barrier": "A later review stage must not be dispatched until the current stage has closed and recorded every required role."
+          },
+          "required_stages": [
+            {
+              "stage": "gate",
+              "serial_index": 1,
+              "depends_on_stage": null,
+              "next_stage": null,
+              "roles": [
+                "gate_evidence"
+              ],
+              "role_count": 1,
+              "status": "pass",
+              "prepared": true,
+              "dispatch_state": "complete",
+              "dispatch_rule": "Run these roles in parallel only for this stage; after every role is closed and recorded, advance to next_stage.",
+              "prepare_command": "vibepro review prepare . --id story-personal-kg-tokenized-search --stage gate --role gate_evidence",
+              "dispatch_artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/parallel-dispatch.md"
+            }
+          ]
+        },
+        "dispatch_contract": {
+          "required": false,
+          "expected": "dispatch_parallel_subagents",
+          "user_confirmation_required_by_vibepro": false,
+          "runner_policy_may_require_user_delegation": false,
+          "manual_review_fallback": false,
+          "applies_to": [
+            "codex",
+            "claude_code"
+          ]
+        },
+        "required_actions": [],
+        "unmet_required_reviews": [],
+        "unmet_checkpoint_reviews": []
+      },
+      {
+        "id": "gate:review_inspection_required",
+        "type": "review_inspection_required_gate",
+        "label": "Review Inspection Required Gate",
+        "status": "passed",
+        "required": true,
+        "high_risk": false,
+        "recorded_review_count": 1,
+        "missing_inspection_count": 0,
+        "inspected_roles": [
+          {
+            "stage": "gate",
+            "role": "gate_evidence",
+            "status": "pass",
+            "artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-result-gate_evidence.json",
+            "inspection_summary_present": true,
+            "inspection_evidence_present": true,
+            "missing": []
+          }
+        ],
+        "missing_inspections": [],
+        "required_actions": [],
+        "reason": "Review inspection evidence is not critical for this route profile"
+      },
+      {
+        "id": "gate:artifact_consistency",
+        "type": "artifact_consistency_gate",
+        "label": "Artifact Consistency Gate",
+        "status": "passed",
+        "required": true,
+        "current": {
+          "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "raw_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "dirty": false,
+          "raw_dirty": false,
+          "dirty_files": [],
+          "raw_dirty_files": [],
+          "vibepro_internal_dirty_files": [],
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "managed_worktree": {
+            "id": null,
+            "path": null,
+            "branch": null,
+            "head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+            "dirty": null,
+            "dirty_fingerprint": null,
+            "raw_dirty": null,
+            "raw_dirty_fingerprint": null,
+            "fingerprint_scope": null
+          }
+        },
+        "artifact_count": 4,
+        "inconsistent_artifact_count": 0,
+        "artifacts": [
+          {
+            "artifact_type": "verification_command",
+            "kind": "e2e",
+            "command": "BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+            "recorded_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+            "recorded_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "recorded_user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "status": "current",
+            "reuse_policy": null,
+            "reason": "verification evidence is bound to the current git state"
+          },
+          {
+            "artifact_type": "verification_command",
+            "kind": "integration",
+            "command": "npm run test:run -- tests/server/routes/companion-reply-draft.test.js",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+            "recorded_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+            "recorded_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "recorded_user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "status": "current",
+            "reuse_policy": null,
+            "reason": "verification evidence is bound to the current git state"
+          },
+          {
+            "artifact_type": "verification_command",
+            "kind": "unit",
+            "command": "npm run test:run -- tests/server/services/learning-service.test.js",
+            "artifact": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+            "recorded_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+            "recorded_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "recorded_user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "status": "current",
+            "reuse_policy": null,
+            "reason": "verification evidence is bound to the current git state"
+          },
+          {
+            "artifact_type": "agent_review_result",
+            "stage": "gate",
+            "role": "gate_evidence",
+            "artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-result-gate_evidence.json",
+            "recorded_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+            "recorded_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "recorded_user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+            "status": "current",
+            "reuse_policy": null,
+            "reason": "agent review result is bound to the current git state; review outcome is handled by Agent Review Gate"
+          }
+        ],
+        "inconsistent_artifacts": [],
+        "required_actions": [],
+        "reason": "4 recorded verification/review artifact(s) are bound to the current git state"
+      },
+      {
+        "id": "gate:dag_connectivity",
+        "type": "dag_connectivity_gate",
+        "label": "DAG Connectivity Gate",
+        "status": "passed",
+        "required": true,
+        "reason": "Every DAG node is reachable from story and can reach the final PR decision",
+        "invalid_edges": [],
+        "unreachable_nodes": [],
+        "dead_end_nodes": [],
+        "unreachable_required_nodes": [],
+        "dead_end_required_nodes": []
+      },
+      {
+        "id": "pr",
+        "type": "pr_gate",
+        "label": "PR Gate",
+        "status": "pending",
+        "reason": "Unit / Integration / E2E Gateの証跡をPR本文で確認する"
+      },
+      {
+        "id": "ac:1",
+        "type": "acceptance_criterion",
+        "label": "Exact phrase search remains supported and ranks before fallback matches.",
+        "status": "present"
+      },
+      {
+        "id": "ac:2",
+        "type": "acceptance_criterion",
+        "label": "Compound queries are tokenized and can match entries that contain all tokens with different separators.",
+        "status": "present"
+      },
+      {
+        "id": "ac:3",
+        "type": "acceptance_criterion",
+        "label": "Single-term queries do not add unnecessary token fallback SQL.",
+        "status": "present"
+      },
+      {
+        "id": "ac:4",
+        "type": "acceptance_criterion",
+        "label": "`cognitive_type` filtering and bounded `limit` behavior remain intact.",
+        "status": "present"
+      },
+      {
+        "id": "ac:5",
+        "type": "acceptance_criterion",
+        "label": "Owner-only, non-redacted, non-rejected filters remain intact.",
+        "status": "present"
+      },
+      {
+        "id": "ac:6",
+        "type": "acceptance_criterion",
+        "label": "Direct `GET /api/learning/memory-candidates/search` callers keep the same `{ candidates }` response contract while benefiting from the fallback.",
+        "status": "present"
+      },
+      {
+        "id": "gate:traceability_clause_coverage",
+        "type": "traceability_clause_coverage_gate",
+        "label": "Traceability Clause Coverage Gate",
+        "status": "needs_evidence",
+        "required": true,
+        "reason": "1 weakly_mapped and 0 unmapped AC/scenario clause(s) require clause-specific evidence",
+        "coverage_summary": {
+          "clause_count": 6,
+          "acceptance_criteria_count": 6,
+          "scenario_clause_count": 0,
+          "mapped_count": 5,
+          "weakly_mapped_count": 1,
+          "unmapped_count": 0,
+          "examples": [
+            {
+              "id": "AC-5",
+              "type": "acceptance_criterion",
+              "status": "weakly_mapped",
+              "source_text": "Owner-only, non-redacted, non-rejected filters remain intact.",
+              "weak_mapping_reason": "verification or PR evidence exists, but no AC/scenario-specific binding was found"
+            }
+          ]
+        },
+        "required_actions": [
+          "Record verification evidence with --target/--scenario/--observed that names the specific AC or scenario, or add a focused test/review finding that binds to the clause."
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "story",
+        "to": "gate:story_source_integrity"
+      },
+      {
+        "from": "gate:story_source_integrity",
+        "to": "gate:engineering_judgment_route"
+      },
+      {
+        "from": "gate:engineering_judgment_route",
+        "to": "gate:common_judgment_spine"
+      },
+      {
+        "from": "gate:common_judgment_spine",
+        "to": "gate:judgment_axis_public_contract"
+      },
+      {
+        "from": "gate:judgment_axis_public_contract",
+        "to": "gate:pr_scope_judgment"
+      },
+      {
+        "from": "gate:pr_scope_judgment",
+        "to": "gate:bug_physics_triage"
+      },
+      {
+        "from": "gate:bug_physics_triage",
+        "to": "gate:judgment_agent_workflow_context_acquisition"
+      },
+      {
+        "from": "gate:judgment_agent_workflow_context_acquisition",
+        "to": "gate:pr_route_classification"
+      },
+      {
+        "from": "gate:bug_physics_triage",
+        "to": "gate:judgment_agent_workflow_tool_boundary"
+      },
+      {
+        "from": "gate:judgment_agent_workflow_tool_boundary",
+        "to": "gate:pr_route_classification"
+      },
+      {
+        "from": "gate:bug_physics_triage",
+        "to": "gate:judgment_agent_workflow_delegation_policy"
+      },
+      {
+        "from": "gate:judgment_agent_workflow_delegation_policy",
+        "to": "gate:pr_route_classification"
+      },
+      {
+        "from": "gate:bug_physics_triage",
+        "to": "gate:judgment_agent_workflow_evidence_lifecycle"
+      },
+      {
+        "from": "gate:judgment_agent_workflow_evidence_lifecycle",
+        "to": "gate:pr_route_classification"
+      },
+      {
+        "from": "gate:bug_physics_triage",
+        "to": "gate:judgment_agent_workflow_human_decision_contract"
+      },
+      {
+        "from": "gate:judgment_agent_workflow_human_decision_contract",
+        "to": "gate:pr_route_classification"
+      },
+      {
+        "from": "gate:bug_physics_triage",
+        "to": "gate:change_classification"
+      },
+      {
+        "from": "gate:pr_route_classification",
+        "to": "gate:pr_body_contract"
+      },
+      {
+        "from": "gate:pr_body_contract",
+        "to": "gate:managed_worktree"
+      },
+      {
+        "from": "gate:managed_worktree",
+        "to": "gate:change_classification"
+      },
+      {
+        "from": "gate:change_classification",
+        "to": "gate:pr_freshness"
+      },
+      {
+        "from": "gate:pr_freshness",
+        "to": "architecture"
+      },
+      {
+        "from": "gate:pr_freshness",
+        "to": "spec"
+      },
+      {
+        "from": "architecture",
+        "to": "code"
+      },
+      {
+        "from": "spec",
+        "to": "gate:design_diagrams"
+      },
+      {
+        "from": "gate:design_diagrams",
+        "to": "code"
+      },
+      {
+        "from": "story",
+        "to": "ac:1"
+      },
+      {
+        "from": "ac:1",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "ac:1",
+        "to": "gate:unit"
+      },
+      {
+        "from": "ac:1",
+        "to": "gate:integration"
+      },
+      {
+        "from": "ac:1",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "story",
+        "to": "ac:2"
+      },
+      {
+        "from": "ac:2",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "ac:2",
+        "to": "gate:unit"
+      },
+      {
+        "from": "ac:2",
+        "to": "gate:integration"
+      },
+      {
+        "from": "ac:2",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "story",
+        "to": "ac:3"
+      },
+      {
+        "from": "ac:3",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "ac:3",
+        "to": "gate:unit"
+      },
+      {
+        "from": "ac:3",
+        "to": "gate:integration"
+      },
+      {
+        "from": "ac:3",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "story",
+        "to": "ac:4"
+      },
+      {
+        "from": "ac:4",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "ac:4",
+        "to": "gate:unit"
+      },
+      {
+        "from": "ac:4",
+        "to": "gate:integration"
+      },
+      {
+        "from": "ac:4",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "story",
+        "to": "ac:5"
+      },
+      {
+        "from": "ac:5",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "ac:5",
+        "to": "gate:unit"
+      },
+      {
+        "from": "ac:5",
+        "to": "gate:integration"
+      },
+      {
+        "from": "ac:5",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "story",
+        "to": "ac:6"
+      },
+      {
+        "from": "ac:6",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "ac:6",
+        "to": "gate:unit"
+      },
+      {
+        "from": "ac:6",
+        "to": "gate:integration"
+      },
+      {
+        "from": "ac:6",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "code",
+        "to": "gate:network_contract"
+      },
+      {
+        "from": "gate:network_contract",
+        "to": "gate:path_surface_matrix"
+      },
+      {
+        "from": "gate:path_surface_matrix",
+        "to": "gate:requirement"
+      },
+      {
+        "from": "gate:requirement",
+        "to": "gate:failure_mode_coverage"
+      },
+      {
+        "from": "gate:failure_mode_coverage",
+        "to": "gate:decision_record"
+      },
+      {
+        "from": "gate:decision_record",
+        "to": "gate:unit"
+      },
+      {
+        "from": "gate:unit",
+        "to": "gate:integration"
+      },
+      {
+        "from": "gate:integration",
+        "to": "gate:e2e"
+      },
+      {
+        "from": "gate:e2e",
+        "to": "review:dispatch_batch:gate",
+        "reason": "serial Agent Review entry waits for all relevant upstream review surfaces before stage-local parallel dispatch"
+      },
+      {
+        "from": "gate:requirement",
+        "to": "review:dispatch_batch:gate",
+        "reason": "serial Agent Review entry waits for all relevant upstream review surfaces before stage-local parallel dispatch"
+      },
+      {
+        "from": "spec",
+        "to": "review:dispatch_batch:gate",
+        "reason": "serial Agent Review entry waits for all relevant upstream review surfaces before stage-local parallel dispatch"
+      },
+      {
+        "from": "gate:integration",
+        "to": "review:dispatch_batch:gate",
+        "reason": "serial Agent Review entry waits for all relevant upstream review surfaces before stage-local parallel dispatch"
+      },
+      {
+        "from": "review:dispatch_batch:gate",
+        "to": "review:preflight:gate:gate_evidence"
+      },
+      {
+        "from": "review:preflight:gate:gate_evidence",
+        "to": "review:prepare:gate"
+      },
+      {
+        "from": "review:prepare:gate",
+        "to": "review:gate:gate_evidence"
+      },
+      {
+        "from": "review:gate:gate_evidence",
+        "to": "review:record:gate:gate_evidence"
+      },
+      {
+        "from": "review:record:gate:gate_evidence",
+        "to": "review:join:gate"
+      },
+      {
+        "from": "review:join:gate",
+        "to": "gate:agent_review"
+      },
+      {
+        "from": "gate:agent_review",
+        "to": "gate:review_inspection_required"
+      },
+      {
+        "from": "gate:review_inspection_required",
+        "to": "gate:artifact_consistency"
+      },
+      {
+        "from": "gate:artifact_consistency",
+        "to": "gate:dag_connectivity"
+      },
+      {
+        "from": "gate:dag_connectivity",
+        "to": "pr"
+      }
+    ]
+  },
+  "preconditions": {
+    "pr_selector_resolved": true,
+    "gate_ready": true,
+    "clean_worktree": true,
+    "base_freshness": {
+      "status": "passed",
+      "required": true,
+      "base_ref": "develop",
+      "merge_base_contains_base": true,
+      "fetched_ref": "origin/develop"
+    },
+    "remote_head_match": {
+      "status": "passed",
+      "required": true,
+      "local_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "remote_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f"
+    },
+    "checks_ready": {
+      "status": "passed",
+      "required": true,
+      "pending_count": 0,
+      "failing_count": 0
+    },
+    "review_policy": {
+      "status": "passed",
+      "required": true
+    },
+    "open_pull_request": {
+      "status": "passed",
+      "required": true
+    }
+  },
+  "warnings": [],
+  "commands": [
+    "git fetch origin develop",
+    "gh pr view https://github.com/Unson-LLC/brainbase-unson/pull/985 --json 'url,state,isDraft,mergeStateStatus,reviewDecision,headRefName,headRefOid,baseRefName,statusCheckRollup' --repo Unson-LLC/vibepro",
+    "gh pr merge https://github.com/Unson-LLC/brainbase-unson/pull/985 --squash --repo Unson-LLC/vibepro --match-head-commit fa29056333fe807aff4a86f4866957ec38cb5d2f"
+  ],
+  "results": [
+    {
+      "command": "git fetch origin develop",
+      "started_at": "2026-06-23T01:33:45.625Z",
+      "finished_at": "2026-06-23T01:33:46.888Z",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "From https://github.com/Unson-LLC/brainbase-unson\n * branch                develop    -> FETCH_HEAD"
+    },
+    {
+      "command": "gh pr view https://github.com/Unson-LLC/brainbase-unson/pull/985 --json 'url,state,isDraft,mergeStateStatus,reviewDecision,headRefName,headRefOid,baseRefName,statusCheckRollup' --repo Unson-LLC/vibepro",
+      "started_at": "2026-06-23T01:33:46.941Z",
+      "finished_at": "2026-06-23T01:33:47.659Z",
+      "exit_code": 0,
+      "stdout": "{\"baseRefName\":\"develop\",\"headRefName\":\"codex/personal-kg-tokenized-search\",\"headRefOid\":\"fa29056333fe807aff4a86f4866957ec38cb5d2f\",\"isDraft\":false,\"mergeStateStatus\":\"CLEAN\",\"reviewDecision\":\"\",\"state\":\"OPEN\",\"statusCheckRollup\":[{\"__typename\":\"CheckRun\",\"completedAt\":\"2026-06-23T01:33:13Z\",\"conclusion\":\"SUCCESS\",\"detailsUrl\":\"https://github.com/Unson-LLC/brainbase-unson/actions/runs/27995979977/job/82858155372\",\"name\":\"Verify VibePro Graph SSOT\",\"startedAt\":\"2026-06-23T01:32:47Z\",\"status\":\"COMPLETED\",\"workflowName\":\"VibePro Graph SSOT Check\"},{\"__typename\":\"CheckRun\",\"completedAt\":\"2026-06-23T01:33:16Z\",\"conclusion\":\"SUCCESS\",\"detailsUrl\":\"https://github.com/Unson-LLC/brainbase-unson/actions/runs/27995979979/job/82858155401\",\"name\":\"Require Graphify Impact Review\",\"startedAt\":\"2026-06-23T01:32:47Z\",\"status\":\"COMPLETED\",\"workflowName\":\"VibePro Graphify Impact Gate\"}],\"url\":\"https://github.com/Unson-LLC/brainbase-unson/pull/985\"}",
+      "stderr": ""
+    },
+    {
+      "command": "gh pr merge https://github.com/Unson-LLC/brainbase-unson/pull/985 --squash --repo Unson-LLC/vibepro --match-head-commit fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "started_at": "2026-06-23T01:33:47.659Z",
+      "finished_at": "2026-06-23T01:33:50.582Z",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "gh pr view https://github.com/Unson-LLC/brainbase-unson/pull/985 --json 'url,state,mergedAt,mergeCommit' --repo Unson-LLC/vibepro",
+      "started_at": "2026-06-23T01:33:50.582Z",
+      "finished_at": "2026-06-23T01:33:51.051Z",
+      "exit_code": 0,
+      "stdout": "{\"mergeCommit\":{\"oid\":\"4c32e941df5a116ff3505344829f8061a188e682\"},\"mergedAt\":\"2026-06-23T01:33:49Z\",\"state\":\"MERGED\",\"url\":\"https://github.com/Unson-LLC/brainbase-unson/pull/985\"}",
+      "stderr": ""
+    }
+  ],
+  "branch_cleanup": {
+    "requested": false,
+    "remote": {
+      "attempted": false,
+      "deleted": false,
+      "command": null
+    },
+    "local": {
+      "attempted": false,
+      "deleted": false,
+      "command": null
+    }
+  },
+  "status": "merged",
+  "stop_reason": null,
+  "merge_commit_sha": "4c32e941df5a116ff3505344829f8061a188e682",
+  "merged_at": "2026-06-23T01:33:49Z"
+}

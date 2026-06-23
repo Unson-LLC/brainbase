@@ -1,0 +1,120 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-personal-kg-tokenized-search",
+  "status": "single_pr_ok",
+  "recommended_strategy": "keep_current_pr",
+  "rationale": [
+    "2 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphify未利用: .vibepro/graphify/graph.json が見つからない"
+  ],
+  "graph_context": {
+    "available": false,
+    "reason": ".vibepro/graphify/graph.json が見つからない",
+    "graph_path": ".vibepro/graphify/graph.json",
+    "node_count": 0,
+    "edge_count": 0,
+    "matched_file_count": 0,
+    "related_file_count": 0,
+    "investigation_files": [],
+    "impact_by_file": []
+  },
+  "lanes": [
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "same_pr_allowed",
+      "files": [
+        "docs/stories/story-personal-kg-tokenized-search.md",
+        "docs/specs/story-personal-kg-tokenized-search-spec.md",
+        "docs/architecture/personal-kg-tokenized-search-architecture.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 3,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/personal-kg-tokenized-search-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "server/services/learning-service.js",
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "tests/server/routes/learning.test.js",
+        "tests/server/services/learning-service.test.js"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate",
+        "E2E Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 4,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/personal-kg-tokenized-search-runtime-behavior"
+    }
+  ],
+  "merge_order": [
+    "requirements-ssot",
+    "runtime-behavior"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 2,
+      "cumulative_gate_count": 0,
+      "requires_cumulative_e2e": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm run test:run -- tests/server/services/learning-service.test.js",
+          "npm run test:run -- tests/server/routes/companion-reply-draft.test.js"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。"
+      }
+    ],
+    "final_validation": {
+      "required": false,
+      "trigger": "各PRのisolated checksで十分",
+      "commands": [
+        "npm run test:run -- tests/server/services/learning-service.test.js",
+        "npm run test:run -- tests/server/routes/companion-reply-draft.test.js"
+      ]
+    }
+  },
+  "next_actions": [
+    "現PRのまま進め、split-planをレビュー観点として使う"
+  ]
+}

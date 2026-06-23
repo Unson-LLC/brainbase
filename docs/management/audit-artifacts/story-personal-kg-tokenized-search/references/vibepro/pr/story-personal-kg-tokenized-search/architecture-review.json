@@ -1,0 +1,53 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "created_at": "2026-06-23T01:32:39.469Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADRあり (docs/architecture/personal-kg-tokenized-search-architecture.md)",
+  "source_artifacts": {
+    "story": "docs/stories/story-personal-kg-tokenized-search.md",
+    "review_cockpit": ".vibepro/pr/story-personal-kg-tokenized-search/review-cockpit.html",
+    "gate_dag": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.html"
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADRあり (docs/architecture/personal-kg-tokenized-search-architecture.md)"
+    },
+    "spec": {
+      "status": "present",
+      "reason": "explicit Spec docs are present (docs/specs/story-personal-kg-tokenized-search-spec.md)"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-06-23T01:32:38.447Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/workspace/code/vibepro/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/workspace/code/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "c1ff12f870f8b074e467a167b0ac24c96f115e42",
+      "branch": "main",
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "c1ff12f870f8b074e467a167b0ac24c96f115e42",
+      "origin_main_relation": "same",
+      "dirty": false,
+      "dirty_summary": []
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

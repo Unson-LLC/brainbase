@@ -1,0 +1,463 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "story_doc_path": "docs/stories/story-personal-kg-tokenized-search.md",
+  "source": "execute_merge",
+  "lifecycle": "merged",
+  "evidence": [
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-personal-kg-tokenized-search/pr-body.md",
+      "summary": "pr prepare artifact: pr-body.md"
+    },
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json",
+      "summary": "pr prepare artifact: gate-dag.json"
+    },
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-personal-kg-tokenized-search/verification-evidence.json",
+      "summary": "recorded verification evidence"
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-c2e1fa7ed.log",
+      "summary": "Whitespace and patch hygiene check passed for the Personal KG tokenized search diff. | git diff --check | patch hygiene for Personal KG search SQL generation | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "c2e1fa7ed9d25b1fb61794e6e871f59389f17839",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "server/services/learning-service.js",
+        "patch hygiene for Personal KG search SQL generation"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-c2e1fa7ed.log",
+      "summary": "Companion reply draft route tests passed 16/16, covering the Personal KG consumer path after the search service change. | npm run test:run -- tests/server/routes/companion-reply-draft.test.js | flow replay: companion reply draft Personal KG consumer route remains compatible | artifact replay: route test artifact records pass after Personal KG search change | tests=16 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "c2e1fa7ed9d25b1fb61794e6e871f59389f17839",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/routes/companion-reply-draft.test.js",
+        "flow replay: companion reply draft Personal KG consumer route remains compatible",
+        "artifact replay: route test artifact records pass after Personal KG search change"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-c2e1fa7ed.log",
+      "summary": "LearningService unit tests passed 25/25, including tokenized all-token fallback SQL, single-token phrase search, cognitive_type placeholders, and limit binding. | npm run test:run -- tests/server/services/learning-service.test.js | compound Personal KG query uses exact phrase OR all-token fallback | single-token Personal KG query keeps phrase search and preserves cognitive_type filter | tests=25 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "c2e1fa7ed9d25b1fb61794e6e871f59389f17839",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js",
+        "compound Personal KG query uses exact phrase OR all-token fallback",
+        "single-token Personal KG query keeps phrase search and preserves cognitive_type filter"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.log",
+      "summary": "Whitespace and patch hygiene check passed for the Personal KG tokenized search diff. | git diff --check | patch hygiene for Personal KG search SQL generation | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "server/services/learning-service.js",
+        "patch hygiene for Personal KG search SQL generation"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.log",
+      "summary": "Story contract E2E passed 2/2 and covers AC1-AC5 for Personal KG tokenized search. | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | AC1 AC2 compound query matches all-token fallback without exact phrase | AC3 AC4 AC5 single token preserves filters and avoids OR broadening | tests=2 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "AC1 AC2 compound query matches all-token fallback without exact phrase",
+        "AC3 AC4 AC5 single token preserves filters and avoids OR broadening"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.log",
+      "summary": "Companion reply draft route tests passed 16/16, covering the Personal KG consumer path after the search service change. | npm run test:run -- tests/server/routes/companion-reply-draft.test.js | flow replay: companion reply draft Personal KG consumer route remains compatible | artifact replay: route test artifact records pass after Personal KG search change | tests=16 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/routes/companion-reply-draft.test.js",
+        "flow replay: companion reply draft Personal KG consumer route remains compatible",
+        "artifact replay: route test artifact records pass after Personal KG search change"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.log",
+      "summary": "LearningService unit tests passed 25/25, including tokenized all-token fallback SQL, single-token phrase search, cognitive_type placeholders, and limit binding. | npm run test:run -- tests/server/services/learning-service.test.js | compound Personal KG query uses exact phrase OR all-token fallback | single-token Personal KG query keeps phrase search and preserves cognitive_type filter | tests=25 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "unrecognized",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js",
+        "compound Personal KG query uses exact phrase OR all-token fallback",
+        "single-token Personal KG query keeps phrase search and preserves cognitive_type filter"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/git-diff-check-d2eab62b9.status.json",
+      "summary": "Whitespace and patch hygiene check passed for the Personal KG tokenized search diff. | git diff --check | patch hygiene for Personal KG search SQL generation | status=pass | exit_code=0 | command=git diff --check | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "verified",
+      "targets": [
+        "server/services/learning-service.js",
+        "patch hygiene for Personal KG search SQL generation"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-d2eab62b9.status.json",
+      "summary": "Story contract E2E passed 2/2 and covers AC1-AC5 for Personal KG tokenized search. | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | AC1 AC2 scenario clause: compound query matches all-token fallback without exact phrase | AC3 AC4 AC5 scenario clause: single token preserves filters and avoids OR broadening | status=pass | exit_code=0 | tests=2 | command=BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "verified",
+      "targets": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "AC1 AC2 scenario clause: compound query matches all-token fallback without exact phrase",
+        "AC3 AC4 AC5 scenario clause: single token preserves filters and avoids OR broadening"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-d2eab62b9.status.json",
+      "summary": "Companion reply draft route tests passed 16/16, covering the Personal KG consumer path after the search service change. | npm run test:run -- tests/server/routes/companion-reply-draft.test.js | flow replay: companion reply draft Personal KG consumer route remains compatible | artifact replay: route test artifact records pass after Personal KG search change | status=pass | exit_code=0 | tests=16 | command=npm run test:run -- tests/server/routes/companion-reply-draft.test.js | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "verified",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/routes/companion-reply-draft.test.js",
+        "flow replay: companion reply draft Personal KG consumer route remains compatible",
+        "artifact replay: route test artifact records pass after Personal KG search change"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-d2eab62b9.status.json",
+      "summary": "LearningService unit tests passed 25/25, including tokenized all-token fallback SQL, single-token phrase search, cognitive_type placeholders, and limit binding. | npm run test:run -- tests/server/services/learning-service.test.js | compound Personal KG query uses exact phrase OR all-token fallback | single-token Personal KG query keeps phrase search and preserves cognitive_type filter | status=pass | exit_code=0 | tests=25 | command=npm run test:run -- tests/server/services/learning-service.test.js | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "d2eab62b9c07b852346eb552d2354305d66e6233",
+      "artifact_quality": "verified",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js",
+        "compound Personal KG query uses exact phrase OR all-token fallback",
+        "single-token Personal KG query keeps phrase search and preserves cognitive_type filter"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-21e3a8457.status.json",
+      "summary": "Story contract E2E passed 3/3 and covers AC1-AC6 for Personal KG tokenized search and direct route contract. | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | AC1 AC2 scenario clause: compound query matches all-token fallback without exact phrase | AC3 AC4 AC5 scenario clause: single token preserves filters and avoids OR broadening | AC6 scenario clause: direct learning API route preserves { candidates } contract | status=pass | exit_code=0 | tests=3 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+      "artifact_quality": "verified",
+      "targets": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "AC1 AC2 scenario clause: compound query matches all-token fallback without exact phrase",
+        "AC3 AC4 AC5 scenario clause: single token preserves filters and avoids OR broadening",
+        "AC6 scenario clause: direct learning API route preserves { candidates } contract"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-21e3a8457.status.json",
+      "summary": "Companion reply draft route tests passed 16/16, covering a downstream Personal KG consumer path after the search service change. | npm run test:run -- tests/server/routes/companion-reply-draft.test.js | flow replay: companion reply draft Personal KG consumer route remains compatible | artifact replay: companion route test artifact records pass after Personal KG search change | status=pass | exit_code=0 | tests=16 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+      "artifact_quality": "verified",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/routes/companion-reply-draft.test.js",
+        "flow replay: companion reply draft Personal KG consumer route remains compatible",
+        "artifact replay: companion route test artifact records pass after Personal KG search change"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-21e3a8457.status.json",
+      "summary": "LearningService unit tests passed 25/25, covering exact phrase OR all-token fallback SQL, single-token phrase search, cognitive_type placeholders, and limit binding. | npm run test:run -- tests/server/services/learning-service.test.js | compound Personal KG query uses exact phrase OR all-token fallback | single-token Personal KG query keeps phrase search and preserves cognitive_type filter | status=pass | exit_code=0 | tests=25 | result=pass",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+      "artifact_quality": "verified",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js",
+        "compound Personal KG query uses exact phrase OR all-token fallback",
+        "single-token Personal KG query keeps phrase search and preserves cognitive_type filter"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+      "summary": "Contract E2E covers compound fallback, single-token behavior, and direct route response contract | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003 | status=passed | exit_code=0",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "artifact_quality": "verified",
+      "targets": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/integration-companion-reply-draft-fa2905633.status.json",
+      "summary": "Companion route Personal KG integration remains compatible | npm run test:run -- tests/server/routes/companion-reply-draft.test.js | Personal KG consumer compatibility | status=passed | exit_code=0",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "artifact_quality": "verified",
+      "targets": [
+        "tests/server/routes/companion-reply-draft.test.js",
+        "Personal KG consumer compatibility"
+      ]
+    },
+    {
+      "type": "verification_evidence",
+      "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+      "summary": "LearningService Personal KG exact phrase and all-token fallback SQL passes | npm run test:run -- tests/server/services/learning-service.test.js | AC1 AC2 AC3 AC4 AC5 | status=passed | exit_code=0",
+      "strength": "supporting",
+      "binding_status": "current",
+      "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "artifact_quality": "verified",
+      "targets": [
+        "server/services/learning-service.js",
+        "tests/server/services/learning-service.test.js",
+        "AC1 AC2 AC3 AC4 AC5"
+      ]
+    },
+    {
+      "type": "pr_merge",
+      "ref": ".vibepro/pr/story-personal-kg-tokenized-search/pr-merge.json",
+      "summary": "merged https://github.com/Unson-LLC/brainbase-unson/pull/985 at 2026-06-23T01:33:49Z (commit 4c32e941df5a116ff3505344829f8061a188e682)"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "type": "acceptance_criterion",
+      "source_text": "Exact phrase search remains supported and ranks before fallback matches.",
+      "source_line": 35,
+      "status": "mapped",
+      "mapped_files": [
+        "docs/architecture/personal-kg-tokenized-search-architecture.md",
+        "docs/specs/story-personal-kg-tokenized-search-spec.md",
+        "docs/stories/story-personal-kg-tokenized-search.md",
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+      ],
+      "mapped_tests": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+      ],
+      "mapped_evidence": [
+        {
+          "type": "verification_evidence",
+          "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+          "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | flow_replay: Personal KG search receives compound keyword query and exercises exact phrase, all-token fallback, and single-token route behavior | artifact_replay: VibePro artifact .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json is current-bound and exit_code=0 | scenario_clause_e2e: AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003 | status=passed | exit_code=0 | compound_query=all_tokens_required | exact_phrase_rank=first | direct_route_response={candidates}",
+          "strength": "supporting",
+          "binding_status": "current",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "artifact_quality": "verified",
+          "target_match": true
+        }
+      ],
+      "mapped_review_findings": [],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-2",
+      "type": "acceptance_criterion",
+      "source_text": "Compound queries are tokenized and can match entries that contain all tokens with different separators.",
+      "source_line": 36,
+      "status": "mapped",
+      "mapped_files": [
+        "docs/architecture/personal-kg-tokenized-search-architecture.md",
+        "docs/specs/story-personal-kg-tokenized-search-spec.md",
+        "docs/stories/story-personal-kg-tokenized-search.md",
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+      ],
+      "mapped_tests": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+      ],
+      "mapped_evidence": [
+        {
+          "type": "verification_evidence",
+          "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+          "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | flow_replay: Personal KG search receives compound keyword query and exercises exact phrase, all-token fallback, and single-token route behavior | artifact_replay: VibePro artifact .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json is current-bound and exit_code=0 | scenario_clause_e2e: AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003 | status=passed | exit_code=0 | compound_query=all_tokens_required | exact_phrase_rank=first | direct_route_response={candidates}",
+          "strength": "supporting",
+          "binding_status": "current",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "artifact_quality": "verified",
+          "target_match": true
+        }
+      ],
+      "mapped_review_findings": [],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-3",
+      "type": "acceptance_criterion",
+      "source_text": "Single-term queries do not add unnecessary token fallback SQL.",
+      "source_line": 37,
+      "status": "mapped",
+      "mapped_files": [
+        "docs/architecture/personal-kg-tokenized-search-architecture.md",
+        "docs/specs/story-personal-kg-tokenized-search-spec.md",
+        "docs/stories/story-personal-kg-tokenized-search.md",
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+      ],
+      "mapped_tests": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts"
+      ],
+      "mapped_evidence": [
+        {
+          "type": "verification_evidence",
+          "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+          "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | flow_replay: Personal KG search receives compound keyword query and exercises exact phrase, all-token fallback, and single-token route behavior | artifact_replay: VibePro artifact .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json is current-bound and exit_code=0 | scenario_clause_e2e: AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003 | status=passed | exit_code=0 | compound_query=all_tokens_required | exact_phrase_rank=first | direct_route_response={candidates}",
+          "strength": "supporting",
+          "binding_status": "current",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "artifact_quality": "verified",
+          "target_match": true
+        }
+      ],
+      "mapped_review_findings": [],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-4",
+      "type": "acceptance_criterion",
+      "source_text": "`cognitive_type` filtering and bounded `limit` behavior remain intact.",
+      "source_line": 38,
+      "status": "mapped",
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_evidence": [
+        {
+          "type": "verification_evidence",
+          "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+          "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | flow_replay: Personal KG search receives compound keyword query and exercises exact phrase, all-token fallback, and single-token route behavior | artifact_replay: VibePro artifact .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json is current-bound and exit_code=0 | scenario_clause_e2e: AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003 | status=passed | exit_code=0 | compound_query=all_tokens_required | exact_phrase_rank=first | direct_route_response={candidates}",
+          "strength": "supporting",
+          "binding_status": "current",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "artifact_quality": "verified",
+          "target_match": true
+        }
+      ],
+      "mapped_review_findings": [],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-5",
+      "type": "acceptance_criterion",
+      "source_text": "Owner-only, non-redacted, non-rejected filters remain intact.",
+      "source_line": 39,
+      "status": "weakly_mapped",
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "weak_mapping_reason": "verification or PR evidence exists, but no AC/scenario-specific binding was found"
+    },
+    {
+      "id": "AC-6",
+      "type": "acceptance_criterion",
+      "source_text": "Direct `GET /api/learning/memory-candidates/search` callers keep the same `{ candidates }` response contract while benefiting from the fallback.",
+      "source_line": 40,
+      "status": "mapped",
+      "mapped_files": [
+        "docs/architecture/personal-kg-tokenized-search-architecture.md",
+        "docs/specs/story-personal-kg-tokenized-search-spec.md",
+        "docs/stories/story-personal-kg-tokenized-search.md",
+        "server/services/learning-service.js",
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "tests/server/routes/learning.test.js",
+        "tests/server/services/learning-service.test.js"
+      ],
+      "mapped_tests": [
+        "tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts",
+        "tests/server/routes/learning.test.js",
+        "tests/server/services/learning-service.test.js"
+      ],
+      "mapped_evidence": [
+        {
+          "type": "verification_evidence",
+          "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json",
+          "summary": "Flow replay and artifact replay prove Personal KG compound query retrieval, failure modes, and direct route contract | BRAINBASE_E2E_REUSE_SERVER=true npx playwright test tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts | flow_replay: Personal KG search receives compound keyword query and exercises exact phrase, all-token fallback, and single-token route behavior | artifact_replay: VibePro artifact .vibepro/artifacts/story-personal-kg-tokenized-search/e2e-personal-kg-tokenized-search-fa2905633.status.json is current-bound and exit_code=0 | scenario_clause_e2e: AC1 AC2 AC3 AC4 AC5 AC6 C-001 C-002 C-003 C-004 C-005 S-001 S-002 S-003 | status=passed | exit_code=0 | compound_query=all_tokens_required | exact_phrase_rank=first | direct_route_response={candidates}",
+          "strength": "supporting",
+          "binding_status": "current",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "artifact_quality": "verified",
+          "target_match": true
+        },
+        {
+          "type": "verification_evidence",
+          "ref": ".vibepro/artifacts/story-personal-kg-tokenized-search/unit-learning-service-fa2905633.status.json",
+          "summary": "LearningService Personal KG exact phrase and all-token fallback SQL passes | npm run test:run -- tests/server/services/learning-service.test.js | AC1 AC2 AC3 AC4 AC5 | status=passed | exit_code=0",
+          "strength": "supporting",
+          "binding_status": "current",
+          "current_head_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+          "artifact_quality": "verified",
+          "target_match": true
+        }
+      ],
+      "mapped_review_findings": [],
+      "weak_mapping_reason": null
+    }
+  ],
+  "scenario_clauses": [],
+  "coverage_summary": {
+    "clause_count": 6,
+    "acceptance_criteria_count": 6,
+    "scenario_clause_count": 0,
+    "mapped_count": 5,
+    "weakly_mapped_count": 1,
+    "unmapped_count": 0,
+    "examples": [
+      {
+        "id": "AC-5",
+        "type": "acceptance_criterion",
+        "status": "weakly_mapped",
+        "source_text": "Owner-only, non-redacted, non-rejected filters remain intact.",
+        "weak_mapping_reason": "verification or PR evidence exists, but no AC/scenario-specific binding was found"
+      }
+    ]
+  },
+  "created_at": "2026-06-23T01:11:51.930Z",
+  "updated_at": "2026-06-23T01:33:51.055Z"
+}

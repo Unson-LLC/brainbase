@@ -1,0 +1,98 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-kg-tokenized-search",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "block",
+  "summary": "Direct route coverage is resolved, but public_contract still lacks VibePro-bound contract_doc evidence.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "gate-evidence-public-contract-contract-doc-still-unbound",
+      "detail": "gate:judgment_axis_public_contract still reports missing contract_doc in gate-dag.json."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed current HEAD, public contract decision, VibePro gate artifacts, route/service/E2E tests, and reran focused commands read-only.",
+    "evidence": ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json; subagent_notification:019ef210-d15e-7a32-82cf-c8a3d00db91d",
+    "inputs": [
+      ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+      ".vibepro/pr/story-personal-kg-tokenized-search/gate-dag.json"
+    ]
+  },
+  "judgment_delta": [
+    "direct route coverage fixed -> still block because VibePro public_contract contract_doc evidence remains unbound"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+    "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+    "expected_root": null,
+    "expected_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+    "current_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "actual_root": "/private/tmp/brainbase-personal-kg-tokenized-search",
+      "expected_root": null,
+      "expected_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+      "current_head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-06-23T01:24:02.392Z",
+  "git_context": {
+    "head_sha": "21e3a84578a88b5af49b333d75a89064e5e59d36",
+    "current_branch": "codex/personal-kg-tokenized-search",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-06-23T01:24:02.392Z"
+  },
+  "source_fingerprint": "f45785292c47394efeffdde97819617e520e40e26e5b4fe457f584ce5c22b2f3",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019ef210-d15e-7a32-82cf-c8a3d00db91d",
+    "agent_role": null,
+    "model": "inherited",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "subagent_notification:019ef210-d15e-7a32-82cf-c8a3d00db91d",
+    "request_artifact": ".vibepro/reviews/story-personal-kg-tokenized-search/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

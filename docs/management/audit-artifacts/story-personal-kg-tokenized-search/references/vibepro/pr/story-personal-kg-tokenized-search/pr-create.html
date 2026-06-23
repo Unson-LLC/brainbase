@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro PR Create</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="pr-create">
+    <header class="topbar">
+      <div>
+        <h1>VibePro PR Create</h1>
+        <p class="meta">Generated by VibePro at 2026-06-23T01:32:39.487Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-dry-run="false">
+        <div>
+          <p class="eyebrow">PR creation audit</p>
+          <h2>story-personal-kg-tokenized-search - Personal KG search supports compound keyword queries</h2>
+          <p class="muted">develop -> codex/personal-kg-tokenized-search</p>
+        </div>
+        <span class="status good">executed</span>
+      </section>
+      <section class="metrics">
+        <article class="metric"><span>Story</span><strong>story-personal-kg-tokenized-search</strong><span>no task</span></article>
+        <article class="metric"><span>PR URL</span><strong>https://github.com/Unson-LLC/brainbase-unson/pull/985</strong><span>created</span></article>
+        <article class="metric"><span>Gate Override</span><strong>none</strong><span>-</span></article>
+        <article class="metric"><span>Commands</span><strong>2</strong><span>planned</span></article>
+      </section>
+
+    <section>
+      <h2>Artifact Freshness</h2>
+      <div class="cards">
+        <article class="card neutral">
+          <h3>pr_create</h3>
+          <p class="muted">current</p>
+          <p>pr-create artifact is bound to the current HEAD fa29056333fe</p>
+        </article>
+      </div>
+
+    <table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Artifact HEAD</td><td>fa29056333fe</td></tr><tr><td>Current HEAD</td><td>fa29056333fe</td></tr><tr><td>Checked At</td><td>2026-06-23T01:32:39.487Z</td></tr>
+      </tbody>
+    </table>
+
+    </section>
+
+
+    <section>
+      <h2>Gate Override</h2>
+      <div class="cards">
+
+          <article class="card good">
+            <h3>None</h3>
+
+            <p>Gate overrideは使われていません。</p>
+          </article>
+
+      </div>
+    </section>
+
+      <section>
+        <h2>Command Timeline</h2>
+        <div class="timeline">
+
+            <article class="timeline-item" data-command-index="0">
+              <strong>git push -u origin codex/personal-kg-tokenized-search</strong>
+              <span class="status good">exit=0</span>
+              <pre>branch 'codex/personal-kg-tokenized-search' set up to track 'origin/codex/personal-kg-tokenized-search'.</pre>
+              <pre>Everything up-to-date</pre>
+            </article>
+
+            <article class="timeline-item" data-command-index="1">
+              <strong>gh pr create --base develop --head codex/personal-kg-tokenized-search --title 'story-personal-kg-tokenized-search - Personal KG search supports compound keyword queries' --body-file /private/tmp/brainbase-personal-kg-tokenized-search/.vibepro/pr/story-personal-kg-tokenized-search/pr-body.md</strong>
+              <span class="status good">exit=0</span>
+              <pre>https://github.com/Unson-LLC/brainbase-unson/pull/985</pre>
+
+            </article>
+
+        </div>
+      </section>
+      <section>
+        <h2>Warnings</h2>
+        <ul><li>なし</li></ul>
+      </section>
+
+  </main>
+</body>
+</html>

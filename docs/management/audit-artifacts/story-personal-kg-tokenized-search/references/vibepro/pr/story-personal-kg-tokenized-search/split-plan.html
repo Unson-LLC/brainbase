@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro PR Split Plan</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="split-plan">
+    <header class="topbar">
+      <div>
+        <h1>VibePro PR Split Plan</h1>
+        <p class="meta">Generated by VibePro at 2026-06-23T01:32:39.469Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-split-status="single_pr_ok">
+        <div>
+          <p class="eyebrow">Review lane board</p>
+          <h2>story-personal-kg-tokenized-search</h2>
+          <p class="muted">keep_current_pr</p>
+        </div>
+        <span class="status good">single_pr_ok</span>
+      </section>
+      <section class="metrics">
+        <article class="metric"><span>Lanes</span><strong>2</strong><span>review lanes</span></article>
+        <article class="metric"><span>Graphify</span><strong>missing</strong><span>0 related</span></article>
+        <article class="metric"><span>Cumulative Gates</span><strong>0</strong><span>lanes</span></article>
+        <article class="metric"><span>Final Validation</span><strong>not required</strong><span>各PRのisolated checksで十分</span></article>
+      </section>
+      <section>
+        <h2>PR Lanes</h2>
+        <div class="lane-board">
+    <article class="lane" data-lane-id="requirements-ssot">
+      <h3>Story / Spec / Architecture / Policy SSOT</h3>
+      <p><span class="status good">same_pr_allowed</span></p>
+      <p class="muted">requirements / 3 files</p>
+      <h3>Review Focus</h3>
+      <ul><li>Story / Spec / Architecture / Policy の正本が互いに矛盾していないか</li><li>実装差分が要求の範囲を超えていないか</li><li>Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか</li></ul>
+      <h3>Files</h3>
+      <ul><li>docs/stories/story-personal-kg-tokenized-search.md</li><li>docs/specs/story-personal-kg-tokenized-search-spec.md</li><li>docs/architecture/personal-kg-tokenized-search-architecture.md</li></ul>
+
+      <h3>Gate Mode</h3><p><span class="status neutral">isolated_pr</span></p><p>requirements-ssot は単体PRとしてレビュー可能。</p>
+    </article>
+
+    <article class="lane" data-lane-id="runtime-behavior">
+      <h3>Runtime behavior and unit coverage</h3>
+      <p><span class="status good">primary_pr</span></p>
+      <p class="muted">implementation / 4 files</p>
+      <h3>Review Focus</h3>
+      <ul><li>受け入れ基準と実装分岐が対応しているか</li><li>Graphifyで隣接するファイルまで影響確認されているか</li></ul>
+      <h3>Files</h3>
+      <ul><li>server/services/learning-service.js</li><li>tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts</li><li>tests/server/routes/learning.test.js</li><li>tests/server/services/learning-service.test.js</li></ul>
+
+      <h3>Gate Mode</h3><p><span class="status neutral">isolated_pr</span></p><p>runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。</p>
+    </article>
+  </div>
+      </section>
+      <section class="grid-2">
+        <div>
+          <h2>Merge Order</h2>
+          <ol><li>requirements-ssot</li><li>runtime-behavior</li></ol>
+        </div>
+        <div>
+          <h2>Rationale</h2>
+          <ul><li>2 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる</li><li>Graphify未利用: .vibepro/graphify/graph.json が見つからない</li></ul>
+        </div>
+      </section>
+      <section>
+        <h2>Graphify Investigation Scope</h2>
+
+    <table>
+      <thead><tr><th>変更ファイル</th><th>一致したgraph node</th><th>確認する関連ファイル</th></tr></thead>
+      <tbody>
+        <tr><td>-</td><td>-</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+      </section>
+      <section>
+        <h2>Next Actions</h2>
+        <div><p><code>現PRのまま進め、split-planをレビュー観点として使う</code></p></div>
+      </section>
+
+  </main>
+</body>
+</html>
