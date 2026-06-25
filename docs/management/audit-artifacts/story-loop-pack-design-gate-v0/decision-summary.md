@@ -3,9 +3,9 @@
 - story: story-loop-pack-design-gate-v0
 - evidence_depth: standard
 - budget_status: exceeded
-- artifact_lines: 34386
+- artifact_lines: 34476
 - product_changed_lines: 1212
-- artifact_code_ratio: 28.371
+- artifact_code_ratio: 28.446
 - diff_stats: available
 - pr_prepare: ready_for_review
 - evidence_reuse: hit key=evk_076bca07e0dc04f97990b0dfe6ea189b verification_updated_at=2026-06-25T09:06:12.038Z verification_fingerprint=sha256:6ff6a0652c699cb52376bd2f72e5ceac7751b5cdc5e168d9e9edbf72d2624eea
