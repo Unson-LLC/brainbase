@@ -1,0 +1,642 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-loop-pack-design-gate-v0",
+  "source": "execute_merge",
+  "promoted_at": "2026-06-25T10:01:08.137Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-loop-pack-design-gate-v0",
+  "source_workspace_dir": ".vibepro",
+  "artifact_policy": {
+    "scope": "decision_index_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [
+      "canonical_artifact_lines_exceeded",
+      "artifact_code_ratio_exceeded"
+    ],
+    "excludes": [
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "merge_warning"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "base_sha": "a83b0a86850be6baa83e50e635ef577a4ea94f1a",
+      "head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948"
+    },
+    "diff_stats_collected_at": "2026-06-25T10:01:03.069Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 34386,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 1212,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "test": {
+          "files": 4,
+          "changed_lines": 452,
+          "unknown_files": 0,
+          "paths": [
+            "tests/e2e/story-loop-pack-design-gate-v0-contract.spec.ts",
+            "tests/server/routes/workflows.test.js",
+            "tests/server/services/loop-pack-design-gate.test.js",
+            "tests/server/services/workflow-org-agent-control.test.js"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 2,
+          "changed_lines": 238,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/loop-pack-design-gate-architecture.md",
+            "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 5,
+          "changed_lines": 522,
+          "unknown_files": 0,
+          "paths": [
+            "docs/stories/story-loop-pack-design-gate-v0.md",
+            "server/routes/workflows.js",
+            "server/services/workflow/loop-pack-design-gate.js",
+            "server/services/workflow/meeting-workflow-pack.js",
+            "server/services/workflow/workflow-service.js"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "base_sha": "a83b0a86850be6baa83e50e635ef577a4ea94f1a",
+        "head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948"
+      },
+      "collected_at": "2026-06-25T10:01:03.069Z",
+      "reason": null
+    },
+    "product_changed_lines": 1212,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "artifact_code_ratio": 28.371,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "canonical_artifact_lines": 1500,
+      "artifact_code_ratio": 3
+    },
+    "budget_status": "exceeded",
+    "budget_exceeded_reasons": [
+      "canonical_artifact_lines_exceeded",
+      "artifact_code_ratio_exceeded"
+    ],
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    }
+  },
+  "decision_index": {
+    "schema_version": "0.1.0",
+    "story_id": "story-loop-pack-design-gate-v0",
+    "source": "execute_merge",
+    "generated_at": "2026-06-25T10:01:08.137Z",
+    "evidence_depth": "standard",
+    "budget_status": "exceeded",
+    "cost_summary": {
+      "schema_version": "0.1.0",
+      "evidence_depth": "standard",
+      "risk_profile": "high",
+      "trigger_signals": [
+        "merge_warning"
+      ],
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "diff_stats_refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "base_sha": "a83b0a86850be6baa83e50e635ef577a4ea94f1a",
+        "head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948"
+      },
+      "diff_stats_collected_at": "2026-06-25T10:01:03.069Z",
+      "diff_stats_reason": null,
+      "artifact_lines": 34386,
+      "changed_lines": {
+        "status": "available",
+        "total_changed_lines": 1212,
+        "unknown_file_count": 0,
+        "buckets": {
+          "src": {
+            "files": 0,
+            "changed_lines": 0,
+            "unknown_files": 0,
+            "paths": []
+          },
+          "test": {
+            "files": 4,
+            "changed_lines": 452,
+            "unknown_files": 0,
+            "paths": [
+              "tests/e2e/story-loop-pack-design-gate-v0-contract.spec.ts",
+              "tests/server/routes/workflows.test.js",
+              "tests/server/services/loop-pack-design-gate.test.js",
+              "tests/server/services/workflow-org-agent-control.test.js"
+            ]
+          },
+          "story_spec_architecture_docs": {
+            "files": 2,
+            "changed_lines": 238,
+            "unknown_files": 0,
+            "paths": [
+              "docs/architecture/loop-pack-design-gate-architecture.md",
+              "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+            ]
+          },
+          "audit_artifacts": {
+            "files": 0,
+            "changed_lines": 0,
+            "unknown_files": 0,
+            "paths": []
+          },
+          "other": {
+            "files": 5,
+            "changed_lines": 522,
+            "unknown_files": 0,
+            "paths": [
+              "docs/stories/story-loop-pack-design-gate-v0.md",
+              "server/routes/workflows.js",
+              "server/services/workflow/loop-pack-design-gate.js",
+              "server/services/workflow/meeting-workflow-pack.js",
+              "server/services/workflow/workflow-service.js"
+            ]
+          }
+        },
+        "source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "refs": {
+          "base_ref": "origin/develop",
+          "head_ref": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+          "base_sha": "a83b0a86850be6baa83e50e635ef577a4ea94f1a",
+          "head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+          "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948"
+        },
+        "collected_at": "2026-06-25T10:01:03.069Z",
+        "reason": null
+      },
+      "product_changed_lines": 1212,
+      "product_changed_lines_status": "available",
+      "product_changed_lines_reason": null,
+      "artifact_code_ratio": 28.371,
+      "artifact_code_ratio_reason": null,
+      "budget": {
+        "profile": "high",
+        "canonical_artifact_lines": 1500,
+        "artifact_code_ratio": 3
+      },
+      "budget_status": "exceeded",
+      "budget_exceeded_reasons": [
+        "canonical_artifact_lines_exceeded",
+        "artifact_code_ratio_exceeded"
+      ],
+      "token_accounting": {
+        "status": "unavailable",
+        "total_tokens": null,
+        "reason": "session token logs were not provided to canonical audit promotion"
+      },
+      "elapsed_time_accounting": {
+        "status": "unavailable",
+        "elapsed_ms": null,
+        "reason": "elapsed-time logs were not provided to canonical audit promotion"
+      }
+    },
+    "pr_prepare": {
+      "present": true,
+      "created_at": "2026-06-25T09:58:44.865Z",
+      "gate_status": {
+        "ready_for_pr_create": true,
+        "overall_status": "ready_for_review",
+        "fast_lane": false,
+        "critical_unresolved_gate_count": 0
+      }
+    },
+    "evidence_reuse": {
+      "present": true,
+      "created_at": "2026-06-25T09:58:44.865Z",
+      "status": "hit",
+      "evidence_key": "evk_076bca07e0dc04f97990b0dfe6ea189b",
+      "verification_summary_fingerprint": "sha256:6ff6a0652c699cb52376bd2f72e5ceac7751b5cdc5e168d9e9edbf72d2624eea",
+      "verification_evidence_updated_at": "2026-06-25T09:06:12.038Z",
+      "verification_command_timestamps": [
+        {
+          "kind": "build",
+          "executed_at": "2026-06-25T09:06:12.038Z",
+          "git_recorded_at": "2026-06-25T09:06:12.037Z"
+        },
+        {
+          "kind": "typecheck",
+          "executed_at": "2026-06-25T09:06:11.261Z",
+          "git_recorded_at": "2026-06-25T09:06:11.260Z"
+        },
+        {
+          "kind": "e2e",
+          "executed_at": "2026-06-25T09:06:10.482Z",
+          "git_recorded_at": "2026-06-25T09:06:10.481Z"
+        },
+        {
+          "kind": "integration",
+          "executed_at": "2026-06-25T09:06:09.725Z",
+          "git_recorded_at": "2026-06-25T09:06:09.724Z"
+        },
+        {
+          "kind": "unit",
+          "executed_at": "2026-06-25T09:06:08.969Z",
+          "git_recorded_at": "2026-06-25T09:06:08.968Z"
+        }
+      ],
+      "stale_reason_count": 0,
+      "full_evidence_status": "reused",
+      "full_evidence_generation_count": 1,
+      "full_evidence_generation_count_scope": "same_evidence_key",
+      "full_evidence_same_key_generation_count": 1,
+      "full_evidence_cumulative_generation_count": 15
+    },
+    "pr_create": {
+      "present": true,
+      "created_at": "2026-06-25T09:58:44.881Z",
+      "status": null,
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/986",
+      "gate_override_allowed": false
+    },
+    "pr_merge": {
+      "present": true,
+      "summary": {
+        "status": "merged",
+        "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/986",
+        "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948",
+        "merged_at": "2026-06-25T10:01:04Z",
+        "current_head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "diff_stats_status": "available",
+        "diff_stats_source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564"
+      }
+    },
+    "gate_dag": {
+      "present": true,
+      "overall_status": "ready_for_review",
+      "node_count": 97,
+      "blocking_count": 0
+    },
+    "traceability": {
+      "present": true,
+      "lifecycle": "merged",
+      "coverage_summary": {
+        "clause_count": 8,
+        "acceptance_criteria_count": 8,
+        "scenario_clause_count": 0,
+        "mapped_count": 8,
+        "weakly_mapped_count": 0,
+        "unmapped_count": 0,
+        "examples": []
+      }
+    },
+    "verification": {
+      "present": true,
+      "command_count": 5,
+      "pass_count": 5,
+      "fail_count": 0
+    },
+    "review": {
+      "summary_count": 5,
+      "result_count": 10,
+      "pass_count": 9,
+      "block_count": 0,
+      "stale_count": 1
+    },
+    "missing_artifacts": [],
+    "raw_artifact_count": 37
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/986",
+    "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948",
+    "merged_at": "2026-06-25T10:01:04Z",
+    "current_head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564"
+  },
+  "handoff_replay_status": "summary_ready",
+  "handoff_replay": {
+    "status": "summary_ready",
+    "resolved_reference_count": 0,
+    "copied_reference_count": 0,
+    "unresolved_reference_count": 0
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-loop-pack-design-gate-v0/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-loop-pack-design-gate-v0/decision-summary.md"
+    }
+  ],
+  "raw_artifacts": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/evidence-reuse.json",
+      "persisted": false,
+      "digest": "sha256:c069f5b59efb0b0f184c268397a873990e663b7d95a804bf8eb822410a8c3c03",
+      "line_count": 91
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/pr-prepare.json",
+      "persisted": false,
+      "digest": "sha256:27a161a674870c0100f6f07e1f4e6e209d4b1a7c8bc6fd6cb16fbd4bf7ea0bf3",
+      "line_count": 14061
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/pr-create.json",
+      "persisted": false,
+      "digest": "sha256:38aca752041856c7f068435dd5a65eb07eb4271d1996a4c9368905bd56e66b1b",
+      "line_count": 4965
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/gate-dag.json",
+      "persisted": false,
+      "digest": "sha256:59ad9fcfc71199a5fcb48bbba10462f7afcb6c8f08a895db318e72d4691aaa4b",
+      "line_count": 4839
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/pr-merge.json",
+      "persisted": false,
+      "digest": "sha256:83294a69b07245698e8564674fef60f800bd07cc125fd6fc8c1371e3e924aebc",
+      "line_count": 5070
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/traceability.json",
+      "persisted": false,
+      "digest": "sha256:4f18288ee957a2b0d1defb3cc1ba0f7ff8c131223a1c3210a98030fb3d6e8a54",
+      "line_count": 655
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-loop-pack-design-gate-v0/verification-evidence.json",
+      "persisted": false,
+      "digest": "sha256:d9c435ff36a8759e508ee22e9077741e3dae2d90a55d9e73fe05d14534fa8311",
+      "line_count": 290
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/architecture_spec/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:db1a6a99c6cd2937634b3aedc8200c637aa1435395af295e5e30ee7eed145987",
+      "line_count": 59
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/architecture_spec/review-request-regression_risk.md",
+      "persisted": false,
+      "digest": "sha256:fa748b229c657b5bb6d7d737e94ab00ee2e8a3537f2749196f95bb6fc2a536c0",
+      "line_count": 139
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/architecture_spec/review-result-regression_risk.json",
+      "persisted": false,
+      "digest": "sha256:31440751ff178276f11c3730379132e9c782d62197e7e7f57f95568e26819840",
+      "line_count": 76
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/architecture_spec/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:ef41789dcbe15f54f271f79d3602fe1798164cfc0870f1f481debfa382d55d53",
+      "line_count": 221
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/gate/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:3b62ffb8879e68173479f5df09d127dc17b42543d936603e456fbc320695ff34",
+      "line_count": 84
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/gate/review-request-gate_evidence.md",
+      "persisted": false,
+      "digest": "sha256:93382ca62b579386d43878aaf3b878b392a8d5c53c4e16ccdb848ca4cc10cbfa",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/gate/review-request-release_risk.md",
+      "persisted": false,
+      "digest": "sha256:ed5ce3347063fd0b83cd0bd13fff01ea33a88d28354b3d09d36c8438e7f133ff",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/gate/review-result-gate_evidence.json",
+      "persisted": false,
+      "digest": "sha256:cfa4968a687a487ee174e899e2fb020eea1afae67defe119e6972c06d603629d",
+      "line_count": 101
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/gate/review-result-release_risk.json",
+      "persisted": false,
+      "digest": "sha256:bbe5d746fab5f92912f2f50180875dcd86a83d386ed352b6f5104251389452ed",
+      "line_count": 75
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/gate/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:f8f35dddec142d3fd16cbd7a2e501e24286fc0ef217acbc0c5a3b3191ac3bbdb",
+      "line_count": 389
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:9aa0b7fd96c371cf10f1de3cc6233c1c5e94b4cb08d9760e132c58ace0e502ac",
+      "line_count": 140
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-request-code_spec_alignment.md",
+      "persisted": false,
+      "digest": "sha256:0c5c9442a560e928c4390ff70c0c175f43ddb28858adfdfaff38dafafe026551",
+      "line_count": 121
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-request-runtime_contract.md",
+      "persisted": false,
+      "digest": "sha256:a936a51e3009ea72b675bec061e8c39251b09a14a8132d339dc6a4f0f5d536cb",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-request-ux_completion.md",
+      "persisted": false,
+      "digest": "sha256:ede0cc4db9018ded665d21e3aceb2bf23b4b31154177dbd21c550ceccc894875",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-result-code_spec_alignment.json",
+      "persisted": false,
+      "digest": "sha256:4660b7fda00e709d3c4b975f25bc38e430e7e81b5a995e66dae4c46413c08bf0",
+      "line_count": 64
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-result-runtime_contract.json",
+      "persisted": false,
+      "digest": "sha256:a944032381b583e2724de4f9d7e938de29a33f4a5f9d46fb411e1afa731eedab",
+      "line_count": 77
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-result-ux_completion.json",
+      "persisted": false,
+      "digest": "sha256:0958ab32ca74fe3867519953691cb5bf0fd1f07c76e2cee6557aa6c177529098",
+      "line_count": 77
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/implementation/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:d1e0e962365f07cfa6190ab7c482ad90cdb17f2c2c5c5e96f53c57b8ed59d696",
+      "line_count": 538
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/preview/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:d35191dbc52be2940d4fb67d5d1f909ba36dda7cdd5e67a2077ad9d21982fd8f",
+      "line_count": 59
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/preview/review-request-human_usability.md",
+      "persisted": false,
+      "digest": "sha256:a2099c58814e2cfd42f1496bf6ce97c21ddbbe3326cd5c7531225498dd255e03",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/preview/review-request-network_runtime.md",
+      "persisted": false,
+      "digest": "sha256:14279aad14163c685b2b9d84ce99f5729a540450fb22bbc4dab9ddd58276380c",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/preview/review-result-human_usability.json",
+      "persisted": false,
+      "digest": "sha256:1bf9860ae550996564fb5294097ef1e71b2bb53387d3cae595aafef7232530df",
+      "line_count": 70
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/preview/review-result-network_runtime.json",
+      "persisted": false,
+      "digest": "sha256:1a20c14ec1b55cc6216cdc54782dacd10d0ed6530c1357417509e4026180a7ed",
+      "line_count": 70
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/preview/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:bc2854b02f77d9edcd68825eb4b8796fa55f6ea7903b4d5989134447ba4c6a1a",
+      "line_count": 324
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/test_plan/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:fda0c984fc5530b60edb0fdd7534695d6488c6a271670a77cfd787c23c9a0486",
+      "line_count": 109
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/test_plan/review-request-e2e_ux.md",
+      "persisted": false,
+      "digest": "sha256:17ea5a074a662fb9ce27cbbc15a328bf4b10ccf3fb611505a25072299191c422",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/test_plan/review-request-gate_coverage.md",
+      "persisted": false,
+      "digest": "sha256:af969d59502da0878c45c413770ffe7e8f83fe258978269cd55fc3a603d247dd",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/test_plan/review-result-e2e_ux.json",
+      "persisted": false,
+      "digest": "sha256:f92d56ec22c69a479389b4fb01ecdab33c582265bc20dac884e5203f023f0e20",
+      "line_count": 73
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/test_plan/review-result-gate_coverage.json",
+      "persisted": false,
+      "digest": "sha256:878dfecad82294af253e56d6c54e9e6e1aeae2b4ea67201dde69b2c9b4cb0519",
+      "line_count": 77
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-loop-pack-design-gate-v0/test_plan/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:54b5620dc625c80ecd806e2d633aba1ae6ecf7132a2651ef22892220da49fe8e",
+      "line_count": 392
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [],
+  "copied_references": [],
+  "unresolved_references": []
+}

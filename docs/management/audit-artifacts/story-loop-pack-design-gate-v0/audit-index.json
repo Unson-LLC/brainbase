@@ -1,0 +1,218 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-loop-pack-design-gate-v0",
+  "source": "execute_merge",
+  "generated_at": "2026-06-25T10:01:08.137Z",
+  "evidence_depth": "standard",
+  "budget_status": "exceeded",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "merge_warning"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "base_sha": "a83b0a86850be6baa83e50e635ef577a4ea94f1a",
+      "head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948"
+    },
+    "diff_stats_collected_at": "2026-06-25T10:01:03.069Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 34386,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 1212,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "test": {
+          "files": 4,
+          "changed_lines": 452,
+          "unknown_files": 0,
+          "paths": [
+            "tests/e2e/story-loop-pack-design-gate-v0-contract.spec.ts",
+            "tests/server/routes/workflows.test.js",
+            "tests/server/services/loop-pack-design-gate.test.js",
+            "tests/server/services/workflow-org-agent-control.test.js"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 2,
+          "changed_lines": 238,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/loop-pack-design-gate-architecture.md",
+            "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 5,
+          "changed_lines": 522,
+          "unknown_files": 0,
+          "paths": [
+            "docs/stories/story-loop-pack-design-gate-v0.md",
+            "server/routes/workflows.js",
+            "server/services/workflow/loop-pack-design-gate.js",
+            "server/services/workflow/meeting-workflow-pack.js",
+            "server/services/workflow/workflow-service.js"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "base_sha": "a83b0a86850be6baa83e50e635ef577a4ea94f1a",
+        "head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+        "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948"
+      },
+      "collected_at": "2026-06-25T10:01:03.069Z",
+      "reason": null
+    },
+    "product_changed_lines": 1212,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "artifact_code_ratio": 28.371,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "canonical_artifact_lines": 1500,
+      "artifact_code_ratio": 3
+    },
+    "budget_status": "exceeded",
+    "budget_exceeded_reasons": [
+      "canonical_artifact_lines_exceeded",
+      "artifact_code_ratio_exceeded"
+    ],
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    }
+  },
+  "pr_prepare": {
+    "present": true,
+    "created_at": "2026-06-25T09:58:44.865Z",
+    "gate_status": {
+      "ready_for_pr_create": true,
+      "overall_status": "ready_for_review",
+      "fast_lane": false,
+      "critical_unresolved_gate_count": 0
+    }
+  },
+  "evidence_reuse": {
+    "present": true,
+    "created_at": "2026-06-25T09:58:44.865Z",
+    "status": "hit",
+    "evidence_key": "evk_076bca07e0dc04f97990b0dfe6ea189b",
+    "verification_summary_fingerprint": "sha256:6ff6a0652c699cb52376bd2f72e5ceac7751b5cdc5e168d9e9edbf72d2624eea",
+    "verification_evidence_updated_at": "2026-06-25T09:06:12.038Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "build",
+        "executed_at": "2026-06-25T09:06:12.038Z",
+        "git_recorded_at": "2026-06-25T09:06:12.037Z"
+      },
+      {
+        "kind": "typecheck",
+        "executed_at": "2026-06-25T09:06:11.261Z",
+        "git_recorded_at": "2026-06-25T09:06:11.260Z"
+      },
+      {
+        "kind": "e2e",
+        "executed_at": "2026-06-25T09:06:10.482Z",
+        "git_recorded_at": "2026-06-25T09:06:10.481Z"
+      },
+      {
+        "kind": "integration",
+        "executed_at": "2026-06-25T09:06:09.725Z",
+        "git_recorded_at": "2026-06-25T09:06:09.724Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-06-25T09:06:08.969Z",
+        "git_recorded_at": "2026-06-25T09:06:08.968Z"
+      }
+    ],
+    "stale_reason_count": 0,
+    "full_evidence_status": "reused",
+    "full_evidence_generation_count": 1,
+    "full_evidence_generation_count_scope": "same_evidence_key",
+    "full_evidence_same_key_generation_count": 1,
+    "full_evidence_cumulative_generation_count": 15
+  },
+  "pr_create": {
+    "present": true,
+    "created_at": "2026-06-25T09:58:44.881Z",
+    "status": null,
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/986",
+    "gate_override_allowed": false
+  },
+  "pr_merge": {
+    "present": true,
+    "summary": {
+      "status": "merged",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/986",
+      "merge_commit_sha": "fd5b78341251e8d6ac50b38df4b2574accf03948",
+      "merged_at": "2026-06-25T10:01:04Z",
+      "current_head_sha": "22b697b46cf4e8d19cee21dd8bb25a566bff4564",
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...22b697b46cf4e8d19cee21dd8bb25a566bff4564"
+    }
+  },
+  "gate_dag": {
+    "present": true,
+    "overall_status": "ready_for_review",
+    "node_count": 97,
+    "blocking_count": 0
+  },
+  "traceability": {
+    "present": true,
+    "lifecycle": "merged",
+    "coverage_summary": {
+      "clause_count": 8,
+      "acceptance_criteria_count": 8,
+      "scenario_clause_count": 0,
+      "mapped_count": 8,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "examples": []
+    }
+  },
+  "verification": {
+    "present": true,
+    "command_count": 5,
+    "pass_count": 5,
+    "fail_count": 0
+  },
+  "review": {
+    "summary_count": 5,
+    "result_count": 10,
+    "pass_count": 9,
+    "block_count": 0,
+    "stale_count": 1
+  },
+  "missing_artifacts": [],
+  "raw_artifact_count": 37
+}
