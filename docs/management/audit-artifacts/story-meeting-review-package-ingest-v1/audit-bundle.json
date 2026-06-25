@@ -1,0 +1,640 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-review-package-ingest-v1",
+  "source": "execute_merge",
+  "promoted_at": "2026-06-25T20:32:05.992Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-meeting-review-package-ingest-v1",
+  "source_workspace_dir": ".vibepro",
+  "artifact_policy": {
+    "scope": "decision_index_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [
+      "canonical_artifact_lines_exceeded",
+      "artifact_code_ratio_exceeded"
+    ],
+    "excludes": [
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "merge_warning"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...573d29aebed12e5f4577bbc827acfc08877f3628",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "573d29aebed12e5f4577bbc827acfc08877f3628",
+      "base_sha": "4a016bd0183b780199a46143931e0310c98cb11f",
+      "head_sha": "573d29aebed12e5f4577bbc827acfc08877f3628",
+      "merge_commit_sha": "98806409cde22cc28936bebba3a84638bb807dd6"
+    },
+    "diff_stats_collected_at": "2026-06-25T20:32:00.362Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 35567,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 3023,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "test": {
+          "files": 4,
+          "changed_lines": 1866,
+          "unknown_files": 0,
+          "paths": [
+            "tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts",
+            "tests/fixtures/meeting-review-package-united-hotel-dx.json",
+            "tests/server/routes/workflows.test.js",
+            "tests/server/services/workflow-org-agent-control.test.js"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 2,
+          "changed_lines": 331,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/meeting-review-package-ingest-architecture.md",
+            "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 4,
+          "changed_lines": 826,
+          "unknown_files": 0,
+          "paths": [
+            "docs/stories/story-meeting-review-package-ingest-v1.md",
+            "public/workflows.html",
+            "server/routes/workflows.js",
+            "server/services/workflow/workflow-service.js"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...573d29aebed12e5f4577bbc827acfc08877f3628",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "573d29aebed12e5f4577bbc827acfc08877f3628",
+        "base_sha": "4a016bd0183b780199a46143931e0310c98cb11f",
+        "head_sha": "573d29aebed12e5f4577bbc827acfc08877f3628",
+        "merge_commit_sha": "98806409cde22cc28936bebba3a84638bb807dd6"
+      },
+      "collected_at": "2026-06-25T20:32:00.362Z",
+      "reason": null
+    },
+    "product_changed_lines": 3023,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "artifact_code_ratio": 11.765,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "canonical_artifact_lines": 1500,
+      "artifact_code_ratio": 3
+    },
+    "budget_status": "exceeded",
+    "budget_exceeded_reasons": [
+      "canonical_artifact_lines_exceeded",
+      "artifact_code_ratio_exceeded"
+    ],
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    }
+  },
+  "decision_index": {
+    "schema_version": "0.1.0",
+    "story_id": "story-meeting-review-package-ingest-v1",
+    "source": "execute_merge",
+    "generated_at": "2026-06-25T20:32:05.992Z",
+    "evidence_depth": "standard",
+    "budget_status": "exceeded",
+    "cost_summary": {
+      "schema_version": "0.1.0",
+      "evidence_depth": "standard",
+      "risk_profile": "high",
+      "trigger_signals": [
+        "merge_warning"
+      ],
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...573d29aebed12e5f4577bbc827acfc08877f3628",
+      "diff_stats_refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "573d29aebed12e5f4577bbc827acfc08877f3628",
+        "base_sha": "4a016bd0183b780199a46143931e0310c98cb11f",
+        "head_sha": "573d29aebed12e5f4577bbc827acfc08877f3628",
+        "merge_commit_sha": "98806409cde22cc28936bebba3a84638bb807dd6"
+      },
+      "diff_stats_collected_at": "2026-06-25T20:32:00.362Z",
+      "diff_stats_reason": null,
+      "artifact_lines": 35567,
+      "changed_lines": {
+        "status": "available",
+        "total_changed_lines": 3023,
+        "unknown_file_count": 0,
+        "buckets": {
+          "src": {
+            "files": 0,
+            "changed_lines": 0,
+            "unknown_files": 0,
+            "paths": []
+          },
+          "test": {
+            "files": 4,
+            "changed_lines": 1866,
+            "unknown_files": 0,
+            "paths": [
+              "tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts",
+              "tests/fixtures/meeting-review-package-united-hotel-dx.json",
+              "tests/server/routes/workflows.test.js",
+              "tests/server/services/workflow-org-agent-control.test.js"
+            ]
+          },
+          "story_spec_architecture_docs": {
+            "files": 2,
+            "changed_lines": 331,
+            "unknown_files": 0,
+            "paths": [
+              "docs/architecture/meeting-review-package-ingest-architecture.md",
+              "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            ]
+          },
+          "audit_artifacts": {
+            "files": 0,
+            "changed_lines": 0,
+            "unknown_files": 0,
+            "paths": []
+          },
+          "other": {
+            "files": 4,
+            "changed_lines": 826,
+            "unknown_files": 0,
+            "paths": [
+              "docs/stories/story-meeting-review-package-ingest-v1.md",
+              "public/workflows.html",
+              "server/routes/workflows.js",
+              "server/services/workflow/workflow-service.js"
+            ]
+          }
+        },
+        "source": "git diff --numstat origin/develop...573d29aebed12e5f4577bbc827acfc08877f3628",
+        "refs": {
+          "base_ref": "origin/develop",
+          "head_ref": "573d29aebed12e5f4577bbc827acfc08877f3628",
+          "base_sha": "4a016bd0183b780199a46143931e0310c98cb11f",
+          "head_sha": "573d29aebed12e5f4577bbc827acfc08877f3628",
+          "merge_commit_sha": "98806409cde22cc28936bebba3a84638bb807dd6"
+        },
+        "collected_at": "2026-06-25T20:32:00.362Z",
+        "reason": null
+      },
+      "product_changed_lines": 3023,
+      "product_changed_lines_status": "available",
+      "product_changed_lines_reason": null,
+      "artifact_code_ratio": 11.765,
+      "artifact_code_ratio_reason": null,
+      "budget": {
+        "profile": "high",
+        "canonical_artifact_lines": 1500,
+        "artifact_code_ratio": 3
+      },
+      "budget_status": "exceeded",
+      "budget_exceeded_reasons": [
+        "canonical_artifact_lines_exceeded",
+        "artifact_code_ratio_exceeded"
+      ],
+      "token_accounting": {
+        "status": "unavailable",
+        "total_tokens": null,
+        "reason": "session token logs were not provided to canonical audit promotion"
+      },
+      "elapsed_time_accounting": {
+        "status": "unavailable",
+        "elapsed_ms": null,
+        "reason": "elapsed-time logs were not provided to canonical audit promotion"
+      }
+    },
+    "pr_prepare": {
+      "present": true,
+      "created_at": "2026-06-25T20:31:04.855Z",
+      "gate_status": {
+        "ready_for_pr_create": true,
+        "overall_status": "ready_for_review",
+        "fast_lane": false,
+        "critical_unresolved_gate_count": 0
+      }
+    },
+    "evidence_reuse": {
+      "present": true,
+      "created_at": "2026-06-25T20:31:04.855Z",
+      "status": "stale",
+      "evidence_key": "evk_f3c10a509d4b4f954354e5cbeda0c27c",
+      "verification_summary_fingerprint": "sha256:1ffaf7f452139b061b3dc712c4851bd59b3d351c1b204df8c7bf5aac6eaaeae3",
+      "verification_evidence_updated_at": "2026-06-25T20:25:12.826Z",
+      "verification_command_timestamps": [
+        {
+          "kind": "integration",
+          "executed_at": "2026-06-25T20:25:12.826Z",
+          "git_recorded_at": "2026-06-25T20:25:12.825Z"
+        },
+        {
+          "kind": "e2e",
+          "executed_at": "2026-06-25T20:25:01.893Z",
+          "git_recorded_at": "2026-06-25T20:25:01.892Z"
+        },
+        {
+          "kind": "build",
+          "executed_at": "2026-06-25T20:24:47.531Z",
+          "git_recorded_at": "2026-06-25T20:24:47.530Z"
+        },
+        {
+          "kind": "typecheck",
+          "executed_at": "2026-06-25T20:24:37.448Z",
+          "git_recorded_at": "2026-06-25T20:24:37.447Z"
+        },
+        {
+          "kind": "unit",
+          "executed_at": "2026-06-25T20:24:31.339Z",
+          "git_recorded_at": "2026-06-25T20:24:31.335Z"
+        }
+      ],
+      "stale_reason_count": 2,
+      "full_evidence_status": "generated",
+      "full_evidence_generation_count": 1,
+      "full_evidence_generation_count_scope": "same_evidence_key",
+      "full_evidence_same_key_generation_count": 1,
+      "full_evidence_cumulative_generation_count": 39
+    },
+    "pr_create": {
+      "present": true,
+      "created_at": "2026-06-25T20:31:04.867Z",
+      "status": null,
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/987",
+      "gate_override_allowed": false
+    },
+    "pr_merge": {
+      "present": true,
+      "summary": {
+        "status": "merged",
+        "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/987",
+        "merge_commit_sha": "98806409cde22cc28936bebba3a84638bb807dd6",
+        "merged_at": "2026-06-25T20:32:02Z",
+        "current_head_sha": "573d29aebed12e5f4577bbc827acfc08877f3628",
+        "diff_stats_status": "available",
+        "diff_stats_source": "git diff --numstat origin/develop...573d29aebed12e5f4577bbc827acfc08877f3628"
+      }
+    },
+    "gate_dag": {
+      "present": true,
+      "overall_status": "ready_for_review",
+      "node_count": 102,
+      "blocking_count": 0
+    },
+    "traceability": {
+      "present": true,
+      "lifecycle": "merged",
+      "coverage_summary": {
+        "clause_count": 15,
+        "acceptance_criteria_count": 15,
+        "scenario_clause_count": 0,
+        "mapped_count": 15,
+        "weakly_mapped_count": 0,
+        "unmapped_count": 0,
+        "examples": []
+      }
+    },
+    "verification": {
+      "present": true,
+      "command_count": 5,
+      "pass_count": 5,
+      "fail_count": 0
+    },
+    "review": {
+      "summary_count": 5,
+      "result_count": 10,
+      "pass_count": 9,
+      "block_count": 0,
+      "stale_count": 1
+    },
+    "missing_artifacts": [],
+    "raw_artifact_count": 37
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/987",
+    "merge_commit_sha": "98806409cde22cc28936bebba3a84638bb807dd6",
+    "merged_at": "2026-06-25T20:32:02Z",
+    "current_head_sha": "573d29aebed12e5f4577bbc827acfc08877f3628",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...573d29aebed12e5f4577bbc827acfc08877f3628"
+  },
+  "handoff_replay_status": "summary_ready",
+  "handoff_replay": {
+    "status": "summary_ready",
+    "resolved_reference_count": 0,
+    "copied_reference_count": 0,
+    "unresolved_reference_count": 0
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-review-package-ingest-v1/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-review-package-ingest-v1/decision-summary.md"
+    }
+  ],
+  "raw_artifacts": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/evidence-reuse.json",
+      "persisted": false,
+      "digest": "sha256:755a13e63245dbd52e2dfb8d81f6f6c8a020fe719a3b3539da036b81e9b67b86",
+      "line_count": 100
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/pr-prepare.json",
+      "persisted": false,
+      "digest": "sha256:2891f64e241d59f5667a88cc000e8632ee1075f31835aa0026ad36f4f743d3c0",
+      "line_count": 14441
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/pr-create.json",
+      "persisted": false,
+      "digest": "sha256:5135b3056e5feccb923a5f9d8e2e3ce1a30213c3d282ffb7d2f9d82e80a59c06",
+      "line_count": 4456
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/gate-dag.json",
+      "persisted": false,
+      "digest": "sha256:2e0ec038fb771b828497d788cd462e97c12b6ef3fe3b4c5ae213faa0398c8255",
+      "line_count": 4340
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/pr-merge.json",
+      "persisted": false,
+      "digest": "sha256:cb573520971c98d882f9cc01e336dc0ed6756edc35f2f017dc3daed453442a87",
+      "line_count": 4567
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/traceability.json",
+      "persisted": false,
+      "digest": "sha256:1a0cd06c4a5067430d083be0aab5f371f5bb468ba58de3e7257e3b9f3d755cb9",
+      "line_count": 823
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/verification-evidence.json",
+      "persisted": false,
+      "digest": "sha256:4e5ad41efecf04248292cefa9e9a773380414c222dcedb9f911a3f3aea54af8b",
+      "line_count": 270
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/architecture_spec/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:8e983815e8c8f9df7e09693fa39e1215677978d7be22ce016e5883ba2d6580a2",
+      "line_count": 205
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/architecture_spec/review-request-regression_risk.md",
+      "persisted": false,
+      "digest": "sha256:9cc9a3ec5fb6ecd7f7d4e21caf27906e1039c4607c7057191d9990becdd65f63",
+      "line_count": 139
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/architecture_spec/review-result-regression_risk.json",
+      "persisted": false,
+      "digest": "sha256:6308be51e6bd52864f23c9aba4bd594d890ba64a355475e93be432e16ec7fd5a",
+      "line_count": 67
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/architecture_spec/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:132fd3161331207887ccb111ef5b7e167bb59d2d46c7212145eb22200c542c12",
+      "line_count": 382
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/gate/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:696204d41b2469bcf4246096f67e6d7eb1bbe3c6e23bb2e673c6951844c4969a",
+      "line_count": 276
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/gate/review-request-gate_evidence.md",
+      "persisted": false,
+      "digest": "sha256:2d484e0aaa8c6016512143d761a5cf5526e7f149251e27060d1b277f438524ad",
+      "line_count": 138
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/gate/review-request-release_risk.md",
+      "persisted": false,
+      "digest": "sha256:79e45f5eae0bd801bc71c274aefaa56e44f267aaccdd0576b6f59a9acb050cda",
+      "line_count": 138
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/gate/review-result-gate_evidence.json",
+      "persisted": false,
+      "digest": "sha256:aaee3617dd4870856e154b1f43aeabd4a8c451b28ff12b5658bcf161ee34c87b",
+      "line_count": 73
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/gate/review-result-release_risk.json",
+      "persisted": false,
+      "digest": "sha256:77631cdbfbcb685ab8adf2029c41916e3c6b1ae53c852c92f817d6bc7bb11fa9",
+      "line_count": 69
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/gate/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:0fb77ad47bb39173eea56249d155c83ecab8e78f9df67a5cedc76a0ddbfb9fa9",
+      "line_count": 572
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/implementation/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:af770cdd5c0e4ce92e32fff2125a78c45acc4f920c4f56f861af07423bd840b0",
+      "line_count": 301
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/implementation/review-request-runtime_contract.md",
+      "persisted": false,
+      "digest": "sha256:b1c2695eac33eab0d219457c275bcfb28c882cc3c41059344fb2f4d07f7f48f1",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/implementation/review-request-ux_completion.md",
+      "persisted": false,
+      "digest": "sha256:724a5a0b21a4351be9a49a484d6a40db1168520d456248ea03cf7d9961554ad9",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/implementation/review-result-runtime_contract.json",
+      "persisted": false,
+      "digest": "sha256:8d959c2df63105613c691126d3ee998fe20384803128754c82254aed0618b896",
+      "line_count": 68
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/implementation/review-result-ux_completion.json",
+      "persisted": false,
+      "digest": "sha256:2d1e13f717072e0bae43c8de099125173e554b8e0dbed87fd4967d8a654e8c73",
+      "line_count": 74
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/implementation/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:23181082800114c3136ed573a4edb719a4d0e2051a7ddd1abc1689a61ec392a8",
+      "line_count": 606
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:9acb39832be71ed400906ca553c1d1250930ee29fc7371701b1648644c7977d9",
+      "line_count": 322
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-request-human_usability.md",
+      "persisted": false,
+      "digest": "sha256:2d1877abf9bd130f7600f217b31e8b50cd04cd89cf43b5112edbee5c8dcb093f",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-request-network_runtime.md",
+      "persisted": false,
+      "digest": "sha256:586d47b7f588571357f165adbbdf3dda3132005065c576496e7a2a11a2024bf9",
+      "line_count": 135
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-request-preview_smoke.md",
+      "persisted": false,
+      "digest": "sha256:7714422797982c8f020253c4e543c86166abd98e1f544b1c5cadfb41456c1b96",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-result-human_usability.json",
+      "persisted": false,
+      "digest": "sha256:c073cdfdb21d07ea6b747b39044e7b749c51a4dbc76402a2475ae3dfc96c652f",
+      "line_count": 67
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-result-network_runtime.json",
+      "persisted": false,
+      "digest": "sha256:720fd356c6ab690f3e9dd07aa114baa7177c7cbe2e9ce57689f2a147d56e4517",
+      "line_count": 68
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-result-preview_smoke.json",
+      "persisted": false,
+      "digest": "sha256:75eab4bdef0777871ddd080497f423020aa08a2a44095ba2227fdce808a4f789",
+      "line_count": 80
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/preview/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:44b6ef007847e0d4b651e62cd064db70efbe163c27d5cddae996a7555ddc3eec",
+      "line_count": 770
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/test_plan/lifecycle.json",
+      "persisted": false,
+      "digest": "sha256:1a433294b0d9ccbc1f16db4c2a40ee318932922dae6d1af2072f42e673852e49",
+      "line_count": 376
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/test_plan/review-request-e2e_ux.md",
+      "persisted": false,
+      "digest": "sha256:67d5d0252c0b66b66a675d7bc84331a9e83844590d1e8f8897b6e48cdb7da289",
+      "line_count": 138
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/test_plan/review-request-gate_coverage.md",
+      "persisted": false,
+      "digest": "sha256:57b20fc7df992df21642c5ebd28e20851a8d2ec5cb07bfab987f84c793c5d766",
+      "line_count": 135
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/test_plan/review-result-e2e_ux.json",
+      "persisted": false,
+      "digest": "sha256:40e50b2a34f009cea135c382639d059f1ce7e66280c6ec22b0258cd791a2328b",
+      "line_count": 73
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/test_plan/review-result-gate_coverage.json",
+      "persisted": false,
+      "digest": "sha256:abfeb066266a8979a3b4ff5b187dea9833c61b24ec5e55f37b32cdb4c9343b66",
+      "line_count": 67
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-review-package-ingest-v1/test_plan/review-summary.json",
+      "persisted": false,
+      "digest": "sha256:f8523a5faeba96b7d0362ffa0ae7eaf5cc297a67021b2d8494ef1e39e05a7fa3",
+      "line_count": 691
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [],
+  "copied_references": [],
+  "unresolved_references": []
+}
