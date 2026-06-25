@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-review-package-ingest-v1",
   "source": "execute_merge",
-  "promoted_at": "2026-06-25T20:32:05.992Z",
+  "promoted_at": "2026-06-25T20:32:10.313Z",
   "canonical_dir": "docs/management/audit-artifacts/story-meeting-review-package-ingest-v1",
   "source_workspace_dir": ".vibepro",
   "artifact_policy": {
@@ -42,7 +42,7 @@
     },
     "diff_stats_collected_at": "2026-06-25T20:32:00.362Z",
     "diff_stats_reason": null,
-    "artifact_lines": 35567,
+    "artifact_lines": 35657,
     "changed_lines": {
       "status": "available",
       "total_changed_lines": 3023,
@@ -106,7 +106,7 @@
     "product_changed_lines": 3023,
     "product_changed_lines_status": "available",
     "product_changed_lines_reason": null,
-    "artifact_code_ratio": 11.765,
+    "artifact_code_ratio": 11.795,
     "artifact_code_ratio_reason": null,
     "budget": {
       "profile": "high",
@@ -133,7 +133,7 @@
     "schema_version": "0.1.0",
     "story_id": "story-meeting-review-package-ingest-v1",
     "source": "execute_merge",
-    "generated_at": "2026-06-25T20:32:05.992Z",
+    "generated_at": "2026-06-25T20:32:10.313Z",
     "evidence_depth": "standard",
     "budget_status": "exceeded",
     "cost_summary": {
@@ -154,7 +154,7 @@
       },
       "diff_stats_collected_at": "2026-06-25T20:32:00.362Z",
       "diff_stats_reason": null,
-      "artifact_lines": 35567,
+      "artifact_lines": 35657,
       "changed_lines": {
         "status": "available",
         "total_changed_lines": 3023,
@@ -218,7 +218,7 @@
       "product_changed_lines": 3023,
       "product_changed_lines_status": "available",
       "product_changed_lines_reason": null,
-      "artifact_code_ratio": 11.765,
+      "artifact_code_ratio": 11.795,
       "artifact_code_ratio_reason": null,
       "budget": {
         "profile": "high",
@@ -405,8 +405,8 @@
       "kind": "pr_merge",
       "source": ".vibepro/pr/story-meeting-review-package-ingest-v1/pr-merge.json",
       "persisted": false,
-      "digest": "sha256:cb573520971c98d882f9cc01e336dc0ed6756edc35f2f017dc3daed453442a87",
-      "line_count": 4567
+      "digest": "sha256:ff1a356f1b66ed3e860b41a5c70f9a1fe939f021efa79471005b99aa395ae205",
+      "line_count": 4657
     },
     {
       "kind": "traceability",

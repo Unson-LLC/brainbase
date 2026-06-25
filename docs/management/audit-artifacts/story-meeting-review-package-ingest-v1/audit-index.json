@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-review-package-ingest-v1",
   "source": "execute_merge",
-  "generated_at": "2026-06-25T20:32:05.992Z",
+  "generated_at": "2026-06-25T20:32:10.313Z",
   "evidence_depth": "standard",
   "budget_status": "exceeded",
   "cost_summary": {
@@ -23,7 +23,7 @@
     },
     "diff_stats_collected_at": "2026-06-25T20:32:00.362Z",
     "diff_stats_reason": null,
-    "artifact_lines": 35567,
+    "artifact_lines": 35657,
     "changed_lines": {
       "status": "available",
       "total_changed_lines": 3023,
@@ -87,7 +87,7 @@
     "product_changed_lines": 3023,
     "product_changed_lines_status": "available",
     "product_changed_lines_reason": null,
-    "artifact_code_ratio": 11.765,
+    "artifact_code_ratio": 11.795,
     "artifact_code_ratio_reason": null,
     "budget": {
       "profile": "high",

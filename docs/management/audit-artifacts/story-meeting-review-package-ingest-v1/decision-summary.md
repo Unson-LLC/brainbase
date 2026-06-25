@@ -3,9 +3,9 @@
 - story: story-meeting-review-package-ingest-v1
 - evidence_depth: standard
 - budget_status: exceeded
-- artifact_lines: 35567
+- artifact_lines: 35657
 - product_changed_lines: 3023
-- artifact_code_ratio: 11.765
+- artifact_code_ratio: 11.795
 - diff_stats: available
 - pr_prepare: ready_for_review
 - evidence_reuse: stale key=evk_f3c10a509d4b4f954354e5cbeda0c27c verification_updated_at=2026-06-25T20:25:12.826Z verification_fingerprint=sha256:1ffaf7f452139b061b3dc712c4851bd59b3d351c1b204df8c7bf5aac6eaaeae3
