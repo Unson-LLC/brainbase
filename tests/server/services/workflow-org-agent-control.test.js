@@ -121,6 +121,12 @@ describe('WorkflowService org agent loop control', () => {
             project_id: 'salestailor'
         }, actor);
 
+        expect(result.loop_pack_design_review).toMatchObject({
+            gate_id: 'loop_pack_design_gate.v0',
+            status: 'pass',
+            pack_id: 'mana-meeting-workflow-pack-v1'
+        });
+        expect(result.loop_pack_design_review.manifest_digest).toMatch(/^[a-f0-9]{64}$/);
         expect(result.meeting_workflow_pack.role_agent_instance).toMatchObject({
             name: 'Meeting Ops Agent',
             role_archetype_id: 'meeting-ops',
@@ -205,9 +211,14 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.runs).toHaveLength(0);
         expect(repository.ledger.outputs).toHaveLength(0);
         expect(repository.ledger.human_steps).toHaveLength(0);
-        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toEqual([
+        const auditLogs = repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' });
+        expect(auditLogs).toEqual([
             expect.objectContaining({ action: 'workflow.meeting_pack.bootstrapped', target_type: 'meeting_workflow_pack' })
         ]);
+        expect(auditLogs[0].after.loop_pack_design_review).toMatchObject({
+            status: 'pass',
+            manifest_digest: result.loop_pack_design_review.manifest_digest
+        });
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 INV-001 INV-003 INV-004 INV-005 INV-006 INV-007 executable coverage marker', async () => {
@@ -255,6 +266,53 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(5);
         expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(10);
         expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(5);
+    });
+
+    it('story-loop-pack-design-gate-v0 S-003 blocks meeting pack bootstrap before writes when design review needs revision', async () => {
+        const { repository, service, actor } = makeService();
+        service._prepareMeetingWorkflowPackRecords = async () => ({
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            actorId: 'keigo',
+            records: {
+                pack_id: 'mana-meeting-workflow-pack-v1',
+                role_agent_instance: {
+                    id: 'rai_should_not_write',
+                    workspace_id: 'default',
+                    org_id: 'salestailor',
+                    project_id: 'salestailor'
+                },
+                workflow_templates: [{
+                    id: 'wft_should_not_write',
+                    workspace_id: 'default',
+                    org_id: 'salestailor',
+                    project_id: 'salestailor',
+                    workflow_kind: 'meeting'
+                }],
+                workflow_bindings: [],
+                workflow_triggers: [],
+                loop_intents: [],
+                loop_pack_design_review: {
+                    gate_id: 'loop_pack_design_gate.v0',
+                    status: 'needs_revision',
+                    manifest_digest: 'invalid',
+                    issues: [{ code: 'missing_loop_closure_rubric' }],
+                    rubric: []
+                }
+            }
+        });
+
+        await expect(service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor)).rejects.toThrow('loop pack design gate did not pass');
+
+        expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listWorkflowBindings({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 FM-002 persistence_failure rolls back partial meeting pack records', async () => {

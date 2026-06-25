@@ -127,6 +127,12 @@ describe('workflow routes', () => {
                 role_archetype_id: 'meeting-ops'
             })
         });
+        expect(res.body.loop_pack_design_review).toMatchObject({
+            gate_id: 'loop_pack_design_gate.v0',
+            status: 'pass',
+            pack_id: 'mana-meeting-workflow-pack-v1'
+        });
+        expect(res.body.loop_pack_design_review.manifest_digest).toMatch(/^[a-f0-9]{64}$/);
         expect(res.body.meeting_workflow_pack.workflow_templates).toHaveLength(5);
         expect(res.body.meeting_workflow_pack.workflow_triggers).toHaveLength(10);
         expect(res.body.meeting_workflow_pack.loop_intents).toHaveLength(5);
@@ -141,6 +147,39 @@ describe('workflow routes', () => {
         expect(repository.ledger.runs).toHaveLength(0);
         expect(repository.ledger.outputs).toHaveLength(0);
         expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })[0].after.loop_pack_design_review).toMatchObject({
+            status: 'pass',
+            manifest_digest: res.body.loop_pack_design_review.manifest_digest
+        });
+    });
+
+    it('story-loop-pack-design-gate-v0 exposes meeting pack design review without persisting control records', async () => {
+        const { app, repository } = makeApp();
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/design-review')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(200);
+
+        expect(res.body.meeting_workflow_pack_design).toMatchObject({
+            pack_id: 'mana-meeting-workflow-pack-v1',
+            org_id: 'sample-project',
+            project_id: 'sample-project',
+            loop_pack_design_review: expect.objectContaining({
+                gate_id: 'loop_pack_design_gate.v0',
+                status: 'pass'
+            })
+        });
+        expect(res.body.meeting_workflow_pack_design.loop_pack_manifest).toMatchObject({
+            target_business_process: '会議前後業務',
+            required_trigger_classes: ['schedule', 'event', 'human']
+        });
+        expect(repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
+        expect(repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project', workflowKind: 'meeting' })).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 FM-001 auth_denied rejects meeting pack bootstrap before writes', async () => {

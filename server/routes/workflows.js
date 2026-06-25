@@ -137,6 +137,10 @@ export function createWorkflowRouter(workflowService) {
         res.status(201).json(await workflowService.bootstrapMeetingWorkflowPack(req.body || {}, actorFromRequest(req)));
     }));
 
+    router.post('/control/meeting-pack/design-review', asyncHandler(async (req, res) => {
+        res.json(await workflowService.reviewMeetingWorkflowPackDesign(req.body || {}, actorFromRequest(req)));
+    }));
+
     router.post('/control/meeting-pack/calendar-inputs', asyncHandler(async (req, res) => {
         try {
             res.status(201).json(await workflowService.createMeetingPackCalendarLoopIntents(req.body || {}, actorFromRequest(req)));

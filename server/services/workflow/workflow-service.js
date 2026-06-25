@@ -645,7 +645,7 @@ export class WorkflowService {
         return { loop_intent: intent };
     }
 
-    async bootstrapMeetingWorkflowPack(input = {}, actor = {}) {
+    async _prepareMeetingWorkflowPackRecords(input = {}, actor = {}) {
         await this._loadProjectConfigCache();
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
@@ -659,6 +659,29 @@ export class WorkflowService {
             actorId,
             seedLoopIntents: input.seed_loop_intents !== false && input.seedLoopIntents !== false
         });
+        return { orgId, projectId, actorId, records };
+    }
+
+    async reviewMeetingWorkflowPackDesign(input = {}, actor = {}) {
+        const { orgId, projectId, records } = await this._prepareMeetingWorkflowPackRecords(input, actor);
+        return {
+            meeting_workflow_pack_design: {
+                pack_id: records.pack_id,
+                org_id: orgId,
+                project_id: projectId,
+                loop_pack_manifest: records.loop_pack_manifest,
+                loop_pack_design_review: records.loop_pack_design_review
+            }
+        };
+    }
+
+    async bootstrapMeetingWorkflowPack(input = {}, actor = {}) {
+        const { orgId, projectId, actorId, records } = await this._prepareMeetingWorkflowPackRecords(input, actor);
+        if (records.loop_pack_design_review.status !== 'pass') {
+            throw AppError.validation('loop pack design gate did not pass', {
+                loop_pack_design_review: records.loop_pack_design_review
+            });
+        }
 
         const result = await this.repository.transaction(async () => {
             const roleAgent = this.repository.upsertRoleAgentInstance(records.role_agent_instance);
@@ -680,10 +703,18 @@ export class WorkflowService {
                     workflow_template_ids: templates.map((template) => template.id),
                     workflow_binding_ids: bindings.map((binding) => binding.id),
                     workflow_trigger_ids: triggers.map((trigger) => trigger.id),
-                    loop_intent_ids: loopIntents.map((intent) => intent.id)
+                    loop_intent_ids: loopIntents.map((intent) => intent.id),
+                    loop_pack_design_review: {
+                        gate_id: records.loop_pack_design_review.gate_id,
+                        status: records.loop_pack_design_review.status,
+                        manifest_digest: records.loop_pack_design_review.manifest_digest,
+                        issues: records.loop_pack_design_review.issues,
+                        rubric: records.loop_pack_design_review.rubric
+                    }
                 }
             });
             return {
+                loop_pack_design_review: records.loop_pack_design_review,
                 meeting_workflow_pack: {
                     pack_id: records.pack_id,
                     org_id: orgId,
