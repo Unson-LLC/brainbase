@@ -8,6 +8,7 @@ import {
     createWorkflowRouter,
     createWorkflowRunRouter
 } from '../../../server/routes/workflows.js';
+import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
@@ -15,6 +16,7 @@ import {
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
 } from '../../../server/services/workflow/workflow-service.js';
+import { meetingPackIds } from '../../../server/services/workflow/meeting-workflow-pack.js';
 
 function makeApp({
     handlers = createDefaultWorkflowHandlers(),
@@ -53,10 +55,80 @@ function makeApp({
     app.use('/api/workflows', createWorkflowRouter(service));
     app.use('/api/workflow-runs', createWorkflowRunRouter(service));
     app.use('/api/workflow-human-steps', createWorkflowHumanStepRouter(service));
-    app.use((err, _req, res, _next) => {
+    app.use((err, req, res, next) => {
+        if (err?.type === 'entity.parse.failed') {
+            return errorHandler(err, req, res, next);
+        }
         res.status(err.statusCode || 500).json({ error: err.message });
     });
-    return { app, repository };
+    return { app, repository, service };
+}
+
+function sampleMeetingReviewPackage({
+    orgId = 'sample-project',
+    projectId = 'sample-project',
+    packageId = 'meeting-review-package-test'
+} = {}) {
+    return {
+        schema_version: '0.1.0',
+        package_id: packageId,
+        seed_id: 'meeting-loop-seed-test',
+        status: 'review_required',
+        meeting_identity: {
+            source: 'google_calendar',
+            account: 'info@example.com',
+            calendar_id: 'primary',
+            event_id: 'evt-1',
+            title: 'Mana定例',
+            start: '2026-06-25T13:00:00+09:00',
+            end: '2026-06-25T14:00:00+09:00',
+            candidate_org_id: orgId,
+            candidate_project_id: projectId,
+            case_scope: 'meeting-loop-test',
+            graph_context: {
+                org_entity_ids: ['org-sample'],
+                person_entity_ids: ['person-sato']
+            }
+        },
+        source_event: {
+            source_system: 'slack',
+            workspace: 'unson',
+            channel_id: 'C08SYTDR7R8',
+            channel_name: '9940-meeting-router',
+            message_ts: '1782367965.844209',
+            file_id: 'F0BCYNXMP6H',
+            local_artifact_sha256: 'abc123'
+        },
+        loop_intent_ids: {
+            pre_meeting_briefing: meetingPackIds({ orgId, projectId, definitionId: 'pre-meeting-briefing' }).loopIntentId,
+            transcript_to_meeting_note: meetingPackIds({ orgId, projectId, definitionId: 'transcript-to-meeting-note' }).loopIntentId,
+            meeting_note_to_tasks: meetingPackIds({ orgId, projectId, definitionId: 'meeting-note-to-tasks' }).loopIntentId,
+            meeting_note_to_decisions: meetingPackIds({ orgId, projectId, definitionId: 'meeting-note-to-decisions' }).loopIntentId,
+            post_meeting_follow_up_message: meetingPackIds({ orgId, projectId, definitionId: 'post-meeting-follow-up-message' }).loopIntentId
+        },
+        meeting_note_summary: {
+            background: ['会議背景'],
+            agreements: ['合意事項'],
+            open_questions: ['未決事項']
+        },
+        task_candidates: ['Google Business Profileの権限申請を行う'],
+        decision_candidates: ['施策軸はGoogle最適化と口コミ導線に置く'],
+        follow_up_draft: {
+            status: 'draft_only',
+            external_send_required_approval: true,
+            body: '本日はありがとうございました。'
+        },
+        promotion_candidates: {
+            graph: ['org:sample'],
+            learning: ['meeting-router channelはsource channelである']
+        },
+        evidence_refs: ['transcript:00:01:00-00:02:00'],
+        stop_conditions: [
+            'task_create_requires_human_approval',
+            'decision_promotion_requires_human_approval',
+            'external_send_requires_human_approval'
+        ]
+    };
 }
 
 describe('workflow routes', () => {
@@ -267,6 +339,491 @@ describe('workflow routes', () => {
         expect(repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
         expect(repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project', workflowKind: 'meeting' })).toHaveLength(0);
         expect(repository.listLoopIntents({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
+    });
+
+    it('story-meeting-review-package-ingest-v1 S-001 creates a waiting-human review run from a Codex package', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({
+                review_package: sampleMeetingReviewPackage()
+            })
+            .expect(201);
+
+        expect(res.body.meeting_review_ingest).toMatchObject({
+            org_id: 'sample-project',
+            project_id: 'sample-project',
+            case_scope: 'meeting-loop-test',
+            package_id: 'meeting-review-package-test',
+            idempotent: false,
+            state_transitions: [
+                'package_received',
+                'scope_resolved',
+                'loop_intents_verified',
+                'run_recorded',
+                'outputs_recorded',
+                'human_steps_recorded',
+                'waiting_human'
+            ],
+            run: expect.objectContaining({
+                status: 'waiting_human',
+                closure_state: 'open',
+                action_required: 'approve',
+                human_waiting: true,
+                output_count: 5
+            })
+        });
+        expect(res.body.meeting_review_ingest.outputs.map((output) => output.type)).toEqual([
+            'meeting_note_draft',
+            'task_candidates',
+            'decision_candidates',
+            'message_draft',
+            'promotion_candidates'
+        ]);
+        expect(res.body.meeting_review_ingest.outputs).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    package_id: 'meeting-review-package-test',
+                    requires_human_approval: true,
+                    runner_type: 'codex_generated_package',
+                    evidence_refs: ['transcript:00:01:00-00:02:00']
+                })
+            })
+        ]));
+        expect(res.body.meeting_review_ingest.human_steps).toHaveLength(5);
+        expect(res.body.meeting_review_ingest.human_steps.every((step) => step.status === 'pending')).toBe(true);
+        expect(res.body.meeting_review_ingest.context_snapshots.map((snapshot) => snapshot.source_type)).toEqual([
+            'meeting_identity',
+            'meeting_source',
+            'graph_ssot',
+            'review_package'
+        ]);
+        expect(res.body.meeting_review_ingest.context_snapshots).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                source_type: 'meeting_source',
+                content_hash: 'abc123'
+            }),
+            expect.objectContaining({
+                source_type: 'graph_ssot',
+                data: expect.objectContaining({
+                    verification_status: 'candidate_from_review_package',
+                    promoted_to_graph_ssot: false
+                })
+            })
+        ]));
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+        expect(repository.listAuditLogs({ targetId: res.body.meeting_review_ingest.run.id })).toEqual([
+            expect.objectContaining({
+                action: 'workflow.meeting_review_package.ingested',
+                after: expect.objectContaining({
+                    runner: { type: 'codex_generated_package', eve_connected: false }
+                })
+            })
+        ]);
+
+        const workflowsRes = await request(app)
+            .get('/api/workflows?project_id=sample-project')
+            .expect(200);
+        expect(workflowsRes.body.workflows).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                id: 'wf_sample_project_sample_project_meeting_review_package_ingest',
+                implementation_key: 'meeting-review-package-ingest',
+                latest_run: expect.objectContaining({
+                    id: res.body.meeting_review_ingest.run.id,
+                    status: 'waiting_human',
+                    action_required: 'approve',
+                    human_waiting: true
+                }),
+                latest_human_steps: expect.arrayContaining([
+                    expect.objectContaining({
+                        status: 'pending',
+                        step_type: 'approval'
+                    })
+                ])
+            })
+        ]));
+        const missionControlWorkflow = workflowsRes.body.workflows.find((workflow) => workflow.id === 'wf_sample_project_sample_project_meeting_review_package_ingest');
+        expect(missionControlWorkflow.latest_human_steps).toHaveLength(5);
+
+        const runRes = await request(app)
+            .get(`/api/workflow-runs/${res.body.meeting_review_ingest.run.id}`)
+            .expect(200);
+        expect(runRes.body).toMatchObject({
+            run: expect.objectContaining({
+                status: 'waiting_human',
+                action_required: 'approve',
+                human_waiting: true
+            })
+        });
+        expect(runRes.body.outputs).toHaveLength(5);
+        expect(runRes.body.outputs.every((output) => output.metadata.loop_intent_id)).toBe(true);
+        expect(runRes.body.human_steps).toHaveLength(5);
+        expect(runRes.body.human_steps.every((step) => step.metadata.loop_intent_id)).toBe(true);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects unauthorized operator before ingest writes', async () => {
+        const { app, repository, service } = makeApp({ accessProjectCodes: [] });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'sample-project',
+            project_id: 'sample-project'
+        }, { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] });
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(403);
+
+        expect(res.body.error).toContain("project 'sample-project' is not accessible");
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs.some((entry) => entry.action === 'workflow.meeting_review_package.ingested')).toBe(false);
+    });
+
+    it('story-meeting-review-package-ingest-v1 parse_failure rejects malformed JSON before ingest writes', async () => {
+        const { app, repository } = makeApp();
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .set('Content-Type', 'application/json')
+            .send('{"review_package":')
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            code: 'parse_failure',
+            message: 'Malformed JSON payload'
+        });
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs.some((entry) => entry.action === 'workflow.meeting_review_package.ingested')).toBe(false);
+    });
+
+    it('story-meeting-review-package-ingest-v1 keeps the review run visible after resolving one generated human approval', async () => {
+        const { app } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const ingestRes = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        const runId = ingestRes.body.meeting_review_ingest.run.id;
+        const stepId = ingestRes.body.meeting_review_ingest.human_steps[0].id;
+
+        const resolveRes = await request(app)
+            .post(`/api/workflow-runs/${runId}/human-steps/${stepId}/resolve`)
+            .send({ resolution: 'approved' })
+            .expect(200);
+
+        expect(resolveRes.body.human_step).toMatchObject({
+            id: stepId,
+            status: 'approved'
+        });
+        expect(resolveRes.body.resumed_run).toMatchObject({
+            id: runId,
+            status: 'waiting_human',
+            closure_state: 'open',
+            action_required: 'approve',
+            human_waiting: true
+        });
+        expect(resolveRes.body.resumed_run.message).not.toContain('No workflow handler registered');
+
+        const workflowsRes = await request(app)
+            .get('/api/workflows?project_id=sample-project')
+            .expect(200);
+        const workflow = workflowsRes.body.workflows.find((item) => item.id === 'wf_sample_project_sample_project_meeting_review_package_ingest');
+        expect(workflow.latest_run).toMatchObject({
+            id: runId,
+            status: 'waiting_human',
+            action_required: 'approve',
+            human_waiting: true
+        });
+        expect(workflow.latest_human_steps.filter((humanStep) => humanStep.status === 'pending')).toHaveLength(4);
+    });
+
+    it('story-meeting-review-package-ingest-v1 cancels remaining review gates after a generated human rejection', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const ingestRes = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        const runId = ingestRes.body.meeting_review_ingest.run.id;
+        const [rejectedStep, staleApproveStep] = ingestRes.body.meeting_review_ingest.human_steps;
+
+        const rejectRes = await request(app)
+            .post(`/api/workflow-runs/${runId}/human-steps/${rejectedStep.id}/resolve`)
+            .send({ resolution: 'rejected' })
+            .expect(200);
+
+        expect(rejectRes.body.human_step).toMatchObject({
+            id: rejectedStep.id,
+            status: 'rejected'
+        });
+        expect(rejectRes.body.resumed_run).toMatchObject({
+            id: runId,
+            status: 'cancelled',
+            closure_state: 'closed',
+            action_required: 'none',
+            human_waiting: false
+        });
+        expect(repository.listHumanSteps(runId).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(0);
+        expect(repository.listHumanSteps(runId).filter((humanStep) => humanStep.status === 'cancelled')).toHaveLength(4);
+
+        const staleApproveRes = await request(app)
+            .post(`/api/workflow-runs/${runId}/human-steps/${staleApproveStep.id}/resolve`)
+            .send({ resolution: 'approved' })
+            .expect(409);
+        expect(staleApproveRes.body.error).toContain(`human step '${staleApproveStep.id}' is already cancelled`);
+        expect(repository.getRun(runId)).toMatchObject({
+            status: 'cancelled',
+            closure_state: 'closed'
+        });
+    });
+
+    it('story-meeting-review-package-ingest-v1 blocks manual run and rerun for review-ingest workflow before creating extra runs', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const ingestRes = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        const runId = ingestRes.body.meeting_review_ingest.run.id;
+        const workflowId = ingestRes.body.meeting_review_ingest.run.workflow_id;
+
+        const runRes = await request(app)
+            .post(`/api/workflows/${workflowId}/run`)
+            .send({ trigger_type: 'manual' })
+            .expect(400);
+        expect(runRes.body.error).toContain('meeting-review-package-ingest workflows cannot be manually run');
+
+        const rerunRes = await request(app)
+            .post(`/api/workflow-runs/${runId}/rerun`)
+            .send({})
+            .expect(400);
+        expect(rerunRes.body.error).toContain('meeting-review-package-ingest workflows cannot be manually run');
+
+        expect(repository.listRuns({ workflowId })).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-review-package-ingest-v1 returns project access denial before manual run guard', async () => {
+        const { app, repository, service } = makeApp({ accessProjectCodes: [] });
+        const systemActor = { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] };
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'sample-project',
+            project_id: 'sample-project'
+        }, systemActor);
+        const ingestResult = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, systemActor);
+        const runId = ingestResult.meeting_review_ingest.run.id;
+        const workflowId = ingestResult.meeting_review_ingest.run.workflow_id;
+
+        const runRes = await request(app)
+            .post(`/api/workflows/${workflowId}/run`)
+            .send({ trigger_type: 'manual' })
+            .expect(403);
+        expect(runRes.body.error).toContain("project 'sample-project' is not accessible");
+
+        const rerunRes = await request(app)
+            .post(`/api/workflow-runs/${runId}/rerun`)
+            .send({})
+            .expect(403);
+        expect(rerunRes.body.error).toContain("project 'sample-project' is not accessible");
+
+        expect(repository.listRuns({ workflowId })).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-review-package-ingest-v1 INV-008 keeps package ingest idempotent', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const body = { review_package: sampleMeetingReviewPackage() };
+
+        const first = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send(body)
+            .expect(201);
+        const second = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send(body)
+            .expect(201);
+
+        expect(second.body.meeting_review_ingest).toMatchObject({
+            idempotent: true,
+            run: { id: first.body.meeting_review_ingest.run.id }
+        });
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-review-package-ingest-v1 S-006 rejects missing loop intent before writes', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.loop_intent_ids = {
+            ...reviewPackage.loop_intent_ids,
+            transcript_to_meeting_note: 'loop_missing'
+        };
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(400);
+
+        expect(res.body.error).toContain("loop_intent 'loop_missing' not found");
+        expect(res.body.state_transition).toBe('blocked_loop_intent_mismatch');
+        expect(res.body.details).toMatchObject({
+            loop_intent_key: 'transcript_to_meeting_note',
+            loop_intent_id: 'loop_missing'
+        });
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs.some((entry) => entry.action === 'workflow.meeting_review_package.ingested')).toBe(false);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects omitted required loop intent keys before writes', async () => {
+        const { app, repository } = makeApp();
+        const reviewPackage = sampleMeetingReviewPackage();
+        delete reviewPackage.loop_intent_ids.post_meeting_follow_up_message;
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(400);
+
+        expect(res.body.error).toContain('review_package.loop_intent_ids is missing required meeting review key(s)');
+        expect(res.body.state_transition).toBe('blocked_loop_intent_mismatch');
+        expect(res.body.details.missing_loop_intent_keys).toEqual(['post_meeting_follow_up_message']);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs).toHaveLength(0);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects omitted required output payload keys before writes', async () => {
+        const { app, repository } = makeApp();
+        const reviewPackage = sampleMeetingReviewPackage();
+        delete reviewPackage.follow_up_draft;
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(400);
+
+        expect(res.body.error).toContain('review_package is missing required output payload key(s)');
+        expect(res.body.state_transition).toBe('blocked_invalid_review_package');
+        expect(res.body.details.missing_package_keys).toEqual(['follow_up_draft']);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs).toHaveLength(0);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects missing package id with structured state transition before writes', async () => {
+        const { app, repository } = makeApp();
+        const reviewPackage = sampleMeetingReviewPackage();
+        delete reviewPackage.package_id;
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(400);
+
+        expect(res.body.error).toContain('review_package.package_id is required');
+        expect(res.body.state_transition).toBe('blocked_invalid_review_package');
+        expect(res.body.details.missing_package_keys).toEqual(['package_id']);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects invalid scope with structured state transition before writes', async () => {
+        const { app, repository } = makeApp();
+        const reviewPackage = sampleMeetingReviewPackage({ orgId: 'unknown-org', projectId: 'missing-project' });
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(400);
+
+        expect(res.body.state_transition).toBe('blocked_invalid_scope');
+        expect(res.body.details).toMatchObject({
+            org_id: 'unknown-org',
+            project_id: 'missing-project'
+        });
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects malformed loop intent map with structured state transition before writes', async () => {
+        const { app, repository } = makeApp();
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.loop_intent_ids = null;
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(400);
+
+        expect(res.body.error).toContain('review_package.loop_intent_ids must be a JSON object');
+        expect(res.body.state_transition).toBe('blocked_loop_intent_mismatch');
+        expect(res.body.details.required_loop_intent_keys).toEqual(expect.arrayContaining([
+            'transcript_to_meeting_note',
+            'meeting_note_to_tasks',
+            'meeting_note_to_decisions',
+            'post_meeting_follow_up_message'
+        ]));
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
     });
 
     it('generates a schema-bound workflow draft without persisting a workflow', async () => {

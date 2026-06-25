@@ -1,0 +1,96 @@
+{
+  "schema_version": "0.1.0",
+  "package_id": "meeting-review-package-2026-06-25-united-hotel-dx",
+  "seed_id": "mana-tech-knight-united-hotel-dx-2026-06-25",
+  "status": "review_required",
+  "org_id": "tech-knight",
+  "project_id": "tech-knight",
+  "case_scope": "hotel-dx-united",
+  "meeting_identity": {
+    "source": "google_calendar",
+    "account": "keigo.sato@unson.jp",
+    "calendar_id": "primary",
+    "event_id": "tech-knight-united-hotel-dx-2026-06-25",
+    "title": "Tech Knight / United ホテルDX案件レビュー",
+    "start": "2026-06-25T10:00:00+09:00",
+    "end": "2026-06-25T11:00:00+09:00",
+    "candidate_org_id": "tech-knight",
+    "candidate_project_id": "tech-knight",
+    "case_scope": "hotel-dx-united",
+    "graph_context": {
+      "org_entity_ids": ["org-tech-knight", "org-united"],
+      "person_entity_ids": ["person-keigo-sato"],
+      "decision_entity_ids": [],
+      "verification_status": "candidate_from_meeting_review"
+    }
+  },
+  "source_event": {
+    "source_system": "slack",
+    "workspace": "techknight",
+    "channel_id": "C08SYTDR7R8",
+    "channel_name": "hotel-dx-united",
+    "message_ts": "1782367965.844209",
+    "file_id": "mana-meeting-note-united-hotel-dx",
+    "permalink": "https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844209",
+    "local_artifact_sha256": "sha256-united-hotel-dx-review-package"
+  },
+  "loop_intent_ids": {
+    "pre_meeting_briefing": "loop_tech_knight_tech_knight_pre_meeting_briefing_bootstrap",
+    "transcript_to_meeting_note": "loop_tech_knight_tech_knight_transcript_to_meeting_note_bootstrap",
+    "meeting_note_to_tasks": "loop_tech_knight_tech_knight_meeting_note_to_tasks_bootstrap",
+    "meeting_note_to_decisions": "loop_tech_knight_tech_knight_meeting_note_to_decisions_bootstrap",
+    "post_meeting_follow_up_message": "loop_tech_knight_tech_knight_post_meeting_follow_up_message_bootstrap"
+  },
+  "meeting_note_summary": {
+    "background": [
+      "United案件はTech KnightのホテルDX文脈で扱う",
+      "議事録からTask、Decision、Graph/Learning候補へ一周させる初回Loop対象"
+    ],
+    "agreements": [
+      "Review Packageは承認待ちとしてBrainbaseへ取り込む",
+      "Task作成、Decision昇格、外部送信は人間承認後に進める"
+    ],
+    "open_questions": [
+      "Graph SSOTへ昇格するDecision粒度",
+      "次回会議準備へ反映する学習候補"
+    ]
+  },
+  "task_candidates": [
+    "United案件の次回会議前に未完了TaskとDecision候補を確認する",
+    "ホテルDX提案に必要なGraph候補を人間承認に回す"
+  ],
+  "decision_candidates": [
+    "Meeting Workflow Packの初回一周対象はTech KnightのUnitedホテルDX案件にする",
+    "Eve接続前はCodex生成Review PackageをBrainbaseの承認待ちrunへ取り込む"
+  ],
+  "follow_up_draft": {
+    "status": "draft_only",
+    "external_send_required_approval": true,
+    "body": "本日はありがとうございました。議事録、Task候補、Decision候補を整理したので確認後に次のアクションへ進めます。"
+  },
+  "promotion_candidates": {
+    "graph": [
+      {
+        "type": "decision",
+        "title": "UnitedホテルDX案件をMeeting Workflow Packの初回Loop対象にする",
+        "evidence_ref": "slack:C08SYTDR7R8:1782367965.844209"
+      }
+    ],
+    "learning": [
+      {
+        "title": "会議Review Packageは外部runnerの成果物ではなくBrainbase承認待ちrunへ取り込む",
+        "evidence_ref": "slack:C08SYTDR7R8:1782367965.844209"
+      }
+    ]
+  },
+  "evidence_refs": [
+    "slack:C08SYTDR7R8:1782367965.844209",
+    "mana:meeting-note:united-hotel-dx"
+  ],
+  "stop_conditions": [
+    "task_create_requires_human_approval",
+    "decision_promotion_requires_human_approval",
+    "graph_write_requires_human_approval",
+    "external_send_requires_human_approval"
+  ]
+}

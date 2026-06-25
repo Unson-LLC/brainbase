@@ -38,6 +38,79 @@ function makeService({
     return { repository, service, actor };
 }
 
+function sampleMeetingReviewPackage({
+    orgId = 'salestailor',
+    projectId = 'salestailor',
+    packageId = 'meeting-review-package-service-test'
+} = {}) {
+    return {
+        schema_version: '0.1.0',
+        package_id: packageId,
+        status: 'review_required',
+        meeting_identity: {
+            source: 'google_calendar',
+            account: 'info@example.com',
+            calendar_id: 'primary',
+            event_id: 'evt-1',
+            title: '会議レビュー',
+            start: '2026-06-25T13:00:00+09:00',
+            end: '2026-06-25T14:00:00+09:00',
+            candidate_org_id: orgId,
+            candidate_project_id: projectId,
+            case_scope: 'service-loop-test',
+            graph_context: {
+                org_entity_ids: ['org-service'],
+                person_entity_ids: ['person-service']
+            }
+        },
+        source_event: {
+            source_system: 'slack',
+            workspace: 'unson',
+            channel_id: 'C08SYTDR7R8',
+            message_ts: '1782367965.844209',
+            file_id: 'F0BCYNXMP6H',
+            local_artifact_sha256: 'abc123'
+        },
+        loop_intent_ids: {
+            pre_meeting_briefing: meetingPackIds({ orgId, projectId, definitionId: 'pre-meeting-briefing' }).loopIntentId,
+            transcript_to_meeting_note: meetingPackIds({ orgId, projectId, definitionId: 'transcript-to-meeting-note' }).loopIntentId,
+            meeting_note_to_tasks: meetingPackIds({ orgId, projectId, definitionId: 'meeting-note-to-tasks' }).loopIntentId,
+            meeting_note_to_decisions: meetingPackIds({ orgId, projectId, definitionId: 'meeting-note-to-decisions' }).loopIntentId,
+            post_meeting_follow_up_message: meetingPackIds({ orgId, projectId, definitionId: 'post-meeting-follow-up-message' }).loopIntentId
+        },
+        meeting_note_summary: {
+            background: ['背景'],
+            agreements: ['合意'],
+            open_questions: ['未決']
+        },
+        task_candidates: ['次のタスク'],
+        decision_candidates: ['次の判断'],
+        follow_up_draft: {
+            status: 'draft_only',
+            external_send_required_approval: true,
+            body: 'ありがとうございました。'
+        },
+        promotion_candidates: {
+            graph: ['org:service'],
+            learning: ['学習候補']
+        },
+        evidence_refs: ['transcript:00:01:00-00:02:00'],
+        stop_conditions: ['external_send_requires_human_approval']
+    };
+}
+
+function expectedLegacyStableId(prefix, ...parts) {
+    const base = parts
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join('_')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 96);
+    return base ? `${prefix}_${base}` : null;
+}
+
 class TriggerPersistenceFailureRepository extends InMemoryWorkflowRepository {
     upsertWorkflowTrigger(trigger) {
         if (trigger?.id?.includes('transcript_to_meeting_note')) {
@@ -61,6 +134,15 @@ class LoopIntentSecondWriteFailureRepository extends InMemoryWorkflowRepository 
             }
         }
         return super.upsertLoopIntent(intent);
+    }
+}
+
+class MeetingReviewOutputFailureRepository extends InMemoryWorkflowRepository {
+    createOutput(output) {
+        if (output?.type === 'decision_candidates') {
+            throw new Error('persistence_failure: workflow_outputs write failed');
+        }
+        return super.createOutput(output);
     }
 }
 
@@ -735,6 +817,367 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.listWorkflowTriggers({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
         expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(0);
         expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
+    });
+
+    it('story-meeting-review-package-ingest-v1 S-008 resolves org and project scope from meeting_identity candidates', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+
+        expect(result.meeting_review_ingest).toMatchObject({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            case_scope: 'service-loop-test',
+            idempotent: false,
+            run: expect.objectContaining({
+                status: 'waiting_human',
+                metadata: expect.objectContaining({
+                    runner: { type: 'codex_generated_package', eve_connected: false }
+                })
+            })
+        });
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-review-package-ingest-v1 preserves legacy stable ids for non-review workflow templates', async () => {
+        const { service, actor } = makeService();
+        const longTemplateName = `Sales renewal follow up ${'very long segment '.repeat(12)}`;
+
+        const result = await service.createWorkflowTemplate({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            name: longTemplateName,
+            workflow_kind: 'sales'
+        }, actor);
+
+        expect(result.workflow_template.id).toBe(expectedLegacyStableId(
+            'wft',
+            'salestailor',
+            'salestailor',
+            longTemplateName
+        ));
+        expect(result.workflow_template.id).not.toMatch(/_[a-f0-9]{12}$/);
+    });
+
+    it('story-meeting-review-package-ingest-v1 keeps long review package ids idempotent without changing shared id semantics', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const longPackageId = `meeting-review-package-united-hotel-dx-${'decision-evidence-context-'.repeat(5)}`;
+
+        const first = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage({ packageId: longPackageId })
+        }, actor);
+        const second = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage({ packageId: longPackageId })
+        }, actor);
+        const runId = first.meeting_review_ingest.run.id;
+        const artifactIds = [
+            ...repository.ledger.run_steps.map((step) => step.id),
+            ...first.meeting_review_ingest.context_snapshots.map((snapshot) => snapshot.id),
+            ...first.meeting_review_ingest.outputs.map((output) => output.id),
+            ...first.meeting_review_ingest.human_steps.map((step) => step.id)
+        ];
+
+        expect(second.meeting_review_ingest).toMatchObject({
+            idempotent: true,
+            run: expect.objectContaining({ id: runId })
+        });
+        expect(runId).toMatch(/^run_salestailor_salestailor_meeting_review_package_united_hotel_dx_.*_[a-f0-9]{12}$/);
+        expect(runId.length).toBeLessThanOrEqual(110);
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(new Set(artifactIds)).toHaveLength(artifactIds.length);
+    });
+
+    it('story-meeting-review-package-ingest-v1 S-007 rejects loop intent project mismatch before writes', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'unson',
+            project_id: 'unson'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.loop_intent_ids.meeting_note_to_tasks = meetingPackIds({
+            orgId: 'unson',
+            projectId: 'unson',
+            definitionId: 'meeting-note-to-tasks'
+        }).loopIntentId;
+
+        await expect(service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor)).rejects.toThrow("loop_intent 'loop_unson_unson_meeting_note_to_tasks_bootstrap' belongs to 'unson/unson'");
+
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs.some((entry) => entry.action === 'workflow.meeting_review_package.ingested')).toBe(false);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects missing required loop intent key before writes', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        delete reviewPackage.loop_intent_ids.meeting_note_to_tasks;
+
+        await expect(service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor)).rejects.toThrow('review_package.loop_intent_ids is missing required meeting review key(s)');
+
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs.some((entry) => entry.action === 'workflow.meeting_review_package.ingested')).toBe(false);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rejects missing required output payload before writes', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        delete reviewPackage.decision_candidates;
+
+        await expect(service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor)).rejects.toThrow('review_package is missing required output payload key(s)');
+
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs.some((entry) => entry.action === 'workflow.meeting_review_package.ingested')).toBe(false);
+    });
+
+    it('story-meeting-review-package-ingest-v1 resolves one approval step while keeping remaining approvals visible', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+        const step = result.meeting_review_ingest.human_steps[0];
+
+        const resolved = await service.resolveHumanStep(step.id, {
+            run_id: result.meeting_review_ingest.run.id,
+            resolution: 'approved'
+        }, actor);
+
+        expect(resolved.human_step).toMatchObject({
+            id: step.id,
+            status: 'approved'
+        });
+        expect(resolved.resumed_run).toMatchObject({
+            id: result.meeting_review_ingest.run.id,
+            status: 'waiting_human',
+            closure_state: 'open',
+            action_required: 'approve',
+            human_waiting: true
+        });
+        expect(resolved.resumed_run.message).not.toContain('No workflow handler registered');
+        expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(4);
+        expect(repository.listRuns({ workflowId: result.meeting_review_ingest.run.workflow_id })).toHaveLength(1);
+        expect(repository.listAuditLogs({ targetId: resolved.resumed_run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'workflow.run.meeting_review_approvals.progressed',
+                after: expect.objectContaining({
+                    status: 'waiting_human',
+                    closure_state: 'open'
+                })
+            })
+        ]));
+    });
+
+    it('story-meeting-review-package-ingest-v1 closes the review run only after all generated approvals are resolved', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+
+        let latestResolution = null;
+        for (const step of result.meeting_review_ingest.human_steps) {
+            latestResolution = await service.resolveHumanStep(step.id, {
+                run_id: result.meeting_review_ingest.run.id,
+                resolution: 'approved'
+            }, actor);
+        }
+
+        expect(latestResolution.resumed_run).toMatchObject({
+            id: result.meeting_review_ingest.run.id,
+            status: 'success',
+            closure_state: 'closed',
+            action_required: 'none',
+            human_waiting: false
+        });
+        expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(0);
+        expect(repository.listRuns({ workflowId: result.meeting_review_ingest.run.workflow_id })).toHaveLength(1);
+        expect(repository.listAuditLogs({ targetId: result.meeting_review_ingest.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'workflow.run.meeting_review_approvals.completed',
+                after: expect.objectContaining({
+                    status: 'success',
+                    closure_state: 'closed'
+                })
+            })
+        ]));
+    });
+
+    it('story-meeting-review-package-ingest-v1 cancels remaining review gates after one generated human rejection', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+        const [rejectedStep, staleApproveStep] = result.meeting_review_ingest.human_steps;
+
+        const rejected = await service.resolveHumanStep(rejectedStep.id, {
+            run_id: result.meeting_review_ingest.run.id,
+            resolution: 'rejected'
+        }, actor);
+
+        expect(rejected.human_step).toMatchObject({
+            id: rejectedStep.id,
+            status: 'rejected'
+        });
+        expect(rejected.resumed_run).toMatchObject({
+            id: result.meeting_review_ingest.run.id,
+            status: 'cancelled',
+            closure_state: 'closed',
+            action_required: 'none',
+            human_waiting: false
+        });
+        expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(0);
+        expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'cancelled')).toHaveLength(4);
+
+        await expect(service.resolveHumanStep(staleApproveStep.id, {
+            run_id: result.meeting_review_ingest.run.id,
+            resolution: 'approved'
+        }, actor)).rejects.toThrow(`human step '${staleApproveStep.id}' is already cancelled`);
+        expect(repository.getRun(result.meeting_review_ingest.run.id)).toMatchObject({
+            status: 'cancelled',
+            closure_state: 'closed'
+        });
+        expect(repository.listAuditLogs({ targetId: result.meeting_review_ingest.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'workflow.run.human_step.cancelled',
+                after: expect.objectContaining({
+                    status: 'cancelled',
+                    cancelled_human_step_ids: expect.arrayContaining([
+                        staleApproveStep.id
+                    ])
+                })
+            })
+        ]));
+    });
+
+    it('story-meeting-review-package-ingest-v1 blocks manual run and rerun for review-ingest workflow before extra run writes', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+        const workflowId = result.meeting_review_ingest.run.workflow_id;
+        const runId = result.meeting_review_ingest.run.id;
+
+        await expect(service.runWorkflow(workflowId, {
+            actorId: actor.person_id,
+            projectCodes: actor.projectCodes,
+            role: actor.role,
+            triggerType: 'manual'
+        })).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
+
+        await expect(service.rerun(runId, {}, actor)).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
+
+        expect(repository.listRuns({ workflowId })).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-review-package-ingest-v1 preserves project access denial before manual run guard', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+        const workflowId = result.meeting_review_ingest.run.workflow_id;
+        const runId = result.meeting_review_ingest.run.id;
+        const noAccessActor = {
+            ...actor,
+            role: 'member',
+            projectCodes: []
+        };
+
+        await expect(service.runWorkflow(workflowId, {
+            actorId: noAccessActor.person_id,
+            projectCodes: noAccessActor.projectCodes,
+            role: noAccessActor.role,
+            triggerType: 'manual'
+        })).rejects.toMatchObject({
+            statusCode: 403,
+            message: "project 'salestailor' is not accessible"
+        });
+
+        await expect(service.rerun(runId, {}, noAccessActor)).rejects.toMatchObject({
+            statusCode: 403,
+            message: "project 'salestailor' is not accessible"
+        });
+
+        expect(repository.listRuns({ workflowId })).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-review-package-ingest-v1 rolls back partial ingest writes when persistence fails mid-transaction', async () => {
+        const repository = new MeetingReviewOutputFailureRepository();
+        const { service, actor } = makeService({ repository });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const beforeWorkflowCount = repository.ledger.workflows.length;
+        const beforeAuditCount = repository.ledger.audit_logs.length;
+
+        await expect(service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor)).rejects.toThrow('persistence_failure: workflow_outputs write failed');
+
+        expect(repository.ledger.workflows).toHaveLength(beforeWorkflowCount);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.ledger.audit_logs).toHaveLength(beforeAuditCount);
     });
 
     it('keeps Unson and SalesTailor role agent instances separate for the same archetype', async () => {

@@ -1015,6 +1015,13 @@
             };
             return [...state.workflows].sort((a, b) => priority(a) - priority(b));
         }
+        function isMeetingReviewPackageWorkflow(workflow) {
+            return workflow?.implementation_key === 'meeting-review-package-ingest';
+        }
+        function isMeetingReviewPackageRun(run, metadata = {}) {
+            const runner = metadata.runner && typeof metadata.runner === 'object' ? metadata.runner : {};
+            return runner.type === 'codex_generated_package' && Boolean(metadata.package_id || run?.metadata?.package_id);
+        }
         function renderBreadcrumbs(view) {
             const parts = [`<button type="button" data-action="home">⌂ Workspace</button>`];
             if (state.selectedProjectId) parts.push(`<span>/</span><button type="button" data-action="project">${escapeHtml(state.selectedProjectId)}</button>`);
@@ -1155,6 +1162,9 @@
             state.selectedProjectId = workflow.project_id;
             const contextSources = state.workflowDetail.context_sources || workflow.context_sources || [];
             const runs = state.workflowDetail.runs || [];
+            const workflowActions = isMeetingReviewPackageWorkflow(workflow)
+                ? '<div class="toolbar"><span class="badge warn">Review Package API専用</span><button class="btn primary" type="button" disabled>保存</button></div>'
+                : `<div class="toolbar"><button class="btn soft" type="button" data-action="run-workflow" data-workflow-id="${escapeHtml(workflow.id)}">▷ 実行</button><button class="btn primary" type="button" disabled>保存</button></div>`;
             views.workflow.innerHTML = `
                 <div class="view-header">
                     <div class="view-heading">
@@ -1162,7 +1172,7 @@
                         <h1>${escapeHtml(workflow.name || workflow.id)}</h1>
                         <div class="meta-row"><span>Project: ${escapeHtml(workflow.project_id)}</span><span>Owner: ${escapeHtml(workflow.owner_id)}</span><span>Risk: ${escapeHtml(workflow.risk_level || 'low')}</span><span>HITL: ${escapeHtml(workflow.hitl_policy || 'none')}</span></div>
                     </div>
-                    <div class="toolbar"><button class="btn soft" type="button" data-action="run-workflow" data-workflow-id="${escapeHtml(workflow.id)}">▷ 実行</button><button class="btn primary" type="button" disabled>保存</button></div>
+                    ${workflowActions}
                 </div>
                 <div class="layout-two">
                     <section class="panel">
@@ -1196,6 +1206,9 @@
             }
             const { run, run_steps = [], context_snapshots = [], human_steps = [], outputs = [], audit_logs = [] } = state.runDetail;
             const runMetadata = run.metadata && typeof run.metadata === 'object' ? run.metadata : {};
+            const runActions = isMeetingReviewPackageRun(run, runMetadata)
+                ? '<span class="badge warn">Review Package API専用</span>'
+                : `<button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button>`;
             const judgmentDagSource = run.judgment_dag_trace || runMetadata.judgment_dag_trace;
             const judgmentDag = judgmentDagSource && typeof judgmentDagSource === 'object' ? judgmentDagSource : {};
             const dagNodes = Array.isArray(judgmentDag.nodes) ? judgmentDag.nodes : [];
@@ -1259,7 +1272,7 @@
                         <h1>Run Trace</h1>
                         <div class="meta-row"><span>${escapeHtml(run.id)}</span><span>${escapeHtml(run.status)}</span><span>${escapeHtml(run.trigger_type || '-')}</span><span>${escapeHtml(run.env || '-')}</span></div>
                     </div>
-                    <button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button>
+                    ${runActions}
                 </div>
                 <section class="panel" style="margin-bottom:18px;"><div class="panel-title"><h3>Decision Context</h3></div><div class="trace-list">${decisionMeta.map(([label, value]) => `<div class="trace-item"><strong>${escapeHtml(label)}</strong><div class="sub">${escapeHtml(value)}</div></div>`).join('') || '<div class="empty">No decision context</div>'}</div></section>
                 <div class="layout-two">

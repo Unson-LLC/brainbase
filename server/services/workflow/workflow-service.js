@@ -7,6 +7,7 @@ import {
     testWorkflowDraft
 } from './workflow-draft-generator.js';
 import {
+    MEETING_WORKFLOW_PACK_ID,
     MEETING_WORKFLOW_DEFINITIONS,
     buildMeetingWorkflowPackRecords,
     meetingPackIds
@@ -14,6 +15,7 @@ import {
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
+const MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY = 'meeting-review-package-ingest';
 const ALLOWED_TRIGGER_TYPES = new Set(['human', 'event', 'schedule']);
 const ALLOWED_AUTONOMY_LEVELS = new Set(['human_only', 'draft_only', 'approval_required', 'auto_execute']);
 const MEETING_CALENDAR_SUCCESS_STATE_TRANSITIONS = [
@@ -29,6 +31,116 @@ const MEETING_CALENDAR_FAILED_ALL_STATE_TRANSITIONS = [
     'calendar_fetch_failed_all',
     'failed_without_partial_write'
 ];
+const MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS = [
+    'package_received',
+    'scope_resolved',
+    'loop_intents_verified',
+    'run_recorded',
+    'outputs_recorded',
+    'human_steps_recorded',
+    'waiting_human'
+];
+const MEETING_REVIEW_OUTPUT_DEFINITIONS = [
+    {
+        id: 'meeting_note_draft',
+        title: '議事録ドラフト',
+        type: 'meeting_note_draft',
+        package_key: 'meeting_note_summary',
+        loop_intent_key: 'transcript_to_meeting_note',
+        write_back_target: 'meeting_note_draft'
+    },
+    {
+        id: 'task_candidates',
+        title: 'Task候補',
+        type: 'task_candidates',
+        package_key: 'task_candidates',
+        loop_intent_key: 'meeting_note_to_tasks',
+        write_back_target: 'task_store'
+    },
+    {
+        id: 'decision_candidates',
+        title: 'Decision候補',
+        type: 'decision_candidates',
+        package_key: 'decision_candidates',
+        loop_intent_key: 'meeting_note_to_decisions',
+        write_back_target: 'graph_ssot_decision'
+    },
+    {
+        id: 'follow_up_draft',
+        title: 'フォローアップ文面ドラフト',
+        type: 'message_draft',
+        package_key: 'follow_up_draft',
+        loop_intent_key: 'post_meeting_follow_up_message',
+        write_back_target: 'external_message_draft'
+    },
+    {
+        id: 'promotion_candidates',
+        title: 'Graph / Learning昇格候補',
+        type: 'promotion_candidates',
+        package_key: 'promotion_candidates',
+        loop_intent_key: 'meeting_note_to_decisions',
+        write_back_target: 'candidate_store'
+    }
+];
+const MEETING_REVIEW_HUMAN_STEP_DEFINITIONS = [
+    {
+        id: 'approve_meeting_note_publish',
+        step_type: 'approval',
+        prompt: '議事録ドラフトの公開可否を確認してください',
+        reason: 'required_before_publish',
+        protects: ['meeting_note_publish'],
+        write_back_target: 'meeting_note_draft',
+        loop_intent_key: 'transcript_to_meeting_note'
+    },
+    {
+        id: 'approve_task_candidates',
+        step_type: 'approval',
+        prompt: 'Task候補を作成してよいか確認してください',
+        reason: 'required_before_task_create',
+        protects: ['task_create'],
+        write_back_target: 'task_store',
+        loop_intent_key: 'meeting_note_to_tasks'
+    },
+    {
+        id: 'approve_decision_candidates',
+        step_type: 'approval',
+        prompt: 'Decision候補をGraph SSOTへ昇格してよいか確認してください',
+        reason: 'required_before_graph_promotion',
+        protects: ['decision_promotion', 'graph_promotion'],
+        write_back_target: 'graph_ssot_decision',
+        loop_intent_key: 'meeting_note_to_decisions'
+    },
+    {
+        id: 'approve_follow_up_draft',
+        step_type: 'approval',
+        prompt: 'フォローアップ文面を外部送信してよいか確認してください',
+        reason: 'required_before_external_send',
+        protects: ['external_send'],
+        write_back_target: 'external_message_draft',
+        loop_intent_key: 'post_meeting_follow_up_message'
+    },
+    {
+        id: 'approve_promotion_candidates',
+        step_type: 'approval',
+        prompt: 'Graph / Learning昇格候補を次の審査へ回してよいか確認してください',
+        reason: 'required_before_candidate_promotion',
+        protects: ['graph_candidate_promotion', 'learning_candidate_promotion'],
+        write_back_target: 'candidate_store',
+        loop_intent_key: 'meeting_note_to_decisions'
+    }
+];
+const REQUIRED_MEETING_REVIEW_LOOP_INTENT_KEYS = Array.from(new Set([
+    ...MEETING_REVIEW_OUTPUT_DEFINITIONS.map((definition) => definition.loop_intent_key),
+    ...MEETING_REVIEW_HUMAN_STEP_DEFINITIONS.map((definition) => definition.loop_intent_key)
+]));
+const REQUIRED_MEETING_REVIEW_PACKAGE_KEYS = MEETING_REVIEW_OUTPUT_DEFINITIONS.map((definition) => definition.package_key);
+
+function meetingReviewValidationError(message, stateTransition, details = {}) {
+    return AppError.validation(message, {
+        state_transition: stateTransition,
+        ...details
+    });
+}
 
 function normalizeProjectKey(value) {
     if (!value || typeof value !== 'string') return '';
@@ -125,16 +237,111 @@ function readStringList(input, snakeKey, camelKey = snakeKey) {
     return [];
 }
 
-function createStableId(prefix, ...parts) {
-    const base = parts
+function createStableIdBase(...parts) {
+    return parts
         .map((part) => String(part || '').trim())
         .filter(Boolean)
         .join('_')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 96);
+        .replace(/^_+|_+$/g, '');
+}
+
+function createStableId(prefix, ...parts) {
+    const base = createStableIdBase(...parts).slice(0, 96);
     return base ? `${prefix}_${base}` : `${prefix}_${crypto.randomUUID()}`;
+}
+
+function createMeetingReviewStableId(prefix, ...parts) {
+    const base = createStableIdBase(...parts);
+    if (!base) return `${prefix}_${crypto.randomUUID()}`;
+    if (base.length <= 96) return `${prefix}_${base}`;
+    const hash = crypto.createHash('sha256').update(base).digest('hex').slice(0, 12);
+    const stem = base.slice(0, 83).replace(/_+$/g, '');
+    return `${prefix}_${stem}_${hash}`;
+}
+
+function jsonClone(value) {
+    if (value === undefined) return null;
+    return JSON.parse(JSON.stringify(value));
+}
+
+function readReviewPackage(input = {}) {
+    const candidate = input.review_package || input.reviewPackage || input.package || input;
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        throw meetingReviewValidationError('review_package must be a JSON object', 'blocked_invalid_review_package');
+    }
+    return jsonClone(candidate);
+}
+
+function previewPayload(value) {
+    if (Array.isArray(value)) return `${value.length}件`;
+    if (value && typeof value === 'object') {
+        if (typeof value.body === 'string') return value.body.slice(0, 500);
+        const text = JSON.stringify(value);
+        return text.length > 500 ? `${text.slice(0, 500)}...` : text;
+    }
+    if (value == null) return '';
+    return String(value).slice(0, 500);
+}
+
+function sourceRefForMeetingIdentity(meetingIdentity = {}) {
+    if (meetingIdentity.source === 'google_calendar') {
+        return [
+            'google-calendar',
+            meetingIdentity.account || 'default',
+            meetingIdentity.calendar_id || 'default',
+            meetingIdentity.event_id || meetingIdentity.event_uid || 'unknown'
+        ].join(':');
+    }
+    return meetingIdentity.source ? `${meetingIdentity.source}:${meetingIdentity.event_id || meetingIdentity.title || 'unknown'}` : 'meeting_identity:unknown';
+}
+
+function sourceRefForSourceEvent(sourceEvent = {}) {
+    if (sourceEvent.source_system === 'slack') {
+        return [
+            'slack',
+            sourceEvent.workspace || 'default',
+            sourceEvent.channel_id || sourceEvent.channel_name || 'unknown',
+            sourceEvent.message_ts || sourceEvent.file_id || 'unknown'
+        ].join(':');
+    }
+    return sourceEvent.source_system ? `${sourceEvent.source_system}:${sourceEvent.id || 'unknown'}` : 'source_event:unknown';
+}
+
+function loopIntentEntries(loopIntentIds) {
+    if (!loopIntentIds || typeof loopIntentIds !== 'object' || Array.isArray(loopIntentIds)) {
+        throw meetingReviewValidationError('review_package.loop_intent_ids must be a JSON object', 'blocked_loop_intent_mismatch', {
+            required_loop_intent_keys: REQUIRED_MEETING_REVIEW_LOOP_INTENT_KEYS
+        });
+    }
+    const entries = Object.entries(loopIntentIds)
+        .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : ''])
+        .filter(([, value]) => value);
+    if (entries.length === 0) {
+        throw meetingReviewValidationError('review_package.loop_intent_ids must include at least one id', 'blocked_loop_intent_mismatch', {
+            required_loop_intent_keys: REQUIRED_MEETING_REVIEW_LOOP_INTENT_KEYS
+        });
+    }
+    const presentKeys = new Set(entries.map(([key]) => key));
+    const missingKeys = REQUIRED_MEETING_REVIEW_LOOP_INTENT_KEYS.filter((key) => !presentKeys.has(key));
+    if (missingKeys.length > 0) {
+        throw meetingReviewValidationError('review_package.loop_intent_ids is missing required meeting review key(s)', 'blocked_loop_intent_mismatch', {
+            missing_loop_intent_keys: missingKeys,
+            required_loop_intent_keys: REQUIRED_MEETING_REVIEW_LOOP_INTENT_KEYS
+        });
+    }
+    return entries;
+}
+
+function assertMeetingReviewPackageMapping(reviewPackage) {
+    const missingPackageKeys = REQUIRED_MEETING_REVIEW_PACKAGE_KEYS.filter((key) => !Object.hasOwn(reviewPackage, key) || reviewPackage[key] == null);
+    if (missingPackageKeys.length > 0) {
+        throw meetingReviewValidationError('review_package is missing required output payload key(s)', 'blocked_invalid_review_package', {
+            missing_package_keys: missingPackageKeys,
+            required_package_keys: REQUIRED_MEETING_REVIEW_PACKAGE_KEYS
+        });
+    }
 }
 
 function eligibilityFrom({ binding, trigger, input }) {
@@ -254,8 +461,33 @@ export function createDefaultWorkflowHandlers({ clock = () => new Date() } = {})
                 humanStepResolution: ctx.humanStepResolution || null,
                 recordedAt: clock().toISOString()
             }
-        })
+        }),
+        [MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY]: async () => {
+            throw AppError.validation('meeting-review-package-ingest must be executed through review-ingest API');
+        }
     };
+}
+
+function assertWorkflowRunAllowed(workflow) {
+    if (workflow?.implementation_key === MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY) {
+        throw AppError.validation('meeting-review-package-ingest workflows cannot be manually run; use /api/workflows/control/meeting-pack/review-ingest');
+    }
+}
+
+function isMeetingReviewPackageWorkflow(workflow) {
+    return workflow?.implementation_key === MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY;
+}
+
+function isApprovedHumanResolution(status) {
+    return ['approved', 'approve'].includes(String(status || '').toLowerCase());
+}
+
+function isPendingHumanStepStatus(status) {
+    return String(status || '').toLowerCase() === 'pending';
+}
+
+function isRejectedHumanStepStatus(status) {
+    return ['rejected', 'reject', 'cancelled', 'canceled', 'declined'].includes(String(status || '').toLowerCase());
 }
 
 function normalizeWorkflowInput(input, { projectId, ownerId, assigneeId, approverId } = {}) {
@@ -901,6 +1133,354 @@ export class WorkflowService {
         });
     }
 
+    async ingestMeetingReviewPackage(input = {}, actor = {}) {
+        await this._loadProjectConfigCache();
+        const reviewPackage = readReviewPackage(input);
+        const packageId = readOptionalString(reviewPackage, 'package_id', 'packageId');
+        const meetingIdentity = reviewPackage.meeting_identity && typeof reviewPackage.meeting_identity === 'object'
+            ? reviewPackage.meeting_identity
+            : {};
+        const sourceEvent = reviewPackage.source_event && typeof reviewPackage.source_event === 'object'
+            ? reviewPackage.source_event
+            : {};
+        const orgId = readOptionalString(input, 'org_id', 'orgId')
+            || readOptionalString(reviewPackage, 'org_id', 'orgId')
+            || readOptionalString(meetingIdentity, 'candidate_org_id', 'candidateOrgId');
+        const projectId = readOptionalString(input, 'project_id', 'projectId')
+            || readOptionalString(reviewPackage, 'project_id', 'projectId')
+            || readOptionalString(meetingIdentity, 'candidate_project_id', 'candidateProjectId');
+        const caseScope = readOptionalString(input, 'case_scope', 'caseScope')
+            || readOptionalString(reviewPackage, 'case_scope', 'caseScope')
+            || readOptionalString(meetingIdentity, 'case_scope', 'caseScope');
+        if (!packageId) {
+            throw meetingReviewValidationError('review_package.package_id is required', 'blocked_invalid_review_package', {
+                missing_package_keys: ['package_id']
+            });
+        }
+        if (!orgId) {
+            throw meetingReviewValidationError('org_id is required', 'blocked_invalid_scope', {
+                field: 'org_id'
+            });
+        }
+        if (!projectId) {
+            throw meetingReviewValidationError('project_id is required', 'blocked_invalid_scope', {
+                field: 'project_id',
+                org_id: orgId
+            });
+        }
+        try {
+            await this._assertProjectSelectable(projectId);
+            this._assertOrgReferenceAllowed(orgId);
+        } catch (error) {
+            if (error?.statusCode === 400) {
+                throw meetingReviewValidationError(error.message, 'blocked_invalid_scope', {
+                    org_id: orgId,
+                    project_id: projectId
+                });
+            }
+            throw error;
+        }
+        this._assertActorCanAccessProject(projectId, actor);
+
+        assertMeetingReviewPackageMapping(reviewPackage);
+        const loopEntries = loopIntentEntries(reviewPackage.loop_intent_ids);
+        const loopIntents = loopEntries.map(([key, loopIntentId]) => {
+            const loopIntent = this.repository.getLoopIntent(loopIntentId);
+            if (!loopIntent) {
+                throw AppError.validation(`loop_intent '${loopIntentId}' not found`, {
+                    state_transition: 'blocked_loop_intent_mismatch',
+                    loop_intent_key: key,
+                    loop_intent_id: loopIntentId
+                });
+            }
+            if (loopIntent.org_id !== orgId || loopIntent.project_id !== projectId) {
+                throw AppError.validation(`loop_intent '${loopIntentId}' belongs to '${loopIntent.org_id}/${loopIntent.project_id}'`, {
+                    state_transition: 'blocked_loop_intent_mismatch',
+                    loop_intent_key: key,
+                    loop_intent_id: loopIntentId,
+                    expected: { org_id: orgId, project_id: projectId },
+                    actual: { org_id: loopIntent.org_id, project_id: loopIntent.project_id }
+                });
+            }
+            return { key, loop_intent: loopIntent };
+        });
+        const loopIntentByKey = new Map(loopIntents.map((entry) => [entry.key, entry.loop_intent]));
+        const workflowId = createMeetingReviewStableId('wf', orgId, projectId, 'meeting_review_package_ingest');
+        const runId = createMeetingReviewStableId('run', orgId, projectId, packageId, 'meeting_review_package_ingest');
+        const existingRun = this.repository.getRun(runId);
+        if (existingRun) {
+            return {
+                meeting_review_ingest: {
+                    org_id: orgId,
+                    project_id: projectId,
+                    case_scope: caseScope,
+                    package_id: packageId,
+                    idempotent: true,
+                    state_transitions: ['package_received', 'scope_resolved', 'loop_intents_verified', 'idempotent_replay'],
+                    run: existingRun,
+                    outputs: this.repository.listOutputs(runId),
+                    human_steps: this.repository.listHumanSteps(runId),
+                    context_snapshots: this.repository.listContextSnapshots(runId),
+                    loop_intents: loopIntents.map((entry) => entry.loop_intent)
+                }
+            };
+        }
+
+        const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
+        const now = new Date().toISOString();
+        const evidenceRefs = normalizeTags(reviewPackage.evidence_refs || reviewPackage.evidenceRefs);
+        const stopConditions = normalizeTags(reviewPackage.stop_conditions || reviewPackage.stopConditions);
+
+        return this.repository.transaction(async () => {
+            const workflow = this.repository.upsertWorkflow({
+                id: workflowId,
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                name: 'Meeting Review Package Ingest',
+                description: 'Codex生成Review PackageをWorkflow Mission Controlの承認待ちrunへ取り込む',
+                owner_id: actorId,
+                default_assignee_id: actorId,
+                default_approver_id: actorId,
+                execution_env: 'local',
+                risk_level: 'medium',
+                hitl_policy: 'none',
+                timeout_ms: 300000,
+                implementation_key: MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY,
+                context_sources: [{
+                    id: `${workflowId}_package`,
+                    source_type: 'review_package',
+                    source_ref: packageId,
+                    scope: 'meeting',
+                    permission: 'read',
+                    required: true,
+                    preview: `${meetingIdentity.title || packageId} Review Package`
+                }]
+            });
+            const run = this.repository.createRun({
+                id: runId,
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                workflow_id: workflowId,
+                workflow_name: workflow.name,
+                status: 'waiting_human',
+                closure_state: 'open',
+                trigger_type: 'event',
+                env: 'local',
+                dry_run: false,
+                started_by: actorId,
+                owner_id: actorId,
+                assignee_id: actorId,
+                approver_id: actorId,
+                action_required: 'approve',
+                human_waiting: true,
+                output_count: MEETING_REVIEW_OUTPUT_DEFINITIONS.length,
+                message: 'Meeting Review Package is waiting for human approval',
+                started_at: now,
+                finished_at: now,
+                duration_ms: 0,
+                metadata: {
+                    package_id: packageId,
+                    seed_id: reviewPackage.seed_id || null,
+                    case_scope: caseScope,
+                    meeting_identity: jsonClone(meetingIdentity),
+                    source_event: jsonClone(sourceEvent),
+                    graph_context: jsonClone(meetingIdentity.graph_context || null),
+                    loop_intent_ids: jsonClone(reviewPackage.loop_intent_ids || {}),
+                    evidence_refs: evidenceRefs,
+                    stop_conditions: stopConditions,
+                    runner: {
+                        type: 'codex_generated_package',
+                        eve_connected: false
+                    }
+                }
+            });
+            this.repository.createRunStep({
+                id: createMeetingReviewStableId('step', runId, 'ingest_review_package'),
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                workflow_run_id: runId,
+                step_key: 'ingest_review_package',
+                step_name: 'Review Package Ingest',
+                status: 'waiting_human',
+                action_required: 'approve',
+                output_count: MEETING_REVIEW_OUTPUT_DEFINITIONS.length,
+                message: 'Review Package outputs recorded and waiting for Human Gate',
+                started_at: now,
+                finished_at: now
+            });
+            const contextSnapshots = [
+                {
+                    id: createMeetingReviewStableId('ctx', runId, 'meeting_identity'),
+                    workspace_id: DEFAULT_WORKSPACE_ID,
+                    org_id: orgId,
+                    project_id: projectId,
+                    workflow_run_id: runId,
+                    source_type: 'meeting_identity',
+                    source_ref: sourceRefForMeetingIdentity(meetingIdentity),
+                    source_version: meetingIdentity.start || null,
+                    content_hash: meetingIdentity.event_id || meetingIdentity.event_uid || null,
+                    item_count: Object.keys(meetingIdentity).length,
+                    permission: 'read',
+                    preview: meetingIdentity.title || packageId,
+                    data: jsonClone(meetingIdentity)
+                },
+                {
+                    id: createMeetingReviewStableId('ctx', runId, 'source_event'),
+                    workspace_id: DEFAULT_WORKSPACE_ID,
+                    org_id: orgId,
+                    project_id: projectId,
+                    workflow_run_id: runId,
+                    source_type: 'meeting_source',
+                    source_ref: sourceRefForSourceEvent(sourceEvent),
+                    source_version: sourceEvent.message_ts || sourceEvent.file_id || null,
+                    content_hash: sourceEvent.local_artifact_sha256 || null,
+                    item_count: Object.keys(sourceEvent).length,
+                    permission: 'read',
+                    preview: sourceEvent.channel_name || sourceEvent.file_id || packageId,
+                    data: jsonClone(sourceEvent)
+                },
+                {
+                    id: createMeetingReviewStableId('ctx', runId, 'graph_context'),
+                    workspace_id: DEFAULT_WORKSPACE_ID,
+                    org_id: orgId,
+                    project_id: projectId,
+                    workflow_run_id: runId,
+                    source_type: 'graph_ssot',
+                    source_ref: `graph-context:${orgId}:${projectId}:${caseScope || packageId}`,
+                    source_version: null,
+                    content_hash: null,
+                    item_count: [
+                        ...(meetingIdentity.graph_context?.org_entity_ids || []),
+                        ...(meetingIdentity.graph_context?.person_entity_ids || [])
+                    ].length,
+                    permission: 'read',
+                    preview: 'Graph SSOT context candidates',
+                    data: {
+                        ...jsonClone(meetingIdentity.graph_context || {}),
+                        verification_status: 'candidate_from_review_package',
+                        promoted_to_graph_ssot: false
+                    }
+                },
+                {
+                    id: createMeetingReviewStableId('ctx', runId, 'review_package'),
+                    workspace_id: DEFAULT_WORKSPACE_ID,
+                    org_id: orgId,
+                    project_id: projectId,
+                    workflow_run_id: runId,
+                    source_type: 'review_package',
+                    source_ref: packageId,
+                    source_version: reviewPackage.schema_version || null,
+                    content_hash: null,
+                    item_count: MEETING_REVIEW_OUTPUT_DEFINITIONS.length,
+                    permission: 'read',
+                    preview: `${packageId} (${reviewPackage.status || 'unknown'})`,
+                    data: {
+                        schema_version: reviewPackage.schema_version || null,
+                        status: reviewPackage.status || null,
+                        seed_id: reviewPackage.seed_id || null
+                    }
+                }
+            ].map((snapshot) => this.repository.createContextSnapshot(snapshot));
+            const outputs = MEETING_REVIEW_OUTPUT_DEFINITIONS.map((definition) => {
+                const payload = reviewPackage[definition.package_key] ?? null;
+                const loopIntent = loopIntentByKey.get(definition.loop_intent_key);
+                return this.repository.createOutput({
+                    id: createMeetingReviewStableId('out', runId, definition.id),
+                    workspace_id: DEFAULT_WORKSPACE_ID,
+                    org_id: orgId,
+                    project_id: projectId,
+                    workflow_run_id: runId,
+                    workflow_id: workflowId,
+                    type: definition.type,
+                    title: definition.title,
+                    preview: previewPayload(payload),
+                    metadata: {
+                        package_id: packageId,
+                        case_scope: caseScope,
+                        output_key: definition.id,
+                        package_key: definition.package_key,
+                        loop_intent_id: loopIntent.id,
+                        workflow_template_id: loopIntent.workflow_template_id,
+                        workflow_binding_id: loopIntent.workflow_binding_id,
+                        write_back_target: definition.write_back_target,
+                        evidence_refs: evidenceRefs,
+                        requires_human_approval: true,
+                        runner_type: 'codex_generated_package'
+                    },
+                    payload: jsonClone(payload)
+                });
+            });
+            const humanSteps = MEETING_REVIEW_HUMAN_STEP_DEFINITIONS.map((definition) => {
+                const loopIntent = loopIntentByKey.get(definition.loop_intent_key);
+                return this.repository.createHumanStep({
+                    id: createMeetingReviewStableId('human', runId, definition.id),
+                    workspace_id: DEFAULT_WORKSPACE_ID,
+                    org_id: orgId,
+                    project_id: projectId,
+                    workflow_run_id: runId,
+                    workflow_id: workflowId,
+                    step_type: definition.step_type,
+                    requested_by: actorId,
+                    requested_to: actorId,
+                    prompt: definition.prompt,
+                    reason: definition.reason,
+                    metadata: {
+                        package_id: packageId,
+                        case_scope: caseScope,
+                        protects: definition.protects,
+                        write_back_target: definition.write_back_target,
+                        loop_intent_id: loopIntent.id,
+                        requires_human_approval: true
+                    }
+                });
+            });
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                actor_id: actorId,
+                action: 'workflow.meeting_review_package.ingested',
+                target_type: 'workflow_run',
+                target_id: runId,
+                after: {
+                    pack_id: MEETING_WORKFLOW_PACK_ID,
+                    package_id: packageId,
+                    case_scope: caseScope,
+                    workflow_id: workflowId,
+                    run_id: runId,
+                    output_ids: outputs.map((output) => output.id),
+                    human_step_ids: humanSteps.map((step) => step.id),
+                    loop_intent_ids: loopIntents.map((entry) => entry.loop_intent.id),
+                    runner: {
+                        type: 'codex_generated_package',
+                        eve_connected: false
+                    },
+                    state_transitions: MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS,
+                    evidence_refs: evidenceRefs,
+                    stop_conditions: stopConditions
+                }
+            });
+            return {
+                meeting_review_ingest: {
+                    org_id: orgId,
+                    project_id: projectId,
+                    case_scope: caseScope,
+                    package_id: packageId,
+                    idempotent: false,
+                    state_transitions: MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS,
+                    run,
+                    outputs,
+                    human_steps: humanSteps,
+                    context_snapshots: contextSnapshots,
+                    loop_intents: loopIntents.map((entry) => entry.loop_intent)
+                }
+            };
+        });
+    }
+
     async generateDraft(input, actor = {}) {
         const projectId = input.project_id || input.projectId;
         if (!projectId) throw AppError.validation('project_id is required');
@@ -956,9 +1536,6 @@ export class WorkflowService {
         await this._loadProjectConfigCache();
         const workflow = this.repository.getWorkflow(workflowId);
         if (!workflow) throw AppError.notFound('workflow', workflowId);
-        if (workflow.enabled === false) {
-            throw AppError.validation(`workflow '${workflowId}' is disabled`);
-        }
         await this._assertProjectSelectable(workflow.project_id);
         this._assertActorCanAccessProject(workflow.project_id, {
             sub: options.actorId,
@@ -967,6 +1544,10 @@ export class WorkflowService {
             role: options.role,
             authSource: options.authSource
         });
+        if (workflow.enabled === false) {
+            throw AppError.validation(`workflow '${workflowId}' is disabled`);
+        }
+        assertWorkflowRunAllowed(workflow);
         return this.runner.runWorkflow(workflow, options);
     }
 
@@ -975,6 +1556,8 @@ export class WorkflowService {
         const previous = this.repository.getRun(runId);
         if (!previous) throw AppError.notFound('workflow_run', runId);
         this._assertActorCanAccessProject(previous.project_id, actor);
+        const workflow = this.repository.getWorkflow(previous.workflow_id);
+        assertWorkflowRunAllowed(workflow);
         return this.runWorkflow(previous.workflow_id, {
             ...options,
             projectCodes: actor.projectCodes || [],
@@ -1014,8 +1597,10 @@ export class WorkflowService {
             throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
         }
         const resolution = input.resolution || input.status || 'approved';
+        const approvedResolution = isApprovedHumanResolution(resolution);
+        const resolvedStatus = approvedResolution ? 'approved' : resolution;
         const resolved = this.repository.updateHumanStep(stepId, {
-            status: resolution,
+            status: resolvedStatus,
             response_ref: input.response_ref || input.responseRef || null,
             reason: input.reason || step.reason || null,
             resolved_at: new Date().toISOString(),
@@ -1030,15 +1615,32 @@ export class WorkflowService {
             target_id: stepId,
             after: resolved
         });
-        if (!['approved', 'approve'].includes(String(resolution).toLowerCase())) {
-            const previousRun = this.repository.getRun(step.workflow_run_id);
+        const previousRun = this.repository.getRun(step.workflow_run_id);
+        const workflow = this.repository.getWorkflow(step.workflow_id);
+        if (!approvedResolution) {
+            const cancelledHumanStepIds = [];
+            if (isMeetingReviewPackageWorkflow(workflow)) {
+                for (const humanStep of this.repository.listHumanSteps(step.workflow_run_id)) {
+                    if (humanStep.id !== stepId && isPendingHumanStepStatus(humanStep.status)) {
+                        const cancelled = this.repository.updateHumanStep(humanStep.id, {
+                            status: 'cancelled',
+                            reason: `cancelled_after_${resolvedStatus}`,
+                            resolved_at: new Date().toISOString(),
+                            resolved_by: actor.person_id || actor.sub || 'system'
+                        });
+                        if (cancelled) cancelledHumanStepIds.push(cancelled.id);
+                    }
+                }
+            }
             const closedRun = previousRun
                 ? this.repository.updateRun(previousRun.id, {
                     status: 'cancelled',
                     closure_state: 'closed',
                     human_waiting: false,
                     action_required: 'none',
-                    message: `Human step ${resolution}`,
+                    message: isMeetingReviewPackageWorkflow(workflow)
+                        ? `Meeting Review Package stopped after human step ${resolvedStatus}`
+                        : `Human step ${resolvedStatus}`,
                     finished_at: new Date().toISOString()
                 })
                 : null;
@@ -1051,13 +1653,61 @@ export class WorkflowService {
                 target_id: step.workflow_run_id,
                 after: {
                     human_step_id: stepId,
-                    resolution,
+                    resolution: resolvedStatus,
+                    cancelled_human_step_ids: cancelledHumanStepIds,
                     status: closedRun?.status || 'cancelled'
                 }
             });
             return { human_step: resolved, resumed_run: closedRun };
         }
-        const previousRun = this.repository.getRun(step.workflow_run_id);
+        if (isMeetingReviewPackageWorkflow(workflow) && previousRun) {
+            const allHumanSteps = this.repository.listHumanSteps(step.workflow_run_id);
+            const pendingHumanSteps = allHumanSteps.filter((humanStep) => isPendingHumanStepStatus(humanStep.status));
+            const approvedHumanSteps = allHumanSteps.filter((humanStep) => isApprovedHumanResolution(humanStep.status));
+            const rejectedHumanSteps = allHumanSteps.filter((humanStep) => isRejectedHumanStepStatus(humanStep.status));
+            const allApproved = allHumanSteps.length > 0 && approvedHumanSteps.length === allHumanSteps.length;
+            const hasRejectedStep = rejectedHumanSteps.length > 0 || previousRun.status === 'cancelled';
+            const updatedRun = hasRejectedStep
+                ? this.repository.updateRun(previousRun.id, {
+                    status: 'cancelled',
+                    closure_state: 'closed',
+                    human_waiting: false,
+                    action_required: 'none',
+                    message: 'Meeting Review Package human approvals stopped after rejected gate',
+                    finished_at: new Date().toISOString()
+                })
+                : this.repository.updateRun(previousRun.id, {
+                    status: allApproved ? 'success' : 'waiting_human',
+                    closure_state: allApproved ? 'closed' : 'open',
+                    human_waiting: !allApproved,
+                    action_required: allApproved ? 'none' : 'approve',
+                    message: allApproved
+                        ? 'Meeting Review Package human approvals completed'
+                        : `Meeting Review Package is waiting for ${pendingHumanSteps.length} human approval(s)`,
+                    finished_at: new Date().toISOString()
+                });
+            this.repository.writeAuditLog({
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actor.person_id || actor.sub || 'system',
+                action: hasRejectedStep
+                    ? 'workflow.run.meeting_review_approvals.cancelled'
+                    : allApproved
+                    ? 'workflow.run.meeting_review_approvals.completed'
+                    : 'workflow.run.meeting_review_approvals.progressed',
+                target_type: 'workflow_run',
+                target_id: previousRun.id,
+                after: {
+                    human_step_id: stepId,
+                    approved_human_step_ids: approvedHumanSteps.map((humanStep) => humanStep.id),
+                    pending_human_step_ids: pendingHumanSteps.map((humanStep) => humanStep.id),
+                    rejected_human_step_ids: rejectedHumanSteps.map((humanStep) => humanStep.id),
+                    status: updatedRun?.status || previousRun.status,
+                    closure_state: updatedRun?.closure_state || previousRun.closure_state
+                }
+            });
+            return { human_step: resolved, resumed_run: updatedRun };
+        }
         const resume = await this.runWorkflow(step.workflow_id, {
             actorId: actor.person_id || actor.sub || 'system',
             projectCodes: actor.projectCodes || [],
