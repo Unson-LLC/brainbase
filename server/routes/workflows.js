@@ -133,6 +133,23 @@ export function createWorkflowRouter(workflowService) {
         res.status(201).json(await workflowService.createLoopIntent(req.body || {}, actorFromRequest(req)));
     }));
 
+    router.post('/control/loop-intents/:loopIntentId/eve-session', asyncHandler(async (req, res) => {
+        try {
+            const result = await workflowService.dispatchLoopIntentToEve(req.params.loopIntentId, req.body || {}, actorFromRequest(req));
+            res.status(result.eve_session_dispatch?.idempotent ? 200 : 201).json(result);
+        } catch (error) {
+            if (error?.statusCode === 400 && error?.details?.state_transition) {
+                res.status(400).json({
+                    error: error.message,
+                    state_transition: error.details.state_transition,
+                    details: error.details
+                });
+                return;
+            }
+            throw error;
+        }
+    }));
+
     router.post('/control/meeting-pack/bootstrap', asyncHandler(async (req, res) => {
         res.status(201).json(await workflowService.bootstrapMeetingWorkflowPack(req.body || {}, actorFromRequest(req)));
     }));

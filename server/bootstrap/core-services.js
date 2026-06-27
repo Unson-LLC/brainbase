@@ -27,6 +27,7 @@ import { PgCandidateRepository } from '../services/candidate-store/candidate-rep
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
+import { createEveSessionClientFromEnv } from '../services/external-runner/eve-session-client.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
@@ -87,7 +88,8 @@ export function createCoreServices({
         repository: workflowRepository,
         runner: workflowRunner,
         configParser,
-        googleCalendarService
+        googleCalendarService,
+        eveSessionClient: createEveSessionClientFromEnv()
     });
 
     // candidate-store: cross-repo source からの Raw Ledger envelope 受信用。

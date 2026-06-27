@@ -22,7 +22,8 @@ function makeApp({
     handlers = createDefaultWorkflowHandlers(),
     accessProjectCodes = ['general', 'sample-project'],
     role = 'member',
-    googleCalendarService = null
+    googleCalendarService = null,
+    eveSessionClient = null
 } = {}) {
     const repository = new InMemoryWorkflowRepository({
         seedWorkflows: [createBrainbaseAliveWorkflow()]
@@ -39,7 +40,7 @@ function makeApp({
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService });
+    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -62,6 +63,33 @@ function makeApp({
         res.status(err.statusCode || 500).json({ error: err.message });
     });
     return { app, repository, service };
+}
+
+function makeEveSessionClient({
+    sessionId = 'eve-session-route-001',
+    continuationToken = 'cont-route-001',
+    sessions = null,
+    reject = null
+} = {}) {
+    const calls = [];
+    return {
+        calls,
+        isConfigured() {
+            return true;
+        },
+        async createSession(input) {
+            calls.push(input);
+            if (reject) throw reject;
+            const next = Array.isArray(sessions) && sessions.length
+                ? sessions[Math.min(calls.length - 1, sessions.length - 1)]
+                : { session_id: sessionId, continuation_token: continuationToken };
+            return {
+                session_id: next.session_id ?? next.sessionId ?? null,
+                continuation_token: next.continuation_token ?? next.continuationToken ?? null,
+                response: { ok: true }
+            };
+        }
+    };
 }
 
 function sampleMeetingReviewPackage({
@@ -252,6 +280,471 @@ describe('workflow routes', () => {
         expect(repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })).toHaveLength(0);
         expect(repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project', workflowKind: 'meeting' })).toHaveLength(0);
         expect(repository.listAuditLogs({ targetId: 'mana-meeting-workflow-pack-v1' })).toHaveLength(0);
+    });
+
+    it('story-eve-runtime-session-connection-v0 exposes Eve session dispatch under Workflow Control namespace', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        const res = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(201);
+
+        expect(eveSessionClient.calls).toHaveLength(1);
+        expect(eveSessionClient.calls[0].context).toMatchObject({
+            brainbase_handoff_version: 'eve_session_handoff.v0',
+            expected_result_contract: 'external_runner.v0',
+            loop_intent: expect.objectContaining({ id: loopIntentId })
+        });
+        expect(res.body.eve_session_dispatch).toMatchObject({
+            org_id: 'sample-project',
+            project_id: 'sample-project',
+            loop_intent_id: loopIntentId,
+            idempotent: false,
+            run: expect.objectContaining({
+                status: 'running',
+                action_required: 'await_eve_result',
+                metadata: expect.objectContaining({
+                    expected_result_contract: 'external_runner.v0'
+                })
+            }),
+            eve_session: {
+                session_id: 'eve-session-route-001',
+                continuation_token_present: true
+            }
+        });
+        expect(res.body.eve_session_dispatch.run.metadata.runner.continuation_token).toBeUndefined();
+        expect(JSON.stringify(res.body.eve_session_dispatch)).not.toContain('cont-route-001');
+        expect(repository.getLoopIntent(loopIntentId)).toMatchObject({
+            status: 'dispatched',
+            metadata: {
+                eve_session_ref: {
+                    session_id: 'eve-session-route-001',
+                    continuation_token: 'cont-route-001',
+                    workflow_run_id: res.body.eve_session_dispatch.run.id
+                }
+            }
+        });
+        const loopIntentList = await request(app)
+            .get('/api/workflows/control/loop-intents?org_id=sample-project&project_id=sample-project')
+            .expect(200);
+        const listedLoopIntent = loopIntentList.body.loop_intents.find((item) => item.id === loopIntentId);
+        expect(listedLoopIntent.metadata.eve_session_ref).toMatchObject({
+            session_id: 'eve-session-route-001',
+            continuation_token_present: true
+        });
+        expect(listedLoopIntent.metadata.eve_session_ref.continuation_token).toBeUndefined();
+        expect(JSON.stringify(loopIntentList.body)).not.toContain('cont-route-001');
+
+        const runDetail = await request(app)
+            .get(`/api/workflow-runs/${res.body.eve_session_dispatch.run.id}`)
+            .expect(200);
+        expect(runDetail.body.run.metadata.runner).toMatchObject({
+            type: 'eve',
+            session_id: 'eve-session-route-001',
+            continuation_token_present: true
+        });
+        expect(runDetail.body.run.metadata.runner.continuation_token).toBeUndefined();
+        expect(JSON.stringify(runDetail.body.run)).not.toContain('cont-route-001');
+
+        const replay = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(200);
+        expect(replay.body.eve_session_dispatch).toMatchObject({
+            idempotent: true,
+            eve_session: {
+                session_id: 'eve-session-route-001',
+                continuation_token_present: true
+            }
+        });
+        expect(eveSessionClient.calls).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+    });
+
+    it('story-eve-runtime-session-connection-v0 S-003 exposes forceNewSession without idempotent replay', async () => {
+        const eveSessionClient = makeEveSessionClient({
+            sessions: [
+                { session_id: 'eve-session-route-001', continuation_token: 'cont-route-001' },
+                { session_id: 'eve-session-route-002', continuation_token: 'cont-route-002' }
+            ]
+        });
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(201);
+        const forced = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({ forceNewSession: true })
+            .expect(201);
+
+        expect(forced.body.eve_session_dispatch).toMatchObject({
+            idempotent: false,
+            eve_session: {
+                session_id: 'eve-session-route-002',
+                continuation_token_present: true
+            }
+        });
+        expect(eveSessionClient.calls).toHaveLength(2);
+        expect(eveSessionClient.calls[1]).toEqual(expect.objectContaining({
+            message: expect.any(String),
+            context: expect.objectContaining({
+                expected_result_contract: 'external_runner.v0'
+            })
+        }));
+        expect(eveSessionClient.calls[1].context.loop_intent.metadata.eve_session_ref).toMatchObject({
+            session_id: 'eve-session-route-001',
+            continuation_token_present: true
+        });
+        expect(eveSessionClient.calls[1].context.loop_intent.metadata.eve_session_ref.continuation_token).toBeUndefined();
+        expect(forced.body.eve_session_dispatch.handoff.context.loop_intent.metadata.eve_session_ref.continuation_token).toBeUndefined();
+        expect(forced.body.eve_session_dispatch.run.id).toContain('eve_session_route_002');
+        const runDetail = await request(app)
+            .get(`/api/workflow-runs/${forced.body.eve_session_dispatch.run.id}`)
+            .expect(200);
+        const loopIntentSnapshot = runDetail.body.context_snapshots.find((snapshot) => snapshot.source_type === 'loop_intent');
+        expect(loopIntentSnapshot).toMatchObject({
+            redaction_status: 'redacted',
+            data: {
+                metadata: {
+                    eve_session_ref: {
+                        session_id: 'eve-session-route-001',
+                        continuation_token_present: true
+                    }
+                }
+            }
+        });
+        expect(loopIntentSnapshot.data.metadata.eve_session_ref.continuation_token).toBeUndefined();
+        expect(repository.getLoopIntent(loopIntentId).metadata.eve_session_ref).toMatchObject({
+            session_id: 'eve-session-route-002',
+            continuation_token: 'cont-route-002',
+            workflow_run_id: forced.body.eve_session_dispatch.run.id
+        });
+    });
+
+    it('story-eve-runtime-session-connection-v0 gate returns 400 for caller-supplied Eve continuation tokens', async () => {
+        for (const body of [
+            { continuation_token: 'caller-continuation-token' },
+            { continuationToken: 'caller-continuation-token' }
+        ]) {
+            const eveSessionClient = makeEveSessionClient();
+            const { app, repository } = makeApp({ eveSessionClient });
+            await request(app)
+                .post('/api/workflows/control/meeting-pack/bootstrap')
+                .send({
+                    org_id: 'sample-project',
+                    project_id: 'sample-project'
+                })
+                .expect(201);
+            const loopIntentId = meetingPackIds({
+                orgId: 'sample-project',
+                projectId: 'sample-project',
+                definitionId: 'pre-meeting-briefing'
+            }).loopIntentId;
+
+            const res = await request(app)
+                .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+                .send(body)
+                .expect(400);
+
+            expect(res.body.error).toBe('continuation_token is server-owned and cannot be supplied by clients');
+            expect(eveSessionClient.calls).toHaveLength(0);
+            expect(repository.listRuns()).toHaveLength(0);
+            expect(repository.getLoopIntent(loopIntentId)).toMatchObject({ status: 'ready' });
+            expect(repository.getLoopIntent(loopIntentId).metadata).toBeUndefined();
+        }
+    });
+
+    it('story-eve-runtime-session-connection-v0 gate returns 400 for empty Eve dispatch messages', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        const res = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({ message: '' })
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            error: 'message is required',
+            state_transition: 'blocked_eve_message_required',
+            details: {
+                state_transition: 'blocked_eve_message_required'
+            }
+        });
+        expect(eveSessionClient.calls).toHaveLength(0);
+        expect(repository.getLoopIntent(loopIntentId)).toMatchObject({ status: 'ready' });
+        expect(repository.getLoopIntent(loopIntentId).metadata).toBeUndefined();
+    });
+
+    it('story-eve-runtime-session-connection-v0 S-001 rejects invalid public Workflow Binding stop conditions', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const roleAgent = repository.listRoleAgentInstances({ orgId: 'sample-project', projectId: 'sample-project' })[0];
+        const template = repository.listWorkflowTemplates({ orgId: 'sample-project', projectId: 'sample-project' })[0];
+
+        const res = await request(app)
+            .post('/api/workflows/control/bindings')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                role_agent_instance_id: roleAgent.id,
+                workflow_template_id: template.id,
+                stop_conditions: [{}]
+            })
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            error: 'stop_conditions[0] must be a non-empty string'
+        });
+        expect(eveSessionClient.calls).toHaveLength(0);
+    });
+
+    it('story-eve-runtime-session-connection-v0 S-012 rejects generic run API for Eve dispatch workflows', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        const dispatch = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(201);
+
+        await request(app)
+            .post(`/api/workflows/${dispatch.body.eve_session_dispatch.workflow.id}/run`)
+            .send({})
+            .expect(400)
+            .expect((res) => {
+                expect(res.body).toEqual({
+                    error: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
+                });
+            });
+        await request(app)
+            .post(`/api/workflow-runs/${dispatch.body.eve_session_dispatch.run.id}/rerun`)
+            .send({})
+            .expect(400)
+            .expect((res) => {
+                expect(res.body).toEqual({
+                    error: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
+                });
+            });
+    });
+
+    it('story-eve-runtime-session-connection-v0 FM-002 negative_path rejects Eve create failures before route writes', async () => {
+        const eveError = new Error('Eve HTTP 502');
+        eveError.code = 'eve_session_create_failed';
+        eveError.status = 502;
+        const eveSessionClient = makeEveSessionClient({ reject: eveError });
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        const res = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            error: 'Eve session create failed',
+            state_transition: 'blocked_eve_session_create_failed',
+            details: {
+                state_transition: 'blocked_eve_session_create_failed',
+                loop_intent_id: loopIntentId,
+                eve_error_code: 'eve_session_create_failed',
+                eve_status: 502
+            }
+        });
+        expect(eveSessionClient.calls).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.run_steps).toHaveLength(0);
+        expect(repository.ledger.context_snapshots).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.getLoopIntent(loopIntentId)).toMatchObject({ status: 'ready' });
+        expect(repository.getLoopIntent(loopIntentId).metadata).toBeUndefined();
+    });
+
+    it('story-eve-runtime-session-connection-v0 S-013 returns route error shape and recovery evidence when Brainbase persistence fails', async () => {
+        const eveSessionClient = makeEveSessionClient({
+            sessionId: 'eve-session-route-recovery',
+            continuationToken: 'cont-route-recovery'
+        });
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+        const originalCreateContextSnapshot = repository.createContextSnapshot.bind(repository);
+        let failedOnce = false;
+        repository.createContextSnapshot = (snapshot) => {
+            if (!failedOnce && snapshot.source_type === 'loop_intent') {
+                failedOnce = true;
+                throw new Error('context snapshot write failed');
+            }
+            return originalCreateContextSnapshot(snapshot);
+        };
+
+        const res = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            error: 'Eve session dispatched but Brainbase persistence failed',
+            state_transition: 'blocked_eve_dispatch_persistence_failed',
+            details: {
+                state_transition: 'blocked_eve_dispatch_persistence_failed',
+                loop_intent_id: loopIntentId,
+                eve_session_id: 'eve-session-route-recovery',
+                continuation_token_present: true,
+                recovery_recorded: true,
+                persistence_error: 'context snapshot write failed'
+            }
+        });
+        expect(eveSessionClient.calls).toHaveLength(1);
+        const recoveryRun = repository.ledger.runs[0];
+        expect(recoveryRun).toMatchObject({
+            status: 'blocked',
+            action_required: 'operator_reconcile_eve_session',
+            metadata: {
+                dispatch_persistence_failed: true,
+                runner: {
+                    type: 'eve',
+                    session_id: 'eve-session-route-recovery',
+                    continuation_token_present: true
+                }
+            }
+        });
+        expect(recoveryRun.metadata.runner.continuation_token).toBeUndefined();
+        expect(repository.getLoopIntent(loopIntentId).metadata.eve_session_ref).toMatchObject({
+            session_id: 'eve-session-route-recovery',
+            continuation_token: 'cont-route-recovery',
+            workflow_run_id: recoveryRun.id,
+            persistence_recovery_required: true
+        });
+        expect(repository.listAuditLogs({ targetId: recoveryRun.id })[0]).toMatchObject({
+            action: 'workflow.eve_session.dispatch_persistence_failed',
+            after: {
+                eve_session_id: 'eve-session-route-recovery',
+                continuation_token_present: true,
+                state_transition: 'blocked_eve_dispatch_persistence_failed'
+            }
+        });
+        expect(JSON.stringify(res.body)).not.toContain('cont-route-recovery');
+    });
+
+    it('story-eve-runtime-session-connection-v0 FM-003 boundary_condition rejects missing Eve session id before route writes', async () => {
+        const eveSessionClient = makeEveSessionClient({ sessionId: null, continuationToken: 'cont-without-session' });
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project'
+            })
+            .expect(201);
+        const loopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        const res = await request(app)
+            .post(`/api/workflows/control/loop-intents/${loopIntentId}/eve-session`)
+            .send({})
+            .expect(400);
+
+        expect(res.body).toMatchObject({
+            error: 'Eve session response did not include a session id',
+            state_transition: 'blocked_eve_session_id_missing',
+            details: {
+                state_transition: 'blocked_eve_session_id_missing',
+                loop_intent_id: loopIntentId
+            }
+        });
+        expect(eveSessionClient.calls).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(0);
+        expect(repository.ledger.run_steps).toHaveLength(0);
+        expect(repository.ledger.context_snapshots).toHaveLength(0);
+        expect(repository.ledger.outputs).toHaveLength(0);
+        expect(repository.ledger.human_steps).toHaveLength(0);
+        expect(repository.getLoopIntent(loopIntentId)).toMatchObject({ status: 'ready' });
+        expect(repository.getLoopIntent(loopIntentId).metadata).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 FM-001 auth_denied rejects meeting pack bootstrap before writes', async () => {

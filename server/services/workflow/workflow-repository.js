@@ -29,6 +29,12 @@ function nowIso() {
     return new Date().toISOString();
 }
 
+function lockKey({ workspace_id, workflow_id }) {
+    return crypto.createHash('sha256')
+        .update(`${workspace_id || 'default'}:${workflow_id || 'unknown'}`)
+        .digest('hex');
+}
+
 function readLedgerFile(filePath) {
     if (!filePath || !fs.existsSync(filePath)) return clone(EMPTY_LEDGER);
     let parsed;
@@ -439,5 +445,84 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         const tmpPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
         fs.writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`);
         fs.renameSync(tmpPath, this.filePath);
+    }
+
+    reload() {
+        if (!this.filePath) return clone(this.ledger);
+        this.ledger = readLedgerFile(this.filePath);
+        return clone(this.ledger);
+    }
+
+    acquireWorkflowLock({ workspace_id, workflow_id, locked_by, ttl_ms = 300000 }) {
+        if (!this.filePath) return super.acquireWorkflowLock({ workspace_id, workflow_id, locked_by, ttl_ms });
+        const lockDir = path.join(path.dirname(this.filePath), '.workflow-locks');
+        fs.mkdirSync(lockDir, { recursive: true });
+        const lockPath = path.join(lockDir, `${lockKey({ workspace_id, workflow_id })}.json`);
+        const now = Date.now();
+        const lock = {
+            workspace_id,
+            workflow_id,
+            locked_by,
+            locked_at: new Date(now).toISOString(),
+            expires_at: new Date(now + ttl_ms).toISOString()
+        };
+
+        const writeLock = () => {
+            const fd = fs.openSync(lockPath, 'wx');
+            try {
+                fs.writeFileSync(fd, `${JSON.stringify(lock, null, 2)}\n`);
+            } finally {
+                fs.closeSync(fd);
+            }
+            this.reload();
+            return clone(lock);
+        };
+
+        try {
+            return writeLock();
+        } catch (error) {
+            if (error?.code !== 'EEXIST') throw error;
+            let existing = null;
+            try {
+                existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+            } catch {
+                return null;
+            }
+            if (new Date(existing.expires_at).getTime() <= now) {
+                try {
+                    fs.unlinkSync(lockPath);
+                    return writeLock();
+                } catch (retryError) {
+                    if (retryError?.code === 'EEXIST') return null;
+                    throw retryError;
+                }
+            }
+            return null;
+        }
+    }
+
+    releaseWorkflowLock({ workspace_id, workflow_id, locked_by }) {
+        if (!this.filePath) return super.releaseWorkflowLock({ workspace_id, workflow_id, locked_by });
+        const lockPath = path.join(
+            path.dirname(this.filePath),
+            '.workflow-locks',
+            `${lockKey({ workspace_id, workflow_id })}.json`
+        );
+        if (!fs.existsSync(lockPath)) return false;
+        let existing = null;
+        try {
+            existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+        } catch {
+            existing = null;
+        }
+        if (existing?.locked_by && existing.locked_by !== locked_by) return false;
+        try {
+            fs.unlinkSync(lockPath);
+            this.reload();
+            return true;
+        } catch (error) {
+            if (error?.code === 'ENOENT') return false;
+            throw error;
+        }
     }
 }

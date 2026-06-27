@@ -78,6 +78,7 @@
 - 同一 `run.project_id + runner.type + runner.external_run_id` はduplicateとして扱い、二重保存しない。
 - `run.workflow_run_id` がpayloadに含まれても冪等キーには使わず、Brainbase側で `run.project_id + runner.type + runner.external_run_id` からrun idを決める。
 - 別projectで同じ `runner.external_run_id` が送られてもduplicate replayせず、project-scopedな別runとして保存する。
+- `loop_control.stop_conditions[]` の各要素は非空文字列でなければならない。
 - `run.workflow_id` が既存Workflowを指す場合は、既存Workflowの `project_id` とpayloadの `run.project_id` が一致することを必須にする。一致しない場合は `workflow_project_mismatch` として保存前に拒否する。
 - `run.workflow_id` 未指定時に生成するWorkflow IDは `run.project_id` と `runner.agent_id` から決め、project境界をまたがない。
 - service/internal credential以外のrequestでは、`loop_control.owner_id`、`loop_control.cost_owner_id`、`loop_control.approval_owner_id` が認証主体本人と一致することを必須にする。一致しない場合は `loop_control_delegation_not_allowed` として保存前に拒否する。

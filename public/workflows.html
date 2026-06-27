@@ -485,7 +485,9 @@
             workflowDraft: null,
             workflowDraftTest: null,
             workflowControl: {},
-            meetingPackBootstrapStatus: {}
+            meetingPackBootstrapStatus: {},
+            eveSessionDispatchStatus: {},
+            eveSessionDispatchInFlight: {}
         };
         const views = {
             workspace: document.getElementById('workspace-view'),
@@ -569,10 +571,25 @@
             }[char]));
         }
         function errorMessage(data, fallback) {
-            if (typeof data?.error === 'string') return data.error;
-            if (typeof data?.error?.message === 'string') return data.error.message;
-            if (typeof data?.message === 'string') return data.message;
-            return fallback;
+            const base = typeof data?.error === 'string'
+                ? data.error
+                : typeof data?.error?.message === 'string'
+                    ? data.error.message
+                    : typeof data?.message === 'string'
+                        ? data.message
+                        : fallback;
+            const details = data?.details || data?.error?.details || {};
+            const stateTransition = data?.state_transition || details.state_transition;
+            const detailParts = [];
+            if (stateTransition) detailParts.push(`状態: ${stateTransition}`);
+            if (details.eve_status) detailParts.push(`Eve status: ${details.eve_status}`);
+            if (Array.isArray(details.blocked_reasons) && details.blocked_reasons.length) {
+                detailParts.push(`理由: ${details.blocked_reasons.join(' · ')}`);
+            }
+            if (details.field) {
+                detailParts.push(`${details.field}: expected=${details.expected ?? '-'} actual=${details.actual ?? '-'}`);
+            }
+            return detailParts.length ? `${base} (${detailParts.join(', ')})` : base;
         }
         function getAuthToken() {
             try {
@@ -693,6 +710,95 @@
             } catch {
                 return '';
             }
+        }
+        function ownProp(object, key) {
+            return Boolean(object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key));
+        }
+        function selectStopConditionSource(run, runMetadata, loopControl) {
+            const candidates = [
+                ['run.stop_conditions', run, 'stop_conditions'],
+                ['run.metadata.stop_conditions', runMetadata, 'stop_conditions'],
+                ['run.metadata.loop_control.stop_conditions', loopControl, 'stop_conditions']
+            ];
+            for (const [field, owner, key] of candidates) {
+                if (ownProp(owner, key)) return { field, value: owner[key] };
+            }
+            return { field: null, value: undefined };
+        }
+        function normalizeStopConditionDisplay(source) {
+            if (!source.field) return { values: [], warning: '' };
+            if (Array.isArray(source.value)) {
+                const values = source.value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+                const warning = values.length === source.value.length
+                    ? ''
+                    : `${source.field} contains invalid entries`;
+                return { values, warning };
+            }
+            return {
+                values: [],
+                warning: `${source.field} must be an array`
+            };
+        }
+        function loopIntentEveSessionRef(intent) {
+            return intent?.metadata?.eve_session_ref || null;
+        }
+        function eveDispatchStatus(intentId) {
+            return state.eveSessionDispatchStatus[intentId] || null;
+        }
+        function eveDispatchButtonLabel(intent) {
+            return loopIntentEveSessionRef(intent)?.session_id ? 'Eve sessionを再表示' : 'Eveへ送る';
+        }
+        function eveDispatchRunId(status, sessionRef) {
+            return status?.run_id || sessionRef?.workflow_run_id || null;
+        }
+        function renderEveDispatchStatus(intent) {
+            const status = eveDispatchStatus(intent.id);
+            const sessionRef = loopIntentEveSessionRef(intent);
+            const message = status ? status.message : sessionRef?.session_id ? `Eve session: ${sessionRef.session_id}` : '';
+            const runId = eveDispatchRunId(status, sessionRef);
+            const traceButton = runId
+                ? ` <button class="btn soft mini" type="button" data-run-id="${escapeHtml(runId)}">Run Trace</button>`
+                : '';
+            return `${escapeHtml(message)}${traceButton}`;
+        }
+        function loopIntentEveDispatchBlockReasons(intent) {
+            const reasons = [];
+            const status = String(intent?.status || '').toLowerCase();
+            const eligibilityStatus = String(intent?.eligibility?.status || '').toLowerCase();
+            if (intent?.enabled === false) reasons.push('Loop Intent disabled');
+            if (['blocked', 'human_only', 'cancelled', 'canceled'].includes(status)) {
+                reasons.push(`status: ${status}`);
+            }
+            if (['blocked', 'human_only'].includes(eligibilityStatus)) {
+                reasons.push(`eligibility: ${eligibilityStatus}`);
+            }
+            if (Array.isArray(intent?.blocked_reasons)) {
+                reasons.push(...intent.blocked_reasons.filter(Boolean));
+            }
+            return Array.from(new Set(reasons));
+        }
+        function isLoopIntentEveDispatchBlocked(intent) {
+            return loopIntentEveDispatchBlockReasons(intent).length > 0;
+        }
+        function renderLoopIntentEveDispatch(intent, projectId) {
+            const status = eveDispatchStatus(intent.id);
+            const sessionRef = loopIntentEveSessionRef(intent);
+            const blockedReasons = loopIntentEveDispatchBlockReasons(intent);
+            const blocked = blockedReasons.length > 0;
+            const inFlight = Boolean(state.eveSessionDispatchInFlight[intent.id]);
+            const disabled = blocked || inFlight;
+            const forceButton = sessionRef?.session_id
+                ? `<button class="btn soft" type="button" data-action="dispatch-eve-session" data-loop-intent-id="${escapeHtml(intent.id)}" data-project-id="${escapeHtml(projectId)}" data-force-new-session="1" ${disabled ? 'disabled' : ''}>新規Eve session</button>`
+                : '';
+            const reasonText = blockedReasons.length ? `Eve dispatch不可: ${blockedReasons.join(' · ')}` : '';
+            return `
+                <div class="toolbar" style="margin-top:8px;">
+                    <button class="btn soft" type="button" data-action="dispatch-eve-session" data-loop-intent-id="${escapeHtml(intent.id)}" data-project-id="${escapeHtml(projectId)}" ${disabled ? 'disabled' : ''}>${escapeHtml(eveDispatchButtonLabel(intent))}</button>
+                    ${forceButton}
+                    <span class="draft-status" data-eve-dispatch-status="${escapeHtml(intent.id)}">${renderEveDispatchStatus(intent)}</span>
+                </div>
+                ${reasonText ? `<div class="sub" data-eve-dispatch-block-reason="${escapeHtml(intent.id)}">${escapeHtml(reasonText)}</div>` : ''}
+            `;
         }
         function optionList(items, labelKey = 'name', labelFormatter) {
             return (items || []).map((item) => {
@@ -954,7 +1060,7 @@
                         const eligibility = intent.eligibility || {};
                         const reasons = Array.isArray(eligibility.reasons) ? eligibility.reasons.join(' · ') : '';
                         const inputPayload = intent.input_payload ? JSON.stringify(intent.input_payload) : '';
-                        return `<div class="trace-item"><strong>${escapeHtml(intent.id)}</strong><div class="sub">${escapeHtml(intent.trigger_type || '-')} · ${escapeHtml(eligibility.status || '-')} · approval ${eligibility.requires_human_approval ? 'required' : 'not required'}</div>${intent.input_summary ? `<div class="sub">${escapeHtml(intent.input_summary)}</div>` : ''}${inputPayload ? `<div class="sub">${escapeHtml(inputPayload)}</div>` : ''}${reasons ? `<div class="sub">${escapeHtml(reasons)}</div>` : ''}</div>`;
+                        return `<div class="trace-item"><strong>${escapeHtml(intent.id)}</strong><div class="sub">${escapeHtml(intent.trigger_type || '-')} · ${escapeHtml(eligibility.status || '-')} · approval ${eligibility.requires_human_approval ? 'required' : 'not required'}</div>${intent.input_summary ? `<div class="sub">${escapeHtml(intent.input_summary)}</div>` : ''}${inputPayload ? `<div class="sub">${escapeHtml(inputPayload)}</div>` : ''}${reasons ? `<div class="sub">${escapeHtml(reasons)}</div>` : ''}${renderLoopIntentEveDispatch(intent, projectId)}</div>`;
                     })}
                 </div>
                 <form class="field-grid" data-workflow-control-resource="role-agents">
@@ -1018,9 +1124,16 @@
         function isMeetingReviewPackageWorkflow(workflow) {
             return workflow?.implementation_key === 'meeting-review-package-ingest';
         }
+        function isEveSessionDispatchWorkflow(workflow) {
+            return workflow?.implementation_key === 'eve-session-dispatch';
+        }
         function isMeetingReviewPackageRun(run, metadata = {}) {
             const runner = metadata.runner && typeof metadata.runner === 'object' ? metadata.runner : {};
             return runner.type === 'codex_generated_package' && Boolean(metadata.package_id || run?.metadata?.package_id);
+        }
+        function isEveSessionDispatchRun(run, metadata = {}) {
+            const runner = metadata.runner && typeof metadata.runner === 'object' ? metadata.runner : {};
+            return runner.type === 'eve' || (run?.env === 'eve' && (metadata.expected_result_contract === 'external_runner.v0' || runner.expected_result_contract === 'external_runner.v0'));
         }
         function renderBreadcrumbs(view) {
             const parts = [`<button type="button" data-action="home">⌂ Workspace</button>`];
@@ -1164,7 +1277,9 @@
             const runs = state.workflowDetail.runs || [];
             const workflowActions = isMeetingReviewPackageWorkflow(workflow)
                 ? '<div class="toolbar"><span class="badge warn">Review Package API専用</span><button class="btn primary" type="button" disabled>保存</button></div>'
-                : `<div class="toolbar"><button class="btn soft" type="button" data-action="run-workflow" data-workflow-id="${escapeHtml(workflow.id)}">▷ 実行</button><button class="btn primary" type="button" disabled>保存</button></div>`;
+                : isEveSessionDispatchWorkflow(workflow)
+                    ? '<div class="toolbar"><span class="badge warn">Loop IntentのEve接続で実行</span><button class="btn primary" type="button" disabled>保存</button></div>'
+                    : `<div class="toolbar"><button class="btn soft" type="button" data-action="run-workflow" data-workflow-id="${escapeHtml(workflow.id)}">▷ 実行</button><button class="btn primary" type="button" disabled>保存</button></div>`;
             views.workflow.innerHTML = `
                 <div class="view-header">
                     <div class="view-heading">
@@ -1208,7 +1323,9 @@
             const runMetadata = run.metadata && typeof run.metadata === 'object' ? run.metadata : {};
             const runActions = isMeetingReviewPackageRun(run, runMetadata)
                 ? '<span class="badge warn">Review Package API専用</span>'
-                : `<button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button>`;
+                : isEveSessionDispatchRun(run, runMetadata)
+                    ? '<span class="badge warn">Loop IntentのEve接続で再実行</span>'
+                    : `<button class="btn soft" type="button" data-action="rerun" data-run-id="${escapeHtml(run.id)}">↻ Rerun</button>`;
             const judgmentDagSource = run.judgment_dag_trace || runMetadata.judgment_dag_trace;
             const judgmentDag = judgmentDagSource && typeof judgmentDagSource === 'object' ? judgmentDagSource : {};
             const dagNodes = Array.isArray(judgmentDag.nodes) ? judgmentDag.nodes : [];
@@ -1224,10 +1341,15 @@
             const eligibilityApproval = eligibility && typeof eligibility === 'object' && eligibility.requires_human_approval !== undefined
                 ? (eligibility.requires_human_approval ? 'required' : 'not required')
                 : '';
-            const stopConditionSource = run.stop_conditions || runMetadata.stop_conditions || loopControl.stop_conditions;
-            const stopConditions = Array.isArray(stopConditionSource) ? stopConditionSource : [];
+            const stopConditionDisplay = normalizeStopConditionDisplay(selectStopConditionSource(run, runMetadata, loopControl));
+            const stopConditions = stopConditionDisplay.values;
             const inputPayload = run.input_payload || runMetadata.input_payload || loopControl.input_payload;
             const inputPayloadSummary = summarizeJson(inputPayload);
+            const runner = runMetadata.runner && typeof runMetadata.runner === 'object' ? runMetadata.runner : {};
+            const eveSessionId = runner.session_id || run.eve_session_id || runMetadata.eve_session_id;
+            const eveContinuationPresent = runner.continuation_token_present ?? runMetadata.continuation_token_present;
+            const eveTraceRef = runner.eve_trace_ref || runMetadata.eve_trace_ref;
+            const expectedResultContract = run.expected_result_contract || runMetadata.expected_result_contract || runner.expected_result_contract;
             const meetingSource = run.meeting_source || runMetadata.meeting_source || inputPayload?.meeting_source || inputPayload?.source_ref;
             const meetingIdentity = run.meeting_identity || runMetadata.meeting_identity || inputPayload?.meeting_identity || inputPayload?.meeting_id;
             const workflowDefinitionId = run.workflow_definition_id || runMetadata.workflow_definition_id || run.workflow_template_id || runMetadata.workflow_template_id;
@@ -1254,11 +1376,17 @@
                 ['Write-back Status', writeBackStatus],
                 ['Workflow Reason', run.selected_workflow_reason || runMetadata.selected_workflow_reason],
                 ['Run Message', run.message || runMetadata.message],
+                ['Runner', runner.type],
+                ['Eve Session', eveSessionId],
+                ['Eve Continuation Token', eveContinuationPresent === undefined ? '' : eveContinuationPresent ? 'present' : 'not present'],
+                ['Eve Trace Ref', eveTraceRef],
+                ['Expected Result Contract', expectedResultContract],
                 ['Input Payload', inputPayloadSummary],
                 ['Judgment DAG', [judgmentDag.dag_id, judgmentDag.version || judgmentDag.dag_version].filter(Boolean).join(' · ')],
                 ['DAG Nodes', dagNodes.join(' · ')],
                 ['DAG Evidence', dagEvidence.join(' · ')],
                 ['Stop Conditions', stopConditions.join(' · ')],
+                ['Stop Conditions Warning', stopConditionDisplay.warning],
                 ['Loop Owner', run.owner_id || runMetadata.owner_id || loopControl.owner_id],
                 ['Cost Owner', run.cost_owner_id || runMetadata.cost_owner_id || loopControl.cost_owner_id],
                 ['Approval Owner', run.approval_owner_id || runMetadata.approval_owner_id || loopControl.approval_owner_id]
@@ -1293,7 +1421,10 @@
                                 after.runner_type,
                                 after.external_run_id,
                                 after.eve_trace_ref,
+                                after.eve_session_id,
+                                after.state_transition,
                                 after.contract_version,
+                                after.expected_result_contract,
                                 after.candidate_id,
                                 after.stored_candidate_id,
                                 after.persistence_status,
@@ -1573,6 +1704,48 @@
                 if (state.selectedProjectId === projectId) renderWorkflowControlPanel(projectId);
             }
         }
+        function setLoopIntentEveDispatchButtonsDisabled(loopIntentId, disabled) {
+            document
+                .querySelectorAll(`[data-action="dispatch-eve-session"][data-loop-intent-id="${CSS.escape(loopIntentId)}"]`)
+                .forEach((button) => {
+                    button.disabled = disabled;
+                });
+        }
+        async function dispatchLoopIntentToEve(loopIntentId, projectId, { forceNewSession = false } = {}) {
+            if (state.eveSessionDispatchInFlight[loopIntentId]) return;
+            const statusSelector = `[data-eve-dispatch-status="${CSS.escape(loopIntentId)}"]`;
+            const statusEl = document.querySelector(statusSelector);
+            state.eveSessionDispatchInFlight[loopIntentId] = true;
+            setLoopIntentEveDispatchButtonsDisabled(loopIntentId, true);
+            state.eveSessionDispatchStatus[loopIntentId] = { message: forceNewSession ? '新規Eve sessionを作成中...' : 'Eve sessionへ接続中...' };
+            if (statusEl) statusEl.textContent = state.eveSessionDispatchStatus[loopIntentId].message;
+            try {
+                const response = await apiFetch(`/api/workflows/control/loop-intents/${encodeURIComponent(loopIntentId)}/eve-session`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(forceNewSession ? { forceNewSession: true } : {})
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(errorMessage(data, `HTTP ${response.status}`));
+                const dispatch = data.eve_session_dispatch || {};
+                const sessionId = dispatch.eve_session?.session_id || '-';
+                const runId = dispatch.run?.id || dispatch.eve_session?.workflow_run_id || null;
+                const actionRequired = dispatch.run?.action_required || 'none';
+                state.eveSessionDispatchStatus[loopIntentId] = {
+                    run_id: runId,
+                    message: dispatch.idempotent
+                        ? `Eve sessionを再利用しました: ${sessionId} / Run: ${runId || '-'} / Action: ${actionRequired}`
+                        : `Eve sessionを作成しました: ${sessionId} / Run: ${runId || '-'} / Action: ${actionRequired}`
+                };
+                await loadWorkflowControl(projectId);
+            } catch (error) {
+                state.eveSessionDispatchStatus[loopIntentId] = { message: `Eveへ送れません: ${error.message}` };
+                if (statusEl) statusEl.textContent = state.eveSessionDispatchStatus[loopIntentId].message;
+            } finally {
+                delete state.eveSessionDispatchInFlight[loopIntentId];
+                setLoopIntentEveDispatchButtonsDisabled(loopIntentId, false);
+            }
+        }
         async function load({ keepView = false } = {}) {
             if (!keepView) {
                 views.workspace.innerHTML = '<div class="empty">Loading workflows...</div>';
@@ -1612,7 +1785,7 @@
                 const firstProject = allProjectIds()[0];
                 if (firstProject) renderProject(firstProject);
             }
-            if (target.dataset.projectId) renderProject(target.dataset.projectId);
+            if (target.dataset.projectId && !target.dataset.action) renderProject(target.dataset.projectId);
             if (target.dataset.workflowId) await renderWorkflow(target.dataset.workflowId);
             if (target.dataset.runId) await renderRun(target.dataset.runId);
             if (target.dataset.action === 'run-workflow') {
@@ -1639,6 +1812,11 @@
             }
             if (target.dataset.action === 'bootstrap-meeting-pack') {
                 await bootstrapMeetingWorkflowPack(target.dataset.projectId || state.selectedProjectId);
+            }
+            if (target.dataset.action === 'dispatch-eve-session') {
+                await dispatchLoopIntentToEve(target.dataset.loopIntentId, target.dataset.projectId || state.selectedProjectId, {
+                    forceNewSession: target.dataset.forceNewSession === '1'
+                });
             }
         });
         document.addEventListener('submit', async (event) => {

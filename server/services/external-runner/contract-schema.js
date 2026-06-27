@@ -78,6 +78,9 @@ function validateLoopControl(loopControl) {
             'loop_control.stop_conditions must contain at least one stop condition'
         );
     }
+    stopConditions.forEach((condition, index) => {
+        requireString(condition, `loop_control.stop_conditions[${index}]`);
+    });
 }
 
 function validateContextSources(contextSources) {

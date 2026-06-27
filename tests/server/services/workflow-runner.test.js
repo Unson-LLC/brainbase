@@ -240,4 +240,37 @@ describe('WorkflowRunner', () => {
         ]));
         expect(fs.readdirSync(dir).some((name) => name.endsWith('.tmp'))).toBe(false);
     });
+
+    it('keeps JsonFile workflow locks visible across repository instances', () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-workflow-lock-'));
+        const filePath = path.join(dir, 'workflow-ledger.json');
+        const first = new JsonFileWorkflowRepository({ filePath });
+        const second = new JsonFileWorkflowRepository({ filePath });
+
+        const lock = first.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'eve_session_dispatch:loop-001',
+            locked_by: 'process-a',
+            ttl_ms: 600000
+        });
+
+        expect(lock).toMatchObject({ locked_by: 'process-a' });
+        expect(second.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'eve_session_dispatch:loop-001',
+            locked_by: 'process-b',
+            ttl_ms: 600000
+        })).toBeNull();
+        expect(first.releaseWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'eve_session_dispatch:loop-001',
+            locked_by: 'process-a'
+        })).toBe(true);
+        expect(second.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'eve_session_dispatch:loop-001',
+            locked_by: 'process-b',
+            ttl_ms: 600000
+        })).toMatchObject({ locked_by: 'process-b' });
+    });
 });

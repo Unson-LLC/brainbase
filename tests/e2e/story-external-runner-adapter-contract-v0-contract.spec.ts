@@ -583,6 +583,22 @@ test('story-external-runner-adapter-contract-v0 rejects malformed optional array
   await expect(service.ingest(makePayload({ outputs: {} }))).rejects.toMatchObject({ code: 'invalid_array' });
   await expect(service.ingest(makePayload({ human_steps: {} }))).rejects.toMatchObject({ code: 'invalid_array' });
   await expect(service.ingest(makePayload({ learning_candidates: {} }))).rejects.toMatchObject({ code: 'invalid_array' });
+  await expect(service.ingest(makePayload({
+    loop_control: {
+      owner_id: 'keigo',
+      cost_owner_id: 'keigo',
+      approval_owner_id: 'keigo',
+      stop_conditions: ['']
+    }
+  }))).rejects.toMatchObject({ code: 'missing_string' });
+  await expect(service.ingest(makePayload({
+    loop_control: {
+      owner_id: 'keigo',
+      cost_owner_id: 'keigo',
+      approval_owner_id: 'keigo',
+      stop_conditions: [{}]
+    }
+  }))).rejects.toMatchObject({ code: 'missing_string' });
 
   expect(repository.listRuns()).toHaveLength(0);
 });

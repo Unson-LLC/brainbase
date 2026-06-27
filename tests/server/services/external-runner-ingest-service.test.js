@@ -793,6 +793,30 @@ describe('ExternalRunnerIngestService', () => {
                 code: 'missing_stop_condition'
             },
             {
+                name: 'blank stop condition',
+                patch: {
+                    loop_control: {
+                        owner_id: 'keigo',
+                        cost_owner_id: 'keigo',
+                        approval_owner_id: 'keigo',
+                        stop_conditions: ['']
+                    }
+                },
+                code: 'missing_string'
+            },
+            {
+                name: 'invalid stop condition type',
+                patch: {
+                    loop_control: {
+                        owner_id: 'keigo',
+                        cost_owner_id: 'keigo',
+                        approval_owner_id: 'keigo',
+                        stop_conditions: [{}]
+                    }
+                },
+                code: 'missing_string'
+            },
+            {
                 name: 'missing loop owner id',
                 patch: {
                     loop_control: {
