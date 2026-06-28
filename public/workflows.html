@@ -499,6 +499,7 @@
         const filterEl = document.getElementById('project-filter');
         const refreshBtn = document.getElementById('refresh-btn');
         const AUTH_TOKEN_KEY = 'brainbase.auth.token';
+        const initialRunId = new URLSearchParams(window.location.search).get('run_id') || '';
         let csrfToken = '';
         let csrfTokenPromise = null;
         const MEETING_WORKFLOW_DEFINITIONS = [
@@ -1769,7 +1770,10 @@
                 const workflowData = await workflowsResponse.json();
                 state.workflows = Array.isArray(workflowData.workflows) ? workflowData.workflows : [];
                 renderProjectOptions();
-                if (!keepView) renderWorkspace();
+                if (!keepView) {
+                    if (initialRunId) await renderRun(initialRunId);
+                    else renderWorkspace();
+                }
             } catch (error) {
                 views.workspace.innerHTML = `<div class="error">Workflow を読み込めません: ${escapeHtml(error.message)}</div>`;
                 setView('workspace');
