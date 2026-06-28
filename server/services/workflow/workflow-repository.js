@@ -157,6 +157,7 @@ export class InMemoryWorkflowRepository {
             .filter((run) => !workflowId || run.workflow_id === workflowId)
             .filter((run) => !projectId || run.project_id === projectId)
             .sort((a, b) => String(b.started_at || b.created_at).localeCompare(String(a.started_at || a.created_at)));
+        if (limit === null) return clone(runs);
         return clone(runs.slice(0, limit));
     }
 

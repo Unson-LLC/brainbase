@@ -28,7 +28,7 @@ function createCompanionAccessGuard({
             res.status(403).json({
                 error: 'server_to_server_auth_required',
                 code: 'server_to_server_auth_required',
-                message: 'companion reply draft requires bearer, service token, or internal API key authentication'
+                message: 'companion API requires bearer, service token, or internal API key authentication'
             });
             return;
         }
@@ -43,7 +43,7 @@ function createCompanionAccessGuard({
             res.status(403).json({
                 error: 'personal_kg_owner_required',
                 code: 'personal_kg_owner_required',
-                message: 'companion reply draft requires the configured Personal KG owner or a service credential'
+                message: 'companion API requires the configured Personal KG owner or a service credential'
             });
             return;
         }
@@ -52,15 +52,16 @@ function createCompanionAccessGuard({
     };
 }
 
-export function createCompanionRouter({ replyDraftService, authGuard, accessGuardOptions } = {}) {
+export function createCompanionRouter({ replyDraftService, workflowService, authGuard, accessGuardOptions } = {}) {
     if (!replyDraftService) {
         throw new Error('replyDraftService is required');
     }
 
     const router = express.Router();
-    const controller = new CompanionController(replyDraftService);
+    const controller = new CompanionController(replyDraftService, { workflowService });
     const guards = authGuard ? [authGuard, createCompanionAccessGuard(accessGuardOptions)] : [];
 
+    router.get('/approval-inbox', ...guards, controller.listApprovalInbox);
     router.post('/reply-context', ...guards, controller.createReplyContext);
     router.post('/reply-draft', ...guards, controller.createReplyDraft);
 
