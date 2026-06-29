@@ -22,6 +22,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "start": "node dist/index.js",
     "doctor": "node dist/cli.js doctor",
     "onboard:init": "node dist/cli.js onboard:init",
@@ -38,6 +41,7 @@
     "@types/node": "^22.15.29",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
+    "vitepress": "^1.6.4",
     "vitest": "^4.1.8"
   },
   "engines": {
