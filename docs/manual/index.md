@@ -10,19 +10,19 @@ hero:
       text: 最初の導入を始める
       link: /guide/getting-started
     - theme: alt
-      text: Brainbaseとは
-      link: /guide/what-is-brainbase
+      text: 全体像を見る
+      link: /guide/grand-design
     - theme: alt
       text: MCPツールを見る
       link: /reference/mcp-tools
 
 features:
+  - title: 全体像をつかむ
+    details: AI、Brainbase MCP、ローカルSSOT、Personal KG、元データの関係を最初に整理します。
   - title: 説明し直しを減らす
     details: 仕事の前提、関係者、プロジェクト、判断基準をAIが毎回参照できる形に置きます。
   - title: 確認してから正本にする
     details: メールやメモから得た情報をすぐ正本化せず、人間が確認してから今後の前提にします。
-  - title: CodexやClaude Codeから呼び出す
-    details: Brainbase MCPを登録すると、エージェントが必要な文脈を検索しながら作業できます。
 ---
 
 ## このマニュアルの位置づけ
