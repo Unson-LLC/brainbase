@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
   <title id="title">Brainbase全体像</title>
-  <desc id="desc">CodexやClaude CodeがBrainbase MCPを通じてローカルSSOTとPersonal KGを参照し、元データを人間の確認後に正本化する流れ。</desc>
+  <desc id="desc">CodexやClaude CodeがBrainbase MCPを通じてプロジェクトごとのローカルSSOTとPersonal KGを参照し、元データを人間の確認後に正本化する流れ。</desc>
   <defs>
     <style>
       .bg { fill: #f7f7f4; }
@@ -36,7 +36,11 @@
 
   <rect class="accent" x="580" y="250" width="230" height="110" />
   <text class="text" x="695" y="294" text-anchor="middle">ローカルSSOT</text>
-  <text class="sub" x="695" y="326" text-anchor="middle">仕事の正本 / Personal KG</text>
+  <text class="sub" x="695" y="326" text-anchor="middle">プロジェクトごとの正本</text>
+
+  <rect class="accent" x="580" y="390" width="230" height="80" />
+  <text class="text" x="695" y="425" text-anchor="middle">Personal KG</text>
+  <text class="sub" x="695" y="452" text-anchor="middle">判断基準・気づき</text>
 
   <rect class="muted" x="86" y="250" width="350" height="110" />
   <text class="text" x="261" y="294" text-anchor="middle">元データ</text>
@@ -45,7 +49,9 @@
   <path class="arrow" d="M234 125 H292" />
   <path class="arrow" d="M510 125 H572" />
   <path class="arrow" d="M695 180 V242" />
+  <path class="arrow" d="M695 360 V382" />
   <path class="thin" d="M436 305 H572" />
 
   <text class="sub" x="508" y="286" text-anchor="middle">人間が確認してから正本へ</text>
+  <text class="sub" x="695" y="226" text-anchor="middle">どのプロジェクトの話かを見る</text>
 </svg>
