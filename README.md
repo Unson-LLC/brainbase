@@ -6,6 +6,12 @@ The v1 value is narrow by design: create a canonical local SSOT for yourself, yo
 
 This repository does not include the internal Brainbase UI, session runtime, xterm transport, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data. Those belong in the internal `brainbase-unson` system.
 
+## Manual
+
+Read the public onboarding manual at [brainbase.pages.dev](https://brainbase.pages.dev/).
+
+The manual is the best starting point for first-time users. It explains Brainbase concepts, the first onboarding flow, MCP registration, project context setup, source onboarding, daily routines, and CLI reference.
+
 ## Agent-assisted Onboarding
 
 Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. The first onboarding goal is a useful answer from your own context, not connector setup.
