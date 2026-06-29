@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">Brainbase全体像</title>
+  <desc id="desc">CodexやClaude CodeがBrainbase MCPを通じてローカルSSOTとPersonal KGを参照し、元データを人間の確認後に正本化する流れ。</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f7f4; }
+      .box { fill: #ffffff; stroke: #242424; stroke-width: 2; rx: 10; }
+      .muted { fill: #f0eee7; stroke: #5d5a51; stroke-width: 2; rx: 10; }
+      .accent { fill: #e8f3ef; stroke: #24745b; stroke-width: 2; rx: 10; }
+      .text { fill: #202020; font: 600 22px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .sub { fill: #3d3d3d; font: 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .arrow { stroke: #24745b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #777268; stroke-width: 2; stroke-dasharray: 7 7; fill: none; marker-end: url(#arrow-muted); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#24745b" />
+    </marker>
+    <marker id="arrow-muted" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#777268" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="960" height="420" rx="18" />
+
+  <rect class="box" x="44" y="70" width="190" height="110" />
+  <text class="text" x="139" y="118" text-anchor="middle">ユーザー</text>
+  <text class="sub" x="139" y="150" text-anchor="middle">Codex / Claude Codeへ依頼</text>
+
+  <rect class="box" x="300" y="70" width="210" height="110" />
+  <text class="text" x="405" y="118" text-anchor="middle">AIエージェント</text>
+  <text class="sub" x="405" y="150" text-anchor="middle">文脈を読んで作業</text>
+
+  <rect class="accent" x="580" y="70" width="230" height="110" />
+  <text class="text" x="695" y="118" text-anchor="middle">Brainbase MCP</text>
+  <text class="sub" x="695" y="150" text-anchor="middle">文脈を取りに行く入口</text>
+
+  <rect class="accent" x="580" y="250" width="230" height="110" />
+  <text class="text" x="695" y="294" text-anchor="middle">ローカルSSOT</text>
+  <text class="sub" x="695" y="326" text-anchor="middle">仕事の正本 / Personal KG</text>
+
+  <rect class="muted" x="86" y="250" width="350" height="110" />
+  <text class="text" x="261" y="294" text-anchor="middle">元データ</text>
+  <text class="sub" x="261" y="326" text-anchor="middle">メール・カレンダー・ドライブ・タスク・議事録</text>
+
+  <path class="arrow" d="M234 125 H292" />
+  <path class="arrow" d="M510 125 H572" />
+  <path class="arrow" d="M695 180 V242" />
+  <path class="thin" d="M436 305 H572" />
+
+  <text class="sub" x="508" y="286" text-anchor="middle">人間が確認してから正本へ</text>
+</svg>

@@ -7,7 +7,7 @@ export default {
   themeConfig: {
     siteTitle: 'Brainbase Manual',
     nav: [
-      { text: 'ガイド', link: '/guide/what-is-brainbase' },
+      { text: 'ガイド', link: '/guide/grand-design' },
       { text: 'リファレンス', link: '/reference/mcp-tools' },
       { text: 'GitHub', link: 'https://github.com/Unson-LLC/brainbase' }
     ],
@@ -17,6 +17,7 @@ export default {
           text: 'はじめに',
           items: [
             { text: '概要', link: '/' },
+            { text: '全体像', link: '/guide/grand-design' },
             { text: 'Brainbaseとは', link: '/guide/what-is-brainbase' },
             { text: '最初の導入', link: '/guide/getting-started' },
             { text: 'MCPを登録する', link: '/guide/mcp-install' }
