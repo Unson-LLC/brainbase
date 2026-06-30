@@ -15,7 +15,8 @@ function makeService({
     repository = new InMemoryWorkflowRepository(),
     handlers = createDefaultWorkflowHandlers(),
     googleCalendarService = null,
-    eveSessionClient = null
+    eveSessionClient = null,
+    infoSSOTService = null
 } = {}) {
     const runner = new WorkflowRunner({ repository, handlers });
     const configParser = {
@@ -29,7 +30,7 @@ function makeService({
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient });
+    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient, infoSSOTService });
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',
@@ -37,6 +38,27 @@ function makeService({
         projectCodes: ['unson', 'salestailor']
     };
     return { repository, service, actor };
+}
+
+function makeInfoSSOTPeopleService(records = []) {
+    const calls = [];
+    return {
+        calls,
+        async listGraphEntities(access, options = {}) {
+            calls.push({ access, options });
+            const query = String(options.query || '').trim().replace(/^@+/, '').toLowerCase();
+            return records.filter((record) => {
+                const payload = record.payload || {};
+                const values = [
+                    record.id,
+                    payload.name,
+                    payload.display_name,
+                    ...(Array.isArray(payload.aliases) ? payload.aliases : [])
+                ].filter(Boolean).map((value) => String(value).toLowerCase());
+                return values.some((value) => value.includes(query));
+            });
+        }
+    };
 }
 
 function makeEveSessionClient({
@@ -1838,6 +1860,202 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.runs).toHaveLength(1);
         expect(repository.ledger.outputs).toHaveLength(5);
         expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-task-owner-ssot-resolution resolves task owner hints from people SSOT before output storage', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_yajima_tsuyoshi',
+                entity_type: 'person',
+                payload: {
+                    name: '矢島剛',
+                    display_name: '矢島剛',
+                    aliases: ['矢島様', '矢島さん'],
+                    status: 'active'
+                }
+            },
+            {
+                id: 'person_joe',
+                entity_type: 'person',
+                payload: {
+                    name: 'ジョーさん',
+                    aliases: ['ジョー'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { repository, service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.task_candidates = [
+            {
+                title: 'Googleビジネスプロフィールの管理権限をジョーさんに付与する。',
+                owner_hint: '@矢島様'
+            },
+            {
+                title: '口コミ投稿QRと質問項目を確定する。',
+                owner_hint: '@未登録さん'
+            },
+            {
+                title: 'マリームーンのプレミアムコスプレを試験導入する。',
+                owner_hint: '@Speaker 1'
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0]).toMatchObject({
+            owner_hint: '@矢島様',
+            selected_owner_id: 'person_yajima_tsuyoshi',
+            selected_owner: '矢島剛',
+            owner_candidates: [
+                expect.objectContaining({
+                    person_id: 'person_yajima_tsuyoshi',
+                    display_name: '矢島剛',
+                    source: 'graph_ssot',
+                    match: 'exact_name_or_alias'
+                })
+            ],
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'resolved',
+                confidence: 1,
+                reason: 'unique_exact_name_or_alias'
+            }
+        });
+        expect(taskOutput.payload[1]).toMatchObject({
+            owner_hint: '@未登録さん',
+            owner_candidates: [],
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'unresolved',
+                reason: 'no_people_ssot_candidate'
+            }
+        });
+        expect(taskOutput.payload[1].selected_owner_id).toBeUndefined();
+        expect(taskOutput.payload[2]).toMatchObject({
+            owner_hint: '@Speaker 1',
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'ignored',
+                reason: 'speaker_label_is_not_people_ssot'
+            }
+        });
+        expect(taskOutput.payload[2].selected_owner_id).toBeUndefined();
+        expect(infoSSOTService.calls[0]).toMatchObject({
+            options: {
+                projectCode: 'salestailor',
+                entityType: 'person',
+                query: '矢島様',
+                limit: 20
+            }
+        });
+        expect(repository.ledger.outputs.find((output) => output.type === 'task_candidates').payload[0].selected_owner_id).toBe('person_yajima_tsuyoshi');
+    });
+
+    it('story-meeting-task-owner-ssot-resolution keeps ambiguous people SSOT reason explicit', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_yajima_tsuyoshi',
+                payload: {
+                    name: '矢島剛',
+                    aliases: ['矢島様'],
+                    status: 'active'
+                }
+            },
+            {
+                id: 'person_yajima_takeshi',
+                payload: {
+                    name: '矢島毅',
+                    aliases: ['矢島様'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.package_id = 'meeting-review-package-ambiguous-owner-unit';
+        reviewPackage.task_candidates = [
+            {
+                title: 'Googleビジネスプロフィールの管理権限を確認する。',
+                owner_hint: '@矢島様'
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0]).toMatchObject({
+            owner_hint: '@矢島様',
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'ambiguous',
+                reason: 'ambiguous_people_ssot_candidate'
+            }
+        });
+        expect(taskOutput.payload[0].selected_owner_id).toBeUndefined();
+    });
+
+    it('story-meeting-task-owner-ssot-resolution does not auto-select when one exact match is mixed with partial SSOT candidates', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_yajima_tsuyoshi',
+                payload: {
+                    name: '矢島剛',
+                    aliases: ['矢島様'],
+                    status: 'active'
+                }
+            },
+            {
+                id: 'person_yajima_related',
+                payload: {
+                    name: '矢島関連担当',
+                    aliases: ['矢島様候補'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.package_id = 'meeting-review-package-mixed-exact-partial-owner-unit';
+        reviewPackage.task_candidates = [
+            {
+                title: 'Googleビジネスプロフィールの管理権限を確認する。',
+                owner_hint: '@矢島様'
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0].owner_candidates).toHaveLength(2);
+        expect(taskOutput.payload[0]).toMatchObject({
+            owner_hint: '@矢島様',
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'ambiguous',
+                reason: 'ambiguous_people_ssot_candidate'
+            }
+        });
+        expect(taskOutput.payload[0].selected_owner_id).toBeUndefined();
     });
 
     it('story-meeting-review-package-ingest-v1 preserves legacy stable ids for non-review workflow templates', async () => {

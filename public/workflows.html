@@ -712,6 +712,65 @@
                 return '';
             }
         }
+        function renderTaskCandidateOwnerSummary(output) {
+            const payload = Array.isArray(output.payload) ? output.payload : [];
+            if (output.type !== 'task_candidates' || !payload.length) return '';
+            const statusLabels = {
+                resolved: '解決済み',
+                unresolved: '未解決',
+                ambiguous: '要選択',
+                ignored: '対象外',
+                already_selected: '選択済み'
+            };
+            const reasonLabels = {
+                unique_exact_name_or_alias: 'people SSOTの名前/別名に一意一致',
+                no_people_ssot_candidate: 'people SSOTに一致候補なし',
+                ambiguous_people_ssot_candidate: 'people SSOTに複数候補あり',
+                speaker_label_is_not_people_ssot: 'Speaker表記は担当者として使わない',
+                people_ssot_unavailable: 'people SSOTを取得できない',
+                selected_owner_id_already_present: '既存の選択済み担当者を維持'
+            };
+            const actionLabels = {
+                resolved: 'このまま承認できます',
+                already_selected: '既存の担当者を確認して承認できます',
+                unresolved: 'people SSOTを更新するか、Mac Companionで担当者を選択してください',
+                ambiguous: '候補から正しいpeople SSOT担当者を選択してください',
+                ignored: 'Speaker表記は正本に使えないため、必要なら実名担当者を選択してください'
+            };
+            const ownerCandidateLabel = (candidate) => {
+                if (!candidate || typeof candidate !== 'object') return '';
+                const name = candidate.display_name || candidate.name || candidate.title || candidate.person_name || candidate.id || candidate.person_id || '';
+                const id = candidate.person_id || candidate.id || '';
+                if (name && id && name !== id) return `${name} (${id})`;
+                return name || id;
+            };
+            const items = payload.map((candidate, index) => {
+                const resolution = candidate.owner_resolution && typeof candidate.owner_resolution === 'object'
+                    ? candidate.owner_resolution
+                    : {};
+                const ownerLabel = candidate.selected_owner || candidate.selected_owner_id || '担当者未設定';
+                const status = resolution.status || 'unresolved';
+                const reason = resolution.reason || '-';
+                const ownerCandidates = Array.isArray(candidate.owner_candidates)
+                    ? candidate.owner_candidates.map(ownerCandidateLabel).filter(Boolean)
+                    : [];
+                const candidateSummary = ownerCandidates.length ? ownerCandidates.join(' / ') : 'なし';
+                return [
+                    `${index + 1}. ${candidate.title || candidate.summary || 'Task候補'}`,
+                    `担当者: ${ownerLabel}`,
+                    `AI候補: ${candidate.owner_hint || '-'}`,
+                    `状態: ${statusLabels[status] || status}`,
+                    `理由: ${reasonLabels[reason] || reason}`,
+                    `対応: ${actionLabels[status] || '担当者を確認してください'}`,
+                    `people候補: ${candidateSummary}`
+                ].join(' · ');
+            });
+            return `<div class="sub"><strong>Task candidate owners</strong></div>${items.map((item) => `<div class="sub">${escapeHtml(item)}</div>`).join('')}`;
+        }
+        function renderWorkflowOutput(output) {
+            const summary = output.preview || output.body || output.content || output.content_ref || '-';
+            return `<div class="trace-item"><strong>${escapeHtml(output.title || output.type || output.id)}</strong><div class="sub">${escapeHtml(summary)}</div>${renderTaskCandidateOwnerSummary(output)}</div>`;
+        }
         function ownProp(object, key) {
             return Boolean(object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key));
         }
@@ -1409,7 +1468,7 @@
                     <section class="panel"><div class="panel-title"><h3>Resolved context</h3></div><div class="trace-list">${context_snapshots.map((snapshot) => `<div class="trace-item"><strong>${escapeHtml(snapshot.source_type || 'context')}</strong><div class="sub">${escapeHtml(snapshot.source_ref || '-')}</div><div class="sub">${escapeHtml(snapshot.preview || '')}</div></div>`).join('') || '<div class="empty">No context snapshot</div>'}</div></section>
                 </div>
                 <div class="layout-two" style="margin-top:18px;">
-                    <section class="panel"><div class="panel-title"><h3>Outputs</h3></div><div class="trace-list">${outputs.map((output) => `<div class="trace-item"><strong>${escapeHtml(output.title || output.type || output.id)}</strong><div class="sub">${escapeHtml(output.preview || output.body || output.content || output.content_ref || '-')}</div></div>`).join('') || '<div class="empty">No outputs</div>'}</div></section>
+                    <section class="panel"><div class="panel-title"><h3>Outputs</h3></div><div class="trace-list">${outputs.map(renderWorkflowOutput).join('') || '<div class="empty">No outputs</div>'}</div></section>
                     <section class="panel"><div class="panel-title"><h3>Human / Audit</h3></div><div class="trace-list">
                         ${human_steps.map((step) => {
                             const approvalReason = step.approval_reason || step.metadata?.approval_reason || '';

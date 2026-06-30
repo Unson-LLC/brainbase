@@ -271,6 +271,87 @@ function normalizeCompanionApprovalHumanStep(step) {
     };
 }
 
+function normalizePeopleText(value) {
+    if (typeof value !== 'string') return '';
+    return value
+        .trim()
+        .replace(/^@+/, '')
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+}
+
+function normalizePeopleCompactText(value) {
+    return normalizePeopleText(value).replace(/\s+/g, '');
+}
+
+function isSpeakerOwnerHint(value) {
+    const normalized = normalizePeopleText(value);
+    return /^speaker\s*\d+$/.test(normalized) || /^話者\s*\d+$/.test(normalized);
+}
+
+function personNameValues(person = {}) {
+    return [
+        person.display_name,
+        person.name,
+        ...(Array.isArray(person.aliases) ? person.aliases : [])
+    ].filter((value) => typeof value === 'string' && value.trim());
+}
+
+function normalizeTaskOwnerPerson(record) {
+    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
+    const id = record?.id || record?.entity_id || payload.person_id || payload.id || '';
+    const displayName = payload.display_name || payload.name || record?.label || id;
+    if (!id || !displayName) return null;
+    return {
+        id,
+        person_id: id,
+        entity_id: record?.entity_id || id,
+        display_name: displayName,
+        name: payload.name || displayName,
+        aliases: Array.isArray(payload.aliases) ? payload.aliases.filter((alias) => typeof alias === 'string' && alias.trim()) : [],
+        email: payload.email || null,
+        org: payload.org || payload.organization || null,
+        role: payload.role || null,
+        status: payload.status || 'active',
+        source: 'graph_ssot'
+    };
+}
+
+function taskCandidateOwnerHint(candidate) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return '';
+    return readOptionalString(candidate, 'owner_hint', 'ownerHint')
+        || readOptionalString(candidate, 'assignee_hint', 'assigneeHint')
+        || readOptionalString(candidate, 'owner', 'owner')
+        || readOptionalString(candidate, 'assignee', 'assignee')
+        || '';
+}
+
+function taskOwnerCandidatePayload(person, ownerHint) {
+    const exact = personNameValues(person)
+        .some((value) => normalizePeopleCompactText(value) === normalizePeopleCompactText(ownerHint));
+    return {
+        person_id: person.person_id,
+        entity_id: person.entity_id,
+        display_name: person.display_name,
+        aliases: person.aliases,
+        source: 'graph_ssot',
+        match: exact ? 'exact_name_or_alias' : 'search_result'
+    };
+}
+
+function taskOwnerAccessFromActor(actor = {}, projectId = null) {
+    const role = typeof actor.role === 'string' ? actor.role.toLowerCase() : '';
+    const projectCodes = Array.isArray(actor.projectCodes) && actor.projectCodes.length
+        ? actor.projectCodes
+        : (projectId ? [projectId] : []);
+    return {
+        role: ['member', 'gm', 'ceo'].includes(role) ? role : 'ceo',
+        projectCodes,
+        clearance: Array.isArray(actor.clearance) && actor.clearance.length ? actor.clearance : ['internal'],
+        personId: actor.person_id || actor.personId || actor.sub || null
+    };
+}
+
 function normalizeCompanionApprovalContextSnapshot(snapshot) {
     return {
         id: snapshot.id,
@@ -857,12 +938,13 @@ function normalizeWorkflowInput(input, { projectId, ownerId, assigneeId, approve
 }
 
 export class WorkflowService {
-    constructor({ repository, runner, configParser, googleCalendarService = null, eveSessionClient = null }) {
+    constructor({ repository, runner, configParser, googleCalendarService = null, eveSessionClient = null, infoSSOTService = null }) {
         this.repository = repository;
         this.runner = runner;
         this.configParser = configParser;
         this.googleCalendarService = googleCalendarService;
         this.eveSessionClient = eveSessionClient;
+        this.infoSSOTService = infoSSOTService;
         this.projectConfigById = new Map();
         this.eveSessionDispatchInFlight = new Map();
     }
@@ -1475,6 +1557,128 @@ export class WorkflowService {
         });
     }
 
+    async resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, { actor = {}, projectId = null } = {}) {
+        if (!this.infoSSOTService?.listGraphEntities || !Array.isArray(reviewPackage?.task_candidates)) {
+            return reviewPackage;
+        }
+
+        const access = taskOwnerAccessFromActor(actor, projectId);
+        const cache = new Map();
+        const taskCandidates = [];
+
+        for (const candidate of reviewPackage.task_candidates) {
+            taskCandidates.push(await this.resolveMeetingReviewTaskOwnerCandidate(candidate, {
+                access,
+                projectId,
+                cache
+            }));
+        }
+
+        return {
+            ...reviewPackage,
+            task_candidates: taskCandidates
+        };
+    }
+
+    async resolveMeetingReviewTaskOwnerCandidate(candidate, { access, projectId, cache }) {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
+        if (candidate.selected_owner_id || candidate.selectedOwnerId) {
+            return {
+                ...candidate,
+                owner_resolution: candidate.owner_resolution || {
+                    source: 'review_package',
+                    status: 'already_selected',
+                    reason: 'selected_owner_id_already_present'
+                }
+            };
+        }
+
+        const ownerHint = taskCandidateOwnerHint(candidate);
+        if (!ownerHint) return candidate;
+
+        if (isSpeakerOwnerHint(ownerHint)) {
+            return {
+                ...candidate,
+                owner_resolution: {
+                    source: 'graph_ssot',
+                    status: 'ignored',
+                    reason: 'speaker_label_is_not_people_ssot'
+                }
+            };
+        }
+
+        const query = normalizePeopleText(ownerHint);
+        if (!query) return candidate;
+
+        const lookup = await this.lookupTaskOwnerPeopleSSOT({
+            access,
+            projectId,
+            query,
+            cache
+        });
+        if (lookup.status === 'unavailable') {
+            return {
+                ...candidate,
+                owner_resolution: {
+                    source: 'graph_ssot',
+                    status: 'unresolved',
+                    reason: 'people_ssot_unavailable'
+                }
+            };
+        }
+
+        const ownerCandidates = lookup.people.map((person) => taskOwnerCandidatePayload(person, ownerHint));
+        const exactMatches = ownerCandidates.filter((person) => person.match === 'exact_name_or_alias');
+        if (ownerCandidates.length === 1 && exactMatches.length === 1) {
+            return {
+                ...candidate,
+                selected_owner_id: exactMatches[0].person_id,
+                selected_owner: exactMatches[0].display_name,
+                owner_candidates: ownerCandidates,
+                owner_resolution: {
+                    source: 'graph_ssot',
+                    status: 'resolved',
+                    confidence: 1,
+                    reason: 'unique_exact_name_or_alias'
+                }
+            };
+        }
+
+        return {
+            ...candidate,
+            owner_candidates: ownerCandidates,
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: ownerCandidates.length > 1 ? 'ambiguous' : 'unresolved',
+                reason: ownerCandidates.length > 1 ? 'ambiguous_people_ssot_candidate' : 'no_people_ssot_candidate'
+            }
+        };
+    }
+
+    async lookupTaskOwnerPeopleSSOT({ access, projectId, query, cache }) {
+        const cacheKey = `${projectId || ''}:${query}`;
+        if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+        try {
+            const records = await this.infoSSOTService.listGraphEntities(access, {
+                projectCode: projectId,
+                entityType: 'person',
+                query,
+                limit: 20
+            });
+            const people = records
+                .map(normalizeTaskOwnerPerson)
+                .filter(Boolean);
+            const result = { status: 'ok', people };
+            cache.set(cacheKey, result);
+            return result;
+        } catch {
+            const result = { status: 'unavailable', people: [] };
+            cache.set(cacheKey, result);
+            return result;
+        }
+    }
+
     async ingestMeetingReviewPackage(input = {}, actor = {}) {
         await this._loadProjectConfigCache();
         const reviewPackage = readReviewPackage(input);
@@ -1572,6 +1776,10 @@ export class WorkflowService {
         const now = new Date().toISOString();
         const evidenceRefs = normalizeTags(reviewPackage.evidence_refs || reviewPackage.evidenceRefs);
         const stopConditions = normalizeTags(reviewPackage.stop_conditions || reviewPackage.stopConditions);
+        const resolvedReviewPackage = await this.resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, {
+            actor,
+            projectId
+        });
 
         return this.repository.transaction(async () => {
             const workflow = this.repository.upsertWorkflow({
@@ -1727,7 +1935,7 @@ export class WorkflowService {
                 }
             ].map((snapshot) => this.repository.createContextSnapshot(snapshot));
             const outputs = MEETING_REVIEW_OUTPUT_DEFINITIONS.map((definition) => {
-                const payload = reviewPackage[definition.package_key] ?? null;
+                const payload = resolvedReviewPackage[definition.package_key] ?? null;
                 const loopIntent = loopIntentByKey.get(definition.loop_intent_key);
                 return this.repository.createOutput({
                     id: createMeetingReviewStableId('out', runId, definition.id),

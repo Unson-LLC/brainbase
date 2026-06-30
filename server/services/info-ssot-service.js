@@ -1237,7 +1237,7 @@ export class InfoSSOTService {
         });
     }
 
-    async listGraphEntities(access, { id, ids, projectCode, entityType, limit } = {}) {
+    async listGraphEntities(access, { id, ids, projectCode, entityType, query, limit } = {}) {
         this.assertReady();
         return this.withAccessContext(access, async (client) => {
             const entityIds = [
@@ -1248,7 +1248,7 @@ export class InfoSSOTService {
                 const rows = await this.fetchGraphEntitiesByIds(client, access, { ids: entityIds, projectCode });
                 return entityType ? rows.filter((row) => row.entity_type === entityType) : rows;
             }
-            return this.fetchGraphEntities(client, access, { projectCode, entityType, limit });
+            return this.fetchGraphEntities(client, access, { projectCode, entityType, query, limit });
         });
     }
 

@@ -89,7 +89,8 @@ export function createCoreServices({
         runner: workflowRunner,
         configParser,
         googleCalendarService,
-        eveSessionClient: createEveSessionClientFromEnv()
+        eveSessionClient: createEveSessionClientFromEnv(),
+        infoSSOTService
     });
 
     // candidate-store: cross-repo source からの Raw Ledger envelope 受信用。

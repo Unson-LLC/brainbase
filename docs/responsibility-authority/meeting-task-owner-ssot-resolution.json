@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-task-owner-ssot-resolution",
+  "title": "Meeting Task Owner SSOT Resolution Authority",
+  "responsibilities": [
+    {
+      "id": "task_owner_canonical_person_identity",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/meeting-task-owner-ssot-resolution-architecture.md#responsibility-authority"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md#contract"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "server/bootstrap/core-services.js",
+          "server/services/workflow/workflow-service.js",
+          "server/services/info-ssot-service.js",
+          "public/workflows.html"
+        ],
+        "symbols": [
+          "WorkflowService.resolveMeetingReviewTaskOwnersFromSSOT",
+          "InfoSSOTService.listGraphEntities",
+          "selected_owner_id",
+          "owner_resolution"
+        ],
+        "risk_surfaces": [
+          "core_workflow_state"
+        ]
+      },
+      "required_evidence": [
+        "current_head_verification",
+        "people_ssot_owner_resolution"
+      ],
+      "unknown_policy": "AI owner_hint is never canonical. If a person cannot be resolved by exactly one Brainbase Graph people SSOT entry, the task candidate must remain unresolved, ambiguous, or ignored for human review."
+    }
+  ]
+}

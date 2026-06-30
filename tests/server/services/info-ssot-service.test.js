@@ -77,6 +77,25 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(listSpy).not.toHaveBeenCalled();
     });
 
+    it('listGraphEntities呼び出し時_queryをGraph検索へ渡す', async () => {
+        const { service } = buildService();
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
+
+        await service.listGraphEntities(accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            query: '矢島様',
+            limit: 20
+        });
+
+        expect(listSpy).toHaveBeenCalledWith(expect.anything(), accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            query: '矢島様',
+            limit: 20
+        });
+    });
+
     it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {
         const { service } = buildService();
         vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
