@@ -52,16 +52,26 @@ function createCompanionAccessGuard({
     };
 }
 
-export function createCompanionRouter({ replyDraftService, workflowService, authGuard, accessGuardOptions } = {}) {
+export function createCompanionRouter({
+    replyDraftService,
+    workflowService,
+    infoSSOTService,
+    authGuard,
+    accessGuardOptions
+} = {}) {
     if (!replyDraftService) {
         throw new Error('replyDraftService is required');
     }
 
     const router = express.Router();
-    const controller = new CompanionController(replyDraftService, { workflowService });
+    const controller = new CompanionController(replyDraftService, {
+        workflowService,
+        infoSSOTService
+    });
     const guards = authGuard ? [authGuard, createCompanionAccessGuard(accessGuardOptions)] : [];
 
     router.get('/approval-inbox', ...guards, controller.listApprovalInbox);
+    router.get('/people', ...guards, controller.listPeople);
     router.post('/reply-context', ...guards, controller.createReplyContext);
     router.post('/reply-draft', ...guards, controller.createReplyDraft);
 

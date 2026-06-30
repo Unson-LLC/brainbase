@@ -168,6 +168,7 @@ export function registerApiRoutes(app, {
             learningService
         }),
         workflowService,
+        infoSSOTService,
         authGuard: requireAuth(authService)
     }));
     app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({

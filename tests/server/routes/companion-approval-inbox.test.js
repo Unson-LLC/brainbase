@@ -33,7 +33,7 @@ function createAuthService({ valid = true, serviceValid = true, personId = 'per_
     };
 }
 
-function makeApp({ authService = createAuthService() } = {}) {
+function makeApp({ authService = createAuthService(), infoSSOTService = null } = {}) {
     const repository = new InMemoryWorkflowRepository();
     const runner = new WorkflowRunner({ repository, handlers: new Map() });
     const configParser = {
@@ -55,6 +55,7 @@ function makeApp({ authService = createAuthService() } = {}) {
             createContext: vi.fn()
         },
         workflowService,
+        infoSSOTService,
         authGuard: requireAuth(authService),
         accessGuardOptions: {
             ownerPersonId: 'sato_keigo',
@@ -64,7 +65,11 @@ function makeApp({ authService = createAuthService() } = {}) {
     return { app, repository };
 }
 
-function makeBootstrapApp({ authService = createAuthService(), workflowService }) {
+function makeBootstrapApp({
+    authService = createAuthService(),
+    workflowService,
+    infoSSOTService = { getContext: vi.fn(), listGraphEntities: vi.fn() }
+} = {}) {
     const app = express();
     app.use(express.json());
     registerApiRoutes(app, {
@@ -89,7 +94,7 @@ function makeBootstrapApp({ authService = createAuthService(), workflowService }
         projectsRoot: '/tmp',
         tmuxCaptureCache: {},
         authService,
-        infoSSOTService: { getContext: vi.fn() },
+        infoSSOTService,
         learningService: { searchPersonalKgCandidates: vi.fn() },
         learningHealthService: {},
         candidateRepository: null,
@@ -526,6 +531,96 @@ describe('companion approval inbox route', () => {
 
         expect(res.body.code).toBe('FORBIDDEN');
         expect(listRunsSpy).not.toHaveBeenCalled();
+    });
+
+    it('INV-people-ssot-1 exposes assignee people from Graph SSOT through the native companion API', async () => {
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => [
+                {
+                    id: 'person_yajima',
+                    entity_type: 'person',
+                    payload: {
+                        name: '矢島様',
+                        aliases: ['矢島さん', 'yajima'],
+                        email: 'yajima@example.com',
+                        org: 'Hotel Client',
+                        status: 'active'
+                    }
+                },
+                {
+                    id: 'person_speaker_1',
+                    entity_type: 'person',
+                    payload: {
+                        name: 'Speaker 1'
+                    }
+                }
+            ])
+        };
+        const { app } = makeApp({ infoSSOTService });
+
+        const res = await request(app)
+            .get('/api/companion/people?source=graph_ssot&type=person')
+            .set('Authorization', 'Bearer user-token')
+            .expect(200);
+
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledWith(
+            expect.objectContaining({
+                role: 'gm',
+                projectCodes: ['sample-project'],
+                clearance: ['internal'],
+                personId: 'per_keigo'
+            }),
+            expect.objectContaining({
+                entityType: 'person',
+                limit: 500
+            })
+        );
+        expect(res.body).toMatchObject({
+            source: 'graph_ssot',
+            type: 'person',
+            count: 1,
+            people: [
+                {
+                    id: 'person_yajima',
+                    entity_id: 'person_yajima',
+                    person_id: 'person_yajima',
+                    display_name: '矢島様',
+                    name: '矢島様',
+                    aliases: ['矢島さん', 'yajima'],
+                    email: 'yajima@example.com',
+                    org: 'Hotel Client',
+                    status: 'active',
+                    source: 'graph_ssot'
+                }
+            ]
+        });
+        expect(res.body.people.map((person) => person.display_name)).not.toContain('Speaker 1');
+    });
+
+    it('INV-people-ssot-2 rejects non Graph SSOT assignee sources', async () => {
+        const infoSSOTService = { listGraphEntities: vi.fn(async () => []) };
+        const { app } = makeApp({ infoSSOTService });
+
+        const res = await request(app)
+            .get('/api/companion/people?source=ai_hint&type=person')
+            .set('Authorization', 'Bearer user-token')
+            .expect(400);
+
+        expect(res.body.code).toBe('unsupported_people_source');
+        expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
+    });
+
+    it('INV-people-ssot-3 applies native companion auth guard before reading people', async () => {
+        const infoSSOTService = { listGraphEntities: vi.fn(async () => []) };
+        const { app } = makeApp({ infoSSOTService });
+
+        const res = await request(app)
+            .get('/api/companion/people?source=graph_ssot&type=person')
+            .set('Cookie', 'brainbase_session=user-token')
+            .expect(403);
+
+        expect(res.body.code).toBe('server_to_server_auth_required');
+        expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
     });
 
     it('registers approval inbox through registerApiRoutes production bootstrap with workflowService', async () => {

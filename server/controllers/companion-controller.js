@@ -21,10 +21,62 @@ function serializeError(error) {
     };
 }
 
+function actorAccess(req) {
+    const access = req.access || {};
+    const auth = req.auth || {};
+    const role = String(access.role || auth.role || '').toLowerCase();
+    return {
+        role: ['member', 'gm', 'ceo'].includes(role) ? role : 'ceo',
+        projectCodes: Array.isArray(access.projectCodes) && access.projectCodes.length
+            ? access.projectCodes
+            : ['brainbase'],
+        clearance: Array.isArray(access.clearance) && access.clearance.length
+            ? access.clearance
+            : ['internal'],
+        personId: access.personId || auth.person_id || auth.personId || auth.sub || null
+    };
+}
+
+function firstString(...values) {
+    return values.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
+}
+
+function stringList(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((item) => typeof item === 'string' && item.trim())
+        .map((item) => item.trim());
+}
+
+function isSpeakerLabel(name) {
+    return /^speaker\s*\d+$/i.test(String(name || '').trim());
+}
+
+function normalizePerson(record) {
+    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
+    const id = firstString(record?.id, record?.entity_id, record?.entityId, payload.id, payload.person_id, payload.personId);
+    const displayName = firstString(payload.display_name, payload.displayName, payload.name, record?.display_name, record?.name);
+    if (!id || !displayName || isSpeakerLabel(displayName)) return null;
+    return {
+        id,
+        entity_id: id,
+        person_id: firstString(payload.person_id, payload.personId, id),
+        display_name: displayName,
+        name: displayName,
+        aliases: stringList(payload.aliases),
+        email: firstString(payload.email),
+        org: firstString(payload.org, payload.organization, payload.company),
+        role: firstString(payload.role, payload.title),
+        status: firstString(payload.status, 'active'),
+        source: 'graph_ssot'
+    };
+}
+
 export class CompanionController {
-    constructor(replyDraftService, { workflowService = null } = {}) {
+    constructor(replyDraftService, { workflowService = null, infoSSOTService = null } = {}) {
         this.replyDraftService = replyDraftService;
         this.workflowService = workflowService;
+        this.infoSSOTService = infoSSOTService;
     }
 
     createReplyDraft = async (req, res) => {
@@ -85,6 +137,53 @@ export class CompanionController {
             res.status(error.statusCode || 500).json({
                 error: error.message || 'Failed to list companion approval inbox',
                 code: error.code || 'approval_inbox_error',
+                details: error.details || {}
+            });
+        }
+    };
+
+    listPeople = async (req, res) => {
+        if (!this.infoSSOTService?.listGraphEntities) {
+            res.status(503).json({
+                error: 'Info SSOT service is not configured',
+                code: 'info_ssot_service_unconfigured'
+            });
+            return;
+        }
+
+        const source = String(req.query.source || 'graph_ssot');
+        const type = String(req.query.type || 'person');
+        if (source !== 'graph_ssot' || type !== 'person') {
+            res.status(400).json({
+                error: 'Companion people can only be read from Brainbase Graph SSOT person entities',
+                code: 'unsupported_people_source',
+                details: { source, type }
+            });
+            return;
+        }
+
+        try {
+            const limit = Number.parseInt(String(req.query.limit || '500'), 10);
+            const records = await this.infoSSOTService.listGraphEntities(actorAccess(req), {
+                projectCode: req.query.project || req.query.project_id || null,
+                entityType: 'person',
+                limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 1000) : 500
+            });
+            const people = records
+                .map(normalizePerson)
+                .filter(Boolean)
+                .sort((left, right) => left.display_name.localeCompare(right.display_name, 'ja'));
+            res.json({
+                source: 'graph_ssot',
+                type: 'person',
+                count: people.length,
+                people
+            });
+        } catch (error) {
+            logger.error('Failed to list companion people from Info SSOT', { error });
+            res.status(error.statusCode || 500).json({
+                error: error.message || 'Failed to list companion people',
+                code: error.code || 'companion_people_error',
                 details: error.details || {}
             });
         }
