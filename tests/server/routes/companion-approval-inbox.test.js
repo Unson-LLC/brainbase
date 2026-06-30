@@ -597,6 +597,58 @@ describe('companion approval inbox route', () => {
         expect(res.body.people.map((person) => person.display_name)).not.toContain('Speaker 1');
     });
 
+    it('INV-people-ssot-4 registers an assignee person into Graph SSOT through the native companion API', async () => {
+        const infoSSOTService = {
+            createOrUpdatePerson: vi.fn(async () => ({
+                entity_id: 'person_yajima_tsuyoshi',
+                person_id: 'person_yajima_tsuyoshi',
+                name: '矢島剛',
+                display_name: '矢島剛',
+                aliases: ['矢島さん'],
+                status: 'active'
+            }))
+        };
+        const { app } = makeApp({ infoSSOTService });
+
+        const res = await request(app)
+            .post('/api/companion/people')
+            .set('Authorization', 'Bearer user-token')
+            .send({
+                source: 'graph_ssot',
+                type: 'person',
+                name: '矢島剛',
+                aliases: ['矢島さん']
+            })
+            .expect(201);
+
+        expect(infoSSOTService.createOrUpdatePerson).toHaveBeenCalledWith(
+            expect.objectContaining({
+                role: 'gm',
+                projectCodes: ['sample-project'],
+                clearance: ['internal'],
+                personId: 'per_keigo'
+            }),
+            expect.objectContaining({
+                name: '矢島剛',
+                aliases: ['矢島さん']
+            })
+        );
+        expect(res.body).toMatchObject({
+            source: 'graph_ssot',
+            type: 'person',
+            person: {
+                id: 'person_yajima_tsuyoshi',
+                entity_id: 'person_yajima_tsuyoshi',
+                person_id: 'person_yajima_tsuyoshi',
+                display_name: '矢島剛',
+                name: '矢島剛',
+                aliases: ['矢島さん'],
+                status: 'active',
+                source: 'graph_ssot'
+            }
+        });
+    });
+
     it('INV-people-ssot-2 rejects non Graph SSOT assignee sources', async () => {
         const infoSSOTService = { listGraphEntities: vi.fn(async () => []) };
         const { app } = makeApp({ infoSSOTService });

@@ -188,4 +188,53 @@ export class CompanionController {
             });
         }
     };
+
+    createPerson = async (req, res) => {
+        if (!this.infoSSOTService?.createOrUpdatePerson) {
+            res.status(503).json({
+                error: 'Info SSOT person registration is not configured',
+                code: 'info_ssot_person_registration_unconfigured'
+            });
+            return;
+        }
+
+        const source = String(req.body?.source || req.query.source || 'graph_ssot');
+        const type = String(req.body?.type || req.query.type || 'person');
+        if (source !== 'graph_ssot' || type !== 'person') {
+            res.status(400).json({
+                error: 'Companion people can only be registered as Brainbase Graph SSOT person entities',
+                code: 'unsupported_people_source',
+                details: { source, type }
+            });
+            return;
+        }
+
+        try {
+            const result = await this.infoSSOTService.createOrUpdatePerson(actorAccess(req), {
+                ...(req.body || {}),
+                projectCode: req.body?.projectCode || req.body?.project_code || req.query.project || req.query.project_id || null
+            });
+            res.status(201).json({
+                source: 'graph_ssot',
+                type: 'person',
+                person: normalizePerson({
+                    id: result.entity_id || result.person_id,
+                    entity_type: 'person',
+                    payload: {
+                        name: result.name || result.display_name,
+                        display_name: result.display_name || result.name,
+                        aliases: result.aliases || [],
+                        status: result.status || 'active'
+                    }
+                })
+            });
+        } catch (error) {
+            logger.error('Failed to register companion person in Info SSOT', { error });
+            res.status(error.statusCode || 500).json({
+                error: error.message || 'Failed to register companion person',
+                code: error.code || 'companion_people_registration_error',
+                details: error.details || {}
+            });
+        }
+    };
 }

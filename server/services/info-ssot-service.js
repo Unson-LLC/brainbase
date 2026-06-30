@@ -698,6 +698,75 @@ export class InfoSSOTService {
         return id;
     }
 
+    async createOrUpdatePerson(access, input = {}) {
+        const name = String(input.name || input.displayName || input.display_name || '').trim();
+        if (!name) {
+            throw new Error('name is required');
+        }
+
+        const projectCode = String(input.projectCode || input.project_code || access.projectCodes?.[0] || 'brainbase').trim();
+        const projectName = String(input.projectName || input.project_name || projectCode).trim();
+        const roleMin = this.normalizeRole(input.roleMin || input.role_min || 'member');
+        const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
+        this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
+
+        return this.withAccessContext(access, async (client) => {
+            const projectId = await this.ensureProject(client, { projectCode, projectName });
+            const personId = await this.ensurePerson(client, { personName: name });
+            const aliases = Array.isArray(input.aliases)
+                ? input.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
+                : [];
+
+            const { rows } = await client.query(
+                'SELECT payload FROM graph_entities WHERE id = $1 AND entity_type = $2 LIMIT 1',
+                [personId, 'person']
+            );
+            const currentPayload = rows[0]?.payload && typeof rows[0].payload === 'object' ? rows[0].payload : {};
+            const mergedAliases = Array.from(new Set([
+                ...(Array.isArray(currentPayload.aliases) ? currentPayload.aliases : []),
+                ...aliases
+            ].map((alias) => String(alias || '').trim()).filter(Boolean)));
+            const payload = {
+                ...currentPayload,
+                name,
+                display_name: name,
+                aliases: mergedAliases,
+                status: String(input.status || currentPayload.status || 'active').trim()
+            };
+
+            await this.upsertGraphEntity(client, {
+                id: personId,
+                entityType: 'person',
+                projectId: null,
+                payload,
+                roleMin,
+                sensitivity
+            });
+            await client.query(
+                'INSERT INTO people (id, name) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name',
+                [personId, name]
+            );
+            await this.upsertGraphEdge(client, {
+                fromId: personId,
+                toId: projectId,
+                relType: 'member_of',
+                projectId,
+                payload: { source: 'companion_people_registration' },
+                roleMin,
+                sensitivity
+            });
+
+            return {
+                entity_id: personId,
+                person_id: personId,
+                name,
+                display_name: name,
+                aliases: mergedAliases,
+                source: 'graph_ssot'
+            };
+        });
+    }
+
     async createOrUpdateGraphEntity(access, input) {
         const { id, entityType, projectCode, projectName, payload } = input;
         const roleMin = this.normalizeRole(input.roleMin);

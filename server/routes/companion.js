@@ -72,6 +72,7 @@ export function createCompanionRouter({
 
     router.get('/approval-inbox', ...guards, controller.listApprovalInbox);
     router.get('/people', ...guards, controller.listPeople);
+    router.post('/people', ...guards, controller.createPerson);
     router.post('/reply-context', ...guards, controller.createReplyContext);
     router.post('/reply-draft', ...guards, controller.createReplyDraft);
 
