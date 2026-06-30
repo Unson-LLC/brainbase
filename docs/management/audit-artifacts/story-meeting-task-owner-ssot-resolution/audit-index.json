@@ -1,0 +1,367 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-task-owner-ssot-resolution",
+  "source": "execute_merge",
+  "generated_at": "2026-06-30T18:42:17.487Z",
+  "evidence_depth": "standard",
+  "budget_status": "within_budget",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "merge_warning",
+      "gate:gate:managed_worktree:needs_review"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+      "base_sha": "75315d9d306dad5cd03afeed02a3dc706df4b804",
+      "head_sha": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+      "merge_commit_sha": "0015e285ed1cd6c0c2d8680d751e1e081dcf5d0d"
+    },
+    "diff_stats_collected_at": "2026-06-30T18:42:13.923Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 1180,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 1268,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "test": {
+          "files": 3,
+          "changed_lines": 634,
+          "unknown_files": 0,
+          "paths": [
+            "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+            "tests/server/services/info-ssot-service.test.js",
+            "tests/server/services/workflow-org-agent-control.test.js"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 2,
+          "changed_lines": 259,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/meeting-task-owner-ssot-resolution-architecture.md",
+            "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 6,
+          "changed_lines": 375,
+          "unknown_files": 0,
+          "paths": [
+            "docs/responsibility-authority/meeting-task-owner-ssot-resolution.json",
+            "docs/stories/story-meeting-task-owner-ssot-resolution.md",
+            "public/workflows.html",
+            "server/bootstrap/core-services.js",
+            "server/services/info-ssot-service.js",
+            "server/services/workflow/workflow-service.js"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+        "base_sha": "75315d9d306dad5cd03afeed02a3dc706df4b804",
+        "head_sha": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+        "merge_commit_sha": "0015e285ed1cd6c0c2d8680d751e1e081dcf5d0d"
+      },
+      "collected_at": "2026-06-30T18:42:13.923Z",
+      "reason": null
+    },
+    "product_changed_lines": 1268,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "artifact_code_ratio": 0.931,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "canonical_artifact_lines": 1500,
+      "effective_canonical_artifact_lines": 3804,
+      "artifact_code_ratio": 3
+    },
+    "budget_status": "within_budget",
+    "budget_exceeded_reasons": [],
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "source": null,
+      "window": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "started_at": null,
+      "finished_at": null,
+      "source": null,
+      "window": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    },
+    "replay_bundle": {
+      "compressed_bytes": 6433,
+      "expanded_bytes": 43513,
+      "expanded_line_count": 1081,
+      "persisted_line_count": 1
+    },
+    "raw_source_artifact_lines": 28755,
+    "raw_source_artifact_code_ratio": 22.677,
+    "artifact_lines_source": "persisted_canonical_compact"
+  },
+  "pr_prepare": {
+    "present": true,
+    "created_at": "2026-06-30T18:37:30.557Z",
+    "gate_status": {
+      "ready_for_pr_create": true,
+      "overall_status": "ready_for_review",
+      "fast_lane": false,
+      "critical_unresolved_gate_count": 0
+    }
+  },
+  "evidence_reuse": {
+    "present": true,
+    "created_at": "2026-06-30T18:37:30.557Z",
+    "status": "stale",
+    "evidence_key": "evk_7ac49024cc93cf12e8d788edb509712c",
+    "verification_summary_fingerprint": "sha256:a54c7f2bebccb0e4f5a714e63eb5f6adfc7f2a1e5fa874b87eb01fcbfebbeb72",
+    "verification_evidence_updated_at": "2026-06-30T18:36:52.115Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "integration",
+        "executed_at": "2026-06-30T18:36:52.115Z",
+        "git_recorded_at": "2026-06-30T18:36:52.114Z"
+      },
+      {
+        "kind": "e2e",
+        "executed_at": "2026-06-30T18:35:54.016Z",
+        "git_recorded_at": "2026-06-30T18:35:54.015Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-06-30T18:35:20.772Z",
+        "git_recorded_at": "2026-06-30T18:35:20.771Z"
+      }
+    ],
+    "stale_reason_count": 1,
+    "full_evidence_status": "generated",
+    "full_evidence_generation_count": 1,
+    "full_evidence_generation_count_scope": "same_evidence_key",
+    "full_evidence_same_key_generation_count": 1,
+    "full_evidence_cumulative_generation_count": 33
+  },
+  "pr_create": {
+    "present": true,
+    "created_at": "2026-06-30T18:37:30.572Z",
+    "status": null,
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/996",
+    "gate_override_allowed": false
+  },
+  "pr_merge": {
+    "present": true,
+    "summary": {
+      "status": "merged",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/996",
+      "merge_commit_sha": "0015e285ed1cd6c0c2d8680d751e1e081dcf5d0d",
+      "merged_at": "2026-06-30T18:42:16Z",
+      "current_head_sha": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...a0d3b3a8a1cdb19a19ce9d592013376f0877fee3"
+    }
+  },
+  "gate_dag": {
+    "present": true,
+    "overall_status": "ready_for_review",
+    "node_count": 120,
+    "blocking_count": 1
+  },
+  "senior_gap_judgment": {
+    "present": true,
+    "status": null,
+    "gap_count": 2,
+    "blocking_gap_count": 0,
+    "residual_risk_count": 0,
+    "followup_count": 0
+  },
+  "traceability": {
+    "present": true,
+    "lifecycle": "merged",
+    "coverage_summary": {
+      "clause_count": 0,
+      "acceptance_criteria_count": 0,
+      "scenario_clause_count": 0,
+      "mapped_count": 0,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "examples": []
+    }
+  },
+  "verification": {
+    "present": true,
+    "command_count": 3,
+    "pass_count": 3,
+    "fail_count": 0
+  },
+  "review": {
+    "summary_count": 7,
+    "result_count": 16,
+    "pass_count": 16,
+    "block_count": 0,
+    "stale_count": 0
+  },
+  "missing_artifacts": [],
+  "raw_artifact_count": 54,
+  "automation_value_audit": {
+    "schema_version": "0.1.0",
+    "artifact_kind": "vibepro_automation_value_audit",
+    "story_id": "story-meeting-task-owner-ssot-resolution",
+    "generated_at": "2026-06-30T18:42:17.487Z",
+    "status": "partial",
+    "purpose": "daily_automation_input",
+    "sources": {
+      "canonical_audit": true,
+      "cost_summary": true,
+      "pr_lifecycle": true,
+      "verification": true,
+      "review": true,
+      "senior_gap_judgment": true
+    },
+    "merge_context": {
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/996",
+      "merge_status": "merged",
+      "merge_commit_sha": "0015e285ed1cd6c0c2d8680d751e1e081dcf5d0d",
+      "merged_at": "2026-06-30T18:42:16Z"
+    },
+    "allocation": {
+      "changed_lines_status": "available",
+      "total_changed_lines": 1268,
+      "implementation_changed_lines": 0,
+      "verification_and_docs_changed_lines": 893,
+      "audit_evidence_changed_lines": 893,
+      "buckets": {
+        "src": 0,
+        "test": 634,
+        "story_spec_architecture_docs": 259,
+        "audit_artifacts": 0,
+        "other": 375
+      }
+    },
+    "ratios": {
+      "test_to_src": null,
+      "story_spec_architecture_to_src": null,
+      "audit_artifacts_to_src": null,
+      "automation_evidence_to_src": null,
+      "artifact_lines_to_product_changed_lines": 0.931
+    },
+    "session_cost": {
+      "token_status": "unavailable",
+      "total_tokens": null,
+      "token_source": null,
+      "token_window": null,
+      "elapsed_status": "unavailable",
+      "elapsed_ms": null,
+      "elapsed_source": null,
+      "elapsed_window": null
+    },
+    "value_signal_inputs": {
+      "budget_status": "within_budget",
+      "budget_exceeded_reasons": [],
+      "evidence_depth": "standard",
+      "verification_pass_count": 3,
+      "verification_fail_count": 0,
+      "review_result_count": 16,
+      "review_pass_count": 16,
+      "review_block_count": 0,
+      "senior_gap_status": null,
+      "senior_gap_residual_risk_count": 0,
+      "evidence_reuse_status": "stale",
+      "evidence_reuse_stale_reason_count": 1,
+      "traceability_lifecycle": "merged",
+      "missing_artifact_count": 0
+    },
+    "cost_controls": {
+      "status": "action_required",
+      "budget_status": "within_budget",
+      "artifact_code_ratio": 0.931,
+      "automation_evidence_to_src": null,
+      "budget_exceeded_reasons": [],
+      "canonical_artifact_lines": 1180,
+      "product_changed_lines": 1268,
+      "evidence_depth": "standard",
+      "recommended_evidence_depth": "standard",
+      "recommendations": [
+        {
+          "id": "collect_runtime_cost_before_merge",
+          "action": "run execute merge with --session-id <id>|auto and --automation-memory <path>, or set VIBEPRO_SESSION_ID/CODEX_SESSION_ID and VIBEPRO_AUTOMATION_MEMORY",
+          "reason": "daily automation cannot judge time/token efficiency without measured session cost"
+        }
+      ]
+    },
+    "findings": [
+      {
+        "id": "session_cost_unavailable",
+        "severity": "needs_context",
+        "reason": "token or elapsed-time accounting is not available in canonical audit summary",
+        "token_status": "unavailable",
+        "elapsed_status": "unavailable"
+      },
+      {
+        "id": "no_src_changed_lines",
+        "severity": "review_needed",
+        "reason": "automation evidence changed without src/ implementation changes"
+      }
+    ]
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:1621ed80e157e1f8e683979f967182d96c76507ce9dfdf611ded4f111c4f683b",
+    "compressed_hash": "sha256:d09538da62c58a3e5623293fbd245a5b83ee1829407063ede9f15f998a44d676",
+    "expanded_bytes": 43513,
+    "compressed_bytes": 6433,
+    "expanded_line_count": 1081,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-meeting-task-owner-ssot-resolution",
+    "cost": {
+      "compressed_bytes": 6433,
+      "expanded_bytes": 43513,
+      "expanded_line_count": 1081,
+      "persisted_line_count": 1
+    }
+  }
+}
