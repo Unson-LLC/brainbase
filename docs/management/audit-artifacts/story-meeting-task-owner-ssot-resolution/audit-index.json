@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-task-owner-ssot-resolution",
   "source": "execute_merge",
-  "generated_at": "2026-06-30T18:42:17.487Z",
+  "generated_at": "2026-06-30T18:42:21.970Z",
   "evidence_depth": "standard",
   "budget_status": "within_budget",
   "cost_summary": {
@@ -119,13 +119,13 @@
       "reason": "elapsed-time logs were not provided to canonical audit promotion"
     },
     "replay_bundle": {
-      "compressed_bytes": 6433,
+      "compressed_bytes": 6434,
       "expanded_bytes": 43513,
       "expanded_line_count": 1081,
       "persisted_line_count": 1
     },
-    "raw_source_artifact_lines": 28755,
-    "raw_source_artifact_code_ratio": 22.677,
+    "raw_source_artifact_lines": 28845,
+    "raw_source_artifact_code_ratio": 22.748,
     "artifact_lines_source": "persisted_canonical_compact"
   },
   "pr_prepare": {
@@ -234,7 +234,7 @@
     "schema_version": "0.1.0",
     "artifact_kind": "vibepro_automation_value_audit",
     "story_id": "story-meeting-task-owner-ssot-resolution",
-    "generated_at": "2026-06-30T18:42:17.487Z",
+    "generated_at": "2026-06-30T18:42:21.970Z",
     "status": "partial",
     "purpose": "daily_automation_input",
     "sources": {
@@ -336,10 +336,10 @@
     "path": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:1621ed80e157e1f8e683979f967182d96c76507ce9dfdf611ded4f111c4f683b",
-    "compressed_hash": "sha256:d09538da62c58a3e5623293fbd245a5b83ee1829407063ede9f15f998a44d676",
+    "content_hash": "sha256:4c57f6cd1327632deeee48b43a0c0db9fe785c5c5b2aea1a13fb0381fec6bd77",
+    "compressed_hash": "sha256:3ef4f774be137341a1d7fa701f1bf8a582f95836976bec271b8824d8e141c361",
     "expanded_bytes": 43513,
-    "compressed_bytes": 6433,
+    "compressed_bytes": 6434,
     "expanded_line_count": 1081,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
@@ -358,7 +358,7 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-meeting-task-owner-ssot-resolution",
     "cost": {
-      "compressed_bytes": 6433,
+      "compressed_bytes": 6434,
       "expanded_bytes": 43513,
       "expanded_line_count": 1081,
       "persisted_line_count": 1

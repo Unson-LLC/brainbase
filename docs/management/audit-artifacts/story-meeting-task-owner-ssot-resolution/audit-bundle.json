@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-task-owner-ssot-resolution",
   "source": "execute_merge",
-  "promoted_at": "2026-06-30T18:42:17.487Z",
+  "promoted_at": "2026-06-30T18:42:21.970Z",
   "canonical_dir": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution",
   "source_workspace_dir": ".vibepro",
   "audit_index_path": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-index.json",
@@ -38,10 +38,10 @@
     "path": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:1621ed80e157e1f8e683979f967182d96c76507ce9dfdf611ded4f111c4f683b",
-    "compressed_hash": "sha256:d09538da62c58a3e5623293fbd245a5b83ee1829407063ede9f15f998a44d676",
+    "content_hash": "sha256:4c57f6cd1327632deeee48b43a0c0db9fe785c5c5b2aea1a13fb0381fec6bd77",
+    "compressed_hash": "sha256:3ef4f774be137341a1d7fa701f1bf8a582f95836976bec271b8824d8e141c361",
     "expanded_bytes": 43513,
-    "compressed_bytes": 6433,
+    "compressed_bytes": 6434,
     "expanded_line_count": 1081,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
@@ -60,7 +60,7 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-meeting-task-owner-ssot-resolution",
     "cost": {
-      "compressed_bytes": 6433,
+      "compressed_bytes": 6434,
       "expanded_bytes": 43513,
       "expanded_line_count": 1081,
       "persisted_line_count": 1
@@ -97,7 +97,7 @@
       "kind": "compressed_replay_bundle",
       "canonical_path": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-replay-bundle.json.gz",
       "compression": "gzip",
-      "content_hash": "sha256:1621ed80e157e1f8e683979f967182d96c76507ce9dfdf611ded4f111c4f683b"
+      "content_hash": "sha256:4c57f6cd1327632deeee48b43a0c0db9fe785c5c5b2aea1a13fb0381fec6bd77"
     }
   ],
   "raw_artifact_manifest": [
@@ -189,10 +189,10 @@
       "source": ".vibepro/pr/story-meeting-task-owner-ssot-resolution/pr-merge.json",
       "persisted": "compressed",
       "compressed_path": "docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-replay-bundle.json.gz",
-      "digest": "sha256:aa590ecea7a917af0c8c3b4b3d4c508f9cf9810dc313414a7915720049cee1ca",
-      "audit_digest": "sha256:3069face3b877a6a1c420c3cec372cdf9d09ba3067a1b6f8ee50437c12d637ce",
-      "line_count": 3354,
-      "raw_line_count": 5972,
+      "digest": "sha256:b95acb4a881f8f9af80f7edb6bc5a25b75188271d538bdd9abcbbe743f450016",
+      "audit_digest": "sha256:07f794c638e9cbd341446188863cd834a4dac75e99a710b8c3430c948627425b",
+      "line_count": 3444,
+      "raw_line_count": 6062,
       "audit_scope": "judgment_evidence_v1",
       "excluded_from_audit": [
         "pr_lifecycle.full_gate_dag",
