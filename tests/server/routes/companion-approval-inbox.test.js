@@ -597,6 +597,56 @@ describe('companion approval inbox route', () => {
         expect(res.body.people.map((person) => person.display_name)).not.toContain('Speaker 1');
     });
 
+    it('INV-people-ssot-5 filters assignee people by query before returning candidates', async () => {
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => [
+                {
+                    id: 'person_yajima_tsuyoshi',
+                    entity_type: 'person',
+                    payload: {
+                        name: '矢島剛',
+                        aliases: ['矢島さん', '矢島様', 'Tsuyoshi Yajima'],
+                        status: 'active'
+                    }
+                },
+                {
+                    id: 'person_sato_keigo',
+                    entity_type: 'person',
+                    payload: {
+                        name: '佐藤圭吾',
+                        aliases: ['佐藤さん'],
+                        status: 'active'
+                    }
+                }
+            ])
+        };
+        const { app } = makeApp({ infoSSOTService });
+
+        const res = await request(app)
+            .get('/api/companion/people?source=graph_ssot&type=person&query=%E7%9F%A2%E5%B3%B6&limit=20')
+            .set('Authorization', 'Bearer user-token')
+            .expect(200);
+
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledWith(
+            expect.any(Object),
+            expect.objectContaining({
+                entityType: 'person',
+                query: '矢島',
+                limit: 20
+            })
+        );
+        expect(res.body).toMatchObject({
+            count: 1,
+            people: [
+                {
+                    id: 'person_yajima_tsuyoshi',
+                    display_name: '矢島剛',
+                    aliases: ['矢島さん', '矢島様', 'Tsuyoshi Yajima']
+                }
+            ]
+        });
+    });
+
     it('INV-people-ssot-4 registers an assignee person into Graph SSOT through the native companion API', async () => {
         const infoSSOTService = {
             createOrUpdatePerson: vi.fn(async () => ({

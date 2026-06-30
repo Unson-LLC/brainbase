@@ -52,6 +52,23 @@ function isSpeakerLabel(name) {
     return /^speaker\s*\d+$/i.test(String(name || '').trim());
 }
 
+function normalizeSearchText(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function matchesPersonQuery(person, query) {
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return true;
+    return [
+        person.display_name,
+        person.name,
+        person.email,
+        person.org,
+        person.role,
+        ...(Array.isArray(person.aliases) ? person.aliases : [])
+    ].some((value) => normalizeSearchText(value).includes(normalizedQuery));
+}
+
 function normalizePerson(record) {
     const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
     const id = firstString(record?.id, record?.entity_id, record?.entityId, payload.id, payload.person_id, payload.personId);
@@ -167,11 +184,14 @@ export class CompanionController {
             const records = await this.infoSSOTService.listGraphEntities(actorAccess(req), {
                 projectCode: req.query.project || req.query.project_id || null,
                 entityType: 'person',
+                query: firstString(req.query.query, req.query.q, req.query.search),
                 limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 1000) : 500
             });
+            const query = firstString(req.query.query, req.query.q, req.query.search);
             const people = records
                 .map(normalizePerson)
                 .filter(Boolean)
+                .filter((person) => matchesPersonQuery(person, query))
                 .sort((left, right) => left.display_name.localeCompare(right.display_name, 'ja'));
             res.json({
                 source: 'graph_ssot',

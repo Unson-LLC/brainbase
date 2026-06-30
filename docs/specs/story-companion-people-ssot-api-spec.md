@@ -11,10 +11,11 @@ Mac CompanionのTask候補レビューで担当者を選ぶとき、候補はAI�
 - INV-people-ssot-2: `Speaker 1` のような話者ラベルや、AI推定名だけの値は正本候補として返さない。
 - INV-people-ssot-3: `/api/companion/people` は既存のnative companion APIと同じbearer/service/internal認証ガードを通す。
 - INV-people-ssot-4: `POST /api/companion/people` はGraph SSOTのpersonを作成または更新し、アクセス可能なprojectへの`member_of` edgeも作る。
+- INV-people-ssot-5: `GET /api/companion/people?...&query=矢島` はGraph SSOTのperson名・alias・所属情報を検索し、該当しない担当者候補を返さない。
 
 ## API Contract
 
-`GET /api/companion/people?source=graph_ssot&type=person`
+`GET /api/companion/people?source=graph_ssot&type=person&query=矢島`
 
 Response:
 

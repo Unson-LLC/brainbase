@@ -485,9 +485,11 @@ export class InfoSSOTService {
         }
     }
 
-    async fetchGraphEntities(client, access, { projectCode, entityType, limit }) {
+    async fetchGraphEntities(client, access, { projectCode, entityType, query, limit }) {
         const roleRank = this.getRoleRank(access.role);
         const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+        const trimmedQuery = typeof query === 'string' ? query.trim() : '';
+        const compactQuery = trimmedQuery.replace(/\s+/g, '');
         const { rows } = await client.query(
             `SELECT ge.*, p.code AS project_code
              FROM graph_entities ge
@@ -522,9 +524,29 @@ export class InfoSSOTService {
                )
                AND ge.sensitivity = ANY($4)
                AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+               AND (
+                 $6::text IS NULL
+                 OR ge.payload::text ILIKE '%' || $6 || '%'
+                 OR REPLACE(COALESCE(ge.payload->>'name', ''), ' ', '') ILIKE '%' || $7 || '%'
+                 OR EXISTS (
+                   SELECT 1
+                   FROM jsonb_array_elements_text(COALESCE(ge.payload->'aliases', '[]'::jsonb)) alias
+                   WHERE alias ILIKE '%' || $6 || '%'
+                      OR REPLACE(alias, ' ', '') ILIKE '%' || $7 || '%'
+                 )
+               )
              ORDER BY ge.updated_at DESC
-             LIMIT $6`,
-            [projectCode || null, entityType || null, access.projectCodes, access.clearance, roleRank, safeLimit]
+             LIMIT $8`,
+            [
+                projectCode || null,
+                entityType || null,
+                access.projectCodes,
+                access.clearance,
+                roleRank,
+                trimmedQuery || null,
+                compactQuery || null,
+                safeLimit
+            ]
         );
         return rows;
     }
