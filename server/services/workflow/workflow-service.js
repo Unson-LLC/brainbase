@@ -2709,8 +2709,12 @@ export class WorkflowService {
                     payload: jsonClone(payload)
                 });
             });
+            const outputByWriteBackTarget = new Map(outputs
+                .map((output) => [output.metadata?.write_back_target, output])
+                .filter(([writeBackTarget]) => Boolean(writeBackTarget)));
             const humanSteps = MEETING_REVIEW_HUMAN_STEP_DEFINITIONS.map((definition) => {
                 const loopIntent = loopIntentByKey.get(definition.loop_intent_key);
+                const protectedOutput = outputByWriteBackTarget.get(definition.write_back_target) || null;
                 return this.repository.createHumanStep({
                     id: createMeetingReviewStableId('human', runId, definition.id),
                     workspace_id: DEFAULT_WORKSPACE_ID,
@@ -2728,6 +2732,10 @@ export class WorkflowService {
                         case_scope: caseScope,
                         protects: definition.protects,
                         write_back_target: definition.write_back_target,
+                        output_id: protectedOutput?.id || null,
+                        output_key: protectedOutput?.metadata?.output_key || null,
+                        output_type: protectedOutput?.type || protectedOutput?.output_type || null,
+                        approval_kind: protectedOutput?.type || definition.write_back_target,
                         loop_intent_id: loopIntent.id,
                         requires_human_approval: true
                     }

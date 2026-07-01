@@ -206,6 +206,94 @@ function seedApprovalRun(repository, {
     });
 }
 
+function seedDecisionApprovalRun(repository, {
+    runId = 'run_decision_pending',
+    workflowId = 'wf_meeting',
+    projectId = 'sample-project',
+    status = 'waiting_human',
+    humanStepStatus = 'pending',
+    createdAt = '2026-06-25T04:10:00.000Z'
+} = {}) {
+    repository.createRun({
+        id: runId,
+        workspace_id: 'default',
+        project_id: projectId,
+        workflow_id: workflowId,
+        status,
+        action_required: status === 'waiting_human' ? 'approve' : 'none',
+        human_waiting: status === 'waiting_human',
+        created_at: createdAt,
+        metadata: {
+            meeting_identity: {
+                title: 'Graph SSOT Playbook判断レビュー',
+                case_scope: 'graph-ssot-playbook'
+            },
+            source_event: {
+                permalink: 'https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844210'
+            },
+            stop_conditions: ['human_approval_required']
+        }
+    });
+    repository.createHumanStep({
+        id: `human_${runId}`,
+        workspace_id: 'default',
+        project_id: projectId,
+        workflow_id: workflowId,
+        workflow_run_id: runId,
+        step_type: 'approval',
+        requested_by: 'system',
+        requested_to: 'sato_keigo',
+        prompt: 'Decision候補をGraph SSOTへ登録してよいか確認してください',
+        status: humanStepStatus,
+        metadata: {
+            write_back_target: 'graph_ssot_decision',
+            output_id: `out_${runId}`,
+            output_key: 'decision_candidates',
+            output_type: 'decision_candidates',
+            approval_kind: 'decision_candidates',
+            protects: ['graph_ssot_decision']
+        }
+    });
+    repository.createContextSnapshot({
+        id: `ctx_${runId}`,
+        workspace_id: 'default',
+        project_id: projectId,
+        workflow_id: workflowId,
+        workflow_run_id: runId,
+        source_type: 'review_package',
+        source_ref: 'pkg_graph_ssot_playbook',
+        source_version: '0.1.0',
+        preview: 'Graph SSOT Playbook判断レビューの会議文脈',
+        data: {
+            meeting_title: 'Graph SSOT Playbook判断レビュー',
+            decision_scope: 'decision_candidates'
+        }
+    });
+    repository.createOutput({
+        id: `out_${runId}`,
+        workspace_id: 'default',
+        project_id: projectId,
+        workflow_id: workflowId,
+        workflow_run_id: runId,
+        type: 'decision_candidates',
+        title: 'Decision候補',
+        preview: '2件のDecision候補',
+        metadata: {
+            write_back_target: 'graph_ssot_decision',
+            output_key: 'decision_candidates'
+        },
+        payload: [{ title: 'Graph SSOTから担当者候補を確定する' }]
+    });
+    repository.writeAuditLog({
+        id: `audit_${runId}`,
+        workspace_id: 'default',
+        project_id: projectId,
+        action: 'workflow.run.waiting_human',
+        target_type: 'workflow_run',
+        target_id: runId
+    });
+}
+
 describe('companion approval inbox route', () => {
     it('returns pending workflow approvals with outputs and audit refs', async () => {
         const { app, repository } = makeApp();
@@ -284,6 +372,59 @@ describe('companion approval inbox route', () => {
                 })
             ]
         });
+    });
+
+    it('exposes Decision candidate output as an actionable human gate instead of output_only', async () => {
+        const { app, repository } = makeApp();
+        seedWorkflow(repository);
+        seedDecisionApprovalRun(repository);
+
+        const res = await request(app)
+            .get('/api/companion/approval-inbox')
+            .set('Authorization', 'Bearer user-token')
+            .expect(200);
+
+        expect(res.body.count).toBe(1);
+        const item = res.body.items[0];
+        expect(item).toMatchObject({
+            id: 'approval_run_decision_pending',
+            kind: 'workflow_approval',
+            title: 'Graph SSOT Playbook判断レビュー',
+            action_kind: 'decision_candidates',
+            workflow_id: 'wf_meeting',
+            run_id: 'run_decision_pending',
+            pending_human_steps: [
+                expect.objectContaining({
+                    id: 'human_run_decision_pending',
+                    prompt: 'Decision候補をGraph SSOTへ登録してよいか確認してください',
+                    write_back_target: 'graph_ssot_decision',
+                    approval_kind: 'decision_candidates',
+                    metadata: expect.objectContaining({
+                        write_back_target: 'graph_ssot_decision',
+                        output_id: 'out_run_decision_pending',
+                        output_key: 'decision_candidates',
+                        output_type: 'decision_candidates',
+                        approval_kind: 'decision_candidates'
+                    })
+                })
+            ],
+            outputs: [
+                expect.objectContaining({
+                    id: 'out_run_decision_pending',
+                    output_type: 'decision_candidates',
+                    title: 'Decision候補',
+                    summary: '2件のDecision候補',
+                    payload: [{ title: 'Graph SSOTから担当者候補を確定する' }],
+                    metadata: expect.objectContaining({
+                        write_back_target: 'graph_ssot_decision',
+                        output_key: 'decision_candidates'
+                    })
+                })
+            ],
+            audit_refs: ['audit_run_decision_pending']
+        });
+        expect(item.pending_human_steps[0].metadata.output_id).toBe(item.outputs[0].id);
+        expect(JSON.stringify(item)).not.toContain('output_only');
     });
 
     it('does not hide an older pending run behind a newer successful run', async () => {

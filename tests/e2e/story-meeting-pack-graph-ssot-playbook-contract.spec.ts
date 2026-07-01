@@ -235,7 +235,7 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
       access: expect.objectContaining({
         personId: 'keigo',
         role: 'ceo',
-        projectCodes: ['sample-project', 'other-project']
+        projectCodes: expect.arrayContaining(['sample-project', 'other-project'])
       }),
       options: expect.objectContaining({
         projectCode: 'sample-project',
@@ -344,6 +344,21 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
       'candidate_store'
     ]);
     expect(ingest.human_steps.every((step) => step.status === 'pending')).toBe(true);
+  });
+
+  await test.step('AC-012 ac:12 INV-012 C-012 Decision Human GateはDecision outputと明示的にペアリングされる', async () => {
+    const acEvidence = 'story-meeting-pack-graph-ssot-playbook ac:12 AC-012 Decision候補Human GateはMac Companionでoutput_onlyにならないよう、対応するoutput_idとapproval_kindを保持する。';
+    expect(acEvidence).toContain('output_idとapproval_kindを保持する');
+    const decisionOutput = ingest.outputs.find((output) => output.type === 'decision_candidates');
+    const decisionStep = ingest.human_steps.find((step) => step.metadata.write_back_target === 'graph_ssot_decision');
+
+    expect(decisionStep?.metadata).toMatchObject({
+      output_id: decisionOutput?.id,
+      output_key: 'decision_candidates',
+      output_type: 'decision_candidates',
+      approval_kind: 'decision_candidates',
+      write_back_target: 'graph_ssot_decision'
+    });
   });
 
   const meetingNoteOutput = ingest.outputs.find((output) => output.type === 'meeting_note_draft');

@@ -127,6 +127,7 @@ flowchart TD
 - AC-009: 同一Packageのidempotent replayは既存runを返し、既存payloadを上書きしない。
 - AC-010: Graph SSOT context取得失敗はingest失敗ではなく、明示的な例外分岐としてHuman Gateへ渡す。
 - AC-011: Project未確定時はGraph SSOT lookupを呼ばず、pre-ingest blockerとして `project_resolution_gate` の例外を返す。
+- AC-012: Decision候補Human Gateは対応する `decision_candidates` outputの `output_id` / `approval_kind` を保持し、Mac Companionで `output_only` にならない。
 
 ## Verification
 

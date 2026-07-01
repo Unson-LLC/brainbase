@@ -138,6 +138,89 @@ function seedRun(repository: InMemoryWorkflowRepository, {
   });
 }
 
+function seedDecisionRun(repository: InMemoryWorkflowRepository, {
+  runId = 'run_decision_pending',
+  status = 'waiting_human',
+  humanStepStatus = 'pending'
+} = {}) {
+  repository.createRun({
+    id: runId,
+    workspace_id: 'default',
+    project_id: 'sample-project',
+    workflow_id: 'wf_meeting',
+    status,
+    action_required: status === 'waiting_human' ? 'approve' : 'none',
+    human_waiting: status === 'waiting_human',
+    metadata: {
+      meeting_identity: {
+        title: 'Graph SSOT Playbook判断レビュー',
+        case_scope: 'graph-ssot-playbook'
+      },
+      source_event: {
+        permalink: 'https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844210'
+      }
+    }
+  });
+  repository.createHumanStep({
+    id: `human_${runId}`,
+    workspace_id: 'default',
+    project_id: 'sample-project',
+    workflow_id: 'wf_meeting',
+    workflow_run_id: runId,
+    step_type: 'approval',
+    requested_by: 'system',
+    requested_to: 'sato_keigo',
+    prompt: 'Decision候補をGraph SSOTへ登録してよいか確認してください',
+    status: humanStepStatus,
+    metadata: {
+      write_back_target: 'graph_ssot_decision',
+      output_id: `out_${runId}`,
+      output_key: 'decision_candidates',
+      output_type: 'decision_candidates',
+      approval_kind: 'decision_candidates',
+      protects: ['graph_ssot_decision']
+    }
+  });
+  repository.createContextSnapshot({
+    id: `ctx_${runId}`,
+    workspace_id: 'default',
+    project_id: 'sample-project',
+    workflow_id: 'wf_meeting',
+    workflow_run_id: runId,
+    source_type: 'review_package',
+    source_ref: 'pkg_graph_ssot_playbook',
+    source_version: '0.1.0',
+    preview: 'Graph SSOT Playbook判断レビューの会議文脈',
+    data: {
+      meeting_title: 'Graph SSOT Playbook判断レビュー',
+      decision_scope: 'decision_candidates'
+    }
+  });
+  repository.createOutput({
+    id: `out_${runId}`,
+    workspace_id: 'default',
+    project_id: 'sample-project',
+    workflow_id: 'wf_meeting',
+    workflow_run_id: runId,
+    type: 'decision_candidates',
+    title: 'Decision候補',
+    preview: '2件のDecision候補',
+    metadata: {
+      write_back_target: 'graph_ssot_decision',
+      output_key: 'decision_candidates'
+    },
+    payload: [{ title: 'Graph SSOTから担当者候補を確定する' }]
+  });
+  repository.writeAuditLog({
+    id: `audit_${runId}`,
+    workspace_id: 'default',
+    project_id: 'sample-project',
+    action: 'workflow.run.waiting_human',
+    target_type: 'workflow_run',
+    target_id: runId
+  });
+}
+
 test('story-companion-approval-inbox-v1 ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 traceability contract', async () => {
   const story = readFileSync('docs/stories/story-companion-approval-inbox-v1.md', 'utf8');
   const spec = readFileSync('docs/specs/story-companion-approval-inbox-v1-spec.md', 'utf8');
@@ -240,6 +323,54 @@ test('story-companion-approval-inbox-v1 ac:1 ac:2 ac:3 ac:4 ac:5 ac:8 context-ev
 	          })
 	        ]
 	      });
+});
+
+test('story-meeting-pack-graph-ssot-playbook AC-012 companion approval inbox exposes Decision output as an actionable human gate instead of output_only', async () => {
+  const { app, repository } = createApp();
+  seedWorkflow(repository);
+  seedDecisionRun(repository);
+
+  const response = await request(app)
+    .get('/api/companion/approval-inbox')
+    .set('Authorization', 'Bearer user-token')
+    .expect(200);
+
+  expect(response.body.count).toBe(1);
+  const item = response.body.items[0];
+  expect(item).toMatchObject({
+    kind: 'workflow_approval',
+    run_id: 'run_decision_pending',
+    action_kind: 'decision_candidates',
+    pending_human_steps: [
+      expect.objectContaining({
+        id: 'human_run_decision_pending',
+        prompt: 'Decision候補をGraph SSOTへ登録してよいか確認してください',
+        write_back_target: 'graph_ssot_decision',
+        approval_kind: 'decision_candidates',
+        metadata: expect.objectContaining({
+          write_back_target: 'graph_ssot_decision',
+          output_id: 'out_run_decision_pending',
+          output_key: 'decision_candidates',
+          output_type: 'decision_candidates',
+          approval_kind: 'decision_candidates'
+        })
+      })
+    ],
+    outputs: [
+      expect.objectContaining({
+        id: 'out_run_decision_pending',
+        output_type: 'decision_candidates',
+        title: 'Decision候補',
+        summary: '2件のDecision候補',
+        metadata: expect.objectContaining({
+          write_back_target: 'graph_ssot_decision',
+          output_key: 'decision_candidates'
+        })
+      })
+    ]
+  });
+  expect(item.pending_human_steps[0].metadata.output_id).toBe(item.outputs[0].id);
+  expect(JSON.stringify(item)).not.toContain('output_only');
 });
 
 test('story-companion-approval-inbox-v1 ac:8 context-evidence-contract web_url opens Workflow Mission Control run detail', async ({ page }) => {

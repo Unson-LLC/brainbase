@@ -915,6 +915,20 @@ describe('workflow routes', () => {
         expect(repository.ledger.runs).toHaveLength(1);
         expect(repository.ledger.outputs).toHaveLength(5);
         expect(repository.ledger.human_steps).toHaveLength(5);
+        const decisionOutput = res.body.meeting_review_ingest.outputs.find((output) => output.type === 'decision_candidates');
+        const decisionHumanStep = res.body.meeting_review_ingest.human_steps.find((step) => step.metadata?.write_back_target === 'graph_ssot_decision');
+        expect(decisionOutput).toBeTruthy();
+        expect(decisionHumanStep).toMatchObject({
+            status: 'pending',
+            metadata: expect.objectContaining({
+                output_id: decisionOutput.id,
+                output_key: 'decision_candidates',
+                output_type: 'decision_candidates',
+                approval_kind: 'decision_candidates',
+                write_back_target: 'graph_ssot_decision',
+                requires_human_approval: true
+            })
+        });
         expect(repository.listAuditLogs({ targetId: res.body.meeting_review_ingest.run.id })).toEqual([
             expect.objectContaining({
                 action: 'workflow.meeting_review_package.ingested',
@@ -962,6 +976,15 @@ describe('workflow routes', () => {
         expect(runRes.body.outputs.every((output) => output.metadata.loop_intent_id)).toBe(true);
         expect(runRes.body.human_steps).toHaveLength(5);
         expect(runRes.body.human_steps.every((step) => step.metadata.loop_intent_id)).toBe(true);
+        expect(runRes.body.human_steps).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    output_id: decisionOutput.id,
+                    output_type: 'decision_candidates',
+                    approval_kind: 'decision_candidates'
+                })
+            })
+        ]));
     });
 
     it('story-meeting-review-package-ingest-v1 rejects unauthorized operator before ingest writes', async () => {

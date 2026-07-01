@@ -409,6 +409,33 @@ test('story-meeting-review-package-ingest-v1 ac:8 `workflow_human_steps` には 
   ], pending_step_count: 5 });
 });
 
+test('story-meeting-review-package-ingest-v1 AC-012 ac:12 INV-012 C-012 Decision候補のHuman Gateは対応output_idとapproval_kindを保持しMac Companionでoutput_onlyにしない。', async () => {
+  const { ingest } = await ingestSamplePackage();
+  const outputsByTarget = new Map(ingest.outputs.map((output) => [output.metadata.write_back_target, output]));
+
+  for (const step of ingest.human_steps) {
+    const protectedOutput = outputsByTarget.get(step.metadata.write_back_target);
+    expect(protectedOutput, `protected output for ${step.metadata.write_back_target}`).toBeTruthy();
+    expect(step.metadata).toMatchObject({
+      output_id: protectedOutput.id,
+      output_key: protectedOutput.metadata.output_key,
+      output_type: protectedOutput.type,
+      approval_kind: protectedOutput.type
+    });
+  }
+
+  const decisionStep = ingest.human_steps.find((step) => step.metadata.write_back_target === 'graph_ssot_decision');
+  const decisionOutput = ingest.outputs.find((output) => output.type === 'decision_candidates');
+
+  expect(decisionStep?.metadata).toMatchObject({
+    output_id: decisionOutput.id,
+    output_key: 'decision_candidates',
+    output_type: 'decision_candidates',
+    approval_kind: 'decision_candidates',
+    write_back_target: 'graph_ssot_decision'
+  });
+});
+
 test('story-meeting-review-package-ingest-v1 S-003 ac:9 取り込みは `package_id + org_id + project_id` で冪等になり、再実行しても run / output / human step を重複作成しない。', async () => {
   const { repository, service, actor, ingest } = await ingestSamplePackage();
 

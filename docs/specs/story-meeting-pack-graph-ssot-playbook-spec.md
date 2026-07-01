@@ -125,6 +125,7 @@ Project未確定時:
 - WSC-004: Graph取得失敗時は既存のReview Package由来候補を保持し、`candidate_from_review_package` のままにする。
 - WSC-005: `meeting_note_draft` output payloadには `graph_ssot_playbook` と `project_resolution` を付与する。
 - WSC-006: Human Gateは従来どおり5件作成し、Task/Graph/外部送信を自動実行しない。
+- WSC-007: 各Human Gateは対応する `workflow_outputs` の `output_id`、`output_key`、`output_type`、`approval_kind` をmetadataへ保存し、Mac Companionで承認可能なstep/outputペアとして解決できる。
 
 ## Workflow State Machine
 
@@ -138,6 +139,7 @@ Project未確定時:
 - S-008 workflow state transition: Graph SSOT取得失敗時は `candidate_from_review_package` と `graph_ssot_unavailable` を保存する。
 - S-009 workflow state transition: Graph SSOT取得失敗はingest全体の失敗にせず、fallback snapshotと `meeting_note_draft` payloadをHuman Gateへ渡す。
 - S-010 workflow state transition: Project候補がない、または複数候補が競合する場合、`blocked_invalid_scope` のpre-ingest blockerとして返し、Graph SSOT lookupとrun作成を行わない。
+- S-011 workflow state transition: `human_review_package` はDecision候補Human Gateを `decision_candidates` outputに `output_id` と `approval_kind=decision_candidates` で紐付ける。
 
 ## Workflow State Scenarios
 
@@ -151,6 +153,7 @@ Project未確定時:
 - S-008 `workflow state transition`: Graph SSOT取得失敗時は `candidate_from_review_package` と `graph_ssot_unavailable` を保存する。
 - S-009 `workflow state transition`: Graph SSOT取得失敗はingest全体の失敗にせず、fallback snapshotと `meeting_note_draft` payloadをHuman Gateへ渡す。
 - S-010 `workflow state transition`: Project候補がない、または複数候補が競合する場合、`blocked_invalid_scope` のpre-ingest blockerとして返し、Graph SSOT lookupとrun作成を行わない。
+- S-011 `workflow state transition`: `human_review_package` はDecision候補Human Gateを `decision_candidates` outputに `output_id` と `approval_kind=decision_candidates` で紐付ける。
 
 ## Scenario Clauses
 
@@ -164,6 +167,7 @@ Project未確定時:
 - SCN-008: workflow state transition scenario clauseとして、Graph SSOT取得失敗時は `candidate_from_review_package` と `graph_ssot_unavailable` を保存する。
 - SCN-009: workflow state transition scenario clauseとして、Graph SSOT取得失敗はingest全体の失敗にせず、fallback snapshotと `meeting_note_draft` payloadをHuman Gateへ渡す。
 - SCN-010: workflow state transition scenario clauseとして、Project候補がない、または複数候補が競合する場合、`blocked_invalid_scope` のpre-ingest blockerとして返し、Graph SSOT lookupとrun作成を行わない。
+- SCN-011: workflow state transition scenario clauseとして、Decision候補Human Gateは対応する `decision_candidates` outputの `output_id`、`output_type`、`approval_kind` を保持し、Mac Companionで `output_only` として孤立しない。
 
 ## Failure Modes
 
@@ -181,6 +185,7 @@ Project未確定時:
 - S-008: Graph SSOT取得に失敗した場合は `candidate_from_review_package` と明示し、`graph_ssot_unavailable` を例外分岐として保存する。
 - S-009: Graph SSOT取得失敗はingest全体の失敗にせず、fallback snapshotと `meeting_note_draft` payloadをHuman Gateへ渡す。
 - S-010: Project候補がない、または複数候補が競合する場合、pre-ingest blockerとして `project_resolution_gate` 例外を返し、Graph SSOT lookupを呼ばない。
+- S-011: Decision候補Human Gateは対応する `decision_candidates` outputと明示的にペアリングされる。
 
 ## Production Path Matrix
 
@@ -190,7 +195,7 @@ Project未確定時:
 | graph_fallback | Projectは確定したがGraph SSOT context取得に失敗する | `candidate_from_review_package`、`graph_ssot_unavailable`、fallback snapshotを保存し、ingestは継続する |
 | pre_ingest_blocker | Project候補なし、または複数Project候補が競合する | `blocked_invalid_scope`、`project_resolution_gate` 例外を返し、Graph SSOT lookupとrun作成をしない |
 | idempotent_replay | 同一 `package_id + org_id + project_id` がreplayされる | 既存runを返し、既存payloadを上書きしない |
-| human_gate | Task/Decision/Graph/外部送信候補が出る | 自動実行せず、承認待ちに止める |
+| human_gate | Task/Decision/Graph/外部送信候補が出る | 自動実行せず、承認待ちに止め、各Human Gateを対応outputへ `output_id` / `approval_kind` で紐付ける |
 
 ## Flow Replay Evidence
 
@@ -204,9 +209,10 @@ Project未確定時:
   - `story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3 AC-004 ac:4 AC-006 ac:6 AC-007 ac:7 AC-008 ac:8 AC-009 ac:9 S-001 S-002 S-003 S-004 S-005 S-006 S-007 Graph SSOT Playbookはproject確定後にcontext/glossaryを引き、生成契約とhuman gateを保存する。`
   - `story-meeting-pack-graph-ssot-playbook AC-005 ac:5 AC-010 ac:10 S-008 S-009 FM-001 provider_failure Graph SSOT例外分岐はfallback snapshotと出力payloadに残り、候補を正本扱いしない。`
   - `story-meeting-pack-graph-ssot-playbook AC-011 ac:11 S-010 SCN-010 flow_replay production_path_matrix scenario_clause_e2e workflow state transition project未確定はpre-ingest blockerとしてGraph SSOT lookupを呼ばず構造化例外を返す。`
-  - `story-meeting-pack-graph-ssot-playbook flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-001 ac:1 AC-002 ac:2 AC-003 ac:3 AC-004 ac:4 AC-005 ac:5 AC-006 ac:6 AC-007 ac:7 AC-008 ac:8 AC-009 ac:9 AC-010 ac:10 AC-011 ac:11 S-001 S-002 S-003 S-004 S-005 S-006 S-007 S-008 S-009 S-010 SCN-001 SCN-002 SCN-003 SCN-004 SCN-005 SCN-006 SCN-007 SCN-008 SCN-009 SCN-010 FM-001 provider_failure`
+  - `story-meeting-pack-graph-ssot-playbook AC-012 ac:12 S-011 SCN-011 INV-012 C-012 Decision Human GateはDecision outputと明示的にペアリングされる。`
+  - `story-meeting-pack-graph-ssot-playbook flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-001 ac:1 AC-002 ac:2 AC-003 ac:3 AC-004 ac:4 AC-005 ac:5 AC-006 ac:6 AC-007 ac:7 AC-008 ac:8 AC-009 ac:9 AC-010 ac:10 AC-011 ac:11 AC-012 ac:12 S-001 S-002 S-003 S-004 S-005 S-006 S-007 S-008 S-009 S-010 S-011 SCN-001 SCN-002 SCN-003 SCN-004 SCN-005 SCN-006 SCN-007 SCN-008 SCN-009 SCN-010 SCN-011 FM-001 provider_failure`
 - `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
-  - 既存Review Package ingest contractを併走させ、Meeting Packの5 output / 5 approval gate / idempotent replay互換性を確認する。
+  - 既存Review Package ingest contractを併走させ、Meeting Packの5 output / 5 approval gate / idempotent replay互換性とHuman Gateのoutputペアリングを確認する。
 
 ## Release Operations
 
