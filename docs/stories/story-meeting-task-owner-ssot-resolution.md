@@ -25,6 +25,7 @@ Meeting Review Package ingest時にBrainbase Graph SSOTのpersonを検索し、�
 - INV-owner-ssot-6: people SSOTが利用できない場合でもReview Package ingestは失敗させず、担当者は未解決として扱う。
 - INV-owner-ssot-7: `担当者` / `担当` / `未定` などの汎用語は候補検索にも正本担当者設定にも使わない。
 - INV-owner-ssot-8: people SSOTに同一人物の重複行がある場合、`display_name` / `name` / `aliases[]` の正規化キーで畳んでから一意性を判定する。
+- INV-owner-ssot-9: project codeの表記ゆれはPeople SSOT検索条件だけでなく、Graph access scopeにも反映してから候補検索する。
 
 ## Scenarios
 
@@ -34,7 +35,7 @@ Meeting Review Package ingest時にBrainbase Graph SSOTのpersonを検索し、�
 - S-004: `owner_hint=@佐藤さん` が複数personに当たり得る場合でも、Brainbase/SalesTailor文脈ではproject SSOTに紐づく `佐藤 圭吾` を第一候補として `owner_candidates[]` に残し、高信頼なら `selected_owner_id` を付与する。
 - S-005: `owner_hint=@汐里さん` がalias完全一致しない場合でも、姓名の部分一致で `堀 汐里` を `owner_candidates[]` に残す。
 - S-005b: `owner_hint=@汐里さん` がpeople SSOTの重複した `堀 汐里` 行へ当たっても、同一人物として畳んだ結果が一意なら `selected_owner_id` を付与する。
-- S-005c: `owner_hint=@King氏` は `tech-knight` / `techknight` のproject code表記ゆれを越えて `佐藤 圭吾 aliases=["King","キング"]` に一意完全一致する。
+- S-005c: `owner_hint=@King氏` は `tech-knight` / `techknight` のproject code表記ゆれを検索条件とGraph access scopeの両方で越えて `佐藤 圭吾 aliases=["King","キング"]` に一意完全一致する。
 - S-005d: `owner_hint=@担当者` は汎用語として扱い、people SSOT検索も `selected_owner_id` 付与も行わない。
 - S-006: 同一Review Packageの再取り込みは既存run/outputを返し、重複解決や重複書き込みを行わない。
 - S-007: people SSOT取得が失敗してもReview Package ingestは承認待ちrun/outputを作成し、担当者だけを未解決として人間レビューに渡す。
@@ -68,7 +69,7 @@ Meeting Review Package ingest時にBrainbase Graph SSOTのpersonを検索し、�
 - AC-021: `@佐藤さん` はproject contextに一致する `佐藤 圭吾` を第一候補として返し、他の佐藤候補も `owner_candidates[]` に残す。
 - AC-022: `@汐里さん` はalias完全一致がなくても `堀 汐里` を部分一致候補として返す。
 - AC-023: `@汐里さん` がpeople SSOTの重複した同一人物行へ当たる場合、正規化キーで畳んだうえで一意なら `selected_owner_id` を付与する。
-- AC-024: `@King氏` / `@キング` は `佐藤 圭吾` のaliasとして解決し、`tech-knight` と `techknight` のproject code表記ゆれを越えて候補検索できる。
+- AC-024: `@King氏` / `@キング` は `佐藤 圭吾` のaliasとして解決し、`tech-knight` と `techknight` のproject code表記ゆれを検索projectCodeとGraph access scopeの両方で越えて候補検索できる。
 - AC-025: `@担当者` のような汎用語は `generic_owner_hint_requires_human_selection` として未解決にし、正本担当者を初期設定しない。
 
 ## Release / Rollback / Observability

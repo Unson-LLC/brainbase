@@ -553,9 +553,13 @@ function confidentlySelectedTaskOwnerCandidate(ownerCandidates) {
 
 function taskOwnerAccessFromActor(actor = {}, projectId = null) {
     const role = typeof actor.role === 'string' ? actor.role.toLowerCase() : '';
-    const projectCodes = Array.isArray(actor.projectCodes) && actor.projectCodes.length
-        ? actor.projectCodes
-        : (projectId ? [projectId] : []);
+    const actorProjectCodes = Array.isArray(actor.projectCodes)
+        ? actor.projectCodes.filter((code) => typeof code === 'string' && code.trim()).map((code) => code.trim())
+        : [];
+    const projectCodes = Array.from(new Set([
+        ...actorProjectCodes,
+        ...projectCodeLookupVariants(projectId)
+    ]));
     return {
         role: ['member', 'gm', 'ceo'].includes(role) ? role : 'ceo',
         projectCodes,

@@ -25,7 +25,9 @@ function makeService({
                 root: '/workspace',
                 projects: [
                     { id: 'unson', session_select: true, aliases: ['unson-os'] },
-                    { id: 'salestailor', session_select: true, aliases: ['sales-tailor'] }
+                    { id: 'salestailor', session_select: true, aliases: ['sales-tailor'] },
+                    { id: 'tech-knight', session_select: true },
+                    { id: 'techknight', session_select: true }
                 ]
             };
         }
@@ -68,10 +70,22 @@ function makeInfoSSOTPeopleService(records = []) {
         async listGraphEntities(access, options = {}) {
             calls.push({ access, options });
             const projectCode = String(options.projectCode || '').trim();
+            const accessProjectCodes = new Set(
+                (Array.isArray(access?.projectCodes) ? access.projectCodes : [])
+                    .filter(Boolean)
+                    .map(String)
+            );
+            const isVisibleToAccess = (record) => {
+                const recordProjects = recordProjectCodes(record);
+                return !accessProjectCodes.size
+                    || !recordProjects.size
+                    || [...recordProjects].some((code) => accessProjectCodes.has(code));
+            };
             if (options.id) {
                 return records.filter((record) => {
                     const payload = record.payload || {};
                     if (projectCode && !recordProjectCodes(record).has(projectCode)) return false;
+                    if (projectCode && !isVisibleToAccess(record)) return false;
                     return [record.id, record.entity_id, payload.person_id, payload.id]
                         .filter(Boolean)
                         .some((value) => String(value) === String(options.id));
@@ -81,6 +95,7 @@ function makeInfoSSOTPeopleService(records = []) {
             return records.filter((record) => {
                 const payload = record.payload || {};
                 if (projectCode && !recordProjectCodes(record).has(projectCode)) return false;
+                if (projectCode && !isVisibleToAccess(record)) return false;
                 const values = [
                     record.id,
                     payload.name,
@@ -2208,6 +2223,60 @@ describe('WorkflowService org agent loop control', () => {
                 reason: 'unique_exact_name_or_alias'
             }
         });
+    });
+
+    it('story-meeting-task-owner-ssot-resolution applies project variants to people SSOT access scope', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_sato_keigo',
+                member_of_project_codes: ['techknight'],
+                payload: {
+                    name: '佐藤 圭吾',
+                    display_name: '佐藤 圭吾',
+                    aliases: ['佐藤圭吾', 'Keigo Sato', 'King', 'キング'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { service, actor } = makeService({ infoSSOTService });
+        actor.projectCodes = ['tech-knight'];
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'tech-knight',
+            project_id: 'tech-knight'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage({
+            orgId: 'tech-knight',
+            projectId: 'tech-knight',
+            packageId: 'meeting-review-package-project-variant-owner-access-unit'
+        });
+        reviewPackage.task_candidates = [
+            {
+                title: 'King氏にCxO会議の決定事項をSlackへ投稿してもらう。',
+                owner_hint: '@King氏'
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0]).toMatchObject({
+            owner_hint: '@King氏',
+            selected_owner_id: 'person_sato_keigo',
+            selected_owner: '佐藤 圭吾',
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'resolved',
+                confidence: 1,
+                reason: 'unique_exact_name_or_alias'
+            }
+        });
+        expect(infoSSOTService.calls.some((call) => (
+            call.options.projectCode === 'techknight'
+            && call.options.query === 'king'
+            && call.access.projectCodes.includes('techknight')
+        ))).toBe(true);
     });
 
     it('story-meeting-task-owner-ssot-resolution keeps inactive context owner hints unselected', async () => {

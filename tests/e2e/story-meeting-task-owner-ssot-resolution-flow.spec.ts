@@ -39,10 +39,24 @@ function makeInfoSSOTPeopleService(records = [], { fail = false } = {}) {
       if (fail) throw new Error('people ssot unavailable');
       const query = String(options.query || '').trim().replace(/^@+/, '').toLowerCase();
       const projectCode = String(options.projectCode || '').trim();
+      const accessProjectCodes = new Set(
+        (Array.isArray(access?.projectCodes) ? access.projectCodes : [])
+          .filter(Boolean)
+          .map(String)
+      );
       const id = String(options.id || '').trim();
       return records.filter((record) => {
         const payload = record.payload || {};
-        if (projectCode && !recordProjectCodes(record).has(projectCode)) return false;
+        const recordProjects = recordProjectCodes(record);
+        if (projectCode && !recordProjects.has(projectCode)) return false;
+        if (
+          projectCode
+          && accessProjectCodes.size
+          && recordProjects.size
+          && ![...recordProjects].some((code) => accessProjectCodes.has(code))
+        ) {
+          return false;
+        }
         if (id) return [record.id, record.entity_id, payload.person_id, payload.id].filter(Boolean).map(String).includes(id);
         const values = [
           record.id,
@@ -400,6 +414,7 @@ test('story-meeting-task-owner-ssot-resolution AC-021 AC-022 scenario_clause_e2e
       }
     ])
   });
+  stack.actor.projectCodes = ['sample-project', 'tech-knight'];
   const packageInput = samplePackage({
     packageId: 'meeting-task-owner-context-ranked-e2e',
     taskCandidates: [
@@ -488,6 +503,11 @@ test('story-meeting-task-owner-ssot-resolution AC-023 AC-024 AC-025 scenario_cla
   expect(tasks[1].selected_owner_id, 'AC-024 project code variants allow tech-knight package to resolve techknight people aliases').toBe('person_sato_keigo');
   expect(tasks[1].owner_resolution.reason).toBe('unique_exact_name_or_alias');
   expect(stack.infoSSOTService.calls.some((call) => call.options.projectCode === 'techknight' && call.options.query === 'king')).toBe(true);
+  expect(stack.infoSSOTService.calls.some((call) => (
+    call.options.projectCode === 'techknight'
+    && call.options.query === 'king'
+    && call.access.projectCodes.includes('techknight')
+  ))).toBe(true);
   expect(tasks[2].selected_owner_id, 'AC-025 generic owner hint must not become a 神設定 owner').toBeUndefined();
   expect(tasks[2].owner_candidates).toEqual([]);
   expect(tasks[2].owner_resolution.reason).toBe('generic_owner_hint_requires_human_selection');
