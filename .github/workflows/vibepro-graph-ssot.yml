@@ -12,7 +12,7 @@ on:
 jobs:
   graph-ssot:
     name: Verify VibePro Graph SSOT
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
 
     env:
       BRAINBASE_GRAPH_API_URL: https://bb.unson.jp

@@ -34,7 +34,7 @@ on:
 jobs:
   score-evidence:
     name: Verify committed VibePro score evidence
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
 
     steps:
       - name: Checkout code
