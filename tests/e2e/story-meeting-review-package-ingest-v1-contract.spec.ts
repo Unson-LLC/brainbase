@@ -9,7 +9,7 @@ import {
 } from '../../server/services/workflow/workflow-service.js';
 import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-pack.js';
 
-function makeService() {
+function makeService({ infoSSOTService = null } = {}) {
   const repository = new InMemoryWorkflowRepository();
   const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
   const configParser = {
@@ -24,7 +24,7 @@ function makeService() {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser });
+  const service = new WorkflowService({ repository, runner, configParser, infoSSOTService });
   const actor = {
     sub: 'keigo',
     person_id: 'keigo',
@@ -32,6 +32,57 @@ function makeService() {
     projectCodes: ['sample-project', 'other-project']
   };
   return { repository, service, actor };
+}
+
+function makeGraphContextService() {
+  const calls = [];
+  return {
+    calls,
+    async getContext(access, options) {
+      calls.push({ access, options });
+      return {
+        entities: {
+          project: [{
+            entity_id: 'project-sample',
+            entity_type: 'project',
+            payload: { project_code: 'sample-project', name: 'Sample Project' }
+          }],
+          person: [{
+            entity_id: 'person-keigo',
+            entity_type: 'person',
+            payload: { person_id: 'keigo', display_name: '佐藤圭吾', aliases: ['King', 'キング'] }
+          }],
+          glossary_term: [{
+            entity_id: 'term-meeting-pack',
+            entity_type: 'glossary_term',
+            payload: { term: 'Meeting Pack', definition: '会議前後の入力、議事録、Task、Decisionを扱うパッケージ' }
+          }]
+        },
+        edges: [{
+          from_entity_id: 'project-sample',
+          to_entity_id: 'person-keigo',
+          rel_type: 'has_member'
+        }]
+      };
+    },
+    async listGraphEntities() {
+      return [];
+    }
+  };
+}
+
+function makeFailingGraphContextService() {
+  const calls = [];
+  return {
+    calls,
+    async getContext(access, options) {
+      calls.push({ access, options });
+      throw new Error('graph unavailable in test');
+    },
+    async listGraphEntities() {
+      return [];
+    }
+  };
 }
 
 function samplePackage({
@@ -106,8 +157,8 @@ function unitedHotelDxPackage() {
   return JSON.parse(readFileSync('tests/fixtures/meeting-review-package-united-hotel-dx.json', 'utf8'));
 }
 
-async function ingestSamplePackage(packageInput = samplePackage()) {
-  const { repository, service, actor } = makeService();
+async function ingestSamplePackage(packageInput = samplePackage(), serviceOptions = {}) {
+  const { repository, service, actor } = makeService(serviceOptions);
   await service.bootstrapMeetingWorkflowPack({
     org_id: packageInput.meeting_identity.candidate_org_id,
     project_id: packageInput.meeting_identity.candidate_project_id
@@ -179,6 +230,119 @@ test('story-meeting-review-package-ingest-v1 ac:3 `case_scope`、Calendar event�
       })
     })
   ]));
+});
+
+test('story-meeting-pack-graph-ssot-playbook ac:1 Project確定後にGraph SSOTから用語集を含むproject scoped contextを取得しPlaybookへ保存する。', async () => {
+  const infoSSOTService = makeGraphContextService();
+  const { ingest } = await ingestSamplePackage(samplePackage({
+    packageId: 'meeting-review-package-graph-playbook-e2e'
+  }), { infoSSOTService });
+
+  expect(infoSSOTService.calls).toHaveLength(1);
+  expect(infoSSOTService.calls[0].options).toEqual(expect.objectContaining({
+    projectCode: 'sample-project',
+    includeEdges: true,
+    includePhilosophy: false
+  }));
+  expect(infoSSOTService.calls[0].options.entityTypes).toContain('glossary_term');
+  expect(ingest.run.metadata.project_resolution).toEqual(expect.objectContaining({
+    status: 'single_high_confidence_project',
+    project_id: 'sample-project'
+  }));
+  expect(ingest.run.metadata.graph_context).toEqual(expect.objectContaining({
+    verification_status: 'verified_from_graph_ssot',
+    graph_context_source: 'brainbase_graph_ssot'
+  }));
+  expect(ingest.run.metadata.graph_ssot_playbook).toEqual(expect.objectContaining({
+    version: 'meeting_pack_graph_ssot_playbook.v1',
+    generation_contract: expect.objectContaining({
+      fact_source: 'transcript_and_slack_attachment',
+      graph_ssot_role: 'project_scoped_entity_identity_relationship_glossary_context',
+      project_must_be_resolved_before_graph_lookup: true,
+      graph_context_must_not_override_missing_transcript_facts: true
+    })
+  }));
+  expect(ingest.run.metadata.graph_ssot_playbook.dag.edges).toEqual(expect.arrayContaining([
+    { from: 'project_resolution_gate', to: 'project_scoped_graph_context' },
+    { from: 'project_scoped_graph_context', to: 'glossary_resolution' }
+  ]));
+  expect(ingest.context_snapshots).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      source_type: 'graph_ssot',
+      item_count: 3,
+      data: expect.objectContaining({
+        graph_ssot_context: expect.objectContaining({
+          entities: expect.objectContaining({
+            glossary_term: [
+              expect.objectContaining({
+                payload: expect.objectContaining({ term: 'Meeting Pack' })
+              })
+            ]
+          })
+        })
+      })
+    })
+  ]));
+  const meetingNoteOutput = ingest.outputs.find((output) => output.type === 'meeting_note_draft');
+  expect(meetingNoteOutput?.payload).toEqual(expect.objectContaining({
+    graph_ssot_playbook: expect.objectContaining({
+      graph_context: expect.objectContaining({
+        status: 'resolved',
+        type_counts: expect.objectContaining({ glossary_term: 1 })
+      }),
+      glossary_resolution: expect.objectContaining({ status: 'resolved', entity_count: 1 })
+    })
+  }));
+});
+
+test('story-meeting-pack-graph-ssot-playbook ac:5 ac:10 Graph SSOT取得失敗は候補fallbackと例外分岐として保存される。', async () => {
+  const infoSSOTService = makeFailingGraphContextService();
+  const { ingest } = await ingestSamplePackage(samplePackage({
+    packageId: 'meeting-review-package-graph-unavailable-e2e'
+  }), { infoSSOTService });
+
+  expect(infoSSOTService.calls).toHaveLength(1);
+  expect(ingest.run.metadata.graph_context).toEqual(expect.objectContaining({
+    verification_status: 'candidate_from_review_package',
+    graph_context_source: 'review_package_candidate',
+    promoted_to_graph_ssot: false
+  }));
+  expect(ingest.run.metadata.graph_ssot_playbook).toEqual(expect.objectContaining({
+    graph_context: expect.objectContaining({
+      status: 'unavailable',
+      error: 'graph unavailable in test'
+    }),
+    active_exceptions: expect.arrayContaining([
+      expect.objectContaining({
+        node: 'project_scoped_graph_context',
+        code: 'graph_ssot_unavailable',
+        message: 'graph unavailable in test'
+      })
+    ])
+  }));
+  expect(ingest.context_snapshots).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      source_type: 'graph_ssot',
+      preview: 'Graph SSOT context candidates with explicit fallback',
+      data: expect.objectContaining({
+        verification_status: 'candidate_from_review_package',
+        graph_context_source: 'review_package_candidate',
+        graph_ssot_context: null,
+        graph_ssot_playbook: expect.objectContaining({
+          active_exceptions: expect.arrayContaining([
+            expect.objectContaining({ code: 'graph_ssot_unavailable' })
+          ])
+        })
+      })
+    })
+  ]));
+  const meetingNoteOutput = ingest.outputs.find((output) => output.type === 'meeting_note_draft');
+  expect(meetingNoteOutput?.payload.graph_ssot_playbook).toEqual(expect.objectContaining({
+    graph_context: expect.objectContaining({ status: 'unavailable' }),
+    active_exceptions: expect.arrayContaining([
+      expect.objectContaining({ code: 'graph_ssot_unavailable' })
+    ])
+  }));
 });
 
 test('story-meeting-review-package-ingest-v1 ac:4 `loop_intent_ids` は既存 Loop Intent と照合され、project mismatch や missing は書き込み前に拒否される。', async () => {

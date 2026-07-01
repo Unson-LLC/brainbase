@@ -126,7 +126,7 @@ flowchart TB
 
 これらはすべて `pending` で作成する。1件だけ承認された場合、元の review run は `waiting_human/open/action_required=approve` のまま残り、未承認stepを Workflow Mission Control に出し続ける。5件すべてが承認された時点でのみ、元runを `success/closed/action_required=none` に更新する。いずれかのstepがRejectされた場合は、元runを `cancelled/closed/action_required=none` に更新し、残りのpending stepも `cancelled` にして後続Approveで成功へ戻さない。承認APIの実 write-back は別Storyで扱う。
 
-Graph context は `source_type=graph_ssot` の context snapshot に置くが、package由来の候補であるため `verification_status=candidate_from_review_package` と `promoted_to_graph_ssot=false` を保持する。これにより、検証済みGraph SSOT正本と候補を混同しない。
+Graph context は `source_type=graph_ssot` の context snapshot に置く。Project確定後にBrainbase Graph SSOT contextを取得できた場合は `verification_status=verified_from_graph_ssot` とし、取得できない場合はpackage由来の候補を `verification_status=candidate_from_review_package` として保持する。どちらの場合も `promoted_to_graph_ssot=false` を保持し、検証済み参照contextとGraph書き込み済み正本を混同しない。
 
 ## 冪等性
 

@@ -148,6 +148,70 @@ const REQUIRED_MEETING_REVIEW_LOOP_INTENT_KEYS = Array.from(new Set([
     ...MEETING_REVIEW_HUMAN_STEP_DEFINITIONS.map((definition) => definition.loop_intent_key)
 ]));
 const REQUIRED_MEETING_REVIEW_PACKAGE_KEYS = MEETING_REVIEW_OUTPUT_DEFINITIONS.map((definition) => definition.package_key);
+const MEETING_PACK_GRAPH_SSOT_ENTITY_TYPES = [
+    'project',
+    'person',
+    'org',
+    'decision',
+    'raci_assignment',
+    'glossary_term',
+    'kpi',
+    'initiative'
+];
+const MEETING_PACK_GRAPH_PLAYBOOK_NODES = [
+    'source_intake',
+    'project_resolution_gate',
+    'project_scoped_graph_context',
+    'mention_resolution',
+    'glossary_resolution',
+    'meeting_note_generation',
+    'task_candidate_generation',
+    'decision_candidate_generation',
+    'graph_promotion_candidates',
+    'human_review_package'
+];
+const MEETING_PACK_GRAPH_PLAYBOOK_EDGES = [
+    ['source_intake', 'project_resolution_gate'],
+    ['project_resolution_gate', 'project_scoped_graph_context'],
+    ['project_scoped_graph_context', 'mention_resolution'],
+    ['project_scoped_graph_context', 'glossary_resolution'],
+    ['mention_resolution', 'meeting_note_generation'],
+    ['glossary_resolution', 'meeting_note_generation'],
+    ['meeting_note_generation', 'task_candidate_generation'],
+    ['meeting_note_generation', 'decision_candidate_generation'],
+    ['decision_candidate_generation', 'graph_promotion_candidates'],
+    ['task_candidate_generation', 'human_review_package'],
+    ['graph_promotion_candidates', 'human_review_package']
+];
+const MEETING_PACK_GRAPH_PLAYBOOK_EXCEPTION_BRANCHES = {
+    source_intake: [
+        'missing_transcript_or_slack_attachment',
+        'source_artifact_hash_missing'
+    ],
+    project_resolution_gate: [
+        'missing_project_candidate',
+        'multiple_project_candidates',
+        'project_access_denied'
+    ],
+    project_scoped_graph_context: [
+        'graph_ssot_unavailable',
+        'empty_project_context'
+    ],
+    glossary_resolution: [
+        'empty_project_glossary',
+        'term_conflict_requires_human_review'
+    ],
+    meeting_note_generation: [
+        'source_fact_not_in_transcript',
+        'graph_context_used_as_fact_source'
+    ],
+    human_review_package: [
+        'task_create_requires_human_approval',
+        'decision_promotion_requires_human_approval',
+        'graph_write_requires_human_approval',
+        'external_send_requires_human_approval'
+    ]
+};
 
 function meetingReviewValidationError(message, stateTransition, details = {}) {
     return AppError.validation(message, {
@@ -648,6 +712,304 @@ function createMeetingReviewStableId(prefix, ...parts) {
 function jsonClone(value) {
     if (value === undefined) return null;
     return JSON.parse(JSON.stringify(value));
+}
+
+function graphContextEntities(context = {}) {
+    if (!context || typeof context !== 'object') return [];
+    const entities = context.entities;
+    if (Array.isArray(entities)) return entities;
+    if (!entities || typeof entities !== 'object') return [];
+    return Object.values(entities).flatMap((records) => Array.isArray(records) ? records : []);
+}
+
+function graphContextTypeCounts(context = {}) {
+    if (!context || typeof context !== 'object') return {};
+    const entities = context.entities;
+    if (Array.isArray(entities)) {
+        return entities.reduce((counts, record) => {
+            const type = record?.entity_type || record?.type || record?.payload?.entity_type || 'unknown';
+            counts[type] = (counts[type] || 0) + 1;
+            return counts;
+        }, {});
+    }
+    if (!entities || typeof entities !== 'object') return {};
+    return Object.fromEntries(Object.entries(entities).map(([type, records]) => [
+        type,
+        Array.isArray(records) ? records.length : 0
+    ]));
+}
+
+function graphContextEntityCount(context = {}) {
+    return graphContextEntities(context).length;
+}
+
+function graphContextGlossaryCount(context = {}) {
+    const entities = context?.entities;
+    if (Array.isArray(entities)) {
+        return entities.filter((record) => record?.entity_type === 'glossary_term' || record?.type === 'glossary_term').length;
+    }
+    return Array.isArray(entities?.glossary_term) ? entities.glossary_term.length : 0;
+}
+
+function buildMeetingPackProjectResolution({ input = {}, reviewPackage = {}, meetingIdentity = {}, orgId, projectId, caseScope }) {
+    const evidence = buildMeetingPackProjectResolutionEvidence({ input, reviewPackage, meetingIdentity });
+    const source = evidence.explicit_input.project_id
+        ? 'explicit_input'
+        : evidence.review_package_scope.project_id
+            ? 'review_package_scope'
+            : 'meeting_identity_candidate';
+    return {
+        status: 'single_high_confidence_project',
+        org_id: orgId,
+        project_id: projectId,
+        case_scope: caseScope || null,
+        source,
+        candidates: [{
+            org_id: orgId,
+            project_id: projectId,
+            confidence: 1,
+            selected: true,
+            source
+        }],
+        evidence
+    };
+}
+
+function buildMeetingPackProjectResolutionEvidence({ input = {}, reviewPackage = {}, meetingIdentity = {} }) {
+    return {
+        explicit_input: {
+            org_id: readOptionalString(input, 'org_id', 'orgId'),
+            project_id: readOptionalString(input, 'project_id', 'projectId')
+        },
+        review_package_scope: {
+            org_id: readOptionalString(reviewPackage, 'org_id', 'orgId'),
+            project_id: readOptionalString(reviewPackage, 'project_id', 'projectId')
+        },
+        meeting_identity_candidate: {
+            org_id: readOptionalString(meetingIdentity, 'candidate_org_id', 'candidateOrgId'),
+            project_id: readOptionalString(meetingIdentity, 'candidate_project_id', 'candidateProjectId')
+        }
+    };
+}
+
+function projectCandidateIdsFromMeetingIdentity(meetingIdentity = {}) {
+    const rawCandidates = [
+        ...(Array.isArray(meetingIdentity.candidate_project_ids) ? meetingIdentity.candidate_project_ids : []),
+        ...(Array.isArray(meetingIdentity.candidateProjectIds) ? meetingIdentity.candidateProjectIds : []),
+        ...(Array.isArray(meetingIdentity.project_candidates) ? meetingIdentity.project_candidates : []),
+        ...(Array.isArray(meetingIdentity.projectCandidates) ? meetingIdentity.projectCandidates : [])
+    ];
+    const candidateIds = rawCandidates
+        .map((candidate) => {
+            if (typeof candidate === 'string') return candidate.trim();
+            if (!candidate || typeof candidate !== 'object') return '';
+            return readOptionalString(candidate, 'project_id', 'projectId', 'id');
+        })
+        .filter(Boolean);
+    return Array.from(new Set(candidateIds));
+}
+
+function buildMeetingPackProjectResolutionBlocker({
+    input = {},
+    reviewPackage = {},
+    meetingIdentity = {},
+    orgId = null,
+    projectId = null,
+    caseScope = null,
+    code,
+    message
+}) {
+    const evidence = buildMeetingPackProjectResolutionEvidence({ input, reviewPackage, meetingIdentity });
+    const candidateProjectIds = projectCandidateIdsFromMeetingIdentity(meetingIdentity);
+    const candidates = candidateProjectIds.length > 0
+        ? candidateProjectIds.map((candidateProjectId) => ({
+            org_id: orgId || evidence.meeting_identity_candidate.org_id || null,
+            project_id: candidateProjectId,
+            confidence: null,
+            selected: false,
+            source: 'meeting_identity_candidates'
+        }))
+        : [];
+    return {
+        status: code,
+        org_id: orgId || null,
+        project_id: projectId || null,
+        case_scope: caseScope || null,
+        source: 'pre_ingest_validation',
+        candidates,
+        evidence,
+        active_exception: {
+            node: 'project_resolution_gate',
+            code,
+            message
+        }
+    };
+}
+
+function buildMeetingPackPreIngestGraphPlaybook({ input, reviewPackage, meetingIdentity, orgId, projectId, caseScope, packageId, sourceEvent, evidenceRefs, code, message }) {
+    const projectResolution = buildMeetingPackProjectResolutionBlocker({
+        input,
+        reviewPackage,
+        meetingIdentity,
+        orgId,
+        projectId,
+        caseScope,
+        code,
+        message
+    });
+    const graphPlaybook = buildMeetingPackGraphPlaybook({
+        orgId,
+        projectId,
+        caseScope,
+        packageId,
+        sourceEvent,
+        evidenceRefs,
+        projectResolution,
+        graphStatus: 'not_requested',
+        graphError: message
+    });
+    return {
+        project_resolution: projectResolution,
+        graph_ssot_playbook: graphPlaybook
+    };
+}
+
+function sourceEvidenceStatus(sourceEvent = {}, evidenceRefs = []) {
+    const hasSlackAttachment = Boolean(sourceEvent.file_id || sourceEvent.fileId);
+    const hasTranscriptHash = Boolean(sourceEvent.local_artifact_sha256 || sourceEvent.localArtifactSha256);
+    const hasMessageRef = Boolean(sourceEvent.message_ts || sourceEvent.messageTs);
+    const hasEvidenceRefs = Array.isArray(evidenceRefs) && evidenceRefs.length > 0;
+    return {
+        has_slack_attachment: hasSlackAttachment,
+        has_transcript_hash: hasTranscriptHash,
+        has_message_ref: hasMessageRef,
+        has_evidence_refs: hasEvidenceRefs,
+        status: (hasSlackAttachment || hasTranscriptHash || hasEvidenceRefs) ? 'source_evidence_present' : 'source_evidence_missing'
+    };
+}
+
+function buildMeetingPackGraphPlaybook({
+    orgId,
+    projectId,
+    caseScope,
+    packageId,
+    sourceEvent = {},
+    evidenceRefs = [],
+    projectResolution,
+    graphContext = null,
+    graphStatus = 'unavailable',
+    graphError = null
+} = {}) {
+    const sourceStatus = sourceEvidenceStatus(sourceEvent, evidenceRefs);
+    const entityCount = graphContextEntityCount(graphContext);
+    const typeCounts = graphContextTypeCounts(graphContext);
+    const glossaryCount = graphContextGlossaryCount(graphContext);
+    const activeExceptions = [];
+    if (sourceStatus.status === 'source_evidence_missing') {
+        activeExceptions.push({ node: 'source_intake', code: 'missing_transcript_or_slack_attachment' });
+    }
+    if (!sourceStatus.has_transcript_hash) {
+        activeExceptions.push({ node: 'source_intake', code: 'source_artifact_hash_missing' });
+    }
+    if (projectResolution?.active_exception?.node === 'project_resolution_gate') {
+        activeExceptions.push(jsonClone(projectResolution.active_exception));
+    }
+    if (graphStatus === 'unavailable') {
+        activeExceptions.push({ node: 'project_scoped_graph_context', code: 'graph_ssot_unavailable', message: graphError || null });
+    } else if (graphStatus !== 'not_requested' && entityCount === 0) {
+        activeExceptions.push({ node: 'project_scoped_graph_context', code: 'empty_project_context' });
+    }
+    if (graphStatus === 'resolved' && glossaryCount === 0) {
+        activeExceptions.push({ node: 'glossary_resolution', code: 'empty_project_glossary' });
+    }
+    const nodeStatus = (nodeId) => {
+        if (activeExceptions.some((exception) => exception.node === nodeId)) return 'exception_recorded';
+        if (nodeId === 'project_scoped_graph_context') {
+            if (graphStatus === 'resolved') return 'completed';
+            if (graphStatus === 'not_requested') return 'blocked';
+            return 'fallback_recorded';
+        }
+        if (nodeId === 'glossary_resolution') {
+            if (graphStatus === 'not_requested') return 'blocked';
+            return glossaryCount > 0 ? 'completed' : 'fallback_recorded';
+        }
+        return 'completed';
+    };
+    return {
+        version: 'meeting_pack_graph_ssot_playbook.v1',
+        package_id: packageId,
+        org_id: orgId,
+        project_id: projectId,
+        case_scope: caseScope || null,
+        dag: {
+            nodes: MEETING_PACK_GRAPH_PLAYBOOK_NODES.map((id) => ({ id, status: nodeStatus(id) })),
+            edges: MEETING_PACK_GRAPH_PLAYBOOK_EDGES.map(([from, to]) => ({ from, to }))
+        },
+        project_resolution: projectResolution,
+        source_intake: sourceStatus,
+        graph_context: {
+            source: 'brainbase_graph_ssot',
+            status: graphStatus,
+            project_id: projectId,
+            entity_types: MEETING_PACK_GRAPH_SSOT_ENTITY_TYPES,
+            include_edges: true,
+            entity_count: entityCount,
+            type_counts: typeCounts,
+            error: graphError || null
+        },
+        glossary_resolution: {
+            status: graphStatus === 'resolved'
+                ? (glossaryCount > 0 ? 'resolved' : 'empty_project_glossary')
+                : (graphStatus === 'not_requested' ? 'not_requested' : 'unavailable'),
+            entity_count: glossaryCount
+        },
+        generation_contract: {
+            fact_source: 'transcript_and_slack_attachment',
+            graph_ssot_role: 'project_scoped_entity_identity_relationship_glossary_context',
+            project_must_be_resolved_before_graph_lookup: true,
+            graph_context_must_not_override_missing_transcript_facts: true,
+            task_create_requires_human_gate: true,
+            graph_write_requires_human_gate: true
+        },
+        exception_branches: jsonClone(MEETING_PACK_GRAPH_PLAYBOOK_EXCEPTION_BRANCHES),
+        active_exceptions: activeExceptions
+    };
+}
+
+function graphContextSnapshotData({ meetingIdentity = {}, graphContext = null, graphPlaybook }) {
+    const candidateContext = meetingIdentity.graph_context && typeof meetingIdentity.graph_context === 'object'
+        ? meetingIdentity.graph_context
+        : {};
+    const graphResolved = graphPlaybook?.graph_context?.status === 'resolved';
+    return {
+        ...jsonClone(candidateContext),
+        verification_status: graphResolved ? 'verified_from_graph_ssot' : 'candidate_from_review_package',
+        promoted_to_graph_ssot: false,
+        graph_context_source: graphResolved ? 'brainbase_graph_ssot' : 'review_package_candidate',
+        graph_ssot_context: graphContext ? jsonClone(graphContext) : null,
+        graph_ssot_playbook: jsonClone(graphPlaybook)
+    };
+}
+
+function graphContextSnapshotItemCount({ meetingIdentity = {}, graphContext = null, graphPlaybook }) {
+    if (graphPlaybook?.graph_context?.status === 'resolved') return graphContextEntityCount(graphContext);
+    return [
+        ...(meetingIdentity.graph_context?.org_entity_ids || []),
+        ...(meetingIdentity.graph_context?.person_entity_ids || [])
+    ].length;
+}
+
+function attachGraphPlaybookToReviewPackage(reviewPackage, graphPlaybook) {
+    const cloned = jsonClone(reviewPackage);
+    if (cloned.meeting_note_summary && typeof cloned.meeting_note_summary === 'object' && !Array.isArray(cloned.meeting_note_summary)) {
+        cloned.meeting_note_summary = {
+            ...cloned.meeting_note_summary,
+            graph_ssot_playbook: jsonClone(graphPlaybook),
+            project_resolution: jsonClone(graphPlaybook.project_resolution),
+            graph_context_status: jsonClone(graphPlaybook.graph_context)
+        };
+    }
+    return cloned;
 }
 
 function eveDispatchBlockReasons(loopIntent) {
@@ -1676,6 +2038,72 @@ export class WorkflowService {
         };
     }
 
+    async resolveMeetingPackGraphSSOTPlaybook({
+        actor = {},
+        orgId,
+        projectId,
+        caseScope = null,
+        packageId,
+        sourceEvent = {},
+        evidenceRefs = [],
+        meetingIdentity = {},
+        projectResolution
+    } = {}) {
+        const access = taskOwnerAccessFromActor(actor, projectId);
+        let graphContext = null;
+        let graphStatus = 'unavailable';
+        let graphError = null;
+
+        if (this.infoSSOTService?.getContext) {
+            try {
+                graphContext = await this.infoSSOTService.getContext(access, {
+                    projectCode: projectId,
+                    entityTypes: MEETING_PACK_GRAPH_SSOT_ENTITY_TYPES.join(','),
+                    limit: 80,
+                    humanReadable: false,
+                    includeEdges: true,
+                    includePhilosophy: false,
+                    scope: caseScope || 'meeting_pack'
+                });
+                graphStatus = 'resolved';
+            } catch (error) {
+                graphStatus = 'unavailable';
+                graphError = error?.message || 'graph_ssot_context_lookup_failed';
+                graphContext = null;
+            }
+        } else {
+            graphError = 'info_ssot_get_context_not_available';
+        }
+
+        const graphPlaybook = buildMeetingPackGraphPlaybook({
+            orgId,
+            projectId,
+            caseScope,
+            packageId,
+            sourceEvent,
+            evidenceRefs,
+            projectResolution,
+            graphContext,
+            graphStatus,
+            graphError
+        });
+
+        return {
+            graph_context: graphContext,
+            graph_playbook: graphPlaybook,
+            snapshot_data: graphContextSnapshotData({
+                meetingIdentity,
+                graphContext,
+                graphPlaybook
+            }),
+            item_count: graphContextSnapshotItemCount({
+                meetingIdentity,
+                graphContext,
+                graphPlaybook
+            })
+        };
+    }
+
     async resolveMeetingReviewTaskOwnerCandidate(candidate, { access, projectId, cache }) {
         if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
         if (candidate.selected_owner_id || candidate.selectedOwnerId) {
@@ -1845,6 +2273,7 @@ export class WorkflowService {
         const sourceEvent = reviewPackage.source_event && typeof reviewPackage.source_event === 'object'
             ? reviewPackage.source_event
             : {};
+        const evidenceRefs = normalizeTags(reviewPackage.evidence_refs || reviewPackage.evidenceRefs);
         const orgId = readOptionalString(input, 'org_id', 'orgId')
             || readOptionalString(reviewPackage, 'org_id', 'orgId')
             || readOptionalString(meetingIdentity, 'candidate_org_id', 'candidateOrgId');
@@ -1860,29 +2289,76 @@ export class WorkflowService {
             });
         }
         if (!orgId) {
+            const blocker = buildMeetingPackPreIngestGraphPlaybook({
+                input,
+                reviewPackage,
+                meetingIdentity,
+                orgId,
+                projectId,
+                caseScope,
+                packageId,
+                sourceEvent,
+                evidenceRefs,
+                code: 'missing_project_candidate',
+                message: 'org_id is required before project scoped Graph SSOT lookup'
+            });
             throw meetingReviewValidationError('org_id is required', 'blocked_invalid_scope', {
-                field: 'org_id'
+                field: 'org_id',
+                ...blocker
             });
         }
         if (!projectId) {
+            const code = projectCandidateIdsFromMeetingIdentity(meetingIdentity).length > 1
+                ? 'multiple_project_candidates'
+                : 'missing_project_candidate';
+            const blocker = buildMeetingPackPreIngestGraphPlaybook({
+                input,
+                reviewPackage,
+                meetingIdentity,
+                orgId,
+                projectId,
+                caseScope,
+                packageId,
+                sourceEvent,
+                evidenceRefs,
+                code,
+                message: code === 'multiple_project_candidates'
+                    ? 'multiple project candidates require human project selection before Graph SSOT lookup'
+                    : 'project_id is required before project scoped Graph SSOT lookup'
+            });
             throw meetingReviewValidationError('project_id is required', 'blocked_invalid_scope', {
                 field: 'project_id',
-                org_id: orgId
+                org_id: orgId,
+                ...blocker
             });
         }
         try {
             await this._assertProjectSelectable(projectId);
             this._assertOrgReferenceAllowed(orgId);
+            this._assertActorCanAccessProject(projectId, actor);
         } catch (error) {
             if (error?.statusCode === 400) {
+                const blocker = buildMeetingPackPreIngestGraphPlaybook({
+                    input,
+                    reviewPackage,
+                    meetingIdentity,
+                    orgId,
+                    projectId,
+                    caseScope,
+                    packageId,
+                    sourceEvent,
+                    evidenceRefs,
+                    code: 'project_access_denied',
+                    message: error.message
+                });
                 throw meetingReviewValidationError(error.message, 'blocked_invalid_scope', {
                     org_id: orgId,
-                    project_id: projectId
+                    project_id: projectId,
+                    ...blocker
                 });
             }
             throw error;
         }
-        this._assertActorCanAccessProject(projectId, actor);
 
         assertMeetingReviewPackageMapping(reviewPackage);
         const loopEntries = loopIntentEntries(reviewPackage.loop_intent_ids);
@@ -1930,9 +2406,31 @@ export class WorkflowService {
 
         const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
         const now = new Date().toISOString();
-        const evidenceRefs = normalizeTags(reviewPackage.evidence_refs || reviewPackage.evidenceRefs);
         const stopConditions = normalizeTags(reviewPackage.stop_conditions || reviewPackage.stopConditions);
-        const resolvedReviewPackage = await this.resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, {
+        const projectResolution = buildMeetingPackProjectResolution({
+            input,
+            reviewPackage,
+            meetingIdentity,
+            orgId,
+            projectId,
+            caseScope
+        });
+        const graphPlaybookContext = await this.resolveMeetingPackGraphSSOTPlaybook({
+            actor,
+            orgId,
+            projectId,
+            caseScope,
+            packageId,
+            sourceEvent,
+            evidenceRefs,
+            meetingIdentity,
+            projectResolution
+        });
+        const reviewPackageWithPlaybook = attachGraphPlaybookToReviewPackage(
+            reviewPackage,
+            graphPlaybookContext.graph_playbook
+        );
+        const resolvedReviewPackage = await this.resolveMeetingReviewTaskOwnersFromSSOT(reviewPackageWithPlaybook, {
             actor,
             projectId
         });
@@ -1992,7 +2490,9 @@ export class WorkflowService {
                     case_scope: caseScope,
                     meeting_identity: jsonClone(meetingIdentity),
                     source_event: jsonClone(sourceEvent),
-                    graph_context: jsonClone(meetingIdentity.graph_context || null),
+                    project_resolution: jsonClone(projectResolution),
+                    graph_context: jsonClone(graphPlaybookContext.snapshot_data),
+                    graph_ssot_playbook: jsonClone(graphPlaybookContext.graph_playbook),
                     loop_intent_ids: jsonClone(reviewPackage.loop_intent_ids || {}),
                     evidence_refs: evidenceRefs,
                     stop_conditions: stopConditions,
@@ -2058,17 +2558,12 @@ export class WorkflowService {
                     source_ref: `graph-context:${orgId}:${projectId}:${caseScope || packageId}`,
                     source_version: null,
                     content_hash: null,
-                    item_count: [
-                        ...(meetingIdentity.graph_context?.org_entity_ids || []),
-                        ...(meetingIdentity.graph_context?.person_entity_ids || [])
-                    ].length,
+                    item_count: graphPlaybookContext.item_count,
                     permission: 'read',
-                    preview: 'Graph SSOT context candidates',
-                    data: {
-                        ...jsonClone(meetingIdentity.graph_context || {}),
-                        verification_status: 'candidate_from_review_package',
-                        promoted_to_graph_ssot: false
-                    }
+                    preview: graphPlaybookContext.graph_playbook.graph_context.status === 'resolved'
+                        ? `Graph SSOT context resolved (${graphPlaybookContext.item_count} entities)`
+                        : 'Graph SSOT context candidates with explicit fallback',
+                    data: jsonClone(graphPlaybookContext.snapshot_data)
                 },
                 {
                     id: createMeetingReviewStableId('ctx', runId, 'review_package'),
@@ -2164,6 +2659,8 @@ export class WorkflowService {
                         type: 'codex_generated_package',
                         eve_connected: false
                     },
+                    project_resolution: jsonClone(projectResolution),
+                    graph_ssot_playbook: jsonClone(graphPlaybookContext.graph_playbook),
                     state_transitions: MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS,
                     evidence_refs: evidenceRefs,
                     stop_conditions: stopConditions
