@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "regression_risk は pass。Decision Human Gate と Decision output の pairing は server metadata と Companion approval inbox contract に出ており、Decision が output_only として露出する回帰は focused test で防げています。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "現 HEAD 8c2924e1632fe9ce321442f202961dd151663008 で、review request、workflow-service の ingest/pairing/projection、Companion route/controller、該当 e2e/server route tests、verification evidence を確認し、focused vitest/playwright を再実行しました。",
+    "evidence": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e2e-a183-7c50-b497-bae5435ee1cf.json",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md"
+    ]
+  },
+  "judgment_delta": [
+    "初期懸念: Decision output が human gate と結び付かず Companion 側で output_only 扱いになる可能性 -> 最終判断: ingest metadata と approval inbox projection が output_id/action_kind/approval_kind を保持し、route/e2e が regression を直接検査しているため pass。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "8c2924e1632fe9ce321442f202961dd151663008",
+    "current_head_sha": "8c2924e1632fe9ce321442f202961dd151663008",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "8c2924e1632fe9ce321442f202961dd151663008",
+      "current_head_sha": "8c2924e1632fe9ce321442f202961dd151663008",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-01T15:04:55.780Z",
+  "git_context": {
+    "head_sha": "8c2924e1632fe9ce321442f202961dd151663008",
+    "current_branch": "codex/meeting-pack-decision-human-step",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-01T15:04:55.779Z"
+  },
+  "source_fingerprint": "c619486a3257b46372b1934b829865cb16a967a9351b4b0478975cc39d4f2797",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f1e2e-a183-7c50-b497-bae5435ee1cf",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e2e-a183-7c50-b497-bae5435ee1cf.json",
+    "request_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,32 @@
+{
+  "agent_id": "019f1e38-f23a-70f2-94ae-c9a1b1a1e367",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+  "status": "needs_changes",
+  "summary": "Current tests and verification records cover AC-012 decision_candidates human approval pairing across workflow ingest, review ingest E2E, and Companion approval inbox. Provider failure and project-resolution gates are also covered by E2E tests. Remaining issue is VibePro artifact consistency: stale review/request artifacts must be regenerated and recorded against current HEAD.",
+  "inspection_summary": "Checked current HEAD, clean git status, current diff, VibePro verification/pr-prepare/gate-dag/evidence-plan/review summaries, AC-012 test assertions, provider/project-resolution test markers, and focused unit route tests.",
+  "inspection_evidence": [
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.json",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.json",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-plan.json",
+    "npx vitest run tests/server/routes/workflows.test.js tests/server/routes/companion-approval-inbox.test.js -> 75 passed",
+    "tests/server/routes/workflows.test.js",
+    "tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts",
+    "tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts",
+    "tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts"
+  ],
+  "judgment_delta": [
+    "AC-012 concern -> covered now: workflow route tests assert decision_candidates output_id/output_key/output_type/approval_kind/write_back_target metadata, E2E ingest asserts the same pairing, and Companion inbox asserts actionable approval rather than output_only.",
+    "provider/project-resolution concern -> covered in tests: E2E includes provider_failure graph_ssot_unavailable/candidate_from_review_package and AC-011 blocked_invalid_scope before Graph SSOT lookup.",
+    "evidence lifecycle concern -> VibePro review artifacts must be regenerated and recorded at current HEAD before the gate can pass."
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "id": "vibepro-evidence-artifacts-need-current-record",
+      "detail": "The implementation/test coverage is present, but VibePro review artifacts were stale before this current-head re-record. Regenerate review prepare and record current-head review results."
+    }
+  ]
+}

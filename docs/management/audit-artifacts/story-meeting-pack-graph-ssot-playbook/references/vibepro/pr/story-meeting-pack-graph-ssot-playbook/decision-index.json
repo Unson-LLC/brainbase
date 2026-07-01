@@ -1,0 +1,393 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-evidence-decision-index-v1",
+  "planner_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "created_at": "2026-07-01T16:43:31.710Z",
+  "evidence_depth": "standard",
+  "targeted_full_surfaces": [
+    {
+      "surface": "core_workflow_state",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "server_api",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "service_orchestration",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "test_coverage",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "workflow_heavy",
+      "reason": "high-risk profile detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "agent_workflow",
+      "reason": "high-risk engineering judgment route detected",
+      "source": "engineering_judgment",
+      "gate": null
+    },
+    {
+      "surface": "gate:judgment_axis_release_ops",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:judgment_axis_scope_reviewability",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:judgment_axis_execution_topology",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:judgment_axis_public_contract",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:failure_mode_coverage",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:common_judgment_spine",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:responsibility_authority",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "architecture",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:split_resolution",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:pr_scope_judgment",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    },
+    {
+      "surface": "gate:agent_review",
+      "reason": "accepted waiver requires targeted full evidence",
+      "source": "decision_record",
+      "gate": null
+    }
+  ],
+  "git": {
+    "base_ref": "origin/develop",
+    "head_ref": "codex/meeting-pack-decision-human-step",
+    "head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+    "changed_file_count": 9
+  },
+  "file_groups": {
+    "story_docs": 1,
+    "architecture_docs": 1,
+    "specifications": 1,
+    "policy_docs": 0,
+    "source": 1,
+    "tests": 5,
+    "repo_control": 0,
+    "vibepro_artifacts": 0,
+    "other": 0
+  },
+  "scope": {
+    "status": "needs_clean_branch",
+    "recommended_strategy": "clean_branch_or_split_pr",
+    "reasons": [
+      "baseからのcommitが 4 件あり、Story外の変更混入を確認する必要がある"
+    ]
+  },
+  "gate_summary": {
+    "overall_status": "ready_for_review",
+    "ready_for_pr_create": true,
+    "unresolved_gate_count": 0,
+    "critical_unresolved_gate_count": 0,
+    "unresolved_gates": [],
+    "critical_unresolved_gates": []
+  },
+  "engineering_judgment": {
+    "route_type": "agent_workflow",
+    "route_dag": "agent_workflow_dag",
+    "confidence": 0.82,
+    "signals": [
+      "surface:agent_or_gate_workflow",
+      "risk_profile:workflow_heavy"
+    ],
+    "active_axis_count": 4,
+    "active_axes": [
+      "public_contract",
+      "execution_topology",
+      "scope_reviewability",
+      "release_ops"
+    ],
+    "judgment_axes": [
+      {
+        "axis": "public_contract",
+        "status": "active_passed",
+        "reason": "pr_route:runtime_change; file_group:contract_docs; text:public_contract"
+      },
+      {
+        "axis": "rollback_sensitive",
+        "status": "inactive",
+        "reason": "No rollback_sensitive signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
+      },
+      {
+        "axis": "security_boundary",
+        "status": "inactive",
+        "reason": "No security_boundary signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
+      },
+      {
+        "axis": "data_state",
+        "status": "inactive",
+        "reason": "No data_state signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
+      },
+      {
+        "axis": "execution_topology",
+        "status": "active_passed",
+        "reason": "surface:workflow_or_agent; code_topology:call_paths; changed_path:execution_topology; text:execution_topology"
+      },
+      {
+        "axis": "ux_surface",
+        "status": "inactive",
+        "reason": "No ux_surface signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
+      },
+      {
+        "axis": "performance_semantic",
+        "status": "inactive",
+        "reason": "No performance_semantic signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
+      },
+      {
+        "axis": "scope_reviewability",
+        "status": "active_accepted_followup",
+        "reason": "scope:needs_clean_branch; graphify:related_files"
+      },
+      {
+        "axis": "release_ops",
+        "status": "active_passed",
+        "reason": "changed_path:release_ops"
+      }
+    ]
+  },
+  "risk_signals": [
+    {
+      "kind": "risk_profile",
+      "value": "workflow_heavy",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "core_workflow_state",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "server_api",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "service_orchestration",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "test_coverage",
+      "source": "change_classification"
+    },
+    {
+      "kind": "engineering_route",
+      "value": "agent_workflow",
+      "source": "engineering_judgment"
+    }
+  ],
+  "pr_route": {
+    "route_type": "runtime_change",
+    "required_gates": [
+      "story",
+      "spec",
+      "verification",
+      "pr_body_contract",
+      "split_resolution",
+      "workflow_heavy"
+    ],
+    "signals": [
+      "file_group:source",
+      "scope:needs_clean_branch",
+      "risk_profile:workflow_heavy"
+    ]
+  },
+  "traceability_clause_coverage": {
+    "clause_count": 12,
+    "acceptance_criteria_count": 12,
+    "scenario_clause_count": 0,
+    "mapped_count": 12,
+    "weakly_mapped_count": 0,
+    "unmapped_count": 0,
+    "examples": []
+  },
+  "split_plan": {
+    "status": "split_recommended",
+    "recommended_strategy": "split_by_lane_then_prepare",
+    "reasons": []
+  },
+  "evidence_reuse": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-evidence-summary-reuse-v1",
+    "story_id": "story-meeting-pack-graph-ssot-playbook",
+    "evidence_key": "evk_1cbdb5a0fd39b6dbae796b1426bf53a3",
+    "status": "stale",
+    "reason": "evidence_key_inputs_changed",
+    "stale_reasons": [
+      {
+        "field": "verification_summary_fingerprint",
+        "previous": "sha256:4f0ba45875d79b4071304e2b975577c1452532f8a28fc7d7c43552e964124810",
+        "current": "sha256:5cdc512edb527627e8e727f88a75ea2b18a88e3490fe67aed92c4525b4c93be2",
+        "reason": "verification_summary_fingerprint changed"
+      },
+      {
+        "field": "verification_evidence_updated_at",
+        "previous": "2026-07-01T16:42:20.336Z",
+        "current": "2026-07-01T16:43:29.251Z",
+        "reason": "verification_evidence_updated_at changed"
+      },
+      {
+        "field": "verification_command_timestamps",
+        "previous": [
+          {
+            "kind": "integration",
+            "executed_at": "2026-07-01T16:42:20.336Z",
+            "git_recorded_at": "2026-07-01T16:42:20.336Z"
+          },
+          {
+            "kind": "e2e",
+            "executed_at": "2026-07-01T16:20:20.818Z",
+            "git_recorded_at": "2026-07-01T16:20:20.817Z"
+          },
+          {
+            "kind": "unit",
+            "executed_at": "2026-07-01T16:20:20.054Z",
+            "git_recorded_at": "2026-07-01T16:20:20.053Z"
+          }
+        ],
+        "current": [
+          {
+            "kind": "integration",
+            "executed_at": "2026-07-01T16:43:29.251Z",
+            "git_recorded_at": "2026-07-01T16:43:29.250Z"
+          },
+          {
+            "kind": "e2e",
+            "executed_at": "2026-07-01T16:20:20.818Z",
+            "git_recorded_at": "2026-07-01T16:20:20.817Z"
+          },
+          {
+            "kind": "unit",
+            "executed_at": "2026-07-01T16:20:20.054Z",
+            "git_recorded_at": "2026-07-01T16:20:20.053Z"
+          }
+        ],
+        "reason": "verification_command_timestamps changed"
+      }
+    ],
+    "fresh_use_allowed": false,
+    "used_as_fresh": false,
+    "gate_status": "needs_refresh",
+    "artifact_value_ledger": {
+      "status": "present",
+      "model": "vibepro-artifact-value-ledger-v1",
+      "head_binding_status": "current_head_bound",
+      "artifact_count": 5,
+      "decision_bound_count": 5,
+      "linked_consumer_count": 5,
+      "session_attribution_status": "not_collected_in_pr_prepare",
+      "session_attribution_confidence": "none",
+      "total_token_estimate": 319
+    },
+    "session_attribution_ledger": {
+      "status": "not_collected_in_pr_prepare",
+      "model": "vibepro-session-attribution-ledger-v1",
+      "confidence": "none",
+      "reason": "PR prepare did not receive Codex session attribution; downstream usage mentions must not be treated as clean product-value adoption.",
+      "session_count": 0,
+      "unattributed_count": 0
+    },
+    "verification_summary_fingerprint": "sha256:5cdc512edb527627e8e727f88a75ea2b18a88e3490fe67aed92c4525b4c93be2",
+    "verification_evidence_updated_at": "2026-07-01T16:43:29.251Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "integration",
+        "executed_at": "2026-07-01T16:43:29.251Z",
+        "git_recorded_at": "2026-07-01T16:43:29.250Z"
+      },
+      {
+        "kind": "e2e",
+        "executed_at": "2026-07-01T16:20:20.818Z",
+        "git_recorded_at": "2026-07-01T16:20:20.817Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-07-01T16:20:20.054Z",
+        "git_recorded_at": "2026-07-01T16:20:20.053Z"
+      }
+    ],
+    "full_evidence": {
+      "status": "generated",
+      "generation_count": 1,
+      "generation_count_scope": "same_evidence_key",
+      "same_key_generation_count": 1,
+      "cumulative_generation_count": 36,
+      "digest": "sha256:a5678fb5ac3957a9361f51484fbdc0a862c6fdf32f2808b98eedbcfc2e2a9c50",
+      "reference": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-index.json"
+    },
+    "summary_artifacts": {
+      "evidence_reuse": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-reuse.json",
+      "evidence_plan": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-plan.json",
+      "decision_index": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-index.json",
+      "pr_prepare": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.json",
+      "gate_dag": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.json"
+    }
+  },
+  "senior_gap_judgment": {
+    "status": "passed_with_residual_risk",
+    "gap_count": 3,
+    "blocking_gap_count": 0,
+    "residual_risk_count": 3,
+    "followup_count": 3
+  }
+}

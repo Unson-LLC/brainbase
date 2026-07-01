@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "stage": "planning_spec",
+  "role": "product_requirement",
+  "status": "pass",
+  "summary": "Product requirement is current: Decision candidates must be presented as actionable approval items, not as unapprovable output_only cards.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Subagent inspected current HEAD 97082cb6, story/spec expectations, architecture doc, workflow-service.js, route tests, Companion inbox contract, and E2E contracts.",
+    "evidence": "/tmp/meeting-pack-decision-human-step/subagent-review-019f1e7c-current-head.md",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-product_requirement.md"
+    ]
+  },
+  "judgment_delta": [
+    "old-head planning review -> pass after current-head requirement and test coverage review"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+    "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+      "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-01T16:27:51.300Z",
+  "git_context": {
+    "head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+    "current_branch": "codex/meeting-pack-decision-human-step",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-01T16:27:51.299Z"
+  },
+  "source_fingerprint": "13c756868031578e8aeacbbee0beaa00b9115b332dc0a4bb53520a1b03111800",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f1e7c-8b98-73b3-9c07-530c8a3f3b5d",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "019f1e7c-8b98-73b3-9c07-530c8a3f3b5d",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "../../../../../tmp/meeting-pack-decision-human-step/subagent-review-019f1e7c-current-head.md",
+    "request_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-product_requirement.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "multi_agent_v1.close_agent completed; transcript=/tmp/meeting-pack-decision-human-step/subagent-review-019f1e7c-current-head.md",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "HEAD 3dc8028: architecture boundary review confirms decision approval pairing stays in WorkflowService metadata and Companion remains a projection/action surface.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected WorkflowService diff, Companion approval projection, Story/Spec, route tests, and focused E2E; no Graph SSOT ownership or Companion write-responsibility shift found.",
+    "evidence": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e4f-362a-7ea2-a40b-11f8cd4e864c-current-head.md",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-architecture_boundary.md"
+    ]
+  },
+  "judgment_delta": [
+    "initial concern: Graph SSOT write authority could leak into Companion or pairing could sit outside workflow metadata -> final: WorkflowService owns metadata pairing, Companion only projects/action-routes the envelope, and tests preserve waiting_human plus 5 output/5 human-step behavior"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+      "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-01T15:37:08.968Z",
+  "git_context": {
+    "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "current_branch": "codex/meeting-pack-decision-human-step",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-01T15:37:08.966Z"
+  },
+  "source_fingerprint": "77b8dbf010ed2f2209a29a4c47385bfb9d532e5ff7b10a7c29c7d62b6ea2e026",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f1e4f-362a-7ea2-a40b-11f8cd4e864c",
+    "agent_role": null,
+    "model": "gpt-5-codex",
+    "reasoning_effort": "medium",
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e4f-362a-7ea2-a40b-11f8cd4e864c-current-head.md",
+    "request_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

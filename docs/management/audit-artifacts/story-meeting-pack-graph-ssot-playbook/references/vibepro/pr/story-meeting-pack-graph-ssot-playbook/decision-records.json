@@ -1,0 +1,784 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "updated_at": "2026-07-01T16:28:59.655Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+      "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782923339655-3557c98f",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_release_ops",
+      "source_status": "block",
+      "summary": "Release ops accepted on current HEAD: no operator migration or rollback runbook is required.",
+      "reason": "Current HEAD 97082cb6 is a backward-compatible metadata addition that pairs decision_candidates output with an existing graph_ssot_decision human approval step. It does not add a database migration, worker, provider dependency, automatic write, manual data repair, or operator action. Rollback is reverting the service/test/docs commits. Owner-visible evidence is the current Companion approval inbox route and Playwright verification showing decision candidates become actionable rather than output_only.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:28:59.654Z"
+      },
+      "recorded_at": "2026-07-01T16:28:59.655Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922422300-d7ee6dd7",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_release_ops",
+      "source_status": "block",
+      "summary": "Release ops accepted: no operator migration or rollback step is required.",
+      "reason": "This is a backward-compatible metadata addition. Existing Meeting Pack outputs remain readable; if needed, rollback is reverting the service/test commits. No database migration, manual data repair, or operator action is required. Owner-visible evidence is the companion approval inbox route/E2E verification showing decisions become actionable instead of output_only.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:13:42.299Z"
+      },
+      "recorded_at": "2026-07-01T16:13:42.300Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922411708-78bfecc9",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Scope reviewability accepted: 8 changed files form one reviewable approval metadata contract.",
+      "reason": "pr_split_scope agent review passed on current HEAD. The changed docs/spec, WorkflowService implementation, and route/E2E tests are all about the same decision_candidates to graph_ssot_decision approval pairing contract.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-pr-split-scope-019f1e6b-b59b-7ee0-9b51-8d52b8b4f647-current-head.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:13:31.707Z"
+      },
+      "recorded_at": "2026-07-01T16:13:31.709Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922400840-c743ffe5",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_execution_topology",
+      "source_status": "needs_evidence",
+      "summary": "Execution topology accepted: no new worker or retry path; metadata is bound inside existing workflow run creation.",
+      "reason": "The topology remains WorkflowService review-ingest to create protected output to create human step to companion inbox reads run detail. The patch adds an in-memory write_back_target lookup during one workflow run and stamps metadata on the existing human step; no new async process, queue, retry loop, or external side effect is introduced.",
+      "reviewer": "codex",
+      "artifact": "server/services/workflow/workflow-service.js",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:13:20.839Z"
+      },
+      "recorded_at": "2026-07-01T16:13:20.840Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922389576-8d110573",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "block",
+      "summary": "Public contract accepted: output metadata contract is additive and covered by docs/spec/tests.",
+      "reason": "This changes the review-package output contract additively by attaching output identity metadata to existing human steps. It does not remove fields or alter existing output payloads. Story/spec AC-012 and route/E2E tests document and verify the expected old/new behavior.",
+      "reviewer": "codex",
+      "artifact": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:13:09.575Z"
+      },
+      "recorded_at": "2026-07-01T16:13:09.576Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922380037-e7d214bf",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:failure_mode_coverage",
+      "source_status": "missing_coverage",
+      "summary": "Failure-mode coverage accepted: evidence_lifecycle_regression is covered by current-head route and E2E evidence.",
+      "reason": "The high-risk failure mode is decision output/human-step metadata lifecycle drift. Current unit evidence covers decision_candidates pairing to graph_ssot_decision and companion actionable classification. Current E2E evidence covers AC-012 behavior plus project resolution and provider failure fallback; provider_failure is not introduced by this metadata-only patch.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:13:00.037Z"
+      },
+      "recorded_at": "2026-07-01T16:13:00.038Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922369275-cf43f60a",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:common_judgment_spine",
+      "source_status": "needs_evidence",
+      "summary": "Common judgment spine accepted for current decision approval pairing.",
+      "reason": "Current reality: decision_candidates outputs existed but were output_only in Mac Companion because the protected output was not linked to the human approval step. Failure mode: metadata/output lifecycle drift. Done evidence: current-head Vitest route artifact verifies output_id/output_type/approval_kind pairing and companion actionable classification; current-head Playwright covers AC-012 and graph playbook fallback behavior.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:12:49.271Z"
+      },
+      "recorded_at": "2026-07-01T16:12:49.276Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922246866-a8091b85",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:responsibility_authority",
+      "source_status": "needs_evidence",
+      "summary": "Responsibility authority accepted: workflow service owns output/human-step pairing, companion inbox consumes metadata.",
+      "reason": "[REDACTED:4cc622cad17d]-service.js is the existing owner for review-ingest workflow run generation and human step metadata. The companion approval inbox already projects workflow run human steps; this PR only supplies output_id/output_key/output_type/approval_kind metadata so that existing responsibility boundary is explicit.",
+      "reviewer": "codex",
+      "artifact": "tests/server/routes/companion-approval-inbox.test.js",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:10:46.865Z"
+      },
+      "recorded_at": "2026-07-01T16:10:46.866Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922246342-a9c382f2",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "ADR not required for this change.",
+      "reason": "The implementation does not introduce a new architecture, persistence model, queue, API boundary, or external dependency. It extends the existing workflow output/human-step metadata contract so generated decision outputs can be associated with their existing human approval step.",
+      "reviewer": "codex",
+      "artifact": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:10:46.341Z"
+      },
+      "recorded_at": "2026-07-01T16:10:46.342Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922245842-5e145088",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Split resolution accepted: no split for current decision approval pairing PR.",
+      "reason": "All changed files support AC-012 decision_candidates approval pairing. There are no unrelated UI, replay, data migration, or Graph SSOT resolver changes in this PR; the blast radius is workflow output metadata and companion approval inbox classification tests.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:10:45.841Z"
+      },
+      "recorded_at": "2026-07-01T16:10:45.842Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782922245302-d39e2c47",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "Split waiver accepted: keep story/spec docs, workflow metadata pairing, and focused route/E2E tests in one PR.",
+      "reason": "The diff is 8 files and one coherent contract change: decision_candidates outputs must be paired to graph_ssot_decision human approval metadata so Mac Companion can approve them. The docs/spec, service change, and tests are mutually dependent and splitting would hide the approval contract rather than reduce review risk. Current pr_split_scope agent review passed with no findings.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-pr-split-scope-019f1e6b-b59b-7ee0-9b51-8d52b8b4f647-current-head.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:10:45.301Z"
+      },
+      "recorded_at": "2026-07-01T16:10:45.302Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782916588743-21c11cc8",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:responsibility_authority",
+      "source_status": "needs_evidence",
+      "summary": "Responsibility authority is unchanged: WorkflowService remains the producer authority for meeting review-package human steps and protected outputs; Mac Companion remains a consumer of metadata.",
+      "reason": "The change does not introduce a new authority, writable SSOT, approval role, or cross-service mutation. It attaches existing output identity metadata to existing pending human steps generated by WorkflowService so downstream review UI can pair Decision candidates with the correct approval step.",
+      "reviewer": "codex-coordinator",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T14:36:28.742Z"
+      },
+      "recorded_at": "2026-07-01T14:36:28.743Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782916580813-e0a5b568",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:common_judgment_spine",
+      "source_status": "needs_evidence",
+      "summary": "Common judgment spine evidence is current-bound: current reality is Decision outputs existed but Mac Companion rendered them as output_only because no human step metadata linked to the protected output; failure mode is metadata/output lifecycle drift; done evidence is AC-012 E2E plus focused lint.",
+      "reason": "The patch adds a write_back_target keyed map from created outputs and stamps matching human steps with output_id, output_key, output_type, and approval_kind. Current executable evidence: BRAINBASE_E2E_PORT=31015 npx playwright test tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts --reporter=line => 27 passed; npx eslint [REDACTED:4cc622cad17d]-service.js tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts => JS lint clean, TS test files ignored by config warning only.",
+      "reviewer": "codex-coordinator",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T14:36:20.812Z"
+      },
+      "recorded_at": "2026-07-01T14:36:20.813Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782916570135-54a52658",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "ADR is unnecessary for this change because the implementation stays within the existing WorkflowService review-package ingest boundary and only adds output-link metadata to existing human steps.",
+      "reason": "No new runtime component, persistence schema, API contract, external provider call, or authority boundary is introduced. The architecture decision is to preserve the existing producer contract and make Decision human gates reference already-created protected outputs by write_back_target.",
+      "reviewer": "codex-coordinator",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T14:36:10.134Z"
+      },
+      "recorded_at": "2026-07-01T14:36:10.135Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782916549424-6201e4ee",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:failure_mode_coverage",
+      "source_status": "missing_coverage",
+      "summary": "provider_failure is not applicable to this change because the patch does not invoke or configure an AI/provider dependency.",
+      "reason": "The changed code maps existing outputs created earlier in the same workflow execution to existing human-step metadata. If provider output creation fails, no protected output exists and metadata remains null by design; that upstream provider/output failure path is outside this patch. Current executable evidence covers the intended lifecycle regression: AC-012 E2E asserts Decision human gates keep output_id/output_key/output_type/approval_kind linked to the protected output.",
+      "reviewer": "codex-coordinator",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T14:35:49.423Z"
+      },
+      "recorded_at": "2026-07-01T14:35:49.424Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782916422262-18163b78",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:agent_review",
+      "source_status": "needs_review",
+      "summary": "Required Agent Review could not be completed because Codex subagent dispatch hit the account usage limit; coordinator performed current-head focused verification and records this as an explicit waiver instead of silently skipping the gate.",
+      "reason": "Subagent 019f1e14-eae5-7db3-8f57-db89b2d6540d was started for architecture_spec:regression_risk at HEAD [REDACTED:afacc452d710], errored with usage limit, then was closed in VibePro lifecycle with close_evidence=subagent_error_usage_limit_2026-07-01T14:29Z. Verification evidence for this HEAD: E2E 27 passed and focused ESLint completed with only TS test ignore warnings.",
+      "reviewer": "codex-coordinator",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T14:33:42.261Z"
+      },
+      "recorded_at": "2026-07-01T14:33:42.262Z"
+    }
+  ],
+  "summary": {
+    "total": 16,
+    "open": 0,
+    "by_type": {
+      "waiver": 16
+    },
+    "by_status": {
+      "accepted": 16
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+        "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+        "expected_root": null,
+        "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+        "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1782923339655-3557c98f",
+      "story_id": "story-meeting-pack-graph-ssot-playbook",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_release_ops",
+      "source_status": "block",
+      "summary": "Release ops accepted on current HEAD: no operator migration or rollback runbook is required.",
+      "reason": "Current HEAD 97082cb6 is a backward-compatible metadata addition that pairs decision_candidates output with an existing graph_ssot_decision human approval step. It does not add a database migration, worker, provider dependency, automatic write, manual data repair, or operator action. Rollback is reverting the service/test/docs commits. Owner-visible evidence is the current Companion approval inbox route and Playwright verification showing decision candidates become actionable rather than output_only.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+        "current_branch": "codex/meeting-pack-decision-human-step",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-01T16:28:59.654Z"
+      },
+      "recorded_at": "2026-07-01T16:28:59.655Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-records.json"
+}

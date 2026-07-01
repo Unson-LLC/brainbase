@@ -1,0 +1,56 @@
+{
+  "agent_id": "019f1e2d-d952-7710-8269-45ecced50f09",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "head": "8c2924e1632fe9ce321442f202961dd151663008",
+  "status": "pass",
+  "summary": "architecture_boundary は pass。Meeting Pack Graph SSOT DAG/playbook と Decision human gate/output pairing は、WorkflowService の ingest orchestration、workflow repository の汎用 ledger、Companion approval inbox の既存 projection 境界内に収まっており、Graph/Companion/repository 間の新しい直結依存は確認しませんでした。",
+  "inspection_summary": "指定 HEAD 8c2924e1632fe9ce321442f202961dd151663008 で、review request、現在の VibePro verification evidence、関連 diff、WorkflowService/repository/routes/Companion/bootstrap、仕様・architecture docs、契約テストを読み取り専用で確認しました。既存 review-result は e7cc6ad5d 向けだったため判断材料からは除外し、current HEAD の証跡と実装を正にしました。",
+  "inspection_input": [
+    ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-architecture_boundary.md",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+    ".vibepro/spec/story-meeting-pack-graph-ssot-playbook/spec.json",
+    "docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md",
+    "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+    "server/services/workflow/workflow-service.js",
+    "server/services/workflow/workflow-repository.js",
+    "server/routes/workflows.js",
+    "server/routes/companion.js",
+    "server/bootstrap/core-services.js",
+    "tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts",
+    "tests/server/routes/companion-approval-inbox.test.js"
+  ],
+  "inspection_evidence": [
+    "server/services/workflow/workflow-service.js:2099-2162: Graph SSOT lookup is inside WorkflowService and uses injected infoSSOTService.getContext after project scope is known.",
+    "server/services/workflow/workflow-service.js:2360-2742: ingest creates workflow run, context snapshots, outputs, and human steps via repository; Decision gate pairs to output_id/output_key/output_type/approval_kind/write_back_target metadata.",
+    "server/services/workflow/workflow-service.js:947-1069: graph playbook and snapshot are generated as read/context artifacts; promoted_to_graph_ssot remains false and no Graph write path is introduced.",
+    "server/services/workflow/workflow-repository.js:128-223: repository remains generic createRun/createHumanStep/createOutput persistence, with no Graph or Companion-specific behavior.",
+    "server/routes/workflows.js:179-193: review package ingest route delegates to WorkflowService without embedding Graph/Companion logic.",
+    "server/routes/companion.js:21-80 and server/services/workflow/workflow-service.js:3496-3575: Companion approval inbox goes through access guard and WorkflowService read projection; it lists runs/steps/outputs/snapshots rather than mutating Graph or bypassing repository.",
+    "server/bootstrap/core-services.js:68-94: InfoSSOTService, JsonFileWorkflowRepository, WorkflowRunner, and WorkflowService are wired by dependency injection, preserving intended dependency direction.",
+    "docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md:13-78 and docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md:119-142: intended boundary documents match implementation: Graph is context/read authority, approval gates protect promotion/write-back targets.",
+    "tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts:218-390,465-570: contract covers project-scoped Graph lookup, pre-ingest blockers before Graph lookup, fallback evidence, DAG, and Decision gate metadata.",
+    "tests/server/routes/companion-approval-inbox.test.js:209-295,377-428: Companion inbox exposes decision_candidates as actionable approval and verifies output_id linkage, not output_only.",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json:22-176: current HEAD evidence records vitest pass and Playwright pass for Decision approval pairing; older e7cc6ad5d integration entry was not treated as current-head proof."
+  ],
+  "judgment_delta": [
+    "初期懸念: Graph SSOT playbook が WorkflowService 外で Graph/Companion/repository を結合している可能性 -> 最終判断: Graph lookup and playbook generation stay inside WorkflowService with injected InfoSSOTService and repository writes only.",
+    "初期懸念: Decision human gate/output pairing が Companion 専用 coupling を repository schema に持ち込む可能性 -> 最終判断: pairing is generic human_step/output metadata; Companion only projects it through existing approval inbox flow.",
+    "初期懸念: review request の evidence reuse が stale -> 最終判断: current verification-evidence is tied to HEAD 8c2924e1632fe9ce321442f202961dd151663008 for unit/e2e; stale older review-result was excluded."
+  ],
+  "findings": [],
+  "commands_run": [
+    "pwd && git -C /Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook status --short --branch && git -C /Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook rev-parse HEAD",
+    "sed -n '1,240p' .vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-architecture_boundary.md",
+    "git diff --name-status origin/main...HEAD",
+    "nl -ba server/services/workflow/workflow-service.js",
+    "nl -ba server/services/workflow/workflow-repository.js",
+    "nl -ba server/routes/workflows.js",
+    "nl -ba server/routes/companion.js",
+    "nl -ba server/bootstrap/core-services.js",
+    "nl -ba tests/server/routes/companion-approval-inbox.test.js",
+    "nl -ba tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts",
+    "nl -ba docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md",
+    "nl -ba docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+  ]
+}

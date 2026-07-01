@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "stage": "gate",
+  "role": "release_risk",
+  "status": "pass",
+  "summary": "Current HEAD release risk passes: additive approval metadata only, no migration, no automatic Graph/Task/Decision writes, and rollback is a normal code revert.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected workflow metadata pairing, companion approval inbox route tests, E2E contracts, docs/specs, and current-head release_risk transcript.",
+    "evidence": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-release-risk-019f1e64-c8df-7560-9617-f9018dc3895f-current-head.md",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-release_risk.md"
+    ]
+  },
+  "judgment_delta": [
+    "stale release_risk record for e7cc6ad -> current-head pass for 3dc8028302a1 because the change is additive and covered by route/E2E tests"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+      "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-01T16:01:13.287Z",
+  "git_context": {
+    "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "current_branch": "codex/meeting-pack-decision-human-step",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-01T16:01:13.286Z"
+  },
+  "source_fingerprint": "4866d622d27a3a04f2056775dcab3218ac1bb1d231096332d745e150f1eb3aa5",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f1e64-c8df-7560-9617-f9018dc3895f",
+    "agent_role": null,
+    "model": "gpt-5-codex",
+    "reasoning_effort": "medium",
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-release-risk-019f1e64-c8df-7560-9617-f9018dc3895f-current-head.md",
+    "request_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-release_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

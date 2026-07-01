@@ -1,0 +1,44 @@
+{
+  "agent_id": "019f1e2e-a183-7c50-b497-bae5435ee1cf",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "head": "8c2924e1632fe9ce321442f202961dd151663008",
+  "status": "pass",
+  "summary": "regression_risk 観点では pass。Decision Human Gate と Decision output の pairing は server 側 metadata と Companion approval inbox の API contract に出ており、Decision が output_only として露出する回帰は focused test で防げている。",
+  "inspection_summary": "現 HEAD 8c2924e1632fe9ce321442f202961dd151663008 で、review request、workflow-service の ingest/pairing/projection、Companion route/controller、該当 e2e/server route tests、verification evidence を確認し、focused vitest/playwright を再実行した。",
+  "inspection_input": [
+    ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+    "server/services/workflow/workflow-service.js:266,319,599,2690,2712,3496",
+    "server/routes/companion.js:73",
+    "server/controllers/companion-controller.js:129",
+    "tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts:336",
+    "tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts:328",
+    "tests/server/routes/companion-approval-inbox.test.js:377"
+  ],
+  "inspection_evidence": [
+    "workflow-service.js は output metadata に write_back_target/requires_human_approval を付与し、human step metadata に output_id/output_key/output_type/approval_kind/write_back_target を保存している。",
+    "listCompanionApprovalInbox は terminal/closed run を除外し、pending human step を持つ run のみを workflow_approval として返し、pending_human_steps と outputs を同一 item 内に保持している。",
+    "server route/e2e は Decision fixture で graph_ssot_decision + decision_candidates の pairing、action_kind=decision_candidates、JSON に output_only が含まれないことを検査している。",
+    "既存 Companion 隣接挙動として reply routes 登録、auth guard、project grant denied before scan、service/internal auth、read-only projection、old pending run/limit overflow/terminal stale pending step が test coverage に含まれる。"
+  ],
+  "judgment_delta": [
+    "initial concern: Decision output が human gate と結び付かず Companion 側で output_only 扱いになる可能性 -> final: ingest metadata と approval inbox projection が output_id/action_kind/approval_kind を保持し、route/e2e がその regression を直接検査しているため pass",
+    "initial concern: 新規 happy path だけで既存 Companion/API 挙動を壊す可能性 -> final: auth、reply route compatibility、all-runs scan、terminal run exclusion、visible truncation、read-only projection の隣接 contract が server/e2e で確認されているため pass"
+  ],
+  "findings": [],
+  "commands_run": [
+    "git -C /Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook status --short --branch",
+    "git -C /Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook rev-parse HEAD",
+    "sed -n '1,240p' /Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook/.vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md",
+    "git diff --stat origin/main...HEAD -- server/services/workflow/workflow-service.js tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts tests/server/routes/companion-approval-inbox.test.js server/routes/companion.js server/controllers/companion-controller.js",
+    "rg -n \"listCompanionApprovalInbox|approval-inbox|companionApproval|output_only|output_id|output_key|decision_candidates|graph_ssot_decision\" server/services/workflow/workflow-service.js server/routes tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts tests/server/routes/companion-approval-inbox.test.js tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts",
+    "npx vitest run tests/server/routes/companion-approval-inbox.test.js",
+    "BRAINBASE_E2E_PORT=31015 npx playwright test tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts --reporter=line",
+    "git status --short --branch"
+  ],
+  "test_result": {
+    "vitest": "tests/server/routes/companion-approval-inbox.test.js: 21 passed",
+    "playwright": "story-meeting-pack-graph-ssot-playbook + story-companion-approval-inbox-v1 focused specs: 17 passed, 1 skipped"
+  }
+}

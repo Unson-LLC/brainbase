@@ -1,0 +1,2012 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-01T16:43:58.428Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [
+      "canonical_artifact_lines_exceeded",
+      "artifact_code_ratio_exceeded"
+    ],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:89292c17bc493297d5cbed428fb2ad25af4ae26d9d46e8b5d28a97f7366a194a",
+    "compressed_hash": "sha256:a92c48d924967fe6682e7bf8c3aedd9eb0a90e734b10f485eae62843b887fc8d",
+    "expanded_bytes": 52306,
+    "compressed_bytes": 7694,
+    "expanded_line_count": 1261,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-meeting-pack-graph-ssot-playbook",
+    "cost": {
+      "compressed_bytes": 7694,
+      "expanded_bytes": 52306,
+      "expanded_line_count": 1261,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1003",
+    "merge_commit_sha": "60c3647250aa64a961ce77c2bffed1377b0fe5f6",
+    "merged_at": "2026-07-01T16:43:55Z",
+    "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...97082cb6cb493b19d896e3c886e442174b6df262"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 131,
+    "copied_reference_count": 82,
+    "unresolved_reference_count": 8,
+    "replay_bundle": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-meeting-pack-graph-ssot-playbook"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:89292c17bc493297d5cbed428fb2ad25af4ae26d9d46e8b5d28a97f7366a194a"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:200b2df46bb0df7bec79cbb28d06cb480e5e6a15a078d742e3ef5306342d5cea",
+      "audit_digest": "sha256:200b2df46bb0df7bec79cbb28d06cb480e5e6a15a078d742e3ef5306342d5cea",
+      "line_count": 243,
+      "raw_line_count": 243,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:e2a4ad6e9c7a1f5b4a1ad1a06fde4c3dea271eeb6d725b47f5c92ef88047d9a3",
+      "audit_digest": "sha256:ebee99fd47208936e89f2a98cafb429e9723f74ed123bf81339d14d3ad6195ef",
+      "line_count": 9591,
+      "raw_line_count": 23058,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:598f0effda4c46810739202cc76b61f3e6d153f7b57711863e4260bb75e047a0",
+      "audit_digest": "sha256:2b9fe276cbaedb4d5f95b100b8544e78356d47583edaaeef00545713247f9208",
+      "line_count": 2944,
+      "raw_line_count": 5520,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:ae32b3d9df17ec4a6a6fd8451c4203bdb4de6492f62145c61ee2e7e907787227",
+      "audit_digest": "sha256:dc20d5d8a376098957aaf9cdf4313f3a1dc2d7cce55ccfb7adb3e4a73a95091f",
+      "line_count": 2849,
+      "raw_line_count": 5473,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:1eee926e76d1d25dda7a920fa42baed2bc05f273c8d66b8e7621a2d6c5b274a1",
+      "audit_digest": "sha256:8d569b4453eef5d4a1a42453bd552eb3ce10a6ce6bfa8f49d209180db701df48",
+      "line_count": 68,
+      "raw_line_count": 1055,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:0313b71d748145d1b842f7950725177ab658fb55aa759797d9efb6e029c6f6c7",
+      "audit_digest": "sha256:fb664dcbc11c425c6aa0b2aee792a1b628f6c828dd8a7590761d588b1b2407d6",
+      "line_count": 3032,
+      "raw_line_count": 5702,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:f04f6e1aa8a29fcc593267013e22bd8d864b1f8e524822606ef204dc29252965",
+      "audit_digest": "sha256:f04f6e1aa8a29fcc593267013e22bd8d864b1f8e524822606ef204dc29252965",
+      "line_count": 656,
+      "raw_line_count": 656,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:2ca21d924a80d0eda7fa373a57cd20e3d5699a134e062d9bc92411fb8630d581",
+      "audit_digest": "sha256:a77c6119162158170341867b4335783757048ac4e6c09c644264308898bd621c",
+      "line_count": 51,
+      "raw_line_count": 266,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:542efbd8973b1651053d73fc42f18448432612bb2d98f5dd6ba87a8b8c9b2427",
+      "audit_digest": "sha256:542efbd8973b1651053d73fc42f18448432612bb2d98f5dd6ba87a8b8c9b2427",
+      "line_count": 322,
+      "raw_line_count": 322,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:bfef0351a505ccc93de31b0115f02ccee598ccb4d3e53269821ef59ebc5fdefb",
+      "audit_digest": "sha256:bfef0351a505ccc93de31b0115f02ccee598ccb4d3e53269821ef59ebc5fdefb",
+      "line_count": 135,
+      "raw_line_count": 135,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:9cc22c9959d69f81c8b2b1f7e9c14cb3e0c8d334ede2d15d3652c74737cf54d7",
+      "audit_digest": "sha256:9cc22c9959d69f81c8b2b1f7e9c14cb3e0c8d334ede2d15d3652c74737cf54d7",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-spec_consistency.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:2367fb2f248f7e55c2fa0dfcd7da3e9841f4a42a8a8e335ffa2b68c27b83fda9",
+      "audit_digest": "sha256:2367fb2f248f7e55c2fa0dfcd7da3e9841f4a42a8a8e335ffa2b68c27b83fda9",
+      "line_count": 135,
+      "raw_line_count": 135,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-result-architecture_boundary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:014d04db7bad24bb7c7e1872194b0ee8873f837c7e64fe08ce1f244a53c83ff1",
+      "audit_digest": "sha256:014d04db7bad24bb7c7e1872194b0ee8873f837c7e64fe08ce1f244a53c83ff1",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-result-regression_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:a5e35158622e0683d20839461504cae9940ab7ab66559b85f3ca31a83ca6e365",
+      "audit_digest": "sha256:a5e35158622e0683d20839461504cae9940ab7ab66559b85f3ca31a83ca6e365",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-result-spec_consistency.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:15d934c2ef89f54d49fd39817ea609fe3803ac70ee9da4fb8f5e345e6e47ed0e",
+      "audit_digest": "sha256:15d934c2ef89f54d49fd39817ea609fe3803ac70ee9da4fb8f5e345e6e47ed0e",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:54870bd829f342e6af16267179ada2781233c32b478fdf9fc1046ac07bf0fade",
+      "audit_digest": "sha256:54870bd829f342e6af16267179ada2781233c32b478fdf9fc1046ac07bf0fade",
+      "line_count": 722,
+      "raw_line_count": 722,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:085255df01bd341fdec457e317602c0ad4707fe20ed90a87fc30219d1ffa1931",
+      "audit_digest": "sha256:085255df01bd341fdec457e317602c0ad4707fe20ed90a87fc30219d1ffa1931",
+      "line_count": 260,
+      "raw_line_count": 260,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:88e1d945e02af9df41adb424c048192b6e9c10f4b8c5380bf1e248c3123a605f",
+      "audit_digest": "sha256:88e1d945e02af9df41adb424c048192b6e9c10f4b8c5380bf1e248c3123a605f",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-pr_split_scope.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:e091c938ccf951bdf5fac7a7ac4c0f55507d6b653113646c05c65c9b2f5beba7",
+      "audit_digest": "sha256:e091c938ccf951bdf5fac7a7ac4c0f55507d6b653113646c05c65c9b2f5beba7",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-release_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:bfec527fca1c735f4b19586a6bd86dc73bb9a088e6abe2e1dd49085171042aa3",
+      "audit_digest": "sha256:bfec527fca1c735f4b19586a6bd86dc73bb9a088e6abe2e1dd49085171042aa3",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:d18650d3b385bbbbf4c6ba67c006e0d48f8d8bef3aa779ece91af7ae56ef3bac",
+      "audit_digest": "sha256:d18650d3b385bbbbf4c6ba67c006e0d48f8d8bef3aa779ece91af7ae56ef3bac",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-result-pr_split_scope.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:55141907a0fabb9026901960eb993694bf65d1b6eeb87d4ff4df7112cb82f009",
+      "audit_digest": "sha256:55141907a0fabb9026901960eb993694bf65d1b6eeb87d4ff4df7112cb82f009",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-result-release_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:cab30d875e8391da159865603385205dbf8c9d80089550a3234dfdb61bf86f1a",
+      "audit_digest": "sha256:cab30d875e8391da159865603385205dbf8c9d80089550a3234dfdb61bf86f1a",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:ae83879c38dcc41e47727ff16f689e8cf1705250d06b35d722c8eb1b5202ecc1",
+      "audit_digest": "sha256:ae83879c38dcc41e47727ff16f689e8cf1705250d06b35d722c8eb1b5202ecc1",
+      "line_count": 648,
+      "raw_line_count": 648,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:fd6d24047eec2740706fc3aa581a2aae9a16a2bdc356a7f7892ab4fa6abd9688",
+      "audit_digest": "sha256:fd6d24047eec2740706fc3aa581a2aae9a16a2bdc356a7f7892ab4fa6abd9688",
+      "line_count": 197,
+      "raw_line_count": 197,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-request-code_spec_alignment.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:c8d842883a1469b784aac12f8c1f75fb895c60e1c74a3e9355d7328a504e645a",
+      "audit_digest": "sha256:c8d842883a1469b784aac12f8c1f75fb895c60e1c74a3e9355d7328a504e645a",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-request-runtime_contract.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:c5901165610e14864142b3cf0d0040111e4d88fb7ecea45d40d8edf49fe978b8",
+      "audit_digest": "sha256:c5901165610e14864142b3cf0d0040111e4d88fb7ecea45d40d8edf49fe978b8",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-request-ux_completion.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:28e4b8ad366d769dae1ea868ce5e78a6bc36a34ad5809e0afa003fd2bfc6eec2",
+      "audit_digest": "sha256:28e4b8ad366d769dae1ea868ce5e78a6bc36a34ad5809e0afa003fd2bfc6eec2",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-result-code_spec_alignment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:5e154bd8b2a3e67f562a758aa2f70af31c49f6e068a46c278a2caad8c1002935",
+      "audit_digest": "sha256:5e154bd8b2a3e67f562a758aa2f70af31c49f6e068a46c278a2caad8c1002935",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-result-runtime_contract.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:72fcb271ea96e00eab8b0df82cc58fac7fccbb557ccfa660e92ec50c060ebc53",
+      "audit_digest": "sha256:72fcb271ea96e00eab8b0df82cc58fac7fccbb557ccfa660e92ec50c060ebc53",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-result-ux_completion.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:df56b8c309bf69c16edc7c948b9b5a914a9019385ceffa13fb3194ca29ae1067",
+      "audit_digest": "sha256:df56b8c309bf69c16edc7c948b9b5a914a9019385ceffa13fb3194ca29ae1067",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:e9f20813f04a2b179ae7b2c2299c7830fa209a289201947badf07ea172439226",
+      "audit_digest": "sha256:e9f20813f04a2b179ae7b2c2299c7830fa209a289201947badf07ea172439226",
+      "line_count": 574,
+      "raw_line_count": 574,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:de8f6e9ca2f023de6b76ead3062f987958d117afce9cbf9f260c43921b6b8e4a",
+      "audit_digest": "sha256:de8f6e9ca2f023de6b76ead3062f987958d117afce9cbf9f260c43921b6b8e4a",
+      "line_count": 189,
+      "raw_line_count": 189,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:36a8b25f80ff655459a94ebaaf3a7cfe0bc59f5fb756f210aadc09a772ce19bc",
+      "audit_digest": "sha256:36a8b25f80ff655459a94ebaaf3a7cfe0bc59f5fb756f210aadc09a772ce19bc",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-product_requirement.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:15f33e0711fccd527e04729cdaf3c239f02de39015f8908352419cac401ec375",
+      "audit_digest": "sha256:15f33e0711fccd527e04729cdaf3c239f02de39015f8908352419cac401ec375",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-spec_consistency.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:ab90648880bf2fecbe862a4425bae46895dd50b3a3dc47d4b98abe8729caccaf",
+      "audit_digest": "sha256:ab90648880bf2fecbe862a4425bae46895dd50b3a3dc47d4b98abe8729caccaf",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-result-architecture_boundary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:7962f4946ef54ad405e4657f0418079f2a29388d49e2f4ef5b747ea71a65c903",
+      "audit_digest": "sha256:7962f4946ef54ad405e4657f0418079f2a29388d49e2f4ef5b747ea71a65c903",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-result-product_requirement.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:c29d7f8fae8e370958f39d0582ddcd325badde0606a9c4d49ee84b7a1caca8e4",
+      "audit_digest": "sha256:c29d7f8fae8e370958f39d0582ddcd325badde0606a9c4d49ee84b7a1caca8e4",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-result-spec_consistency.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:98b03dfb56fa2f63f1b013dc19092c337de354c8ed1a31485ccfa960b13cf817",
+      "audit_digest": "sha256:98b03dfb56fa2f63f1b013dc19092c337de354c8ed1a31485ccfa960b13cf817",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:76f4eb2c7b66677944b3e3c1c2ad1a6293b4ec16e339f919a91bb2fc5ea9a6e6",
+      "audit_digest": "sha256:76f4eb2c7b66677944b3e3c1c2ad1a6293b4ec16e339f919a91bb2fc5ea9a6e6",
+      "line_count": 564,
+      "raw_line_count": 564,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:9893537064e88daac9349b3661dc87c27d8e299e41b4c710a25ef3261586fe7a",
+      "audit_digest": "sha256:9893537064e88daac9349b3661dc87c27d8e299e41b4c710a25ef3261586fe7a",
+      "line_count": 323,
+      "raw_line_count": 323,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-request-human_usability.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:3d6077d7ccc38e04e859277018b4174404d9f49331376f537b7ec06232eff00d",
+      "audit_digest": "sha256:3d6077d7ccc38e04e859277018b4174404d9f49331376f537b7ec06232eff00d",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-request-network_runtime.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:d611be30af94a17ca8ae0e8e7bdc85b767d5495ce14d07d8a94ecda27e80ec00",
+      "audit_digest": "sha256:d611be30af94a17ca8ae0e8e7bdc85b767d5495ce14d07d8a94ecda27e80ec00",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-request-preview_smoke.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:5451d328259d806afbc5a3ee3c4814b941fc876da97f444fc60504a07f9eceb0",
+      "audit_digest": "sha256:5451d328259d806afbc5a3ee3c4814b941fc876da97f444fc60504a07f9eceb0",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-result-human_usability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:2a25ae9c7945800f0ffc8e8bf8e2a65ecd2463b00465af4aa0ce5f16fdc3c4f6",
+      "audit_digest": "sha256:2a25ae9c7945800f0ffc8e8bf8e2a65ecd2463b00465af4aa0ce5f16fdc3c4f6",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-result-network_runtime.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:369012bcab3e54b66153fab0f26af2a7d1e7d0e9bc252a5d0a70266cb011325f",
+      "audit_digest": "sha256:369012bcab3e54b66153fab0f26af2a7d1e7d0e9bc252a5d0a70266cb011325f",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-result-preview_smoke.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:382d2376d63c7df7aed60ef3a1f4a2ad011300a0e14c643bde4964a5aac9dab5",
+      "audit_digest": "sha256:382d2376d63c7df7aed60ef3a1f4a2ad011300a0e14c643bde4964a5aac9dab5",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:fdf2e494dfda3ff15648cd4fdce10977c28923060e9a87d1d383308fb15feb17",
+      "audit_digest": "sha256:fdf2e494dfda3ff15648cd4fdce10977c28923060e9a87d1d383308fb15feb17",
+      "line_count": 720,
+      "raw_line_count": 720,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:38a213d1ac31185bf8596e0fad7d6b2984c0ca37fe7d7c884de280a0cdcdb391",
+      "audit_digest": "sha256:38a213d1ac31185bf8596e0fad7d6b2984c0ca37fe7d7c884de280a0cdcdb391",
+      "line_count": 147,
+      "raw_line_count": 147,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-request-acceptance_e2e.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:63b3069abb7d18e8259a3552aa4b54b2e7a5480342e4b6d9290d52dc34eeb9f9",
+      "audit_digest": "sha256:63b3069abb7d18e8259a3552aa4b54b2e7a5480342e4b6d9290d52dc34eeb9f9",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-request-product_requirement.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:4c7fefdbe3807fd0e3150fb0c3b322c2f8a5fe06d1668dc1859da8b802d1d487",
+      "audit_digest": "sha256:4c7fefdbe3807fd0e3150fb0c3b322c2f8a5fe06d1668dc1859da8b802d1d487",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-request-scope_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:01fc69f95a8d57880c30c75fa1743f1a2247492c58b13290028d26e10645c20d",
+      "audit_digest": "sha256:01fc69f95a8d57880c30c75fa1743f1a2247492c58b13290028d26e10645c20d",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-result-acceptance_e2e.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:e9e070e60f2566a13b82a31d7152e99418466df82d78f29563a7abba6ce09018",
+      "audit_digest": "sha256:e9e070e60f2566a13b82a31d7152e99418466df82d78f29563a7abba6ce09018",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-result-product_requirement.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:b1dd79abda3913df106dc17782137fb78b3bd52e41c3497b76b6bc9044a62dc3",
+      "audit_digest": "sha256:b1dd79abda3913df106dc17782137fb78b3bd52e41c3497b76b6bc9044a62dc3",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-result-scope_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:267816ba968d7ca22fdcdb87812f73f14be6ca639eca94aa6b832e525a77bfce",
+      "audit_digest": "sha256:267816ba968d7ca22fdcdb87812f73f14be6ca639eca94aa6b832e525a77bfce",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:3ac8f5fdc9418f308ce6c5e5c29c311232bfd43815ae638307a066cf22643001",
+      "audit_digest": "sha256:3ac8f5fdc9418f308ce6c5e5c29c311232bfd43815ae638307a066cf22643001",
+      "line_count": 516,
+      "raw_line_count": 516,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:164df700fc88799568da1cb6a62c9a3c9d806fc6ada14c7fe15564ac386ecfd3",
+      "audit_digest": "sha256:164df700fc88799568da1cb6a62c9a3c9d806fc6ada14c7fe15564ac386ecfd3",
+      "line_count": 222,
+      "raw_line_count": 222,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-e2e_ux.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:0c76004ca2c30f54fa1d85c2fb99e7ff3c3ceafae1df2a91bdf6b4996a0099da",
+      "audit_digest": "sha256:0c76004ca2c30f54fa1d85c2fb99e7ff3c3ceafae1df2a91bdf6b4996a0099da",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-gate_coverage.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:3cb56be602411ccb53381eface869f8de397331afa0a69ac9eba6276a2ea7f2f",
+      "audit_digest": "sha256:3cb56be602411ccb53381eface869f8de397331afa0a69ac9eba6276a2ea7f2f",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-unit_integration.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:7b29131f1ed8c869ce53d30cd6cb163eeacf9ff2ca2880cdb284ccb645c9a04f",
+      "audit_digest": "sha256:7b29131f1ed8c869ce53d30cd6cb163eeacf9ff2ca2880cdb284ccb645c9a04f",
+      "line_count": 78,
+      "raw_line_count": 78,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-result-e2e_ux.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:a9f054c83bc0f2098035134b63ca0e4a4b6ed14e120f6f401840073aef84e921",
+      "audit_digest": "sha256:a9f054c83bc0f2098035134b63ca0e4a4b6ed14e120f6f401840073aef84e921",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-result-gate_coverage.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:6f7bbb8538b3cdfc07c2cdb67c1fef7c6827683f60698009b61ecfbe79c6f330",
+      "audit_digest": "sha256:6f7bbb8538b3cdfc07c2cdb67c1fef7c6827683f60698009b61ecfbe79c6f330",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-result-unit_integration.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:2410d03f831b3073502aaefcbe6862b0fb9406c8daf91deb5126964037d626d4",
+      "audit_digest": "sha256:2410d03f831b3073502aaefcbe6862b0fb9406c8daf91deb5126964037d626d4",
+      "line_count": 92,
+      "raw_line_count": 92,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz",
+      "digest": "sha256:9e003800aa6cc5559574e63b477be7449ce0817806e7d89e44ba6f206a1a0ddb",
+      "audit_digest": "sha256:9e003800aa6cc5559574e63b477be7449ce0817806e7d89e44ba6f206a1a0ddb",
+      "line_count": 625,
+      "raw_line_count": 625,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-05-19.154Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-05-19.154Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-37-08.968Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-37-08.968Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T14-42-49.856Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T14-42-49.856Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-04-55.780Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-04-55.780Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-31-45.218Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-31-45.218Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T16-26-35.075Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T16-26-35.075Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-05-19.181Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-05-19.181Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-37-08.972Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-37-08.972Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-architecture_boundary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/architecture_spec/review-request-architecture_boundary.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/architecture_spec/review-request-regression_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-spec_consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/architecture_spec/review-request-spec_consistency.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-result-architecture_boundary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/architecture_spec/review-result-architecture_boundary.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-result-regression_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/architecture_spec/review-result-regression_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-result-spec_consistency.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/architecture_spec/review-result-spec_consistency.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e2d-d952-7710-8269-45ecced50f09.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e2d-d952-7710-8269-45ecced50f09.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e1e-c53e-7ca3-a220-23954178c3db.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e1e-c53e-7ca3-a220-23954178c3db.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e2e-a183-7c50-b497-bae5435ee1cf.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e2e-a183-7c50-b497-bae5435ee1cf.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-spec-consistency-019f1e2e-11b7-77e3-b5c5-d98df205f899.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-spec-consistency-019f1e2e-11b7-77e3-b5c5-d98df205f899.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-00-42.729Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-00-42.729Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-26-52.347Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-26-52.347Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-pr_split_scope-2026-07-01T16-06-46.386Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-pr_split_scope-2026-07-01T16-06-46.386Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-01-13.287Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-01-13.287Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-26-55.112Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-26-55.112Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-pr_split_scope.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/gate/review-request-pr_split_scope.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-request-release_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/gate/review-request-release_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-result-pr_split_scope.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/gate/review-result-pr_split_scope.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/review-result-release_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/gate/review-result-release_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-gate-evidence-019f1e64-9608-7a01-af06-699896d0c83d-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-gate-evidence-019f1e64-9608-7a01-af06-699896d0c83d-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-pr-split-scope-019f1e6b-b59b-7ee0-9b51-8d52b8b4f647-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-pr-split-scope-019f1e6b-b59b-7ee0-9b51-8d52b8b4f647-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-release-risk-019f1e64-c8df-7560-9617-f9018dc3895f-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-release-risk-019f1e64-c8df-7560-9617-f9018dc3895f-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-code_spec_alignment-2026-07-01T16-26-44.108Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-code_spec_alignment-2026-07-01T16-26-44.108Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T15-43-39.586Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T15-43-39.586Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T16-26-39.810Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T16-26-39.810Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T15-43-39.707Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T15-43-39.707Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T16-26-41.972Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T16-26-41.972Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-request-code_spec_alignment.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/implementation/review-request-code_spec_alignment.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-request-runtime_contract.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/implementation/review-request-runtime_contract.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-request-ux_completion.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/implementation/review-request-ux_completion.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-result-code_spec_alignment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/implementation/review-result-code_spec_alignment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-result-runtime_contract.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/implementation/review-result-runtime_contract.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/review-result-ux_completion.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/implementation/review-result-ux_completion.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-runtime-contract-019f1e55-4cb6-7a33-8f42-72c6dfdb5c4d-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-runtime-contract-019f1e55-4cb6-7a33-8f42-72c6dfdb5c4d-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-ux-completion-019f1e55-61e1-7b30-87d9-d5ce03fcd3df-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-ux-completion-019f1e55-61e1-7b30-87d9-d5ce03fcd3df-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-architecture_boundary-2026-07-01T16-27-53.870Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-architecture_boundary-2026-07-01T16-27-53.870Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-product_requirement-2026-07-01T16-27-51.300Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-product_requirement-2026-07-01T16-27-51.300Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-spec_consistency-2026-07-01T16-27-56.394Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-spec_consistency-2026-07-01T16-27-56.394Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-architecture_boundary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/planning_spec/review-request-architecture_boundary.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-product_requirement.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/planning_spec/review-request-product_requirement.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-request-spec_consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/planning_spec/review-request-spec_consistency.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-result-architecture_boundary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/planning_spec/review-result-architecture_boundary.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-result-product_requirement.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/planning_spec/review-result-product_requirement.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/review-result-spec_consistency.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/planning_spec/review-result-spec_consistency.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T15-51-09.075Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T15-51-09.075Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T16-26-49.021Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T16-26-49.021Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T15-51-08.966Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T15-51-08.966Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T16-26-46.503Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T16-26-46.503Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-preview_smoke-2026-07-01T15-55-02.614Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-preview_smoke-2026-07-01T15-55-02.614Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-request-human_usability.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/preview/review-request-human_usability.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-request-network_runtime.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/preview/review-request-network_runtime.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-request-preview_smoke.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/preview/review-request-preview_smoke.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-result-human_usability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/preview/review-result-human_usability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-result-network_runtime.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/preview/review-result-network_runtime.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/review-result-preview_smoke.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/preview/review-result-preview_smoke.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-human-usability-019f1e5c-36a6-7e03-b0d3-8fbd4a26b429-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-human-usability-019f1e5c-36a6-7e03-b0d3-8fbd4a26b429-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-network-runtime-019f1e5b-ecfa-7972-a53b-dc9229423b69-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-network-runtime-019f1e5b-ecfa-7972-a53b-dc9229423b69-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-preview-smoke-019f1e60-9b7d-7322-ba77-f800a92bdc15-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-preview-smoke-019f1e60-9b7d-7322-ba77-f800a92bdc15-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-acceptance_e2e-2026-07-01T16-28-03.466Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-acceptance_e2e-2026-07-01T16-28-03.466Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-product_requirement-2026-07-01T16-27-58.537Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-product_requirement-2026-07-01T16-27-58.537Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-scope_risk-2026-07-01T16-28-00.898Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-scope_risk-2026-07-01T16-28-00.898Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-request-acceptance_e2e.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/requirement/review-request-acceptance_e2e.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-request-product_requirement.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/requirement/review-request-product_requirement.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-request-scope_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/requirement/review-request-scope_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-result-acceptance_e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/requirement/review-result-acceptance_e2e.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-result-product_requirement.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/requirement/review-result-product_requirement.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/review-result-scope_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/requirement/review-result-scope_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-e2e_ux-2026-07-01T15-24-02.214Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-e2e_ux-2026-07-01T15-24-02.214Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T15-24-02.211Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T15-24-02.211Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T16-26-37.462Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T16-26-37.462Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-unit_integration-2026-07-01T15-24-02.175Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-unit_integration-2026-07-01T15-24-02.175Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-e2e_ux.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/test_plan/review-request-e2e_ux.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-gate_coverage.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/test_plan/review-request-gate_coverage.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-unit_integration.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/test_plan/review-request-unit_integration.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-result-e2e_ux.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/test_plan/review-result-e2e_ux.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-result-gate_coverage.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/test_plan/review-result-gate_coverage.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-result-unit_integration.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/reviews/test_plan/review-result-unit_integration.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-e2e-ux-019f1e38-dc40-75d3-a8be-7f77998e6fda-current-head.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-e2e-ux-019f1e38-dc40-75d3-a8be-7f77998e6fda-current-head.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-gate-coverage-019f1e38-f23a-70f2-94ae-c9a1b1a1e367-current-head.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-gate-coverage-019f1e38-f23a-70f2-94ae-c9a1b1a1e367-current-head.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-unit-integration-019f1e39-07f6-78b1-87d0-c15992f832ad-current-head.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-unit-integration-019f1e39-07f6-78b1-87d0-c15992f832ad-current-head.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/diagnostics/2026-07-01T074450Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-05-19.154Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-05-19.154Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-37-08.968Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-architecture_boundary-2026-07-01T15-37-08.968Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T14-42-49.856Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T14-42-49.856Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-04-55.780Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-04-55.780Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-31-45.218Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T15-31-45.218Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T16-26-35.075Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-regression_risk-2026-07-01T16-26-35.075Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-05-19.181Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-05-19.181Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-37-08.972Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/history/review-result-spec_consistency-2026-07-01T15-37-08.972Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e2d-d952-7710-8269-45ecced50f09.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e2d-d952-7710-8269-45ecced50f09.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e1e-c53e-7ca3-a220-23954178c3db.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e1e-c53e-7ca3-a220-23954178c3db.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e2e-a183-7c50-b497-bae5435ee1cf.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e2e-a183-7c50-b497-bae5435ee1cf.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-spec-consistency-019f1e2e-11b7-77e3-b5c5-d98df205f899.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-spec-consistency-019f1e2e-11b7-77e3-b5c5-d98df205f899.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-00-42.729Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-00-42.729Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-26-52.347Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-gate_evidence-2026-07-01T16-26-52.347Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-pr_split_scope-2026-07-01T16-06-46.386Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-pr_split_scope-2026-07-01T16-06-46.386Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-01-13.287Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-01-13.287Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-26-55.112Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/history/review-result-release_risk-2026-07-01T16-26-55.112Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-gate-evidence-019f1e64-9608-7a01-af06-699896d0c83d-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-gate-evidence-019f1e64-9608-7a01-af06-699896d0c83d-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-pr-split-scope-019f1e6b-b59b-7ee0-9b51-8d52b8b4f647-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-pr-split-scope-019f1e6b-b59b-7ee0-9b51-8d52b8b4f647-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-release-risk-019f1e64-c8df-7560-9617-f9018dc3895f-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/gate/subagent-transcript-release-risk-019f1e64-c8df-7560-9617-f9018dc3895f-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-code_spec_alignment-2026-07-01T16-26-44.108Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-code_spec_alignment-2026-07-01T16-26-44.108Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T15-43-39.586Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T15-43-39.586Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T16-26-39.810Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-runtime_contract-2026-07-01T16-26-39.810Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T15-43-39.707Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T15-43-39.707Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T16-26-41.972Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/history/review-result-ux_completion-2026-07-01T16-26-41.972Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-runtime-contract-019f1e55-4cb6-7a33-8f42-72c6dfdb5c4d-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-runtime-contract-019f1e55-4cb6-7a33-8f42-72c6dfdb5c4d-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-ux-completion-019f1e55-61e1-7b30-87d9-d5ce03fcd3df-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/implementation/subagent-transcript-ux-completion-019f1e55-61e1-7b30-87d9-d5ce03fcd3df-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-architecture_boundary-2026-07-01T16-27-53.870Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-architecture_boundary-2026-07-01T16-27-53.870Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-product_requirement-2026-07-01T16-27-51.300Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-product_requirement-2026-07-01T16-27-51.300Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-spec_consistency-2026-07-01T16-27-56.394Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/history/review-result-spec_consistency-2026-07-01T16-27-56.394Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/planning_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T15-51-09.075Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T15-51-09.075Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T16-26-49.021Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-human_usability-2026-07-01T16-26-49.021Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T15-51-08.966Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T15-51-08.966Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T16-26-46.503Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-network_runtime-2026-07-01T16-26-46.503Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-preview_smoke-2026-07-01T15-55-02.614Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/history/review-result-preview_smoke-2026-07-01T15-55-02.614Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-human-usability-019f1e5c-36a6-7e03-b0d3-8fbd4a26b429-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-human-usability-019f1e5c-36a6-7e03-b0d3-8fbd4a26b429-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-network-runtime-019f1e5b-ecfa-7972-a53b-dc9229423b69-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-network-runtime-019f1e5b-ecfa-7972-a53b-dc9229423b69-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-preview-smoke-019f1e60-9b7d-7322-ba77-f800a92bdc15-current-head.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/preview/subagent-transcript-preview-smoke-019f1e60-9b7d-7322-ba77-f800a92bdc15-current-head.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-acceptance_e2e-2026-07-01T16-28-03.466Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-acceptance_e2e-2026-07-01T16-28-03.466Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-product_requirement-2026-07-01T16-27-58.537Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-product_requirement-2026-07-01T16-27-58.537Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-scope_risk-2026-07-01T16-28-00.898Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/history/review-result-scope_risk-2026-07-01T16-28-00.898Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/requirement/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-e2e_ux-2026-07-01T15-24-02.214Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-e2e_ux-2026-07-01T15-24-02.214Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T15-24-02.211Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T15-24-02.211Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T16-26-37.462Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-gate_coverage-2026-07-01T16-26-37.462Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-unit_integration-2026-07-01T15-24-02.175Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/history/review-result-unit_integration-2026-07-01T15-24-02.175Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-e2e-ux-019f1e38-dc40-75d3-a8be-7f77998e6fda-current-head.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-e2e-ux-019f1e38-dc40-75d3-a8be-7f77998e6fda-current-head.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-gate-coverage-019f1e38-f23a-70f2-94ae-c9a1b1a1e367-current-head.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-gate-coverage-019f1e38-f23a-70f2-94ae-c9a1b1a1e367-current-head.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-unit-integration-019f1e39-07f6-78b1-87d0-c15992f832ad-current-head.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-unit-integration-019f1e39-07f6-78b1-87d0-c15992f832ad-current-head.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/references/vibepro/stories/story-meeting-pack-graph-ssot-playbook/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 9855662
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-01T074450Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1484218
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8344718
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-architecture-boundary-019f1e4f-362a-7ea2-a40b-11f8cd4e864c-current-head.md",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e4b-6987-7e92-b4ae-a0b6bc5c1ad8-current-head.md",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-spec-consistency-019f1e4f-4b1b-7a60-bc7b-dded672f0c7a-current-head.md",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/verification/",
+      "reason": "source_missing"
+    }
+  ]
+}

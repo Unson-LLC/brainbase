@@ -1,0 +1,48 @@
+{
+  "agent_id": "019f1e2e-11b7-77e3-b5c5-d98df205f899",
+  "stage": "architecture_spec",
+  "role": "spec_consistency",
+  "head": "8c2924e1632fe9ce321442f202961dd151663008",
+  "status": "pass",
+  "summary": "spec_consistency は pass。現行 HEAD 8c2924e1632fe9ce321442f202961dd151663008 では、Graph SSOT は補助文脈、Transcript/Slack attachment は事実ソース、Decision output は Human Gate と明示ペア、Companion inbox は actionable/read-only projection として一貫している。",
+  "inspection_summary": "review request、HEAD 差分、Story/Spec/Architecture、Companion inbox spec/architecture、VibePro spec artifact、verification evidence、追加 unit test を確認した。",
+  "inspection_input": [
+    ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-spec_consistency.md",
+    "docs/stories/story-meeting-pack-graph-ssot-playbook.md",
+    "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+    "docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md",
+    "docs/specs/story-companion-approval-inbox-v1-spec.md",
+    "docs/architecture/companion-approval-inbox-architecture.md",
+    "tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts",
+    "tests/server/routes/companion-approval-inbox.test.js",
+    ".vibepro/spec/story-meeting-pack-graph-ssot-playbook/spec.json",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json"
+  ],
+  "inspection_evidence": [
+    "git show: HEAD commit is 8c2924e16 Cover decision approvals in companion inbox; changed files are only tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts and tests/server/routes/companion-approval-inbox.test.js",
+    "npx vitest run tests/server/routes/companion-approval-inbox.test.js: 21 tests passed",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json records current HEAD unit/e2e pass for AC-012; older integration evidence is e7cc6ad5 and was not used as current proof"
+  ],
+  "judgment_delta": [
+    "initial concern: previous spec_consistency review-result was stale at e7cc6ad5 -> final: ignored as decisive evidence because current HEAD is 8c2924e16",
+    "initial concern: Decision output might still be output_only in Companion inbox -> final: tests assert action_kind=decision_candidates, metadata.output_id matches returned output id, and output_only is absent",
+    "initial concern: Graph SSOT might be described as fact source -> final: Story/Spec/Architecture consistently state Transcript/Slack attachment is fact source and Graph SSOT is identity/relationship/glossary context only"
+  ],
+  "findings": [],
+  "commands_run": [
+    "pwd && git status --short --branch && git rev-parse HEAD",
+    "sed -n '1,240p' .vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-spec_consistency.md",
+    "git diff --stat HEAD~1..HEAD && git diff --name-only HEAD~1..HEAD",
+    "nl -ba docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md",
+    "nl -ba docs/stories/story-meeting-pack-graph-ssot-playbook.md",
+    "nl -ba docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+    "nl -ba docs/specs/story-companion-approval-inbox-v1-spec.md",
+    "nl -ba docs/architecture/companion-approval-inbox-architecture.md",
+    "nl -ba tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts",
+    "nl -ba tests/server/routes/companion-approval-inbox.test.js",
+    "jq '.clauses' .vibepro/spec/story-meeting-pack-graph-ssot-playbook/spec.json",
+    "jq '.' .vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+    "git diff --check HEAD~1..HEAD",
+    "npx vitest run tests/server/routes/companion-approval-inbox.test.js"
+  ]
+}

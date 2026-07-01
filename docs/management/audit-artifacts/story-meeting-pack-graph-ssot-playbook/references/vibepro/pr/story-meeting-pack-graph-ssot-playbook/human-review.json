@@ -1,0 +1,164 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "created_at": "2026-07-01T16:43:31.710Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/split-plan.json",
+    "decision_records": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/story-meeting-pack-graph-ssot-playbook.md)"
+    },
+    "spec": {
+      "status": "present",
+      "required": true,
+      "reason": "explicit Spec docs are present (docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md)"
+    },
+    "decision_records": {
+      "total": 16,
+      "open": 0,
+      "by_type": {
+        "waiver": 16
+      },
+      "by_status": {
+        "accepted": 16
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1782923339655-3557c98f",
+        "story_id": "story-meeting-pack-graph-ssot-playbook",
+        "type": "waiver",
+        "status": "accepted",
+        "source": "gate:judgment_axis_release_ops",
+        "source_status": "block",
+        "summary": "Release ops accepted on current HEAD: no operator migration or rollback runbook is required.",
+        "reason": "Current HEAD 97082cb6 is a backward-compatible metadata addition that pairs decision_candidates output with an existing graph_ssot_decision human approval step. It does not add a database migration, worker, provider dependency, automatic write, manual data repair, or operator action. Rollback is reverting the service/test/docs commits. Owner-visible evidence is the current Companion approval inbox route and Playwright verification showing decision candidates become actionable rather than output_only.",
+        "reviewer": "codex",
+        "artifact": ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+            "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+            "expected_root": null,
+            "expected_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+            "current_head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "97082cb6cb493b19d896e3c886e442174b6df262",
+          "current_branch": "codex/meeting-pack-decision-human-step",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-01T16:28:59.654Z"
+        },
+        "recorded_at": "2026-07-01T16:28:59.655Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": 1,
+      "final_20_auto_closure_rate": 1,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-01T16:43:30.110Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "202599f7082d1c49783ae4d42623f4f825c53564",
+      "branch": "main",
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "f10ee992cd4b640666ce2b066d09b3f9a9f4530b",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M docs/.vitepress/config.mjs",
+        " M docs/guide/ai-pr-workflow.md",
+        " M docs/guide/checkpoints-and-execution.md",
+        " M docs/guide/core-concepts.md",
+        " M docs/guide/gates-and-evidence.md",
+        " M docs/guide/graphify-impact.md",
+        " M docs/guide/story-spec-traceability.md",
+        " M docs/guide/what-is-vibepro.md",
+        " M docs/index.md",
+        " M docs/ja/guide/ai-pr-workflow.md",
+        " M docs/ja/guide/checkpoints-and-execution.md",
+        " M docs/ja/guide/core-concepts.md",
+        " M docs/ja/guide/gates-and-evidence.md",
+        " M docs/ja/guide/graphify-impact.md",
+        " M docs/ja/guide/story-spec-traceability.md",
+        " M docs/ja/guide/what-is-vibepro.md",
+        " M docs/ja/index.md",
+        " M docs/ja/reference/artifact-map.md",
+        " M docs/ja/reference/cli.md",
+        " M docs/reference/artifact-map.md"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

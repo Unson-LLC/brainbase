@@ -1,0 +1,19 @@
+{
+  "agent_id": "019f1e39-07f6-78b1-87d0-c15992f832ad",
+  "stage": "test_plan",
+  "role": "unit_integration",
+  "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+  "status": "pass",
+  "summary": "The previous unit/integration finding is fixed: workflow route coverage now directly asserts Decision output-to-human-step pairing, and focused Vitest evidence passes on current HEAD.",
+  "inspection_summary": "Verified current HEAD and clean worktree; inspected the workflow route, WorkflowService output/human-step pairing implementation, and tests/server/routes/workflows.test.js assertions added in HEAD; ran focused Vitest route suites successfully.",
+  "inspection_evidence": [
+    "git rev-parse HEAD -> 3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "git status --short -> clean",
+    "git show --stat --oneline --no-renames HEAD -> tests/server/routes/workflows.test.js | 23 insertions",
+    "npx vitest run tests/server/routes/workflows.test.js tests/server/routes/companion-approval-inbox.test.js -> 2 files passed, 75 tests passed",
+    "tests/server/routes/workflows.test.js asserts review-ingest route response includes decision_candidates output paired to graph_ssot_decision human step via output_id, output_key, output_type, approval_kind, write_back_target, and requires_human_approval",
+    "tests/server/routes/workflows.test.js asserts run detail response preserves decision output_id, output_type, and approval_kind"
+  ],
+  "judgment_delta": "needs_changes -> pass because workflow route/unit test now directly covers decision output pairing, and focused Vitest passed.",
+  "findings": []
+}

@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "HEAD 3dc8028: gate coverage is current after re-record; provider/project-resolution coverage remains intact and AC-012 decision pairing has unit plus E2E evidence.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected current HEAD 3dc8028302a1, VibePro verify evidence, route tests, E2E contracts, and lifecycle closure. The stale-artifact concern is resolved by this current-head record with transcript provenance.",
+    "evidence": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-gate-coverage-019f1e38-f23a-70f2-94ae-c9a1b1a1e367-current-head.json",
+    "inputs": [
+      ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/pr-prepare.json"
+    ]
+  },
+  "judgment_delta": [
+    "stale artifact concern -> pass because current HEAD review result is recorded with transcript and all lifecycle entries are closed"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+      "current_head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-01T15:24:02.211Z",
+  "git_context": {
+    "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "current_branch": "codex/meeting-pack-decision-human-step",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-01T15:24:02.210Z"
+  },
+  "source_fingerprint": "3b5c2bd3cd1893ae90ad0884f189cc935af3201d09129ce5b10a87f999c268dd",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f1e38-f23a-70f2-94ae-c9a1b1a1e367",
+    "agent_role": null,
+    "model": "gpt-5-codex",
+    "reasoning_effort": "medium",
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/subagent-transcript-gate-coverage-019f1e38-f23a-70f2-94ae-c9a1b1a1e367-current-head.json",
+    "request_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

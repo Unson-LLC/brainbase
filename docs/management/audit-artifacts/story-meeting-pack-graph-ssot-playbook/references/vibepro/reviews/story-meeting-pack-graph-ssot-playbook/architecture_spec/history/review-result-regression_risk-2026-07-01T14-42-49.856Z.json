@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-pack-graph-ssot-playbook",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "Regression risk is acceptable for architecture_spec:regression_risk. The change is additive human-step metadata derived from already-created workflow outputs, preserves the existing 5 output / 5 human gate contract, and is covered across ingest, fallback/blocker/replay, approval-resolution, and companion approval inbox surfaces.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected current HEAD 73d4826, the implementation diff, workflow/repository/API projection paths, VibePro evidence artifacts, adjacent companion approval inbox contracts, and reran focused E2E/Vitest checks against the changed and consuming surfaces.",
+    "evidence": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e1e-c53e-7ca3-a220-23954178c3db.json",
+    "inputs": [
+      "git diff HEAD~1..HEAD; server/services/workflow/workflow-service.js; tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts; tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts; tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts; tests/server/routes/companion-approval-inbox.test.js; .vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json"
+    ]
+  },
+  "judgment_delta": [
+    "Initial concern: adding output_id/output_type/approval_kind to human step metadata could alter public approval API/state shape -> final conclusion: additive metadata is persisted inside existing metadata objects and companion projection keeps backward-compatible fallbacks.",
+    "Initial concern: write_back_target pairing could silently mismatch or cover only the Decision happy path -> final conclusion: all five gate definitions have one-to-one write_back_target values and AC-012 asserts every human step maps to a protected output with a specific Decision assertion.",
+    "Initial concern: regression evidence might be limited to the new happy path -> final conclusion: focused E2E and adjacent companion inbox tests cover ingest, fallback, blockers, replay, approval resolution, reject behavior, and consuming API projection."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+    "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+      "current_head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-01T14:42:49.856Z",
+  "git_context": {
+    "head_sha": "73d4826b6a51958902ef5b3f16536a1ab4249870",
+    "current_branch": "codex/meeting-pack-decision-human-step",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-01T14:42:49.855Z"
+  },
+  "source_fingerprint": "25ff00e90856593e004f4f4eebd698b5b98657f20962a91b85f1380af28e036c",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f1e1e-c53e-7ca3-a220-23954178c3db",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/subagent-transcript-regression-risk-019f1e1e-c53e-7ca3-a220-23954178c3db.json",
+    "request_artifact": ".vibepro/reviews/story-meeting-pack-graph-ssot-playbook/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

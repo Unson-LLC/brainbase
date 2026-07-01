@@ -1,0 +1,22 @@
+{
+  "agent_id": "019f1e38-dc40-75d3-a8be-7f77998e6fda",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "head_sha": "3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+  "status": "pass",
+  "summary": "Current HEAD satisfies the e2e_ux test_plan concern. The delta after 8c2924 is limited to tests/server/routes/workflows.test.js and now directly asserts that decision_candidates output is paired to a pending graph_ssot_decision human approval step with output_id, output_key, output_type, approval_kind, write_back_target, and requires_human_approval metadata. No regressions found for Companion actionable approval gate or graph playbook paths.",
+  "inspection_summary": "Verified current HEAD and clean worktree; confirmed only workflows.test.js changed after 8c2924; inspected added route/unit assertions around decision output pairing; confirmed current VibePro evidence records focused E2E pass at HEAD for Graph SSOT playbook, review-ingest, and Companion approval inbox AC-012 coverage; reran focused route/unit suite with 75 tests passed.",
+  "inspection_evidence": [
+    "git rev-parse HEAD -> 3dc8028302a1632825841a1c87b9f26ccf7a1bad",
+    "git status --short -> clean",
+    "git diff --name-status 8c2924e1632fe9ce321442f202961dd151663008..3dc8028302a1632825841a1c87b9f26ccf7a1bad -> M tests/server/routes/workflows.test.js",
+    "npx vitest run tests/server/routes/workflows.test.js tests/server/routes/companion-approval-inbox.test.js -> 2 files passed, 75 tests passed",
+    "tests/server/routes/workflows.test.js asserts decision_candidates output and graph_ssot_decision human step matching output_id/output_key/output_type/approval_kind/write_back_target/requires_human_approval metadata",
+    ".vibepro/pr/story-meeting-pack-graph-ssot-playbook/verification-evidence.json records E2E command passed at current HEAD with 39 passed and 1 skipped"
+  ],
+  "judgment_delta": [
+    "Previous risk: Decision candidate output could remain output_only or unpaired from the human approval gate. Final: route/unit assertion closes that gap at HTTP workflow ingest and run-detail surfaces.",
+    "Existing E2E coverage still verifies Companion approval inbox exposes decision_candidates as actionable workflow_approval with action_kind decision_candidates and no output_only marker."
+  ],
+  "findings": []
+}
