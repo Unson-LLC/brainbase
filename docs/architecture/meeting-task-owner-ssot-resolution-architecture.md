@@ -5,11 +5,12 @@
 ```mermaid
 flowchart TB
   pkg["Review Package task_candidates[]"] --> hint["owner_hint / assignee hint"]
-  hint --> normalize["検索用に @ と空白を正規化"]
+  hint --> normalize["検索用に @・敬称・空白を正規化"]
   normalize --> speaker{"Speaker label?"}
   speaker -->|yes| ignored["owner_resolution.status=ignored"]
   speaker -->|no| ssot["InfoSSOTService.listGraphEntities(entityType=person)"]
-  ssot --> match{"single SSOT result and exact name/alias?"}
+  ssot --> rank["name/display_name/aliases/project_idsで候補をscore順にrank"]
+  rank --> match{"high confidence owner?"}
   match -->|yes| resolved["selected_owner_id + selected_owner"]
   match -->|no candidates| unresolved["owner_resolution.status=unresolved"]
   match -->|multiple/ambiguous| ambiguous["owner_resolution.status=ambiguous"]
@@ -24,13 +25,13 @@ flowchart TB
 ```mermaid
 stateDiagram-v2
   [*] --> HintCaptured: task candidate has owner_hint
-  HintCaptured --> AlreadySelected: selected_owner_id exists
-  AlreadySelected --> Persisted: preserve existing owner
+  HintCaptured --> AlreadySelected: selected_owner_id exists in people SSOT
+  AlreadySelected --> Persisted: preserve SSOT-verified owner
   HintCaptured --> Ignored: Speaker label
   HintCaptured --> LookupSSOT: normalized hint is searchable
-  LookupSSOT --> Resolved: the only SSOT result is an exact person match
+  LookupSSOT --> Resolved: unique exact match or context-ranked high-confidence match
   LookupSSOT --> Unresolved: no match or SSOT unavailable
-  LookupSSOT --> Ambiguous: multiple SSOT candidates, even if one is exact
+  LookupSSOT --> Ambiguous: multiple SSOT candidates without a confident top candidate
   Resolved --> HumanGatePending: payload has selected_owner_id
   Unresolved --> HumanGatePending: payload has no selected_owner_id
   Ambiguous --> HumanGatePending: payload has candidates only
@@ -43,14 +44,23 @@ stateDiagram-v2
 
 - 正本: Brainbase Graph SSOTの `person` エンティティ。
 - 入力ヒント: Review Package内の `owner_hint`。これは正本ではなく検索語としてだけ使う。
+- 既存担当者ID: Review Package内の `selected_owner_id` は正本ではなく、Brainbase Graph SSOTに存在するperson idとして検証できた場合だけ `already_selected` として維持する。
 - 書き込み先: `workflow_outputs.type=task_candidates` のpayload。Task Store作成は承認後の別境界。
 - 利用者画面: Mac Companionはpayloadの `selected_owner_id` を初期選択として扱い、変更時は既存のpeople SSOT APIで候補を取得する。
+
+## Architecture Decision Quality
+
+- Boundary: この変更の境界はMeeting Review Package ingest内のTask候補payload enrichmentに限定する。Task Store作成、people SSOT登録、既存human gateの承認状態は変更しない。
+- Compatibility impact: API入力契約とDB schemaは変更しない。追加される `selected_owner_id` / `selected_owner` / `owner_candidates` / `owner_resolution` は既存クライアントが無視できる後方互換のpayloadフィールドである。
+- Alternatives considered: AI抽出の `owner_hint` をそのまま担当者正本にする案は、表記ゆれ・話者ラベル・未登録者を誤って正本化するため却下した。Mac Companion上の手動選択だけにする案は、毎回の確認負荷が高く、SSOT alias/project contextを活用できないため却下した。
+- Rollback plan: PR revertで `WorkflowService` のowner resolver呼び出しを外す。既に保存された追加payloadは付加情報なので、既存Review Package承認フローとTask Store作成は従来通り継続できる。
+- Accepted followups: 本PRではingest時の候補抽出・自動選定・UI表示理由に限定する。people SSOTへの新規person登録API対応、既存workflow_outputの一括再解決、alias整備運用は別作業として扱う。
 
 ## Threat Model
 
 ```mermaid
 flowchart LR
-  ai["AI extracted owner_hint<br/>untrusted hint"] --> resolver["WorkflowService owner resolver<br/>normalizes and exact-matches only"]
+  ai["AI extracted owner_hint<br/>untrusted hint"] --> resolver["WorkflowService owner resolver<br/>normalizes and ranks candidates"]
   resolver --> ssot["Brainbase Graph people SSOT<br/>canonical person master"]
   resolver --> output["workflow_outputs payload<br/>additive review metadata"]
   output --> gate["Human review gate<br/>required_before_task_create"]
@@ -60,9 +70,9 @@ flowchart LR
 ```
 
 - Threat: AIが `@矢島様` や `Speaker 1` を担当者らしく出しても、それ自体は正本ではない。
-- Control: Graph people検索結果の総数が1件で、かつその1件が `person.name` / `display_name` / `aliases[]` に完全一致するときだけ `selected_owner_id` を付与する。完全一致が1件あっても、同じ検索で部分一致候補が他に返る場合はambiguousとして人間確認に残す。
+- Control: Graph people検索結果は `owner_candidates[]` に残す。`selected_owner_id` を付与するのは、候補が1件で `person.name` / `display_name` / `aliases[]` に完全一致する場合、または `project_ids` が対象projectに一致しscore差を持つ高信頼候補として第一候補になる場合に限る。
 - Control: unknown、ambiguous、speaker label、SSOT unavailableは `owner_resolution` に理由を残し、Task Store作成やpeople SSOT登録を自動実行しない。
-- Residual risk: people SSOT側のaliasが不足している場合は未解決になる。これはMac Companionの担当者選択・SSOT登録導線で人間が補正する。
+- Residual risk: people SSOT側のaliasやproject linkageが不足している場合、候補は出ても自動選択されないことがある。これはMac Companionの担当者選択・SSOT登録導線で人間が補正する。
 
 ## Responsibility Authority
 

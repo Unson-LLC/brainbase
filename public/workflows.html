@@ -724,11 +724,14 @@
             };
             const reasonLabels = {
                 unique_exact_name_or_alias: 'people SSOTの名前/別名に一意一致',
+                context_ranked_owner_hint: 'people SSOT候補をプロジェクト文脈で第一候補に解決',
                 no_people_ssot_candidate: 'people SSOTに一致候補なし',
                 ambiguous_people_ssot_candidate: 'people SSOTに複数候補あり',
                 speaker_label_is_not_people_ssot: 'Speaker表記は担当者として使わない',
                 people_ssot_unavailable: 'people SSOTを取得できない',
-                selected_owner_id_already_present: '既存の選択済み担当者を維持'
+                selected_owner_id_already_present: '既存の選択済み担当者を維持',
+                selected_owner_id_verified_in_people_ssot: '既存の担当者IDをpeople SSOTで確認済み',
+                selected_owner_id_not_found_in_people_ssot: '既存の担当者IDがpeople SSOTに存在しない'
             };
             const actionLabels = {
                 resolved: 'このまま承認できます',

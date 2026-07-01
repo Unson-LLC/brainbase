@@ -36,7 +36,7 @@
         "current_head_verification",
         "people_ssot_owner_resolution"
       ],
-      "unknown_policy": "AI owner_hint is never canonical. If a person cannot be resolved by exactly one Brainbase Graph people SSOT entry, the task candidate must remain unresolved, ambiguous, or ignored for human review."
+      "unknown_policy": "AI owner_hint and Review Package selected_owner_id are never canonical by themselves. selected_owner_id may be set or preserved only for a unique exact Brainbase Graph people SSOT match, a project-context high-confidence candidate, or an existing selected_owner_id verified as a people SSOT person id. Otherwise the task candidate must remain unresolved, ambiguous, or ignored for human review while preserving owner_candidates."
     }
   ]
 }

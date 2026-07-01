@@ -46,11 +46,18 @@ function makeInfoSSOTPeopleService(records = []) {
         calls,
         async listGraphEntities(access, options = {}) {
             calls.push({ access, options });
+            if (options.id) {
+                return records.filter((record) => {
+                    const payload = record.payload || {};
+                    return [record.id, record.entity_id, payload.person_id, payload.id]
+                        .filter(Boolean)
+                        .some((value) => String(value) === String(options.id));
+                });
+            }
             const query = String(options.query || '').trim().replace(/^@+/, '').toLowerCase();
             return records.filter((record) => {
                 const payload = record.payload || {};
                 const values = [
-                    record.id,
                     payload.name,
                     payload.display_name,
                     ...(Array.isArray(payload.aliases) ? payload.aliases : [])
@@ -2056,6 +2063,261 @@ describe('WorkflowService org agent loop control', () => {
             }
         });
         expect(taskOutput.payload[0].selected_owner_id).toBeUndefined();
+    });
+
+    it('story-meeting-task-owner-ssot-resolution ranks partial owner hints by project context', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_sato_keigo',
+                member_of_project_codes: ['brainbase', 'salestailor'],
+                payload: {
+                    name: '佐藤 圭吾',
+                    display_name: '佐藤 圭吾',
+                    aliases: ['佐藤圭吾', 'Keigo Sato', 'ksato', 'さとけい', 'King', 'キング'],
+                    status: 'active'
+                }
+            },
+            {
+                id: 'person_sato_noriyuki',
+                member_of_project_codes: ['garu-urawa'],
+                payload: {
+                    name: '佐藤 紀征',
+                    display_name: '佐藤 紀征',
+                    aliases: ['佐藤さん', 'ガル浦和代表'],
+                    status: 'active'
+                }
+            },
+            {
+                id: 'person_hori_shiori',
+                member_of_project_codes: ['brainbase', 'salestailor'],
+                payload: {
+                    name: '堀 汐里',
+                    display_name: '堀 汐里',
+                    aliases: ['堀汐里', '堀', 'Shiori Hori', 'hori_dom'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.package_id = 'meeting-review-package-context-ranked-owner-unit';
+        reviewPackage.task_candidates = [
+            {
+                title: '佐藤さんにMeeting Packの再生成結果を確認してもらう。',
+                owner_hint: '@佐藤さん'
+            },
+            {
+                title: '汐里さんにSalesTailor向け確認事項を共有する。',
+                owner_hint: '@汐里さん'
+            },
+            {
+                title: 'キングに担当者SSOTの別名解決を確認してもらう。',
+                owner_hint: '@キング'
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0]).toMatchObject({
+            owner_hint: '@佐藤さん',
+            selected_owner_id: 'person_sato_keigo',
+            selected_owner: '佐藤 圭吾',
+            owner_candidates: [
+                expect.objectContaining({
+                    person_id: 'person_sato_keigo',
+                    match: 'partial_name_or_alias',
+                    context_match: true
+                }),
+                expect.objectContaining({
+                    person_id: 'person_sato_noriyuki'
+                })
+            ],
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'resolved',
+                confidence: 0.9,
+                reason: 'context_ranked_owner_hint'
+            }
+        });
+        expect(taskOutput.payload[1]).toMatchObject({
+            owner_hint: '@汐里さん',
+            selected_owner_id: 'person_hori_shiori',
+            selected_owner: '堀 汐里',
+            owner_candidates: [
+                expect.objectContaining({
+                    person_id: 'person_hori_shiori',
+                    match: 'partial_name_or_alias',
+                    context_match: true
+                })
+            ],
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'resolved',
+                confidence: 0.9,
+                reason: 'context_ranked_owner_hint'
+            }
+        });
+        expect(taskOutput.payload[2]).toMatchObject({
+            owner_hint: '@キング',
+            selected_owner_id: 'person_sato_keigo',
+            selected_owner: '佐藤 圭吾',
+            owner_candidates: [
+                expect.objectContaining({
+                    person_id: 'person_sato_keigo',
+                    match: 'exact_name_or_alias',
+                    context_match: true
+                })
+            ],
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'resolved',
+                confidence: 1,
+                reason: 'unique_exact_name_or_alias'
+            }
+        });
+    });
+
+    it('story-meeting-task-owner-ssot-resolution keeps inactive context owner hints unselected', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_sato_inactive',
+                payload: {
+                    name: '佐藤 旧担当',
+                    display_name: '佐藤 旧担当',
+                    aliases: ['佐藤さん'],
+                    project_ids: ['salestailor'],
+                    status: 'inactive'
+                }
+            },
+            {
+                id: 'person_sato_other',
+                payload: {
+                    name: '佐藤 他部署',
+                    display_name: '佐藤 他部署',
+                    aliases: ['佐藤'],
+                    project_ids: ['other-project'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.package_id = 'meeting-review-package-inactive-context-owner-unit';
+        reviewPackage.task_candidates = [
+            {
+                title: '佐藤さんにMeeting Packの再生成結果を確認してもらう。',
+                owner_hint: '@佐藤さん'
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0].owner_candidates).toEqual([
+            expect.objectContaining({
+                person_id: 'person_sato_inactive',
+                context_match: true,
+                status: 'inactive'
+            }),
+            expect.objectContaining({
+                person_id: 'person_sato_other',
+                status: 'active'
+            })
+        ]);
+        expect(taskOutput.payload[0]).toMatchObject({
+            owner_hint: '@佐藤さん',
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'ambiguous',
+                reason: 'ambiguous_people_ssot_candidate'
+            }
+        });
+        expect(taskOutput.payload[0].selected_owner_id).toBeUndefined();
+    });
+
+    it('story-meeting-task-owner-ssot-resolution preserves an existing selected owner only after people SSOT verification', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person_yajima_tsuyoshi',
+                payload: {
+                    name: '矢島剛',
+                    display_name: '矢島剛',
+                    aliases: ['矢島様'],
+                    project_ids: ['salestailor'],
+                    status: 'active'
+                }
+            }
+        ]);
+        const { service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({
+            org_id: 'salestailor',
+            project_id: 'salestailor'
+        }, actor);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.package_id = 'meeting-review-package-existing-selected-owner-unit';
+        reviewPackage.task_candidates = [
+            {
+                title: '矢島さんに写真選定を依頼する。',
+                owner_hint: '@矢島様',
+                selected_owner_id: 'person_yajima_tsuyoshi',
+                selected_owner: '矢島剛',
+                owner_resolution: {
+                    source: 'review_package',
+                    status: 'resolved',
+                    reason: 'untrusted_inbound_resolution'
+                }
+            },
+            {
+                title: '未検証担当者に確認する。',
+                owner_hint: '@未検証さん',
+                selected_owner_id: 'person_unknown_from_review_package',
+                selected_owner: '未検証担当',
+                owner_resolution: {
+                    source: 'review_package',
+                    status: 'resolved',
+                    reason: 'stale_inbound_resolution'
+                }
+            }
+        ];
+
+        const result = await service.ingestMeetingReviewPackage({
+            review_package: reviewPackage
+        }, actor);
+
+        const taskOutput = result.meeting_review_ingest.outputs.find((output) => output.type === 'task_candidates');
+        expect(taskOutput.payload[0]).toMatchObject({
+            selected_owner_id: 'person_yajima_tsuyoshi',
+            selected_owner: '矢島剛',
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'already_selected',
+                reason: 'selected_owner_id_verified_in_people_ssot'
+            }
+        });
+        expect(taskOutput.payload[1].selected_owner_id).toBeUndefined();
+        expect(taskOutput.payload[1].selected_owner).toBeUndefined();
+        expect(taskOutput.payload[1]).toMatchObject({
+            owner_hint: '@未検証さん',
+            owner_candidates: [],
+            owner_resolution: {
+                source: 'graph_ssot',
+                status: 'unresolved',
+                reason: 'selected_owner_id_not_found_in_people_ssot'
+            }
+        });
     });
 
     it('story-meeting-review-package-ingest-v1 preserves legacy stable ids for non-review workflow templates', async () => {

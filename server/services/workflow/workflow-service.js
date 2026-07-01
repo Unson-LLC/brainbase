@@ -284,6 +284,17 @@ function normalizePeopleCompactText(value) {
     return normalizePeopleText(value).replace(/\s+/g, '');
 }
 
+function normalizeOwnerHintSearchText(value) {
+    return normalizePeopleText(value).replace(/(さん|様|氏)$/u, '').trim();
+}
+
+function ownerHintSearchQueries(ownerHint) {
+    return Array.from(new Set([
+        normalizePeopleText(ownerHint),
+        normalizeOwnerHintSearchText(ownerHint)
+    ].filter(Boolean)));
+}
+
 function isSpeakerOwnerHint(value) {
     const normalized = normalizePeopleText(value);
     return /^speaker\s*\d+$/.test(normalized) || /^話者\s*\d+$/.test(normalized);
@@ -297,11 +308,56 @@ function personNameValues(person = {}) {
     ].filter((value) => typeof value === 'string' && value.trim());
 }
 
+function normalizeProjectIDs(value) {
+    if (!value) return [];
+    const values = Array.isArray(value) ? value : [value];
+    return Array.from(new Set(values
+        .flatMap((item) => {
+            if (Array.isArray(item)) return normalizeProjectIDs(item);
+            if (typeof item === 'string') return [item];
+            if (!item || typeof item !== 'object') return [];
+            return [item.id, item.project_id, item.projectId, item.project_code, item.projectCode, item.code, item.slug, item.name];
+        })
+        .filter((item) => typeof item === 'string' && item.trim())
+        .map((item) => item.trim())));
+}
+
 function normalizeTaskOwnerPerson(record) {
     const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
     const id = record?.id || record?.entity_id || payload.person_id || payload.id || '';
     const displayName = payload.display_name || payload.name || record?.label || id;
     if (!id || !displayName) return null;
+    const projectIds = normalizeProjectIDs([
+        payload.project_ids,
+        payload.projectIds,
+        payload.project_codes,
+        payload.projectCodes,
+        payload.projects,
+        payload.member_of,
+        payload.memberOf,
+        payload.member_of_project_codes,
+        payload.memberOfProjectCodes,
+        payload.member_of_project_ids,
+        payload.memberOfProjectIds,
+        payload.project_id,
+        payload.projectId,
+        payload.project_code,
+        payload.projectCode,
+        record?.project_id,
+        record?.projectId,
+        record?.project_code,
+        record?.projectCode,
+        record?.project_codes,
+        record?.projectCodes,
+        record?.member_of,
+        record?.memberOf,
+        record?.member_of_project_codes,
+        record?.memberOfProjectCodes,
+        record?.member_of_project_ids,
+        record?.memberOfProjectIds,
+        record?.projects,
+        record?.project
+    ]);
     return {
         id,
         person_id: id,
@@ -313,6 +369,7 @@ function normalizeTaskOwnerPerson(record) {
         org: payload.org || payload.organization || null,
         role: payload.role || null,
         status: payload.status || 'active',
+        project_ids: projectIds,
         source: 'graph_ssot'
     };
 }
@@ -326,17 +383,56 @@ function taskCandidateOwnerHint(candidate) {
         || '';
 }
 
-function taskOwnerCandidatePayload(person, ownerHint) {
-    const exact = personNameValues(person)
-        .some((value) => normalizePeopleCompactText(value) === normalizePeopleCompactText(ownerHint));
+function taskOwnerCandidatePayload(person, ownerHint, projectId = null) {
+    const ownerHintCompact = normalizePeopleCompactText(ownerHint);
+    const normalizedHintCompact = normalizePeopleCompactText(normalizeOwnerHintSearchText(ownerHint));
+    const nameCompacts = personNameValues(person).map((value) => normalizePeopleCompactText(value));
+    const exact = nameCompacts
+        .some((value) => value === ownerHintCompact || value === normalizedHintCompact);
+    const partial = !exact
+        && normalizedHintCompact.length >= 2
+        && nameCompacts.some((value) => value.includes(normalizedHintCompact));
+    const contextMatch = Boolean(projectId && Array.isArray(person.project_ids) && person.project_ids.includes(projectId));
+    const baseScore = exact ? 100 : (partial ? 70 : 30);
+    const score = baseScore + (contextMatch ? 50 : 0) + (person.status === 'inactive' ? 0 : 5);
     return {
         person_id: person.person_id,
         entity_id: person.entity_id,
         display_name: person.display_name,
         aliases: person.aliases,
+        project_ids: person.project_ids || [],
+        status: person.status || 'active',
         source: 'graph_ssot',
-        match: exact ? 'exact_name_or_alias' : 'search_result'
+        match: exact ? 'exact_name_or_alias' : (partial ? 'partial_name_or_alias' : 'search_result'),
+        context_match: contextMatch,
+        score
     };
+}
+
+function sortTaskOwnerCandidates(candidates) {
+    return [...candidates].sort((a, b) => {
+        if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+        return String(a.display_name || '').localeCompare(String(b.display_name || ''), 'ja');
+    });
+}
+
+function confidentlySelectedTaskOwnerCandidate(ownerCandidates) {
+    const selectableCandidates = ownerCandidates.filter((person) => String(person.status || 'active').toLowerCase() !== 'inactive');
+    if (!selectableCandidates.length) return null;
+    const exactMatches = selectableCandidates.filter((person) => person.match === 'exact_name_or_alias');
+    if (ownerCandidates.length === 1 && exactMatches.length === 1) return selectableCandidates[0];
+    const [first, second] = selectableCandidates;
+    const firstScore = first?.score || 0;
+    const secondScore = second?.score || 0;
+    if (
+        first
+        && first.context_match
+        && ['exact_name_or_alias', 'partial_name_or_alias'].includes(first.match)
+        && firstScore - secondScore >= 20
+    ) {
+        return first;
+    }
+    return null;
 }
 
 function taskOwnerAccessFromActor(actor = {}, projectId = null) {
@@ -1583,12 +1679,45 @@ export class WorkflowService {
     async resolveMeetingReviewTaskOwnerCandidate(candidate, { access, projectId, cache }) {
         if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
         if (candidate.selected_owner_id || candidate.selectedOwnerId) {
+            const selectedOwnerId = candidate.selected_owner_id || candidate.selectedOwnerId;
+            const lookup = await this.lookupTaskOwnerPeopleSSOT({
+                access,
+                projectId,
+                ids: [selectedOwnerId],
+                cache
+            });
+            const selectedPerson = lookup.people?.find((person) => person.person_id === selectedOwnerId);
+            if (lookup.status === 'ok' && selectedPerson) {
+                return {
+                    ...candidate,
+                    selected_owner_id: selectedPerson.person_id,
+                    selected_owner: candidate.selected_owner || candidate.selectedOwner || selectedPerson.display_name,
+                    owner_candidates: [taskOwnerCandidatePayload(selectedPerson, selectedOwnerId, projectId)],
+                    owner_resolution: {
+                        source: 'graph_ssot',
+                        status: 'already_selected',
+                        reason: 'selected_owner_id_verified_in_people_ssot'
+                    }
+                };
+            }
+
+            const {
+                selected_owner_id: _selectedOwnerId,
+                selectedOwnerId: _selectedOwnerIdCamel,
+                selected_owner: _selectedOwner,
+                selectedOwner: _selectedOwnerCamel,
+                ...candidateWithoutUnverifiedOwner
+            } = candidate;
+
             return {
-                ...candidate,
-                owner_resolution: candidate.owner_resolution || {
-                    source: 'review_package',
-                    status: 'already_selected',
-                    reason: 'selected_owner_id_already_present'
+                ...candidateWithoutUnverifiedOwner,
+                owner_candidates: lookup.people?.map((person) => taskOwnerCandidatePayload(person, selectedOwnerId, projectId)) || [],
+                owner_resolution: {
+                    source: 'graph_ssot',
+                    status: 'unresolved',
+                    reason: lookup.status === 'unavailable'
+                        ? 'people_ssot_unavailable'
+                        : 'selected_owner_id_not_found_in_people_ssot'
                 }
             };
         }
@@ -1607,13 +1736,13 @@ export class WorkflowService {
             };
         }
 
-        const query = normalizePeopleText(ownerHint);
-        if (!query) return candidate;
+        const queries = ownerHintSearchQueries(ownerHint);
+        if (!queries.length) return candidate;
 
         const lookup = await this.lookupTaskOwnerPeopleSSOT({
             access,
             projectId,
-            query,
+            queries,
             cache
         });
         if (lookup.status === 'unavailable') {
@@ -1627,19 +1756,23 @@ export class WorkflowService {
             };
         }
 
-        const ownerCandidates = lookup.people.map((person) => taskOwnerCandidatePayload(person, ownerHint));
-        const exactMatches = ownerCandidates.filter((person) => person.match === 'exact_name_or_alias');
-        if (ownerCandidates.length === 1 && exactMatches.length === 1) {
+        const ownerCandidates = sortTaskOwnerCandidates(
+            lookup.people.map((person) => taskOwnerCandidatePayload(person, ownerHint, projectId))
+        );
+        const selectedCandidate = confidentlySelectedTaskOwnerCandidate(ownerCandidates);
+        if (selectedCandidate) {
             return {
                 ...candidate,
-                selected_owner_id: exactMatches[0].person_id,
-                selected_owner: exactMatches[0].display_name,
+                selected_owner_id: selectedCandidate.person_id,
+                selected_owner: selectedCandidate.display_name,
                 owner_candidates: ownerCandidates,
                 owner_resolution: {
                     source: 'graph_ssot',
                     status: 'resolved',
-                    confidence: 1,
-                    reason: 'unique_exact_name_or_alias'
+                    confidence: selectedCandidate.match === 'exact_name_or_alias' ? 1 : 0.9,
+                    reason: ownerCandidates.length === 1 && selectedCandidate.match === 'exact_name_or_alias'
+                        ? 'unique_exact_name_or_alias'
+                        : 'context_ranked_owner_hint'
                 }
             };
         }
@@ -1655,18 +1788,41 @@ export class WorkflowService {
         };
     }
 
-    async lookupTaskOwnerPeopleSSOT({ access, projectId, query, cache }) {
-        const cacheKey = `${projectId || ''}:${query}`;
+    async lookupTaskOwnerPeopleSSOT({ access, projectId, query = null, queries = null, ids = null, cache }) {
+        const searchQueries = Array.isArray(queries) && queries.length ? queries : [query].filter(Boolean);
+        const searchIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+        const cacheKey = `${projectId || ''}:q:${searchQueries.join('|')}:id:${searchIds.join('|')}`;
         if (cache.has(cacheKey)) return cache.get(cacheKey);
 
         try {
-            const records = await this.infoSSOTService.listGraphEntities(access, {
-                projectCode: projectId,
-                entityType: 'person',
-                query,
-                limit: 20
-            });
-            const people = records
+            const recordsByKey = new Map();
+            for (const id of searchIds) {
+                const records = await this.infoSSOTService.listGraphEntities(access, {
+                    projectCode: projectId,
+                    entityType: 'person',
+                    id,
+                    limit: 1
+                });
+                for (const record of records) {
+                    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
+                    const key = record?.id || record?.entity_id || payload.person_id || payload.id || JSON.stringify(record);
+                    if (!recordsByKey.has(key)) recordsByKey.set(key, record);
+                }
+            }
+            for (const searchQuery of searchQueries) {
+                const records = await this.infoSSOTService.listGraphEntities(access, {
+                    projectCode: projectId,
+                    entityType: 'person',
+                    query: searchQuery,
+                    limit: 20
+                });
+                for (const record of records) {
+                    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
+                    const key = record?.id || record?.entity_id || payload.person_id || payload.id || JSON.stringify(record);
+                    if (!recordsByKey.has(key)) recordsByKey.set(key, record);
+                }
+            }
+            const people = Array.from(recordsByKey.values())
                 .map(normalizeTaskOwnerPerson)
                 .filter(Boolean);
             const result = { status: 'ok', people };

@@ -491,7 +491,23 @@ export class InfoSSOTService {
         const trimmedQuery = typeof query === 'string' ? query.trim() : '';
         const compactQuery = trimmedQuery.replace(/\s+/g, '');
         const { rows } = await client.query(
-            `SELECT ge.*, p.code AS project_code
+            `SELECT ge.*,
+                    p.code AS project_code,
+                    ARRAY(
+                      SELECT DISTINCT px.code
+                      FROM graph_edges gx
+                      JOIN projects px ON px.id = gx.project_id
+                      WHERE gx.from_id = ge.id
+                        AND gx.rel_type = 'member_of'
+                      ORDER BY px.code
+                    ) AS member_of_project_codes,
+                    ARRAY(
+                      SELECT DISTINCT gx.project_id::text
+                      FROM graph_edges gx
+                      WHERE gx.from_id = ge.id
+                        AND gx.rel_type = 'member_of'
+                      ORDER BY gx.project_id::text
+                    ) AS member_of_project_ids
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id = ge.project_id
              WHERE (
@@ -576,7 +592,23 @@ export class InfoSSOTService {
         const roleRank = this.getRoleRank(access.role);
         if (!ids?.length) return [];
         const { rows } = await client.query(
-            `SELECT ge.*, p.code AS project_code
+            `SELECT ge.*,
+                    p.code AS project_code,
+                    ARRAY(
+                      SELECT DISTINCT px.code
+                      FROM graph_edges gx
+                      JOIN projects px ON px.id = gx.project_id
+                      WHERE gx.from_id = ge.id
+                        AND gx.rel_type = 'member_of'
+                      ORDER BY px.code
+                    ) AS member_of_project_codes,
+                    ARRAY(
+                      SELECT DISTINCT gx.project_id::text
+                      FROM graph_edges gx
+                      WHERE gx.from_id = ge.id
+                        AND gx.rel_type = 'member_of'
+                      ORDER BY gx.project_id::text
+                    ) AS member_of_project_ids
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id = ge.project_id
              WHERE ge.id = ANY($1)

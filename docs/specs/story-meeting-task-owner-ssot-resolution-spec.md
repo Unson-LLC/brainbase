@@ -45,7 +45,9 @@ diagrams:
       "display_name": "矢島剛",
       "aliases": ["矢島様", "矢島さん"],
       "source": "graph_ssot",
-      "match": "exact_name_or_alias"
+      "match": "exact_name_or_alias",
+      "context_match": true,
+      "score": 155
     }
   ],
   "owner_resolution": {
@@ -75,11 +77,25 @@ diagrams:
 ## Rules
 
 - `owner_hint` の先頭 `@` と余分な空白は検索用にだけ正規化する。保存する `owner_hint` は入力値を維持する。
+- 検索時は `@`、敬称、空白を外したqueryも投げ、alias完全一致だけでなく姓名の部分一致候補も `owner_candidates[]` に残す。
 - personの `name` / `display_name` / `aliases[]` のいずれかに完全一致する候補が1件だけなら `selected_owner_id` を付与する。
-- 候補が0件なら `unresolved`、完全一致が複数または検索候補が複数なら `ambiguous` として扱う。
-- 既に `selected_owner_id` があるTask候補は上書きしない。
+- 複数候補がある場合でも、project contextに一致する候補がscore差を持って第一候補になる場合は `selected_owner_id` を付与し、`owner_resolution.reason=context_ranked_owner_hint` とする。
+- 候補が0件なら `unresolved`、複数候補で第一候補を決めきれない場合は `ambiguous` として扱う。
+- 既に `selected_owner_id` があるTask候補は、同じperson idがpeople SSOTに存在する場合だけ `already_selected` として維持する。people SSOTで検証できないIDは未解決として人間レビューに戻す。
 - `Speaker 1` / `話者1` 形式はSSOT検索対象にせず `ignored` とする。
 - `infoSSOTService.listGraphEntities` がない、または失敗した場合はReview Package ingestを止めない。
+
+## Diagrams
+
+- kind: flow
+  path: `docs/architecture/meeting-task-owner-ssot-resolution-architecture.md`
+  purpose: Review Package ingest時にTask候補の `owner_hint` をpeople SSOTへ照合し、Task candidate outputへ保存するflowを示す。
+- kind: state
+  path: `docs/architecture/meeting-task-owner-ssot-resolution-architecture.md`
+  purpose: `HintCaptured` / `LookupSSOT` / `Resolved` / `Ambiguous` / `Unresolved` / `Ignored` / `HumanGatePending` / `Persisted` の状態遷移を示す。
+- kind: threat_model
+  path: `docs/architecture/meeting-task-owner-ssot-resolution-architecture.md`
+  purpose: AI抽出ヒント、Graph people SSOT、workflow output、人間承認、Task Storeのtrust boundaryを示す。
 
 ## Workflow State Clauses
 
@@ -87,15 +103,17 @@ diagrams:
 - WSC-002: `unresolved` / `ambiguous` / `ignored` のTask候補は承認待ち状態のまま残し、Task Storeへの作成やpeople SSOTへの自動登録を実行しない。
 - WSC-003: `selected_owner_id` が付与されたTask候補も、Meeting Review Packageのhuman gateを bypass せず、既存の `required_before_task_create` 承認ステップに従う。
 - WSC-004: 同一 `package_id + org_id + project_id` の再取り込みは既存run/outputを返すため、担当者解決を重複実行して既存payloadを書き換えない。
-- WSC-005: `HintCaptured` / `AlreadySelected` / `Ignored` / `LookupSSOT` / `Resolved` / `Unresolved` / `Ambiguous` / `HumanGatePending` / `Persisted` の各状態は、保存済みTask候補payloadの `owner_resolution` と `selected_owner_id` の有無で再現できる。
+- WSC-005: `HintCaptured` / `AlreadySelected` / `Ignored` / `LookupSSOT` / `Resolved` / `Unresolved` / `Ambiguous` / `HumanGatePending` / `Persisted` の各状態は、保存済みTask候補payloadの `owner_resolution` とpeople SSOT検証済み `selected_owner_id` の有無で再現できる。
 - WSC-006: `people_ssot_unavailable` / `no_people_ssot_candidate` / `ambiguous_people_ssot_candidate` / `speaker_label_is_not_people_ssot` はingest失敗ではなく `owner_resolution.reason` として保存する。
 
 ## Failure Modes
 
 - FM-001: people SSOTが一時的に利用できない場合は `owner_resolution.reason=people_ssot_unavailable` として保存し、ingest全体は失敗させない。
 - FM-002: AIが `Speaker 1` などの話者ラベルを担当者として出しても、Graph personへ昇格せず `ignored` として保存する。
-- FM-003: `矢島様` のような敬称付きヒントは、people SSOTのalias完全一致だけで解決し、部分一致や推測では `selected_owner_id` を付与しない。
-- FM-004: 複数personが同じヒントへ一致した場合は `ambiguous` とし、人間がMac Companion上で正本担当者を選ぶ。
+- FM-003: `矢島様` のような敬称付きヒントは敬称なしqueryでも検索し、alias完全一致またはproject context付き高信頼候補でのみ `selected_owner_id` を付与する。
+- FM-004: 複数personが同じヒントへ一致し、project contextでも第一候補を決めきれない場合は `ambiguous` とし、人間がMac Companion上で正本担当者を選ぶ。
+- FM-005: `佐藤さん` のような姓のみのヒントは複数person候補を返し得るため、project contextで第一候補を選べる場合を除いて `selected_owner_id` を付与しない。
+- FM-006: `汐里さん` のようにSSOT aliasが不足している名のヒントでも、名の部分一致候補は `owner_candidates[]` に残す。
 
 ## Production Path Matrix
 
@@ -115,39 +133,42 @@ diagrams:
 - Observability evidence: `workflow_outputs.type=task_candidates` のpayloadに `owner_resolution.source=graph_ssot`、`status=resolved|unresolved|ambiguous|ignored`、`reason`、`selected_owner_id` の有無が残る。
 - Support path: 未解決候補はMac Companionでpeople SSOT検索・登録・手動選択する。ingest時点では未登録者をGraphへ自動追加しない。
 
+## Clause Evidence
+
+- AC-016 evidence: `graph_ssot` is the authoritative owner SSOT; Meeting Review Package ingest reads Brainbase Graph people records and writes only candidate resolution metadata.
+- AC-017 evidence: Release requires only normal deploy or server restart; there is no migration, no manual rewrite of existing workflow outputs, and no bulk correction of people SSOT records.
+
 ## Acceptance Criteria
 
-- AC:1 `owner_hint` はAI抽出文字列として保存し、検索用正規化で書き換えない。
-- AC:2 people SSOTのpersonへ一意完全一致した場合だけ `selected_owner_id` を付与する。
-- AC:3 `Speaker 1` / `話者1` 形式は担当者personとして扱わない。
-- AC:4 複数person候補へ一致した場合は `ambiguous` とし、`selected_owner_id` を付与しない。
-- AC:5 Review Package ingestは承認待ちoutput payloadだけを更新し、Task Store作成を自動実行しない。
-- AC:6 people SSOTが利用できない場合でもReview Package ingest全体を失敗させない。
-- AC:7 `@矢島様` のような敬称付きヒントはpeople SSOT alias完全一致で `矢島剛` に解決できる。
-- AC:8 people SSOTに存在しないヒントは `owner_resolution.status=unresolved` として保存する。
-- AC:9 Speaker表記は `speaker_label_is_not_people_ssot` として保存し、正本担当者設定に使わない。
-- AC:10 同一Review Packageの再取り込みは既存run/outputを返し、担当者解決を重複実行しない。
-- AC:11 people SSOT取得失敗時は担当者だけを未解決として人間レビューに渡す。
-- AC:12 既存の `selected_owner_id` があるTask候補は上書きせず `already_selected` として可視化する。
-- AC:13 担当者が解決済みでも `required_before_task_create` のhuman gateを維持する。
-- AC:14 Resolved状態はoutput保存前に `selected_owner_id` とともにpayloadへ永続化する。
-- AC:15 AlreadySelected状態は既存担当者と `owner_resolution` の両方で再現できる。
-- AC:16 Release noteは `graph_ssot` を担当者正本として明示する。
-- AC:17 Operator actionは通常デプロイまたは再起動だけで完了し、migrationを要求しない。
-- AC:18 追加payloadは後方互換で、rollback後も既存承認フローを壊さない。
-- AC:19 Observability signalは `workflow_outputs.payload.task_candidates[].owner_resolution` を正とする。
-- AC:20 未解決担当者はMac Companionでpeople SSOT検索・手動選択できる状態として残る。
-- AC:21 Unit検証はTask候補outputの保存とowner resolution payloadを確認する。
-- AC:22 UI/route検証はReview Package output群を作成できることを確認する。
-- AC:23 Doc traceはReview Package context snapshotを証跡として残す。
-- AC:24 既存Review Package ingest baseline E2Eは `waiting_human` の契約を維持する。
-- AC:25 Release support pathはpeople SSOT未登録候補を自動登録せず、手動補正可能な未解決状態で保持する。
+- AC-001 `owner_hint` はAI抽出文字列として保存し、検索用正規化で書き換えない。
+- AC-002 people SSOTのpersonへ一意完全一致、またはproject context付き高信頼候補として解決できた場合だけ `selected_owner_id` を付与する。
+- AC-003 `Speaker 1` / `話者1` 形式は担当者personとして扱わない。
+- AC-004 複数person候補へ一致して第一候補を決めきれない場合は `ambiguous` とし、`selected_owner_id` を付与しない。
+- AC-005 Review Package ingestは承認待ちoutput payloadだけを更新し、Task Store作成を自動実行しない。
+- AC-006 people SSOTが利用できない場合でもReview Package ingest全体を失敗させない。
+- AC-007 `@矢島様` のような敬称付きヒントはpeople SSOT alias完全一致で `矢島剛` に解決できる。
+- AC-008 people SSOTに存在しないヒントは `owner_resolution.status=unresolved` として保存する。
+- AC-009 Speaker表記は `speaker_label_is_not_people_ssot` として保存し、正本担当者設定に使わない。
+- AC-010 同一Review Packageの再取り込みは既存run/outputを返し、担当者解決を重複実行しない。
+- AC-011 people SSOT取得失敗時は担当者だけを未解決として人間レビューに渡す。
+- AC-012 既存の `selected_owner_id` はpeople SSOTに存在する場合だけ上書きせず `already_selected` として可視化する。
+- AC-013 担当者が解決済みでも `required_before_task_create` のhuman gateを維持する。
+- AC-014 Resolved状態はoutput保存前に `selected_owner_id` とともにpayloadへ永続化する。
+- AC-015 AlreadySelected状態はpeople SSOT検証済みの既存担当者と `owner_resolution` の両方で再現できる。
+- AC-016 Release noteは `graph_ssot` を担当者正本として明示する。
+- AC-017 Operator actionは通常デプロイまたは再起動だけで完了し、migrationを要求しない。
+- AC-018 Rollback instructionはPR revertでpeople SSOT参照を外せること、追加payloadが後方互換であることを明示する。
+- AC-019 Observability signalは `workflow_outputs.payload.task_candidates[].owner_resolution` を正とする。
+- AC-020 未解決担当者はMac Companionでpeople SSOT検索・手動選択できる状態として残る。
+- AC-021 `@佐藤さん` はproject contextに一致する `佐藤 圭吾` を第一候補として返し、他の佐藤候補も `owner_candidates[]` に残す。
+- AC-022 `@汐里さん` はalias完全一致がなくても `堀 汐里` を部分一致候補として返す。
 
 ## Acceptance Tests
 
 - `tests/server/services/workflow-org-agent-control.test.js`
   - `story-meeting-task-owner-ssot-resolution resolves task owner hints from people SSOT before output storage`
   - `story-meeting-task-owner-ssot-resolution keeps ambiguous people SSOT reason explicit`
+  - `story-meeting-task-owner-ssot-resolution ranks partial owner hints by project context`
 - `tests/server/services/info-ssot-service.test.js`
   - `listGraphEntities呼び出し時_queryをGraph検索へ渡す`
 - `tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
