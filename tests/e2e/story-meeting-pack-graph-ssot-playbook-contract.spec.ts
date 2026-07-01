@@ -69,6 +69,43 @@ function makeGraphContextService() {
   };
 }
 
+function makeProjectScopedEmptyGlobalPeopleService() {
+  const calls = [];
+  return {
+    calls,
+    async getContext(access, options) {
+      calls.push({ access, options, method: 'getContext' });
+      return {
+        entities: {
+          project: [{
+            entity_id: 'project-sample',
+            entity_type: 'project',
+            payload: { project_code: 'sample-project', name: 'Sample Project' }
+          }],
+          glossary_term: []
+        },
+        edges: []
+      };
+    },
+    async listGraphEntities(access, options) {
+      calls.push({ access, options, method: 'listGraphEntities' });
+      if (options?.projectCode) return [];
+      if (options?.entityType === 'person' && options?.query === '矢島') {
+        return [{
+          entity_id: 'person-yajima-tsuyoshi',
+          entity_type: 'person',
+          payload: {
+            person_id: 'yajima-tsuyoshi',
+            display_name: '矢島剛',
+            aliases: ['矢島様']
+          }
+        }];
+      }
+      return [];
+    }
+  };
+}
+
 function makeFailingGraphContextService() {
   const calls = [];
   return {
@@ -144,7 +181,10 @@ function samplePackage({
       agreements: ['プロジェクト確定後にGraph SSOTを引く'],
       open_questions: []
     },
-    task_candidates: ['佐藤さんがPlaybookを確認する'],
+    task_candidates: [{
+      title: '佐藤さんがPlaybookを確認する',
+      owner_hint: '@キング'
+    }],
     decision_candidates: ['Graph SSOT取得失敗時は候補fallbackとして保存する'],
     follow_up_draft: {
       status: 'draft_only',
@@ -326,6 +366,84 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
     expect(secondResult.meeting_review_ingest.run.id).toBe(firstResult.meeting_review_ingest.run.id);
     expect(secondResult.meeting_review_ingest.outputs.find((output) => output.type === 'meeting_note_draft')?.payload)
       .toEqual(firstResult.meeting_review_ingest.outputs.find((output) => output.type === 'meeting_note_draft')?.payload);
+  });
+
+  const taskOutput = ingest.outputs.find((output) => output.type === 'task_candidates');
+  await test.step('AC-011 ac:11 S-010 Graph contextのperson aliasは検索APIが空でもTask担当者初期選択に使う', async () => {
+    const acEvidence = 'story-meeting-pack-graph-ssot-playbook ac:11 AC-011 Task担当者解決はproject scoped Graph contextのperson aliasを検索API結果とマージする。';
+    expect(acEvidence).toContain('person aliasを検索API結果とマージする');
+    expect(taskOutput?.payload?.[0]).toMatchObject({
+      owner_hint: '@キング',
+      selected_owner_id: 'person-keigo',
+      selected_owner: '佐藤圭吾',
+      owner_candidates: [
+        expect.objectContaining({
+          person_id: 'person-keigo',
+          display_name: '佐藤圭吾',
+          match: 'exact_name_or_alias',
+          source: 'graph_ssot'
+        })
+      ],
+      owner_resolution: {
+        source: 'graph_ssot',
+        status: 'resolved',
+        confidence: 1,
+        reason: 'unique_exact_name_or_alias'
+      }
+    });
+  });
+});
+
+test('story-meeting-pack-owner-context-candidates AC-008 S-004 project scoped people検索が空ならglobal People SSOTを候補に使う。', async () => {
+  const infoSSOTService = makeProjectScopedEmptyGlobalPeopleService();
+  const packageInput = samplePackage({
+    packageId: 'meeting-pack-owner-context-global-fallback-contract'
+  });
+  packageInput.task_candidates = [{
+    title: '矢島様がGoogleビジネスプロフィールの管理権限をジョーさんに付与する',
+    owner_hint: '@矢島様'
+  }];
+
+  const ingest = await ingestPackage(packageInput, { infoSSOTService });
+  const taskOutput = ingest.outputs.find((output) => output.type === 'task_candidates');
+
+  await test.step('AC-008 S-004 scoped検索では空、global SSOTのexact aliasで初期選択する', async () => {
+    expect(infoSSOTService.calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        method: 'listGraphEntities',
+        options: expect.objectContaining({
+          projectCode: 'sample-project',
+          entityType: 'person',
+          query: '矢島'
+        })
+      }),
+      expect.objectContaining({
+        method: 'listGraphEntities',
+        options: expect.objectContaining({
+          entityType: 'person',
+          query: '矢島'
+        })
+      })
+    ]));
+    expect(taskOutput?.payload?.[0]).toMatchObject({
+      owner_hint: '@矢島様',
+      selected_owner_id: 'person-yajima-tsuyoshi',
+      selected_owner: '矢島剛',
+      owner_candidates: [
+        expect.objectContaining({
+          person_id: 'person-yajima-tsuyoshi',
+          display_name: '矢島剛',
+          match: 'exact_name_or_alias',
+          source: 'graph_ssot'
+        })
+      ],
+      owner_resolution: {
+        source: 'graph_ssot',
+        status: 'resolved',
+        confidence: 1,
+        reason: 'unique_exact_name_or_alias'
+      }
+    });
   });
 });
 

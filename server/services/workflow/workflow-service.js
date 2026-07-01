@@ -438,6 +438,26 @@ function normalizeTaskOwnerPerson(record) {
     };
 }
 
+function graphContextPeople(context = {}) {
+    if (!context || typeof context !== 'object') return [];
+    const entities = context.entities;
+    const records = Array.isArray(entities)
+        ? entities.filter((record) => record?.entity_type === 'person' || record?.type === 'person' || record?.payload?.entity_type === 'person')
+        : (Array.isArray(entities?.person) ? entities.person : []);
+    return records.map(normalizeTaskOwnerPerson).filter(Boolean);
+}
+
+function mergeTaskOwnerPeople(...peopleLists) {
+    const peopleByKey = new Map();
+    for (const person of peopleLists.flat()) {
+        if (!person) continue;
+        const key = person.person_id || person.entity_id || person.id || person.display_name;
+        if (!key || peopleByKey.has(key)) continue;
+        peopleByKey.set(key, person);
+    }
+    return Array.from(peopleByKey.values());
+}
+
 function taskCandidateOwnerHint(candidate) {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return '';
     return readOptionalString(candidate, 'owner_hint', 'ownerHint')
@@ -2015,19 +2035,21 @@ export class WorkflowService {
         });
     }
 
-    async resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, { actor = {}, projectId = null } = {}) {
+    async resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, { actor = {}, projectId = null, graphContext = null } = {}) {
         if (!this.infoSSOTService?.listGraphEntities || !Array.isArray(reviewPackage?.task_candidates)) {
             return reviewPackage;
         }
 
         const access = taskOwnerAccessFromActor(actor, projectId);
         const cache = new Map();
+        const contextPeople = graphContextPeople(graphContext);
         const taskCandidates = [];
 
         for (const candidate of reviewPackage.task_candidates) {
             taskCandidates.push(await this.resolveMeetingReviewTaskOwnerCandidate(candidate, {
                 access,
                 projectId,
+                contextPeople,
                 cache
             }));
         }
@@ -2104,7 +2126,7 @@ export class WorkflowService {
         };
     }
 
-    async resolveMeetingReviewTaskOwnerCandidate(candidate, { access, projectId, cache }) {
+    async resolveMeetingReviewTaskOwnerCandidate(candidate, { access, projectId, cache, contextPeople = [] }) {
         if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
         if (candidate.selected_owner_id || candidate.selectedOwnerId) {
             const selectedOwnerId = candidate.selected_owner_id || candidate.selectedOwnerId;
@@ -2114,7 +2136,8 @@ export class WorkflowService {
                 ids: [selectedOwnerId],
                 cache
             });
-            const selectedPerson = lookup.people?.find((person) => person.person_id === selectedOwnerId);
+            const selectedPerson = mergeTaskOwnerPeople(lookup.people, contextPeople)
+                .find((person) => person.person_id === selectedOwnerId);
             if (lookup.status === 'ok' && selectedPerson) {
                 return {
                     ...candidate,
@@ -2139,7 +2162,8 @@ export class WorkflowService {
 
             return {
                 ...candidateWithoutUnverifiedOwner,
-                owner_candidates: lookup.people?.map((person) => taskOwnerCandidatePayload(person, selectedOwnerId, projectId)) || [],
+                owner_candidates: mergeTaskOwnerPeople(lookup.people, contextPeople)
+                    .map((person) => taskOwnerCandidatePayload(person, selectedOwnerId, projectId)),
                 owner_resolution: {
                     source: 'graph_ssot',
                     status: 'unresolved',
@@ -2185,7 +2209,9 @@ export class WorkflowService {
         }
 
         const ownerCandidates = sortTaskOwnerCandidates(
-            lookup.people.map((person) => taskOwnerCandidatePayload(person, ownerHint, projectId))
+            mergeTaskOwnerPeople(lookup.people, contextPeople)
+                .map((person) => taskOwnerCandidatePayload(person, ownerHint, projectId))
+                .filter((person) => person.match !== 'search_result')
         );
         const selectedCandidate = confidentlySelectedTaskOwnerCandidate(ownerCandidates);
         if (selectedCandidate) {
@@ -2224,31 +2250,44 @@ export class WorkflowService {
 
         try {
             const recordsByKey = new Map();
+            const addRecords = (records = []) => {
+                for (const record of records) {
+                    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
+                    const key = record?.id || record?.entity_id || payload.person_id || payload.id || JSON.stringify(record);
+                    if (!recordsByKey.has(key)) recordsByKey.set(key, record);
+                }
+            };
             for (const id of searchIds) {
-                const records = await this.infoSSOTService.listGraphEntities(access, {
+                let records = await this.infoSSOTService.listGraphEntities(access, {
                     projectCode: projectId,
                     entityType: 'person',
                     id,
                     limit: 1
                 });
-                for (const record of records) {
-                    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
-                    const key = record?.id || record?.entity_id || payload.person_id || payload.id || JSON.stringify(record);
-                    if (!recordsByKey.has(key)) recordsByKey.set(key, record);
+                if ((!Array.isArray(records) || records.length === 0) && projectId) {
+                    records = await this.infoSSOTService.listGraphEntities(access, {
+                        entityType: 'person',
+                        id,
+                        limit: 1
+                    });
                 }
+                addRecords(records);
             }
             for (const searchQuery of searchQueries) {
-                const records = await this.infoSSOTService.listGraphEntities(access, {
+                let records = await this.infoSSOTService.listGraphEntities(access, {
                     projectCode: projectId,
                     entityType: 'person',
                     query: searchQuery,
                     limit: 20
                 });
-                for (const record of records) {
-                    const payload = record?.payload && typeof record.payload === 'object' ? record.payload : {};
-                    const key = record?.id || record?.entity_id || payload.person_id || payload.id || JSON.stringify(record);
-                    if (!recordsByKey.has(key)) recordsByKey.set(key, record);
+                if ((!Array.isArray(records) || records.length === 0) && projectId) {
+                    records = await this.infoSSOTService.listGraphEntities(access, {
+                        entityType: 'person',
+                        query: searchQuery,
+                        limit: 20
+                    });
                 }
+                addRecords(records);
             }
             const people = Array.from(recordsByKey.values())
                 .map(normalizeTaskOwnerPerson)
@@ -2432,7 +2471,8 @@ export class WorkflowService {
         );
         const resolvedReviewPackage = await this.resolveMeetingReviewTaskOwnersFromSSOT(reviewPackageWithPlaybook, {
             actor,
-            projectId
+            projectId,
+            graphContext: graphPlaybookContext.graph_context
         });
 
         return this.repository.transaction(async () => {
