@@ -37,3 +37,11 @@ sender: agent
 status: pending
 message: 📊 週次レトロ完了 — コミット8件、Ship 6件、目標達成率 N/A（Wiki API 不到達）。詳細: /tmp/retro/weekly_report_2026-06-19.md
 ---
+
+---
+id: INBOX-CEO-2026-07
+channel: system
+sender: agent/ceo
+status: pending
+message: "月次CEOレビュー完了。前提チェック実施。_inbox/ceo-review-2026-07.md を確認してください。"
+---
