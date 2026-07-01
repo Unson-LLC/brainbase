@@ -78,11 +78,14 @@ diagrams:
 
 - `owner_hint` の先頭 `@` と余分な空白は検索用にだけ正規化する。保存する `owner_hint` は入力値を維持する。
 - 検索時は `@`、敬称、空白を外したqueryも投げ、alias完全一致だけでなく姓名の部分一致候補も `owner_candidates[]` に残す。
-- personの `name` / `display_name` / `aliases[]` のいずれかに完全一致する候補が1件だけなら `selected_owner_id` を付与する。
+- personの `name` / `display_name` / `aliases[]` のいずれかに完全一致する候補が1件だけなら `selected_owner_id` を付与する。部分一致でも、重複行を畳んだ後の候補が1件だけなら `selected_owner_id` を付与する。
+- person候補は `person_id` だけでなく、`display_name` / `name` / `aliases[]` の正規化キーでも重複排除する。
+- project scoped lookupでは `tech-knight` / `techknight` / `tech_knight` のようなproject code variantを試し、さらにglobal People SSOT検索結果を常にmergeする。
 - 複数候補がある場合でも、project contextに一致する候補がscore差を持って第一候補になる場合は `selected_owner_id` を付与し、`owner_resolution.reason=context_ranked_owner_hint` とする。
 - 候補が0件なら `unresolved`、複数候補で第一候補を決めきれない場合は `ambiguous` として扱う。
 - 既に `selected_owner_id` があるTask候補は、同じperson idがpeople SSOTに存在する場合だけ `already_selected` として維持する。people SSOTで検証できないIDは未解決として人間レビューに戻す。
 - `Speaker 1` / `話者1` 形式はSSOT検索対象にせず `ignored` とする。
+- `担当者` / `担当` / `未定` / `TBD` などの汎用語はSSOT検索対象にせず、`generic_owner_hint_requires_human_selection` として未解決にする。
 - `infoSSOTService.listGraphEntities` がない、または失敗した場合はReview Package ingestを止めない。
 
 ## Diagrams
@@ -105,6 +108,7 @@ diagrams:
 - WSC-004: 同一 `package_id + org_id + project_id` の再取り込みは既存run/outputを返すため、担当者解決を重複実行して既存payloadを書き換えない。
 - WSC-005: `HintCaptured` / `AlreadySelected` / `Ignored` / `LookupSSOT` / `Resolved` / `Unresolved` / `Ambiguous` / `HumanGatePending` / `Persisted` の各状態は、保存済みTask候補payloadの `owner_resolution` とpeople SSOT検証済み `selected_owner_id` の有無で再現できる。
 - WSC-006: `people_ssot_unavailable` / `no_people_ssot_candidate` / `ambiguous_people_ssot_candidate` / `speaker_label_is_not_people_ssot` はingest失敗ではなく `owner_resolution.reason` として保存する。
+- WSC-007: `unique_partial_name_or_alias` / `generic_owner_hint_requires_human_selection` は保存済みTask候補payloadの `owner_resolution.reason` として再現できる。
 
 ## Failure Modes
 
@@ -114,6 +118,9 @@ diagrams:
 - FM-004: 複数personが同じヒントへ一致し、project contextでも第一候補を決めきれない場合は `ambiguous` とし、人間がMac Companion上で正本担当者を選ぶ。
 - FM-005: `佐藤さん` のような姓のみのヒントは複数person候補を返し得るため、project contextで第一候補を選べる場合を除いて `selected_owner_id` を付与しない。
 - FM-006: `汐里さん` のようにSSOT aliasが不足している名のヒントでも、名の部分一致候補は `owner_candidates[]` に残す。
+- FM-007: people SSOTに同一人物の重複行がある場合は、正規化キーで重複排除してから一意性を判定する。
+- FM-008: project codeが `tech-knight` と `techknight` で揺れる場合はvariant lookupとglobal mergeによりalias候補を失わない。
+- FM-009: `担当者` のような汎用語は人名として扱わず、候補検索・自動選択を行わない。
 
 ## Production Path Matrix
 
@@ -162,6 +169,9 @@ diagrams:
 - AC-020 未解決担当者はMac Companionでpeople SSOT検索・手動選択できる状態として残る。
 - AC-021 `@佐藤さん` はproject contextに一致する `佐藤 圭吾` を第一候補として返し、他の佐藤候補も `owner_candidates[]` に残す。
 - AC-022 `@汐里さん` はalias完全一致がなくても `堀 汐里` を部分一致候補として返す。
+- AC-023 `@汐里さん` がpeople SSOTの重複した同一人物行へ当たる場合、正規化キーで畳んだうえで一意なら `selected_owner_id` を付与する。
+- AC-024 `@King氏` / `@キング` は `佐藤 圭吾` のaliasとして解決し、`tech-knight` と `techknight` のproject code表記ゆれを越えて候補検索できる。
+- AC-025 `@担当者` のような汎用語は `generic_owner_hint_requires_human_selection` として未解決にし、正本担当者を初期設定しない。
 
 ## Acceptance Tests
 

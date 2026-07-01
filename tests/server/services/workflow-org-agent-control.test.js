@@ -42,13 +42,36 @@ function makeService({
 
 function makeInfoSSOTPeopleService(records = []) {
     const calls = [];
+    const recordProjectCodes = (record) => {
+        const payload = record.payload || {};
+        return new Set([
+            record.project_id,
+            record.projectId,
+            record.project_code,
+            record.projectCode,
+            record.project_codes,
+            record.projectCodes,
+            record.member_of_project_codes,
+            record.memberOfProjectCodes,
+            payload.project_id,
+            payload.projectId,
+            payload.project_code,
+            payload.projectCode,
+            payload.project_codes,
+            payload.projectCodes,
+            payload.member_of_project_codes,
+            payload.memberOfProjectCodes
+        ].flat().filter(Boolean).map(String));
+    };
     return {
         calls,
         async listGraphEntities(access, options = {}) {
             calls.push({ access, options });
+            const projectCode = String(options.projectCode || '').trim();
             if (options.id) {
                 return records.filter((record) => {
                     const payload = record.payload || {};
+                    if (projectCode && !recordProjectCodes(record).has(projectCode)) return false;
                     return [record.id, record.entity_id, payload.person_id, payload.id]
                         .filter(Boolean)
                         .some((value) => String(value) === String(options.id));
@@ -57,11 +80,14 @@ function makeInfoSSOTPeopleService(records = []) {
             const query = String(options.query || '').trim().replace(/^@+/, '').toLowerCase();
             return records.filter((record) => {
                 const payload = record.payload || {};
+                if (projectCode && !recordProjectCodes(record).has(projectCode)) return false;
                 const values = [
+                    record.id,
                     payload.name,
                     payload.display_name,
                     ...(Array.isArray(payload.aliases) ? payload.aliases : [])
                 ].filter(Boolean).map((value) => String(value).toLowerCase());
+                if (!query) return true;
                 return values.some((value) => value.includes(query));
             });
         }
@@ -2161,7 +2187,7 @@ describe('WorkflowService org agent loop control', () => {
                 source: 'graph_ssot',
                 status: 'resolved',
                 confidence: 0.9,
-                reason: 'context_ranked_owner_hint'
+                reason: 'unique_partial_name_or_alias'
             }
         });
         expect(taskOutput.payload[2]).toMatchObject({

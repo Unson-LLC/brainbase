@@ -8,14 +8,17 @@ Meeting Review Package ingestは、Graph SSOT Playbookで取得したproject sco
 2. `owner_hint` を `@`、敬称、空白を正規化して検索queryにする。
 3. `listGraphEntities(entityType=person, query=...)` の結果を取得する。
 4. `graph_ssot_context.entities.person` または配列型entities内のpersonを正規化する。
-5. 3と4をperson idで重複排除して候補化する。
-6. Project scoped people検索が空の場合だけ、同じqueryでglobal People SSOT検索を行う。
-7. 完全一致、またはproject context付き高信頼候補の場合だけ `selected_owner_id` を付与する。
+5. 3と4をperson idと `display_name` / `name` / `aliases[]` の正規化キーで重複排除して候補化する。
+6. Project scoped people検索の結果有無にかかわらず、同じqueryでglobal People SSOT検索を行いmergeする。
+7. `tech-knight` / `techknight` / `tech_knight` のproject code variantを試して、project表記ゆれでalias候補を落とさない。
+8. 完全一致、project context付き高信頼候補、または重複排除後に一意な部分一致候補の場合だけ `selected_owner_id` を付与する。
+9. `担当者` / `担当` / `未定` などの汎用語は検索対象にせず、未解決として人間選択に残す。
 
 ## Must Not
 
 - Graph contextに存在しない人物を自動でpeople SSOTへ登録しない。
 - `Speaker 1` などの話者ラベルをperson候補にしない。
+- `担当者` などの汎用語をperson候補にしない。
 - Graph contextを議事録本文の発話事実として使わない。
 - 複数候補で第一候補を決めきれない場合に `selected_owner_id` を付与しない。
 
@@ -30,3 +33,6 @@ Meeting Review Package ingestは、Graph SSOT Playbookで取得したproject sco
 - `tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts`
 - Scenario: search API returns no people, but Graph context contains `佐藤圭吾` with alias `キング`; Task candidate `owner_hint=@キング` resolves to `selected_owner_id`.
 - Scenario: project scoped people search returns no records, but global People SSOT has an exact known person; resolver can use that person as an owner candidate.
+- Scenario: `tech-knight` package can resolve `佐藤 圭吾` stored under `techknight` when `owner_hint=@King氏`.
+- Scenario: duplicate People SSOT rows for `堀 汐里` are folded before `owner_hint=@汐里さん` is auto-selected.
+- Scenario: `owner_hint=@担当者` stays unresolved with `generic_owner_hint_requires_human_selection`.

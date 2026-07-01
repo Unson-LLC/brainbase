@@ -352,6 +352,15 @@ function normalizeOwnerHintSearchText(value) {
     return normalizePeopleText(value).replace(/(さん|様|氏)$/u, '').trim();
 }
 
+function ownerHintCanonicalToken(value) {
+    return normalizeOwnerHintSearchText(value).replace(/\s+/g, '');
+}
+
+function isGenericOwnerHint(value) {
+    return ['担当者', '担当', '未設定', '未定', 'tbd', 'todo', 'owner', 'assignee']
+        .includes(ownerHintCanonicalToken(value));
+}
+
 function ownerHintSearchQueries(ownerHint) {
     return Array.from(new Set([
         normalizePeopleText(ownerHint),
@@ -384,6 +393,18 @@ function normalizeProjectIDs(value) {
         })
         .filter((item) => typeof item === 'string' && item.trim())
         .map((item) => item.trim())));
+}
+
+function projectCodeLookupVariants(projectId) {
+    if (!projectId || typeof projectId !== 'string') return [];
+    const trimmed = projectId.trim();
+    if (!trimmed) return [];
+    return Array.from(new Set([
+        trimmed,
+        trimmed.replace(/[-_]/g, ''),
+        trimmed.replace(/_/g, '-'),
+        trimmed.replace(/-/g, '_')
+    ].filter(Boolean)));
 }
 
 function normalizeTaskOwnerPerson(record) {
@@ -451,7 +472,14 @@ function mergeTaskOwnerPeople(...peopleLists) {
     const peopleByKey = new Map();
     for (const person of peopleLists.flat()) {
         if (!person) continue;
-        const key = person.person_id || person.entity_id || person.id || person.display_name;
+        const aliasesKey = Array.isArray(person.aliases)
+            ? person.aliases.map((alias) => normalizePeopleCompactText(alias)).filter(Boolean).sort().join('|')
+            : '';
+        const nameKey = [person.display_name, person.name, aliasesKey]
+            .map((value) => normalizePeopleCompactText(value))
+            .filter(Boolean)
+            .join('::');
+        const key = nameKey || person.person_id || person.entity_id || person.id || person.display_name;
         if (!key || peopleByKey.has(key)) continue;
         peopleByKey.set(key, person);
     }
@@ -476,7 +504,9 @@ function taskOwnerCandidatePayload(person, ownerHint, projectId = null) {
     const partial = !exact
         && normalizedHintCompact.length >= 2
         && nameCompacts.some((value) => value.includes(normalizedHintCompact));
-    const contextMatch = Boolean(projectId && Array.isArray(person.project_ids) && person.project_ids.includes(projectId));
+    const projectVariants = projectCodeLookupVariants(projectId);
+    const contextMatch = Boolean(projectVariants.length && Array.isArray(person.project_ids)
+        && person.project_ids.some((personProjectId) => projectVariants.includes(personProjectId)));
     const baseScore = exact ? 100 : (partial ? 70 : 30);
     const score = baseScore + (contextMatch ? 50 : 0) + (person.status === 'inactive' ? 0 : 5);
     return {
@@ -505,6 +535,8 @@ function confidentlySelectedTaskOwnerCandidate(ownerCandidates) {
     if (!selectableCandidates.length) return null;
     const exactMatches = selectableCandidates.filter((person) => person.match === 'exact_name_or_alias');
     if (ownerCandidates.length === 1 && exactMatches.length === 1) return selectableCandidates[0];
+    const partialMatches = selectableCandidates.filter((person) => person.match === 'partial_name_or_alias');
+    if (ownerCandidates.length === 1 && partialMatches.length === 1) return selectableCandidates[0];
     const [first, second] = selectableCandidates;
     const firstScore = first?.score || 0;
     const secondScore = second?.score || 0;
@@ -2188,6 +2220,18 @@ export class WorkflowService {
             };
         }
 
+        if (isGenericOwnerHint(ownerHint)) {
+            return {
+                ...candidate,
+                owner_candidates: [],
+                owner_resolution: {
+                    source: 'graph_ssot',
+                    status: 'unresolved',
+                    reason: 'generic_owner_hint_requires_human_selection'
+                }
+            };
+        }
+
         const queries = ownerHintSearchQueries(ownerHint);
         if (!queries.length) return candidate;
 
@@ -2224,8 +2268,8 @@ export class WorkflowService {
                     source: 'graph_ssot',
                     status: 'resolved',
                     confidence: selectedCandidate.match === 'exact_name_or_alias' ? 1 : 0.9,
-                    reason: ownerCandidates.length === 1 && selectedCandidate.match === 'exact_name_or_alias'
-                        ? 'unique_exact_name_or_alias'
+                    reason: ownerCandidates.length === 1
+                        ? (selectedCandidate.match === 'exact_name_or_alias' ? 'unique_exact_name_or_alias' : 'unique_partial_name_or_alias')
                         : 'context_ranked_owner_hint'
                 }
             };
@@ -2245,7 +2289,8 @@ export class WorkflowService {
     async lookupTaskOwnerPeopleSSOT({ access, projectId, query = null, queries = null, ids = null, cache }) {
         const searchQueries = Array.isArray(queries) && queries.length ? queries : [query].filter(Boolean);
         const searchIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
-        const cacheKey = `${projectId || ''}:q:${searchQueries.join('|')}:id:${searchIds.join('|')}`;
+        const projectCodeVariants = projectCodeLookupVariants(projectId);
+        const cacheKey = `${projectCodeVariants.join(',')}:q:${searchQueries.join('|')}:id:${searchIds.join('|')}`;
         if (cache.has(cacheKey)) return cache.get(cacheKey);
 
         try {
@@ -2258,35 +2303,41 @@ export class WorkflowService {
                 }
             };
             for (const id of searchIds) {
-                let records = await this.infoSSOTService.listGraphEntities(access, {
-                    projectCode: projectId,
-                    entityType: 'person',
-                    id,
-                    limit: 1
-                });
-                if ((!Array.isArray(records) || records.length === 0) && projectId) {
-                    records = await this.infoSSOTService.listGraphEntities(access, {
+                let scopedRecords = [];
+                for (const projectCode of projectCodeVariants) {
+                    const records = await this.infoSSOTService.listGraphEntities(access, {
+                        projectCode,
                         entityType: 'person',
                         id,
                         limit: 1
                     });
+                    addRecords(records);
+                    scopedRecords = scopedRecords.concat(Array.isArray(records) ? records : []);
                 }
-                addRecords(records);
+                if (!scopedRecords.length || !projectCodeVariants.length) {
+                    const records = await this.infoSSOTService.listGraphEntities(access, {
+                        entityType: 'person',
+                        id,
+                        limit: 1
+                    });
+                    addRecords(records);
+                }
             }
             for (const searchQuery of searchQueries) {
-                let records = await this.infoSSOTService.listGraphEntities(access, {
-                    projectCode: projectId,
-                    entityType: 'person',
-                    query: searchQuery,
-                    limit: 20
-                });
-                if ((!Array.isArray(records) || records.length === 0) && projectId) {
-                    records = await this.infoSSOTService.listGraphEntities(access, {
+                for (const projectCode of projectCodeVariants) {
+                    const records = await this.infoSSOTService.listGraphEntities(access, {
+                        projectCode,
                         entityType: 'person',
                         query: searchQuery,
                         limit: 20
                     });
+                    addRecords(records);
                 }
+                const records = await this.infoSSOTService.listGraphEntities(access, {
+                        entityType: 'person',
+                        query: searchQuery,
+                        limit: 20
+                });
                 addRecords(records);
             }
             const people = Array.from(recordsByKey.values())

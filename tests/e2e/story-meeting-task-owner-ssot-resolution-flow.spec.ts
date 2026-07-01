@@ -10,20 +10,47 @@ import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-
 
 function makeInfoSSOTPeopleService(records = [], { fail = false } = {}) {
   const calls = [];
+  const recordProjectCodes = (record) => {
+    const payload = record.payload || {};
+    const values = [
+      record.project_id,
+      record.projectId,
+      record.project_code,
+      record.projectCode,
+      record.project_codes,
+      record.projectCodes,
+      record.member_of_project_codes,
+      record.memberOfProjectCodes,
+      payload.project_id,
+      payload.projectId,
+      payload.project_code,
+      payload.projectCode,
+      payload.project_codes,
+      payload.projectCodes,
+      payload.member_of_project_codes,
+      payload.memberOfProjectCodes
+    ].flat().filter(Boolean).map(String);
+    return new Set(values);
+  };
   return {
     calls,
     async listGraphEntities(access, options = {}) {
       calls.push({ access, options });
       if (fail) throw new Error('people ssot unavailable');
       const query = String(options.query || '').trim().replace(/^@+/, '').toLowerCase();
+      const projectCode = String(options.projectCode || '').trim();
+      const id = String(options.id || '').trim();
       return records.filter((record) => {
         const payload = record.payload || {};
+        if (projectCode && !recordProjectCodes(record).has(projectCode)) return false;
+        if (id) return [record.id, record.entity_id, payload.person_id, payload.id].filter(Boolean).map(String).includes(id);
         const values = [
           record.id,
           payload.name,
           payload.display_name,
           ...(Array.isArray(payload.aliases) ? payload.aliases : [])
         ].filter(Boolean).map((value) => String(value).toLowerCase());
+        if (!query) return true;
         return values.some((value) => value.includes(query));
       });
     }
@@ -38,7 +65,9 @@ function makeService({ infoSSOTService = makeInfoSSOTPeopleService() } = {}) {
       return {
         root: '/workspace',
         projects: [
-          { id: 'sample-project', session_select: true }
+          { id: 'sample-project', session_select: true },
+          { id: 'tech-knight', session_select: true },
+          { id: 'techknight', session_select: true }
         ]
       };
     }
@@ -48,7 +77,7 @@ function makeService({ infoSSOTService = makeInfoSSOTPeopleService() } = {}) {
     sub: 'keigo',
     person_id: 'keigo',
     role: 'admin',
-    projectCodes: ['sample-project']
+    projectCodes: ['sample-project', 'tech-knight', 'techknight']
   };
   return { repository, service, actor, infoSSOTService };
 }
@@ -142,9 +171,12 @@ function samplePackage({
 }
 
 async function ingest({ service, actor }, packageInput = samplePackage()) {
+  const meetingIdentity = packageInput.meeting_identity || {};
+  const orgId = packageInput.org_id || meetingIdentity.candidate_org_id || 'sample-project';
+  const projectId = packageInput.project_id || meetingIdentity.candidate_project_id || 'sample-project';
   await service.bootstrapMeetingWorkflowPack({
-    org_id: 'sample-project',
-    project_id: 'sample-project'
+    org_id: orgId,
+    project_id: projectId
   }, actor);
   const result = await service.ingestMeetingReviewPackage({
     review_package: packageInput
@@ -391,9 +423,74 @@ test('story-meeting-task-owner-ssot-resolution AC-021 AC-022 scenario_clause_e2e
   expect(tasks[0].selected_owner_id, 'ac:21 @佐藤さん はproject contextに一致する佐藤 圭吾を第一候補にする').toBe('person_sato_keigo');
   expect(tasks[0].owner_candidates.map((candidate) => candidate.person_id), 'ac:21 他の佐藤候補もowner_candidatesに残す').toEqual(['person_sato_keigo', 'person_sato_noriyuki']);
   expect(tasks[1].selected_owner_id, 'ac:22 @汐里さん は部分一致で堀 汐里を候補解決する').toBe('person_hori_shiori');
-  expect(tasks[1].owner_resolution.reason, 'ac:22 名だけの部分一致はproject contextで高信頼解決する').toBe('context_ranked_owner_hint');
+  expect(tasks[1].owner_resolution.reason, 'ac:22 名だけの部分一致は一意候補なら初期選択する').toBe('unique_partial_name_or_alias');
   expect(tasks[2].selected_owner_id, 'ac:2 ac:7 @キング は佐藤 圭吾のpeople SSOT aliasで一意解決する').toBe('person_sato_keigo');
   expect(tasks[2].owner_resolution.reason, 'ac:2 ac:7 alias exact match uses people SSOT aliases').toBe('unique_exact_name_or_alias');
+});
+
+test('story-meeting-task-owner-ssot-resolution AC-023 AC-024 AC-025 scenario_clause_e2e flow_replay auto-selects only safe people SSOT owner candidates', async () => {
+  const stack = makeService({
+    infoSSOTService: makeInfoSSOTPeopleService([
+      {
+        id: 'person_hori_shiori',
+        payload: {
+          name: '堀 汐里',
+          display_name: '堀 汐里',
+          aliases: ['堀汐里', 'Shiori Hori'],
+          member_of_project_codes: ['salestailor']
+        }
+      },
+      {
+        id: 'person_hori_shiori_duplicate',
+        payload: {
+          name: '堀 汐里',
+          display_name: '堀 汐里',
+          aliases: ['堀汐里', 'Shiori Hori'],
+          member_of_project_codes: ['salestailor']
+        }
+      },
+      {
+        id: 'person_sato_keigo',
+        payload: {
+          name: '佐藤 圭吾',
+          display_name: '佐藤 圭吾',
+          aliases: ['佐藤圭吾', 'Keigo Sato', 'ksato', 'King', 'キング'],
+          member_of_project_codes: ['techknight']
+        }
+      }
+    ])
+  });
+  const packageInput = samplePackage({
+    packageId: 'meeting-task-owner-safe-autoselect-e2e',
+    orgId: 'tech-knight',
+    projectId: 'tech-knight',
+    taskCandidates: [
+      {
+        title: '汐里さんにSalesTailor向け確認事項を共有する。',
+        owner_hint: '@汐里さん'
+      },
+      {
+        title: 'King氏に担当者SSOTの別名解決を確認してもらう。',
+        owner_hint: '@King氏'
+      },
+      {
+        title: '担当者に次回定例までの資料整理を依頼する。',
+        owner_hint: '@担当者'
+      }
+    ]
+  });
+
+  const { tasks } = await ingest(stack, packageInput);
+
+  expect(tasks[0].selected_owner_id, 'AC-023 duplicate SSOT rows for the same person are folded before safe partial auto-selection').toBe('person_hori_shiori');
+  expect(tasks[0].owner_candidates).toHaveLength(1);
+  expect(tasks[0].owner_resolution.reason).toBe('unique_partial_name_or_alias');
+  expect(tasks[1].selected_owner_id, 'AC-024 project code variants allow tech-knight package to resolve techknight people aliases').toBe('person_sato_keigo');
+  expect(tasks[1].owner_resolution.reason).toBe('unique_exact_name_or_alias');
+  expect(stack.infoSSOTService.calls.some((call) => call.options.projectCode === 'techknight' && call.options.query === 'king')).toBe(true);
+  expect(tasks[2].selected_owner_id, 'AC-025 generic owner hint must not become a 神設定 owner').toBeUndefined();
+  expect(tasks[2].owner_candidates).toEqual([]);
+  expect(tasks[2].owner_resolution.reason).toBe('generic_owner_hint_requires_human_selection');
 });
 
 test('story-meeting-task-owner-ssot-resolution S-008 S-009 AC-019 AC-020 scenario_clause_e2e ui_replay shows owner resolution states in Workflow Mission Control', async ({ page }) => {
