@@ -45,3 +45,11 @@ sender: agent/ceo
 status: pending
 message: "月次CEOレビュー完了。前提チェック実施。_inbox/ceo-review-2026-07.md を確認してください。"
 ---
+
+---
+id: INBOX-1782868235
+channel: cso
+sender: agent
+status: pending
+message: ⚠️ 🔒 CSO監査完了（Comprehensive Q2四半期） — CRITICAL: 3件, HIGH: 2件, MEDIUM: 3件。詳細: /tmp/cso/monthly_review_2026-07.md
+---
