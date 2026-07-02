@@ -12,7 +12,7 @@ updated_at: 2026-07-01
 
 ```mermaid
 flowchart TD
-  source["source_intake<br/>Slack attachment / transcript / evidence refs"] --> project["project_resolution_gate<br/>org/project/case"]
+  source["source_intake<br/>Tactiq/Plaud MCP source / evidence refs"] --> project["project_resolution_gate<br/>org/project/case"]
   project --> graph["project_scoped_graph_context<br/>Graph SSOT getContext"]
   graph --> mention["mention_resolution<br/>person/org/service identity"]
   graph --> glossary["glossary_resolution<br/>glossary_term"]
@@ -32,7 +32,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  transcript["Transcript / Slack attachment<br/>fact source"] --> generator["Meeting Pack generation"]
+  transcript["Tactiq transcript / Plaud note<br/>fact source"] --> generator["Meeting Pack generation"]
   graph["Graph SSOT<br/>identity / relationship / glossary context"] --> generator
   generator --> package["Review Package"]
   package --> ingest["WorkflowService ingest"]
@@ -48,7 +48,8 @@ flowchart LR
 stateDiagram-v2
   [*] --> SourceIntake
   SourceIntake --> ProjectResolution: source evidence present
-  SourceIntake --> HumanReview: missing_transcript_or_slack_attachment
+  SourceIntake --> HumanReview: missing_tactiq_or_plaud_transcript
+  SourceIntake --> HumanReview: primary_mcp_source_missing
   ProjectResolution --> GraphContext: single_high_confidence_project
   ProjectResolution --> PreIngestBlocker: missing_project_candidate
   ProjectResolution --> PreIngestBlocker: multiple_project_candidates
@@ -74,5 +75,5 @@ stateDiagram-v2
 
 - Graph SSOTへの自動登録はしない。
 - 未登録peopleやglossary termをingest時に作成しない。
-- Graph SSOTをTranscript欠落の代替事実ソースにしない。
+- Graph SSOTをTactiq/Plaud証跡欠落の代替事実ソースにしない。
 - 汎用workflow rerun導線でReview Packageを書き換えない。

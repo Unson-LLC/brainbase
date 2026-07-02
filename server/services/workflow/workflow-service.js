@@ -185,7 +185,8 @@ const MEETING_PACK_GRAPH_PLAYBOOK_EDGES = [
 ];
 const MEETING_PACK_GRAPH_PLAYBOOK_EXCEPTION_BRANCHES = {
     source_intake: [
-        'missing_transcript_or_slack_attachment',
+        'missing_tactiq_or_plaud_transcript',
+        'primary_mcp_source_missing',
         'source_artifact_hash_missing'
     ],
     project_resolution_gate: [
@@ -212,6 +213,12 @@ const MEETING_PACK_GRAPH_PLAYBOOK_EXCEPTION_BRANCHES = {
         'external_send_requires_human_approval'
     ]
 };
+const MEETING_PACK_SOURCE_ROUTING_POLICY = Object.freeze({
+    online: 'tactiq',
+    offline: 'plaud',
+    online_tactiq_unavailable: 'plaud',
+    slack: 'pointer_or_fallback_only'
+});
 
 function meetingReviewValidationError(message, stateTransition, details = {}) {
     return AppError.validation(message, {
@@ -644,6 +651,14 @@ function readOptionalString(input, snakeKey, camelKey = snakeKey) {
     return value || null;
 }
 
+function readFirstOptionalString(input, ...keys) {
+    for (const key of keys) {
+        const value = input?.[key];
+        if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+}
+
 function readOptionalJsonValue(input, snakeKey, camelKey = snakeKey) {
     const value = input?.[snakeKey] ?? input?.[camelKey];
     if (value === undefined || value === null || value === '') return null;
@@ -930,17 +945,100 @@ function buildMeetingPackPreIngestGraphPlaybook({ input, reviewPackage, meetingI
     };
 }
 
+function normalizeMeetingSourceSystem(sourceEvent = {}) {
+    return readFirstOptionalString(sourceEvent, 'source_system', 'sourceSystem', 'provider', 'source_provider', 'sourceProvider')
+        .toLowerCase();
+}
+
+function normalizeMeetingMode(sourceEvent = {}) {
+    return readFirstOptionalString(sourceEvent, 'meeting_mode', 'meetingMode', 'mode')
+        .toLowerCase();
+}
+
+function expectedMeetingSourceProvider(sourceEvent = {}) {
+    const meetingMode = normalizeMeetingMode(sourceEvent);
+    const tactiqUnavailable = Boolean(
+        sourceEvent.tactiq_unavailable
+        || sourceEvent.tactiqUnavailable
+        || sourceEvent.tactiq_not_available
+        || sourceEvent.tactiqNotAvailable
+    );
+    if (meetingMode === 'offline') return 'plaud';
+    if (meetingMode === 'online' && tactiqUnavailable) return 'plaud';
+    if (meetingMode === 'online') return 'tactiq';
+    return 'tactiq_or_plaud';
+}
+
+function sourceEventArtifactRef(sourceEvent = {}) {
+    return readFirstOptionalString(
+        sourceEvent,
+        'transcript_id',
+        'transcriptId',
+        'note_id',
+        'noteId',
+        'recording_id',
+        'recordingId',
+        'document_id',
+        'documentId',
+        'mcp_resource_uri',
+        'mcpResourceUri',
+        'permalink',
+        'url',
+        'file_id',
+        'fileId'
+    );
+}
+
+function sourceEventContentHash(sourceEvent = {}) {
+    return readFirstOptionalString(
+        sourceEvent,
+        'local_artifact_sha256',
+        'localArtifactSha256',
+        'transcript_sha256',
+        'transcriptSha256',
+        'content_hash',
+        'contentHash'
+    );
+}
+
 function sourceEvidenceStatus(sourceEvent = {}, evidenceRefs = []) {
+    const sourceSystem = normalizeMeetingSourceSystem(sourceEvent);
+    const meetingMode = normalizeMeetingMode(sourceEvent);
+    const expectedPrimaryProvider = expectedMeetingSourceProvider(sourceEvent);
     const hasSlackAttachment = Boolean(sourceEvent.file_id || sourceEvent.fileId);
-    const hasTranscriptHash = Boolean(sourceEvent.local_artifact_sha256 || sourceEvent.localArtifactSha256);
+    const hasTranscriptHash = Boolean(sourceEventContentHash(sourceEvent));
     const hasMessageRef = Boolean(sourceEvent.message_ts || sourceEvent.messageTs);
     const hasEvidenceRefs = Array.isArray(evidenceRefs) && evidenceRefs.length > 0;
+    const hasArtifactRef = Boolean(sourceEventArtifactRef(sourceEvent));
+    const isTactiqSource = sourceSystem === 'tactiq';
+    const isPlaudSource = sourceSystem === 'plaud';
+    const isMcpMeetingSource = isTactiqSource || isPlaudSource;
+    const hasMcpTranscript = isTactiqSource && hasArtifactRef;
+    const hasMcpNote = isPlaudSource && hasArtifactRef;
+    const expectedProviderMatches = expectedPrimaryProvider === 'tactiq_or_plaud'
+        ? isMcpMeetingSource
+        : sourceSystem === expectedPrimaryProvider;
+    const hasProviderArtifact = isMcpMeetingSource && hasArtifactRef && (hasTranscriptHash || hasEvidenceRefs);
+    const hasPrimaryMcpSource = hasProviderArtifact && expectedProviderMatches;
+    const hasFallbackEvidence = hasSlackAttachment || hasTranscriptHash || hasEvidenceRefs;
+    const status = hasPrimaryMcpSource
+        ? 'primary_mcp_source_present'
+        : (hasFallbackEvidence ? 'fallback_source_present' : 'source_evidence_missing');
     return {
+        source_system: sourceSystem || null,
+        meeting_mode: meetingMode || null,
+        expected_primary_provider: expectedPrimaryProvider,
+        primary_provider_policy: MEETING_PACK_SOURCE_ROUTING_POLICY,
+        has_mcp_transcript: hasMcpTranscript,
+        has_mcp_note: hasMcpNote,
+        has_provider_artifact: hasProviderArtifact,
+        has_primary_mcp_source: hasPrimaryMcpSource,
         has_slack_attachment: hasSlackAttachment,
+        slack_role: sourceSystem === 'slack' || hasSlackAttachment ? MEETING_PACK_SOURCE_ROUTING_POLICY.slack : null,
         has_transcript_hash: hasTranscriptHash,
         has_message_ref: hasMessageRef,
         has_evidence_refs: hasEvidenceRefs,
-        status: (hasSlackAttachment || hasTranscriptHash || hasEvidenceRefs) ? 'source_evidence_present' : 'source_evidence_missing'
+        status
     };
 }
 
@@ -962,7 +1060,9 @@ function buildMeetingPackGraphPlaybook({
     const glossaryCount = graphContextGlossaryCount(graphContext);
     const activeExceptions = [];
     if (sourceStatus.status === 'source_evidence_missing') {
-        activeExceptions.push({ node: 'source_intake', code: 'missing_transcript_or_slack_attachment' });
+        activeExceptions.push({ node: 'source_intake', code: 'missing_tactiq_or_plaud_transcript' });
+    } else if (!sourceStatus.has_primary_mcp_source) {
+        activeExceptions.push({ node: 'source_intake', code: 'primary_mcp_source_missing' });
     }
     if (!sourceStatus.has_transcript_hash) {
         activeExceptions.push({ node: 'source_intake', code: 'source_artifact_hash_missing' });
@@ -1020,7 +1120,8 @@ function buildMeetingPackGraphPlaybook({
             entity_count: glossaryCount
         },
         generation_contract: {
-            fact_source: 'transcript_and_slack_attachment',
+            fact_source: 'tactiq_or_plaud_transcript_or_note',
+            source_routing_policy: MEETING_PACK_SOURCE_ROUTING_POLICY,
             graph_ssot_role: 'project_scoped_entity_identity_relationship_glossary_context',
             project_must_be_resolved_before_graph_lookup: true,
             graph_context_must_not_override_missing_transcript_facts: true,
@@ -1229,7 +1330,22 @@ function sourceRefForMeetingIdentity(meetingIdentity = {}) {
 }
 
 function sourceRefForSourceEvent(sourceEvent = {}) {
-    if (sourceEvent.source_system === 'slack') {
+    const sourceSystem = normalizeMeetingSourceSystem(sourceEvent);
+    if (sourceSystem === 'tactiq') {
+        return [
+            'tactiq',
+            sourceEvent.workspace || sourceEvent.account || 'default',
+            sourceEvent.transcript_id || sourceEvent.transcriptId || sourceEvent.meeting_id || sourceEvent.meetingId || sourceEvent.mcp_resource_uri || sourceEvent.mcpResourceUri || sourceEvent.id || 'unknown'
+        ].join(':');
+    }
+    if (sourceSystem === 'plaud') {
+        return [
+            'plaud',
+            sourceEvent.account || sourceEvent.workspace || 'default',
+            sourceEvent.recording_id || sourceEvent.recordingId || sourceEvent.note_id || sourceEvent.noteId || sourceEvent.mcp_resource_uri || sourceEvent.mcpResourceUri || sourceEvent.id || 'unknown'
+        ].join(':');
+    }
+    if (sourceSystem === 'slack') {
         return [
             'slack',
             sourceEvent.workspace || 'default',
@@ -1237,7 +1353,7 @@ function sourceRefForSourceEvent(sourceEvent = {}) {
             sourceEvent.message_ts || sourceEvent.file_id || 'unknown'
         ].join(':');
     }
-    return sourceEvent.source_system ? `${sourceEvent.source_system}:${sourceEvent.id || 'unknown'}` : 'source_event:unknown';
+    return sourceSystem ? `${sourceSystem}:${sourceEvent.id || 'unknown'}` : 'source_event:unknown';
 }
 
 function loopIntentEntries(loopIntentIds) {
@@ -2636,11 +2752,11 @@ export class WorkflowService {
                     workflow_run_id: runId,
                     source_type: 'meeting_source',
                     source_ref: sourceRefForSourceEvent(sourceEvent),
-                    source_version: sourceEvent.message_ts || sourceEvent.file_id || null,
-                    content_hash: sourceEvent.local_artifact_sha256 || null,
+                    source_version: sourceEventArtifactRef(sourceEvent) || sourceEvent.message_ts || sourceEvent.messageTs || null,
+                    content_hash: sourceEventContentHash(sourceEvent) || null,
                     item_count: Object.keys(sourceEvent).length,
                     permission: 'read',
-                    preview: sourceEvent.channel_name || sourceEvent.file_id || packageId,
+                    preview: sourceEvent.title || sourceEvent.channel_name || sourceEvent.transcript_id || sourceEvent.transcriptId || sourceEvent.recording_id || sourceEvent.recordingId || sourceEvent.note_id || sourceEvent.noteId || sourceEvent.file_id || packageId,
                     data: jsonClone(sourceEvent)
                 },
                 {

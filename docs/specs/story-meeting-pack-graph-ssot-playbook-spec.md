@@ -10,7 +10,7 @@ diagrams:
     purpose: Project確定からGraph SSOT context、用語集、議事録生成、Human GateまでのDAGを示す。
   - kind: exception_branch
     path: docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md
-    purpose: Graph取得失敗、空用語集、Transcript不足などの例外分岐を示す。
+    purpose: Graph取得失敗、空用語集、Tactiq/Plaud MCPソース不足などの例外分岐を示す。
 ---
 
 # Meeting Pack Graph SSOT Playbook Spec
@@ -19,12 +19,12 @@ diagrams:
 
 `POST /api/workflows/control/meeting-pack/review-ingest` は、Review Packageを保存する前に次の順序を満たすPlaybookを構築する。
 
-1. `source_intake`: Slack添付、Transcript hash、evidence refsを確認する。
+1. `source_intake`: オンライン会議はTactiq、オフライン会議またはTactiqを使えないオンライン会議はPlaudのMCP取得物、Transcript/Note hash、evidence refsを確認する。Slackは通知・参照ポインタ・フォールバック証跡に限定する。
 2. `project_resolution_gate`: `org_id` / `project_id` を明示入力、Review Package、meeting identity候補の順に解決し、project accessを検証する。
 3. `project_scoped_graph_context`: 解決済みprojectでだけGraph SSOT contextを取得する。Projectが未確定、複数候補、またはaccess deniedの場合はproject scoped workflow/runを作らず、pre-ingest blockerとして止める。
 4. `mention_resolution`: Graph SSOTのperson/org等をTaskや本文の固有名詞contextとして使う。
 5. `glossary_resolution`: Graph SSOTの `glossary_term` を用語contextとして使う。
-6. `meeting_note_generation`: Transcript/Slack添付を事実ソースとして議事録を構成する。
+6. `meeting_note_generation`: Tactiq/Plaud MCPソースを事実ソースとして議事録を構成する。
 7. `task_candidate_generation` / `decision_candidate_generation`: 議事録から候補を作る。
 8. `human_review_package`: Task作成、Decision昇格、Graph書き込み、外部送信はHuman Gateで止める。
 
@@ -63,7 +63,13 @@ Graph取得成功時:
   "graph_ssot_playbook": {
     "version": "meeting_pack_graph_ssot_playbook.v1",
     "generation_contract": {
-      "fact_source": "transcript_and_slack_attachment",
+      "fact_source": "tactiq_or_plaud_transcript_or_note",
+      "source_routing_policy": {
+        "online": "tactiq",
+        "offline": "plaud",
+        "online_tactiq_unavailable": "plaud",
+        "slack": "pointer_or_fallback_only"
+      },
       "graph_ssot_role": "project_scoped_entity_identity_relationship_glossary_context"
     }
   }
@@ -132,7 +138,7 @@ Project未確定時:
 - S-001 workflow state transition: `source_intake` から `project_resolution_gate` に進み、Project候補が単一高信頼で解決できる場合だけ、解決済みproject scopeでGraph SSOT lookupを実行する。
 - S-002 workflow state transition: `project_scoped_graph_context` では `glossary_term` を必ず取得対象に含め、`glossary_resolution` へ渡す。
 - S-003 workflow state transition: `run_recorded` 前に `project_resolution`、`graph_context`、`graph_ssot_playbook` を同一run metadataへ保存する。
-- S-004 workflow state transition: `meeting_note_generation` はTranscript/Slack添付を事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして扱う。
+- S-004 workflow state transition: `meeting_note_generation` はTactiq/Plaud MCPソースを事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして扱う。
 - S-005 workflow state transition: Graph取得成功時だけ `context_snapshots.source_type=graph_ssot` を `verified_from_graph_ssot` とする。
 - S-006 workflow state transition: Task作成、Decision昇格、Graph書き込み、外部送信はHuman Gateでpendingに止める。
 - S-007 workflow state transition: 同一Packageのreplayは既存runを返し、既存payloadを上書きしない。
@@ -146,7 +152,7 @@ Project未確定時:
 - S-001 `workflow state transition`: `source_intake` から `project_resolution_gate` に進み、Project候補が単一高信頼で解決できる場合だけ、解決済みproject scopeでGraph SSOT lookupを実行する。
 - S-002 `workflow state transition`: `project_scoped_graph_context` では `glossary_term` を必ず取得対象に含め、`glossary_resolution` へ渡す。
 - S-003 `workflow state transition`: `run_recorded` 前に `project_resolution`、`graph_context`、`graph_ssot_playbook` を同一run metadataへ保存する。
-- S-004 `workflow state transition`: `meeting_note_generation` はTranscript/Slack添付を事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして扱う。
+- S-004 `workflow state transition`: `meeting_note_generation` はTactiq/Plaud MCPソースを事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして扱う。
 - S-005 `workflow state transition`: Graph取得成功時だけ `context_snapshots.source_type=graph_ssot` を `verified_from_graph_ssot` とする。
 - S-006 `workflow state transition`: Task作成、Decision昇格、Graph書き込み、外部送信はHuman Gateでpendingに止める。
 - S-007 `workflow state transition`: 同一Packageのreplayは既存runを返し、既存payloadを上書きしない。
@@ -160,7 +166,7 @@ Project未確定時:
 - SCN-001: workflow state transition scenario clauseとして、`source_intake` から `project_resolution_gate` に進み、Project候補が単一高信頼で解決できる場合だけ、解決済みproject scopeでGraph SSOT lookupを実行する。
 - SCN-002: workflow state transition scenario clauseとして、`project_scoped_graph_context` では `glossary_term` を必ず取得対象に含め、`glossary_resolution` へ渡す。
 - SCN-003: workflow state transition scenario clauseとして、`run_recorded` 前に `project_resolution`、`graph_context`、`graph_ssot_playbook` を同一run metadataへ保存する。
-- SCN-004: workflow state transition scenario clauseとして、`meeting_note_generation` はTranscript/Slack添付を事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして扱う。
+- SCN-004: workflow state transition scenario clauseとして、`meeting_note_generation` はTactiq/Plaud MCPソースを事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして扱う。
 - SCN-005: workflow state transition scenario clauseとして、Graph取得成功時だけ `context_snapshots.source_type=graph_ssot` を `verified_from_graph_ssot` とする。
 - SCN-006: workflow state transition scenario clauseとして、Task作成、Decision昇格、Graph書き込み、外部送信はHuman Gateでpendingに止める。
 - SCN-007: workflow state transition scenario clauseとして、同一Packageのreplayは既存runを返し、既存payloadを上書きしない。
@@ -178,7 +184,7 @@ Project未確定時:
 - S-001: Project候補が単一高信頼で解決できる場合、Graph SSOT lookupは解決済みproject scopeでのみ実行する。
 - S-002: Graph SSOT lookupでは `glossary_term` を必ず含め、用語集を議事録生成contextに渡す。
 - S-003: run metadataには `project_resolution`、`graph_context`、`graph_ssot_playbook` を同時に保存する。
-- S-004: `generation_contract` はTranscript/Slack添付を事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして固定する。
+- S-004: `generation_contract` はTactiq/Plaud MCPソースを事実ソース、Graph SSOTを固有名詞・人物・関係・用語contextとして固定する。
 - S-005: Graph取得成功時のcontext snapshotは `verified_from_graph_ssot` とし、Review Package候補をGraph正本へ自動昇格しない。
 - S-006: Task作成、Decision昇格、Graph書き込み、外部送信はHuman Gateで止め、pending状態を維持する。
 - S-007: 同一Packageのreplayは既存runを返し、既存output payloadを上書きしない。

@@ -12,7 +12,7 @@ updated_at: 2026-07-01
 
 Meeting Packで議事録、Task、Decision、Graph昇格候補を作る時は、最初に「どのプロジェクトの会議か」を確定する。その後でだけ、Brainbase Graph SSOTからそのprojectに属する人物、組織、既存Decision、RACI、KPI、initiative、用語集を引く。
 
-Graph SSOTは会議内容の事実ソースではない。TranscriptとSlack添付が発言・合意・宿題の事実ソースであり、Graph SSOTは固有名詞、人物同一性、関係、用語、既存プロジェクト文脈を誤らないための補助文脈である。
+Graph SSOTは会議内容の事実ソースではない。オンライン会議はTactiq、オフライン会議またはTactiqを使えないオンライン会議はPlaudからMCPで取得したTranscript/Noteが発言・合意・宿題の事実ソースであり、Slack投稿は通知・参照ポインタ・フォールバック証跡に限定する。Graph SSOTは固有名詞、人物同一性、関係、用語、既存プロジェクト文脈を誤らないための補助文脈である。
 
 このStoryでは、その処理順序をDAG PlaybookとしてReview Package ingestに保存する。Graph SSOTが取得できない場合も空扱いにせず、例外分岐として残したうえでHuman Gateに渡す。Projectが一意に確定しない場合は、project scopedなworkflow/runを作らず、pre-ingest blockerとして `project_resolution` と `graph_ssot_playbook.active_exceptions` を返す。
 
@@ -21,7 +21,7 @@ Graph SSOTは会議内容の事実ソースではない。TranscriptとSlack添�
 - INV-graph-playbook-001: Project確定前にGraph SSOT contextを引かない。
 - INV-graph-playbook-002: Graph SSOT contextはproject scopedで取得し、少なくとも `project`、`person`、`org`、`decision`、`raci_assignment`、`glossary_term`、`kpi`、`initiative` を対象にする。
 - INV-graph-playbook-003: `glossary_term` は議事録生成時の重要contextであり、取得対象から外さない。
-- INV-graph-playbook-004: Transcript/Slack添付が事実ソースであり、Graph SSOTを発言事実の代替にしない。
+- INV-graph-playbook-004: Tactiq/Plaud MCPソースが事実ソースであり、Graph SSOTやSlack投稿を発言事実の代替にしない。
 - INV-graph-playbook-005: Task作成、Decision昇格、Graph書き込み、外部送信はHuman Gate前に実行しない。
 - INV-graph-playbook-006: Graph SSOT取得失敗、空project context、空用語集、複数project候補はPlaybookの例外分岐として明示する。Project未確定の例外はrun作成前に止め、Graph SSOT lookupを呼ばない。
 - INV-graph-playbook-007: 同一Review Packageのidempotent replayは既存runを返し、既存payloadを黙って上書きしない。
@@ -30,7 +30,7 @@ Graph SSOTは会議内容の事実ソースではない。TranscriptとSlack添�
 
 ```mermaid
 flowchart TD
-  source["source_intake<br/>Slack attachment / transcript"] --> project["project_resolution_gate"]
+  source["source_intake<br/>Tactiq/Plaud MCP source"] --> project["project_resolution_gate"]
   project --> graph["project_scoped_graph_context<br/>Graph SSOT"]
   graph --> people["mention_resolution<br/>people/org/service"]
   graph --> glossary["glossary_resolution<br/>glossary_term"]
@@ -45,7 +45,8 @@ flowchart TD
 
 ## Exception Branches
 
-- `source_intake.missing_transcript_or_slack_attachment`: TranscriptまたはSlack添付がない。議事録本文の生成品質を保証できないため、証跡不足としてHuman Gateに出す。
+- `source_intake.missing_tactiq_or_plaud_transcript`: Tactiq/PlaudのMCP取得物がない。議事録本文の生成品質を保証できないため、証跡不足としてHuman Gateに出す。
+- `source_intake.primary_mcp_source_missing`: Slackなどのフォールバック証跡はあるが、会議種別に対応する一次MCPソースがない。オンラインはTactiq、オフラインまたはTactiq不可のオンラインはPlaudを取得してから再生成する。
 - `source_intake.source_artifact_hash_missing`: source artifact hashがない。再現性確認が弱いため、snapshot上に残す。
 - `project_resolution_gate.missing_project_candidate`: project候補がない。project scoped workflow/runを作らず、Graph SSOTを引かずにpre-ingest blockerとして返す。
 - `project_resolution_gate.multiple_project_candidates`: 複数project候補が競合する。project scoped workflow/runを作らず、人間がprojectを確定するまでGraph contextを取得しない。
@@ -60,7 +61,7 @@ flowchart TD
 - S-001 workflow state transition: `source_intake` から `project_resolution_gate` に進み、単一Projectが確定した時だけ `project_scoped_graph_context` を実行する。
 - S-002 workflow state transition: Graph SSOT lookupでは `glossary_term` を必ず含め、`glossary_resolution` を通して議事録生成contextへ渡す。
 - S-003 workflow state transition: Graph context取得後、`run_recorded` 前に `project_resolution`、`graph_context`、`graph_ssot_playbook` をrun metadataへ固定する。
-- S-004 workflow state transition: `meeting_note_generation` ではTranscript/Slack添付だけを事実ソースにし、Graph SSOTは固有名詞・人物・関係・用語contextに限定する。
+- S-004 workflow state transition: `meeting_note_generation` ではTactiq/Plaud MCPソースだけを事実ソースにし、Graph SSOTは固有名詞・人物・関係・用語contextに限定する。
 - S-005 workflow state transition: Graph取得成功時だけ `verified_from_graph_ssot` とし、Review Package候補をGraph正本へ自動昇格しない。
 - S-006 workflow state transition: Task作成、Decision昇格、Graph書き込み、外部送信は `human_review_package` でpendingに止める。
 - S-007 workflow state transition: 同一Packageのreplayは既存runを返し、既存output payloadを上書きしない。
@@ -73,7 +74,7 @@ flowchart TD
 - S-001 `workflow state transition`: `source_intake` から `project_resolution_gate` に進み、単一Projectが確定した時だけ `project_scoped_graph_context` を実行する。
 - S-002 `workflow state transition`: Graph SSOT lookupでは `glossary_term` を必ず含め、`glossary_resolution` を通して議事録生成contextへ渡す。
 - S-003 `workflow state transition`: Graph context取得後、`run_recorded` 前に `project_resolution`、`graph_context`、`graph_ssot_playbook` をrun metadataへ固定する。
-- S-004 `workflow state transition`: `meeting_note_generation` ではTranscript/Slack添付だけを事実ソースにし、Graph SSOTは固有名詞・人物・関係・用語contextに限定する。
+- S-004 `workflow state transition`: `meeting_note_generation` ではTactiq/Plaud MCPソースだけを事実ソースにし、Graph SSOTは固有名詞・人物・関係・用語contextに限定する。
 - S-005 `workflow state transition`: Graph取得成功時だけ `verified_from_graph_ssot` とし、Review Package候補をGraph正本へ自動昇格しない。
 - S-006 `workflow state transition`: Task作成、Decision昇格、Graph書き込み、外部送信は `human_review_package` でpendingに止める。
 - S-007 `workflow state transition`: 同一Packageのreplayは既存runを返し、既存output payloadを上書きしない。
@@ -86,7 +87,7 @@ flowchart TD
 - SCN-001: workflow state transition scenario clauseとして、`source_intake` から `project_resolution_gate` に進み、単一Projectが確定した時だけ `project_scoped_graph_context` を実行する。
 - SCN-002: workflow state transition scenario clauseとして、Graph SSOT lookupでは `glossary_term` を必ず含め、`glossary_resolution` を通して議事録生成contextへ渡す。
 - SCN-003: workflow state transition scenario clauseとして、Graph context取得後、`run_recorded` 前に `project_resolution`、`graph_context`、`graph_ssot_playbook` をrun metadataへ固定する。
-- SCN-004: workflow state transition scenario clauseとして、`meeting_note_generation` ではTranscript/Slack添付だけを事実ソースにし、Graph SSOTは固有名詞・人物・関係・用語contextに限定する。
+- SCN-004: workflow state transition scenario clauseとして、`meeting_note_generation` ではTactiq/Plaud MCPソースだけを事実ソースにし、Graph SSOTは固有名詞・人物・関係・用語contextに限定する。
 - SCN-005: workflow state transition scenario clauseとして、Graph取得成功時だけ `verified_from_graph_ssot` とし、Review Package候補をGraph正本へ自動昇格しない。
 - SCN-006: workflow state transition scenario clauseとして、Task作成、Decision昇格、Graph書き込み、外部送信は `human_review_package` でpendingに止める。
 - SCN-007: workflow state transition scenario clauseとして、同一Packageのreplayは既存runを返し、既存output payloadを上書きしない。

@@ -124,12 +124,13 @@ function samplePackage({
       }
     },
     source_event: {
-      source_system: 'slack',
+      source_system: 'tactiq',
+      meeting_mode: 'online',
       workspace: 'unson',
-      channel_id: 'C08SYTDR7R8',
-      channel_name: 'meeting-router',
-      message_ts: '1782367965.844209',
-      file_id: 'F0BCYNXMP6H',
+      account: 'info@example.com',
+      transcript_id: 'tactiq-owner-ssot-e2e',
+      mcp_resource_uri: 'mcp://tactiq/transcripts/tactiq-owner-ssot-e2e',
+      slack_permalink: 'https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844209',
       local_artifact_sha256: 'sha256-owner-ssot'
     },
     loop_intent_ids: {

@@ -25,13 +25,13 @@
     }
   },
   "source_event": {
-    "source_system": "slack",
+    "source_system": "tactiq",
+    "meeting_mode": "online",
     "workspace": "techknight",
-    "channel_id": "C08SYTDR7R8",
-    "channel_name": "hotel-dx-united",
-    "message_ts": "1782367965.844209",
-    "file_id": "mana-meeting-note-united-hotel-dx",
-    "permalink": "https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844209",
+    "account": "keigo.sato@unson.jp",
+    "transcript_id": "tactiq-united-hotel-dx-2026-06-25",
+    "mcp_resource_uri": "mcp://tactiq/transcripts/tactiq-united-hotel-dx-2026-06-25",
+    "slack_permalink": "https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844209",
     "local_artifact_sha256": "sha256-united-hotel-dx-review-package"
   },
   "loop_intent_ids": {

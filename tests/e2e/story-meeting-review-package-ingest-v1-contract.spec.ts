@@ -112,12 +112,13 @@ function samplePackage({
       }
     },
     source_event: {
-      source_system: 'slack',
+      source_system: 'tactiq',
+      meeting_mode: 'online',
       workspace: 'unson',
-      channel_id: 'C08SYTDR7R8',
-      channel_name: '9940-meeting-router',
-      message_ts: '1782367965.844209',
-      file_id: 'F0BCYNXMP6H',
+      account: 'info@example.com',
+      transcript_id: 'tactiq-meeting-review-e2e',
+      mcp_resource_uri: 'mcp://tactiq/transcripts/tactiq-meeting-review-e2e',
+      slack_permalink: 'https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844209',
       local_artifact_sha256: 'sha256-e2e'
     },
     loop_intent_ids: {
@@ -203,12 +204,13 @@ test('story-meeting-review-package-ingest-v1 ac:2 `org_id` / `project_id` は明
   expect({ meeting_identity_candidate_org_id: packageInput.meeting_identity.candidate_org_id, candidate_project_id: packageInput.meeting_identity.candidate_project_id, explicit_org_id: result.meeting_review_ingest.org_id }).toEqual({ meeting_identity_candidate_org_id: 'sample-project', candidate_project_id: 'sample-project', explicit_org_id: 'other-project' });
 });
 
-test('story-meeting-review-package-ingest-v1 ac:3 `case_scope`、Calendar event、Slack source、Graph context、transcript hash は run metadata と context snapshot に残る。', async () => {
+test('story-meeting-review-package-ingest-v1 ac:3 `case_scope`、Calendar event、MCP source、Graph context、transcript hash は run metadata と context snapshot に残る。', async () => {
   const { ingest } = await ingestSamplePackage();
 
   expect(ingest.run.metadata.case_scope).toBe('e2e-loop-test');
   expect(ingest.run.metadata.meeting_identity.event_id).toBe('evt-e2e');
-  expect(ingest.run.metadata.source_event.file_id).toBe('F0BCYNXMP6H');
+  expect(ingest.run.metadata.source_event.transcript_id).toBe('tactiq-meeting-review-e2e');
+  expect(ingest.run.metadata.source_event.mcp_resource_uri).toBe('mcp://tactiq/transcripts/tactiq-meeting-review-e2e');
   expect(ingest.run.metadata.source_event.local_artifact_sha256).toBe('sha256-e2e');
   expect(ingest.run.metadata.graph_context.org_entity_ids).toEqual(['org-e2e']);
   expect(ingest.context_snapshots.map((snapshot) => snapshot.source_type)).toEqual([
@@ -256,7 +258,7 @@ test('story-meeting-pack-graph-ssot-playbook ac:1 Project確定後にGraph SSOT�
   expect(ingest.run.metadata.graph_ssot_playbook).toEqual(expect.objectContaining({
     version: 'meeting_pack_graph_ssot_playbook.v1',
     generation_contract: expect.objectContaining({
-      fact_source: 'transcript_and_slack_attachment',
+      fact_source: 'tactiq_or_plaud_transcript_or_note',
       graph_ssot_role: 'project_scoped_entity_identity_relationship_glossary_context',
       project_must_be_resolved_before_graph_lookup: true,
       graph_context_must_not_override_missing_transcript_facts: true

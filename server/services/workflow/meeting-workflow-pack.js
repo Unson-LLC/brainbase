@@ -128,9 +128,18 @@ export function buildMeetingWorkflowPackManifest({
         inputs: [
             { id: 'calendar_event', required_for: ['pre-meeting-briefing'] },
             { id: 'meeting_identity', required_for: ['all'] },
-            { id: 'transcript_or_note', required_for: ['transcript-to-meeting-note', 'meeting-note-to-tasks', 'meeting-note-to-decisions'] },
+            {
+                id: 'mcp_meeting_source',
+                provider_policy: {
+                    online: 'tactiq',
+                    offline: 'plaud',
+                    online_tactiq_unavailable: 'plaud',
+                    slack: 'pointer_or_fallback_only'
+                },
+                required_for: ['transcript-to-meeting-note', 'meeting-note-to-tasks', 'meeting-note-to-decisions']
+            },
             { id: 'graph_ssot_context', required_for: ['all'] },
-            { id: 'slack_or_channel_context', required_for: ['post-meeting-follow-up-message'] }
+            { id: 'slack_or_channel_context', role: 'follow_up_or_fallback_pointer', required_for: ['post-meeting-follow-up-message'] }
         ],
         role_agent: {
             id: roleAgent.id,
@@ -260,10 +269,10 @@ export function buildMeetingWorkflowPackRecords({
         context_policy: {
             graph_refs: [`org:${orgId}`, `project:${projectId}`],
             meeting_scope: 'project_meetings',
-            required_sources: ['calendar', 'transcript_or_note', 'graph_ssot']
+            required_sources: ['calendar', 'mcp_meeting_source', 'graph_ssot']
         },
         tool_scope: {
-            allow: ['calendar.read', 'transcript.read', 'slack.read', 'slack.draft', 'graph.read'],
+            allow: ['calendar.read', 'tactiq.read', 'plaud.read', 'transcript.read', 'slack.read', 'slack.draft', 'graph.read'],
             deny: ['gmail.send', 'slack.send', 'graph.write_without_approval']
         },
         workflow_constraints: {

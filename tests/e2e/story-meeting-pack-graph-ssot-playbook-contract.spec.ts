@@ -161,12 +161,13 @@ function samplePackage({
       }
     },
     source_event: {
-      source_system: 'slack',
+      source_system: 'tactiq',
+      meeting_mode: 'online',
       workspace: 'unson',
-      channel_id: 'C08SYTDR7R8',
-      channel_name: '9940-meeting-router',
-      message_ts: '1782367965.844209',
-      file_id: 'F0BCYNXMP6H',
+      account: 'info@example.com',
+      transcript_id: 'tactiq-graph-playbook-contract',
+      mcp_resource_uri: 'mcp://tactiq/transcripts/tactiq-graph-playbook-contract',
+      slack_permalink: 'https://unson.slack.com/archives/C08SYTDR7R8/p1782367965844209',
       local_artifact_sha256: 'sha256-graph-playbook'
     },
     loop_intent_ids: {
@@ -269,10 +270,16 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
     expect(ingest.run.metadata.graph_ssot_playbook).toEqual(expect.objectContaining({
       version: 'meeting_pack_graph_ssot_playbook.v1',
       source_intake: expect.objectContaining({
-        has_slack_attachment: true,
+        source_system: 'tactiq',
+        meeting_mode: 'online',
+        expected_primary_provider: 'tactiq',
+        has_mcp_transcript: true,
+        has_primary_mcp_source: true,
+        has_slack_attachment: false,
+        slack_role: null,
         has_transcript_hash: true,
         has_evidence_refs: true,
-        status: 'source_evidence_present'
+        status: 'primary_mcp_source_present'
       }),
       graph_context: expect.objectContaining({
         status: 'resolved',
@@ -294,7 +301,13 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
     const acEvidence = 'story-meeting-pack-graph-ssot-playbook ac:7 AC-007 Graph SSOT contextは議事録の事実ソースではなく、固有名詞、人物同一性、関係、用語のcontextであることを generation_contract に残す。';
     expect(acEvidence).toContain('generation_contract に残す');
     expect(ingest.run.metadata.graph_ssot_playbook.generation_contract).toEqual(expect.objectContaining({
-      fact_source: 'transcript_and_slack_attachment',
+      fact_source: 'tactiq_or_plaud_transcript_or_note',
+      source_routing_policy: expect.objectContaining({
+        online: 'tactiq',
+        offline: 'plaud',
+        online_tactiq_unavailable: 'plaud',
+        slack: 'pointer_or_fallback_only'
+      }),
       graph_ssot_role: 'project_scoped_entity_identity_relationship_glossary_context',
       project_must_be_resolved_before_graph_lookup: true,
       graph_context_must_not_override_missing_transcript_facts: true,
@@ -523,6 +536,60 @@ test('story-meeting-pack-graph-ssot-playbook AC-005 ac:5 AC-010 ac:10 S-008 S-00
   }));
 });
 
+test('story-meeting-pack-graph-ssot-playbook source_intake routes offline meetings to Plaud and treats Slack-only online posts as fallback, not the primary source.', async () => {
+  const offlinePlaudPackage = samplePackage({
+    packageId: 'meeting-pack-graph-ssot-playbook-plaud-source-contract'
+  });
+  offlinePlaudPackage.source_event = {
+    source_system: 'plaud',
+    meeting_mode: 'offline',
+    account: 'keigo@example.com',
+    recording_id: 'plaud-offline-graph-playbook',
+    note_id: 'plaud-note-graph-playbook',
+    mcp_resource_uri: 'mcp://plaud/recordings/plaud-offline-graph-playbook',
+    local_artifact_sha256: 'sha256-plaud-offline'
+  };
+
+  const plaudIngest = await ingestPackage(offlinePlaudPackage, { infoSSOTService: makeGraphContextService() });
+  expect(plaudIngest.run.metadata.graph_ssot_playbook.source_intake).toEqual(expect.objectContaining({
+    source_system: 'plaud',
+    meeting_mode: 'offline',
+    expected_primary_provider: 'plaud',
+    has_mcp_note: true,
+    has_primary_mcp_source: true,
+    status: 'primary_mcp_source_present'
+  }));
+
+  const slackFallbackPackage = samplePackage({
+    packageId: 'meeting-pack-graph-ssot-playbook-slack-fallback-contract'
+  });
+  slackFallbackPackage.source_event = {
+    source_system: 'slack',
+    meeting_mode: 'online',
+    workspace: 'unson',
+    channel_id: 'C08SYTDR7R8',
+    message_ts: '1782367965.844209',
+    file_id: 'F0BCYNXMP6H',
+    local_artifact_sha256: 'sha256-slack-fallback'
+  };
+
+  const slackIngest = await ingestPackage(slackFallbackPackage, { infoSSOTService: makeGraphContextService() });
+  expect(slackIngest.run.metadata.graph_ssot_playbook.source_intake).toEqual(expect.objectContaining({
+    source_system: 'slack',
+    meeting_mode: 'online',
+    expected_primary_provider: 'tactiq',
+    has_primary_mcp_source: false,
+    slack_role: 'pointer_or_fallback_only',
+    status: 'fallback_source_present'
+  }));
+  expect(slackIngest.run.metadata.graph_ssot_playbook.active_exceptions).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      node: 'source_intake',
+      code: 'primary_mcp_source_missing'
+    })
+  ]));
+});
+
 test('story-meeting-pack-graph-ssot-playbook AC-011 ac:11 S-010 SCN-010 flow_replay production_path_matrix scenario_clause_e2e workflow state transition project未確定はpre-ingest blockerとしてGraph SSOT lookupを呼ばず構造化例外を返す。', async () => {
   const infoSSOTService = makeUnexpectedGraphContextService();
   const { service, actor } = makeService({ infoSSOTService });
@@ -617,7 +684,7 @@ test('story-meeting-pack-graph-ssot-playbook flow_replay production_path_matrix 
     'ac:4 verified_from_graph_ssot snapshot for successful Graph context',
     'ac:5 graph_ssot_unavailable keeps candidate_from_review_package',
     'ac:6 meeting_note_draft payload carries graph_ssot_playbook',
-    'ac:7 generation_contract keeps transcript_and_slack_attachment as fact source',
+    'ac:7 generation_contract keeps tactiq_or_plaud_transcript_or_note as fact source',
     'ac:8 human_review_package blocks task decision graph external side effects',
     'ac:9 idempotent replay returns existing run without payload overwrite',
     'ac:10 Graph SSOT fallback reaches Human Gate without ingest failure',
