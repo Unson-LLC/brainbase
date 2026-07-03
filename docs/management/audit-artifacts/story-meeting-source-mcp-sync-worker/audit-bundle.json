@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-source-mcp-sync-worker",
   "source": "execute_merge",
-  "promoted_at": "2026-07-03T02:20:14.281Z",
+  "promoted_at": "2026-07-03T02:20:19.064Z",
   "canonical_dir": "docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker",
   "source_workspace_dir": ".vibepro",
   "audit_index_path": "docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker/audit-index.json",
@@ -38,10 +38,10 @@
     "path": "docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:abd928c343536c25ab663efe02628756a687fb3c373a657318bb7a10746b50a6",
-    "compressed_hash": "sha256:3c2ffa7ca5b56874ab7869eb2e2e2d7f970437123465cfa75de56531e28610ae",
+    "content_hash": "sha256:721eb1249d19b9045b40ebf55e784666218d885c29260f2e569613e03199070e",
+    "compressed_hash": "sha256:d1bc5cea3c2482b6abe9d56c2a442f002cf528e17d4048fd8ccfcf9ec20db1d8",
     "expanded_bytes": 15388,
-    "compressed_bytes": 3380,
+    "compressed_bytes": 3382,
     "expanded_line_count": 405,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
@@ -60,7 +60,7 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-meeting-source-mcp-sync-worker",
     "cost": {
-      "compressed_bytes": 3380,
+      "compressed_bytes": 3382,
       "expanded_bytes": 15388,
       "expanded_line_count": 405,
       "persisted_line_count": 1
@@ -97,7 +97,7 @@
       "kind": "compressed_replay_bundle",
       "canonical_path": "docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker/audit-replay-bundle.json.gz",
       "compression": "gzip",
-      "content_hash": "sha256:abd928c343536c25ab663efe02628756a687fb3c373a657318bb7a10746b50a6"
+      "content_hash": "sha256:721eb1249d19b9045b40ebf55e784666218d885c29260f2e569613e03199070e"
     }
   ],
   "raw_artifact_manifest": [
@@ -189,10 +189,10 @@
       "source": ".vibepro/pr/story-meeting-source-mcp-sync-worker/pr-merge.json",
       "persisted": "compressed",
       "compressed_path": "docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker/audit-replay-bundle.json.gz",
-      "digest": "sha256:0eefff51be8f80f9cd0000076057459e8e3c31583e07d2e74941cafd68a3b8b8",
-      "audit_digest": "sha256:873caa7b61ebed94d7aa252841ce55a2ac9ae94491fe3a3bb03d4708d21f487d",
-      "line_count": 2095,
-      "raw_line_count": 4095,
+      "digest": "sha256:a22e7efd131693061e2156d531bb0854d25d655e0dd133c97ec22b8e1e6ab392",
+      "audit_digest": "sha256:6f8a69c0663ec725ec6522afe22f1bdd934cc06e4e27a922ce1e16eaafdd31ec",
+      "line_count": 2185,
+      "raw_line_count": 4185,
       "audit_scope": "judgment_evidence_v1",
       "excluded_from_audit": [
         "pr_lifecycle.full_gate_dag",

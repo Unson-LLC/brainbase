@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-source-mcp-sync-worker",
   "source": "execute_merge",
-  "generated_at": "2026-07-03T02:20:14.281Z",
+  "generated_at": "2026-07-03T02:20:19.064Z",
   "evidence_depth": "standard",
   "budget_status": "within_budget",
   "cost_summary": {
@@ -122,13 +122,13 @@
       "reason": "elapsed-time logs were not provided to canonical audit promotion"
     },
     "replay_bundle": {
-      "compressed_bytes": 3380,
+      "compressed_bytes": 3382,
       "expanded_bytes": 15388,
       "expanded_line_count": 405,
       "persisted_line_count": 1
     },
-    "raw_source_artifact_lines": 13443,
-    "raw_source_artifact_code_ratio": 4.345,
+    "raw_source_artifact_lines": 13533,
+    "raw_source_artifact_code_ratio": 4.374,
     "artifact_lines_source": "persisted_canonical_compact"
   },
   "pr_prepare": {
@@ -249,7 +249,7 @@
     "schema_version": "0.1.0",
     "artifact_kind": "vibepro_automation_value_audit",
     "story_id": "story-meeting-source-mcp-sync-worker",
-    "generated_at": "2026-07-03T02:20:14.281Z",
+    "generated_at": "2026-07-03T02:20:19.064Z",
     "status": "partial",
     "purpose": "daily_automation_input",
     "sources": {
@@ -359,10 +359,10 @@
     "path": "docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:abd928c343536c25ab663efe02628756a687fb3c373a657318bb7a10746b50a6",
-    "compressed_hash": "sha256:3c2ffa7ca5b56874ab7869eb2e2e2d7f970437123465cfa75de56531e28610ae",
+    "content_hash": "sha256:721eb1249d19b9045b40ebf55e784666218d885c29260f2e569613e03199070e",
+    "compressed_hash": "sha256:d1bc5cea3c2482b6abe9d56c2a442f002cf528e17d4048fd8ccfcf9ec20db1d8",
     "expanded_bytes": 15388,
-    "compressed_bytes": 3380,
+    "compressed_bytes": 3382,
     "expanded_line_count": 405,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
@@ -381,7 +381,7 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-meeting-source-mcp-sync-worker",
     "cost": {
-      "compressed_bytes": 3380,
+      "compressed_bytes": 3382,
       "expanded_bytes": 15388,
       "expanded_line_count": 405,
       "persisted_line_count": 1
