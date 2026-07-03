@@ -1,0 +1,74 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "created_at": "2026-07-03T02:19:55.579Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADRあり (docs/architecture/meeting-source-mcp-sync-worker-architecture.md)",
+  "source_artifacts": {
+    "story": "docs/stories/story-meeting-source-mcp-sync-worker.md",
+    "review_cockpit": ".vibepro/pr/story-meeting-source-mcp-sync-worker/review-cockpit.html",
+    "gate_dag": ".vibepro/pr/story-meeting-source-mcp-sync-worker/gate-dag.json"
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADRあり (docs/architecture/meeting-source-mcp-sync-worker-architecture.md)"
+    },
+    "spec": {
+      "status": "present",
+      "reason": "explicit Spec docs are present (docs/specs/story-meeting-source-mcp-sync-worker-spec.md)"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-03T02:19:54.146Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "202599f7082d1c49783ae4d42623f4f825c53564",
+      "branch": "main",
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "2d4edc4d3dd11087f6223bedb1e26121b1fd93bf",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M docs/.vitepress/config.mjs",
+        " A docs/architecture/vibepro-story-scoped-playbook-export.md",
+        " M docs/guide/ai-pr-workflow.md",
+        " M docs/guide/checkpoints-and-execution.md",
+        " M docs/guide/core-concepts.md",
+        " M docs/guide/gates-and-evidence.md",
+        " M docs/guide/graphify-impact.md",
+        " M docs/guide/story-spec-traceability.md",
+        " M docs/guide/what-is-vibepro.md",
+        " M docs/index.md",
+        " M docs/ja/guide/ai-pr-workflow.md",
+        " M docs/ja/guide/checkpoints-and-execution.md",
+        " M docs/ja/guide/core-concepts.md",
+        " M docs/ja/guide/gates-and-evidence.md",
+        " M docs/ja/guide/graphify-impact.md",
+        " M docs/ja/guide/story-spec-traceability.md",
+        " M docs/ja/guide/what-is-vibepro.md",
+        " M docs/ja/index.md",
+        " M docs/ja/reference/artifact-map.md",
+        " M docs/ja/reference/cli.md"
+      ]
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

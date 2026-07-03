@@ -1,0 +1,76 @@
+{
+  "schema_version": "0.1.0",
+  "run_id": "2026-07-03T003043Z",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "created_at": "2026-07-03T00:30:43.006Z",
+  "status": "needs_evidence",
+  "reason": "No runtime probes were configured for Flow Verification.",
+  "base_url": "http://localhost:39137",
+  "http_auth": {
+    "enabled": false
+  },
+  "playwright": {
+    "detected": true,
+    "command": "npm run test:mobile",
+    "reason": "Playwright dependency detected."
+  },
+  "setup": {
+    "kind": "flow_runtime_probes_missing",
+    "reason": "No runtime probes were configured for Flow Verification.",
+    "next_commands": [
+      "Add `flow_design.runtime_probes[]` to `.vibepro/config.json` with at least one non-mutating probe for the changed workflow.",
+      "vibepro verify flow . --base-url <url> --id story-meeting-source-mcp-sync-worker"
+    ]
+  },
+  "options": {
+    "journey_id": null,
+    "allow_mutation": false,
+    "headed": false,
+    "basic_auth_env": null,
+    "basic_auth_inline": false
+  },
+  "summary": {
+    "total": 0,
+    "pass": 0,
+    "fail": 0,
+    "skipped": 0,
+    "needs_setup": 0
+  },
+  "probes": [],
+  "command": null,
+  "runtime_contract_failures": [],
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "verify flow",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+      "current_head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+      "managed_worktree": null
+    }
+  ],
+  "git_context": {
+    "head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+    "current_branch": "codex/meeting-source-sync-story",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-03T00:30:43.193Z"
+  },
+  "generated_spec": null,
+  "generated_config": null
+}

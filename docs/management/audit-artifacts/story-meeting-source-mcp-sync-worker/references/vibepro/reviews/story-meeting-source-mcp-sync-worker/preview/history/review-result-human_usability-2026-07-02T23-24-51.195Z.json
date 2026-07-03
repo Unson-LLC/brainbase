@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "stage": "preview",
+  "role": "human_usability",
+  "status": "block",
+  "summary": "Settings UI confirm can report Meeting Pack draft confirmation without submitting to review ingest, while advancing provider cursors; source_event and UI coverage also need fixes.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Subagent inspected Settings UI, sync service, route registration, workflow ingest, story spec, architecture, and focused tests.",
+    "evidence": "confirm path defaults submit=false and advances cursors before ingest",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-source-mcp-sync-worker/preview/review-request-human_usability.md"
+    ]
+  },
+  "judgment_delta": [
+    "focused service tests passed, but human usability blocks because visible confirm could lose artifacts"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "b445eaf067c7bc175571fde97ef55929bb2048eb",
+    "current_head_sha": "b445eaf067c7bc175571fde97ef55929bb2048eb",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "b445eaf067c7bc175571fde97ef55929bb2048eb",
+      "current_head_sha": "b445eaf067c7bc175571fde97ef55929bb2048eb",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-02T23:24:51.195Z",
+  "git_context": {
+    "head_sha": "b445eaf067c7bc175571fde97ef55929bb2048eb",
+    "current_branch": "codex/meeting-source-sync-story",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "328f81d5abe4967bc404fe2db6923c54a97c5c756692365b85b7e5670d0b1015",
+    "user_status_fingerprint_hash": "328f81d5abe4967bc404fe2db6923c54a97c5c756692365b85b7e5670d0b1015",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-02T23:24:51.194Z"
+  },
+  "source_fingerprint": "4c5dafd0ddb33d6b5d142ac336f141b7853890bc110ac3092cee6d2d0da2a752",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f2521-eda7-7e31-a278-0871cfca1288",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-meeting-source-mcp-sync-worker/preview/review-request-human_usability.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent_notification completed with block findings",
+      "close_note": null
+    },
+    "evidence_strength": "declared"
+  },
+  "agent_usage": null
+}

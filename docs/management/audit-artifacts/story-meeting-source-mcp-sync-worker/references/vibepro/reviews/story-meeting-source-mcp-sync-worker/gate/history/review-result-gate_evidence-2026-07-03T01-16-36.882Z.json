@@ -1,0 +1,138 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Gate evidence re-review passed after current-head evidence refresh and closed replacement lifecycle; prior stale-head and visual QA findings are resolved, and the only remaining blocker was the procedural absence of this replacement record.",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "artifact-consistency-stale-head",
+      "disposition": "accepted",
+      "resolved_by": [
+        ".vibepro/pr/story-meeting-source-mcp-sync-worker/verification-evidence.json records current-head integration/build/unit/typecheck/e2e evidence at a27de4ae8"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "command-reliability-partial-artifact-check",
+      "disposition": "accepted",
+      "resolved_by": [],
+      "reason": "observed values were re-recorded for unit/typecheck; Playwright e2e artifact is machine-verified and remaining unrecognized logs are supplemental",
+      "inferred_from_resolution": false
+    },
+    {
+      "finding_id": "gate-binding-not-ready-for-pr-create",
+      "disposition": "accepted",
+      "resolved_by": [
+        "this closed replacement review record provides current PR-final gate_evidence provenance and resolves the prior needs_changes record"
+      ],
+      "reason": "self-referential procedural blocker before close/record; resolved by lifecycle close and replacement review record",
+      "inferred_from_resolution": false
+    },
+    {
+      "finding_id": "gate-evidence-record-still-old-needs-changes",
+      "disposition": "accepted",
+      "resolved_by": [],
+      "reason": "self-referential procedural blocker before replacement record; resolved by this review record",
+      "inferred_from_resolution": false
+    },
+    {
+      "finding_id": "visual-qa-not-bound-to-gate",
+      "disposition": "accepted",
+      "resolved_by": [
+        ".vibepro/qa/story-meeting-source-mcp-sync-worker/residual-analysis.md and iteration-1/pixel-residual.json bind provider preview visual QA; gate:visual_qa is ready_for_review"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/pr/story-meeting-source-mcp-sync-worker/gate-dag.json",
+    ".vibepro/pr/story-meeting-source-mcp-sync-worker/verification-evidence.json",
+    ".vibepro/qa/story-meeting-source-mcp-sync-worker/residual-analysis.md",
+    ".vibepro/qa/story-meeting-source-mcp-sync-worker/iteration-1/pixel-residual.json"
+  ],
+  "inspection": {
+    "summary": "Inspected current VibePro PR artifacts, verification evidence, QA residual artifacts, review lifecycle, and source/test/docs. Tactiq/Plaud provider artifacts remain primary source_event inputs; Slack/Calendar cannot replace missing transcript facts; task owner inference remains delegated to Brainbase people SSOT.",
+    "evidence": ".vibepro/pr/story-meeting-source-mcp-sync-worker/verification-evidence.json; .vibepro/pr/story-meeting-source-mcp-sync-worker/gate-dag.json; .vibepro/qa/story-meeting-source-mcp-sync-worker/residual-analysis.md; .vibepro/qa/story-meeting-source-mcp-sync-worker/iteration-1/pixel-residual.json",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-source-mcp-sync-worker/gate/review-request-gate_evidence.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial subagent judgment was BLOCK because the replacement lifecycle was still running and the replacement review record did not yet exist -> final coordinator judgment is PASS because the lifecycle was closed and this replacement review record binds the refreshed current-head evidence to the gate."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+    "current_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+      "current_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-03T01:16:36.882Z",
+  "git_context": {
+    "head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+    "current_branch": "codex/meeting-source-sync-story",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-03T01:16:36.875Z"
+  },
+  "source_fingerprint": "20e3b3c483dfd1e08eddf96e2aa094e1da7a693353ab78edaaef89ca5d3607e5",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f2587-715b-7f93-9e3e-41591bd0729e",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-source-mcp-sync-worker/gate/subagent-transcript-gate-evidence-019f2587-715b-7f93-9e3e-41591bd0729e-current-head-rerun.md",
+    "request_artifact": ".vibepro/reviews/story-meeting-source-mcp-sync-worker/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "vibepro review close lifecycle e49f0bb6-5619-4772-a500-33e842a70eba completed",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

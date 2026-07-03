@@ -1,0 +1,173 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "created_at": "2026-07-03T02:19:55.579Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr. Visual QA is ready_for_review; 0 run(s) exceed the 5% residual threshold.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-meeting-source-mcp-sync-worker/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-meeting-source-mcp-sync-worker/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-meeting-source-mcp-sync-worker/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-meeting-source-mcp-sync-worker/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-meeting-source-mcp-sync-worker/split-plan.json",
+    "decision_records": ".vibepro/pr/story-meeting-source-mcp-sync-worker/decision-records.json",
+    "visual_qa": [
+      ".vibepro/qa/story-meeting-source-mcp-sync-worker/residual-analysis.md",
+      ".vibepro/qa/story-meeting-source-mcp-sync-worker/iteration-1/pixel-residual.json"
+    ]
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/meeting-source-mcp-sync-worker-architecture.md)"
+    },
+    "spec": {
+      "status": "present",
+      "required": true,
+      "reason": "explicit Spec docs are present (docs/specs/story-meeting-source-mcp-sync-worker-spec.md)"
+    },
+    "decision_records": {
+      "total": 10,
+      "open": 0,
+      "by_type": {
+        "waiver": 2,
+        "needs_review": 8
+      },
+      "by_status": {
+        "accepted": 10
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783044247401-18fa7b0d",
+        "story_id": "story-meeting-source-mcp-sync-worker",
+        "type": "waiver",
+        "status": "accepted",
+        "source": "gate:agent_review",
+        "source_status": "needs_review",
+        "summary": "Current gate_evidence review cannot be refreshed because subagent quota is exhausted",
+        "reason": "The required gate_evidence role is stale because the last completed subagent review was bound to a27de4ae87b6. A replacement subagent was started for current HEAD [REDACTED:072aa2c4825c] and closed manual_shutdown after Codex reported usage limit. This waiver preserves the unresolved Agent Review fact and permits only VibePro audited PR flow with --allow-needs-verification if accepted.",
+        "reviewer": "codex",
+        "artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/review-prepare-gate-current.json",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": true,
+          "hit_count": 1
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+            "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+            "expected_root": null,
+            "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+            "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "current_branch": "codex/meeting-source-sync-story",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-03T02:04:07.401Z"
+        },
+        "recorded_at": "2026-07-03T02:04:07.402Z"
+      }
+    },
+    "visual_qa": {
+      "status": "ready_for_review",
+      "threshold_pct": 5,
+      "checked_runs": 1,
+      "needs_review_count": 0
+    },
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": 1,
+      "final_20_auto_closure_rate": 1,
+      "visual_qa_pass_rate": 1,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-03T02:19:54.146Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "202599f7082d1c49783ae4d42623f4f825c53564",
+      "branch": "main",
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "2d4edc4d3dd11087f6223bedb1e26121b1fd93bf",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M docs/.vitepress/config.mjs",
+        " A docs/architecture/vibepro-story-scoped-playbook-export.md",
+        " M docs/guide/ai-pr-workflow.md",
+        " M docs/guide/checkpoints-and-execution.md",
+        " M docs/guide/core-concepts.md",
+        " M docs/guide/gates-and-evidence.md",
+        " M docs/guide/graphify-impact.md",
+        " M docs/guide/story-spec-traceability.md",
+        " M docs/guide/what-is-vibepro.md",
+        " M docs/index.md",
+        " M docs/ja/guide/ai-pr-workflow.md",
+        " M docs/ja/guide/checkpoints-and-execution.md",
+        " M docs/ja/guide/core-concepts.md",
+        " M docs/ja/guide/gates-and-evidence.md",
+        " M docs/ja/guide/graphify-impact.md",
+        " M docs/ja/guide/story-spec-traceability.md",
+        " M docs/ja/guide/what-is-vibepro.md",
+        " M docs/ja/index.md",
+        " M docs/ja/reference/artifact-map.md",
+        " M docs/ja/reference/cli.md"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

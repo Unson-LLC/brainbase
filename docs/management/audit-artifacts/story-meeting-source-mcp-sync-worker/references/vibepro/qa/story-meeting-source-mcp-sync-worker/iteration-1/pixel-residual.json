@@ -1,0 +1,9 @@
+{
+  "meanAbsResidualPct": 0,
+  "rmsResidualPct": 0,
+  "pixelChangedPctOver32": 0,
+  "semanticLayoutResidualPct": 0,
+  "status": "pass",
+  "screenshot": "/tmp/meeting-source-mcp-sync-vibepro/visual-meeting-source-preview-provider-results.png",
+  "facts": "/tmp/meeting-source-mcp-sync-vibepro/visual-qa.json"
+}

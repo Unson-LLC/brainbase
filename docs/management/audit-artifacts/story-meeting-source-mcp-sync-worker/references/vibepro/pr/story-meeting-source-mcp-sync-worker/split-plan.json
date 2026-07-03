@@ -1,0 +1,366 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "status": "split_recommended",
+  "recommended_strategy": "split_by_lane_then_prepare",
+  "rationale": [
+    "baseからのcommitが 8 件あり、Story外の変更混入を確認する必要がある",
+    "3 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphifyで 9 changed files が一致し、56 related files を影響調査候補にした"
+  ],
+  "graph_context": {
+    "available": true,
+    "graph_path": ".vibepro/graphify/graph.json",
+    "edge_source_key": "links",
+    "node_count": 6349,
+    "edge_count": 13154,
+    "matched_file_count": 9,
+    "related_file_count": 56,
+    "investigation_files": [
+      "cli/auth.js",
+      "cli/learning.js",
+      "cli/sync.js",
+      "lib/state-store.js",
+      "lib/task-directory-scanner.js",
+      "public/modules/core/di-container.js",
+      "public/modules/core/event-bus.js",
+      "public/modules/core/http-client.js",
+      "public/modules/core/plugin-manager.js",
+      "public/modules/core/session-data-cache.js",
+      "public/modules/core/store.js",
+      "public/modules/settings/settings-plugin-api.js",
+      "public/modules/settings/settings-ui.js",
+      "public/modules/state-api.js",
+      "public/modules/ui/mobile-clipboard-manager.js",
+      "scripts/daily-ops-report.mjs",
+      "scripts/populate-auth-grants.mjs",
+      "server/bootstrap/register-api-routes.js",
+      "server/lib/async-handler.js",
+      "server/middleware/auth.js",
+      "server/routes/admin-visualization.js",
+      "server/routes/auth.js",
+      "server/routes/brainbase.js",
+      "server/routes/candidate-store.js",
+      "server/routes/companion.js",
+      "server/routes/config.js",
+      "server/routes/external-runner.js",
+      "server/routes/health.js",
+      "server/routes/info-ssot.js",
+      "server/routes/learning.js"
+    ],
+    "impact_by_file": [
+      {
+        "file": "public/modules/settings/settings-core.js",
+        "matched_nodes": [
+          "public_modules_settings_settings_core_js",
+          "settings_settings_core_settingscore",
+          "settings_settings_core_settingscore_constructor",
+          "settings_settings_core_settingscore_init",
+          "settings_settings_core_settingscore_registercoreplugins",
+          "settings_settings_core_settingscore_loadalldata",
+          "settings_settings_core_settingscore_rendertabs",
+          "settings_settings_core_settingscore_renderpanelcontainers"
+        ],
+        "related_files": [
+          "cli/auth.js",
+          "cli/learning.js",
+          "cli/sync.js",
+          "lib/state-store.js",
+          "public/modules/core/di-container.js",
+          "public/modules/core/event-bus.js",
+          "public/modules/core/http-client.js",
+          "public/modules/core/plugin-manager.js",
+          "public/modules/core/store.js",
+          "public/modules/settings/settings-plugin-api.js",
+          "public/modules/settings/settings-ui.js",
+          "public/modules/state-api.js"
+        ]
+      },
+      {
+        "file": "server.js",
+        "matched_nodes": [
+          "server_js",
+          "brainbase_meeting_pack_graph_playbook_server_detectbrainbaseroot",
+          "brainbase_meeting_pack_graph_playbook_server_resolvegitinfo",
+          "brainbase_meeting_pack_graph_playbook_server_buildruntimeinfo",
+          "brainbase_meeting_pack_graph_playbook_server_registerruntimerevisionguard",
+          "brainbase_meeting_pack_graph_playbook_server_writeportfiles",
+          "brainbase_meeting_pack_graph_playbook_server_ensuredir"
+        ],
+        "related_files": [
+          "lib/task-directory-scanner.js"
+        ]
+      },
+      {
+        "file": "server/bootstrap/core-services.js",
+        "matched_nodes": [
+          "server_bootstrap_core_services_js",
+          "bootstrap_core_services_createcoreservices"
+        ],
+        "related_files": [
+          "server/services/create-session-services.js",
+          "server/services/external-runner/eve-session-client.js",
+          "server/services/workflow/workflow-service.js"
+        ]
+      },
+      {
+        "file": "server/bootstrap/graceful-shutdown.js",
+        "matched_nodes": [
+          "server_bootstrap_graceful_shutdown_js",
+          "bootstrap_graceful_shutdown_registergracefulshutdown"
+        ],
+        "related_files": [
+          "public/modules/core/event-bus.js"
+        ]
+      },
+      {
+        "file": "server/bootstrap/register-api-routes.js",
+        "matched_nodes": [
+          "server_bootstrap_register_api_routes_js",
+          "bootstrap_register_api_routes_resolvesnspostingledgerdatabaseurl",
+          "bootstrap_register_api_routes_createsnspostingledgerrepository",
+          "bootstrap_register_api_routes_createsnsaccountservice",
+          "bootstrap_register_api_routes_createsnsaccountprovider",
+          "bootstrap_register_api_routes_registerapiroutes"
+        ],
+        "related_files": [
+          "server/middleware/auth.js",
+          "server/routes/admin-visualization.js",
+          "server/routes/auth.js",
+          "server/routes/brainbase.js",
+          "server/routes/candidate-store.js",
+          "server/routes/companion.js",
+          "server/routes/config.js",
+          "server/routes/external-runner.js",
+          "server/routes/health.js",
+          "server/routes/info-ssot.js",
+          "server/routes/learning.js",
+          "server/routes/meeting-source-settings.js"
+        ]
+      },
+      {
+        "file": "server/routes/meeting-source-settings.js",
+        "matched_nodes": [
+          "server_routes_meeting_source_settings_js",
+          "routes_meeting_source_settings_actorfromrequest",
+          "routes_meeting_source_settings_createmeetingsourcesettingsrouter"
+        ],
+        "related_files": [
+          "lib/state-store.js",
+          "public/modules/core/http-client.js",
+          "server/bootstrap/register-api-routes.js",
+          "server/lib/async-handler.js",
+          "tests/server/routes/meeting-source-settings.test.js"
+        ]
+      },
+      {
+        "file": "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+        "matched_nodes": [
+          "server_services_meeting_source_meeting_source_mcp_sync_service_js",
+          "meeting_source_meeting_source_mcp_sync_service_nowiso",
+          "meeting_source_meeting_source_mcp_sync_service_stablehash",
+          "meeting_source_meeting_source_mcp_sync_service_normalizewhitespace",
+          "meeting_source_meeting_source_mcp_sync_service_safeprovider",
+          "meeting_source_meeting_source_mcp_sync_service_readtext",
+          "meeting_source_meeting_source_mcp_sync_service_readresourceuri",
+          "meeting_source_meeting_source_mcp_sync_service_minutebucket"
+        ],
+        "related_files": [
+          "cli/sync.js",
+          "lib/state-store.js",
+          "lib/task-directory-scanner.js",
+          "public/modules/core/di-container.js",
+          "public/modules/core/session-data-cache.js",
+          "public/modules/ui/mobile-clipboard-manager.js",
+          "scripts/populate-auth-grants.mjs",
+          "server/services/workflow/loop-pack-design-gate.js",
+          "server/services/workflow/workflow-service.js",
+          "tests/e2e/story-meeting-workflow-calendar-input-v1-contract.spec.ts"
+        ]
+      },
+      {
+        "file": "tests/server/meeting-source-mcp-sync-worker.test.js",
+        "matched_nodes": [
+          "tests_server_meeting_source_mcp_sync_worker_test_js",
+          "server_meeting_source_mcp_sync_worker_test_makeservice"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/routes/meeting-source-settings.test.js",
+        "matched_nodes": [
+          "tests_server_routes_meeting_source_settings_test_js",
+          "routes_meeting_source_settings_test_makeapp"
+        ],
+        "related_files": [
+          "server/routes/meeting-source-settings.js"
+        ]
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/stories/story-meeting-source-mcp-sync-worker.md",
+        "docs/specs/story-meeting-source-mcp-sync-worker-spec.md",
+        "docs/architecture/meeting-source-mcp-sync-worker-architecture.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 3,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/meeting-source-mcp-sync-worker-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "public/modules/settings/settings-core.js",
+        "server/bootstrap/core-services.js",
+        "server/bootstrap/graceful-shutdown.js",
+        "server/bootstrap/register-api-routes.js",
+        "server/routes/meeting-source-settings.js",
+        "server/services/meeting-source/meeting-source-mcp-adapters.js",
+        "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+        "tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts",
+        "tests/server/meeting-source-mcp-adapters.test.js",
+        "tests/server/meeting-source-mcp-sync-worker.test.js",
+        "tests/server/routes/meeting-source-settings.test.js"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate",
+        "E2E Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 11,
+      "graph_investigation_files": [
+        "cli/auth.js",
+        "cli/learning.js",
+        "cli/sync.js",
+        "lib/state-store.js",
+        "lib/task-directory-scanner.js",
+        "public/modules/core/di-container.js",
+        "public/modules/core/event-bus.js",
+        "public/modules/core/http-client.js",
+        "public/modules/core/plugin-manager.js",
+        "public/modules/core/session-data-cache.js",
+        "public/modules/core/store.js",
+        "public/modules/settings/settings-plugin-api.js"
+      ],
+      "suggested_branch": "feat/meeting-source-mcp-sync-worker-runtime-behavior"
+    },
+    {
+      "id": "misc-follow-up",
+      "order": 90,
+      "title": "Miscellaneous follow-up",
+      "category": "other",
+      "recommendation": "separate_pr",
+      "files": [
+        "server.js"
+      ],
+      "required_gates": [
+        "Manual Review"
+      ],
+      "review_focus": [
+        "Storyとの対応が不明な差分をPRから外すか、Storyに根拠を追記する"
+      ],
+      "file_count": 1,
+      "graph_investigation_files": [
+        "lib/task-directory-scanner.js"
+      ],
+      "suggested_branch": "feat/meeting-source-mcp-sync-worker-misc-follow-up"
+    }
+  ],
+  "merge_order": [
+    "requirements-ssot",
+    "runtime-behavior",
+    "misc-follow-up"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 3,
+      "cumulative_gate_count": 0,
+      "requires_cumulative_e2e": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm test -- tests/server/meeting-source-mcp-sync-worker.test.js tests/server/meeting-source-mcp-adapters.test.js tests/server/routes/meeting-source-settings.test.js",
+          "npm test -- tests/server/meeting-source-mcp-sync-worker.test.js tests/server/meeting-source-mcp-adapters.test.js tests/server/routes/meeting-source-settings.test.js"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。"
+      },
+      {
+        "lane_id": "misc-follow-up",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "manual review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "misc-follow-up は単体PRとしてレビュー可能。"
+      }
+    ],
+    "final_validation": {
+      "required": false,
+      "trigger": "各PRのisolated checksで十分",
+      "commands": [
+        "npm test -- tests/server/meeting-source-mcp-sync-worker.test.js tests/server/meeting-source-mcp-adapters.test.js tests/server/routes/meeting-source-settings.test.js",
+        "npm test -- tests/server/meeting-source-mcp-sync-worker.test.js tests/server/meeting-source-mcp-adapters.test.js tests/server/routes/meeting-source-settings.test.js"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "lane_id": "requirements-ssot",
+      "action": "Create feat/meeting-source-mcp-sync-worker-requirements-ssot with 3 files",
+      "command": "git switch -c feat/meeting-source-mcp-sync-worker-requirements-ssot <base> && git add docs/stories/story-meeting-source-mcp-sync-worker.md docs/specs/story-meeting-source-mcp-sync-worker-spec.md docs/architecture/meeting-source-mcp-sync-worker-architecture.md"
+    },
+    {
+      "lane_id": "runtime-behavior",
+      "action": "Create feat/meeting-source-mcp-sync-worker-runtime-behavior with 11 files",
+      "command": "git switch -c feat/meeting-source-mcp-sync-worker-runtime-behavior <base> && git add public/modules/settings/settings-core.js server/bootstrap/core-services.js server/bootstrap/graceful-shutdown.js server/bootstrap/register-api-routes.js server/routes/meeting-source-settings.js server/services/meeting-source/meeting-source-mcp-adapters.js server/services/meeting-source/meeting-source-mcp-sync-service.js tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts tests/server/meeting-source-mcp-adapters.test.js tests/server/meeting-source-mcp-sync-worker.test.js tests/server/routes/meeting-source-settings.test.js"
+    },
+    {
+      "lane_id": "misc-follow-up",
+      "action": "Create feat/meeting-source-mcp-sync-worker-misc-follow-up with 1 files",
+      "command": "git switch -c feat/meeting-source-mcp-sync-worker-misc-follow-up <base> && git add server.js"
+    }
+  ]
+}

@@ -1,0 +1,527 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "updated_at": "2026-07-03T02:04:07.402Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783044247401-18fa7b0d",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:agent_review",
+      "source_status": "needs_review",
+      "summary": "Current gate_evidence review cannot be refreshed because subagent quota is exhausted",
+      "reason": "The required gate_evidence role is stale because the last completed subagent review was bound to a27de4ae87b6. A replacement subagent was started for current HEAD [REDACTED:072aa2c4825c] and closed manual_shutdown after Codex reported usage limit. This waiver preserves the unresolved Agent Review fact and permits only VibePro audited PR flow with --allow-needs-verification if accepted.",
+      "reviewer": "codex",
+      "artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/review-prepare-gate-current.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T02:04:07.401Z"
+      },
+      "recorded_at": "2026-07-03T02:04:07.402Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783041674728-dd686019",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Current-head scope reviewed with artifact: Meeting Source MCP sync remains one reviewable PR.",
+      "reason": "The current diff is one deployable ingest contract: Tactiq/Plaud MCP adapter configuration, scheduled source sync, source_event normalization, Settings preview UI, graceful shutdown cleanup, docs, and focused tests. Any remaining scope note is accepted as a bounded follow-up; splitting docs, UI, and worker code would make the source_event contract less reviewable.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-source-mcp-sync-worker/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "adf0108cde65e687455891653156d9943b2fb919",
+          "current_head_sha": "adf0108cde65e687455891653156d9943b2fb919",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "adf0108cde65e687455891653156d9943b2fb919",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T01:21:14.726Z"
+      },
+      "recorded_at": "2026-07-03T01:21:14.728Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783040729706-79efc954",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:requirement",
+      "source_status": "needs_review",
+      "summary": "Current-head requirement gap accepted: graceful-shutdown cleanup branch is out of scope for Meeting Source MCP sync.",
+      "reason": "The remaining Story-unexplicit scenario is server/bootstrap/graceful-shutdown.js sessionServices.runtime.lifecycle.cleanup. This PR only wires the meeting source sync service into existing lifecycle cleanup; it does not change cleanup semantics. Current unit/e2e replay covers the Meeting Source MCP paths, while graceful shutdown remains an existing infrastructure branch.",
+      "reviewer": "codex",
+      "artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/playwright-e2e-current-report.clean.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+          "current_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T01:05:29.706Z"
+      },
+      "recorded_at": "2026-07-03T01:05:29.707Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783040618473-617e50e5",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Current-head review owner map accepted for the Meeting Source MCP sync PR.",
+      "reason": "One reviewer can evaluate this PR coherently because the docs, settings UI, API route, MCP adapters, scheduled worker, and tests implement a single source-ingest contract. Review owner map: server/service and route behavior, Settings provider preview UX, and replay/ingest tests are all owned by the Meeting Source MCP sync story, with task-owner identity explicitly delegated to the existing Brainbase people SSOT responsibility contract.",
+      "reviewer": "codex",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+          "current_head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "a27de4ae87b6fedfe7aa2d6c358354292e34f1b5",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T01:03:38.472Z"
+      },
+      "recorded_at": "2026-07-03T01:03:38.473Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783038717249-d5c2cb4e",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:requirement",
+      "source_status": "needs_review",
+      "summary": "Story-unexplicit scenario is covered by the scheduled-worker replay and Settings MCP configuration contract.",
+      "reason": "The replayed E2E and server tests explicitly cover the scenario that meetings may originate from Tactiq/Plaud MCP artifacts without calendar source_event linkage, then remain preview-first until confirm submits Meeting Review Package ingest. This is the intended exception path for phone/offline or non-calendar meetings.",
+      "reviewer": "codex",
+      "artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/playwright-e2e-current-report.clean.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+          "current_head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T00:31:57.235Z"
+      },
+      "recorded_at": "2026-07-03T00:31:57.250Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783038709023-5c0bdf57",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Current-head scope reviewed: keep docs, runtime worker, Settings UI, and tests in one Meeting Source MCP sync PR.",
+      "reason": "At HEAD [REDACTED:34159c815a1b] the diff is one deployable contract: source_event canonicalization, Tactiq/Plaud MCP adapter config, scheduled worker cursor behavior, Settings controls, and focused unit/e2e coverage. Splitting would make review less coherent because UI/API/runtime docs share the same ingest contract.",
+      "reviewer": "codex",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+          "current_head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "9fdda78bac4cf9051f3d4b8bfaebcc1c765bca2f",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T00:31:49.009Z"
+      },
+      "recorded_at": "2026-07-03T00:31:49.023Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783036313659-ad182d3b",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:journey_context",
+      "source_status": "needs_review",
+      "summary": "Curated Journey attached for Meeting Source MCP configuration and resync.",
+      "reason": "The curated Journey artifact defines setup, scheduled discovery, manual preview, confirm resync, and review candidate steps for this UI/API change. It is stored at .vibepro/journeys/story-meeting-source-mcp-sync-worker.json and treats source_event as canonical while calendar linkage remains optional.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/journeys/story-meeting-source-mcp-sync-worker.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "current_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-02T23:51:53.658Z"
+      },
+      "recorded_at": "2026-07-02T23:51:53.659Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783036312275-6e19cbff",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Bundle VibePro split lanes into one cohesive story PR.",
+      "reason": "The proposed requirements-ssot and runtime-behavior lanes are intentionally coupled by the ingest contract. Reviewers need the SSOT docs alongside the implementation and tests to judge source_event shape, credential redaction, preview/confirm, and workflow ingest semantics.",
+      "reviewer": "codex",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "current_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-02T23:51:52.272Z"
+      },
+      "recorded_at": "2026-07-02T23:51:52.276Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783036286715-25209d2e",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Single reviewer can review this as one contract-sized feature change.",
+      "reason": "The changed files are bounded to Meeting Source MCP sync: three docs, one service, one route, one settings UI surface, bootstrap wiring, and focused unit/e2e tests. There is no unrelated product lane.",
+      "reviewer": "codex",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "current_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-02T23:51:26.711Z"
+      },
+      "recorded_at": "2026-07-02T23:51:26.723Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783036286374-36449ce1",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "Keep docs, runtime sync, Settings UI, and tests in one PR for one deployable Meeting Source MCP sync story.",
+      "reason": "The story, spec, architecture, service, route, settings UI, bootstrap wiring, and tests all describe one auditable path: Tactiq/Plaud source_event synchronization into Meeting Review Package ingest. Splitting docs from runtime would leave neither PR independently reviewable or replayable end-to-end.",
+      "reviewer": "codex",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "current_head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c1ff5c5d07e4d1f02a3f5212e5e3a60ea41241fd",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-02T23:51:26.373Z"
+      },
+      "recorded_at": "2026-07-02T23:51:26.374Z"
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "open": 0,
+    "by_type": {
+      "waiver": 2,
+      "needs_review": 8
+    },
+    "by_status": {
+      "accepted": 10
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+        "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+        "expected_root": null,
+        "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+        "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783044247401-18fa7b0d",
+      "story_id": "story-meeting-source-mcp-sync-worker",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:agent_review",
+      "source_status": "needs_review",
+      "summary": "Current gate_evidence review cannot be refreshed because subagent quota is exhausted",
+      "reason": "The required gate_evidence role is stale because the last completed subagent review was bound to a27de4ae87b6. A replacement subagent was started for current HEAD [REDACTED:072aa2c4825c] and closed manual_shutdown after Codex reported usage limit. This waiver preserves the unresolved Agent Review fact and permits only VibePro audited PR flow with --allow-needs-verification if accepted.",
+      "reviewer": "codex",
+      "artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/review-prepare-gate-current.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+          "expected_root": null,
+          "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+        "current_branch": "codex/meeting-source-sync-story",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-03T02:04:07.401Z"
+      },
+      "recorded_at": "2026-07-03T02:04:07.402Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-meeting-source-mcp-sync-worker/decision-records.json"
+}

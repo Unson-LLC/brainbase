@@ -1,0 +1,94 @@
+{
+  "journey_id": "story-meeting-source-mcp-sync-worker",
+  "title": "Meeting Source MCP Sync Worker",
+  "status": "curated",
+  "curated_by": "codex",
+  "curated_at": "2026-07-03T00:00:00Z",
+  "scope": {
+    "product_surface": "Brainbase settings and Meeting Review Package ingest",
+    "primary_user": "Brainbase operator configuring meeting transcript sources",
+    "outcome": "Tactiq and Plaud.ai MCP transcript events are synchronized into Meeting Review Package review candidates without relying on Slack attachments as the primary transcript source."
+  },
+  "steps": [
+    {
+      "id": "configure_sources",
+      "label": "Configure Tactiq and Plaud.ai MCP sources",
+      "surface": "settings_ui",
+      "user_intent": "Set up provider status and credentials while keeping secret material redacted.",
+      "acceptance": [
+        "Provider status can be inspected without exposing full credentials.",
+        "Tactiq and Plaud.ai can be enabled independently.",
+        "The UI exposes sync scope controls for organization, project, and optional case scope."
+      ]
+    },
+    {
+      "id": "scheduled_discovery",
+      "label": "Scheduled sync discovers source events",
+      "surface": "worker",
+      "user_intent": "Let the cron worker find new online meetings from Tactiq and offline or fallback meetings from Plaud.ai.",
+      "acceptance": [
+        "Each upstream event is converted into a normalized source_event.",
+        "Provider cursors advance after the ingest loop completes.",
+        "Duplicate events across providers collapse into a single canonical event when identity matches."
+      ]
+    },
+    {
+      "id": "manual_preview",
+      "label": "Preview source events before ingest",
+      "surface": "settings_ui_api",
+      "user_intent": "Check which meeting events will be replayed or submitted before creating review workload.",
+      "acceptance": [
+        "Manual preview returns normalized events with provider provenance.",
+        "Preview does not mutate workflow output unless explicitly confirmed."
+      ]
+    },
+    {
+      "id": "confirm_resync",
+      "label": "Confirm resync into Meeting Review Package",
+      "surface": "workflow_ingest",
+      "user_intent": "Submit selected source events into Meeting Pack so meeting notes, tasks, decisions, follow-up, and graph promotion candidates are generated.",
+      "acceptance": [
+        "The ingest envelope includes org_id, project_id, meeting_identity, source_event, supporting_source_events, evidence_refs, and required output categories.",
+        "Missing organization or project blocks submit mode instead of creating unscoped workflow runs.",
+        "Draft-only mode remains available for non-mutating validation."
+      ]
+    },
+    {
+      "id": "review_candidates",
+      "label": "Review generated Meeting Pack candidates",
+      "surface": "mac_companion_review",
+      "user_intent": "Approve or revise generated notes, tasks, decisions, follow-up drafts, and graph promotion candidates from Tactiq/Plaud source events.",
+      "acceptance": [
+        "Review candidates preserve source_event provenance.",
+        "Human review remains the approval boundary for generated outputs."
+      ]
+    }
+  ],
+  "non_goals": [
+    "Building native Tactiq or Plaud.ai OAuth setup in this story.",
+    "Replacing Meeting Review Package generation logic.",
+    "Treating calendar events as mandatory source identity."
+  ],
+  "risk_controls": [
+    {
+      "risk": "Secrets leak through settings UI or API responses.",
+      "control": "Provider credentials are displayed as redacted status only."
+    },
+    {
+      "risk": "Phone calls or ad hoc conversations have no calendar event.",
+      "control": "source_event is canonical for this sync path; calendar linkage is optional enrichment only."
+    },
+    {
+      "risk": "Wrong project context causes poor Graph SSOT entity resolution.",
+      "control": "Confirm submit requires explicit org/project scope and carries meeting_identity candidate scope into the ingest envelope."
+    }
+  ],
+  "evidence_links": [
+    "docs/stories/story-meeting-source-mcp-sync-worker.md",
+    "docs/specs/story-meeting-source-mcp-sync-worker-spec.md",
+    "docs/architecture/meeting-source-mcp-sync-worker-architecture.md",
+    "tests/server/meeting-source-mcp-sync-worker.test.js",
+    "tests/server/routes/meeting-source-settings.test.js",
+    "tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts"
+  ]
+}

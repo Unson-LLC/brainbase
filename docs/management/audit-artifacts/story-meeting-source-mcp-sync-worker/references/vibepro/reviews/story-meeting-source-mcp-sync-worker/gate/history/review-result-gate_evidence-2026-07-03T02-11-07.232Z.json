@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Current HEAD 7b436dbfda0a3bb97e746beb93dfacaabb7f9720 is acceptable for gate_evidence; the worker, settings UI, tests, and verification artifacts cover the Meeting Source MCP sync story contract.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected the story/spec/review artifacts, changed source files, settings UI, server routes/bootstrap, worker/adapters, E2E/server tests, and /tmp verification logs. Tactiq/Plaud MCP polling, scheduled/manual replay flow, dry-run preview statuses, canonical source_event aliases, cursor advancement rules, provider failure isolation, Graph/People SSOT boundaries, credential redaction, and shutdown handling are represented in code and evidence. Focused server tests were rerun locally: 15 passed.",
+    "evidence": "/tmp/meeting-source-mcp-sync-vibepro/gate-evidence-hegel-transcript.md",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-source-mcp-sync-worker/gate/review-request-gate_evidence.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial judgment was needs verification because the prior recorded gate artifact was stale and the story has cross-boundary requirements -> final judgment is pass because current-head source inspection plus current evidence show the direct MCP worker, UI controls, scheduled/manual sync behavior, source preview/error statuses, canonical source metadata, cursor safety, SSOT boundaries, and tests are aligned."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+    "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-03T02:11:07.232Z",
+  "git_context": {
+    "head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+    "current_branch": "codex/meeting-source-sync-story",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-03T02:11:07.232Z"
+  },
+  "source_fingerprint": "458fcbd32308c54f78115012f3f94be13a3c50ed29b39126f404cecf0805ac8f",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f25ba-9a96-7323-9211-c0ae501df905",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "medium",
+    "cost_tier": "medium",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/gate-evidence-hegel-transcript.md",
+    "request_artifact": ".vibepro/reviews/story-meeting-source-mcp-sync-worker/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "/tmp/meeting-source-mcp-sync-vibepro/review-close-gate-hegel.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

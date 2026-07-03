@@ -1,0 +1,97 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-mcp-sync-worker",
+  "stage": "preview",
+  "role": "human_usability",
+  "status": "pass",
+  "summary": "preview:human_usability passes at HEAD 7b436dbfda0a3bb97e746beb93dfacaabb7f9720. The Settings UI now exposes provider status, sync policy controls, provider-level preview reasons, primary/supporting source details, and bounded dry-run/confirm flow, with fresh focused verification passing.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Verified requested HEAD and clean worktree; inspected the review request, mandatory regression_guard/path_surface_coverage lenses, Settings UI, sync service, route/API, E2E/server tests, story/spec/architecture docs, and /tmp verification artifacts. Existing /tmp current/final-head evidence was stale or tied to older SHAs, so fresh read-only evidence at the requested HEAD passed typecheck, 15 focused Vitest tests, and 8 focused Playwright contract tests against localhost:39137.",
+    "evidence": "HEAD 7b436dbfda0a3bb97e746beb93dfacaabb7f9720; npm run typecheck exit 0; focused Vitest 15 passed; focused Playwright 8 passed",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-source-mcp-sync-worker/preview/review-request-human_usability.md",
+      ".vibepro/reviews/story-meeting-source-mcp-sync-worker/preview/parallel-dispatch.md",
+      "public/modules/settings/settings-core.js",
+      "tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts",
+      "server/services/meeting-source/meeting-source-mcp-sync-service.js"
+    ]
+  },
+  "judgment_delta": [
+    "initial stale-evidence concern -> pass because fresh commands on HEAD 7b436db passed typecheck, focused server/API tests, and focused Playwright UI/contract tests",
+    "regression_guard -> pass because backend API, service, bootstrap, shutdown, and Settings integration paths are covered",
+    "path_surface_coverage -> pass because UI/API/docs/tests cover status, connect/test/disconnect, dry-run preview, provider output, primary/supporting source preview, and source_event fields"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+    "expected_root": null,
+    "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+    "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "actual_root": "/Users/ksato/workspace/code/brainbase-meeting-pack-graph-playbook",
+      "expected_root": null,
+      "expected_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "current_head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-03T01:51:28.399Z",
+  "git_context": {
+    "head_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+    "current_branch": "codex/meeting-source-sync-story",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-03T01:51:28.398Z"
+  },
+  "source_fingerprint": "421ae4e795a4682320acc5dbd9a0b7c76fdea26ab77c944bb972de39cbbf213e",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f25a9-0651-7922-aec5-4430c4aef0ff",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "../../../../../tmp/meeting-source-mcp-sync-vibepro/subagent-preview-human-019f25a9.json",
+    "request_artifact": ".vibepro/reviews/story-meeting-source-mcp-sync-worker/preview/review-request-human_usability.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}
