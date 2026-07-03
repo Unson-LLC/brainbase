@@ -323,6 +323,7 @@ const {
     conversationLinker,
     tokenUsageService,
     workflowService,
+    meetingSourceMcpSyncService,
     externalRunnerIngestService,
     uploadMiddleware
 } = createCoreServices({
@@ -452,6 +453,7 @@ registerApiRoutes(app, {
     wikiService,
     tokenUsageService,
     workflowService,
+    meetingSourceMcpSyncService,
     externalRunnerIngestService,
     uploadMiddleware,
     appVersion: APP_VERSION,
@@ -576,6 +578,11 @@ const server = app.listen(PORT, async () => {
     console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
     await writePortFiles(PORT);
 
+    const meetingSourceSchedule = meetingSourceMcpSyncService?.startScheduledSync?.();
+    if (meetingSourceSchedule?.started) {
+        console.log(`[meeting-source] MCP sync scheduler started (${meetingSourceSchedule.interval_ms}ms)`);
+    }
+
     // Non-blocking: cleanup zombie worktrees (forget済みだが物理ディレクトリが残ったもの)
     worktreeService.cleanupZombieWorktrees(PROJECTS_ROOT).then((removed) => {
         if (removed.length) {
@@ -617,6 +624,7 @@ registerGracefulShutdown({
     stateStore,
     conversationLinker,
     sessionServices,
+    meetingSourceMcpSyncService,
     getMeshService: () => meshService,
     log: console
 });

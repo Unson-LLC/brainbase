@@ -5,6 +5,7 @@ export function registerGracefulShutdown({
     stateStore,
     conversationLinker,
     sessionServices,
+    meetingSourceMcpSyncService = null,
     getMeshService = () => null,
     log = console
 }) {
@@ -31,6 +32,10 @@ export function registerGracefulShutdown({
             {
                 name: 'stop-conversation-linker',
                 fn: () => { conversationLinker.stopPeriodicLink(); }
+            },
+            {
+                name: 'stop-meeting-source-mcp-sync',
+                fn: () => { meetingSourceMcpSyncService?.stopScheduledSync?.(); }
             },
             {
                 name: 'cleanup-session-runtime',

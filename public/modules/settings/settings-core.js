@@ -148,16 +148,18 @@ export class SettingsCore {
       lifecycle: {
         load: async () => {
           // 同期ステータスはConfigとHealthから取得
-          const [config, health, preferences] = await Promise.all([
+          const [config, health, preferences, meetingSources] = await Promise.all([
             this.apiClient.getConfig(),
             this.apiClient.getHealth().catch(() => null),
-            fetchPreferences()
+            fetchPreferences(),
+            this.apiClient.getMeetingSourceProviders().catch(() => null)
           ]);
           appStore.setState({
             settingsIntegrations: {
               slack: config.slack,
               github: config.github,
               nocodb: config.nocodb,
+              meetingSources,
               health: health
             },
             settingsIntegrationProjects: config.projects?.projects || [],
@@ -177,6 +179,7 @@ export class SettingsCore {
           // GitHub / NocoDB CRUD
           this._setupGitHubCrud(container, settingsIntegrations?.github || [], settingsIntegrationProjects || []);
           this._setupNocoDBCrud(container, settingsIntegrations?.nocodb || [], settingsIntegrationProjects || []);
+          this._setupMeetingSourcesCrud(container, settingsIntegrations?.meetingSources || null);
 
           const saveBtn = container.querySelector('#nocodb-self-assignee-save');
           const input = container.querySelector('#nocodb-self-assignee');
@@ -1126,13 +1129,16 @@ docs/**/*"></textarea>
       return '<div class="config-empty">Failed to load integrations data</div>';
     }
 
-    const { slack, github, nocodb, health } = integrations;
+    const { slack, github, nocodb, meetingSources, health } = integrations;
     const slackConnected = slack && (slack.workspaces || slack.channels);
     const slackWorkspaceCount = slack?.workspaces ? Object.keys(slack.workspaces).length : 0;
     const slackChannelCount = slack?.channels?.length || 0;
     const slackMemberCount = slack?.members?.length || 0;
     const githubCount = github?.length || 0;
     const nocodbCount = nocodb?.length || 0;
+    const meetingSourceProviders = meetingSources?.providers || [];
+    const meetingSourceConnectedCount = meetingSourceProviders.filter(p => p.enabled && p.auth_status === 'connected').length;
+    const meetingSourceCount = meetingSourceProviders.length || 2;
 
     const assignee = preferences.user?.assignee || '';
     const escapedAssignee = escapeHtml(assignee);
@@ -1198,6 +1204,14 @@ docs/**/*"></textarea>
       nocodbCount > 0,
       `<span>${nocodbCount} Databases</span>`,
       'ノーコードデータベースと同期し、タスクや顧客情報を管理します。'
+    )}
+              ${integrationCard(
+      'meeting-sources',
+      'Meeting Sources',
+      'mic-vocal',
+      meetingSourceConnectedCount > 0,
+      `<span>${meetingSourceConnectedCount}/${meetingSourceCount} Providers</span>`,
+      'Tactiq / Plaud MCPから議事録ソースを直接同期します。'
     )}
             </div>
           </div>
@@ -1321,6 +1335,14 @@ docs/**/*"></textarea>
               ${mappingHtml}
             </div>
           </div>
+        </div>
+
+        <div id="integration-detail-meeting-sources" class="integrations-view detail-view">
+          <div class="detail-header">
+            <button class="btn-text back-to-integrations"><i data-lucide="arrow-left"></i> Back</button>
+            <h2><i data-lucide="mic-vocal"></i> Meeting Sources</h2>
+          </div>
+          ${this._renderMeetingSourcesSection(meetingSources)}
         </div>
       </div>
     `;
@@ -1486,11 +1508,132 @@ docs/**/*"></textarea>
     `;
   }
 
+  _renderMeetingSourcesSection(meetingSources) {
+    const providers = meetingSources?.providers || [
+      { provider: 'tactiq', enabled: false, auth_status: 'not_configured', capabilities: ['online_transcript', 'mcp_resource'], cursor: {} },
+      { provider: 'plaud', enabled: false, auth_status: 'not_configured', capabilities: ['offline_recording', 'call_recording', 'mcp_resource'], cursor: {} }
+    ];
+    const providerRows = providers.map(provider => {
+      const connected = provider.enabled && provider.auth_status === 'connected';
+      const statusClass = connected ? 'success' : 'neutral';
+      const label = provider.provider === 'tactiq'
+        ? 'Tactiq'
+        : provider.provider === 'plaud'
+          ? 'Plaud.ai'
+          : provider.provider;
+      return `
+        <div class="config-card" data-meeting-source-provider="${escapeHtml(provider.provider)}">
+          <div class="config-card-header">
+            <h4>${escapeHtml(label)}</h4>
+            <span class="badge badge-type ${statusClass}">${connected ? 'Connected' : escapeHtml(provider.auth_status || 'Not Connected')}</span>
+          </div>
+          <div class="settings-form-grid">
+            <div class="form-group">
+              <label>Account Label</label>
+              <input class="form-input" data-meeting-source-account="${escapeHtml(provider.provider)}" value="${escapeHtml(provider.account_label || '')}" placeholder="例: ksato ${escapeHtml(label)}" />
+            </div>
+            <div class="form-group">
+              <label>Credential Ref</label>
+              <input class="form-input" data-meeting-source-credential="${escapeHtml(provider.provider)}" type="password" placeholder="${provider.has_credential_ref ? '保存済み。更新時のみ入力' : 'MCP credential ref'}" />
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" data-meeting-source-connect="${escapeHtml(provider.provider)}">接続を保存</button>
+              <button class="btn-secondary btn-sm" data-meeting-source-test="${escapeHtml(provider.provider)}">接続テスト</button>
+              <button class="btn-danger btn-sm" data-meeting-source-disconnect="${escapeHtml(provider.provider)}">切断</button>
+            </div>
+          </div>
+          <div class="config-card-stats">
+            <div class="config-card-stat"><i data-lucide="key-round"></i><span>${provider.has_credential_ref ? 'credential saved' : 'credential missing'}</span></div>
+            <div class="config-card-stat"><i data-lucide="clock"></i><span>last success: ${escapeHtml(provider.last_success_at || '-')}</span></div>
+            <div class="config-card-stat"><i data-lucide="database"></i><span>cursor: ${escapeHtml(provider.cursor?.updated_since || '-')}</span></div>
+          </div>
+          ${provider.last_error ? `<p class="settings-section-desc text-danger">${escapeHtml(provider.last_error)}</p>` : ''}
+          <p class="settings-section-desc">capabilities: ${(provider.capabilities || []).map(cap => `<span class="badge badge-type">${escapeHtml(cap)}</span>`).join(' ')}</p>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3>Tactiq / Plaud MCP</h3>
+        </div>
+        <p class="settings-section-desc">オンライン会議はTactiq、オフライン・電話・Tactiqが使えないオンラインはPlaudを主ソースとして同期します。カレンダーに存在しない雑談・電話もこの同期workerの対象です。</p>
+        <div class="config-list">
+          ${providerRows}
+        </div>
+        <p id="meeting-source-provider-status" class="settings-section-desc"></p>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3>Manual Resync</h3>
+        </div>
+        <p class="settings-section-desc">手動再同期は必ずdry-runで件数と重複クラスタを確認してからconfirmします。</p>
+        <div class="settings-form-card">
+          <div class="settings-form-grid">
+            <label class="checkbox-label">
+              <input type="checkbox" data-meeting-source-resync-provider value="tactiq" checked />
+              Tactiq
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" data-meeting-source-resync-provider value="plaud" checked />
+              Plaud.ai
+            </label>
+            <div class="form-group">
+              <label for="meeting-source-since">Replay Since</label>
+              <input id="meeting-source-since" class="form-input" type="datetime-local" />
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-until">Replay Until</label>
+              <input id="meeting-source-until" class="form-input" type="datetime-local" />
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-poll-interval-minutes">Poll Interval (min)</label>
+              <input id="meeting-source-poll-interval-minutes" class="form-input" type="number" min="1" value="15" />
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-overlap-hours">Overlap Window (hour)</label>
+              <input id="meeting-source-overlap-hours" class="form-input" type="number" min="0" value="24" />
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-provider-priority">Provider Priority</label>
+              <select id="meeting-source-provider-priority" class="form-input">
+                <option value="mode_default">online=Tactiq / offline・call=Plaud</option>
+                <option value="tactiq_first">Tactiq first</option>
+                <option value="plaud_first">Plaud first</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-org">Org</label>
+              <input id="meeting-source-org" class="form-input" placeholder="例: brainbase" />
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-project">Project</label>
+              <input id="meeting-source-project" class="form-input" placeholder="例: brainbase" />
+            </div>
+            <div class="form-group">
+              <label for="meeting-source-case-scope">Case Scope</label>
+              <input id="meeting-source-case-scope" class="form-input" placeholder="任意: meeting-source-sync" />
+            </div>
+            <div class="form-actions">
+              <button class="btn-secondary btn-sm" id="meeting-source-preview-btn">Dry-run</button>
+              <button class="btn-primary btn-sm" id="meeting-source-confirm-btn" disabled>Confirm</button>
+            </div>
+            <p id="meeting-source-resync-status" class="settings-section-desc"></p>
+          </div>
+        </div>
+        <div id="meeting-source-preview-result" class="config-table-container"></div>
+      </div>
+    `;
+  }
+
   async _refreshIntegrationsPanel(activeSubTab = null) {
-    const [config, health, preferences] = await Promise.all([
+    const [config, health, preferences, meetingSources] = await Promise.all([
       this.apiClient.getConfig(),
       this.apiClient.getHealth().catch(() => null),
-      fetchPreferences()
+      fetchPreferences(),
+      this.apiClient.getMeetingSourceProviders().catch(() => null)
     ]);
 
     appStore.setState({
@@ -1498,6 +1641,7 @@ docs/**/*"></textarea>
         slack: config.slack,
         github: config.github,
         nocodb: config.nocodb,
+        meetingSources,
         health
       },
       settingsIntegrationProjects: config.projects?.projects || [],
@@ -1744,6 +1888,226 @@ docs/**/*"></textarea>
         await this._refreshIntegrationsPanel('nocodb');
       } catch (error) {
         if (status) status.textContent = '削除に失敗しました';
+      }
+    });
+  }
+
+  _setupMeetingSourcesCrud(container) {
+    const providerStatus = container.querySelector('#meeting-source-provider-status');
+    const resyncStatus = container.querySelector('#meeting-source-resync-status');
+    const previewBtn = container.querySelector('#meeting-source-preview-btn');
+    const confirmBtn = container.querySelector('#meeting-source-confirm-btn');
+    const previewResult = container.querySelector('#meeting-source-preview-result');
+    let currentPreviewId = null;
+
+    const setProviderStatus = (message) => {
+      if (providerStatus) providerStatus.textContent = message || '';
+    };
+    const setResyncStatus = (message) => {
+      if (resyncStatus) resyncStatus.textContent = message || '';
+    };
+
+    container.querySelectorAll('[data-meeting-source-connect]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const provider = btn.dataset.meetingSourceConnect;
+        const accountInput = container.querySelector(`[data-meeting-source-account="${provider}"]`);
+        const credentialInput = container.querySelector(`[data-meeting-source-credential="${provider}"]`);
+        btn.disabled = true;
+        setProviderStatus(`${provider} を保存中...`);
+        try {
+          await this.apiClient.connectMeetingSourceProvider(provider, {
+            account_label: accountInput?.value?.trim() || provider,
+            credential_ref: credentialInput?.value?.trim() || undefined
+          });
+          await eventBus.emit('settings:config-updated', { section: 'meeting-sources', provider });
+          await this._refreshIntegrationsPanel('meeting-sources');
+        } catch (error) {
+          setProviderStatus(`${provider} の保存に失敗しました`);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-meeting-source-test]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const provider = btn.dataset.meetingSourceTest;
+        btn.disabled = true;
+        setProviderStatus(`${provider} をテスト中...`);
+        try {
+          const result = await this.apiClient.testMeetingSourceProvider(provider);
+          setProviderStatus(result.ok ? `${provider} の接続を確認しました` : `${provider} の接続確認に失敗しました: ${result.error || result.warning || 'unknown error'}`);
+        } catch (error) {
+          setProviderStatus(`${provider} の接続確認に失敗しました`);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-meeting-source-disconnect]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const provider = btn.dataset.meetingSourceDisconnect;
+        btn.disabled = true;
+        setProviderStatus(`${provider} を切断中...`);
+        try {
+          await this.apiClient.disconnectMeetingSourceProvider(provider);
+          await eventBus.emit('settings:config-updated', { section: 'meeting-sources', provider });
+          await this._refreshIntegrationsPanel('meeting-sources');
+        } catch (error) {
+          setProviderStatus(`${provider} の切断に失敗しました`);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    const selectedProviders = () => Array.from(container.querySelectorAll('[data-meeting-source-resync-provider]:checked'))
+      .map(input => input.value);
+    const isoFromInput = (id) => {
+      const value = container.querySelector(id)?.value || '';
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    };
+    const numberFromInput = (id, fallback) => {
+      const value = Number(container.querySelector(id)?.value || '');
+      return Number.isFinite(value) && value >= 0 ? value : fallback;
+    };
+    const sourceLabel = (source) => {
+      if (!source) return '-';
+      const provider = source.provider || source.source_provider || source.source_system || 'source';
+      const id = source.provider_source_id || source.external_id || source.source_id || source.mcp_resource_uri || '';
+      return [provider, id].filter(Boolean).join(':');
+    };
+    const renderPreview = (result) => {
+      const providerRows = (result.provider_results || []).map(providerResult => {
+        const artifactCount = Number(providerResult.artifact_count || 0);
+        const status = providerResult.error
+          ? 'error'
+          : providerResult.skipped
+            ? 'skipped'
+            : 'ready';
+        const detail = providerResult.error || providerResult.reason || `${artifactCount} artifacts`;
+        return `
+          <tr>
+            <td><span class="badge badge-type">${escapeHtml(providerResult.provider || '')}</span></td>
+            <td>${escapeHtml(status)}</td>
+            <td>${artifactCount}</td>
+            <td>${escapeHtml(detail)}</td>
+          </tr>
+        `;
+      }).join('');
+      const rows = (result.clusters || []).map(cluster => {
+        const primarySource = sourceLabel(cluster.primary_source);
+        const supportingSources = (cluster.supporting_sources || []).map(sourceLabel).filter(Boolean);
+        return `
+          <tr>
+            <td class="mono">${escapeHtml(cluster.source_cluster_id || '')}</td>
+            <td>${escapeHtml(cluster.title || '')}</td>
+            <td>${escapeHtml(cluster.meeting_mode || '')}</td>
+            <td>${(cluster.providers || []).map(provider => `<span class="badge badge-type">${escapeHtml(provider)}</span>`).join(' ')}</td>
+            <td>${escapeHtml(primarySource)}</td>
+            <td>${supportingSources.length ? supportingSources.map(source => `<span class="badge badge-type">${escapeHtml(source)}</span>`).join(' ') : '-'}</td>
+          </tr>
+        `;
+      }).join('');
+      if (!previewResult) return;
+      const hasProviderIssues = (result.provider_results || []).some(providerResult => providerResult.error || providerResult.skipped);
+      previewResult.innerHTML = `
+        <div class="settings-section-desc">
+          preview_id: <span class="mono">${escapeHtml(result.preview_id || '')}</span> /
+          artifacts: ${Number(result.artifact_count || 0)} /
+          expected Meeting Pack: ${Number(result.expected_meeting_pack_count || 0)}
+        </div>
+        ${(result.errors || []).length ? `<p class="settings-section-desc text-danger">errors: ${escapeHtml((result.errors || []).map(e => `${e.provider}: ${e.message}`).join(' / '))}</p>` : ''}
+        ${providerRows ? `
+          <table class="config-table" data-meeting-source-provider-results>
+            <thead>
+              <tr><th>Provider</th><th>Status</th><th>Artifacts</th><th>Reason</th></tr>
+            </thead>
+            <tbody>${providerRows}</tbody>
+          </table>
+        ` : ''}
+        ${rows ? `
+          <table class="config-table">
+            <thead>
+              <tr><th>Cluster</th><th>Title</th><th>Mode</th><th>Providers</th><th>Primary Source</th><th>Supporting Sources</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        ` : `<div class="config-empty">${hasProviderIssues ? '同期候補はありません。providerの状態と理由を確認してください。' : '同期候補はありません'}</div>`}
+      `;
+    };
+
+    previewBtn?.addEventListener('click', async () => {
+      const providers = selectedProviders();
+      const since = isoFromInput('#meeting-source-since');
+      const until = isoFromInput('#meeting-source-until');
+      if (providers.length === 0) {
+        setResyncStatus('Providerを1つ以上選択してください');
+        return;
+      }
+      if (!since && !until) {
+        setResyncStatus('SinceまたはUntilを指定してください');
+        return;
+      }
+      const orgId = container.querySelector('#meeting-source-org')?.value?.trim() || null;
+      const projectId = container.querySelector('#meeting-source-project')?.value?.trim() || null;
+      const caseScope = container.querySelector('#meeting-source-case-scope')?.value?.trim() || null;
+      const syncPolicy = {
+        poll_interval_minutes: numberFromInput('#meeting-source-poll-interval-minutes', 15),
+        overlap_hours: numberFromInput('#meeting-source-overlap-hours', 24),
+        provider_priority: container.querySelector('#meeting-source-provider-priority')?.value || 'mode_default'
+      };
+      if (!orgId || !projectId) {
+        setResyncStatus('OrgとProjectを指定してください');
+        return;
+      }
+      previewBtn.disabled = true;
+      if (confirmBtn) confirmBtn.disabled = true;
+      setResyncStatus('dry-run中...');
+      try {
+        const result = await this.apiClient.previewMeetingSourceResync({
+          providers,
+          since,
+          until,
+          org_id: orgId,
+          project_id: projectId,
+          case_scope: caseScope,
+          sync_policy: syncPolicy,
+          dry_run: true
+        });
+        currentPreviewId = result.preview_id;
+        renderPreview(result);
+        setResyncStatus('dry-runが完了しました。内容を確認してConfirmできます。');
+        if (confirmBtn) confirmBtn.disabled = !currentPreviewId;
+      } catch (error) {
+        currentPreviewId = null;
+        setResyncStatus('dry-runに失敗しました');
+      } finally {
+        previewBtn.disabled = false;
+      }
+    });
+
+    confirmBtn?.addEventListener('click', async () => {
+      if (!currentPreviewId) {
+        setResyncStatus('先にdry-runを実行してください');
+        return;
+      }
+      confirmBtn.disabled = true;
+      setResyncStatus('confirm中...');
+      try {
+        const result = await this.apiClient.confirmMeetingSourceResync({ preview_id: currentPreviewId });
+        const count = Number(result.meeting_pack_count || 0);
+        setResyncStatus(result.submitted
+          ? `${count}件のMeeting Packをレビュー取込へ送信しました`
+          : `${count}件のMeeting Packドラフトを作成しました。レビュー取込は未送信です`);
+        await eventBus.emit('settings:config-updated', { section: 'meeting-sources', previewId: currentPreviewId });
+        await this._refreshIntegrationsPanel('meeting-sources');
+      } catch (error) {
+        setResyncStatus('confirmに失敗しました');
+        confirmBtn.disabled = false;
       }
     });
   }
@@ -2127,5 +2491,29 @@ export class CoreApiClient {
 
   async deleteNocoDBMapping(projectId) {
     return this.client.delete(`/api/config/nocodb/${encodeURIComponent(projectId)}`);
+  }
+
+  async getMeetingSourceProviders() {
+    return this.client.get('/api/settings/meeting-sources/mcp-providers');
+  }
+
+  async connectMeetingSourceProvider(provider, payload) {
+    return this.client.post(`/api/settings/meeting-sources/mcp-providers/${encodeURIComponent(provider)}/connect`, payload);
+  }
+
+  async testMeetingSourceProvider(provider) {
+    return this.client.post(`/api/settings/meeting-sources/mcp-providers/${encodeURIComponent(provider)}/test`, {});
+  }
+
+  async disconnectMeetingSourceProvider(provider) {
+    return this.client.post(`/api/settings/meeting-sources/mcp-providers/${encodeURIComponent(provider)}/disconnect`, {});
+  }
+
+  async previewMeetingSourceResync(payload) {
+    return this.client.post('/api/settings/meeting-sources/resync-preview', payload);
+  }
+
+  async confirmMeetingSourceResync(payload) {
+    return this.client.post('/api/settings/meeting-sources/resync-confirm', payload);
   }
 }

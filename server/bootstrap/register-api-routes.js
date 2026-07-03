@@ -15,6 +15,7 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
+import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
@@ -111,6 +112,7 @@ export function registerApiRoutes(app, {
     wikiService,
     tokenUsageService,
     workflowService,
+    meetingSourceMcpSyncService,
     externalRunnerIngestService,
     uploadMiddleware,
     appVersion,
@@ -203,6 +205,9 @@ export function registerApiRoutes(app, {
     app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
     app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
+    if (meetingSourceMcpSyncService) {
+        app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));
+    }
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
     app.use('/api', createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo, {
         brainbaseRoot,
