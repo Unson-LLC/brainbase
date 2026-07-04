@@ -1,8 +1,13 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+import { FileMeetingSourceMcpOAuthProvider } from './meeting-source-mcp-oauth-provider.js';
 import { SUPPORTED_MEETING_SOURCE_PROVIDERS } from './meeting-source-mcp-sync-service.js';
 
 function parseJsonMaybe(value) {
@@ -38,6 +43,134 @@ function extractArtifactList(payload) {
 
 function normalizeHeaders(headers = {}) {
     return Object.fromEntries(Object.entries(headers || {}).filter(([, value]) => value !== undefined && value !== null));
+}
+
+function readTextFileIfExists(filePath) {
+    try {
+        if (!existsSync(filePath)) return null;
+        return readFileSync(filePath, 'utf8');
+    } catch {
+        return null;
+    }
+}
+
+function parseTomlScalar(value) {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'");
+    }
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+            return JSON.parse(trimmed);
+        } catch {
+            return trimmed
+                .slice(1, -1)
+                .split(',')
+                .map((item) => parseTomlScalar(item))
+                .filter(Boolean);
+        }
+    }
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
+    return trimmed;
+}
+
+function parseCodexMcpServersToml(text) {
+    const servers = {};
+    let currentServer = null;
+    let currentSection = null;
+
+    for (const rawLine of String(text || '').split(/\r?\n/)) {
+        const line = rawLine.replace(/\s+#.*$/, '').trim();
+        if (!line) continue;
+
+        const sectionMatch = line.match(/^\[mcp_servers\.([A-Za-z0-9_-]+)(?:\.([A-Za-z0-9_-]+))?\]$/);
+        if (sectionMatch) {
+            currentServer = sectionMatch[1];
+            currentSection = sectionMatch[2] || null;
+            servers[currentServer] = servers[currentServer] || {};
+            if (currentSection) servers[currentServer][currentSection] = servers[currentServer][currentSection] || {};
+            continue;
+        }
+
+        if (!currentServer) continue;
+        const keyValueMatch = line.match(/^([A-Za-z0-9_-]+)\s*=\s*(.+)$/);
+        if (!keyValueMatch) continue;
+
+        const [, key, value] = keyValueMatch;
+        const target = currentSection ? servers[currentServer][currentSection] : servers[currentServer];
+        target[key] = parseTomlScalar(value);
+    }
+
+    return servers;
+}
+
+function collectClaudeMcpServers(value, collected = {}) {
+    if (!value || typeof value !== 'object') return collected;
+
+    for (const [key, child] of Object.entries(value)) {
+        if ((key === 'mcpServers' || key === 'mcp_servers') && child && typeof child === 'object' && !Array.isArray(child)) {
+            Object.assign(collected, child);
+            continue;
+        }
+        collectClaudeMcpServers(child, collected);
+    }
+
+    return collected;
+}
+
+function normalizeCliMcpServerConfig(provider, config) {
+    if (!config || typeof config !== 'object') return null;
+    const rawTransport = String(config.transport || config.type || '').toLowerCase();
+
+    if (config.url || config.endpoint) {
+        return {
+            transport: rawTransport === 'sse' ? 'sse' : 'streamable_http',
+            url: config.url || config.endpoint,
+            headers: config.headers
+        };
+    }
+
+    if (config.command) {
+        return {
+            transport: 'stdio',
+            command: config.command,
+            args: Array.isArray(config.args) ? config.args : [],
+            env: config.env || {}
+        };
+    }
+
+    return null;
+}
+
+function readClaudeMcpServers(homeDir) {
+    const text = readTextFileIfExists(join(homeDir, '.claude.json'));
+    if (!text) return {};
+    try {
+        return collectClaudeMcpServers(JSON.parse(text));
+    } catch {
+        return {};
+    }
+}
+
+function readCodexMcpServers(homeDir) {
+    const text = readTextFileIfExists(join(homeDir, '.codex', 'config.toml'));
+    return text ? parseCodexMcpServersToml(text) : {};
+}
+
+export function discoverMeetingSourceMcpAdapterConfigFromCli({ homeDir = homedir() } = {}) {
+    const codexServers = readCodexMcpServers(homeDir);
+    const claudeServers = readClaudeMcpServers(homeDir);
+    const discovered = {};
+
+    for (const provider of SUPPORTED_MEETING_SOURCE_PROVIDERS) {
+        const config = normalizeCliMcpServerConfig(provider, codexServers[provider])
+            || normalizeCliMcpServerConfig(provider, claudeServers[provider]);
+        if (config) discovered[provider] = config;
+    }
+
+    return discovered;
 }
 
 export function parseMeetingSourceMcpAdapterConfig(rawConfig) {
@@ -78,10 +211,24 @@ export class ConfiguredMeetingSourceMcpAdapter {
                 authorization: this.config.bearer_token ? `Bearer ${this.config.bearer_token}` : undefined
             })
         };
+        const hasExplicitAuthorization = Boolean(
+            requestInit.headers.authorization
+            || requestInit.headers.Authorization
+            || this.config.authProvider
+        );
+        const authProvider = hasExplicitAuthorization || this.config.oauth === false
+            ? this.config.authProvider
+            : new FileMeetingSourceMcpOAuthProvider({
+                provider: this.provider,
+                storePath: this.config.oauth_store_path,
+                redirectUrl: this.config.oauth_redirect_url || 'http://127.0.0.1:31087/oauth/callback',
+                clientMetadataUrl: this.config.oauth_client_metadata_url,
+                onRedirect: this.config.onOAuthRedirect
+            });
         if (transport === 'sse') {
-            return new SSEClientTransport(url, { requestInit });
+            return new SSEClientTransport(url, { requestInit, authProvider });
         }
-        return new StreamableHTTPClientTransport(url, { requestInit });
+        return new StreamableHTTPClientTransport(url, { requestInit, authProvider });
     }
 
     async _withClient(fn) {
@@ -146,8 +293,13 @@ export class ConfiguredMeetingSourceMcpAdapter {
     }
 }
 
-export function createMeetingSourceMcpAdaptersFromEnv({ env = process.env, log = console } = {}) {
-    const configs = parseMeetingSourceMcpAdapterConfig(env.BRAINBASE_MEETING_SOURCE_MCP_ADAPTERS_JSON);
+export function createMeetingSourceMcpAdaptersFromEnv({ env = process.env, log = console, homeDir = homedir() } = {}) {
+    const discoveredConfigs = discoverMeetingSourceMcpAdapterConfigFromCli({ homeDir });
+    const explicitConfigs = parseMeetingSourceMcpAdapterConfig(env.BRAINBASE_MEETING_SOURCE_MCP_ADAPTERS_JSON);
+    const configs = {
+        ...discoveredConfigs,
+        ...explicitConfigs
+    };
     return Object.fromEntries(Object.entries(configs).map(([provider, config]) => [
         provider,
         new ConfiguredMeetingSourceMcpAdapter({ provider, config, log })
