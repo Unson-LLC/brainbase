@@ -5,6 +5,8 @@ import { meetingPackIds } from '../workflow/meeting-workflow-pack.js';
 
 export const SUPPORTED_MEETING_SOURCE_PROVIDERS = Object.freeze(['tactiq', 'plaud']);
 
+const INITIAL_BACKFILL_SINCE = '2026-06-25T00:00:00.000Z';
+
 const DEFAULT_PROVIDER_CAPABILITIES = Object.freeze({
     tactiq: ['online_transcript', 'speaker_timeline', 'mcp_resource'],
     plaud: ['offline_recording', 'call_recording', 'online_fallback', 'mcp_resource']
@@ -28,6 +30,13 @@ function subtractMs(isoValue, deltaMs) {
     const date = new Date(isoValue);
     if (Number.isNaN(date.getTime())) return nowIso();
     return new Date(date.getTime() - deltaMs).toISOString();
+}
+
+function maxIso(...values) {
+    return values
+        .filter(Boolean)
+        .sort()
+        .at(-1) || null;
 }
 
 function stableHash(value) {
@@ -251,8 +260,9 @@ function defaultState() {
         providers,
         sync_config: {
             enabled: false,
-            interval_ms: 15 * 60 * 1000,
+            interval_ms: 5 * 60 * 1000,
             lookback_ms: 24 * 60 * 60 * 1000,
+            initial_backfill_since: INITIAL_BACKFILL_SINCE,
             providers: [...SUPPORTED_MEETING_SOURCE_PROVIDERS],
             org_id: null,
             project_id: null,
@@ -362,6 +372,7 @@ export class MeetingSourceMcpSyncService {
         const state = await this._loadState();
         return {
             providers: SUPPORTED_MEETING_SOURCE_PROVIDERS.map((provider) => publicProvider(state.providers[provider])),
+            sync_policy: this._publicSyncPolicy(state),
             updated_at: this.clock()
         };
     }
@@ -443,12 +454,72 @@ export class MeetingSourceMcpSyncService {
             .filter((provider) => state.providers[provider]?.enabled && state.providers[provider]?.auth_status === 'connected');
     }
 
-    _assertBoundedWindow({ since, until, updated_since: updatedSince } = {}) {
-        if (!since && !until && !updatedSince) {
-            const error = new Error('resync requires since, until, or updated_since');
-            error.statusCode = 400;
-            throw error;
-        }
+    _publicSyncPolicy(state = null) {
+        const config = {
+            ...this.syncConfig,
+            ...(state?.sync_config || {})
+        };
+        const intervalMs = parseDurationMs(config.interval_ms ?? config.intervalMs, defaultState().sync_config.interval_ms);
+        const lookbackMs = parseDurationMs(config.lookback_ms ?? config.lookbackMs, defaultState().sync_config.lookback_ms);
+        return {
+            trigger_interval_minutes: Math.max(1, Math.round(intervalMs / 60_000)),
+            incremental_cursor_field: 'cursor.updated_since',
+            overlap_window_hours: Math.max(1, Math.round(lookbackMs / (60 * 60 * 1000))),
+            initial_backfill_since: config.initial_backfill_since || config.initialBackfillSince || INITIAL_BACKFILL_SINCE,
+            calendar_role: 'context_only',
+            source_priority: ['tactiq_online', 'plaud_offline_or_tactiq_unavailable'],
+            summary: `Brainbase runtime syncs every ${Math.max(1, Math.round(intervalMs / 60_000))} minutes, uses provider cursor.updated_since with a ${Math.max(1, Math.round(lookbackMs / (60 * 60 * 1000)))}h overlap, and backfills from ${(config.initial_backfill_since || config.initialBackfillSince || INITIAL_BACKFILL_SINCE).slice(0, 10)} when no cursor exists.`
+        };
+    }
+
+    _providerRuntimePolicySince(state, provider, options = {}) {
+        const policy = this._publicSyncPolicy(state);
+        const lookbackMs = parseDurationMs(options.lookback_ms ?? options.lookbackMs, (policy.overlap_window_hours || 24) * 60 * 60 * 1000);
+        const cursor = state.providers[provider]?.cursor?.updated_since;
+        if (!cursor) return policy.initial_backfill_since;
+        return maxIso(policy.initial_backfill_since, subtractMs(cursor, lookbackMs));
+    }
+
+    _runtimeProviderWindows(state, providers, options = {}) {
+        return Object.fromEntries(this._normalizeProviders(providers).map((provider) => [
+            provider,
+            { updated_since: this._providerRuntimePolicySince(state, provider, options) }
+        ]));
+    }
+
+    _runtimePolicySince(state, providers, options = {}) {
+        const policy = this._publicSyncPolicy(state);
+        const providerWindows = this._runtimeProviderWindows(state, providers, options);
+        const providerSince = Object.values(providerWindows)
+            .map((window) => window.updated_since)
+            .filter(Boolean)
+            .sort();
+        return providerSince[0] || policy.initial_backfill_since;
+    }
+
+    _resolvePreviewWindow(state, options = {}) {
+        const providers = this._normalizeProviders(options.providers);
+        const explicitUpdatedSince = options.updated_since || options.updatedSince || null;
+        const explicitSince = options.since || explicitUpdatedSince || null;
+        const syncPolicy = this._publicSyncPolicy(state);
+        const providerWindows = explicitSince
+            ? Object.fromEntries(providers.map((provider) => [provider, { updated_since: explicitSince }]))
+            : (options.provider_windows || options.providerWindows || this._runtimeProviderWindows(state, providers, options));
+        const resolvedSince = explicitSince || Object.values(providerWindows)
+            .map((window) => window.updated_since)
+            .filter(Boolean)
+            .sort()[0] || syncPolicy.initial_backfill_since;
+        const runtimePolicyWindow = options.runtime_policy_window || options.runtimePolicyWindow || false;
+        return {
+            ...options,
+            providers,
+            provider_windows: providerWindows,
+            since: options.since || null,
+            updated_since: explicitUpdatedSince || resolvedSince,
+            until: options.until || null,
+            sync_policy: syncPolicy,
+            sync_policy_mode: !runtimePolicyWindow && (explicitSince || options.until) ? 'explicit_window' : 'runtime_policy'
+        };
     }
 
     async _pollProvider(provider, options) {
@@ -486,15 +557,20 @@ export class MeetingSourceMcpSyncService {
     }
 
     async previewResync(options = {}) {
-        this._assertBoundedWindow(options);
-        const providers = this._normalizeProviders(options.providers);
+        const state = await this._loadState();
+        const resolvedOptions = this._resolvePreviewWindow(state, options);
+        const providers = resolvedOptions.providers;
         const providerResults = [];
         const artifacts = [];
         const errors = [];
 
         for (const provider of providers) {
             try {
-                const result = await this._pollProvider(provider, options);
+                const providerWindow = resolvedOptions.provider_windows?.[provider] || {};
+                const result = await this._pollProvider(provider, {
+                    ...resolvedOptions,
+                    updated_since: providerWindow.updated_since || resolvedOptions.updated_since
+                });
                 providerResults.push({
                     provider,
                     artifact_count: result.artifacts.length,
@@ -517,20 +593,21 @@ export class MeetingSourceMcpSyncService {
         }
 
         const clusters = dedupeSourceArtifacts(artifacts);
-        const previewId = `preview_${stableHash(`${this.clock()}:${JSON.stringify(options)}:${artifacts.length}`).slice(0, 20)}`;
-        const state = await this._loadState();
+        const previewId = `preview_${stableHash(`${this.clock()}:${JSON.stringify(resolvedOptions)}:${artifacts.length}`).slice(0, 20)}`;
         state.previews[previewId] = {
             preview_id: previewId,
             created_at: this.clock(),
             options: {
                 providers,
-                since: options.since || null,
-                until: options.until || null,
-                updated_since: options.updated_since || null,
-                org_id: readString(options, 'org_id', 'orgId'),
-                project_id: readString(options, 'project_id', 'projectId'),
-                case_scope: readString(options, 'case_scope', 'caseScope'),
-                sync_policy: options.sync_policy || options.syncPolicy || null
+                since: resolvedOptions.since || null,
+                until: resolvedOptions.until || null,
+                updated_since: resolvedOptions.updated_since || null,
+                provider_windows: resolvedOptions.provider_windows || {},
+                org_id: readString(resolvedOptions, 'org_id', 'orgId'),
+                project_id: readString(resolvedOptions, 'project_id', 'projectId'),
+                case_scope: readString(resolvedOptions, 'case_scope', 'caseScope'),
+                sync_policy: resolvedOptions.sync_policy,
+                sync_policy_mode: resolvedOptions.sync_policy_mode
             },
             provider_results: providerResults,
             artifacts,
@@ -546,6 +623,8 @@ export class MeetingSourceMcpSyncService {
             artifact_count: artifacts.length,
             clusters,
             expected_meeting_pack_count: clusters.length,
+            sync_policy: resolvedOptions.sync_policy,
+            sync_policy_mode: resolvedOptions.sync_policy_mode,
             errors
         };
     }
@@ -718,17 +797,14 @@ export class MeetingSourceMcpSyncService {
 
     _scheduledWindow(state, options = {}) {
         const selectedProviders = this._normalizeProviders(options.providers || this.syncConfig.providers);
-        const providerCursors = selectedProviders
-            .map((provider) => state.providers[provider]?.cursor?.updated_since)
-            .filter(Boolean)
-            .sort();
-        const updatedSince = options.updated_since
-            || options.updatedSince
-            || providerCursors[0]
-            || subtractMs(this.clock(), parseDurationMs(options.lookback_ms ?? options.lookbackMs, this.syncConfig.lookback_ms));
+        const updatedSince = options.updated_since || options.updatedSince || null;
+        const providerWindows = updatedSince
+            ? Object.fromEntries(selectedProviders.map((provider) => [provider, { updated_since: updatedSince }]))
+            : this._runtimeProviderWindows(state, selectedProviders, options);
         return {
             providers: selectedProviders,
-            updated_since: updatedSince,
+            updated_since: updatedSince || this._runtimePolicySince(state, selectedProviders, options),
+            provider_windows: providerWindows,
             until: options.until || this.clock()
         };
     }
@@ -766,8 +842,9 @@ export class MeetingSourceMcpSyncService {
             try {
                 const preview = await this.previewResync({
                     providers: enabledProviders,
-                    updated_since: window.updated_since,
+                    ...(options.updated_since || options.updatedSince ? { updated_since: window.updated_since } : { provider_windows: window.provider_windows }),
                     until: window.until,
+                    runtime_policy_window: !(options.updated_since || options.updatedSince || options.since || options.until),
                     org_id: scope.org_id,
                     project_id: scope.project_id,
                     case_scope: scope.case_scope

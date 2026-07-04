@@ -28,7 +28,7 @@ async function makeApp({ adapters = {}, workflowService = null } = {}) {
 }
 
 describe('meeting source settings routes', () => {
-    it('lists provider statuses without leaking credential refs', async () => {
+    it('C-1 lists provider statuses with sync_policy without leaking credential refs', async () => {
         const { app, service } = await makeApp();
         await service.connectProvider('tactiq', {
             account_label: 'ksato tactiq',
@@ -47,6 +47,14 @@ describe('meeting source settings routes', () => {
         });
         expect(JSON.stringify(res.body)).not.toContain('plain-secret-ref');
         expect(res.body.providers.find(p => p.provider === 'tactiq')).not.toHaveProperty('credential_ref');
+        expect(res.body.sync_policy).toMatchObject({
+            trigger_interval_minutes: 5,
+            incremental_cursor_field: 'cursor.updated_since',
+            overlap_window_hours: 24,
+            initial_backfill_since: '2026-06-25T00:00:00.000Z',
+            calendar_role: 'context_only',
+            source_priority: ['tactiq_online', 'plaud_offline_or_tactiq_unavailable']
+        });
     });
 
     it('connects and tests a provider through POST endpoints', async () => {
@@ -72,15 +80,185 @@ describe('meeting source settings routes', () => {
         expect(test.body.ok).toBe(true);
     });
 
-    it('requires a bounded resync window before dry-run', async () => {
-        const { app } = await makeApp();
+    it('C-2/C-3 uses the runtime sync policy when preview has no explicit window', async () => {
+        const tactiqPoll = vi.fn(async () => []);
+        const { app, service } = await makeApp({
+            adapters: {
+                tactiq: {
+                    poll: tactiqPoll
+                }
+            }
+        });
+        await service.connectProvider('tactiq', {
+            account_label: 'ksato tactiq',
+            credential_ref: 'secret:tactiq'
+        });
 
         const res = await request(app)
             .post('/api/settings/meeting-sources/resync-preview')
             .send({ providers: ['tactiq'] })
-            .expect(400);
+            .expect(200);
 
-        expect(res.body.error).toContain('resync requires');
+        expect(res.body).toMatchObject({
+            dry_run: true,
+            sync_policy_mode: 'runtime_policy',
+            sync_policy: {
+                trigger_interval_minutes: 5,
+                incremental_cursor_field: 'cursor.updated_since',
+                overlap_window_hours: 24,
+                initial_backfill_since: '2026-06-25T00:00:00.000Z',
+                calendar_role: 'context_only',
+                source_priority: ['tactiq_online', 'plaud_offline_or_tactiq_unavailable']
+            }
+        });
+        expect(tactiqPoll).toHaveBeenCalledWith(expect.objectContaining({
+            since: '2026-06-25T00:00:00.000Z',
+            until: null
+        }));
+    });
+
+    it('C-4 resolves providers-only preview from cursor minus overlap clamped to initial backfill', async () => {
+        const workflowService = {
+            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        };
+        const tactiqPoll = vi
+            .fn()
+            .mockResolvedValueOnce([{
+                id: 'tactiq-cursor-seed',
+                title: 'Cursor seed',
+                transcript_text: 'seed meeting text',
+                meeting_mode: 'online',
+                updated_at: '2026-07-01T09:00:00.000Z'
+            }])
+            .mockResolvedValueOnce([]);
+        const { app, service } = await makeApp({
+            workflowService,
+            adapters: {
+                tactiq: {
+                    poll: tactiqPoll
+                }
+            }
+        });
+        await service.connectProvider('tactiq', {
+            account_label: 'ksato tactiq',
+            credential_ref: 'secret:tactiq'
+        });
+
+        const seedPreview = await request(app)
+            .post('/api/settings/meeting-sources/resync-preview')
+            .send({
+                providers: ['tactiq'],
+                since: '2026-06-25T00:00:00.000Z',
+                org_id: 'brainbase',
+                project_id: 'brainbase'
+            })
+            .expect(200);
+        await request(app)
+            .post('/api/settings/meeting-sources/resync-confirm')
+            .send({ preview_id: seedPreview.body.preview_id })
+            .expect(200);
+
+        const res = await request(app)
+            .post('/api/settings/meeting-sources/resync-preview')
+            .send({ providers: ['tactiq'] })
+            .expect(200);
+
+        expect(res.body.sync_policy_mode).toBe('runtime_policy');
+        expect(tactiqPoll).toHaveBeenLastCalledWith(expect.objectContaining({
+            since: '2026-06-30T09:00:00.000Z',
+            until: null
+        }));
+    });
+
+    it('C-3/C-4 resolves runtime windows per provider when cursor states differ', async () => {
+        const workflowService = {
+            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        };
+        const tactiqPoll = vi
+            .fn()
+            .mockResolvedValueOnce([{
+                id: 'tactiq-cursor-seed',
+                title: 'Cursor seed',
+                transcript_text: 'seed meeting text',
+                meeting_mode: 'online',
+                updated_at: '2026-07-01T09:00:00.000Z'
+            }])
+            .mockResolvedValueOnce([]);
+        const plaudPoll = vi.fn(async () => []);
+        const { app, service } = await makeApp({
+            workflowService,
+            adapters: {
+                tactiq: { poll: tactiqPoll },
+                plaud: { poll: plaudPoll }
+            }
+        });
+        await service.connectProvider('tactiq', {
+            account_label: 'ksato tactiq',
+            credential_ref: 'secret:tactiq'
+        });
+        await service.connectProvider('plaud', {
+            account_label: 'ksato plaud',
+            credential_ref: 'secret:plaud'
+        });
+
+        const seedPreview = await request(app)
+            .post('/api/settings/meeting-sources/resync-preview')
+            .send({
+                providers: ['tactiq'],
+                since: '2026-06-25T00:00:00.000Z',
+                org_id: 'brainbase',
+                project_id: 'brainbase'
+            })
+            .expect(200);
+        await request(app)
+            .post('/api/settings/meeting-sources/resync-confirm')
+            .send({ preview_id: seedPreview.body.preview_id })
+            .expect(200);
+
+        const res = await request(app)
+            .post('/api/settings/meeting-sources/resync-preview')
+            .send({ providers: ['tactiq', 'plaud'] })
+            .expect(200);
+
+        expect(res.body.sync_policy_mode).toBe('runtime_policy');
+        expect(tactiqPoll).toHaveBeenLastCalledWith(expect.objectContaining({
+            since: '2026-06-30T09:00:00.000Z',
+            until: null
+        }));
+        expect(plaudPoll).toHaveBeenLastCalledWith(expect.objectContaining({
+            since: '2026-06-25T00:00:00.000Z',
+            until: null
+        }));
+
+        const scheduled = await service.runScheduledSync({
+            providers: ['tactiq', 'plaud'],
+            org_id: 'brainbase',
+            project_id: 'brainbase',
+            case_scope: 'internal'
+        });
+        const state = await service._loadState();
+
+        expect(scheduled).toMatchObject({
+            ok: true,
+            submitted: false,
+            reason: 'no_source_artifacts'
+        });
+        expect(state.previews[scheduled.preview_id].options).toMatchObject({
+            sync_policy_mode: 'runtime_policy',
+            until: '2026-07-02T00:00:00.000Z',
+            provider_windows: {
+                tactiq: { updated_since: '2026-06-30T09:00:00.000Z' },
+                plaud: { updated_since: '2026-06-25T00:00:00.000Z' }
+            }
+        });
+        expect(tactiqPoll).toHaveBeenLastCalledWith(expect.objectContaining({
+            since: '2026-06-30T09:00:00.000Z',
+            until: '2026-07-02T00:00:00.000Z'
+        }));
+        expect(plaudPoll).toHaveBeenLastCalledWith(expect.objectContaining({
+            since: '2026-06-25T00:00:00.000Z',
+            until: '2026-07-02T00:00:00.000Z'
+        }));
     });
 
     it('returns conflict when confirm is called without a dry-run preview', async () => {
