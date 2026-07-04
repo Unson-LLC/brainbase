@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-source-runtime-sync-policy",
   "source": "execute_merge",
-  "generated_at": "2026-07-04T21:17:42.578Z",
+  "generated_at": "2026-07-04T21:17:47.329Z",
   "evidence_depth": "standard",
   "budget_status": "within_budget",
   "cost_summary": {
@@ -113,13 +113,13 @@
       "reason": "elapsed-time logs were not provided to canonical audit promotion"
     },
     "replay_bundle": {
-      "compressed_bytes": 2971,
+      "compressed_bytes": 2973,
       "expanded_bytes": 12451,
       "expanded_line_count": 332,
       "persisted_line_count": 1
     },
-    "raw_source_artifact_lines": 8906,
-    "raw_source_artifact_code_ratio": 13.981,
+    "raw_source_artifact_lines": 8996,
+    "raw_source_artifact_code_ratio": 14.122,
     "artifact_lines_source": "persisted_canonical_compact"
   },
   "pr_prepare": {
@@ -235,7 +235,7 @@
     "schema_version": "0.1.0",
     "artifact_kind": "vibepro_automation_value_audit",
     "story_id": "story-meeting-source-runtime-sync-policy",
-    "generated_at": "2026-07-04T21:17:42.578Z",
+    "generated_at": "2026-07-04T21:17:47.329Z",
     "status": "partial",
     "purpose": "daily_automation_input",
     "sources": {
@@ -345,10 +345,10 @@
     "path": "docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:2ac1d68a53d64eac16347e9fff26bc0db72dc03269400d31c3ecadcd79cab0ef",
-    "compressed_hash": "sha256:03448bd9e82502866678b678cd6eec74a5247be70c5c26a2c8af607e849a252f",
+    "content_hash": "sha256:67085537182540f1873052f781b8a3216602204b47b7354ba17a56b3adf51652",
+    "compressed_hash": "sha256:84fd7cbf916f2c4651e2e60ef080636078bc2db2d5e4bb396b9d86fac38bdaca",
     "expanded_bytes": 12451,
-    "compressed_bytes": 2971,
+    "compressed_bytes": 2973,
     "expanded_line_count": 332,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
@@ -367,7 +367,7 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-meeting-source-runtime-sync-policy",
     "cost": {
-      "compressed_bytes": 2971,
+      "compressed_bytes": 2973,
       "expanded_bytes": 12451,
       "expanded_line_count": 332,
       "persisted_line_count": 1

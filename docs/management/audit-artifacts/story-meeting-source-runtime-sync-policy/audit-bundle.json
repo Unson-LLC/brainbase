@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-source-runtime-sync-policy",
   "source": "execute_merge",
-  "promoted_at": "2026-07-04T21:17:42.578Z",
+  "promoted_at": "2026-07-04T21:17:47.329Z",
   "canonical_dir": "docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy",
   "source_workspace_dir": ".vibepro",
   "audit_index_path": "docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy/audit-index.json",
@@ -38,10 +38,10 @@
     "path": "docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:2ac1d68a53d64eac16347e9fff26bc0db72dc03269400d31c3ecadcd79cab0ef",
-    "compressed_hash": "sha256:03448bd9e82502866678b678cd6eec74a5247be70c5c26a2c8af607e849a252f",
+    "content_hash": "sha256:67085537182540f1873052f781b8a3216602204b47b7354ba17a56b3adf51652",
+    "compressed_hash": "sha256:84fd7cbf916f2c4651e2e60ef080636078bc2db2d5e4bb396b9d86fac38bdaca",
     "expanded_bytes": 12451,
-    "compressed_bytes": 2971,
+    "compressed_bytes": 2973,
     "expanded_line_count": 332,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
@@ -60,7 +60,7 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-meeting-source-runtime-sync-policy",
     "cost": {
-      "compressed_bytes": 2971,
+      "compressed_bytes": 2973,
       "expanded_bytes": 12451,
       "expanded_line_count": 332,
       "persisted_line_count": 1
@@ -97,7 +97,7 @@
       "kind": "compressed_replay_bundle",
       "canonical_path": "docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy/audit-replay-bundle.json.gz",
       "compression": "gzip",
-      "content_hash": "sha256:2ac1d68a53d64eac16347e9fff26bc0db72dc03269400d31c3ecadcd79cab0ef"
+      "content_hash": "sha256:67085537182540f1873052f781b8a3216602204b47b7354ba17a56b3adf51652"
     }
   ],
   "raw_artifact_manifest": [
@@ -189,10 +189,10 @@
       "source": ".vibepro/pr/story-meeting-source-runtime-sync-policy/pr-merge.json",
       "persisted": "compressed",
       "compressed_path": "docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy/audit-replay-bundle.json.gz",
-      "digest": "sha256:e929945e841311fc92bcf7df05652edb04ba79ca0d162a4e87e808180fbe7ad3",
-      "audit_digest": "sha256:fc291fc04c70b90ab415881de7a7c6cc4a475f32c7d43a944fd3b86e2a6fa048",
-      "line_count": 1596,
-      "raw_line_count": 3105,
+      "digest": "sha256:71ce622df471842420328622af2ba31bbb54c264a581cc0d894fe78c9ca7ec44",
+      "audit_digest": "sha256:9c0551171af74d6ecf289e254b4f35ab633c5e2e562cbf3a35e5cf1b89c4d7fc",
+      "line_count": 1686,
+      "raw_line_count": 3195,
       "audit_scope": "judgment_evidence_v1",
       "excluded_from_audit": [
         "pr_lifecycle.full_gate_dag",
