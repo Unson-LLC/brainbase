@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-runtime-sync-policy",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Current-head gate evidence passes; previous stale evidence and scheduled sync policy-mode findings are resolved.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed service diff, scheduled sync test coverage, and verified current-head VibePro artifacts.",
+    "evidence": "server/services/meeting-source/meeting-source-mcp-sync-service.js;tests/server/routes/meeting-source-settings.test.js;.vibepro/pr/story-meeting-source-runtime-sync-policy/verification-evidence.json",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-source-runtime-sync-policy/gate/parallel-dispatch.md"
+    ]
+  },
+  "judgment_delta": [
+    "needs_changes -> pass because scheduled sync now marks runtime_policy_window and current-head unit/e2e/integration/build artifacts are verified"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+    "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+    "expected_root": null,
+    "expected_head_sha": "37e740f9bbb5fd37b0eb51d1a02a87652238cca1",
+    "current_head_sha": "37e740f9bbb5fd37b0eb51d1a02a87652238cca1",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+      "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+      "expected_root": null,
+      "expected_head_sha": "37e740f9bbb5fd37b0eb51d1a02a87652238cca1",
+      "current_head_sha": "37e740f9bbb5fd37b0eb51d1a02a87652238cca1",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-04T20:56:49.562Z",
+  "git_context": {
+    "head_sha": "37e740f9bbb5fd37b0eb51d1a02a87652238cca1",
+    "current_branch": "codex/meeting-source-runtime-sync-policy",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-04T20:56:49.561Z"
+  },
+  "source_fingerprint": "4771995420c81c3eea826ac457048aa3fb74fb6e0f83ea9b3362fc9532065295",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f2ee9-3760-7f60-b75e-5ebc17259ce3",
+    "agent_role": null,
+    "model": "inherited",
+    "reasoning_effort": "medium",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "var/vibepro-artifacts/story-meeting-source-runtime-sync-policy-gate-review.json",
+    "request_artifact": ".vibepro/reviews/story-meeting-source-runtime-sync-policy/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

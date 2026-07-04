@@ -1,0 +1,139 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-meeting-source-runtime-sync-policy",
+  "updated_at": "2026-07-04T20:35:55.743Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+      "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+      "expected_root": null,
+      "expected_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+      "current_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783197355743-1b3964f2",
+      "story_id": "story-meeting-source-runtime-sync-policy",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Runtime sync policy PR is reviewable as a single server-side API/worker contract change",
+      "reason": "Changed files are one runtime service, two runtime tests, and story/spec/architecture docs for the same Meeting Source MCP policy. Mac Companion UI/client changes remain in a separate worktree/PR after this runtime contract lands, so reviewer ownership is server API and worker policy only.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-source-runtime-sync-policy/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+          "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+          "expected_root": null,
+          "expected_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "current_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+        "current_branch": "codex/meeting-source-runtime-sync-policy",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-04T20:35:55.742Z"
+      },
+      "recorded_at": "2026-07-04T20:35:55.743Z"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "open": 0,
+    "by_type": {
+      "needs_review": 1
+    },
+    "by_status": {
+      "accepted": 1
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+        "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+        "expected_root": null,
+        "expected_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+        "current_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783197355743-1b3964f2",
+      "story_id": "story-meeting-source-runtime-sync-policy",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Runtime sync policy PR is reviewable as a single server-side API/worker contract change",
+      "reason": "Changed files are one runtime service, two runtime tests, and story/spec/architecture docs for the same Meeting Source MCP policy. Mac Companion UI/client changes remain in a separate worktree/PR after this runtime contract lands, so reviewer ownership is server API and worker policy only.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-meeting-source-runtime-sync-policy/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+          "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+          "expected_root": null,
+          "expected_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "current_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+        "current_branch": "codex/meeting-source-runtime-sync-policy",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-04T20:35:55.742Z"
+      },
+      "recorded_at": "2026-07-04T20:35:55.743Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-meeting-source-runtime-sync-policy/decision-records.json"
+}

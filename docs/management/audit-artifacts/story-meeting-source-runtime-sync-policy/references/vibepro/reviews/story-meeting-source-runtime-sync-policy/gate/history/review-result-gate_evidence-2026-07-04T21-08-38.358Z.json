@@ -1,0 +1,98 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-runtime-sync-policy",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "gate_evidence passes for current head 0fb022b3e94dc87ec271a8e6bdb9384a730cab01: verification artifacts are current-head bound, prior reuse was correctly treated as stale, and inspected code/tests/docs cover regression and path-surface concerns for this review role.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected the gate request and dispatch, current git state, six-file story diff, meeting-source runtime service and route surfaces, story/spec/architecture docs, current-head verification artifacts, gate DAG, traceability, senior-gap artifact, stale prior review record, and evidence surfaces for instruction override text. No high or critical issue was found.",
+    "evidence": ".vibepro/reviews/story-meeting-source-runtime-sync-policy/gate/review-request-gate_evidence.md",
+    "inputs": [
+      ".vibepro/reviews/story-meeting-source-runtime-sync-policy/gate/review-request-gate_evidence.md",
+      "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+      "server/routes/meeting-source-settings.js",
+      "tests/server/routes/meeting-source-settings.test.js",
+      "tests/e2e/story-meeting-source-runtime-sync-policy-contract.spec.ts",
+      "docs/stories/story-meeting-source-runtime-sync-policy.md",
+      "docs/specs/story-meeting-source-runtime-sync-policy-spec.md",
+      "docs/architecture/story-meeting-source-runtime-sync-policy-architecture.md"
+    ]
+  },
+  "judgment_delta": [
+    "initial concern: stale reuse and prior review after HEAD changed -> final pass because current-head verification artifacts, runtime code/tests/docs, regression_guard, and path_surface_coverage were inspected directly and no high/critical issue was found"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+    "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+    "expected_root": null,
+    "expected_head_sha": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+    "current_head_sha": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+      "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+      "expected_root": null,
+      "expected_head_sha": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+      "current_head_sha": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-04T21:08:38.358Z",
+  "git_context": {
+    "head_sha": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+    "current_branch": "codex/meeting-source-runtime-sync-policy",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-04T21:08:38.357Z"
+  },
+  "source_fingerprint": "014d10f6805ce29b5dafbfd2eeb7c6c766974ab173bb35c13e6cb7192916626b",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f2ef2-7980-73d2-b866-943cdeb8e1a4",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-meeting-source-runtime-sync-policy/gate/parallel-dispatch.md",
+    "request_artifact": ".vibepro/reviews/story-meeting-source-runtime-sync-policy/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

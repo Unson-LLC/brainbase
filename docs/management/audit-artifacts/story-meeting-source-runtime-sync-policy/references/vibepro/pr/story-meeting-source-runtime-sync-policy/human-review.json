@@ -1,0 +1,164 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-source-runtime-sync-policy",
+  "created_at": "2026-07-04T21:08:57.495Z",
+  "recommended_decision": "proceed",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is single_pr_ok with strategy keep_current_pr. Scope is reviewable; recommended strategy is current_branch_pr.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-meeting-source-runtime-sync-policy/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-meeting-source-runtime-sync-policy/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-meeting-source-runtime-sync-policy/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-meeting-source-runtime-sync-policy/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-meeting-source-runtime-sync-policy/split-plan.json",
+    "decision_records": ".vibepro/pr/story-meeting-source-runtime-sync-policy/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/story-meeting-source-runtime-sync-policy-architecture.md)"
+    },
+    "spec": {
+      "status": "present",
+      "required": true,
+      "reason": "explicit Spec docs are present (docs/specs/story-meeting-source-runtime-sync-policy-spec.md)"
+    },
+    "decision_records": {
+      "total": 1,
+      "open": 0,
+      "by_type": {
+        "needs_review": 1
+      },
+      "by_status": {
+        "accepted": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+          "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+          "expected_root": null,
+          "expected_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "current_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783197355743-1b3964f2",
+        "story_id": "story-meeting-source-runtime-sync-policy",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "gate:judgment_axis_scope_reviewability",
+        "source_status": "needs_evidence",
+        "summary": "Runtime sync policy PR is reviewable as a single server-side API/worker contract change",
+        "reason": "Changed files are one runtime service, two runtime tests, and story/spec/architecture docs for the same Meeting Source MCP policy. Mac Companion UI/client changes remain in a separate worktree/PR after this runtime contract lands, so reviewer ownership is server API and worker policy only.",
+        "reviewer": "codex",
+        "artifact": ".vibepro/pr/story-meeting-source-runtime-sync-policy/split-plan.json",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+            "actual_root": "/Users/ksato/.codex/worktrees/meeting-source-runtime-sync-policy",
+            "expected_root": null,
+            "expected_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+            "current_head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "282191bc915d9456e5848cfb10caaf18cc10ef61",
+          "current_branch": "codex/meeting-source-runtime-sync-policy",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-04T20:35:55.742Z"
+        },
+        "recorded_at": "2026-07-04T20:35:55.743Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": 1,
+      "final_20_auto_closure_rate": 1,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-04T21:08:56.360Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "202599f7082d1c49783ae4d42623f4f825c53564",
+      "branch": "main",
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "3264a2256778a392c03ab964a807ea99cecfc583",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M docs/.vitepress/config.mjs",
+        " A docs/architecture/vibepro-story-scoped-playbook-export.md",
+        " M docs/guide/ai-pr-workflow.md",
+        " M docs/guide/checkpoints-and-execution.md",
+        " M docs/guide/core-concepts.md",
+        " M docs/guide/gates-and-evidence.md",
+        " M docs/guide/graphify-impact.md",
+        " M docs/guide/story-spec-traceability.md",
+        " M docs/guide/what-is-vibepro.md",
+        " M docs/index.md",
+        " M docs/ja/guide/ai-pr-workflow.md",
+        " M docs/ja/guide/checkpoints-and-execution.md",
+        " M docs/ja/guide/core-concepts.md",
+        " M docs/ja/guide/gates-and-evidence.md",
+        " M docs/ja/guide/graphify-impact.md",
+        " M docs/ja/guide/story-spec-traceability.md",
+        " M docs/ja/guide/what-is-vibepro.md",
+        " M docs/ja/index.md",
+        " M docs/ja/reference/artifact-map.md",
+        " M docs/ja/reference/cli.md"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}
