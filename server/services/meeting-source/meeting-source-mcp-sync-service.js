@@ -47,6 +47,15 @@ function normalizeWhitespace(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function normalizeMultilineText(value) {
+    return String(value || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 function safeProvider(provider) {
     const normalized = String(provider || '').toLowerCase();
     if (!SUPPORTED_MEETING_SOURCE_PROVIDERS.includes(normalized)) {
@@ -57,13 +66,20 @@ function safeProvider(provider) {
     return normalized;
 }
 
-function readText(raw = {}) {
+function readTranscriptText(raw = {}) {
     return raw.text
         || raw.transcript
         || raw.transcript_text
-        || raw.note_text
+        || '';
+}
+
+function readProviderNoteText(raw = {}) {
+    return raw.note_text
         || raw.content
         || raw.markdown
+        || raw.summary
+        || raw.ai_summary
+        || raw.meeting_summary
         || '';
 }
 
@@ -140,8 +156,11 @@ function sortPrimaryCandidate(a, b) {
 
 export function normalizeSourceArtifact(raw = {}, providerInput = raw.provider) {
     const provider = safeProvider(providerInput);
-    const text = readText(raw);
-    const normalizedText = normalizeWhitespace(text);
+    const transcriptText = readTranscriptText(raw);
+    const providerNoteText = readProviderNoteText(raw);
+    const normalizedText = normalizeMultilineText(transcriptText);
+    const sourceTextKind = normalizedText ? 'transcript' : (providerNoteText ? 'provider_note_available' : 'empty');
+    const providerNotePreview = normalizeWhitespace(providerNoteText).slice(0, 280);
     const textHash = normalizedText ? stableHash(normalizedText) : null;
     const title = normalizeWhitespace(raw.title || raw.meeting_title || raw.name || 'Untitled meeting source');
     const startedAt = raw.started_at || raw.start_time || raw.created_at || raw.recorded_at || null;
@@ -163,12 +182,18 @@ export function normalizeSourceArtifact(raw = {}, providerInput = raw.provider) 
         mcp_resource_uri: mcpResourceUri,
         transcript_hash: textHash,
         has_text: Boolean(normalizedText),
+        source_text: normalizedText,
+        source_text_kind: sourceTextKind,
+        source_text_length: normalizedText.length,
         text_preview: normalizedText.slice(0, 280),
         raw_metadata: {
             calendar_event_id: raw.calendar_event_id || null,
             source_url: raw.url || raw.permalink || null,
             slack_permalink: raw.slack_permalink || raw.slack_permalink_url || null,
-            provider_role: DEFAULT_PROVIDER_ROLES[provider]
+            provider_role: DEFAULT_PROVIDER_ROLES[provider],
+            source_text_kind: sourceTextKind,
+            provider_note_authoritative: false,
+            provider_note_preview: providerNotePreview || null
         },
         dedupe_key: textHash
             ? `hash:${textHash}`
@@ -200,6 +225,115 @@ export function dedupeSourceArtifacts(artifacts = []) {
             meeting_mode: primary.meeting_mode
         };
     });
+}
+
+function isMeetingPackSourceArtifact(artifact = {}) {
+    return artifact.has_text === true && artifact.source_text_kind === 'transcript' && Boolean(artifact.source_text);
+}
+
+function redactArtifactForPreview(artifact = {}) {
+    if (!artifact || typeof artifact !== 'object') return artifact;
+    const {
+        source_text: _sourceText,
+        raw_metadata: rawMetadata,
+        ...safeArtifact
+    } = artifact;
+    return {
+        ...safeArtifact,
+        raw_metadata: rawMetadata
+            ? {
+                ...rawMetadata,
+                provider_note_preview: rawMetadata.provider_note_preview ? '[redacted]' : null
+            }
+            : rawMetadata
+    };
+}
+
+function redactClusterForPreview(cluster = {}) {
+    return {
+        ...cluster,
+        primary_source: redactArtifactForPreview(cluster.primary_source),
+        supporting_sources: Array.isArray(cluster.supporting_sources)
+            ? cluster.supporting_sources.map(redactArtifactForPreview)
+            : []
+    };
+}
+
+function redactSourceTranscriptForResponse(source = {}) {
+    if (!source || typeof source !== 'object') return source;
+    const { text, ...safeSource } = source;
+    return {
+        ...safeSource,
+        text_redacted: Boolean(text)
+    };
+}
+
+function redactSourceEventForResponse(sourceEvent = {}) {
+    if (!sourceEvent || typeof sourceEvent !== 'object') return sourceEvent;
+    const rawMetadata = sourceEvent.raw_metadata;
+    return {
+        ...sourceEvent,
+        raw_metadata: rawMetadata
+            ? {
+                ...rawMetadata,
+                provider_note_preview: rawMetadata.provider_note_preview ? '[redacted]' : rawMetadata.provider_note_preview
+            }
+            : rawMetadata
+    };
+}
+
+function redactMeetingNoteSummaryForResponse(summary = {}) {
+    if (!summary || typeof summary !== 'object') return summary;
+    return {
+        ...summary,
+        body: summary.body ? '[redacted]' : summary.body,
+        body_redacted: Boolean(summary.body),
+        source_transcripts: Array.isArray(summary.source_transcripts)
+            ? summary.source_transcripts.map(redactSourceTranscriptForResponse)
+            : summary.source_transcripts,
+        source_event: redactSourceEventForResponse(summary.source_event),
+        supporting_sources: Array.isArray(summary.supporting_sources)
+            ? summary.supporting_sources.map(redactSourceEventForResponse)
+            : summary.supporting_sources
+    };
+}
+
+function redactReviewPackageForResponse(reviewPackage = {}) {
+    if (!reviewPackage || typeof reviewPackage !== 'object') return reviewPackage;
+    return {
+        ...reviewPackage,
+        source_event: redactSourceEventForResponse(reviewPackage.source_event),
+        supporting_source_events: Array.isArray(reviewPackage.supporting_source_events)
+            ? reviewPackage.supporting_source_events.map(redactSourceEventForResponse)
+            : reviewPackage.supporting_source_events,
+        meeting_note_summary: redactMeetingNoteSummaryForResponse(reviewPackage.meeting_note_summary)
+    };
+}
+
+function meetingPackExclusionReason(artifact = {}) {
+    if (artifact.source_text_kind === 'provider_note_available') {
+        return 'provider_note_available_without_transcript';
+    }
+    if (artifact.source_text_kind === 'empty') {
+        return 'missing_transcript_text';
+    }
+    if (artifact.source_text_kind && artifact.source_text_kind !== 'transcript') {
+        return 'non_transcript_source_text';
+    }
+    return 'missing_authoritative_transcript';
+}
+
+function meetingPackExclusionForPreview(artifact = {}) {
+    return {
+        provider: artifact.provider || null,
+        source_id: artifact.external_id || null,
+        external_id: artifact.external_id || null,
+        title: artifact.title || null,
+        mcp_resource_uri: artifact.mcp_resource_uri || null,
+        source_text_kind: artifact.source_text_kind || 'unknown',
+        reason: meetingPackExclusionReason(artifact),
+        provider_note_authoritative: false
+    };
 }
 
 export function buildSourceEventFromArtifact(artifact, { sourceClusterId = null, supportingSources = [], ingestedBy = 'meeting_source_mcp_sync_worker' } = {}) {
@@ -313,6 +447,82 @@ function sourceEvidenceRef(sourceEvent) {
         sourceEvent.external_id,
         sourceEvent.transcript_hash || sourceEvent.mcp_resource_uri
     ].filter(Boolean).join(':');
+}
+
+function sourceTranscriptMaterial(artifact, role) {
+    const text = artifact.source_text || '';
+    return {
+        role,
+        provider: artifact.provider,
+        source_id: artifact.external_id,
+        external_id: artifact.external_id,
+        mcp_resource_uri: artifact.mcp_resource_uri,
+        artifact_ref: artifact.mcp_resource_uri,
+        transcript_hash: artifact.transcript_hash,
+        content_sha256: artifact.transcript_hash,
+        text,
+        text_length: artifact.source_text_length ?? text.length,
+        has_text: Boolean(text),
+        meeting_mode: artifact.meeting_mode,
+        started_at: artifact.started_at,
+        ended_at: artifact.ended_at,
+        updated_at: artifact.updated_at,
+        authoritative_for_minutes: artifact.source_text_kind === 'transcript',
+        source_text_kind: artifact.source_text_kind || 'unknown',
+        provider_note_authoritative: false
+    };
+}
+
+function excerptForMarkdown(value, limit = 1600) {
+    const text = normalizeMultilineText(value);
+    if (!text) return '_Transcript text is unavailable in this source artifact._';
+    if (text.length <= limit) return text;
+    return `${text.slice(0, limit).trim()}...`;
+}
+
+function buildBrainbaseMeetingNoteSummary(cluster, {
+    sourceEvent,
+    supportingSourceEvents = []
+} = {}) {
+    const sourceTranscripts = [
+        sourceTranscriptMaterial(cluster.primary_source, 'primary'),
+        ...cluster.supporting_sources.map((artifact) => sourceTranscriptMaterial(artifact, 'supporting'))
+    ];
+    const primaryTranscript = sourceTranscripts[0];
+    const supportingLines = supportingSourceEvents.map((event) => (
+        `- ${event.provider}: ${event.mcp_resource_uri || event.source_id || 'unknown source'}`
+    ));
+    const body = [
+        `# ${cluster.title}`,
+        '',
+        '## Brainbase Meeting Pack Source',
+        '',
+        'このドラフトはBrainbase Meeting Packがprovider transcriptを一次資料として議事録を生成するための入力です。Tactiq/Plaud側の生成済み議事録やAI summaryは、Brainbase議事録本文として採用しません。',
+        '',
+        '## Primary Transcript Excerpt',
+        '',
+        excerptForMarkdown(primaryTranscript.text),
+        ...(supportingLines.length ? [
+            '',
+            '## Supporting Sources',
+            '',
+            ...supportingLines
+        ] : [])
+    ].join('\n');
+
+    return {
+        title: cluster.title,
+        body,
+        generator: 'brainbase_meeting_pack',
+        generation_source: 'transcript_to_meeting_note',
+        generation_status: 'brainbase_source_ready',
+        provider_note_authoritative: false,
+        source_text_hash: primaryTranscript.transcript_hash,
+        source_text_length: primaryTranscript.text_length,
+        source_transcripts: sourceTranscripts,
+        source_event: sourceEvent,
+        supporting_sources: supportingSourceEvents
+    };
 }
 
 function publicProvider(providerState) {
@@ -571,13 +781,20 @@ export class MeetingSourceMcpSyncService {
                     ...resolvedOptions,
                     updated_since: providerWindow.updated_since || resolvedOptions.updated_since
                 });
+                const resultArtifacts = result.artifacts || [];
+                const meetingPackCandidateCount = resultArtifacts.filter(isMeetingPackSourceArtifact).length;
                 providerResults.push({
                     provider,
-                    artifact_count: result.artifacts.length,
+                    artifact_count: resultArtifacts.length,
+                    meeting_pack_candidate_count: meetingPackCandidateCount,
+                    excluded_from_meeting_pack_count: resultArtifacts.length - meetingPackCandidateCount,
                     skipped: Boolean(result.skipped),
-                    reason: result.reason || null
+                    reason: result.reason
+                        || (resultArtifacts.length > 0 && meetingPackCandidateCount === 0
+                            ? 'no_transcript_artifacts_for_meeting_pack'
+                            : null)
                 });
-                artifacts.push(...result.artifacts);
+                artifacts.push(...resultArtifacts);
             } catch (error) {
                 errors.push({
                     provider,
@@ -586,13 +803,19 @@ export class MeetingSourceMcpSyncService {
                 providerResults.push({
                     provider,
                     artifact_count: 0,
+                    meeting_pack_candidate_count: 0,
+                    excluded_from_meeting_pack_count: 0,
                     skipped: false,
                     error: error.message
                 });
             }
         }
 
-        const clusters = dedupeSourceArtifacts(artifacts);
+        const meetingPackArtifacts = artifacts.filter(isMeetingPackSourceArtifact);
+        const meetingPackExclusions = artifacts
+            .filter((artifact) => !isMeetingPackSourceArtifact(artifact))
+            .map(meetingPackExclusionForPreview);
+        const clusters = dedupeSourceArtifacts(meetingPackArtifacts);
         const previewId = `preview_${stableHash(`${this.clock()}:${JSON.stringify(resolvedOptions)}:${artifacts.length}`).slice(0, 20)}`;
         state.previews[previewId] = {
             preview_id: previewId,
@@ -611,6 +834,7 @@ export class MeetingSourceMcpSyncService {
             },
             provider_results: providerResults,
             artifacts,
+            meeting_pack_exclusions: meetingPackExclusions,
             clusters,
             errors
         };
@@ -621,7 +845,9 @@ export class MeetingSourceMcpSyncService {
             dry_run: true,
             provider_results: providerResults,
             artifact_count: artifacts.length,
-            clusters,
+            excluded_from_meeting_pack_count: meetingPackExclusions.length,
+            meeting_pack_exclusions: meetingPackExclusions,
+            clusters: clusters.map(redactClusterForPreview),
             expected_meeting_pack_count: clusters.length,
             sync_policy: resolvedOptions.sync_policy,
             sync_policy_mode: resolvedOptions.sync_policy_mode,
@@ -667,12 +893,10 @@ export class MeetingSourceMcpSyncService {
                 }
             },
             loop_intent_ids: loopIntentIdsForScope(scope),
-            meeting_note_summary: {
-                title: cluster.title,
-                body: cluster.primary_source.text_preview || '',
-                source_event: sourceEvent,
-                supporting_sources: supportingSourceEvents
-            },
+            meeting_note_summary: buildBrainbaseMeetingNoteSummary(cluster, {
+                sourceEvent,
+                supportingSourceEvents
+            }),
             task_candidates: [],
             decision_candidates: [],
             follow_up_draft: {
@@ -745,7 +969,7 @@ export class MeetingSourceMcpSyncService {
                 preview_id: previewId,
                 submitted: false,
                 meeting_pack_count: reviewPackages.length,
-                review_packages: reviewPackages
+                review_packages: reviewPackages.map(redactReviewPackageForResponse)
             };
         }
 
@@ -791,7 +1015,7 @@ export class MeetingSourceMcpSyncService {
             preview_id: previewId,
             submitted: true,
             meeting_pack_count: reviewPackages.length,
-            review_packages: reviewPackages
+            review_packages: reviewPackages.map(redactReviewPackageForResponse)
         };
     }
 
@@ -838,6 +1062,11 @@ export class MeetingSourceMcpSyncService {
                 project_id: options.project_id || options.projectId || this.syncConfig.project_id,
                 case_scope: options.case_scope || options.caseScope || this.syncConfig.case_scope
             }, options.actor || {});
+            const scheduledActor = options.actor || {
+                sub: 'meeting-source-sync-worker',
+                role: 'system',
+                projectCodes: [scope.project_id].filter(Boolean)
+            };
 
             try {
                 const preview = await this.previewResync({
@@ -851,6 +1080,28 @@ export class MeetingSourceMcpSyncService {
                 });
 
                 if (preview.expected_meeting_pack_count === 0) {
+                    if ((preview.artifact_count || 0) > 0) {
+                        const confirmed = await this.confirmResync({
+                            preview_id: preview.preview_id,
+                            submit: true,
+                            actor: scheduledActor
+                        });
+                        const latestState = await this._loadState();
+                        latestState.last_scheduled_run = {
+                            ok: true,
+                            submitted: false,
+                            reason: 'no_transcript_artifacts_for_meeting_pack',
+                            ran_at: this.clock(),
+                            preview_id: preview.preview_id,
+                            artifact_count: preview.artifact_count,
+                            excluded_from_meeting_pack_count: preview.excluded_from_meeting_pack_count || 0,
+                            meeting_pack_count: confirmed.meeting_pack_count,
+                            cursor_advanced_for_excluded_artifacts: true,
+                            provider_results: preview.provider_results
+                        };
+                        await this._saveState();
+                        return latestState.last_scheduled_run;
+                    }
                     const latestState = await this._loadState();
                     latestState.last_scheduled_run = {
                         ok: true,
@@ -881,11 +1132,7 @@ export class MeetingSourceMcpSyncService {
                 const confirmed = await this.confirmResync({
                     preview_id: preview.preview_id,
                     submit: true,
-                    actor: options.actor || {
-                        sub: 'meeting-source-sync-worker',
-                        role: 'system',
-                        projectCodes: [scope.project_id].filter(Boolean)
-                    }
+                    actor: scheduledActor
                 });
                 const latestState = await this._loadState();
                 latestState.last_scheduled_run = {

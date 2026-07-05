@@ -27,6 +27,7 @@ describe('MeetingSourceMcpSyncService', () => {
             id: 'tactiq-1',
             title: 'Online strategy meeting',
             transcript_text: '  hello   world ',
+            note_text: '# Provider AI Minutes\nThis provider note must not become Brainbase minutes.',
             started_at: '2026-06-25T01:00:00.000Z',
             calendar_event_id: 'cal_1',
             resource_uri: 'mcp://tactiq/transcripts/tactiq-1'
@@ -35,6 +36,13 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(artifact.provider).toBe('tactiq');
         expect(artifact.meeting_mode).toBe('online');
         expect(artifact.has_text).toBe(true);
+        expect(artifact.source_text).toBe('hello world');
+        expect(artifact.source_text_kind).toBe('transcript');
+        expect(artifact.source_text_length).toBe(11);
+        expect(artifact.text_preview).toBe('hello world');
+        expect(artifact.raw_metadata.source_text_kind).toBe('transcript');
+        expect(artifact.raw_metadata.provider_note_authoritative).toBe(false);
+        expect(artifact.raw_metadata.provider_note_preview).toContain('Provider AI Minutes');
         expect(artifact.transcript_hash).toMatch(/^[a-f0-9]{64}$/);
 
         const sourceEvent = buildSourceEventFromArtifact(artifact, { sourceClusterId: 'cluster_1' });
@@ -49,6 +57,24 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(sourceEvent.calendar_event_id).toBe('cal_1');
         expect(sourceEvent.ingested_by).toBe('meeting_source_mcp_sync_worker');
         expect(sourceEvent.mcp_resource_uri).toBe('mcp://tactiq/transcripts/tactiq-1');
+    });
+
+    it('keeps provider-generated notes out of authoritative transcript fields', () => {
+        const artifact = normalizeSourceArtifact({
+            id: 'plaud-note-only-1',
+            title: 'Provider note only',
+            note_text: '# Plaud AI Minutes\nThis text is not the transcript.',
+            resource_uri: 'mcp://plaud/recordings/plaud-note-only-1'
+        }, 'plaud');
+
+        expect(artifact.has_text).toBe(false);
+        expect(artifact.source_text).toBe('');
+        expect(artifact.source_text_kind).toBe('provider_note_available');
+        expect(artifact.source_text_length).toBe(0);
+        expect(artifact.text_preview).toBe('');
+        expect(artifact.transcript_hash).toBeNull();
+        expect(artifact.raw_metadata.provider_note_authoritative).toBe(false);
+        expect(artifact.raw_metadata.provider_note_preview).toContain('Plaud AI Minutes');
     });
 
     it('deduplicates Tactiq and Plaud artifacts and prefers Tactiq for online meetings', () => {
@@ -103,6 +129,64 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(preview.expected_meeting_pack_count).toBe(1);
     });
 
+    it('does not create Meeting Pack candidates from provider notes without transcripts', async () => {
+        const workflowService = {
+            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        };
+        const { service } = await makeService({
+            workflowService,
+            adapters: {
+                tactiq: {
+                    poll: vi.fn(async () => [{
+                        id: 'tactiq-note-only-1',
+                        title: 'Provider note only',
+                        note_text: '# Tactiq AI Minutes\nThis is not authoritative transcript text.',
+                        updated_at: '2026-06-25T03:00:00.000Z'
+                    }])
+                }
+            }
+        });
+        await service.connectProvider('tactiq', { account_label: 'ksato tactiq', credential_ref: 'secret:tactiq' });
+
+        const preview = await service.previewResync({
+            providers: ['tactiq'],
+            since: '2026-06-25T00:00:00.000Z',
+            org_id: 'brainbase',
+            project_id: 'brainbase'
+        });
+        const confirmed = await service.confirmResync({ preview_id: preview.preview_id });
+        const statuses = await service.listProviderStatuses();
+
+        expect(preview.artifact_count).toBe(1);
+        expect(preview.clusters).toHaveLength(0);
+        expect(preview.expected_meeting_pack_count).toBe(0);
+        expect(preview.excluded_from_meeting_pack_count).toBe(1);
+        expect(preview.provider_results).toEqual([
+            expect.objectContaining({
+                provider: 'tactiq',
+                artifact_count: 1,
+                meeting_pack_candidate_count: 0,
+                excluded_from_meeting_pack_count: 1,
+                reason: 'no_transcript_artifacts_for_meeting_pack'
+            })
+        ]);
+        expect(preview.meeting_pack_exclusions).toEqual([
+            expect.objectContaining({
+                provider: 'tactiq',
+                source_id: 'tactiq-note-only-1',
+                source_text_kind: 'provider_note_available',
+                reason: 'provider_note_available_without_transcript',
+                provider_note_authoritative: false
+            })
+        ]);
+        expect(preview.meeting_pack_exclusions[0]).not.toHaveProperty('source_text');
+        expect(confirmed.submitted).toBe(true);
+        expect(confirmed.meeting_pack_count).toBe(0);
+        expect(confirmed.review_packages).toEqual([]);
+        expect(workflowService.ingestMeetingReviewPackage).not.toHaveBeenCalled();
+        expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T03:00:00.000Z');
+    });
+
     it('confirms a preview into Meeting Pack drafts and advances only successful provider cursors', async () => {
         const workflowService = {
             ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
@@ -114,8 +198,11 @@ describe('MeetingSourceMcpSyncService', () => {
                     poll: vi.fn(async () => [{
                         id: 'tactiq-1',
                         title: 'Online strategy meeting',
-                        transcript_text: 'same text',
+                        transcript_text: 'same text from the authoritative transcript',
+                        note_text: '# Provider AI Minutes\nDo not adopt this provider-generated note.',
+                        markdown: '# Provider Markdown Minutes\nDo not adopt this markdown either.',
                         calendar_event_id: 'cal_1',
+                        resource_uri: 'mcp://tactiq/transcripts/tactiq-1',
                         updated_at: '2026-06-25T03:00:00.000Z'
                     }])
                 },
@@ -123,7 +210,9 @@ describe('MeetingSourceMcpSyncService', () => {
                     poll: vi.fn(async () => [{
                         id: 'plaud-1',
                         title: 'Online strategy meeting',
-                        transcript_text: 'same text',
+                        transcript_text: 'same text from the authoritative transcript',
+                        note_text: '# Plaud AI Note\nThis is provider text, not Brainbase minutes.',
+                        resource_uri: 'mcp://plaud/recordings/plaud-1',
                         updated_at: '2026-06-25T03:05:00.000Z'
                     }])
                 }
@@ -137,6 +226,24 @@ describe('MeetingSourceMcpSyncService', () => {
             org_id: 'brainbase',
             project_id: 'brainbase'
         });
+        expect(preview.clusters[0].primary_source).not.toHaveProperty('source_text');
+        expect(preview.clusters[0].supporting_sources[0]).not.toHaveProperty('source_text');
+        expect(preview.excluded_from_meeting_pack_count).toBe(0);
+        expect(preview.meeting_pack_exclusions).toEqual([]);
+        expect(preview.provider_results).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                provider: 'tactiq',
+                artifact_count: 1,
+                meeting_pack_candidate_count: 1,
+                excluded_from_meeting_pack_count: 0
+            }),
+            expect.objectContaining({
+                provider: 'plaud',
+                artifact_count: 1,
+                meeting_pack_candidate_count: 1,
+                excluded_from_meeting_pack_count: 0
+            })
+        ]));
         const confirmed = await service.confirmResync({ preview_id: preview.preview_id });
         const statuses = await service.listProviderStatuses();
 
@@ -145,7 +252,14 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(confirmed.meeting_pack_count).toBe(1);
         expect(confirmed.review_packages[0].source_event.provider).toBe('tactiq');
         expect(confirmed.review_packages[0].supporting_source_events[0].provider).toBe('plaud');
-        expect(workflowService.ingestMeetingReviewPackage.mock.calls[0][0]).toMatchObject({
+        expect(JSON.stringify(confirmed.review_packages)).not.toContain('same text from the authoritative transcript');
+        expect(JSON.stringify(confirmed.review_packages)).not.toContain('Provider AI Minutes');
+        expect(confirmed.review_packages[0].meeting_note_summary.body).toBe('[redacted]');
+        expect(confirmed.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
+        expect(confirmed.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
+        expect(confirmed.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
+        const submitted = workflowService.ingestMeetingReviewPackage.mock.calls[0][0];
+        expect(submitted).toMatchObject({
             org_id: 'brainbase',
             project_id: 'brainbase',
             review_package: expect.objectContaining({
@@ -157,13 +271,48 @@ describe('MeetingSourceMcpSyncService', () => {
                     meeting_note_to_decisions: expect.any(String),
                     post_meeting_follow_up_message: expect.any(String)
                 }),
-                meeting_note_summary: expect.any(Object),
+                meeting_note_summary: expect.objectContaining({
+                    title: 'Online strategy meeting',
+                    generator: 'brainbase_meeting_pack',
+                    generation_source: 'transcript_to_meeting_note',
+                    generation_status: 'brainbase_source_ready',
+                    provider_note_authoritative: false,
+                    source_text_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+                    source_text_length: 'same text from the authoritative transcript'.length,
+                    source_transcripts: [
+                        expect.objectContaining({
+                            role: 'primary',
+                            provider: 'tactiq',
+                            mcp_resource_uri: 'mcp://tactiq/transcripts/tactiq-1',
+                            text: 'same text from the authoritative transcript',
+                            authoritative_for_minutes: true,
+                            source_text_kind: 'transcript',
+                            provider_note_authoritative: false
+                        }),
+                        expect.objectContaining({
+                            role: 'supporting',
+                            provider: 'plaud',
+                            text: 'same text from the authoritative transcript',
+                            authoritative_for_minutes: true,
+                            source_text_kind: 'transcript'
+                        })
+                    ]
+                }),
                 task_candidates: [],
                 decision_candidates: [],
                 follow_up_draft: expect.any(Object),
                 promotion_candidates: expect.any(Object)
             })
         });
+        const meetingNoteBody = submitted.review_package.meeting_note_summary.body;
+        expect(meetingNoteBody).toContain('Brainbase Meeting Pack');
+        expect(meetingNoteBody).toContain('same text from the authoritative transcript');
+        expect(meetingNoteBody).not.toContain('Provider AI Minutes');
+        expect(meetingNoteBody).not.toContain('Provider Markdown Minutes');
+        expect(meetingNoteBody).not.toContain('Plaud AI Note');
+        expect(submitted.review_package.meeting_note_summary.source_text_hash).toBe(
+            submitted.review_package.source_event.content_sha256
+        );
         expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T03:00:00.000Z');
         expect(statuses.providers.find(p => p.provider === 'plaud').cursor.updated_since).toBe('2026-06-25T03:05:00.000Z');
     });
@@ -239,6 +388,57 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(poll).toHaveBeenCalledTimes(1);
         expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
         expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T02:30:00.000Z');
+    });
+
+    it('advances scheduled sync cursors for provider notes without submitting Meeting Pack drafts', async () => {
+        const workflowService = {
+            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        };
+        const { service } = await makeService({
+            workflowService,
+            adapters: {
+                tactiq: {
+                    poll: vi.fn(async () => [{
+                        id: 'tactiq-scheduled-note-only-1',
+                        title: 'Scheduled provider note only',
+                        note_text: '# Tactiq AI Minutes\nThis provider note is not transcript text.',
+                        meeting_mode: 'online',
+                        updated_at: '2026-06-25T03:00:00.000Z'
+                    }])
+                }
+            }
+        });
+        await service.connectProvider('tactiq', { account_label: 'ksato tactiq', credential_ref: 'secret:tactiq' });
+
+        const result = await service.runScheduledSync({
+            providers: ['tactiq'],
+            updated_since: '2026-06-25T00:00:00.000Z',
+            org_id: 'brainbase',
+            project_id: 'brainbase'
+        });
+        const statuses = await service.listProviderStatuses();
+
+        expect(result).toMatchObject({
+            ok: true,
+            submitted: false,
+            reason: 'no_transcript_artifacts_for_meeting_pack',
+            artifact_count: 1,
+            excluded_from_meeting_pack_count: 1,
+            meeting_pack_count: 0,
+            cursor_advanced_for_excluded_artifacts: true
+        });
+        expect(result.provider_results).toEqual([
+            expect.objectContaining({
+                provider: 'tactiq',
+                artifact_count: 1,
+                meeting_pack_candidate_count: 0,
+                excluded_from_meeting_pack_count: 1,
+                reason: 'no_transcript_artifacts_for_meeting_pack'
+            })
+        ]);
+        expect(workflowService.ingestMeetingReviewPackage).not.toHaveBeenCalled();
+        expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T03:00:00.000Z');
+        expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.last_seen_external_id).toBe('tactiq-scheduled-note-only-1');
     });
 
     it('keeps scheduled sync as preview-only when project scope is not configured', async () => {

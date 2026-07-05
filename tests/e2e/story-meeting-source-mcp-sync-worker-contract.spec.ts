@@ -155,6 +155,7 @@ function createRealWorkflowServiceFixture() {
 test.describe(storyId, () => {
   test('ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 ac:13 S-001 S-002 S-003 story-meeting-source-mcp-sync-worker traceability contract', () => {
     const story = readFile('docs/stories/story-meeting-source-mcp-sync-worker.md');
+    const runtimePolicyStory = readFile('docs/stories/story-meeting-source-runtime-sync-policy.md');
     const spec = readFile('docs/specs/story-meeting-source-mcp-sync-worker-spec.md');
     const architecture = readFile('docs/architecture/meeting-source-mcp-sync-worker-architecture.md');
     const service = readFile('server/services/meeting-source/meeting-source-mcp-sync-service.js');
@@ -173,8 +174,9 @@ test.describe(storyId, () => {
     expect(story + service, `${storyId} ac:3 AC-003 dedupe`).toContain('dedupeSourceArtifacts');
     // story-meeting-source-mcp-sync-worker ac:4 AC-004: transcript_sha256/content_hash/mcp_resource_uriをsource_eventへ残す。
     expect(story + service, `${storyId} ac:4 AC-004 evidence fields`).toContain('transcript_sha256');
-    // story-meeting-source-mcp-sync-worker ac:5 AC-005: 6/25以降などbounded windowのdry-run previewを必須にする。
-    expect(story + service, `${storyId} ac:5 AC-005 bounded preview`).toContain('resync requires since, until, or updated_since');
+    // story-meeting-source-mcp-sync-worker ac:5 AC-005: dry-run previewはruntime policyでbounded windowを解決できる。
+    expect(runtimePolicyStory + service, `${storyId} ac:5 AC-005 runtime policy preview`).toContain('providers` だけでも成功');
+    expect(service, `${storyId} ac:5 AC-005 provider runtime window`).toContain('_runtimePolicySince');
     // story-meeting-source-mcp-sync-worker ac:6 AC-006: confirm時だけMeeting Pack ingestへ送る。
     expect(story + service, `${storyId} ac:6 AC-006 confirm ingest`).toContain('workflowService.ingestMeetingReviewPackage');
     expect(service + server, `${storyId} ac:6 AC-006 scheduled worker`).toContain('startScheduledSync');
@@ -222,6 +224,7 @@ test.describe(storyId, () => {
               id: 'tactiq-online-1',
               title: 'Online strategy meeting',
               transcript_text: 'same transcript from online meeting',
+              note_text: '# Tactiq provider minutes\nDo not adopt provider minutes.',
               meeting_mode: 'online',
               calendar_event_id: 'calendar-optional',
               participants: [{ name: 'Keigo Sato' }],
@@ -236,6 +239,7 @@ test.describe(storyId, () => {
               id: 'plaud-online-1',
               title: 'Online strategy meeting',
               transcript_text: 'same transcript from online meeting',
+              note_text: '# Plaud provider note\nDo not adopt Plaud provider text.',
               meeting_mode: 'online',
               participants: [{ name: 'Keigo Sato' }],
               resource_uri: 'mcp://plaud/recordings/plaud-online-1',
@@ -263,6 +267,8 @@ test.describe(storyId, () => {
     expect(preview.body.dry_run).toBe(true);
     expect(preview.body.artifact_count).toBe(2);
     expect(preview.body.expected_meeting_pack_count).toBe(1);
+    expect(preview.body.excluded_from_meeting_pack_count).toBe(0);
+    expect(preview.body.meeting_pack_exclusions).toEqual([]);
     expect(preview.body.clusters[0]).toMatchObject({
       primary_source: {
         provider: 'tactiq',
@@ -282,6 +288,12 @@ test.describe(storyId, () => {
 
     // ac:4 ac:6 ac:12 / AC-004 AC-006 AC-012: confirm後だけsource_event証跡付きでMeeting Pack ingestへ渡し、成功providerのcursorを進める。
     expect(confirmed.body.submitted).toBe(true);
+    expect(JSON.stringify(confirmed.body.review_packages)).not.toContain('same transcript from online meeting');
+    expect(JSON.stringify(confirmed.body.review_packages)).not.toContain('Tactiq provider minutes');
+    expect(confirmed.body.review_packages[0].meeting_note_summary.body).toBe('[redacted]');
+    expect(confirmed.body.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
+    expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
+    expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
     expect(workflowService.calls).toHaveLength(1);
     expect(workflowService.calls[0].reviewPackage).toMatchObject({
       org_id: 'brainbase',
@@ -317,7 +329,32 @@ test.describe(storyId, () => {
           meeting_note_to_decisions: expect.any(String),
           post_meeting_follow_up_message: expect.any(String)
         }),
-        meeting_note_summary: expect.any(Object),
+        meeting_note_summary: expect.objectContaining({
+          title: 'Online strategy meeting',
+          generator: 'brainbase_meeting_pack',
+          generation_source: 'transcript_to_meeting_note',
+          generation_status: 'brainbase_source_ready',
+          provider_note_authoritative: false,
+          source_text_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+          source_transcripts: [
+            expect.objectContaining({
+              role: 'primary',
+              provider: 'tactiq',
+              mcp_resource_uri: 'mcp://tactiq/transcripts/tactiq-online-1',
+              text: 'same transcript from online meeting',
+              source_text_kind: 'transcript',
+              authoritative_for_minutes: true
+            }),
+            expect.objectContaining({
+              role: 'supporting',
+              provider: 'plaud',
+              mcp_resource_uri: 'mcp://plaud/recordings/plaud-online-1',
+              text: 'same transcript from online meeting',
+              source_text_kind: 'transcript',
+              authoritative_for_minutes: true
+            })
+          ]
+        }),
         task_candidates: [],
         decision_candidates: [],
         follow_up_draft: expect.any(Object),
@@ -331,6 +368,14 @@ test.describe(storyId, () => {
         }
       },
     });
+    const meetingNoteSummary = workflowService.calls[0].reviewPackage.review_package.meeting_note_summary;
+    expect(meetingNoteSummary.body).toContain('Brainbase Meeting Pack');
+    expect(meetingNoteSummary.body).toContain('same transcript from online meeting');
+    expect(meetingNoteSummary.body).not.toContain('Tactiq provider minutes');
+    expect(meetingNoteSummary.body).not.toContain('Plaud provider note');
+    expect(meetingNoteSummary.source_text_hash).toBe(
+      workflowService.calls[0].reviewPackage.review_package.source_event.content_sha256
+    );
 
     const statuses = await request(app)
       .get('/api/settings/meeting-sources/mcp-providers')
@@ -444,6 +489,56 @@ test.describe(storyId, () => {
     });
   });
 
+  test(`${storyId} ac:6 ac:12 AC-006 AC-012 scheduled worker advances cursor for provider notes but does not submit them as Brainbase minutes`, async () => {
+    const workflowService = {
+      calls: [] as any[],
+      async ingestMeetingReviewPackage(reviewPackage: any, options: any) {
+        this.calls.push({ reviewPackage, options });
+        return { ok: true };
+      }
+    };
+    const { service } = await createSyncFixture({
+      workflowService,
+      adapters: {
+        tactiq: {
+          async poll() {
+            return [{
+              id: 'tactiq-provider-note-only-1',
+              title: 'Provider note only',
+              note_text: '# Tactiq AI Minutes\nThis provider note must not become Brainbase minutes.',
+              meeting_mode: 'online',
+              resource_uri: 'mcp://tactiq/transcripts/tactiq-provider-note-only-1',
+              updated_at: '2026-06-25T06:00:00.000Z'
+            }];
+          }
+        }
+      }
+    });
+    await service.connectProvider('tactiq', { account_label: 'ksato tactiq', credential_ref: 'secret:tactiq' });
+
+    const result = await service.runScheduledSync({
+      providers: ['tactiq'],
+      updated_since: '2026-06-25T00:00:00.000Z',
+      org_id: 'brainbase',
+      project_id: 'brainbase'
+    });
+    const statuses = await service.listProviderStatuses();
+
+    // ac:6 ac:12 / AC-006 AC-012: provider noteはBrainbase議事録本文にせず、処理済みcursorだけを進めて再同期ループを防ぐ。
+    expect(result).toMatchObject({
+      ok: true,
+      submitted: false,
+      reason: 'no_transcript_artifacts_for_meeting_pack',
+      artifact_count: 1,
+      excluded_from_meeting_pack_count: 1,
+      meeting_pack_count: 0,
+      cursor_advanced_for_excluded_artifacts: true
+    });
+    expect(workflowService.calls).toHaveLength(0);
+    expect(statuses.providers.find((provider: any) => provider.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T06:00:00.000Z');
+    expect(statuses.providers.find((provider: any) => provider.provider === 'tactiq').cursor.last_seen_external_id).toBe('tactiq-provider-note-only-1');
+  });
+
   test(`${storyId} ac:9 ac:10 ac:11 S-003 AC-009 AC-010 AC-011 Settings APIで接続管理・credential redaction・preview必須を保証する`, async () => {
     const { app } = await createSyncFixture({
       adapters: {
@@ -481,12 +576,24 @@ test.describe(storyId, () => {
       .expect(200);
     expect(testProvider.body).toMatchObject({ provider: 'tactiq', ok: true, auth_status: 'connected' });
 
-    const unbounded = await request(app)
+    const runtimePolicyPreview = await request(app)
       .post('/api/settings/meeting-sources/resync-preview')
       .send({ providers: ['tactiq'] })
-      .expect(400);
-    // ac:11 / AC-011: operatorがbounded windowのdry-runを見てからconfirmする運用に固定する。
-    expect(unbounded.body.error).toContain('resync requires since, until, or updated_since');
+      .expect(200);
+    // ac:11 / AC-011: operatorはruntime policyで解決されたbounded dry-runを見てからconfirmする。
+    expect(runtimePolicyPreview.body).toMatchObject({
+      dry_run: true,
+      sync_policy_mode: 'runtime_policy',
+      artifact_count: 0,
+      expected_meeting_pack_count: 0
+    });
+    expect(runtimePolicyPreview.body.provider_results).toEqual([
+      expect.objectContaining({
+        provider: 'tactiq',
+        skipped: true,
+        reason: 'adapter_not_configured'
+      })
+    ]);
 
     const disconnect = await request(app)
       .post('/api/settings/meeting-sources/mcp-providers/tactiq/disconnect')
@@ -503,6 +610,7 @@ test.describe(storyId, () => {
   test(`${storyId} ac:7 ac:9 ac:11 S-003 provider_results_ui Settings previewでprovider別skip理由を表示する`, async ({ page }) => {
     await stubSettingsMeetingSourceRoutes(page);
     await openApp(page);
+    await page.waitForFunction(() => Boolean(window.brainbaseApp?.settingsCore));
 
     await page.evaluate(async () => {
       window.brainbaseApp.settingsCore.currentTab = 'integrations';
