@@ -7,8 +7,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createMeetingSourceSettingsRouter } from '../../../server/routes/meeting-source-settings.js';
 import { MeetingSourceMcpSyncService } from '../../../server/services/meeting-source/meeting-source-mcp-sync-service.js';
+import { MeetingSourceIntegrationCatalogService } from '../../../server/services/meeting-source/meeting-source-integration-catalog.js';
 
-async function makeApp({ adapters = {}, workflowService = null } = {}) {
+async function makeApp({ adapters = {}, workflowService = null, integrationCatalogService = null } = {}) {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'meeting-source-route-'));
     const service = new MeetingSourceMcpSyncService({
         stateFile: path.join(dir, 'state.json'),
@@ -23,11 +24,116 @@ async function makeApp({ adapters = {}, workflowService = null } = {}) {
         req.access = { role: 'gm', personId: 'per_keigo', projectCodes: ['brainbase'] };
         next();
     });
-    app.use('/api/settings/meeting-sources', createMeetingSourceSettingsRouter(service));
+    app.use('/api/settings/meeting-sources', createMeetingSourceSettingsRouter(service, {
+        integrationCatalogService
+    }));
     return { app, service };
 }
 
 describe('meeting source settings routes', () => {
+    it('BDD_INTEGRATION_CATALOG_INV1_INV2 exposes integrations.sh-backed effective provider catalog without live network', async () => {
+        const fetchImpl = vi.fn();
+        const integrationCatalogService = new MeetingSourceIntegrationCatalogService({
+            fetchImpl,
+            clock: () => '2026-07-02T00:00:00.000Z'
+        });
+        const { app } = await makeApp({ integrationCatalogService });
+
+        const res = await request(app)
+            .get('/api/settings/meeting-sources/integration-catalog')
+            .expect(200);
+
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(res.body).toMatchObject({
+            version: 1,
+            generated_at: '2026-07-02T00:00:00.000Z',
+            upstream: {
+                name: 'integrations.sh',
+                purpose: expect.stringContaining('Brainbase override')
+            }
+        });
+        expect(res.body.providers).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                provider: 'tactiq',
+                domain: 'tactiq.io',
+                role: 'online_primary',
+                catalog_source: 'brainbase_override',
+                catalog_status: 'override_required',
+                effective: true,
+                surfaces: [expect.objectContaining({
+                    type: 'mcp',
+                    configured_by: 'brainbase_mcp_runtime',
+                    confidence: 'manual_override'
+                })],
+                auth: expect.objectContaining({
+                    managed_by: 'brainbase_runtime',
+                    credential_ref_required: true,
+                    local_secret_storage: false
+                }),
+                upstream: expect.objectContaining({
+                    name: 'integrations.sh',
+                    detect_status: 'not_queried'
+                }),
+                upstream_detect: null
+            }),
+            expect.objectContaining({
+                provider: 'plaud',
+                domain: 'plaud.ai',
+                role: 'offline_or_call_primary',
+                catalog_source: 'brainbase_override',
+                catalog_status: 'override_required',
+                effective: true
+            })
+        ]));
+    });
+
+    it('BDD_INTEGRATION_CATALOG_INV3 refreshes one provider against integrations.sh and keeps Brainbase override effective', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                found: ['llms.txt', 'oauth-protected-resource'],
+                mcp: [],
+                integrationsJson: null,
+                auth: ['oauth-protected-resource']
+            })
+        }));
+        const integrationCatalogService = new MeetingSourceIntegrationCatalogService({ fetchImpl });
+        const { app } = await makeApp({ integrationCatalogService });
+
+        const res = await request(app)
+            .post('/api/settings/meeting-sources/integration-catalog/tactiq/refresh')
+            .send({})
+            .expect(200);
+
+        expect(fetchImpl).toHaveBeenCalledWith('https://integrations.sh/api/tactiq.io/detect', {
+            headers: { accept: 'application/json' }
+        });
+        expect(res.body).toMatchObject({
+            provider: 'tactiq',
+            effective: true,
+            catalog_source: 'brainbase_override',
+            upstream_detect: {
+                ok: true,
+                status: 200,
+                found: ['llms.txt', 'oauth-protected-resource'],
+                mcp: [],
+                integrations_json: null
+            }
+        });
+    });
+
+    it('BDD_INTEGRATION_CATALOG_INV4 returns 404 for unsupported providers', async () => {
+        const integrationCatalogService = new MeetingSourceIntegrationCatalogService();
+        const { app } = await makeApp({ integrationCatalogService });
+
+        const res = await request(app)
+            .get('/api/settings/meeting-sources/integration-catalog/unknown')
+            .expect(404);
+
+        expect(res.body.error).toContain('unsupported meeting source provider: unknown');
+    });
+
     it('C-1 lists provider statuses with sync_policy without leaking credential refs', async () => {
         const { app, service } = await makeApp();
         await service.connectProvider('tactiq', {

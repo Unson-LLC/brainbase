@@ -1,6 +1,7 @@
 import express from 'express';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireConfigWriteRole } from './config.js';
+import { createMeetingSourceIntegrationCatalogService } from '../services/meeting-source/meeting-source-integration-catalog.js';
 
 function actorFromRequest(req) {
     const actor = req.actor || req.user || req.auth || {};
@@ -20,9 +21,24 @@ export function createMeetingSourceSettingsRouter(meetingSourceMcpSyncService, o
 
     const router = express.Router();
     const writeGuard = options.writeGuard || requireConfigWriteRole;
+    const integrationCatalogService = options.integrationCatalogService
+        || meetingSourceMcpSyncService.integrationCatalogService
+        || createMeetingSourceIntegrationCatalogService();
 
     router.get('/mcp-providers', asyncHandler(async (_req, res) => {
         res.json(await meetingSourceMcpSyncService.listProviderStatuses());
+    }));
+
+    router.get('/integration-catalog', asyncHandler(async (_req, res) => {
+        res.json(await integrationCatalogService.listCatalog());
+    }));
+
+    router.get('/integration-catalog/:provider', asyncHandler(async (req, res) => {
+        res.json(await integrationCatalogService.getCatalogEntry(req.params.provider));
+    }));
+
+    router.post('/integration-catalog/:provider/refresh', writeGuard, asyncHandler(async (req, res) => {
+        res.json(await integrationCatalogService.refreshProvider(req.params.provider));
     }));
 
     router.post('/mcp-providers/:provider/connect', writeGuard, asyncHandler(async (req, res) => {
