@@ -7,9 +7,19 @@ import {
     appendPendingFallback,
     buildAgentReportPayload,
     buildRunId,
+    decodeJwtSubject,
+    DEFAULT_REQUIRED_BY,
+    isServiceToken,
+    resolveReportOwner,
     senderToRoleAgentId,
     submitReport
 } from '../../scripts/bin/bb-report-submit.mjs';
+
+function makeJwt(payload) {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' }), 'utf8').toString('base64url');
+    const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    return `${header}.${body}.signature`;
+}
 
 describe('senderToRoleAgentId', () => {
     it('agent_ceo呼び出し時_agent_ceoが返される', () => {
@@ -285,5 +295,89 @@ describe('submitReport（送信＋フォールバック制御フロー）', () =
         expect(result.ok).toBe(false);
         expect(fetchCalled).toBe(false);
         expect(fs.readFileSync(pendingPath, 'utf8')).toContain('access_token is missing');
+    });
+});
+
+describe('isServiceToken', () => {
+    it('bbsvc_プレフィックスのトークン_trueが返される', () => {
+        expect(isServiceToken('bbsvc_abc123')).toBe(true);
+    });
+
+    it('bbsvc_プレフィックスなしのトークン_falseが返される', () => {
+        expect(isServiceToken(makeJwt({ sub: 'per_01KGYC7NNS0VXADK7NP48W4VR5' }))).toBe(false);
+    });
+
+    it('文字列以外の入力_falseが返される', () => {
+        expect(isServiceToken(undefined)).toBe(false);
+        expect(isServiceToken(null)).toBe(false);
+    });
+});
+
+describe('decodeJwtSubject', () => {
+    it('個人JWT_subクレーム（personId）が返される', () => {
+        const token = makeJwt({ sub: 'per_01KGYC7NNS0VXADK7NP48W4VR5' });
+        expect(decodeJwtSubject(token)).toBe('per_01KGYC7NNS0VXADK7NP48W4VR5');
+    });
+
+    it('ドット区切りが3つでない文字列_nullが返される', () => {
+        expect(decodeJwtSubject('bbsvc_abc123')).toBeNull();
+        expect(decodeJwtSubject('not-a-jwt')).toBeNull();
+    });
+
+    it('payload部がJSONとしてデコード不能_nullが返される', () => {
+        const token = 'header.not-valid-base64url-json.signature';
+        expect(decodeJwtSubject(token)).toBeNull();
+    });
+
+    it('subクレームが存在しない_nullが返される', () => {
+        const token = makeJwt({ typ: 'service', personId: 'svc_123' });
+        expect(decodeJwtSubject(token)).toBeNull();
+    });
+
+    it('文字列以外の入力_nullが返される', () => {
+        expect(decodeJwtSubject(undefined)).toBeNull();
+        expect(decodeJwtSubject(null)).toBeNull();
+    });
+});
+
+describe('resolveReportOwner', () => {
+    it('個人トークン（bbsvc_で始まらないJWT、sub=per_XXX）_token自身のpersonIdが返される', () => {
+        const token = makeJwt({ sub: 'per_01KGYC7NNS0VXADK7NP48W4VR5' });
+        const owner = resolveReportOwner({ tokenReader: () => token });
+        expect(owner).toBe('per_01KGYC7NNS0VXADK7NP48W4VR5');
+    });
+
+    it('サービストークン（bbsvc_...）_defaultOwner（sato_keigo）のまま', () => {
+        const owner = resolveReportOwner({ tokenReader: () => 'bbsvc_someservicetoken' });
+        expect(owner).toBe(DEFAULT_REQUIRED_BY);
+    });
+
+    it('overrideを指定した場合_トークンの中身に関わらずoverrideが使われる', () => {
+        const token = makeJwt({ sub: 'per_01KGYC7NNS0VXADK7NP48W4VR5' });
+        const owner = resolveReportOwner({ override: 'someone_else', tokenReader: () => token });
+        expect(owner).toBe('someone_else');
+    });
+
+    it('環境変数相当のoverrideが空文字_トークン解決にフォールバックする', () => {
+        const token = makeJwt({ sub: 'per_01KGYC7NNS0VXADK7NP48W4VR5' });
+        const owner = resolveReportOwner({ override: '', tokenReader: () => token });
+        expect(owner).toBe('per_01KGYC7NNS0VXADK7NP48W4VR5');
+    });
+
+    it('デコード不能なトークン_例外を投げずdefaultOwnerにフォールバックする', () => {
+        const owner = resolveReportOwner({ tokenReader: () => 'not-a-jwt-at-all' });
+        expect(owner).toBe(DEFAULT_REQUIRED_BY);
+    });
+
+    it('tokenReaderが例外を投げる場合_例外を投げずdefaultOwnerにフォールバックする', () => {
+        const owner = resolveReportOwner({
+            tokenReader: () => { throw new Error('access_token is missing from ~/.brainbase/tokens.json'); }
+        });
+        expect(owner).toBe(DEFAULT_REQUIRED_BY);
+    });
+
+    it('defaultOwnerをカスタム指定した場合_サービストークンでその値が返される', () => {
+        const owner = resolveReportOwner({ tokenReader: () => 'bbsvc_x', defaultOwner: 'custom_owner' });
+        expect(owner).toBe('custom_owner');
     });
 });

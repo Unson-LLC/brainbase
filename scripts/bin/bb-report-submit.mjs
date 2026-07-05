@@ -20,6 +20,7 @@ import path from 'node:path';
 export const CONTRACT_VERSION = 'external_runner.v0';
 export const DEFAULT_REQUIRED_BY = 'sato_keigo';
 export const DEFAULT_BASE_URL = 'http://localhost:31013';
+const SERVICE_TOKEN_PREFIX = 'bbsvc_';
 
 const SENDER_ROLE_AGENT_IDS = {
     'agent/ceo': 'agent_ceo',
@@ -119,6 +120,70 @@ export function buildAgentReportPayload({ sender, title, period, markdown, requi
             payload: { markdown }
         }]
     };
+}
+
+/**
+ * トークン文字列がbrainbaseサービストークン（bbsvc_プレフィックス）かどうかを判定する。
+ *
+ * @param {string} token
+ * @returns {boolean}
+ */
+export function isServiceToken(token) {
+    return typeof token === 'string' && token.startsWith(SERVICE_TOKEN_PREFIX);
+}
+
+/**
+ * 個人アクセストークン（JWT）のpayload部から `sub`（personId）を取り出す。
+ * デコード不能な場合はnullを返す（例外を投げない）。
+ *
+ * @param {string} token
+ * @returns {string | null}
+ */
+export function decodeJwtSubject(token) {
+    if (typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    try {
+        const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
+        const payload = JSON.parse(payloadJson);
+        return typeof payload?.sub === 'string' && payload.sub.trim() !== '' ? payload.sub : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * report owner（owner_id/cost_owner_id/approval_owner_id/required_by）を解決する。
+ *
+ * 優先順位:
+ *   1. 明示override（--owner フラグ or BRAINBASE_REPORT_OWNER env）
+ *   2. 個人トークン（bbsvc_で始まらないJWT）の場合はtoken自身のsub（personId）
+ *      - ingest側の委譲ガード（loop_control_delegation_not_allowed）は
+ *        非サービス認証がactorId以外へownerを委譲することを禁止するため、
+ *        個人トークンで送るときはtoken自身のpersonIdをownerにする必要がある
+ *   3. サービストークン（bbsvc_）またはデコード不能な場合は既存のDEFAULT_REQUIRED_BY
+ *
+ * @param {{ override?: string, tokenReader?: () => string, defaultOwner?: string }} options
+ * @returns {string}
+ */
+export function resolveReportOwner({ override, tokenReader = readAccessToken, defaultOwner = DEFAULT_REQUIRED_BY } = {}) {
+    if (typeof override === 'string' && override.trim() !== '') {
+        return override.trim();
+    }
+
+    let token;
+    try {
+        token = tokenReader();
+    } catch {
+        return defaultOwner;
+    }
+
+    if (isServiceToken(token)) {
+        return defaultOwner;
+    }
+
+    const subject = decodeJwtSubject(token);
+    return subject || defaultOwner;
 }
 
 // ---- CLI固有I/O（parseArgs/readStdin/readAccessToken/main はテスト対象外。
@@ -244,7 +309,12 @@ async function main() {
         markdown = await readStdin();
     }
 
-    const payload = buildAgentReportPayload({ sender, title, period, markdown });
+    const ownerOverride = args.get('owner') || process.env.BRAINBASE_REPORT_OWNER;
+    const requiredBy = resolveReportOwner({
+        override: typeof ownerOverride === 'string' ? ownerOverride : undefined
+    });
+
+    const payload = buildAgentReportPayload({ sender, title, period, markdown, requiredBy });
 
     const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
     const pendingPath = path.join(repoRoot, '_inbox', 'pending.md');
