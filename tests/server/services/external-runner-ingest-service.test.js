@@ -1667,6 +1667,168 @@ describe('ExternalRunnerIngestService', () => {
         });
     });
 
+    it('closes an agent_report run on approval without leaving an orphan needs_action run', async () => {
+        const { repository, service } = makeService();
+        // Note: intentionally NO handler registered for external-runner:agent_report.
+        // agent_report runs carry no executable workflow; the generic runWorkflow
+        // fallback would produce an orphan needs_action run. The special-case in
+        // resolveHumanStep must close the run instead.
+        const runner = new WorkflowRunner({
+            repository,
+            handlers: createDefaultWorkflowHandlers()
+        });
+        const workflowService = new WorkflowService({
+            repository,
+            runner,
+            configParser: {
+                async getProjects() {
+                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                }
+            }
+        });
+
+        const result = await service.ingest(makePayload({
+            runner: {
+                type: 'agent_report',
+                external_run_id: 'ceo-report-2026-07',
+                agent_id: 'agent/ceo'
+            },
+            run: {
+                project_id: 'brainbase',
+                role_agent_id: 'agent_ceo',
+                status: 'waiting_human',
+                metadata: { report_kind: 'ceo_report', period: '2026-07' }
+            },
+            human_steps: [{
+                id: 'hs-agent-report-ceo',
+                step_type: 'approval',
+                prompt: 'CEOレビューを承認する'
+            }]
+        }));
+
+        expect(result.run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
+
+        const resolved = await workflowService.resolveHumanStep(
+            'hs-agent-report-ceo',
+            { resolution: 'approved' },
+            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+        );
+
+        expect(resolved.human_step).toMatchObject({ status: 'approved' });
+        // Run must be closed, not left as an orphan needs_action.
+        expect(resolved.resumed_run).toMatchObject({
+            id: result.run.id,
+            status: 'success',
+            closure_state: 'closed',
+            human_waiting: false,
+            action_required: 'none'
+        });
+
+        const persisted = repository.getRun(result.run.id);
+        expect(persisted.closure_state).toBe('closed');
+        expect(persisted.status).toBe('success');
+
+        // No orphan needs_action run should exist in the ledger.
+        const orphans = repository.listRuns().filter(
+            (run) => run.closure_state === 'needs_action' || run.status === 'needs_action'
+        );
+        expect(orphans).toHaveLength(0);
+    });
+
+    it('keeps an agent_report run open while other human steps remain pending', async () => {
+        const { repository, service } = makeService();
+        const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
+        const workflowService = new WorkflowService({
+            repository,
+            runner,
+            configParser: {
+                async getProjects() {
+                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                }
+            }
+        });
+
+        const result = await service.ingest(makePayload({
+            runner: {
+                type: 'agent_report',
+                external_run_id: 'cso-report-2026-07',
+                agent_id: 'agent/cso'
+            },
+            run: {
+                project_id: 'brainbase',
+                role_agent_id: 'agent_cso',
+                status: 'waiting_human',
+                metadata: { report_kind: 'cso_report', period: '2026-07' }
+            },
+            human_steps: [
+                { id: 'hs-agent-report-cso-1', step_type: 'approval', prompt: '承認1' },
+                { id: 'hs-agent-report-cso-2', step_type: 'approval', prompt: '承認2' }
+            ]
+        }));
+
+        expect(result.run).toMatchObject({ status: 'waiting_human' });
+
+        const first = await workflowService.resolveHumanStep(
+            'hs-agent-report-cso-1',
+            { resolution: 'approved' },
+            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+        );
+        expect(first.resumed_run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
+
+        const second = await workflowService.resolveHumanStep(
+            'hs-agent-report-cso-2',
+            { resolution: 'approved' },
+            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+        );
+        expect(second.resumed_run).toMatchObject({ status: 'success', closure_state: 'closed' });
+
+        const orphans = repository.listRuns().filter(
+            (run) => run.closure_state === 'needs_action' || run.status === 'needs_action'
+        );
+        expect(orphans).toHaveLength(0);
+    });
+
+    it('cancels an agent_report run when the human step is rejected', async () => {
+        const { repository, service } = makeService();
+        const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
+        const workflowService = new WorkflowService({
+            repository,
+            runner,
+            configParser: {
+                async getProjects() {
+                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                }
+            }
+        });
+
+        const result = await service.ingest(makePayload({
+            runner: {
+                type: 'agent_report',
+                external_run_id: 'retro-report-2026-W27',
+                agent_id: 'agent/retro'
+            },
+            run: {
+                project_id: 'brainbase',
+                role_agent_id: 'agent_retro',
+                status: 'waiting_human',
+                metadata: { report_kind: 'retro_report', period: '2026-W27' }
+            },
+            human_steps: [{ id: 'hs-agent-report-retro', step_type: 'approval', prompt: 'レトロを承認する' }]
+        }));
+
+        const rejected = await workflowService.resolveHumanStep(
+            'hs-agent-report-retro',
+            { resolution: 'rejected' },
+            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+        );
+
+        expect(rejected.resumed_run).toMatchObject({ status: 'cancelled', closure_state: 'closed' });
+        const orphans = repository.listRuns().filter(
+            (run) => run.closure_state === 'needs_action' || run.status === 'needs_action'
+        );
+        expect(orphans).toHaveLength(0);
+    });
+
     it('uses description-only human steps as visible approval text', async () => {
         const { service } = makeService();
 

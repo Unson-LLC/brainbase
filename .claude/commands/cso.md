@@ -44,9 +44,19 @@
    - [提言2]
    ```
 
-4. **詳細レポートを保存**
-   - `/tmp/cso/monthly_review_{YYYY-MM}.md` に詳細レポートを出力
-   - file-backed Inbox には書き込まない
+4. **bb-report-submit でCompanion approval inboxに送信**
+
+   レポート全文（markdown）を `bb-report-submit` に渡す。
+   `POST /api/external-runner/ingest` 経由でCompanion approval inboxに
+   `kind: workflow_approval` として出現する（送信失敗時のみ `_inbox/pending.md` にフォールバック追記）。
+
+   ```bash
+   scripts/bin/bb-report-submit.mjs \
+     --sender agent/cso \
+     --title "月次CSOレビュー完了: 全PJ平均進捗率 X%, Stop Pattern X件" \
+     --period {YYYY-MM} \
+     --file /path/to/生成したレポート.md
+   ```
 
 ### Comprehensiveモード（四半期: `--comprehensive`）
 
@@ -60,7 +70,8 @@
 
 | 出力 | パス |
 |------|------|
-| 詳細レポート | `/tmp/cso/monthly_review_{YYYY-MM}.md` |
+| Companion approval inbox | `bb-report-submit.mjs` 経由で `POST /api/external-runner/ingest`（レポート全文はDBに永続化） |
+| フォールバック（送信失敗時のみ） | `_inbox/pending.md` に追記 |
 
 ## 注意
 

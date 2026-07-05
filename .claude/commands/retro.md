@@ -110,11 +110,27 @@
      --data-binary "@/tmp/wiki-retro.json"
    ```
 
+7. **bb-report-submit でCompanion approval inboxに通知**
+
+   Wiki永続化とは別に、佐藤が承認/既読できるようレポート全文を `bb-report-submit` に渡す。
+   `POST /api/external-runner/ingest` 経由でCompanion approval inboxに
+   `kind: workflow_approval` として出現する（送信失敗時のみ `_inbox/pending.md` にフォールバック追記）。
+
+   ```bash
+   scripts/bin/bb-report-submit.mjs \
+     --sender agent/retro \
+     --title "週次振り返り完了: Ship X件, Learn X件, Block X件" \
+     --period {YYYY-MM-DD} \
+     --file /tmp/retro/weekly_report_{YYYY-MM-DD}.md
+   ```
+
 ## 出力先
 
 | 出力 | パス | 永続化 |
 |------|------|------|
 | **詳細レポート（正本）** | Wiki `_common/retros/YYYY-MM-DD` (`localhost:31013/api/wiki/page`) | ✅ Wiki SSOT |
+| Companion approval inbox | `bb-report-submit.mjs` 経由で `POST /api/external-runner/ingest` | ✅ DBに永続化 |
+| フォールバック（送信失敗時のみ） | `_inbox/pending.md` に追記 | 保険のみ |
 | 中間成果物 | `/tmp/retro/weekly_report_{YYYY-MM-DD}.md` | ❌ 揮発（再起動で消える） |
 
 正本は Wiki SSOT。`/tmp` は中間成果物として一時的に置くだけ。

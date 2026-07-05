@@ -8,6 +8,7 @@ import { csrfMiddleware } from '../../../server/middleware/csrf.js';
 import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { ExternalRunnerIngestService } from '../../../server/services/external-runner/ingest-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
+import { buildAgentReportPayload } from '../../../scripts/bin/bb-report-submit.mjs';
 
 function createApp() {
     const app = express();
@@ -429,6 +430,94 @@ describe('external runner routes', () => {
                 run_project_id: 'brainbase'
             }
         });
+        expect(repository.listRuns()).toHaveLength(0);
+    });
+});
+
+describe('external runner routes (agent_report)', () => {
+    it('agent_report_ingest時_waiting_humanのrunとして永続される', async () => {
+        const { app, repository } = createApp();
+        const payload = buildAgentReportPayload({
+            sender: 'agent/cso',
+            title: 'CSOレビュー 2026-07',
+            period: '2026-07',
+            markdown: '# CSOレビュー\n\n本文',
+            requiredBy: 'sato_keigo'
+        });
+
+        const response = await request(app)
+            .post('/api/external-runner/ingest')
+            .send(payload)
+            .expect(201);
+
+        const run = repository.getRun(response.body.run.id);
+        expect(run).toMatchObject({
+            status: 'waiting_human',
+            closure_state: 'open',
+            action_required: 'approve',
+            human_waiting: true,
+            project_id: 'brainbase'
+        });
+        const humanSteps = repository.listHumanSteps(response.body.run.id);
+        expect(humanSteps).toHaveLength(1);
+        expect(humanSteps[0]).toMatchObject({
+            status: 'pending',
+            required_by: 'sato_keigo'
+        });
+        const outputs = repository.listOutputs(response.body.run.id);
+        expect(outputs[0]).toMatchObject({ output_type: 'report_markdown' });
+    });
+
+    it('agent_report_認証付きroute経由でもingestできる', async () => {
+        const app = express();
+        const repository = new InMemoryWorkflowRepository();
+        const ingestService = new ExternalRunnerIngestService({ workflowRepository: repository });
+        const authService = {
+            verifyToken(token) {
+                if (token !== 'valid-token') throw new Error('invalid token');
+                return { sub: 'sato_keigo', role: 'member', projectCodes: ['brainbase'] };
+            },
+            verifyServiceToken() { throw new Error('not a service token'); }
+        };
+        app.use(express.json());
+        app.use('/api/external-runner', requireAuth(authService), createExternalRunnerRouter(ingestService));
+        app.use(errorHandler);
+
+        const payload = buildAgentReportPayload({
+            sender: 'agent/retro',
+            title: '週次レトロ 2026-W27',
+            period: '2026-W27',
+            markdown: '# レトロ\n\n本文',
+            requiredBy: 'sato_keigo'
+        });
+
+        const response = await request(app)
+            .post('/api/external-runner/ingest')
+            .set('Authorization', 'Bearer valid-token')
+            .send(payload)
+            .expect(201);
+
+        expect(repository.getRun(response.body.run.id)).toMatchObject({
+            status: 'waiting_human'
+        });
+    });
+
+    it('agent_report_不正なcontract_versionは永続前に拒否される', async () => {
+        const { app, repository } = createApp();
+        const payload = buildAgentReportPayload({
+            sender: 'agent/ceo',
+            title: 'CEOレビュー 2026-07',
+            period: '2026-07',
+            markdown: '# CEO',
+            requiredBy: 'sato_keigo'
+        });
+        payload.contract_version = 'unknown.v9';
+
+        await request(app)
+            .post('/api/external-runner/ingest')
+            .send(payload)
+            .expect(400);
+
         expect(repository.listRuns()).toHaveLength(0);
     });
 });

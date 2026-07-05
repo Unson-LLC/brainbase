@@ -1528,6 +1528,23 @@ function isMeetingReviewPackageWorkflow(workflow) {
     return workflow?.implementation_key === MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY;
 }
 
+// agent_report runs are ingested via /api/external-runner/ingest with
+// implementation_key `external-runner:agent_report`. They carry no executable
+// workflow body (no registered runner handler), so the generic runWorkflow
+// fallback would produce an orphan needs_action run on approval. They are
+// approval-only runs, closed directly on human-step resolution — same shape as
+// meeting_review_package. eve dispatch (`external-runner:eve`) is intentionally
+// excluded: it has a real registered handler and must keep the resume path.
+const AGENT_REPORT_INGEST_IMPLEMENTATION_KEY = 'external-runner:agent_report';
+
+function isAgentReportWorkflow(workflow) {
+    return workflow?.implementation_key === AGENT_REPORT_INGEST_IMPLEMENTATION_KEY;
+}
+
+function isApprovalOnlyIngestWorkflow(workflow) {
+    return isMeetingReviewPackageWorkflow(workflow) || isAgentReportWorkflow(workflow);
+}
+
 function isApprovedHumanResolution(status) {
     return ['approved', 'approve'].includes(String(status || '').toLowerCase());
 }
@@ -3725,7 +3742,7 @@ export class WorkflowService {
         const workflow = this.repository.getWorkflow(step.workflow_id);
         if (!approvedResolution) {
             const cancelledHumanStepIds = [];
-            if (isMeetingReviewPackageWorkflow(workflow)) {
+            if (isApprovalOnlyIngestWorkflow(workflow)) {
                 for (const humanStep of this.repository.listHumanSteps(step.workflow_run_id)) {
                     if (humanStep.id !== stepId && isPendingHumanStepStatus(humanStep.status)) {
                         const cancelled = this.repository.updateHumanStep(humanStep.id, {
@@ -3746,6 +3763,8 @@ export class WorkflowService {
                     action_required: 'none',
                     message: isMeetingReviewPackageWorkflow(workflow)
                         ? `Meeting Review Package stopped after human step ${resolvedStatus}`
+                        : isAgentReportWorkflow(workflow)
+                        ? `Agent report stopped after human step ${resolvedStatus}`
                         : `Human step ${resolvedStatus}`,
                     finished_at: new Date().toISOString()
                 })
@@ -3766,7 +3785,13 @@ export class WorkflowService {
             });
             return { human_step: resolved, resumed_run: closedRun };
         }
-        if (isMeetingReviewPackageWorkflow(workflow) && previousRun) {
+        if (isApprovalOnlyIngestWorkflow(workflow) && previousRun) {
+            const approvalLabel = isMeetingReviewPackageWorkflow(workflow)
+                ? 'Meeting Review Package'
+                : 'Agent report';
+            const auditPrefix = isMeetingReviewPackageWorkflow(workflow)
+                ? 'workflow.run.meeting_review_approvals'
+                : 'workflow.run.agent_report_approvals';
             const allHumanSteps = this.repository.listHumanSteps(step.workflow_run_id);
             const pendingHumanSteps = allHumanSteps.filter((humanStep) => isPendingHumanStepStatus(humanStep.status));
             const approvedHumanSteps = allHumanSteps.filter((humanStep) => isApprovedHumanResolution(humanStep.status));
@@ -3779,7 +3804,7 @@ export class WorkflowService {
                     closure_state: 'closed',
                     human_waiting: false,
                     action_required: 'none',
-                    message: 'Meeting Review Package human approvals stopped after rejected gate',
+                    message: `${approvalLabel} human approvals stopped after rejected gate`,
                     finished_at: new Date().toISOString()
                 })
                 : this.repository.updateRun(previousRun.id, {
@@ -3788,8 +3813,8 @@ export class WorkflowService {
                     human_waiting: !allApproved,
                     action_required: allApproved ? 'none' : 'approve',
                     message: allApproved
-                        ? 'Meeting Review Package human approvals completed'
-                        : `Meeting Review Package is waiting for ${pendingHumanSteps.length} human approval(s)`,
+                        ? `${approvalLabel} human approvals completed`
+                        : `${approvalLabel} is waiting for ${pendingHumanSteps.length} human approval(s)`,
                     finished_at: new Date().toISOString()
                 });
             this.repository.writeAuditLog({
@@ -3797,10 +3822,10 @@ export class WorkflowService {
                 project_id: step.project_id,
                 actor_id: actor.person_id || actor.sub || 'system',
                 action: hasRejectedStep
-                    ? 'workflow.run.meeting_review_approvals.cancelled'
+                    ? `${auditPrefix}.cancelled`
                     : allApproved
-                    ? 'workflow.run.meeting_review_approvals.completed'
-                    : 'workflow.run.meeting_review_approvals.progressed',
+                    ? `${auditPrefix}.completed`
+                    : `${auditPrefix}.progressed`,
                 target_type: 'workflow_run',
                 target_id: previousRun.id,
                 after: {

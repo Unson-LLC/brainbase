@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-agent-report-approval-inbox",
+  "title": "Agent Report Approval Inbox Ingest Authority",
+  "responsibilities": [
+    {
+      "id": "agent_report_ingest_and_approval_closure",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/story-brainbase-agent-report-approval-inbox-architecture.md#承認後クローズorphan-run対策"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": ".vibepro/stories/story-brainbase-agent-report-approval-inbox/spec.md#契約拡張唯一のサーバー変更"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "scripts/bin/bb-report-submit.mjs",
+          "server/services/external-runner/contract-schema.js",
+          "server/services/workflow/workflow-service.js"
+        ],
+        "symbols": [
+          "buildAgentReportPayload",
+          "submitReport",
+          "appendPendingFallback",
+          "ALLOWED_RUNNER_TYPES",
+          "isAgentReportWorkflow",
+          "isApprovalOnlyIngestWorkflow",
+          "AGENT_REPORT_INGEST_IMPLEMENTATION_KEY"
+        ],
+        "risk_surfaces": [
+          "core_workflow_state",
+          "database_state"
+        ]
+      },
+      "required_evidence": [
+        "current_head_verification"
+      ],
+      "unknown_policy": "agent_report runs are approval-only ingest runs (implementation_key external-runner:agent_report) with no executable runner handler. They MUST be closed by resolveHumanStep's approval-only special-case (isApprovalOnlyIngestWorkflow), never dispatched through the generic runWorkflow fallback, to avoid orphan needs_action runs. The eve runner (external-runner:eve) is explicitly excluded and retains its registered resume handler. Owner/approver ids on ingested agent_report payloads default to sato_keigo and are validated by the existing runner-type-agnostic delegation guards in server/routes/external-runner.js; they are never accepted as delegated authority for a different person."
+    }
+  ]
+}
