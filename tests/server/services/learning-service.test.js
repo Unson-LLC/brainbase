@@ -7,7 +7,9 @@ import {
     buildSkillCandidateContent,
     classifyWikiDocumentType,
     deriveCanonicalWikiTargetRef,
+    deriveSkillSlug,
     deriveSkillTargetRef,
+    isValidSkillName,
     shouldCreateSkillCandidate,
     shouldCreateWikiCandidate
 } from '../../../server/services/learning-service.js';
@@ -25,12 +27,13 @@ describe('learning-service helpers', () => {
         })).toBe('decisions');
     });
 
-    it('二本柱の必要性を独立判定する', () => {
+    it('二本柱の必要性を独立判定する（skill 側は ASCII skill_name が必要）', () => {
         const episode = {
+            skill_name: 'xterm-refit',
             summary: '障害回避の手順と原則を標準化する',
             evidence: {
                 proposed_rule: '再接続条件を固定する',
-                proposed_steps: 'xtermを再fitする'
+                proposed_steps: 'xtermを再fitする。再接続後にサイズを同期し直す十分な手順。'
             }
         };
 
@@ -38,16 +41,29 @@ describe('learning-service helpers', () => {
         expect(shouldCreateSkillCandidate(episode)).toBe(true);
     });
 
-    it('wiki/skill target ref を新ルールで導出する', () => {
+    it('wiki/skill target ref を新ルールで導出する（JP summary からは skill 名を作らない）', () => {
         expect(deriveCanonicalWikiTargetRef({
             summary: '標準化ルールの整理',
             evidence: {}
         })).toContain('architecture/');
 
-        expect(deriveSkillTargetRef({
+        // JP summary のみでは ASCII skill slug を導出できない
+        expect(deriveSkillSlug({
             project_id: 'brainbase',
             summary: '障害回避手順の更新'
-        })).toContain('.claude/skills/brainbase-');
+        })).toBeNull();
+
+        // 明示的な skill_refs があればそれをそのまま使う
+        expect(deriveSkillTargetRef({
+            skill_refs: ['.claude/skills/xterm-resize-fix/SKILL.md']
+        })).toBe('.claude/skills/xterm-resize-fix/SKILL.md');
+
+        // 明示的な skill_name（ASCII kebab）があればそれを使う
+        expect(deriveSkillTargetRef({
+            project_id: 'brainbase',
+            skill_name: 'xterm-resize-fix',
+            summary: 'x'
+        })).toBe('.claude/skills/xterm-resize-fix/SKILL.md');
     });
 
     it('skill candidate content は linked wiki を必ず含む', () => {
@@ -91,6 +107,46 @@ describe('learning-service helpers', () => {
         expect(descLine).toBeDefined();
         // `:` を含む値は double quote で囲まれている必要がある
         expect(descLine).toMatch(/^description: "[^"]*"$/);
+    });
+});
+
+describe('skill name quality gate', () => {
+    it('isValidSkillName は ASCII kebab-case のみを true とする', () => {
+        expect(isValidSkillName('xterm-resize-fix')).toBe(true);
+        expect(isValidSkillName('brainbase-gog-driveはlsを使い-非対話削除は-forceが必要')).toBe(false);
+        expect(isValidSkillName('')).toBe(false);
+        expect(isValidSkillName('a')).toBe(false);
+        expect(isValidSkillName('-bad')).toBe(false);
+        expect(isValidSkillName('Bad-Case')).toBe(false);
+    });
+
+    it('deriveSkillSlug は JP summary のみで skill_name/skill_refs が無ければ null を返す', () => {
+        expect(deriveSkillSlug({
+            project_id: 'brainbase',
+            summary: '障害回避手順の更新'
+        })).toBeNull();
+    });
+
+    it('deriveSkillSlug は有効な skill_name があればそれを優先して返す', () => {
+        expect(deriveSkillSlug({
+            skill_name: 'xterm-resize-fix',
+            summary: '日本語の要約'
+        })).toBe('xterm-resize-fix');
+    });
+
+    it('shouldCreateSkillCandidate は JP summary の一行学習を skill 化しない', () => {
+        expect(shouldCreateSkillCandidate({
+            summary: '日本語の教訓',
+            evidence: { proposed_steps: '短い' }
+        })).toBe(false);
+    });
+
+    it('shouldCreateSkillCandidate は ASCII skill_name + 十分な手順があれば skill 化する', () => {
+        expect(shouldCreateSkillCandidate({
+            skill_name: 'xterm-resize-fix',
+            summary: 'fix xterm resize',
+            evidence: { proposed_steps: 'resize を戻る時だけ走らせる。十分な長さの手順。' }
+        })).toBe(true);
     });
 });
 

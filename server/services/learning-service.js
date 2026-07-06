@@ -79,6 +79,48 @@ function slugify(value, maxLen = SKILL_SLUG_MAX) {
         .slice(0, maxLen) || 'untitled';
 }
 
+// --- Skill \u540d \u54c1\u8cea\u30b2\u30fc\u30c8 ---
+// Skill \u30c7\u30a3\u30ec\u30af\u30c8\u30ea/name \u306f ASCII kebab-case \u306b\u9650\u5b9a\u3059\u308b\u3002\u65e5\u672c\u8a9e summary \u304b\u3089\u540d\u524d\u3092
+// \u81ea\u52d5\u751f\u6210\u3059\u308b\u3068\u58ca\u308c\u305f skill \u540d\u306b\u306a\u308b\uff082026-07 \u306b105\u4ef6\u8aa4\u751f\u6210\u3057\u305f\u6559\u8a13\uff09\u3002ASCII kebab \u3092
+// \u5c0e\u51fa\u3067\u304d\u306a\u3044 episode \u306f skill \u3078\u6607\u683c\u3055\u305b\u305a wiki/lessons \u306b\u56de\u3059\u3002
+const SKILL_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const SKILL_NAME_MIN = 3;
+const SKILL_NAME_MAX = 64;
+const SKILL_MIN_STEPS_CHARS = 20;
+
+function asciiSlugify(value, maxLen = SKILL_SLUG_MAX) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')  // ASCII \u82f1\u6570\u5b57\u4ee5\u5916\u306f\u5168\u3066 '-' \u306b\uff08\u65e5\u672c\u8a9e\u306f\u4fdd\u6301\u3057\u306a\u3044\uff09
+        .replace(/^-+|-+$/g, '')
+        .slice(0, maxLen)
+        .replace(/-+$/g, '');
+}
+
+export function isValidSkillName(name) {
+    if (typeof name !== 'string') return false;
+    const n = name.trim();
+    return n.length >= SKILL_NAME_MIN && n.length <= SKILL_NAME_MAX && SKILL_NAME_PATTERN.test(n);
+}
+
+// episode \u304b\u3089\u6607\u683c\u53ef\u80fd\u306a ASCII kebab skill slug \u3092\u5c0e\u51fa\u3002\u5c0e\u51fa\u3067\u304d\u306a\u3051\u308c\u3070 null\u3002
+export function deriveSkillSlug(episode) {
+    const refs = toArray(episode.skill_refs);
+    if (refs.length > 0) {
+        const fromRef = (refs[0].split('/').slice(-2, -1)[0] || '').trim();
+        if (isValidSkillName(fromRef)) return fromRef;
+    }
+    if (episode.skill_name && isValidSkillName(String(episode.skill_name))) {
+        return String(episode.skill_name).trim();
+    }
+    const projectSegment = asciiSlugify(episode.project_id || 'brainbase');
+    const summarySlug = asciiSlugify(episode.summary);
+    if (!summarySlug) return null;  // summary \u304c\u65e5\u672c\u8a9e\u4e3b\u4f53\u306a\u3089 ASCII \u90e8\u5206\u304c\u7a7a \u2192 skill \u5316\u3057\u306a\u3044
+    const combined = `${projectSegment ? projectSegment + '-' : ''}${summarySlug}`
+        .slice(0, SKILL_NAME_MAX).replace(/-+$/g, '');
+    return isValidSkillName(combined) ? combined : null;
+}
+
 // YAML 値に特殊文字（`:`, `#`, `&`, `*`, `?`, `|`, `<`, `>`, `=`, `!`, `%`, `@`,
 // `` ` ``, 改行, 先頭/末尾の空白）が含まれる場合は double quote で囲む。
 // 含まないキーは plain で出力（読みやすさ優先）。
@@ -443,6 +485,14 @@ export function classifyWikiDocumentType(episode) {
 }
 
 export function shouldCreateSkillCandidate(episode) {
+    // 品質ゲート（必須）: ASCII kebab の skill 名を導出できること
+    if (!deriveSkillSlug(episode)) return false;
+    // 品質ゲート（必須）: 実行手順という最小内容があること（明示 skill_refs がある場合は免除）
+    const gateEvidence = episode.evidence || {};
+    const gateSteps = typeof gateEvidence.proposed_steps === 'string' ? gateEvidence.proposed_steps.trim() : '';
+    if (gateSteps.length < SKILL_MIN_STEPS_CHARS && toArray(episode.skill_refs).length === 0) return false;
+
+    // --- 従来の昇格シグナル ---
     const hint = episode.promotion_hint || 'auto';
     if (hint === 'skill' || hint === 'both') return true;
     if (toArray(episode.skill_refs).length > 0) return true;
@@ -481,8 +531,11 @@ export function deriveCanonicalWikiTargetRef(episode, docType = classifyWikiDocu
 export function deriveSkillTargetRef(episode) {
     const refs = toArray(episode.skill_refs);
     if (refs.length > 0) return refs[0];
-    const projectSegment = slugify(episode.project_id || 'brainbase');
-    return `.claude/skills/${projectSegment}-${slugify(episode.summary)}/SKILL.md`;
+    const slug = deriveSkillSlug(episode);
+    if (!slug) {
+        throw new Error(`Cannot derive ASCII skill name for episode: ${truncate(episode.summary, 60)}`);
+    }
+    return `.claude/skills/${slug}/SKILL.md`;
 }
 
 export function buildWikiCandidateContent(episode, targetRef, docType = classifyWikiDocumentType(episode)) {
