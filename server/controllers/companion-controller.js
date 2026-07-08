@@ -1,5 +1,6 @@
 import { logger } from '../utils/logger.js';
 import { ReplyDraftServiceError } from '../services/companion/reply-draft-service.js';
+import { DecisionEventValidationError } from '../services/companion/decision-event-service.js';
 
 function serializeError(error) {
     if (error instanceof ReplyDraftServiceError) {
@@ -90,10 +91,11 @@ function normalizePerson(record) {
 }
 
 export class CompanionController {
-    constructor(replyDraftService, { workflowService = null, infoSSOTService = null } = {}) {
+    constructor(replyDraftService, { workflowService = null, infoSSOTService = null, decisionEventService = null } = {}) {
         this.replyDraftService = replyDraftService;
         this.workflowService = workflowService;
         this.infoSSOTService = infoSSOTService;
+        this.decisionEventService = decisionEventService;
     }
 
     createReplyDraft = async (req, res) => {
@@ -254,6 +256,64 @@ export class CompanionController {
                 error: error.message || 'Failed to register companion person',
                 code: error.code || 'companion_people_registration_error',
                 details: error.details || {}
+            });
+        }
+    };
+
+    createDecisionEvent = async (req, res) => {
+        if (!this.decisionEventService) {
+            res.status(503).json({
+                error: 'Decision event service is not configured',
+                code: 'decision_event_service_unconfigured'
+            });
+            return;
+        }
+        try {
+            const { event, duplicate } = this.decisionEventService.insertEvent(req.body || {});
+            res.status(duplicate ? 200 : 201).json({ ok: true, duplicate, event });
+        } catch (error) {
+            if (error instanceof DecisionEventValidationError) {
+                res.status(error.status).json({
+                    error: error.message,
+                    code: error.code,
+                    details: error.details || {}
+                });
+                return;
+            }
+            logger.error('Failed to record companion decision event', { error });
+            res.status(500).json({
+                error: 'Failed to record decision event',
+                code: 'decision_event_error'
+            });
+        }
+    };
+
+    listDecisionEvents = async (req, res) => {
+        if (!this.decisionEventService) {
+            res.status(503).json({
+                error: 'Decision event service is not configured',
+                code: 'decision_event_service_unconfigured'
+            });
+            return;
+        }
+        try {
+            const from = firstString(req.query.from) || null;
+            const to = firstString(req.query.to) || null;
+            const events = this.decisionEventService.listEvents({ from, to });
+            res.json({ count: events.length, events });
+        } catch (error) {
+            if (error instanceof DecisionEventValidationError) {
+                res.status(error.status).json({
+                    error: error.message,
+                    code: error.code,
+                    details: error.details || {}
+                });
+                return;
+            }
+            logger.error('Failed to list companion decision events', { error });
+            res.status(500).json({
+                error: 'Failed to list decision events',
+                code: 'decision_event_error'
             });
         }
     };

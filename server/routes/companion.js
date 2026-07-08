@@ -56,6 +56,7 @@ export function createCompanionRouter({
     replyDraftService,
     workflowService,
     infoSSOTService,
+    decisionEventService,
     authGuard,
     accessGuardOptions
 } = {}) {
@@ -66,7 +67,8 @@ export function createCompanionRouter({
     const router = express.Router();
     const controller = new CompanionController(replyDraftService, {
         workflowService,
-        infoSSOTService
+        infoSSOTService,
+        decisionEventService
     });
     const guards = authGuard ? [authGuard, createCompanionAccessGuard(accessGuardOptions)] : [];
 
@@ -75,6 +77,8 @@ export function createCompanionRouter({
     router.post('/people', ...guards, controller.createPerson);
     router.post('/reply-context', ...guards, controller.createReplyContext);
     router.post('/reply-draft', ...guards, controller.createReplyDraft);
+    router.post('/decision-events', ...guards, controller.createDecisionEvent);
+    router.get('/decision-events', ...guards, controller.listDecisionEvents);
 
     return router;
 }

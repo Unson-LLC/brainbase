@@ -46,6 +46,7 @@ import {
 import { XApiClient } from '../services/sns/providers/x-client.js';
 import { buildXProvider } from '../services/sns/providers/x-provider.js';
 import { ReplyDraftService } from '../services/companion/reply-draft-service.js';
+import { DecisionEventService } from '../services/companion/decision-event-service.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
@@ -62,6 +63,12 @@ function createSnsPostingLedgerRepository(runtimePaths) {
     }
     return new JsonFileSnsPostingLedgerRepository({
         filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
+    });
+}
+
+function createDecisionEventService(runtimePaths) {
+    return new DecisionEventService({
+        dataDir: path.join(runtimePaths.varDir, 'companion-decision-events')
     });
 }
 
@@ -171,6 +178,7 @@ export function registerApiRoutes(app, {
         }),
         workflowService,
         infoSSOTService,
+        decisionEventService: createDecisionEventService(runtimePaths),
         authGuard: requireAuth(authService)
     }));
     app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({

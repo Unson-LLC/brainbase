@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "title": "Decision Events KPI Weekly Aggregation Authority",
+  "responsibilities": [
+    {
+      "id": "decision_events_weekly_kpi_slack_send",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/decision-events-kpi-architecture.md#responsibility-authority"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": ".vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "scripts/send-decision-kpi-to-slack.js"
+        ],
+        "symbols": [
+          "calculateKpi",
+          "formatRate",
+          "buildSlackBlocks",
+          "sendToSlack",
+          "fetchDecisionEvents"
+        ],
+        "risk_surfaces": [
+          "external_side_effect"
+        ]
+      },
+      "required_evidence": [
+        "current_head_verification"
+      ],
+      "unknown_policy": "scripts/send-decision-kpi-to-slack.js reads decision events only through the existing companion access guard (GET /api/companion/decision-events) and never reads the month-file ledger directly, so it never gains authority beyond what the companion API already grants. It never fabricates a delegation or rework rate when the denominator is zero; it must report 計測不能 instead. It is intended to run co-located with the Brainbase server (launchd/cron), not as a GitHub Actions workflow, because the companion API is server-to-server only and hosted-runner reachability is not guaranteed."
+    }
+  ]
+}
