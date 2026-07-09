@@ -288,12 +288,17 @@ test.describe(storyId, () => {
 
     // ac:4 ac:6 ac:12 / AC-004 AC-006 AC-012: confirm後だけsource_event証跡付きでMeeting Pack ingestへ渡し、成功providerのcursorを進める。
     expect(confirmed.body.submitted).toBe(true);
-    expect(JSON.stringify(confirmed.body.review_packages)).not.toContain('same transcript from online meeting');
     expect(JSON.stringify(confirmed.body.review_packages)).not.toContain('Tactiq provider minutes');
     expect(confirmed.body.review_packages[0].meeting_note_summary.body).toBe('[redacted]');
     expect(confirmed.body.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
+    expect(confirmed.body.review_packages[0].task_candidates[0].source_excerpt).toBe('[redacted]');
+    expect(confirmed.body.review_packages[0].task_candidates[0].source_excerpt_redacted).toBe(true);
+    expect(confirmed.body.review_packages[0].decision_candidates[0].source_excerpt).toBe('[redacted]');
+    expect(confirmed.body.review_packages[0].decision_candidates[0].source_excerpt_redacted).toBe(true);
+    expect(confirmed.body.review_packages[0].follow_up_draft.body).toBe('[redacted]');
+    expect(confirmed.body.review_packages[0].follow_up_draft.body_redacted).toBe(true);
     expect(workflowService.calls).toHaveLength(1);
     expect(workflowService.calls[0].reviewPackage).toMatchObject({
       org_id: 'brainbase',
@@ -355,9 +360,25 @@ test.describe(storyId, () => {
             })
           ]
         }),
-        task_candidates: [],
-        decision_candidates: [],
-        follow_up_draft: expect.any(Object),
+        task_candidates: expect.arrayContaining([
+          expect.objectContaining({
+            status: 'candidate',
+            source: 'meeting_review_package',
+            source_excerpt: expect.stringContaining('online meeting')
+          })
+        ]),
+        decision_candidates: expect.arrayContaining([
+          expect.objectContaining({
+            status: 'candidate',
+            source: 'meeting_review_package',
+            source_excerpt: expect.stringContaining('online meeting')
+          })
+        ]),
+        follow_up_draft: expect.objectContaining({
+          status: 'draft_only',
+          external_send_required_approval: true,
+          body: expect.stringContaining('タスク候補')
+        }),
         promotion_candidates: expect.any(Object),
         meeting_identity: {
           title: 'Online strategy meeting',

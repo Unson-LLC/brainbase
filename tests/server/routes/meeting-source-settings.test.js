@@ -425,9 +425,23 @@ describe('meeting source settings routes', () => {
                 project_id: 'brainbase',
                 source_event: expect.objectContaining({ source_system: 'tactiq' }),
                 meeting_note_summary: expect.any(Object),
-                task_candidates: [],
-                decision_candidates: [],
-                follow_up_draft: expect.any(Object),
+                task_candidates: [
+                    expect.objectContaining({
+                        status: 'candidate',
+                        source: 'meeting_review_package'
+                    })
+                ],
+                decision_candidates: [
+                    expect.objectContaining({
+                        status: 'candidate',
+                        source: 'meeting_review_package'
+                    })
+                ],
+                follow_up_draft: expect.objectContaining({
+                    status: 'draft_only',
+                    external_send_required_approval: true,
+                    body: expect.stringContaining('タスク候補')
+                }),
                 promotion_candidates: expect.any(Object)
             })
         });

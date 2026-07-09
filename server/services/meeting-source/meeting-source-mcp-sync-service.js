@@ -298,6 +298,24 @@ function redactMeetingNoteSummaryForResponse(summary = {}) {
     };
 }
 
+function redactGeneratedCandidateForResponse(candidate = {}) {
+    if (!candidate || typeof candidate !== 'object') return candidate;
+    return {
+        ...candidate,
+        source_excerpt: candidate.source_excerpt ? '[redacted]' : candidate.source_excerpt,
+        source_excerpt_redacted: Boolean(candidate.source_excerpt)
+    };
+}
+
+function redactFollowUpDraftForResponse(draft = {}) {
+    if (!draft || typeof draft !== 'object') return draft;
+    return {
+        ...draft,
+        body: draft.body ? '[redacted]' : draft.body,
+        body_redacted: Boolean(draft.body)
+    };
+}
+
 function redactReviewPackageForResponse(reviewPackage = {}) {
     if (!reviewPackage || typeof reviewPackage !== 'object') return reviewPackage;
     return {
@@ -306,7 +324,14 @@ function redactReviewPackageForResponse(reviewPackage = {}) {
         supporting_source_events: Array.isArray(reviewPackage.supporting_source_events)
             ? reviewPackage.supporting_source_events.map(redactSourceEventForResponse)
             : reviewPackage.supporting_source_events,
-        meeting_note_summary: redactMeetingNoteSummaryForResponse(reviewPackage.meeting_note_summary)
+        meeting_note_summary: redactMeetingNoteSummaryForResponse(reviewPackage.meeting_note_summary),
+        task_candidates: Array.isArray(reviewPackage.task_candidates)
+            ? reviewPackage.task_candidates.map(redactGeneratedCandidateForResponse)
+            : reviewPackage.task_candidates,
+        decision_candidates: Array.isArray(reviewPackage.decision_candidates)
+            ? reviewPackage.decision_candidates.map(redactGeneratedCandidateForResponse)
+            : reviewPackage.decision_candidates,
+        follow_up_draft: redactFollowUpDraftForResponse(reviewPackage.follow_up_draft)
     };
 }
 
@@ -447,6 +472,110 @@ function sourceEvidenceRef(sourceEvent) {
         sourceEvent.external_id,
         sourceEvent.transcript_hash || sourceEvent.mcp_resource_uri
     ].filter(Boolean).join(':');
+}
+
+function sentenceCandidatesFromTranscript(meetingNoteSummary = {}, cues = /./u, limit = 5) {
+    const transcripts = Array.isArray(meetingNoteSummary.source_transcripts)
+        ? meetingNoteSummary.source_transcripts
+        : [];
+    const text = normalizeMultilineText(transcripts.map((source) => source.text || '').filter(Boolean).join('\n'));
+    const rawSentences = text
+        .split(/(?<=[。！？!?])\s*|\n+/u)
+        .map(normalizeWhitespace)
+        .filter((sentence) => sentence.length >= 12);
+    const matched = rawSentences.filter((sentence) => cues.test(sentence));
+    const selected = (matched.length > 0 ? matched : rawSentences).slice(0, limit);
+    return selected.map((sentence, index) => ({
+        sentence,
+        index
+    }));
+}
+
+function titleFromSentence(sentence, fallback) {
+    const title = normalizeWhitespace(sentence)
+        .replace(/^[・*-]\s*/u, '')
+        .slice(0, 80);
+    return title || fallback;
+}
+
+function ownerHintFromSentence(sentence) {
+    const match = String(sentence || '').match(/([一-龯ぁ-んァ-ヶA-Za-z0-9_.-]{2,24})(さん|様|氏)/u);
+    return match?.[0] || null;
+}
+
+function buildTaskCandidatesFromTranscript(meetingNoteSummary = {}, { caseScope = null, evidenceRefs = [] } = {}) {
+    const cues = /(対応|確認|共有|連絡|送付|準備|作成|修正|調整|検討|参加|引継ぎ|請求書|タスク|宿題|TODO|action|follow-up|next step)/iu;
+    const sentences = sentenceCandidatesFromTranscript(meetingNoteSummary, cues, 5);
+    const fallbackTitle = `${meetingNoteSummary.title || '会議'}の議事録を確認し、次アクションを整理する`;
+    const candidates = sentences.map(({ sentence, index }) => ({
+        id: `task_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:task:${sentence}:${index}`).slice(0, 12)}`,
+        title: titleFromSentence(sentence, fallbackTitle),
+        status: 'candidate',
+        source: 'meeting_review_package',
+        case_scope: caseScope,
+        owner_hint: ownerHintFromSentence(sentence),
+        due_hint: null,
+        source_excerpt: sentence,
+        evidence_refs: evidenceRefs
+    }));
+    if (candidates.length > 0) return candidates;
+    return [{
+        id: `task_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:task:fallback`).slice(0, 12)}`,
+        title: fallbackTitle,
+        status: 'candidate',
+        source: 'meeting_review_package',
+        case_scope: caseScope,
+        owner_hint: null,
+        due_hint: null,
+        source_excerpt: meetingNoteSummary.summary || meetingNoteSummary.title || '',
+        evidence_refs: evidenceRefs
+    }];
+}
+
+function buildDecisionCandidatesFromTranscript(meetingNoteSummary = {}, { caseScope = null, evidenceRefs = [] } = {}) {
+    const cues = /(決定|判断|合意|方針|承認|採用|見送り|不要|固定|位置づけ|収束|確認された|主要論点|重要)/iu;
+    const sentences = sentenceCandidatesFromTranscript(meetingNoteSummary, cues, 5);
+    const fallbackTitle = `${meetingNoteSummary.title || '会議'}の判断事項を確認する`;
+    const candidates = sentences.map(({ sentence, index }) => ({
+        id: `decision_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:decision:${sentence}:${index}`).slice(0, 12)}`,
+        title: titleFromSentence(sentence, fallbackTitle),
+        status: 'candidate',
+        source: 'meeting_review_package',
+        case_scope: caseScope,
+        decision_type: 'meeting_decision',
+        source_excerpt: sentence,
+        evidence_refs: evidenceRefs
+    }));
+    if (candidates.length > 0) return candidates;
+    return [{
+        id: `decision_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:decision:fallback`).slice(0, 12)}`,
+        title: fallbackTitle,
+        status: 'candidate',
+        source: 'meeting_review_package',
+        case_scope: caseScope,
+        decision_type: 'meeting_decision',
+        source_excerpt: meetingNoteSummary.summary || meetingNoteSummary.title || '',
+        evidence_refs: evidenceRefs
+    }];
+}
+
+function buildFollowUpDraft(meetingNoteSummary = {}, taskCandidates = [], decisionCandidates = []) {
+    const title = meetingNoteSummary.title || '本日の打ち合わせ';
+    const summary = normalizeWhitespace(meetingNoteSummary.summary || meetingNoteSummary.body || '');
+    const taskLines = taskCandidates.slice(0, 5).map((candidate) => `- ${candidate.title}`);
+    const decisionLines = decisionCandidates.slice(0, 5).map((candidate) => `- ${candidate.title}`);
+    const body = [
+        `${title}について、議事録ドラフトをもとに以下を確認候補として整理しました。`,
+        summary ? `\n概要:\n${summary}` : '',
+        taskLines.length > 0 ? `\nタスク候補:\n${taskLines.join('\n')}` : '',
+        decisionLines.length > 0 ? `\n判断候補:\n${decisionLines.join('\n')}` : '',
+        '\n必要に応じて内容を確認・修正してから送信してください。'
+    ].filter(Boolean).join('\n').trim();
+    return {
+        status: 'draft_only',
+        external_send_required_approval: true,
+        body
+    };
 }
 
 function sourceTranscriptMaterial(artifact, role) {
@@ -868,6 +997,19 @@ export class MeetingSourceMcpSyncService {
         const orgId = scope.org_id;
         const projectId = scope.project_id;
         const caseScope = scope.case_scope || `meeting-source:${cluster.source_cluster_id}`;
+        const meetingNoteSummary = buildBrainbaseMeetingNoteSummary(cluster, {
+            sourceEvent,
+            supportingSourceEvents
+        });
+        const taskCandidates = buildTaskCandidatesFromTranscript(meetingNoteSummary, {
+            caseScope,
+            evidenceRefs
+        });
+        const decisionCandidates = buildDecisionCandidatesFromTranscript(meetingNoteSummary, {
+            caseScope,
+            evidenceRefs
+        });
+        const followUpDraft = buildFollowUpDraft(meetingNoteSummary, taskCandidates, decisionCandidates);
         return {
             package_id: `meeting-source:${cluster.source_cluster_id}`,
             org_id: orgId,
@@ -893,17 +1035,10 @@ export class MeetingSourceMcpSyncService {
                 }
             },
             loop_intent_ids: loopIntentIdsForScope(scope),
-            meeting_note_summary: buildBrainbaseMeetingNoteSummary(cluster, {
-                sourceEvent,
-                supportingSourceEvents
-            }),
-            task_candidates: [],
-            decision_candidates: [],
-            follow_up_draft: {
-                status: 'draft_only',
-                external_send_required_approval: true,
-                body: ''
-            },
+            meeting_note_summary: meetingNoteSummary,
+            task_candidates: taskCandidates,
+            decision_candidates: decisionCandidates,
+            follow_up_draft: followUpDraft,
             promotion_candidates: {
                 graph: [],
                 learning: []
