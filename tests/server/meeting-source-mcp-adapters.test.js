@@ -115,4 +115,106 @@ url = "https://mcp.tactiq.io"
 
         expect(adapters.tactiq.config.url).toBe('http://127.0.0.1:8787/mcp');
     });
+
+    it('polls Tactiq recent meetings and expands ready summaries', async () => {
+        const calls = [];
+        const adapter = new ConfiguredMeetingSourceMcpAdapter({
+            provider: 'tactiq',
+            config: {}
+        });
+        adapter._withClient = async (fn) => fn({
+            callTool: async (request) => {
+                calls.push(request);
+                if (request.name === 'list_recent_meetings') {
+                    return {
+                        structuredContent: {
+                            results: [
+                                {
+                                    id: 'tactiq-real-1',
+                                    title: 'Recent meeting',
+                                    createdAt: '2026-07-09T05:48:39.000Z',
+                                    attendees: ['a@example.com'],
+                                    url: 'https://app.tactiq.io/meeting/tactiq-real-1'
+                                }
+                            ]
+                        }
+                    };
+                }
+                return {
+                    structuredContent: {
+                        id: 'tactiq-real-1',
+                        title: 'Recent meeting detail',
+                        detailedSummary: {
+                            status: 'ready',
+                            content: { markdown: 'ready summary' }
+                        }
+                    }
+                };
+            }
+        });
+
+        const artifacts = await adapter.poll({ since: '2026-07-09T00:00:00.000Z' });
+
+        expect(calls.map((call) => call.name)).toEqual(['list_recent_meetings', 'get_meeting']);
+        expect(artifacts).toEqual([
+            expect.objectContaining({
+                external_id: 'tactiq-real-1',
+                title: 'Recent meeting detail',
+                started_at: '2026-07-09T05:48:39.000Z',
+                note_text: 'ready summary',
+                meeting_mode: 'online',
+                resource_uri: 'https://app.tactiq.io/meeting/tactiq-real-1'
+            })
+        ]);
+    });
+
+    it('polls Plaud files and expands transcript and note text', async () => {
+        const calls = [];
+        const adapter = new ConfiguredMeetingSourceMcpAdapter({
+            provider: 'plaud',
+            config: {}
+        });
+        adapter._withClient = async (fn) => fn({
+            callTool: async (request) => {
+                calls.push(request);
+                if (request.name === 'list_files') {
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: JSON.stringify({
+                                    data: [
+                                        {
+                                            id: 'plaud-file-1',
+                                            name: 'Offline recording',
+                                            start_at: '2026-07-09T09:07:52'
+                                        }
+                                    ]
+                                })
+                            }
+                        ]
+                    };
+                }
+                if (request.name === 'get_transcript') {
+                    return { structuredContent: { text: 'full transcript' } };
+                }
+                return { structuredContent: { data: { markdown: 'generated note' } } };
+            }
+        });
+
+        const artifacts = await adapter.poll({ since: '2026-07-09T00:00:00.000Z' });
+
+        expect(calls.map((call) => call.name)).toEqual(['list_files', 'get_transcript', 'get_note']);
+        expect(artifacts).toEqual([
+            expect.objectContaining({
+                external_id: 'plaud-file-1',
+                title: 'Offline recording',
+                started_at: '2026-07-09T09:07:52',
+                transcript_text: 'full transcript',
+                note_text: 'generated note',
+                meeting_mode: 'offline',
+                resource_uri: 'plaud:plaud-file-1'
+            })
+        ]);
+    });
 });

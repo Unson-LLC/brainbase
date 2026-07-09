@@ -26,6 +26,9 @@ function extractArtifactList(payload) {
     if (Array.isArray(payload.artifacts)) return payload.artifacts;
     if (Array.isArray(payload.items)) return payload.items;
     if (Array.isArray(payload.records)) return payload.records;
+    if (Array.isArray(payload.results)) return payload.results;
+    if (Array.isArray(payload.files)) return payload.files;
+    if (Array.isArray(payload.data)) return payload.data;
     if (Array.isArray(payload.transcripts)) return payload.transcripts;
     if (Array.isArray(payload.recordings)) return payload.recordings;
     if (payload.structuredContent) return extractArtifactList(payload.structuredContent);
@@ -39,6 +42,50 @@ function extractArtifactList(payload) {
         if (parsed.length) return parsed;
     }
     return [];
+}
+
+function extractToolPayload(payload) {
+    if (!payload) return null;
+    if (payload.structuredContent) return payload.structuredContent;
+    if (Array.isArray(payload.content)) {
+        for (const item of payload.content) {
+            if (item?.type !== 'text' || typeof item.text !== 'string') continue;
+            const parsed = parseJsonMaybe(item.text);
+            if (parsed) return parsed;
+        }
+        return payload.content
+            .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+            .map((item) => item.text)
+            .join('\n');
+    }
+    return payload;
+}
+
+function extractToolText(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(extractToolText).filter(Boolean).join('\n');
+    if (typeof value !== 'object') return '';
+    return value.text
+        || value.transcript
+        || value.transcript_text
+        || value.data_content
+        || value.content
+        || value.markdown
+        || value.summary
+        || extractToolText(value.detailedSummary?.content)
+        || extractToolText(value.detailedSummary)
+        || extractToolText(value.data)
+        || '';
+}
+
+function inWindow(value, { since = null, until = null } = {}) {
+    if (!value) return true;
+    const timestamp = new Date(value).getTime();
+    if (Number.isNaN(timestamp)) return true;
+    if (since && timestamp < new Date(since).getTime()) return false;
+    if (until && timestamp > new Date(until).getTime()) return false;
+    return true;
 }
 
 function normalizeHeaders(headers = {}) {
@@ -256,6 +303,104 @@ export class ConfiguredMeetingSourceMcpAdapter {
         };
     }
 
+    async _pollTactiq(client, { since = null, until = null } = {}) {
+        const limit = Number(this.config.limit || this.config.page_size || 50);
+        const listResult = await client.callTool({
+            name: this.config.tool || this.config.poll_tool || 'list_recent_meetings',
+            arguments: {
+                limit: Math.min(Math.max(limit, 1), 50),
+                ...(this.config.arguments || {})
+            }
+        });
+        const meetings = extractArtifactList(listResult)
+            .filter((meeting) => inWindow(meeting.createdAt || meeting.created_at || meeting.started_at, { since, until }));
+
+        const artifacts = [];
+        for (const meeting of meetings) {
+            let detail = null;
+            if (meeting.id) {
+                try {
+                    detail = extractToolPayload(await client.callTool({
+                        name: this.config.detail_tool || 'get_meeting',
+                        arguments: { id: meeting.id }
+                    }));
+                } catch (error) {
+                    this.log?.warn?.(`[meeting-source] tactiq detail fetch failed for ${meeting.id}: ${error.message}`);
+                }
+            }
+            const detailedSummary = detail?.detailedSummary;
+            const noteText = detailedSummary?.status === 'ready'
+                ? extractToolText(detailedSummary.content)
+                : extractToolText(detailedSummary);
+            artifacts.push({
+                ...meeting,
+                ...(detail && typeof detail === 'object' ? detail : {}),
+                external_id: meeting.id,
+                title: detail?.title || meeting.title,
+                started_at: meeting.createdAt || detail?.createdAt || meeting.created_at || detail?.created_at || null,
+                updated_at: meeting.createdAt || detail?.createdAt || meeting.updated_at || detail?.updated_at || null,
+                participants: meeting.attendees || detail?.attendees || meeting.participants || [],
+                note_text: noteText,
+                meeting_mode: 'online',
+                resource_uri: meeting.url || detail?.url || meeting.resource_uri || null
+            });
+        }
+        return artifacts;
+    }
+
+    async _pollPlaud(client, { since = null, until = null } = {}) {
+        const args = {
+            page: 1,
+            page_size: Number(this.config.page_size || 20),
+            ...(since ? { date_from: String(since).slice(0, 10) } : {}),
+            ...(until ? { date_to: String(until).slice(0, 10) } : {}),
+            ...(this.config.arguments || {})
+        };
+        const listResult = await client.callTool({
+            name: this.config.tool || this.config.poll_tool || 'list_files',
+            arguments: args
+        });
+        const files = extractArtifactList(listResult)
+            .filter((file) => inWindow(file.start_at || file.created_at || file.started_at, { since, until }));
+
+        const artifacts = [];
+        for (const file of files) {
+            const fileId = file.id || file.file_id || file.fileId;
+            let transcriptText = '';
+            let noteText = '';
+            if (fileId) {
+                try {
+                    transcriptText = extractToolText(extractToolPayload(await client.callTool({
+                        name: this.config.transcript_tool || 'get_transcript',
+                        arguments: { file_id: fileId }
+                    })));
+                } catch (error) {
+                    this.log?.warn?.(`[meeting-source] plaud transcript fetch failed for ${fileId}: ${error.message}`);
+                }
+                try {
+                    noteText = extractToolText(extractToolPayload(await client.callTool({
+                        name: this.config.note_tool || 'get_note',
+                        arguments: { file_id: fileId }
+                    })));
+                } catch (error) {
+                    this.log?.warn?.(`[meeting-source] plaud note fetch failed for ${fileId}: ${error.message}`);
+                }
+            }
+            artifacts.push({
+                ...file,
+                external_id: fileId,
+                title: file.name || file.title,
+                started_at: file.start_at || file.created_at || null,
+                updated_at: file.created_at || file.start_at || null,
+                transcript_text: transcriptText,
+                note_text: noteText,
+                meeting_mode: 'offline',
+                resource_uri: fileId ? `plaud:${fileId}` : null
+            });
+        }
+        return artifacts;
+    }
+
     async test() {
         return await this._withClient(async (client) => {
             const tools = await client.listTools().catch(() => ({ tools: [] }));
@@ -271,6 +416,12 @@ export class ConfiguredMeetingSourceMcpAdapter {
 
     async poll({ cursor = {}, since = null, until = null } = {}) {
         return await this._withClient(async (client) => {
+            if (this.provider === 'tactiq' && (this.config.provider_poll || !this.config.tool)) {
+                return await this._pollTactiq(client, { since, until });
+            }
+            if (this.provider === 'plaud' && (this.config.provider_poll || !this.config.tool)) {
+                return await this._pollPlaud(client, { since, until });
+            }
             const toolName = this.config.tool || this.config.poll_tool || this.config.list_tool;
             if (toolName) {
                 const result = await client.callTool({
