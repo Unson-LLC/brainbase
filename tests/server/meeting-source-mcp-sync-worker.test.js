@@ -343,6 +343,73 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(statuses.providers.find(p => p.provider === 'plaud').cursor.updated_since).toBe('2026-06-25T03:05:00.000Z');
     });
 
+    it('keeps provider cursors monotonic when overlap polling returns older artifacts', async () => {
+        const workflowService = {
+            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        };
+        let polledArtifacts = [
+            {
+                id: 'plaud-new',
+                title: 'Newer offline note',
+                transcript_text: 'newer offline transcript',
+                meeting_mode: 'offline',
+                updated_at: '2026-06-25T03:05:00.000Z'
+            },
+            {
+                id: 'plaud-old',
+                title: 'Older offline note',
+                transcript_text: 'older offline transcript',
+                meeting_mode: 'offline',
+                updated_at: '2026-06-25T03:04:00.000Z'
+            }
+        ];
+        const { service } = await makeService({
+            workflowService,
+            adapters: {
+                plaud: {
+                    poll: vi.fn(async () => polledArtifacts)
+                }
+            }
+        });
+        await service.connectProvider('plaud', { account_label: 'ksato plaud', credential_ref: 'secret:plaud' });
+
+        const firstPreview = await service.previewResync({
+            providers: ['plaud'],
+            since: '2026-06-25T00:00:00.000Z',
+            org_id: 'brainbase',
+            project_id: 'brainbase'
+        });
+        await service.confirmResync({ preview_id: firstPreview.preview_id });
+        let statuses = await service.listProviderStatuses();
+        expect(statuses.providers.find(p => p.provider === 'plaud').cursor).toMatchObject({
+            updated_since: '2026-06-25T03:05:00.000Z',
+            last_seen_external_id: 'plaud-new'
+        });
+
+        polledArtifacts = [
+            {
+                id: 'plaud-old',
+                title: 'Older offline note',
+                transcript_text: 'older offline transcript',
+                meeting_mode: 'offline',
+                updated_at: '2026-06-25T03:04:00.000Z'
+            }
+        ];
+        const secondPreview = await service.previewResync({
+            providers: ['plaud'],
+            since: '2026-06-25T00:00:00.000Z',
+            org_id: 'brainbase',
+            project_id: 'brainbase'
+        });
+        await service.confirmResync({ preview_id: secondPreview.preview_id });
+        statuses = await service.listProviderStatuses();
+
+        expect(statuses.providers.find(p => p.provider === 'plaud').cursor).toMatchObject({
+            updated_since: '2026-06-25T03:05:00.000Z',
+            last_seen_external_id: 'plaud-new'
+        });
+    });
+
     it('does not advance cursors when confirm is draft-only', async () => {
         const { service } = await makeService({
             adapters: {

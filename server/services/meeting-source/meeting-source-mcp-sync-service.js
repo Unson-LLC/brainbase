@@ -39,6 +39,33 @@ function maxIso(...values) {
         .at(-1) || null;
 }
 
+function providerCursorAfterArtifacts(providerArtifacts = [], previousCursor = {}) {
+    const latestArtifactCursor = providerArtifacts
+        .map((artifact) => ({
+            timestamp: artifact.updated_at || artifact.started_at || null,
+            external_id: artifact.external_id || null
+        }))
+        .filter((cursor) => cursor.timestamp)
+        .sort((a, b) => {
+            const byTimestamp = a.timestamp.localeCompare(b.timestamp);
+            if (byTimestamp !== 0) return byTimestamp;
+            return String(a.external_id || '').localeCompare(String(b.external_id || ''));
+        })
+        .at(-1);
+    const previousUpdatedSince = previousCursor?.updated_since || null;
+    const latestUpdatedSince = latestArtifactCursor?.timestamp || null;
+    const updatedSince = maxIso(previousUpdatedSince, latestUpdatedSince);
+    const artifactCursorWins = latestUpdatedSince && updatedSince === latestUpdatedSince;
+
+    return {
+        ...previousCursor,
+        updated_since: updatedSince || null,
+        last_seen_external_id: artifactCursorWins
+            ? latestArtifactCursor.external_id || previousCursor?.last_seen_external_id || null
+            : previousCursor?.last_seen_external_id || null
+    };
+}
+
 function stableHash(value) {
     return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
@@ -1113,18 +1140,10 @@ export class MeetingSourceMcpSyncService {
             .map((result) => result.provider));
         for (const provider of successfulProviders) {
             const providerArtifacts = preview.artifacts.filter((artifact) => artifact.provider === provider);
-            const latest = providerArtifacts
-                .map((artifact) => artifact.updated_at || artifact.started_at)
-                .filter(Boolean)
-                .sort()
-                .at(-1);
+            const previousCursor = state.providers[provider]?.cursor || {};
             state.providers[provider] = {
                 ...state.providers[provider],
-                cursor: {
-                    ...(state.providers[provider]?.cursor || {}),
-                    updated_since: latest || state.providers[provider]?.cursor?.updated_since || null,
-                    last_seen_external_id: providerArtifacts.at(-1)?.external_id || state.providers[provider]?.cursor?.last_seen_external_id || null
-                },
+                cursor: providerCursorAfterArtifacts(providerArtifacts, previousCursor),
                 last_success_at: this.clock(),
                 last_error: null,
                 updated_at: this.clock()
