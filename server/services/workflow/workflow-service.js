@@ -780,6 +780,17 @@ function createMeetingReviewStableId(prefix, ...parts) {
     return `${prefix}_${stem}_${hash}`;
 }
 
+// Stable identity of the underlying source recording, independent of the
+// transcript-hash-derived package_id. Used as a secondary idempotency key so
+// hashing-scheme changes cannot re-ingest an already-reviewed meeting.
+function meetingReviewSourceReplayKey(sourceEvent = {}) {
+    if (!sourceEvent || typeof sourceEvent !== 'object') return null;
+    const uri = sourceEvent.mcp_resource_uri || sourceEvent.artifact_ref || null;
+    if (!uri) return null;
+    const provider = sourceEvent.provider || sourceEvent.source_system || '';
+    return `${provider}:${uri}`;
+}
+
 function jsonClone(value) {
     if (value === undefined) return null;
     return JSON.parse(JSON.stringify(value));
@@ -2612,23 +2623,46 @@ export class WorkflowService {
         const loopIntentByKey = new Map(loopIntents.map((entry) => [entry.key, entry.loop_intent]));
         const workflowId = createMeetingReviewStableId('wf', orgId, projectId, 'meeting_review_package_ingest');
         const runId = createMeetingReviewStableId('run', orgId, projectId, packageId, 'meeting_review_package_ingest');
-        const existingRun = this.repository.getRun(runId);
-        if (existingRun) {
-            return {
-                meeting_review_ingest: {
-                    org_id: orgId,
-                    project_id: projectId,
-                    case_scope: caseScope,
-                    package_id: packageId,
-                    idempotent: true,
-                    state_transitions: ['package_received', 'scope_resolved', 'loop_intents_verified', 'idempotent_replay'],
-                    run: existingRun,
-                    outputs: this.repository.listOutputs(runId),
-                    human_steps: this.repository.listHumanSteps(runId),
-                    context_snapshots: this.repository.listContextSnapshots(runId),
-                    loop_intents: loopIntents.map((entry) => entry.loop_intent)
-                }
-            };
+        // package_id is derived from the transcript hash, so a hashing-scheme
+        // change (e.g. transcript normalization) shifts the run identity for
+        // meetings that were already ingested. Fall back to the stable source
+        // artifact reference so the same recording never produces a second
+        // waiting-human run.
+        const sourceReplayKey = meetingReviewSourceReplayKey(sourceEvent);
+        const buildIdempotentReplayResult = (replayRun) => ({
+            meeting_review_ingest: {
+                org_id: orgId,
+                project_id: projectId,
+                case_scope: caseScope,
+                package_id: packageId,
+                idempotent: true,
+                ...(replayRun.id !== runId ? {
+                    idempotent_source: 'source_artifact_match',
+                    prior_package_id: replayRun.metadata?.package_id || null
+                } : {}),
+                note_generation_dispatch: {
+                    status: 'skipped',
+                    reason: 'idempotent_replay',
+                    loop_intent_id: loopIntentByKey.get('transcript_to_meeting_note')?.id || null
+                },
+                state_transitions: ['package_received', 'scope_resolved', 'loop_intents_verified', 'idempotent_replay'],
+                run: replayRun,
+                outputs: this.repository.listOutputs(replayRun.id),
+                human_steps: this.repository.listHumanSteps(replayRun.id),
+                context_snapshots: this.repository.listContextSnapshots(replayRun.id),
+                loop_intents: loopIntents.map((entry) => entry.loop_intent)
+            }
+        });
+        const findReplayRun = () => this.repository.getRun(runId)
+            || (sourceReplayKey
+                ? this.repository.findRun({
+                    workflowId,
+                    predicate: (run) => meetingReviewSourceReplayKey(run.metadata?.source_event) === sourceReplayKey
+                })
+                : null);
+        const earlyReplayRun = findReplayRun();
+        if (earlyReplayRun) {
+            return buildIdempotentReplayResult(earlyReplayRun);
         }
 
         const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
@@ -2663,7 +2697,15 @@ export class WorkflowService {
             graphContext: graphPlaybookContext.graph_context
         });
 
-        return this.repository.transaction(async () => {
+        const ingestResult = await this.repository.transaction(async () => {
+            // Authoritative idempotency re-check: the awaits above (Graph SSOT
+            // playbook resolution) open a window where a concurrent ingest of
+            // the same recording could have committed. The ledger mutation
+            // below is synchronous, so re-checking here closes that window.
+            const replayRun = findReplayRun();
+            if (replayRun) {
+                return buildIdempotentReplayResult(replayRun);
+            }
             const workflow = this.repository.upsertWorkflow({
                 id: workflowId,
                 workspace_id: DEFAULT_WORKSPACE_ID,
@@ -2918,6 +2960,194 @@ export class WorkflowService {
                 }
             };
         });
+
+        if (ingestResult.meeting_review_ingest.idempotent) {
+            return ingestResult;
+        }
+
+        // Wire the generation DAG: kick transcript_to_meeting_note toward an
+        // Eve session after the ingest transaction commits. Best-effort only —
+        // ingest must never fail because generation could not be dispatched.
+        ingestResult.meeting_review_ingest.note_generation_dispatch = await this._dispatchMeetingNoteGeneration({
+            loopIntent: loopIntentByKey.get('transcript_to_meeting_note') || null,
+            orgId,
+            projectId,
+            packageId,
+            runId,
+            actorId,
+            actor
+        });
+        return ingestResult;
+    }
+
+    async _dispatchMeetingNoteGeneration({ loopIntent, orgId, projectId, packageId, runId, actorId, actor }) {
+        let result;
+        if (!loopIntent) {
+            result = { status: 'skipped', reason: 'loop_intent_missing', loop_intent_id: null };
+        } else if (!this.eveSessionClient?.isConfigured?.()) {
+            result = { status: 'skipped', reason: 'eve_not_configured', loop_intent_id: loopIntent.id };
+        } else {
+            try {
+                const dispatched = await this.dispatchLoopIntentToEve(loopIntent.id, {}, actor);
+                result = {
+                    status: 'requested',
+                    loop_intent_id: loopIntent.id,
+                    eve_session_run_id: dispatched?.eve_session_dispatch?.run?.id || null
+                };
+            } catch (error) {
+                result = {
+                    status: 'skipped',
+                    reason: 'dispatch_failed',
+                    loop_intent_id: loopIntent.id,
+                    error: error?.message || String(error)
+                };
+            }
+        }
+        this.repository.writeAuditLog({
+            workspace_id: DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            actor_id: actorId,
+            action: result.status === 'requested'
+                ? 'workflow.meeting_pack.note_generation.dispatch_requested'
+                : 'workflow.meeting_pack.note_generation.dispatch_skipped',
+            target_type: 'workflow_run',
+            target_id: runId,
+            after: {
+                package_id: packageId,
+                ...result,
+                ...(result.status === 'requested' ? {
+                    runner_type: 'eve',
+                    external_run_id: result.eve_session_run_id || null
+                } : {})
+            }
+        });
+        return result;
+    }
+
+    async recordMeetingNoteGeneration(input = {}, actor = {}) {
+        await this._loadProjectConfigCache();
+        const orgId = readOptionalString(input, 'org_id', 'orgId');
+        const projectId = readOptionalString(input, 'project_id', 'projectId');
+        const packageId = readOptionalString(input, 'package_id', 'packageId');
+        const inputRunId = readOptionalString(input, 'run_id', 'runId');
+        const sourceTextHash = readOptionalString(input, 'source_text_hash', 'sourceTextHash');
+        const note = input.note && typeof input.note === 'object' ? input.note : {};
+        const noteBody = typeof note.body === 'string' ? note.body : '';
+        const runner = input.runner && typeof input.runner === 'object' ? input.runner : {};
+        if (!orgId) {
+            throw AppError.validation('org_id is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!projectId) {
+            throw AppError.validation('project_id is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!inputRunId && !packageId) {
+            throw AppError.validation('package_id or run_id is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!sourceTextHash) {
+            throw AppError.validation('source_text_hash is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!noteBody.trim()) {
+            throw AppError.validation('note.body is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        await this._assertProjectSelectable(projectId);
+        this._assertOrgReferenceAllowed(orgId);
+        this._assertActorCanAccessProject(projectId, actor);
+
+        const runId = inputRunId
+            || createMeetingReviewStableId('run', orgId, projectId, packageId, 'meeting_review_package_ingest');
+        const run = this.repository.getRun(runId);
+        if (!run) throw AppError.notFound('workflow_run', runId);
+        if (run.org_id !== orgId || run.project_id !== projectId) {
+            throw AppError.validation(`workflow_run '${runId}' belongs to '${run.org_id}/${run.project_id}'`, {
+                state_transition: 'blocked_invalid_scope'
+            });
+        }
+        const noteOutput = this.repository.listOutputs(runId)
+            .find((output) => output.metadata?.output_key === 'meeting_note_draft');
+        if (!noteOutput) {
+            throw AppError.validation(`workflow_run '${runId}' has no meeting_note_draft output`, {
+                state_transition: 'blocked_note_output_missing'
+            });
+        }
+        const currentPayload = noteOutput.payload && typeof noteOutput.payload === 'object'
+            ? noteOutput.payload
+            : {};
+        if (currentPayload.source_text_hash !== sourceTextHash) {
+            throw AppError.validation('source_text_hash does not match the meeting_note_draft output', {
+                state_transition: 'blocked_source_hash_mismatch',
+                expected: currentPayload.source_text_hash || null
+            });
+        }
+
+        const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
+        const now = new Date().toISOString();
+        const nextPayload = {
+            ...currentPayload,
+            title: typeof note.title === 'string' && note.title.trim()
+                ? note.title.trim()
+                : currentPayload.title,
+            body: noteBody,
+            generator: 'brainbase_meeting_pack',
+            generation_source: 'transcript_to_meeting_note',
+            generation_status: 'brainbase_generated',
+            provider_note_authoritative: false,
+            generated_at: now,
+            generated_by: {
+                type: typeof runner.type === 'string' && runner.type ? runner.type : 'unknown',
+                session_id: typeof runner.session_id === 'string' ? runner.session_id : null,
+                actor_id: actorId
+            }
+        };
+        const updatedOutput = this.repository.updateOutput(noteOutput.id, {
+            payload: nextPayload,
+            preview: previewPayload(nextPayload),
+            updated_at: now
+        });
+        // Target the run (not the output) so the entry reaches the Run Trace
+        // audit panel, which lists audit logs by run id.
+        this.repository.writeAuditLog({
+            workspace_id: DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            actor_id: actorId,
+            action: 'workflow.meeting_pack.note_generation.recorded',
+            target_type: 'workflow_run',
+            target_id: runId,
+            after: {
+                run_id: runId,
+                output_id: noteOutput.id,
+                package_id: noteOutput.metadata?.package_id || packageId || null,
+                source_text_hash: sourceTextHash,
+                generation_status: nextPayload.generation_status,
+                state_transition: 'note_generation_recorded',
+                runner_type: nextPayload.generated_by?.type || null,
+                external_run_id: nextPayload.generated_by?.session_id || null,
+                generated_by: nextPayload.generated_by,
+                body_length: noteBody.length,
+                regenerated: currentPayload.generation_status === 'brainbase_generated'
+            }
+        });
+        return {
+            meeting_note_generation: {
+                org_id: orgId,
+                project_id: projectId,
+                run_id: runId,
+                output_id: noteOutput.id,
+                generation_status: nextPayload.generation_status,
+                output: updatedOutput
+            }
+        };
     }
 
     async dispatchLoopIntentToEve(loopIntentId, input = {}, actor = {}) {

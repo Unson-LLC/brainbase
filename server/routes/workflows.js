@@ -192,6 +192,22 @@ export function createWorkflowRouter(workflowService) {
         }
     }));
 
+    router.post('/control/meeting-pack/note-generation', asyncHandler(async (req, res) => {
+        try {
+            res.status(201).json(await workflowService.recordMeetingNoteGeneration(req.body || {}, actorFromRequest(req)));
+        } catch (error) {
+            if (error?.statusCode === 400 && error?.details?.state_transition) {
+                res.status(400).json({
+                    error: error.message,
+                    state_transition: error.details.state_transition,
+                    details: error.details
+                });
+                return;
+            }
+            throw error;
+        }
+    }));
+
     router.get('/role-agents', asyncHandler(async (req, res) => {
         await respondWorkflowOrControl({
             req,

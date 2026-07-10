@@ -455,7 +455,9 @@ test('story-meeting-review-package-ingest-v1 S-003 ac:9 取り込みは `package
 test('story-meeting-review-package-ingest-v1 ac:10 Audit log は ingest した package、run、output、human step、loop intent、runner type、state transition を記録する。', async () => {
   const { repository, ingest } = await ingestSamplePackage();
 
-  expect(repository.listAuditLogs({ targetId: ingest.run.id })).toEqual([
+  const runAuditLogs = repository.listAuditLogs({ targetId: ingest.run.id });
+  expect(runAuditLogs).toHaveLength(2);
+  expect(runAuditLogs).toEqual(expect.arrayContaining([
     expect.objectContaining({
       action: 'workflow.meeting_review_package.ingested',
       after: expect.objectContaining({
@@ -467,8 +469,16 @@ test('story-meeting-review-package-ingest-v1 ac:10 Audit log は ingest した p
         runner: { type: 'codex_generated_package', eve_connected: false },
         state_transitions: ingest.state_transitions
       })
+    }),
+    // story-meeting-note-generation-dag-wiring: ingest後の生成dispatch試行もrunに監査される
+    expect.objectContaining({
+      action: 'workflow.meeting_pack.note_generation.dispatch_skipped',
+      after: expect.objectContaining({
+        status: 'skipped',
+        reason: 'eve_not_configured'
+      })
     })
-  ]);
+  ]));
 });
 
 test('story-meeting-review-package-ingest-v1 ac:11 Eve 接続は後続 Story とし、この Story では Eve 成功や外部runner実行済みを名乗らない。', async () => {
@@ -872,7 +882,8 @@ test('story-meeting-review-package-ingest-v1 S-001 S-003 ac:1 ac:2 ac:3 ac:4 ac:
   expect(repository.ledger.outputs).toHaveLength(5);
   expect(repository.ledger.human_steps).toHaveLength(5);
   // story-meeting-review-package-ingest-v1 ac:10 Audit logにrunner typeとstate transitionを残す。
-  expect(repository.listAuditLogs({ targetId: ingest.run.id })).toEqual([
+  // story-meeting-note-generation-dag-wiring: 生成dispatch試行のauditも同じrunに追加される。
+  expect(repository.listAuditLogs({ targetId: ingest.run.id })).toEqual(expect.arrayContaining([
     expect.objectContaining({
       action: 'workflow.meeting_review_package.ingested',
       after: expect.objectContaining({
@@ -880,7 +891,7 @@ test('story-meeting-review-package-ingest-v1 S-001 S-003 ac:1 ac:2 ac:3 ac:4 ac:
         state_transitions: ingest.state_transitions
       })
     })
-  ]);
+  ]));
 
   // story-meeting-review-package-ingest-v1 ac:9 package_id + org_id + project_idで冪等にする。
   const replay = await service.ingestMeetingReviewPackage({

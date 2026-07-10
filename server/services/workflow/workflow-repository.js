@@ -152,6 +152,13 @@ export class InMemoryWorkflowRepository {
         return run ? clone(run) : null;
     }
 
+    findRun({ workflowId = null, predicate = null } = {}) {
+        const match = this.ledger.runs.find((run) =>
+            (!workflowId || run.workflow_id === workflowId)
+            && (!predicate || predicate(run)));
+        return match ? clone(match) : null;
+    }
+
     listRuns({ workflowId = null, projectId = null, limit = 50 } = {}) {
         const runs = this.ledger.runs
             .filter((run) => !workflowId || run.workflow_id === workflowId)
@@ -225,6 +232,19 @@ export class InMemoryWorkflowRepository {
 
     listOutputs(runId) {
         return clone(this.ledger.outputs.filter((item) => item.workflow_run_id === runId));
+    }
+
+    getOutput(outputId) {
+        const output = this.ledger.outputs.find((item) => item.id === outputId);
+        return output ? clone(output) : null;
+    }
+
+    updateOutput(outputId, patch) {
+        const index = this.ledger.outputs.findIndex((item) => item.id === outputId);
+        if (index === -1) return null;
+        this.ledger.outputs[index] = { ...this.ledger.outputs[index], ...patch };
+        this._persist();
+        return clone(this.ledger.outputs[index]);
     }
 
     writeAuditLog(entry) {

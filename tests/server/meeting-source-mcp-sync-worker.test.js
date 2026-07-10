@@ -7,7 +7,8 @@ import {
     MeetingSourceMcpSyncService,
     buildSourceEventFromArtifact,
     dedupeSourceArtifacts,
-    normalizeSourceArtifact
+    normalizeSourceArtifact,
+    transcriptSegmentsToText
 } from '../../server/services/meeting-source/meeting-source-mcp-sync-service.js';
 
 async function makeService({ adapters = {}, workflowService = null, clock = () => '2026-07-02T00:00:00.000Z' } = {}) {
@@ -57,6 +58,82 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(sourceEvent.calendar_event_id).toBe('cal_1');
         expect(sourceEvent.ingested_by).toBe('meeting_source_mcp_sync_worker');
         expect(sourceEvent.mcp_resource_uri).toBe('mcp://tactiq/transcripts/tactiq-1');
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-001 S-001 expands JSON segment transcripts into speaker-attributed plain text', () => {
+        const segments = [
+            { content: 'お疲れ様です。', end_time: 1000, start_time: 80, speaker: 'Speaker 1', original_speaker: 'Speaker 1', embeddingKey: null },
+            { content: '基本コンプランを通っちゃったよ。', end_time: 4760, start_time: 1000, speaker: 'Speaker 2', original_speaker: 'Speaker 2', embeddingKey: null },
+            { content: '進めましょう。', end_time: 8039, start_time: 5760, speaker: 'Speaker 1', original_speaker: 'Speaker 1', embeddingKey: null }
+        ];
+        const artifact = normalizeSourceArtifact({
+            id: 'plaud-json-1',
+            title: 'Offline recording',
+            transcript_text: JSON.stringify(segments),
+            resource_uri: 'mcp://plaud/recordings/plaud-json-1'
+        }, 'plaud');
+
+        expect(artifact.has_text).toBe(true);
+        expect(artifact.source_text).toBe([
+            'Speaker 1: お疲れ様です。',
+            'Speaker 2: 基本コンプランを通っちゃったよ。',
+            'Speaker 1: 進めましょう。'
+        ].join('\n'));
+        expect(artifact.source_text).not.toContain('{');
+        expect(artifact.source_text).not.toContain('\\u');
+        expect(artifact.text_preview).not.toContain('start_time');
+        expect(artifact.transcript_hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-001 falls back to speakerless lines and ignores empty segments', () => {
+        const artifact = normalizeSourceArtifact({
+            id: 'plaud-json-2',
+            title: 'Offline recording',
+            transcript_text: JSON.stringify([
+                { content: '冒頭の挨拶。' },
+                { content: '   ' },
+                { text: '別フィールドの発話。', original_speaker: 'Speaker 3' }
+            ]),
+            resource_uri: 'mcp://plaud/recordings/plaud-json-2'
+        }, 'plaud');
+
+        expect(artifact.source_text).toBe('冒頭の挨拶。\nSpeaker 3: 別フィールドの発話。');
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-002 keeps the raw payload when every segment is empty', () => {
+        const raw = JSON.stringify([{ content: '   ' }, { content: '' }]);
+        const artifact = normalizeSourceArtifact({
+            id: 'plaud-json-empty-1',
+            transcript_text: raw,
+            resource_uri: 'mcp://plaud/recordings/plaud-json-empty-1'
+        }, 'plaud');
+        // 全セグメント空でも生payloadを捨てない（後段のwhitespace正規化のみ許容）
+        expect(artifact.source_text).toContain('"content"');
+        expect(transcriptSegmentsToText(raw)).toBe(raw);
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-002 leaves plain-text and non-segment JSON transcripts unchanged', () => {
+        const plain = normalizeSourceArtifact({
+            id: 'tactiq-plain-1',
+            transcript_text: 'plain transcript line one\nline two',
+            resource_uri: 'mcp://tactiq/transcripts/tactiq-plain-1'
+        }, 'tactiq');
+        expect(plain.source_text).toBe('plain transcript line one\nline two');
+
+        const numericArrayText = '[1, 2, 3]';
+        const numericArray = normalizeSourceArtifact({
+            id: 'tactiq-plain-2',
+            transcript_text: numericArrayText,
+            resource_uri: 'mcp://tactiq/transcripts/tactiq-plain-2'
+        }, 'tactiq');
+        expect(numericArray.source_text).toBe(numericArrayText);
+
+        const bracketProse = normalizeSourceArtifact({
+            id: 'tactiq-plain-3',
+            transcript_text: '[議事] 今日の論点は以下のとおり]',
+            resource_uri: 'mcp://tactiq/transcripts/tactiq-plain-3'
+        }, 'tactiq');
+        expect(bracketProse.source_text).toBe('[議事] 今日の論点は以下のとおり]');
     });
 
     it('keeps provider-generated notes out of authoritative transcript fields', () => {

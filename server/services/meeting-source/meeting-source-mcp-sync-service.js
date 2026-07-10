@@ -94,10 +94,48 @@ function safeProvider(provider) {
 }
 
 function readTranscriptText(raw = {}) {
-    return raw.text
+    const text = raw.text
         || raw.transcript
         || raw.transcript_text
         || '';
+    return transcriptSegmentsToText(text);
+}
+
+// Plaud returns transcripts as a JSON-encoded segment array
+// ([{"content": "...", "speaker": "Speaker 1", ...}, ...], often with
+// \uXXXX escapes). Expand that shape to speaker-attributed plain text so
+// hashing, previews, and downstream note generation always see readable text.
+export function transcriptSegmentsToText(value) {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return value;
+    let segments;
+    try {
+        segments = JSON.parse(trimmed);
+    } catch {
+        return value;
+    }
+    if (!Array.isArray(segments) || segments.length === 0) return value;
+    const lines = [];
+    for (const segment of segments) {
+        if (!segment || typeof segment !== 'object' || Array.isArray(segment)) return value;
+        const content = typeof segment.content === 'string'
+            ? segment.content
+            : (typeof segment.text === 'string' ? segment.text : null);
+        if (content === null) return value;
+        const speaker = typeof segment.speaker === 'string' && segment.speaker.trim()
+            ? segment.speaker.trim()
+            : (typeof segment.original_speaker === 'string' && segment.original_speaker.trim()
+                ? segment.original_speaker.trim()
+                : null);
+        const line = normalizeWhitespace(content);
+        if (!line) continue;
+        lines.push(speaker ? `${speaker}: ${line}` : line);
+    }
+    // All-empty segments would silently discard the raw payload; keep the
+    // original text so upstream corruption stays visible downstream.
+    if (lines.length === 0) return value;
+    return lines.join('\n');
 }
 
 function readProviderNoteText(raw = {}) {

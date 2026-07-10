@@ -929,14 +929,28 @@ describe('workflow routes', () => {
                 requires_human_approval: true
             })
         });
-        expect(repository.listAuditLogs({ targetId: res.body.meeting_review_ingest.run.id })).toEqual([
+        expect(res.body.meeting_review_ingest.note_generation_dispatch).toEqual({
+            status: 'skipped',
+            reason: 'eve_not_configured',
+            loop_intent_id: expect.any(String)
+        });
+        const runAuditLogs = repository.listAuditLogs({ targetId: res.body.meeting_review_ingest.run.id });
+        expect(runAuditLogs).toHaveLength(2);
+        expect(runAuditLogs).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 action: 'workflow.meeting_review_package.ingested',
                 after: expect.objectContaining({
                     runner: { type: 'codex_generated_package', eve_connected: false }
                 })
+            }),
+            expect.objectContaining({
+                action: 'workflow.meeting_pack.note_generation.dispatch_skipped',
+                after: expect.objectContaining({
+                    status: 'skipped',
+                    reason: 'eve_not_configured'
+                })
             })
-        ]);
+        ]));
 
         const workflowsRes = await request(app)
             .get('/api/workflows?project_id=sample-project')
@@ -985,6 +999,312 @@ describe('workflow routes', () => {
                 })
             })
         ]));
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-005 S-002 auto-dispatches transcript_to_meeting_note to Eve after review ingest', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+
+        const noteLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'transcript-to-meeting-note'
+        }).loopIntentId;
+        expect(res.body.meeting_review_ingest.note_generation_dispatch).toEqual({
+            status: 'requested',
+            loop_intent_id: noteLoopIntentId,
+            eve_session_run_id: expect.any(String)
+        });
+        expect(eveSessionClient.calls).toHaveLength(1);
+        expect(eveSessionClient.calls[0].context).toMatchObject({
+            loop_intent: expect.objectContaining({ id: noteLoopIntentId })
+        });
+        expect(repository.getLoopIntent(noteLoopIntentId)).toMatchObject({ status: 'dispatched' });
+        expect(repository.listAuditLogs({ targetId: res.body.meeting_review_ingest.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'workflow.meeting_pack.note_generation.dispatch_requested',
+                after: expect.objectContaining({
+                    status: 'requested',
+                    loop_intent_id: noteLoopIntentId
+                })
+            })
+        ]));
+
+        const replay = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        expect(replay.body.meeting_review_ingest.idempotent).toBe(true);
+        expect(replay.body.meeting_review_ingest.note_generation_dispatch).toEqual({
+            status: 'skipped',
+            reason: 'idempotent_replay',
+            loop_intent_id: noteLoopIntentId
+        });
+        expect(eveSessionClient.calls).toHaveLength(1);
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-012 S-004 dedupes re-ingest of the same recording when the hash-derived package_id changes', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const original = sampleMeetingReviewPackage();
+        original.source_event = {
+            ...original.source_event,
+            source_system: 'plaud',
+            provider: 'plaud',
+            mcp_resource_uri: 'plaud:file-stable-1'
+        };
+        const first = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: original })
+            .expect(201);
+        expect(first.body.meeting_review_ingest.idempotent).toBe(false);
+
+        // 正規化仕様の変更でtranscript_hash由来のpackage_idが変わった再同期を模す
+        const rehashed = sampleMeetingReviewPackage({ packageId: 'meeting-review-package-rehashed' });
+        rehashed.source_event = { ...original.source_event };
+        const replay = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: rehashed })
+            .expect(201);
+
+        expect(replay.body.meeting_review_ingest).toMatchObject({
+            idempotent: true,
+            idempotent_source: 'source_artifact_match',
+            prior_package_id: 'meeting-review-package-test',
+            run: { id: first.body.meeting_review_ingest.run.id }
+        });
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-006 S-002 keeps ingest successful when Eve dispatch fails', async () => {
+        const eveSessionClient = makeEveSessionClient({ reject: new Error('eve down') });
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+
+        expect(res.body.meeting_review_ingest.run.status).toBe('waiting_human');
+        expect(res.body.meeting_review_ingest.note_generation_dispatch).toMatchObject({
+            status: 'skipped',
+            reason: 'dispatch_failed'
+        });
+        expect(repository.listAuditLogs({ targetId: res.body.meeting_review_ingest.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'workflow.meeting_pack.note_generation.dispatch_skipped',
+                after: expect.objectContaining({ reason: 'dispatch_failed' })
+            })
+        ]));
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-007 AC-010 S-003 records generated minutes on the meeting_note_draft output', async () => {
+        const { app, repository } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.meeting_note_summary = {
+            title: 'Mana定例',
+            body: '# Mana定例\n\n## Brainbase Meeting Pack Source\n\n## Primary Transcript Excerpt\n\nSpeaker 1: お疲れ様です。',
+            generator: 'brainbase_meeting_pack',
+            generation_source: 'transcript_to_meeting_note',
+            generation_status: 'brainbase_source_ready',
+            provider_note_authoritative: false,
+            source_text_hash: 'hash-primary-001'
+        };
+        const ingest = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(201);
+        const runId = ingest.body.meeting_review_ingest.run.id;
+
+        const recorded = await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                package_id: 'meeting-review-package-test',
+                source_text_hash: 'hash-primary-001',
+                note: { body: '# Mana定例 議事録\n\n## 決定事項\n\n- 生成DAGを接続する' },
+                runner: { type: 'eve', session_id: 'eve-session-note-001' }
+            })
+            .expect(201);
+
+        expect(recorded.body.meeting_note_generation).toMatchObject({
+            run_id: runId,
+            generation_status: 'brainbase_generated'
+        });
+        const output = repository.getOutput(recorded.body.meeting_note_generation.output_id);
+        expect(output.payload).toMatchObject({
+            title: 'Mana定例',
+            body: '# Mana定例 議事録\n\n## 決定事項\n\n- 生成DAGを接続する',
+            generator: 'brainbase_meeting_pack',
+            generation_source: 'transcript_to_meeting_note',
+            generation_status: 'brainbase_generated',
+            provider_note_authoritative: false,
+            source_text_hash: 'hash-primary-001',
+            generated_by: expect.objectContaining({ type: 'eve', session_id: 'eve-session-note-001' })
+        });
+        expect(output.payload.body).not.toContain('Primary Transcript Excerpt');
+
+        const regenerated = await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                run_id: runId,
+                source_text_hash: 'hash-primary-001',
+                note: { body: '# Mana定例 議事録 v2' },
+                runner: { type: 'claude_code' }
+            })
+            .expect(201);
+        expect(repository.getOutput(regenerated.body.meeting_note_generation.output_id).payload.body).toBe('# Mana定例 議事録 v2');
+        // Run Trace auditパネルはrun idで絞り込むため、記録はrunを対象にする
+        expect(repository.listAuditLogs({ targetId: runId })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'workflow.meeting_pack.note_generation.recorded',
+                after: expect.objectContaining({
+                    regenerated: true,
+                    output_id: recorded.body.meeting_note_generation.output_id,
+                    state_transition: 'note_generation_recorded'
+                })
+            })
+        ]));
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-008 AC-009 rejects mismatched or misaddressed note write-backs', async () => {
+        const { app } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.meeting_note_summary = {
+            title: 'Mana定例',
+            body: 'source pack body',
+            generation_status: 'brainbase_source_ready',
+            source_text_hash: 'hash-primary-001'
+        };
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(201);
+
+        const mismatch = await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                package_id: 'meeting-review-package-test',
+                source_text_hash: 'hash-of-some-other-meeting',
+                note: { body: '# 別会議の議事録' }
+            })
+            .expect(400);
+        expect(mismatch.body.state_transition).toBe('blocked_source_hash_mismatch');
+
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                package_id: 'unknown-package',
+                source_text_hash: 'hash-primary-001',
+                note: { body: '# 議事録' }
+            })
+            .expect(404);
+
+        const missingBody = await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                package_id: 'meeting-review-package-test',
+                source_text_hash: 'hash-primary-001',
+                note: { body: '   ' }
+            })
+            .expect(400);
+        expect(missingBody.body.state_transition).toBe('blocked_invalid_note_generation');
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-012 S-004 concurrent same-recording ingests do not create duplicate runs', async () => {
+        const { app, repository, service } = makeApp();
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const actor = { sub: 'keigo', person_id: 'keigo', role: 'admin', projectCodes: ['sample-project'] };
+        const makePkg = (packageId) => {
+            const pkg = sampleMeetingReviewPackage({ packageId });
+            pkg.source_event = { ...pkg.source_event, source_system: 'plaud', provider: 'plaud', mcp_resource_uri: 'plaud:file-race-1' };
+            return pkg;
+        };
+        const [first, second] = await Promise.all([
+            service.ingestMeetingReviewPackage({ review_package: makePkg('meeting-review-package-race-a') }, actor),
+            service.ingestMeetingReviewPackage({ review_package: makePkg('meeting-review-package-race-b') }, actor)
+        ]);
+        const results = [first.meeting_review_ingest, second.meeting_review_ingest];
+        expect(results.filter((r) => r.idempotent)).toHaveLength(1);
+        expect(results.filter((r) => !r.idempotent)).toHaveLength(1);
+        expect(repository.ledger.runs).toHaveLength(1);
+        expect(repository.ledger.outputs).toHaveLength(5);
+        expect(repository.ledger.human_steps).toHaveLength(5);
+    });
+
+    it('story-meeting-note-generation-dag-wiring AC-009 rejects unauthorized or malformed note-generation write-backs consistently', async () => {
+        const denied = makeApp({ accessProjectCodes: [] });
+        const res = await request(denied.app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                project_id: 'sample-project',
+                package_id: 'meeting-review-package-test',
+                source_text_hash: 'hash-primary-001',
+                note: { body: '# 議事録' }
+            })
+            .expect(403);
+        expect(res.body.error).toContain("project 'sample-project' is not accessible");
+
+        const { app } = makeApp();
+        const missingOrg = await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                project_id: 'sample-project',
+                package_id: 'meeting-review-package-test',
+                source_text_hash: 'hash-primary-001',
+                note: { body: '# 議事録' }
+            })
+            .expect(400);
+        expect(missingOrg.body.state_transition).toBe('blocked_invalid_note_generation');
+        const missingProject = await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({
+                org_id: 'sample-project',
+                package_id: 'meeting-review-package-test',
+                source_text_hash: 'hash-primary-001',
+                note: { body: '# 議事録' }
+            })
+            .expect(400);
+        expect(missingProject.body.state_transition).toBe('blocked_invalid_note_generation');
     });
 
     it('story-meeting-review-package-ingest-v1 rejects unauthorized operator before ingest writes', async () => {
