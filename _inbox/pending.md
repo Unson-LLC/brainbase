@@ -53,3 +53,19 @@ sender: agent
 status: pending
 message: ⚠️ 🔒 CSO監査完了（Comprehensive Q2四半期） — CRITICAL: 3件, HIGH: 2件, MEDIUM: 3件。詳細: /tmp/cso/monthly_review_2026-07.md
 ---
+
+---
+id: INBOX-1783674297647
+channel: retro
+sender: agent/retro
+status: pending
+message: "週次振り返り完了: Ship 12件, Learn N/A件（runtime不到達）, Block 1件 — ENOENT: no such file or directory, open '/root/.brainbase/tokens.json'"
+---
+
+---
+id: INBOX-1783674314
+channel: retro
+sender: agent
+status: pending
+message: 📊 週次レトロ完了 — コミット19件、Ship 12件、目標達成率 N/A（Wiki API 不到達）。詳細: /tmp/retro/weekly_report_2026-07-10.md
+---
