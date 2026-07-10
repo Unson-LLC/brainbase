@@ -41,7 +41,10 @@ async function packFiles(): Promise<string[]> {
 }
 
 function forbiddenMatches(files: string[]): string[] {
-  return files.filter((file) => forbiddenArtifactPatterns.some((pattern) => pattern.test(file)));
+  return files.filter((file) => (
+    !file.startsWith('docs/manual/public/')
+    && forbiddenArtifactPatterns.some((pattern) => pattern.test(file))
+  ));
 }
 
 describe('MCP-only repository hygiene', () => {

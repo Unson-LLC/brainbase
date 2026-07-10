@@ -1,34 +1,48 @@
 # MCPを登録する
 
-Brainbase MCPは、CodexやClaude CodeなどのMCP clientからstdio serverとして登録します。
+Brainbase MCPを登録すると、CodexやClaude Codeがローカルの正本を必要な時に読めるようになります。最初の価値を確認した後、運用開始の一部として設定します。
 
-## dry-runで確認する
+## dry-runで内容を確認する
 
-まず実configへ書き込まず、設定内容だけを確認します。
+まず実際の設定ファイルへ書き込まず、設定内容だけを確認します。
 
 ```bash
 npm run onboard:install -- --target codex --dry-run
 npm run onboard:install -- --target claude --dry-run
 ```
 
-出力された設定を確認し、問題なければ実configへ反映します。
+実行ファイルとデータディレクトリには絶対パスを使います。相対パスは、エージェントを起動した場所によって参照先が変わるため避けます。
 
-## 登録後に確認すること
+## 設定断片を保存する
 
-エージェントを再起動してから、次を確認します。
+確認した設定をファイルへ保存する場合は、既存のエージェント設定とは別の出力先を指定します。
 
-1. MCP server `brainbase` が起動している
-2. tools listに `get_context`、`list_entities`、`search`、`search_personal_kg`、`onboarding_status` が出る
-3. `onboarding_status` でseed済み項目と未設定項目が見える
-4. `get_context` で自分、仕事、関係性の文脈を取得できる
+```bash
+npm run onboard:install -- --target codex --output /tmp/brainbase-mcp.toml
+```
+
+`onboard:install` は既存のMCP設定へ自動マージしません。ユーザーが内容を承認した後、CodexやClaude Codeに既存設定を読ませ、Brainbaseの項目だけを追加させます。既存のMCP設定は消さないでください。反映後はエージェントを再起動します。
+
+## 新しいセッションで確認する
+
+1. MCPサーバー `brainbase` が起動している
+2. `get_context`、`list_entities`、`search`、`search_personal_kg`、`onboarding_status` が見える
+3. `onboarding_status` が登録済みと未設定の項目を返す
+4. `get_context` が自分、仕事、関係性の文脈を返す
+5. `search` が登録した人物とプロジェクトを見つける
 
 ## うまく動かない時
 
-まず次を切り分けます。
+次の順で確認します。
 
-- `npm run build` が通るか
-- `npm run doctor` でローカルSSOTを読めるか
+```bash
+npm run build
+npm run doctor
+```
+
 - `~/.brainbase/personal-os/` が存在するか
-- エージェント側のMCP設定に絶対パスを使っているか
+- MCP設定の実行ファイルが絶対パスか
+- エージェントを設定反映後に再起動したか
+- 古いセッションではなく、新しいセッションで確認しているか
 
-相対パスは、エージェントの起動場所によって解決先が変わるため避けます。
+設定が読まれていても、正本が空なら仕事の文脈は返りません。その場合は[フェーズ2: 仕事の前提](/guide/project-context)へ戻ります。
