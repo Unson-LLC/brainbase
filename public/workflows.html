@@ -770,9 +770,15 @@
             });
             return `<div class="sub"><strong>Task candidate owners</strong></div>${items.map((item) => `<div class="sub">${escapeHtml(item)}</div>`).join('')}`;
         }
+        function renderOutputGenerationStatusBadge(output) {
+            const status = output.payload && typeof output.payload === 'object' ? output.payload.generation_status : null;
+            if (status === 'brainbase_source_ready') return ' <span class="badge warn">生成待ち</span>';
+            if (status === 'brainbase_generated') return ' <span class="badge good">生成済み</span>';
+            return '';
+        }
         function renderWorkflowOutput(output) {
             const summary = output.preview || output.body || output.content || output.content_ref || '-';
-            return `<div class="trace-item"><strong>${escapeHtml(output.title || output.type || output.id)}</strong><div class="sub">${escapeHtml(summary)}</div>${renderTaskCandidateOwnerSummary(output)}</div>`;
+            return `<div class="trace-item"><strong>${escapeHtml(output.title || output.type || output.id)}</strong>${renderOutputGenerationStatusBadge(output)}<div class="sub">${escapeHtml(summary)}</div>${renderTaskCandidateOwnerSummary(output)}</div>`;
         }
         function ownProp(object, key) {
             return Boolean(object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key));

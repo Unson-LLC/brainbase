@@ -40,6 +40,7 @@ Speaker 2: ...
 - `speaker` (fallback `original_speaker`) prefixes each line when present; segments without a speaker emit the content line alone.
 - Consecutive segments by the same speaker stay on separate lines (no merging).
 - The result feeds `source_text`, `source_text_length`, `text_preview`, and `transcript_hash`. JSON braces and `\uXXXX` escapes must not survive into any of these fields.
+- If every segment normalizes to an empty line, the raw payload is kept as-is — an intentional exception so upstream corruption stays visible downstream.
 
 ## Ingest Auto-Dispatch
 
@@ -90,6 +91,7 @@ Request:
 - `note.body` is required and must be a non-empty string.
 - `source_text_hash` is required and must equal the current `payload.source_text_hash` of the `meeting_note_draft` output → otherwise 400 `blocked_source_hash_mismatch`.
 - Unknown run → 404. Run without a `meeting_note_draft` output → 400 `blocked_note_output_missing`.
+- Missing `org_id` or `project_id` → 400 `blocked_invalid_note_generation`.
 
 Effect on the `meeting_note_draft` output payload:
 

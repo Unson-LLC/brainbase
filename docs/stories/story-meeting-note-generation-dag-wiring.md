@@ -73,6 +73,10 @@ flowchart TD
 - S-004: Re-syncing an already-reviewed recording under a changed hashing scheme converges to the existing run via the stable source artifact key instead of creating a duplicate package.
 - S-003: A runner writes the generated meeting note back through the note-generation contract, the meeting_note_draft output transitions to brainbase_generated, and hash-mismatched or misaddressed write-backs are rejected.
 
+## Architecture Decision
+
+ADR-unnecessary: このフォローアップ（PR #1018 のVibeProレビュー指摘消化）は `public/workflows.html` のRun Trace Outputsパネルに既存の `payload.generation_status` を読む表示専用バッジを1つ追加するのみで、新規のstate machine・API contract・データモデルは導入しない。書き戻しcontractやDAG配線は本Storyの元実装（PR #1018）で既にADR相当の設計（DAG節・State Transitions節）が記録済みであり、既存アーキテクチャ内の表示レイヤー変更として扱う。
+
 ## Verification
 
 - Unit: `tests/server/meeting-source-mcp-sync-worker.test.js`

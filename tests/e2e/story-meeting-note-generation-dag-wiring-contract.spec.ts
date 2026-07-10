@@ -418,6 +418,7 @@ test(`story-meeting-note-generation-dag-wiring ac:1 ac:11 S-001 S-003 review sur
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ workflow, context_sources: [], runs: [run] }) });
   });
   let outputPreview = readablePreview;
+  let outputGenerationStatus = 'brainbase_source_ready';
   await page.route(`**/api/workflow-runs/${run.id}`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -427,7 +428,13 @@ test(`story-meeting-note-generation-dag-wiring ac:1 ac:11 S-001 S-003 review sur
         run_steps: [],
         context_snapshots: [],
         human_steps: humanSteps,
-        outputs: [{ id: 'out-note-dag-ui', title: '議事録ドラフト', preview: outputPreview }],
+        outputs: [{
+          id: 'out-note-dag-ui',
+          title: '議事録ドラフト',
+          type: 'meeting_note_draft',
+          preview: outputPreview,
+          payload: { generation_status: outputGenerationStatus }
+        }],
         audit_logs: []
       })
     });
@@ -440,6 +447,9 @@ test(`story-meeting-note-generation-dag-wiring ac:1 ac:11 S-001 S-003 review sur
   await expect(page.getByRole('heading', { name: 'Run Trace' })).toBeVisible();
   // story-meeting-note-generation-dag-wiring ac:1 the review surface shows speaker-attributed readable text, no JSON escapes
   await expect(page.getByText('Speaker 1: お疲れ様です。', { exact: false })).toBeVisible();
+  // pre-generation output is labeled 生成待ち so approvers can tell source text from generated minutes
+  await expect(page.getByText('生成待ち', { exact: true })).toBeVisible();
+  await expect(page.getByText('生成済み', { exact: true })).toHaveCount(0);
   const bodyText = await page.locator('body').innerText();
   expect(bodyText).not.toContain('\\u30');
   expect(bodyText).not.toContain('"content"');
@@ -449,11 +459,15 @@ test(`story-meeting-note-generation-dag-wiring ac:1 ac:11 S-001 S-003 review sur
 
   // story-meeting-note-generation-dag-wiring ac:7 after DAG write-back the same surface renders the generated minutes
   outputPreview = '# 生成DAG配線E2E 議事録 ## 決定事項 - DAGを接続した (brainbase_generated)';
+  outputGenerationStatus = 'brainbase_generated';
   await page.goto('/workflows');
   await page.getByText('Meeting Review Package Ingest').click();
   await page.getByText(run.id).click();
   await expect(page.getByRole('heading', { name: 'Run Trace' })).toBeVisible();
   await expect(page.getByText('生成DAG配線E2E 議事録', { exact: false })).toBeVisible();
+  // post-write-back output is labeled 生成済み
+  await expect(page.getByText('生成済み', { exact: true })).toBeVisible();
+  await expect(page.getByText('生成待ち', { exact: true })).toHaveCount(0);
   const generatedBodyText = await page.locator('body').innerText();
   expect(generatedBodyText).not.toContain('Primary Transcript Excerpt');
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(5);
