@@ -7,28 +7,35 @@ export default {
   themeConfig: {
     siteTitle: 'Brainbase Manual',
     nav: [
-      { text: 'ガイド', link: '/guide/grand-design' },
+      { text: 'ガイド', link: '/guide/onboarding-process' },
       { text: 'リファレンス', link: '/reference/mcp-tools' },
       { text: 'GitHub', link: 'https://github.com/Unson-LLC/brainbase' }
     ],
     sidebar: {
       '/guide/': [
         {
-          text: 'はじめに',
+          text: 'まず理解する',
           items: [
             { text: '概要', link: '/' },
             { text: '全体像', link: '/guide/grand-design' },
-            { text: 'Brainbaseとは', link: '/guide/what-is-brainbase' },
-            { text: '最初の導入', link: '/guide/getting-started' },
-            { text: 'MCPを登録する', link: '/guide/mcp-install' }
+            { text: '導入の5フェーズ', link: '/guide/onboarding-process' }
           ]
         },
         {
-          text: '使い始める',
+          text: '導入する',
           items: [
-            { text: 'プロジェクト文脈を作る', link: '/guide/project-context' },
-            { text: 'メール・カレンダー・ドライブ・タスク', link: '/guide/source-onboarding' },
-            { text: '日次ルーティン', link: '/guide/daily-routines' }
+            { text: '1. 準備と目的', link: '/guide/getting-started' },
+            { text: '2. 仕事の前提', link: '/guide/project-context' },
+            { text: '3. 最初の価値', link: '/guide/first-value' },
+            { text: '4. 必要な情報源', link: '/guide/source-onboarding' },
+            { text: '5. 運用開始', link: '/guide/operations' }
+          ]
+        },
+        {
+          text: '運用の詳細',
+          items: [
+            { text: 'MCPを登録する', link: '/guide/mcp-install' },
+            { text: '毎日と毎週の見直し', link: '/guide/daily-routines' }
           ]
         }
       ],
