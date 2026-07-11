@@ -114,16 +114,16 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 
-jj describe -m "$COMMIT_MSG"
-jj new
+git add <path1> <path2>
+git commit -m "$COMMIT_MSG"
 ```
 
 ---
 
 ## 1.5 禁止事項
 
-- `git commit` / `git commit --amend` は使用しない
-- `jj squash` / `jj rebase` など履歴改変系は原則禁止（明示要求時のみ）
+- `git add -A` / `git add .` / `git commit -a` は使用しない
+- `git rebase -i` など履歴改変系は原則禁止（明示要求時のみ）
 - `--no-verify`, `--no-gpg-sign` はユーザー明示要求時のみ
 - mainへの直接push禁止（セッション内作業時）
 - 秘密情報（.env, credentials.json等）のコミット禁止
@@ -1304,19 +1304,19 @@ git commit -m "docs: ナレッジ追加"
 
 セッション終了時の `/merge` コマンドは以下を実行：
 
-1. **session workspace の検出**
-   - `jj workspace list` で現在workspaceを検出（`default` は対象外）
+1. **session worktree の検出**
+   - `git worktree list` で現在worktreeを検出（正本checkoutは対象外）
 
-2. **bookmark push**
-   - `jj git push --bookmark <session-id>` でリモート反映
+2. **branch push**
+   - `git push origin <session-id>` でリモート反映
 
 3. **PR作成とマージ**
    - `gh pr create --head <session-id> --base <default-branch>`
    - `gh pr merge --merge --delete-branch`
 
-4. **workspace cleanup**
-   - `jj workspace forget <session-id>`
-   - `jj bookmark delete <session-id>`
+4. **worktree cleanup**
+   - `git worktree remove <path>`
+   - `git branch -d <session-id>`
 
 ---
 
@@ -1325,8 +1325,8 @@ git commit -m "docs: ナレッジ追加"
 brainbase-uiがworktree作成時に自動実行：
 
 ```bash
-# workspace作成
-jj workspace add --name session-xxx shared/.worktrees/session-xxx
+# worktree作成
+git worktree add shared/.worktrees/session-xxx -b session-xxx
 
 # シンボリックリンク作成
 cd shared/.worktrees/session-xxx

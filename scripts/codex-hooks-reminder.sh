@@ -24,8 +24,7 @@ if event_name != "UserPromptSubmit":
 
 message = (
     "Brainbase reminders: use brainbase-capability-map before answering or changing Brainbase capabilities. "
-    "For development workflow, read docs/brainbase-capabilities/capabilities/development.workflow.yml and start with `jj status` + `jj diff --stat`; "
-    "`git status` is only a secondary compatibility view."
+    "For development workflow, read docs/brainbase-capabilities/capabilities/development.workflow.yml and start with `git status` + `git diff --stat`."
 )
 
 print(json.dumps({
