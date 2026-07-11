@@ -1,33 +1,32 @@
-# 標準コミット実行（jj）
+# 標準コミット実行
 
-現在の変更に説明をつけ、次の変更に進みます。
+現在の変更に説明をつけてコミットします。
 **SNS投稿のネタになるよう「悩み→判断→結果」の過程も記録する。**
 
 ## 前提
 
-- brainbaseは **Jujutsu (jj)** で管理されている
-- jjではworking copyが常にコミット。`git add` + `git commit` は不要
-- `jj describe` で説明をつけ、`jj new` で次の変更に進む
-- dirty な `(no description set)` のまま次へ進むのは禁止。詳細は `.claude/rules/commit-strategy.md`
+- brainbaseは素の **git** で管理されている
+- `git add -A` でステージし、`git commit` でコミットする
+- dirty なまま放置するのは禁止。詳細は `.claude/rules/commit-strategy.md`
 
 ## 実行手順
 
-1. **ワークスペース確認**
-   - `jj workspace list` で現在のワークスペースを確認
-   - `jj log -r @ --no-pager` で現在のworking copyを確認
+1. **ブランチ確認**
+   - `git branch --show-current` で現在のブランチを確認
+   - `git log --oneline -5` で直近のコミットを確認
 
 2. **変更内容の確認**
-   - `jj diff --stat` で変更ファイルを確認
-   - `jj diff` で変更内容を確認（必要に応じて）
+   - `git status` で変更ファイルを確認
+   - `git diff` で変更内容を確認（必要に応じて）
 
 3. **会話の文脈から以下を抽出:**
    - **悩み**: 何に悩んだか（トレードオフ、選択肢の比較、迷い）
    - **判断**: なぜその判断をしたか（理由、根拠、決め手）
    - **結果**: どうなったか、何が変わったか
 
-4. **コミットメッセージを設定:**
+4. **ステージしてコミット:**
    ```bash
-   jj describe -m "$(cat <<'EOF'
+   git add -A && git commit -m "$(cat <<'EOF'
    <type>: <summary>
 
    悩み→判断:
@@ -48,14 +47,9 @@
    )"
    ```
 
-5. **次の変更に進む:**
+5. **結果を確認:**
    ```bash
-   jj new
-   ```
-
-6. **結果を確認:**
-   ```bash
-   jj log -r @- --no-pager
+   git log -1 --stat
    ```
 
 7. **学習抽出をバックグラウンドで起動（明示的な作業完了イベント）:**
@@ -101,14 +95,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 | `chore` | ビルド・設定・運用系の変更 |
 | `style` | フォーマット変更（機能に影響なし） |
 
-## jj特有の注意事項
+## git特有の注意事項
 
-- `jj describe` は現在のworking copy（`@`）の説明を更新する。何度でも書き直せる
-- `jj new` を実行すると、現在の `@` が確定し、新しい空の `@` が作られる
-- 過去のコミットを修正したい場合は `jj edit <change-id>` で戻って `jj describe` で修正。子孫は自動rebase
-- bookmarkは自動で動かない。必要なら `jj bookmark set <name> -r @-` で手動設定
+- コミットメッセージを直前で修正したい場合は `git commit --amend`（push済みなら force-push が必要になるため注意）
+- 過去のコミットを修正したい場合は `git rebase -i` で戻って編集（協働ブランチでは避ける）
+- branchは自動で動かない。必要なら `git branch -f <name> <commit>` で手動設定
 
 ## 禁止事項
 
 - 秘密情報（.env, credentials.json等）を含む変更を放置しない
-- 変更が大きすぎる場合は `jj split` で分割を提案
+- 変更が大きすぎる場合は `git add -p` でファイルを分割してコミットすることを提案
