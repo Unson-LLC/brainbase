@@ -1261,9 +1261,9 @@ export function installRuntimeHandlers(controller) {
                 }
             };
 
-            const jjStatus = await runCommand('jj status');
-            const jjLog = await runCommand('jj log -r @ -r @- -r @-- --limit 5');
-            const jjBookmarks = await runCommand('jj bookmark list');
+            const gitStatus = await runCommand('git status --short --branch');
+            const gitLog = await runCommand('git log --oneline -5');
+            const gitSessionBranches = await runCommand("git branch -vv --list 'session/*'");
 
             const message = `[システム自動送信]
 
@@ -1276,14 +1276,14 @@ ${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmark
 ${status.autoHealReason && status.autoHealReason !== 'healed' ? `- 自動修復スキップ理由: ${status.autoHealReason}` : ''}
 
 現在の状態：
-=== jj status ===
-${jjStatus}
+=== git status ===
+${gitStatus}
 
-=== jj log ===
-${jjLog}
+=== git log ===
+${gitLog}
 
-=== jj bookmark list ===
-${jjBookmarks}
+=== git branch (session/*) ===
+${gitSessionBranches}
 
 セッション情報：
 - session-id: ${id}
@@ -1291,7 +1291,7 @@ ${jjBookmarks}
 - パス: ${workspacePath}
 
 この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。
-Brainbaseセッションのマージが必要な場合は、raw gh/jj を組み合わせず、まず次のAPIを使ってください：
+Brainbaseセッションのマージが必要な場合は、raw gh/git を組み合わせず、まず次のAPIを使ってください：
 POST http://localhost:31013/api/sessions/${id}/merge`;
 
             const clipboardResult = await controller._copyToSystemClipboard(message);
