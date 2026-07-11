@@ -135,9 +135,22 @@ function sampleMeetingReviewPackage({
             post_meeting_follow_up_message: meetingPackIds({ orgId, projectId, definitionId: 'post-meeting-follow-up-message' }).loopIntentId
         },
         meeting_note_summary: {
-            background: ['会議背景'],
-            agreements: ['合意事項'],
-            open_questions: ['未決事項']
+            title: 'Mana定例',
+            body: '# Mana定例\n\n## Brainbase Meeting Pack Source\n\n## Primary Transcript Excerpt\n\nSpeaker 1: 会議背景を確認します。',
+            generator: 'brainbase_meeting_pack',
+            generation_source: 'transcript_to_meeting_note',
+            generation_status: 'brainbase_source_ready',
+            provider_note_authoritative: false,
+            source_text_hash: 'hash-route-note-001',
+            source_text_length: 34,
+            source_transcripts: [{
+                role: 'primary',
+                provider: 'plaud',
+                source_text_kind: 'transcript',
+                transcript_hash: 'hash-route-note-001',
+                text: 'Speaker 1: 会議背景を確認します。\nSpeaker 2: 合意事項を記録します。',
+                text_length: 34
+            }]
         },
         task_candidates: ['Google Business Profileの権限申請を行う'],
         decision_candidates: ['施策軸はGoogle最適化と口コミ導線に置く'],
@@ -1050,6 +1063,303 @@ describe('workflow routes', () => {
             loop_intent_id: noteLoopIntentId
         });
         expect(eveSessionClient.calls).toHaveLength(1);
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context AC-001 AC-002 AC-003 S-001 hands off transcript body, run refs and write-back contract to Eve', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app, repository } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+
+        const ingestRunId = res.body.meeting_review_ingest.run.id;
+        expect(res.body.meeting_review_ingest.note_generation_dispatch.status).toBe('requested');
+        expect(eveSessionClient.calls).toHaveLength(1);
+        const handoffContext = eveSessionClient.calls[0].context;
+        expect(handoffContext.meeting_note_generation).toMatchObject({
+            task: 'transcript_to_meeting_note',
+            run_id: ingestRunId,
+            package_id: 'meeting-review-package-test',
+            source_text_hash: 'hash-route-note-001',
+            generation_status: 'brainbase_source_ready',
+            note_source: expect.objectContaining({
+                title: 'Mana定例',
+                body: expect.stringContaining('Primary Transcript Excerpt'),
+                source_transcripts: [
+                    expect.objectContaining({
+                        role: 'primary',
+                        transcript_hash: 'hash-route-note-001',
+                        text: expect.stringContaining('Speaker 2: 合意事項を記録します。')
+                    })
+                ]
+            }),
+            write_back: expect.objectContaining({
+                method: 'POST',
+                path: '/api/workflows/control/meeting-pack/note-generation',
+                payload_template: expect.objectContaining({
+                    org_id: 'sample-project',
+                    project_id: 'sample-project',
+                    run_id: ingestRunId,
+                    source_text_hash: 'hash-route-note-001'
+                })
+            })
+        });
+        expect(eveSessionClient.calls[0].message).toContain('context.meeting_note_generation');
+
+        const eveRunId = res.body.meeting_review_ingest.note_generation_dispatch.eve_session_run_id;
+        expect(repository.getRun(eveRunId).metadata.meeting_note_generation).toEqual({
+            run_id: ingestRunId,
+            package_id: 'meeting-review-package-test',
+            source_text_hash: 'hash-route-note-001'
+        });
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context AC-001 S-004 resolves the ingest run from package_id on manual backfill dispatch', async () => {
+        const eveSessionClient = makeEveSessionClient({
+            sessions: [
+                { session_id: 'eve-session-route-001', continuation_token: 'cont-route-001' },
+                { session_id: 'eve-session-route-002', continuation_token: 'cont-route-002' },
+                { session_id: 'eve-session-route-003', continuation_token: 'cont-route-003' }
+            ]
+        });
+        const { app } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const ingest = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        const noteLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'transcript-to-meeting-note'
+        }).loopIntentId;
+
+        const redispatch = await request(app)
+            .post(`/api/workflows/control/loop-intents/${noteLoopIntentId}/eve-session`)
+            .send({
+                force_new_session: true,
+                meeting_note_generation: { package_id: 'meeting-review-package-test' }
+            })
+            .expect(201);
+
+        expect(redispatch.body.eve_session_dispatch.idempotent).toBe(false);
+        expect(eveSessionClient.calls).toHaveLength(2);
+        expect(eveSessionClient.calls[1].context.meeting_note_generation).toMatchObject({
+            run_id: ingest.body.meeting_review_ingest.run.id,
+            source_text_hash: 'hash-route-note-001'
+        });
+
+        // camelCase alias input resolves the same handoff context
+        await request(app)
+            .post(`/api/workflows/control/loop-intents/${noteLoopIntentId}/eve-session`)
+            .send({
+                forceNewSession: true,
+                meetingNoteGeneration: { packageId: 'meeting-review-package-test' }
+            })
+            .expect(201);
+        expect(eveSessionClient.calls).toHaveLength(3);
+        expect(eveSessionClient.calls[2].context.meeting_note_generation).toMatchObject({
+            run_id: ingest.body.meeting_review_ingest.run.id,
+            source_text_hash: 'hash-route-note-001'
+        });
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context AC-003 S-001 dispatches a new Eve session for the second meeting of the same project instead of reusing the stale session', async () => {
+        const eveSessionClient = makeEveSessionClient({
+            sessions: [
+                { session_id: 'eve-session-route-001', continuation_token: 'cont-route-001' },
+                { session_id: 'eve-session-route-002', continuation_token: 'cont-route-002' }
+            ]
+        });
+        const { app } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const first = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        expect(first.body.meeting_review_ingest.note_generation_dispatch.status).toBe('requested');
+
+        const secondPackage = sampleMeetingReviewPackage({ packageId: 'meeting-review-package-test-2' });
+        secondPackage.meeting_identity = {
+            ...secondPackage.meeting_identity,
+            event_id: 'evt-2',
+            title: 'Mana定例 2回目'
+        };
+        secondPackage.source_event = {
+            ...secondPackage.source_event,
+            message_ts: '1782454365.844209',
+            file_id: 'F0BCYNXMP7Z',
+            local_artifact_sha256: 'def456'
+        };
+        secondPackage.meeting_note_summary = {
+            ...secondPackage.meeting_note_summary,
+            source_text_hash: 'hash-route-note-002',
+            source_transcripts: [{
+                ...secondPackage.meeting_note_summary.source_transcripts[0],
+                transcript_hash: 'hash-route-note-002',
+                text: 'Speaker 1: 2回目の会議です。'
+            }]
+        };
+        const second = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: secondPackage })
+            .expect(201);
+
+        expect(second.body.meeting_review_ingest.idempotent).toBe(false);
+        expect(second.body.meeting_review_ingest.note_generation_dispatch).toMatchObject({ status: 'requested' });
+        expect(second.body.meeting_review_ingest.note_generation_dispatch.eve_session_run_id)
+            .not.toBe(first.body.meeting_review_ingest.note_generation_dispatch.eve_session_run_id);
+        expect(eveSessionClient.calls).toHaveLength(2);
+        expect(eveSessionClient.calls[1].context.meeting_note_generation).toMatchObject({
+            run_id: second.body.meeting_review_ingest.run.id,
+            source_text_hash: 'hash-route-note-002'
+        });
+
+        // Same-run reference without force_new_session keeps the idempotent reuse
+        const noteLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'transcript-to-meeting-note'
+        }).loopIntentId;
+        const reuse = await request(app)
+            .post(`/api/workflows/control/loop-intents/${noteLoopIntentId}/eve-session`)
+            .send({ meeting_note_generation: { run_id: second.body.meeting_review_ingest.run.id } })
+            .expect(200);
+        expect(reuse.body.eve_session_dispatch.idempotent).toBe(true);
+        expect(eveSessionClient.calls).toHaveLength(2);
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context AC-004 S-002 rejects a dispatch whose run belongs to another loop intent', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const ingest = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: sampleMeetingReviewPackage() })
+            .expect(201);
+        const tasksLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'meeting-note-to-tasks'
+        }).loopIntentId;
+
+        const rejected = await request(app)
+            .post(`/api/workflows/control/loop-intents/${tasksLoopIntentId}/eve-session`)
+            .send({
+                meeting_note_generation: { run_id: ingest.body.meeting_review_ingest.run.id }
+            })
+            .expect(400);
+
+        expect(rejected.body.state_transition).toBe('blocked_meeting_note_generation_scope');
+        expect(eveSessionClient.calls).toHaveLength(1);
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context AC-005 AC-007 S-002 blocks transcript-less dispatch and keeps ingest best-effort', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const reviewPackage = sampleMeetingReviewPackage();
+        reviewPackage.meeting_note_summary = {
+            background: ['会議背景'],
+            agreements: ['合意事項'],
+            open_questions: ['未決事項']
+        };
+
+        const res = await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: reviewPackage })
+            .expect(201);
+
+        expect(res.body.meeting_review_ingest.run.status).toBe('waiting_human');
+        expect(res.body.meeting_review_ingest.note_generation_dispatch).toMatchObject({
+            status: 'skipped',
+            reason: 'dispatch_failed',
+            error: expect.stringContaining('meeting_note_draft source')
+        });
+        expect(eveSessionClient.calls).toHaveLength(0);
+
+        const noteLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'transcript-to-meeting-note'
+        }).loopIntentId;
+        const rejected = await request(app)
+            .post(`/api/workflows/control/loop-intents/${noteLoopIntentId}/eve-session`)
+            .send({
+                meeting_note_generation: { run_id: res.body.meeting_review_ingest.run.id }
+            })
+            .expect(400);
+        expect(rejected.body.state_transition).toBe('blocked_meeting_note_generation_source_missing');
+        expect(eveSessionClient.calls).toHaveLength(0);
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context FM auth_denied rejects a referenced eve-session dispatch for inaccessible projects before any Eve call', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const bootstrapped = makeApp({ eveSessionClient });
+        await request(bootstrapped.app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const noteLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'transcript-to-meeting-note'
+        }).loopIntentId;
+
+        const denied = makeApp({ accessProjectCodes: ['general'], eveSessionClient });
+        denied.repository.ledger = bootstrapped.repository.ledger;
+        await request(denied.app)
+            .post(`/api/workflows/control/loop-intents/${noteLoopIntentId}/eve-session`)
+            .send({ meeting_note_generation: { package_id: 'meeting-review-package-test' } })
+            .expect(403);
+        expect(eveSessionClient.calls).toHaveLength(0);
+    });
+
+    it('story-eve-dispatch-handoff-transcript-context AC-006 S-003 keeps dispatches without a meeting_note_generation reference unchanged', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { app } = makeApp({ eveSessionClient });
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        const briefingLoopIntentId = meetingPackIds({
+            orgId: 'sample-project',
+            projectId: 'sample-project',
+            definitionId: 'pre-meeting-briefing'
+        }).loopIntentId;
+
+        await request(app)
+            .post(`/api/workflows/control/loop-intents/${briefingLoopIntentId}/eve-session`)
+            .send({})
+            .expect(201);
+
+        expect(eveSessionClient.calls).toHaveLength(1);
+        expect(eveSessionClient.calls[0].context.meeting_note_generation).toBeUndefined();
+        expect(eveSessionClient.calls[0].message).not.toContain('context.meeting_note_generation');
+
+        const invalidRef = await request(app)
+            .post(`/api/workflows/control/loop-intents/${briefingLoopIntentId}/eve-session`)
+            .send({ force_new_session: true, meeting_note_generation: {} })
+            .expect(400);
+        expect(invalidRef.body.state_transition).toBe('blocked_invalid_meeting_note_generation_ref');
     });
 
     it('story-meeting-note-generation-dag-wiring AC-012 S-004 dedupes re-ingest of the same recording when the hash-derived package_id changes', async () => {

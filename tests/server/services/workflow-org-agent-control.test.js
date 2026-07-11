@@ -448,6 +448,34 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(5);
     });
 
+    it('story-eve-dispatch-handoff-transcript-context AC-004 S-002 rejects a referenced dispatch whose run belongs to another org/project', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { service, actor } = makeService({ eveSessionClient });
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'unson', project_id: 'unson' }, actor);
+        const ingest = await service.ingestMeetingReviewPackage({
+            review_package: sampleMeetingReviewPackage()
+        }, actor);
+        const salestailorRunId = ingest.meeting_review_ingest.run.id;
+        const unsonNoteLoopIntentId = meetingPackIds({
+            orgId: 'unson',
+            projectId: 'unson',
+            definitionId: 'transcript-to-meeting-note'
+        }).loopIntentId;
+        const callsBefore = eveSessionClient.calls.length;
+
+        await expect(service.dispatchLoopIntentToEve(unsonNoteLoopIntentId, {
+            meeting_note_generation: { run_id: salestailorRunId }
+        }, { ...actor, projectCodes: ['unson', 'salestailor'] })).rejects.toMatchObject({
+            details: expect.objectContaining({
+                state_transition: 'blocked_meeting_note_generation_scope',
+                expected: { org_id: 'unson', project_id: 'unson' },
+                actual: { org_id: 'salestailor', project_id: 'salestailor' }
+            })
+        });
+        expect(eveSessionClient.calls).toHaveLength(callsBefore);
+    });
+
     it('story-eve-runtime-session-connection-v0 S-001 dispatches a Loop Intent to an Eve session and records Brainbase control-plane evidence', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });

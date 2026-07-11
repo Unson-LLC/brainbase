@@ -1268,7 +1268,7 @@ function eveDispatchContextSnapshotRedactionStatus(sourceType, data) {
     return hasOwn(data?.metadata?.eve_session_ref, 'continuation_token') ? 'redacted' : 'not_required';
 }
 
-function buildEveSessionMessage({ loopIntent, roleAgent, template, binding, trigger, overrideMessage = null }) {
+function buildEveSessionMessage({ loopIntent, roleAgent, template, binding, trigger, meetingNoteGeneration = null, overrideMessage = null }) {
     if (overrideMessage) return overrideMessage;
     const workflowName = template?.name || binding?.name || loopIntent.workflow_template_id || 'Brainbase workflow';
     const roleName = roleAgent?.name || loopIntent.role_agent_instance_id || 'Role Agent';
@@ -1278,12 +1278,84 @@ function buildEveSessionMessage({ loopIntent, roleAgent, template, binding, trig
         `Workflow: ${workflowName}`,
         `Trigger: ${trigger?.trigger_type || loopIntent.trigger_type || 'human'}`,
         'Use only the provided Brainbase context.',
+        ...(meetingNoteGeneration ? [
+            'Task: generate the Brainbase meeting note from context.meeting_note_generation.note_source (normalized transcript).',
+            'Write the generated note back to Brainbase via the context.meeting_note_generation.write_back contract.'
+        ] : []),
         'Do not send external messages, publish, create contracts, or promote Graph SSOT directly.',
         'Return execution results to Brainbase using the external_runner.v0 contract.'
     ].join('\n');
 }
 
-function buildEveSessionContext({ loopIntent, roleAgent, template, binding, trigger }) {
+function readMeetingNoteGenerationDispatchRef(input) {
+    const ref = input?.meeting_note_generation ?? input?.meetingNoteGeneration ?? null;
+    if (ref === null || ref === undefined) return null;
+    if (typeof ref !== 'object' || Array.isArray(ref)) {
+        throw AppError.validation('meeting_note_generation must be a JSON object', {
+            state_transition: 'blocked_invalid_meeting_note_generation_ref'
+        });
+    }
+    const runId = readOptionalString(ref, 'run_id', 'runId');
+    const packageId = readOptionalString(ref, 'package_id', 'packageId');
+    if (!runId && !packageId) {
+        throw AppError.validation('meeting_note_generation requires run_id or package_id', {
+            state_transition: 'blocked_invalid_meeting_note_generation_ref'
+        });
+    }
+    return { run_id: runId, package_id: packageId };
+}
+
+function buildMeetingNoteGenerationHandoffContext({ loopIntent, run, output }) {
+    const payload = output.payload && typeof output.payload === 'object' ? output.payload : {};
+    const sourceTranscripts = Array.isArray(payload.source_transcripts) ? payload.source_transcripts : [];
+    const packageId = output.metadata?.package_id || run.metadata?.package_id || null;
+    return {
+        task: 'transcript_to_meeting_note',
+        run_id: run.id,
+        package_id: packageId,
+        output_id: output.id,
+        source_text_hash: payload.source_text_hash,
+        source_text_length: payload.source_text_length ?? null,
+        generation_status: payload.generation_status || null,
+        note_source: {
+            title: payload.title || null,
+            body: typeof payload.body === 'string' ? payload.body : '',
+            source_transcripts: sourceTranscripts.map((transcript) => ({
+                role: transcript.role || null,
+                provider: transcript.provider || null,
+                source_text_kind: transcript.source_text_kind || 'unknown',
+                transcript_hash: transcript.transcript_hash || transcript.content_sha256 || null,
+                text_length: transcript.text_length ?? (typeof transcript.text === 'string' ? transcript.text.length : 0),
+                text: typeof transcript.text === 'string' ? transcript.text : ''
+            }))
+        },
+        write_back: {
+            method: 'POST',
+            path: '/api/workflows/control/meeting-pack/note-generation',
+            content_type: 'application/json',
+            required_fields: ['org_id', 'project_id', 'run_id (or package_id)', 'source_text_hash', 'note.body'],
+            payload_template: {
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                run_id: run.id,
+                package_id: packageId,
+                source_text_hash: payload.source_text_hash,
+                note: {
+                    title: '<generated meeting note title>',
+                    body: '<generated meeting note markdown body>'
+                },
+                runner: { type: 'eve', session_id: '<eve session id>' }
+            },
+            rules: [
+                'source_text_hash must exactly match the value provided in this context; mismatched write-backs are rejected.',
+                'The write-back updates the meeting_note_draft output (generation_status: brainbase_source_ready -> brainbase_generated). It does not publish the note.',
+                'Human approval (approve_meeting_note_publish) stays in Brainbase and must not be bypassed.'
+            ]
+        }
+    };
+}
+
+function buildEveSessionContext({ loopIntent, roleAgent, template, binding, trigger, meetingNoteGeneration = null }) {
     return {
         brainbase_handoff_version: 'eve_session_handoff.v0',
         expected_result_contract: 'external_runner.v0',
@@ -1305,7 +1377,8 @@ function buildEveSessionContext({ loopIntent, roleAgent, template, binding, trig
             external_send_requires_brainbase_human_gate: true,
             graph_promotion_requires_candidate_store: true,
             learning_candidates_require_redaction_check: true
-        }
+        },
+        ...(meetingNoteGeneration ? { meeting_note_generation: jsonClone(meetingNoteGeneration) } : {})
     };
 }
 
@@ -2988,7 +3061,9 @@ export class WorkflowService {
             result = { status: 'skipped', reason: 'eve_not_configured', loop_intent_id: loopIntent.id };
         } else {
             try {
-                const dispatched = await this.dispatchLoopIntentToEve(loopIntent.id, {}, actor);
+                const dispatched = await this.dispatchLoopIntentToEve(loopIntent.id, {
+                    meeting_note_generation: { run_id: runId, package_id: packageId }
+                }, actor);
                 result = {
                     status: 'requested',
                     loop_intent_id: loopIntent.id,
@@ -3150,6 +3225,43 @@ export class WorkflowService {
         };
     }
 
+    _resolveMeetingNoteGenerationHandoff(loopIntent, input) {
+        const ref = readMeetingNoteGenerationDispatchRef(input);
+        if (!ref) return null;
+        const runId = ref.run_id
+            || createMeetingReviewStableId('run', loopIntent.org_id, loopIntent.project_id, ref.package_id, 'meeting_review_package_ingest');
+        const run = this.repository.getRun(runId);
+        if (!run) throw AppError.notFound('workflow_run', runId);
+        if (run.org_id !== loopIntent.org_id || run.project_id !== loopIntent.project_id) {
+            throw AppError.validation(`workflow_run '${runId}' belongs to '${run.org_id}/${run.project_id}'`, {
+                state_transition: 'blocked_meeting_note_generation_scope',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                expected: { org_id: loopIntent.org_id, project_id: loopIntent.project_id },
+                actual: { org_id: run.org_id, project_id: run.project_id }
+            });
+        }
+        const output = this.repository.listOutputs(runId)
+            .find((candidate) => candidate.metadata?.output_key === 'meeting_note_draft');
+        if (output?.metadata?.loop_intent_id && output.metadata.loop_intent_id !== loopIntent.id) {
+            throw AppError.validation(`meeting_note_draft output of workflow_run '${runId}' belongs to loop_intent '${output.metadata.loop_intent_id}'`, {
+                state_transition: 'blocked_meeting_note_generation_scope',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                output_loop_intent_id: output.metadata.loop_intent_id
+            });
+        }
+        if (!output || !output.payload?.source_text_hash) {
+            throw AppError.validation(`workflow_run '${runId}' has no dispatchable meeting_note_draft source`, {
+                state_transition: 'blocked_meeting_note_generation_source_missing',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                output_present: Boolean(output)
+            });
+        }
+        return buildMeetingNoteGenerationHandoffContext({ loopIntent, run, output });
+    }
+
     async dispatchLoopIntentToEve(loopIntentId, input = {}, actor = {}) {
         await this._loadProjectConfigCache();
         this.repository.reload?.();
@@ -3227,25 +3339,35 @@ export class WorkflowService {
             });
         }
 
+        const meetingNoteGeneration = this._resolveMeetingNoteGenerationHandoff(loopIntent, input);
         const existingSessionRef = loopIntent.metadata?.eve_session_ref || null;
         if (existingSessionRef?.session_id && input.force_new_session !== true && input.forceNewSession !== true) {
             const existingRun = existingSessionRef.workflow_run_id ? this.repository.getRun(existingSessionRef.workflow_run_id) : null;
-            const existingWorkflow = existingRun?.workflow_id ? this.repository.getWorkflow(existingRun.workflow_id) : null;
-            this._assertExistingEveSessionReplayRef(existingSessionRef, existingRun, existingWorkflow, loopIntent, workflowId);
-            return {
-                eve_session_dispatch: {
-                    org_id: loopIntent.org_id,
-                    project_id: loopIntent.project_id,
-                    loop_intent_id: loopIntent.id,
-                    idempotent: true,
-                    state_transitions: ['loop_intent_loaded', 'control_refs_resolved', 'existing_eve_session_reused'],
-                    workflow: existingWorkflow,
-                    run: existingRun,
-                    loop_intent: redactLoopIntentForResponse(loopIntent),
-                    eve_session: redactedEveSessionRef(existingSessionRef),
-                    handoff: null
-                }
-            };
+            // The transcript_to_meeting_note loop intent is shared across all
+            // meetings of an org/project, so a lingering eve_session_ref from a
+            // previous meeting must not swallow a dispatch that references a
+            // different ingest run: only reuse when the existing Eve run was
+            // dispatched for the same meeting_note_generation run.
+            const reusableForMeetingNoteGeneration = !meetingNoteGeneration
+                || existingRun?.metadata?.meeting_note_generation?.run_id === meetingNoteGeneration.run_id;
+            if (reusableForMeetingNoteGeneration) {
+                const existingWorkflow = existingRun?.workflow_id ? this.repository.getWorkflow(existingRun.workflow_id) : null;
+                this._assertExistingEveSessionReplayRef(existingSessionRef, existingRun, existingWorkflow, loopIntent, workflowId);
+                return {
+                    eve_session_dispatch: {
+                        org_id: loopIntent.org_id,
+                        project_id: loopIntent.project_id,
+                        loop_intent_id: loopIntent.id,
+                        idempotent: true,
+                        state_transitions: ['loop_intent_loaded', 'control_refs_resolved', 'existing_eve_session_reused'],
+                        workflow: existingWorkflow,
+                        run: existingRun,
+                        loop_intent: redactLoopIntentForResponse(loopIntent),
+                        eve_session: redactedEveSessionRef(existingSessionRef),
+                        handoff: null
+                    }
+                };
+            }
         }
 
         const activeDispatch = this.eveSessionDispatchInFlight.get(loopIntent.id);
@@ -3269,9 +3391,10 @@ export class WorkflowService {
                 template,
                 binding,
                 trigger,
+                meetingNoteGeneration,
                 overrideMessage: readEveDispatchMessageOverride(input)
             }),
-            context: buildEveSessionContext({ loopIntent, roleAgent, template, binding, trigger })
+            context: buildEveSessionContext({ loopIntent, roleAgent, template, binding, trigger, meetingNoteGeneration })
         };
         let eveSession;
         try {
@@ -3381,7 +3504,14 @@ export class WorkflowService {
                 loop_intent_id: loopIntent.id,
                 expected_result_contract: 'external_runner.v0',
                 state_transitions: EVE_SESSION_DISPATCH_STATE_TRANSITIONS,
-                handoff_version: handoff.context.brainbase_handoff_version
+                handoff_version: handoff.context.brainbase_handoff_version,
+                ...(meetingNoteGeneration ? {
+                    meeting_note_generation: {
+                        run_id: meetingNoteGeneration.run_id,
+                        package_id: meetingNoteGeneration.package_id,
+                        source_text_hash: meetingNoteGeneration.source_text_hash
+                    }
+                } : {})
             }
             });
             this.repository.createRunStep({
