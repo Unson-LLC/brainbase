@@ -15,7 +15,7 @@ describe('story-worktree-service-git-migration ac:1 session worktree lifecycle c
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', execPromise);
     });
 
-    it('create() creates the worktree with git worktree add -b and never shells out to jj', async () => {
+    it('story-worktree-service-git-migration S-001 create() creates the worktree with git worktree add -b and never shells out to jj', async () => {
         vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
         vi.spyOn(fs, 'access').mockImplementation(async (targetPath) => {
             if (targetPath === '/tmp/repo') return undefined;
@@ -42,7 +42,7 @@ describe('story-worktree-service-git-migration ac:1 session worktree lifecycle c
         }
     });
 
-    it('remove() removes the worktree with git worktree remove --force and deletes the session branch', async () => {
+    it('story-worktree-service-git-migration S-006 remove() removes the worktree with git worktree remove --force and deletes the session branch', async () => {
         execPromise.mockResolvedValue({ stdout: '' });
         vi.spyOn(fs, 'access').mockRejectedValue(new Error('ENOENT'));
 
@@ -58,7 +58,7 @@ describe('story-worktree-service-git-migration ac:1 session worktree lifecycle c
         }
     });
 
-    it('create() reuses an already-registered worktree (from git worktree list --porcelain) instead of re-adding it', async () => {
+    it('story-worktree-service-git-migration S-001 create() reuses an already-registered worktree (from git worktree list --porcelain) instead of re-adding it', async () => {
         vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
         vi.spyOn(fs, 'access').mockImplementation(async (targetPath) => {
             if (targetPath === '/tmp/repo') return undefined;
@@ -129,7 +129,7 @@ describe('story-worktree-service-git-migration ac:2 merge deployment guard repor
         expect(status.reason).toBe('canonical_workspace_dirty');
     });
 
-    it('HEAD ahead of main with non-artifact diff -> ready:false reason:canonical_workspace_not_deployed', async () => {
+    it('story-worktree-service-git-migration S-002 HEAD ahead of main with non-artifact diff -> ready:false reason:canonical_workspace_not_deployed', async () => {
         execPromise
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
@@ -147,7 +147,7 @@ describe('story-worktree-service-git-migration ac:2 merge deployment guard repor
         expect(status.reason).toBe('canonical_workspace_not_deployed');
     });
 
-    it('HEAD ahead of main with artifact-only diff -> ready:true reason:ok_ignored_artifact_delta', async () => {
+    it('story-worktree-service-git-migration S-003 HEAD ahead of main with artifact-only diff -> ready:true reason:ok_ignored_artifact_delta', async () => {
         execPromise
             .mockResolvedValueOnce({ stdout: '' })
             .mockResolvedValueOnce({ stdout: '' })
@@ -193,7 +193,7 @@ describe('story-worktree-service-git-migration ac:3 syncCanonicalWorkspaceAfterM
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', execPromise);
     });
 
-    it('successful sync runs git fetch origin then git checkout -B <main> origin/<main>', async () => {
+    it('story-worktree-service-git-migration S-004 successful sync runs git fetch origin then git checkout -B <main> origin/<main>', async () => {
         vi.spyOn(service, 'getMergeDeploymentGuardStatus').mockResolvedValue({ ready: true });
         execPromise.mockResolvedValue({ stdout: '' });
 
@@ -204,7 +204,7 @@ describe('story-worktree-service-git-migration ac:3 syncCanonicalWorkspaceAfterM
         expect(execPromise).toHaveBeenCalledWith('git -C "/tmp/repo" checkout -B "develop" "origin/develop"');
     });
 
-    it('checkout -B failure (e.g. would clobber local changes) is reported as deploy_sync_failed, not silently swallowed', async () => {
+    it('story-worktree-service-git-migration S-004 checkout -B failure (e.g. would clobber local changes) is reported as deploy_sync_failed, not silently swallowed', async () => {
         execPromise
             .mockResolvedValueOnce({ stdout: '' }) // fetch origin
             .mockRejectedValueOnce(new Error('error: Your local changes to the following files would be overwritten by checkout'));
@@ -240,7 +240,7 @@ describe('story-worktree-service-git-migration ac:4 getStatus reports unpushed c
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', execPromise);
     });
 
-    it('unpushed commit count comes from git rev-list --count', async () => {
+    it('story-worktree-service-git-migration S-005 unpushed commit count comes from git rev-list --count', async () => {
         vi.spyOn(fs, 'access').mockResolvedValue(undefined);
         vi.spyOn(service, '_getBranchInfos').mockResolvedValue([]);
         vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
@@ -259,7 +259,7 @@ describe('story-worktree-service-git-migration ac:4 getStatus reports unpushed c
         );
     });
 
-    it('dirty working copy detected via git status --porcelain (non-artifact path)', async () => {
+    it('story-worktree-service-git-migration S-005 dirty working copy detected via git status --porcelain (non-artifact path)', async () => {
         vi.spyOn(fs, 'access').mockResolvedValue(undefined);
         vi.spyOn(service, '_getBranchInfos').mockResolvedValue([]);
         vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
@@ -275,7 +275,7 @@ describe('story-worktree-service-git-migration ac:4 getStatus reports unpushed c
         expect(status.hasWorkingCopyChanges).toBe(true);
     });
 
-    it('conflicts detected via git ls-files -u', async () => {
+    it('story-worktree-service-git-migration S-005 conflicts detected via git ls-files -u', async () => {
         vi.spyOn(fs, 'access').mockResolvedValue(undefined);
         vi.spyOn(service, '_getBranchInfos').mockResolvedValue([]);
         vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(1);

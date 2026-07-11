@@ -36,7 +36,7 @@ describe('WorktreeService.cleanupZombieWorktrees', () => {
         expect(removed).toEqual([]);
     });
 
-    it('git worktree listに無いworktreeをゾンビとして削除する', async () => {
+    it('story-worktree-service-git-migration S-007 git worktree listに無いworktreeをゾンビとして削除する', async () => {
         const { promises: fs } = await import('fs');
 
         vi.spyOn(fs, 'readdir').mockResolvedValueOnce([
