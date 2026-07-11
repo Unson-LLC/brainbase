@@ -44,9 +44,13 @@ describe('EveSessionClient', () => {
                 authorization: 'Bearer token-123'
             }
         });
+        // The eve channel API only surfaces `clientContext` to the agent
+        // (`context` is silently dropped by its parseCreateBody), so the
+        // handoff context must be sent in both fields.
         expect(JSON.parse(calls[0].init.body)).toEqual({
             message: 'Run Brainbase workflow',
-            context: { loop_intent_id: 'loop-001' }
+            context: { loop_intent_id: 'loop-001' },
+            clientContext: { loop_intent_id: 'loop-001' }
         });
         expect(result).toMatchObject({
             session_id: 'eve-session-001',

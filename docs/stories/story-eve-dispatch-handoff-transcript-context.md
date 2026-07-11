@@ -31,6 +31,7 @@ story-meeting-note-generation-dag-wiring（PR #1018/#1019）でReview Package in
 - INV-handoff-005: ingest経由の自動dispatch（`_dispatchMeetingNoteGeneration`）はbest-effortのまま。context構築失敗はingest失敗にせず `note_generation_dispatch.status: skipped` + reason としてauditに記録する。
 - INV-handoff-006: 書き戻し契約の記述はサーバー実装（`recordMeetingNoteGeneration`）の検証仕様（必須フィールド・`source_text_hash` 一致・`run_id`/`package_id` いずれか必須）と一致させる。契約に無い書き込み経路を新設しない。
 - INV-handoff-007: `meeting_note_generation` 参照なしの従来dispatch（他のloop intent、手動dispatch）は後方互換で通る。
+- INV-handoff-008: handoff contextはeve channel APIの `clientContext` フィールドで送信する。eveの `parseCreateBody` は `context` フィールドをagentへ渡さないため、`clientContext` に載せない限りtranscript・run識別子・書き戻し契約はEve agentに到達しない（`context` はforward compatibilityのため併送する）。
 
 ## DAG
 

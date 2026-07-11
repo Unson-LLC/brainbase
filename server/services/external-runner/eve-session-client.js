@@ -139,9 +139,14 @@ export class EveSessionClient {
             });
         }
 
+        // The eve channel API reads `clientContext` (string | string[] | JSON
+        // object) and turns it into agent-visible "Client context:" messages;
+        // a bare `context` field is silently ignored by its parseCreateBody.
+        // The handoff context must therefore ride in `clientContext` to reach
+        // the agent. `context` is kept for forward compatibility.
         const body = {
             message,
-            ...(context == null ? {} : { context })
+            ...(context == null ? {} : { context, clientContext: context })
         };
         const timeout = withTimeoutSignal(this.timeoutMs, signal);
         try {
