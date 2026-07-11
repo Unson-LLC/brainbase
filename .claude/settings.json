@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/jj-commit-guard.ts",
+            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/stop/git-commit-guard.ts",
             "timeout": 10000
           },
           {
