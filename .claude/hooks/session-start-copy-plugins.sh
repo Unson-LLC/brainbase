@@ -23,11 +23,12 @@ cd . 2>/dev/null || cd /tmp
 set -e
 
 # brainbaseプロジェクトかどうかをチェック
+# NOTE: 旧L3（~/workspace/brainbase-config/.claude）は2026-07-11に廃止。
+# ディレクトリ不在で長期間no-opだったため、L3上書き処理ごと撤去した。
 L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
-L3_CLAUDE="/Users/ksato/workspace/brainbase-config/.claude"
 
-# L2もL3も存在しない場合は何もしない（brainbase以外のプロジェクト）
-if [ ! -d "$L2_CLAUDE" ] && [ ! -d "$L3_CLAUDE" ]; then
+# L2が存在しない場合は何もしない（brainbase以外のプロジェクト）
+if [ ! -d "$L2_CLAUDE" ]; then
   exit 0
 fi
 
@@ -40,12 +41,6 @@ mkdir -p .claude/plugins
 if [ -d "$L2_CLAUDE/plugins" ]; then
   cp -r "$L2_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
   echo "  ✅ L2 plugins コピー完了"
-fi
-
-# L3（brainbase-config）の plugins/ で上書き（優先度が高い）
-if [ -d "$L3_CLAUDE/plugins" ]; then
-  cp -r "$L3_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
-  echo "  ✅ L3 plugins 上書き完了"
 fi
 
 # node_modules を L2 から symlink（hook 実行基盤: npx tsx が解決できるように）
