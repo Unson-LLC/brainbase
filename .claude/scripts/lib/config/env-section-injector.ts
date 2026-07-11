@@ -32,15 +32,15 @@ function generateEnvironmentSection(worktreePath: string, serverPath: string): s
 - 親リポジトリ: /Users/ksato/workspace/code/brainbase
 - サーバーパス: ${serverPath}
 
-### jj workspace構造
-- \`default@\` (サーバー)
-- \`${sessionId}@\` (このworktree)
+### git worktree構造
+- 正本checkout（サーバー、develop）
+- \`${sessionId}\` (このworktree、セッションブランチ)
 
 ### 編集場所と反映先
 | 対象 | 編集場所 | 反映先 |
 |------|---------|--------|
 | サーバー動作 | ${serverPath} | launchd / 手動起動中 |
-| worktree開発 | ${worktreePath} | jj → PR → マージ後 |
+| worktree開発 | ${worktreePath} | git → PR → マージ後 |
 
 **重要**: サーバー挙動に関わる変更は、どの checkout が実行中か確認してから触ること。`;
 }
