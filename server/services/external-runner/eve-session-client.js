@@ -92,17 +92,37 @@ export class EveSessionClient {
     constructor({
         baseUrl = process.env.EVE_API_BASE_URL || process.env.EVE_BASE_URL || '',
         token = process.env.EVE_API_TOKEN || process.env.EVE_TOKEN || '',
+        basicUsername = process.env.EVE_API_BASIC_USERNAME || '',
+        basicPassword = process.env.EVE_API_BASIC_PASSWORD || '',
+        protectionBypassToken = process.env.EVE_API_PROTECTION_BYPASS || '',
         fetchImpl = globalThis.fetch,
         timeoutMs = Number(process.env.EVE_API_TIMEOUT_MS || DEFAULT_TIMEOUT_MS)
     } = {}) {
         this.baseUrl = trimTrailingSlash(baseUrl);
         this.token = token || '';
+        this.basicUsername = basicUsername || '';
+        this.basicPassword = basicPassword || '';
+        this.protectionBypassToken = protectionBypassToken || '';
         this.fetchImpl = fetchImpl;
         this.timeoutMs = normalizeTimeoutMs(timeoutMs);
     }
 
     isConfigured() {
         return Boolean(this.baseUrl && this.fetchImpl);
+    }
+
+    _authHeaders() {
+        const headers = {};
+        if (this.basicUsername && this.basicPassword) {
+            const credentials = Buffer.from(`${this.basicUsername}:${this.basicPassword}`, 'utf8').toString('base64');
+            headers.authorization = `Basic ${credentials}`;
+        } else if (this.token) {
+            headers.authorization = `Bearer ${this.token}`;
+        }
+        if (this.protectionBypassToken) {
+            headers['x-vercel-protection-bypass'] = this.protectionBypassToken;
+        }
+        return headers;
     }
 
     async createSession(input = {}) {
@@ -129,7 +149,7 @@ export class EveSessionClient {
                 method: 'POST',
                 headers: {
                     'content-type': 'application/json',
-                    ...(this.token ? { authorization: `Bearer ${this.token}` } : {})
+                    ...this._authHeaders()
                 },
                 body: JSON.stringify(body),
                 signal: timeout.signal
@@ -181,7 +201,7 @@ export class EveSessionClient {
             const response = await this.fetchImpl(joinEveApiPath(this.baseUrl, `/eve/v1/session/${encodeURIComponent(sessionId)}/stream`), {
                 method: 'GET',
                 headers: {
-                    ...(this.token ? { authorization: `Bearer ${this.token}` } : {})
+                    ...this._authHeaders()
                 },
                 signal: timeout.signal
             });
@@ -213,6 +233,9 @@ export function createEveSessionClientFromEnv(env = process.env) {
     return new EveSessionClient({
         baseUrl: env.EVE_API_BASE_URL || env.EVE_BASE_URL || '',
         token: env.EVE_API_TOKEN || env.EVE_TOKEN || '',
+        basicUsername: env.EVE_API_BASIC_USERNAME || '',
+        basicPassword: env.EVE_API_BASIC_PASSWORD || '',
+        protectionBypassToken: env.EVE_API_PROTECTION_BYPASS || '',
         timeoutMs: normalizeTimeoutMs(env.EVE_API_TIMEOUT_MS)
     });
 }

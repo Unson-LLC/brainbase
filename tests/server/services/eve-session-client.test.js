@@ -209,6 +209,65 @@ describe('EveSessionClient', () => {
         expect(client.timeoutMs).toBe(30000);
     });
 
+    it('prefers HTTP Basic auth over Bearer and sends the Vercel protection bypass header', async () => {
+        const calls = [];
+        const client = new EveSessionClient({
+            baseUrl: 'https://eve.example',
+            token: 'token-123',
+            basicUsername: 'brainbase-operator',
+            basicPassword: 'operator-secret',
+            protectionBypassToken: 'bypass-secret',
+            fetchImpl: async (url, init) => {
+                calls.push({ url, init });
+                return new Response('{}', {
+                    status: 200,
+                    headers: { 'x-eve-session-id': 'eve-session-002' }
+                });
+            },
+            timeoutMs: 1000
+        });
+
+        await client.createSession({ message: 'Run Brainbase workflow' });
+        await client.readSessionStream({ sessionId: 'eve-session-002' });
+
+        const expectedBasic = `Basic ${Buffer.from('brainbase-operator:operator-secret', 'utf8').toString('base64')}`;
+        expect(calls).toHaveLength(2);
+        for (const call of calls) {
+            expect(call.init.headers.authorization).toBe(expectedBasic);
+            expect(call.init.headers['x-vercel-protection-bypass']).toBe('bypass-secret');
+        }
+    });
+
+    it('keeps Bearer auth and omits the bypass header when basic/bypass env is absent', async () => {
+        const calls = [];
+        const client = createEveSessionClientFromEnv({
+            EVE_API_BASE_URL: 'https://eve.example',
+            EVE_API_TOKEN: 'token-123'
+        });
+        client.fetchImpl = async (url, init) => {
+            calls.push({ url, init });
+            return new Response('{}', { status: 200 });
+        };
+
+        await client.createSession({ message: 'Run Brainbase workflow' });
+
+        expect(calls[0].init.headers.authorization).toBe('Bearer token-123');
+        expect('x-vercel-protection-bypass' in calls[0].init.headers).toBe(false);
+    });
+
+    it('wires basic auth and protection bypass from env', () => {
+        const client = createEveSessionClientFromEnv({
+            EVE_API_BASE_URL: 'https://eve.example',
+            EVE_API_BASIC_USERNAME: 'brainbase-operator',
+            EVE_API_BASIC_PASSWORD: 'operator-secret',
+            EVE_API_PROTECTION_BYPASS: 'bypass-secret'
+        });
+
+        expect(client.basicUsername).toBe('brainbase-operator');
+        expect(client.basicPassword).toBe('operator-secret');
+        expect(client.protectionBypassToken).toBe('bypass-secret');
+    });
+
     it('parses NDJSON without treating blank lines as events', () => {
         expect(parseEveNdjson('{"type":"message"}\n\n{"type":"sessionCompleted"}\n')).toEqual([
             { type: 'message' },
