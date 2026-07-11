@@ -28,6 +28,10 @@ import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { createEveSessionClientFromEnv } from '../services/external-runner/eve-session-client.js';
+import {
+    EveMeetingNoteReconciler,
+    createEveMeetingNoteReconcilerConfigFromEnv
+} from '../services/external-runner/eve-meeting-note-reconciler.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
@@ -86,13 +90,19 @@ export function createCoreServices({
         repository: workflowRepository,
         handlers: createDefaultWorkflowHandlers()
     });
+    const eveSessionClient = createEveSessionClientFromEnv();
     const workflowService = new WorkflowService({
         repository: workflowRepository,
         runner: workflowRunner,
         configParser,
         googleCalendarService,
-        eveSessionClient: createEveSessionClientFromEnv(),
+        eveSessionClient,
         infoSSOTService
+    });
+    const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
+        workflowService,
+        eveSessionClient,
+        config: createEveMeetingNoteReconcilerConfigFromEnv()
     });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
@@ -234,6 +244,7 @@ export function createCoreServices({
         workflowService,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
+        eveMeetingNoteReconciler,
         uploadMiddleware: upload.single('file')
     };
 }

@@ -1,0 +1,51 @@
+{
+    "schema_version": "0.1.0",
+    "story_id": "story-eve-meeting-note-pull-reconciler",
+    "title": "Eve Meeting Note Pull Reconciler Authority",
+    "responsibilities": [
+        {
+            "id": "eve_meeting_note_pull_reconcile",
+            "primary_authority": {
+                "kind": "spec",
+                "ref": "docs/stories/story-eve-meeting-note-pull-reconciler.md#architecture-decision"
+            },
+            "supporting_authority": [
+                {
+                    "kind": "spec",
+                    "ref": "docs/stories/story-eve-meeting-note-pull-reconciler.md#invariants"
+                },
+                {
+                    "kind": "architecture",
+                    "ref": "docs/responsibility-authority/eve-dispatch-handoff-transcript-context.json"
+                }
+            ],
+            "owned_surfaces": {
+                "paths": [
+                    "server/services/external-runner/eve-meeting-note-reconciler.js",
+                    "server/bootstrap/core-services.js",
+                    "server/bootstrap/graceful-shutdown.js",
+                    "server/bootstrap/register-api-routes.js",
+                    "server/routes/workflows.js",
+                    "server.js"
+                ],
+                "symbols": [
+                    "EveMeetingNoteReconciler",
+                    "extractMeetingNoteToolCalls",
+                    "classifySessionStreamPhase",
+                    "createEveMeetingNoteReconcilerConfigFromEnv",
+                    "eve-note-reconcile"
+                ],
+                "risk_surfaces": [
+                    "core_workflow_state",
+                    "server_api",
+                    "background_worker",
+                    "service_orchestration"
+                ]
+            },
+            "required_evidence": [
+                "current_head_verification"
+            ],
+            "unknown_policy": "The reconciler is a pull-only loop closer: it may read Eve session streams through the authenticated EveSessionClient and write meeting notes exclusively through workflowService.recordMeetingNoteGeneration, whose source_text_hash equality gate stays the write-back validator of record. A stream tool-call is only trusted when its source_text_hash and run_id match the dispatch run's persisted metadata.meeting_note_generation; anything else is never written back. Sessions that end without a matching note are surfaced as blocked dispatch runs (operator_review_eve_session) instead of being polled forever, transient failures leave run state untouched for retry, and the human publish approval (approve_meeting_note_publish) stays in Brainbase untouched by this worker."
+        }
+    ]
+}

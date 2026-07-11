@@ -121,6 +121,7 @@ export function registerApiRoutes(app, {
     workflowService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    eveMeetingNoteReconciler = null,
     uploadMiddleware,
     appVersion,
     workspaceRoot,
@@ -209,7 +210,7 @@ export function registerApiRoutes(app, {
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);
-    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService));
+    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService, { eveMeetingNoteReconciler }));
     app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
     app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));

@@ -34,7 +34,7 @@ async function respondWorkflowOrControl({ req, res, workflowService, workflowId,
     res.json(await controlResponse(actor));
 }
 
-export function createWorkflowRouter(workflowService) {
+export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler = null } = {}) {
     const router = express.Router();
 
     router.get('/', asyncHandler(async (req, res) => {
@@ -190,6 +190,25 @@ export function createWorkflowRouter(workflowService) {
             }
             throw error;
         }
+    }));
+
+    router.post('/control/meeting-pack/eve-note-reconcile', asyncHandler(async (req, res) => {
+        if (!eveMeetingNoteReconciler) {
+            res.status(503).json({ error: 'eve_note_reconciler_unavailable' });
+            return;
+        }
+        // The reconcile pass is cross-project and runs as the internal actor,
+        // so gate the trigger (and its cross-project summary) the same way as
+        // global workflow-template management: internal / admin / ceo only.
+        const actor = actorFromRequest(req);
+        const isGlobalOperator = !actor || Object.keys(actor).length === 0
+            || actor.authSource === 'internal' || actor.sub === 'internal_api' || actor.person_id === 'internal_api'
+            || ['admin', 'ceo'].includes(String(actor.role || '').toLowerCase());
+        if (!isGlobalOperator) {
+            res.status(403).json({ error: 'eve_note_reconcile_requires_global_operator' });
+            return;
+        }
+        res.json(await eveMeetingNoteReconciler.runOnce());
     }));
 
     router.post('/control/meeting-pack/note-generation', asyncHandler(async (req, res) => {

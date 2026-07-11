@@ -325,6 +325,7 @@ const {
     workflowService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    eveMeetingNoteReconciler,
     uploadMiddleware
 } = createCoreServices({
     tasksFile: TASKS_FILE,
@@ -455,6 +456,7 @@ registerApiRoutes(app, {
     workflowService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    eveMeetingNoteReconciler,
     uploadMiddleware,
     appVersion: APP_VERSION,
     workspaceRoot,
@@ -583,6 +585,13 @@ const server = app.listen(PORT, async () => {
         console.log(`[meeting-source] MCP sync scheduler started (${meetingSourceSchedule.interval_ms}ms)`);
     }
 
+    const eveNoteReconcile = eveMeetingNoteReconciler?.startScheduledReconcile?.();
+    if (eveNoteReconcile?.started) {
+        console.log(`[eve-note-reconciler] scheduler started (${eveNoteReconcile.interval_ms}ms)`);
+    } else if (eveNoteReconcile?.reason) {
+        console.log(`[eve-note-reconciler] scheduler not started: ${eveNoteReconcile.reason}`);
+    }
+
     // Non-blocking: cleanup zombie worktrees (forget済みだが物理ディレクトリが残ったもの)
     worktreeService.cleanupZombieWorktrees(PROJECTS_ROOT).then((removed) => {
         if (removed.length) {
@@ -625,6 +634,7 @@ registerGracefulShutdown({
     conversationLinker,
     sessionServices,
     meetingSourceMcpSyncService,
+    eveMeetingNoteReconciler,
     getMeshService: () => meshService,
     log: console
 });
