@@ -458,8 +458,8 @@ export class SnsGenerationContextService {
             evidence: [
                 { kind: 'sns_posting_ledger', ref: `sns_posting_ledger_posts:${startDate}..${targetDate}` },
                 { kind: 'candidate_store', ref: `memory_candidates owner:${viewer.actor_person_id || DEFAULT_OWNER_PERSON_ID}` },
-                { kind: 'sns_strategy_os', ref: 'shared/_codex/sns/sns_strategy_os.md' },
-                { kind: 'content_pillars', ref: 'shared/_codex/sns/content_pillars.md' }
+                { kind: 'sns_strategy_os', ref: 'sns/sns_strategy_os.md' },
+                { kind: 'content_pillars', ref: 'sns/content_pillars.md' }
             ]
         };
     }
