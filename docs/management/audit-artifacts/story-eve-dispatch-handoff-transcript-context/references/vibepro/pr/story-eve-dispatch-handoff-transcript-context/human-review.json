@@ -1,7 +1,7 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-eve-dispatch-handoff-transcript-context",
-  "created_at": "2026-07-11T03:13:32.375Z",
+  "created_at": "2026-07-11T04:34:36.125Z",
   "recommended_decision": "split_pr",
   "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
   "source_artifacts": {
@@ -25,13 +25,13 @@
       "reason": "10 clauses inferred from Story+Code+Test"
     },
     "decision_records": {
-      "total": 11,
+      "total": 12,
       "open": 0,
       "by_type": {
-        "needs_review": 11
+        "needs_review": 12
       },
       "by_status": {
-        "accepted": 11
+        "accepted": 12
       },
       "warnings": [
         {
@@ -45,23 +45,23 @@
           "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
           "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
           "expected_root": null,
-          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+          "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
           "managed_worktree": null
         }
       ],
       "latest": {
         "schema_version": "0.1.0",
-        "decision_id": "decision-1783738519456-f7fe0a4e",
+        "decision_id": "decision-1783744049343-fbb8f6df",
         "story_id": "story-eve-dispatch-handoff-transcript-context",
         "type": "needs_review",
         "status": "accepted",
-        "source": "gate:judgment_axis_scope_reviewability",
-        "source_status": "needs_evidence",
-        "summary": "scope_reviewed: 本PRは単一intent（Eve dispatch handoffへのtranscript/契約同梱）で、実装はworkflow-service.js内の1機能追加とその証跡（テスト2ファイル・story・runbook・script・authority登録）に閉じる。1人のreviewerが一貫して読める粒度であり、分割しない判断を維持する。",
-        "reason": "8ファイル・実装diff約240行。5-stage agent reviewで各roleが単独で全diffを読み切れている実績が粒度の妥当性を裏付ける。split判断はgate:pr_scope_judgment / gate:split_resolutionの既存決定と一致。",
+        "source": "gate:requirement",
+        "source_status": "needs_review",
+        "summary": "Story未明示シナリオ2件（旧キーワード互換のdeprecated解決）は許容: clientContext送信fixはstory S-001（handoffがEve agentに届く）の実運用実現であり、新しいユーザーシナリオを追加しない。transport層のフィールド名修正でstory ACの意味は不変。",
+        "reason": "eveフレームワークのparseCreateBodyがcontextを無視しclientContextのみをagentへ渡す実挙動を、実セッションstream（note_source欠落報告）とeve dist読解で確認した上での修正。テストはstrict toEqualでfix無しでは失敗する。",
         "reviewer": "claude_code",
-        "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+        "artifact": "tests/server/services/eve-session-client.test.js",
         "secret_exposure": null,
         "redaction": {
           "applied": false,
@@ -79,19 +79,19 @@
             "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
             "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
             "expected_root": null,
-            "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-            "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+            "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+            "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
             "managed_worktree": null
           }
         ],
         "git_context": {
-          "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-          "current_branch": "claude/eve-dispatch-handoff-context",
+          "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+          "current_branch": "claude/eve-clientcontext-fix",
           "dirty": false,
           "status_fingerprint": "",
-          "recorded_at": "2026-07-11T02:55:19.449Z"
+          "recorded_at": "2026-07-11T04:27:29.337Z"
         },
-        "recorded_at": "2026-07-11T02:55:19.457Z"
+        "recorded_at": "2026-07-11T04:27:29.345Z"
       }
     },
     "visual_qa": null,
@@ -105,7 +105,7 @@
   },
   "toolchain": {
     "schema_version": "0.1.0",
-    "collected_at": "2026-07-11T03:13:30.330Z",
+    "collected_at": "2026-07-11T04:34:34.304Z",
     "package": {
       "name": "vibepro",
       "version": "0.1.0-beta.0",

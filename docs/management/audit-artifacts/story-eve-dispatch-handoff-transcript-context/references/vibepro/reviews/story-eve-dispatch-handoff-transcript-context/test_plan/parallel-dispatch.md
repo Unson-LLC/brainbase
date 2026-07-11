@@ -4,7 +4,7 @@
 - Stage: test_plan
 - Mode: policy-aware parallel review dispatch
 - Required subagents: 1
-- Current head: cb9d0143c45a978e0514be19f726af6091f5bd86
+- Current head: 82f48e528e2b7414423a3a752a3f29fc2579ed85
 - User dirty: false
 - Raw dirty: false
 - User fingerprint excludes: .vibepro/, .worktrees/vibepro/
@@ -13,31 +13,30 @@
 ## Evidence Reuse First Input
 
 - status: stale
-- evidence_key: evk_43a0a628b83c92da3c2f1f4ca9c1c488
+- evidence_key: evk_8af7564620657f9c9c4a9774cbef5902
 - first_input: false
 - reason: Evidence reuse artifact is not fresh for the current review context.
-- verification_summary_fingerprint: sha256:19505009196d28b5b626d1f144e3a3609eab40707a7297b64878e3922186c3e7
-- current_verification_summary_fingerprint: sha256:19505009196d28b5b626d1f144e3a3609eab40707a7297b64878e3922186c3e7
-- verification_evidence_updated_at: 2026-07-11T03:10:42.686Z
-- current_verification_evidence_updated_at: 2026-07-11T03:10:42.686Z
+- verification_summary_fingerprint: sha256:7eb1b0934e48102622b55046990c62e5605f300d41b7fcb615992c8b883d858d
+- current_verification_summary_fingerprint: sha256:7eb1b0934e48102622b55046990c62e5605f300d41b7fcb615992c8b883d858d
+- verification_evidence_updated_at: 2026-07-11T04:24:43.723Z
+- current_verification_evidence_updated_at: 2026-07-11T04:24:43.723Z
 - preferred_order: -
 
 Reuse key内のverification command timestamps:
-- integration: executed_at=2026-07-11T03:10:42.686Z git_recorded_at=2026-07-11T03:10:42.657Z
-- e2e: executed_at=2026-07-11T03:10:40.781Z git_recorded_at=2026-07-11T03:10:40.748Z
-- unit: executed_at=2026-07-11T03:10:39.015Z git_recorded_at=2026-07-11T03:10:38.988Z
+- integration: executed_at=2026-07-11T04:24:43.723Z git_recorded_at=2026-07-11T04:24:43.693Z
+- e2e: executed_at=2026-07-11T04:24:42.305Z git_recorded_at=2026-07-11T04:24:42.280Z
+- unit: executed_at=2026-07-11T04:24:40.888Z git_recorded_at=2026-07-11T04:24:40.860Z
 
 現在のverification command timestamps:
-- integration: executed_at=2026-07-11T03:10:42.686Z git_recorded_at=2026-07-11T03:10:42.657Z
-- e2e: executed_at=2026-07-11T03:10:40.781Z git_recorded_at=2026-07-11T03:10:40.748Z
-- unit: executed_at=2026-07-11T03:10:39.015Z git_recorded_at=2026-07-11T03:10:38.988Z
+- integration: executed_at=2026-07-11T04:24:43.723Z git_recorded_at=2026-07-11T04:24:43.693Z
+- e2e: executed_at=2026-07-11T04:24:42.305Z git_recorded_at=2026-07-11T04:24:42.280Z
+- unit: executed_at=2026-07-11T04:24:40.888Z git_recorded_at=2026-07-11T04:24:40.860Z
 
 Stale reasons:
-- head_sha: head_sha changed previous=06701800ed61f18a55f2db5a1dd8b7704f92cde1 current=cb9d0143c45a978e0514be19f726af6091f5bd86
-- verification_summary_fingerprint: verification_summary_fingerprint changed previous=sha256:ac742941e56932816c6e4edb44382e85d5cf56e303c01213fbb56c631773a1af current=sha256:19505009196d28b5b626d1f144e3a3609eab40707a7297b64878e3922186c3e7
-- verification_evidence_updated_at: verification_evidence_updated_at changed previous=2026-07-11T03:06:40.930Z current=2026-07-11T03:10:42.686Z
-- verification_command_timestamps: verification_command_timestamps changed previous=[{"kind":"integration","executed_at":"2026-07-11T03:06:40.930Z","git_recorded_at":"2026-07-11T03:06:40.902Z"},{"kind":"e2e","executed_at":"2026-07-11T03:06:39.492Z","git_recorded_at":"2026-07-11T03:06:39.467Z"},{"kind":"unit","executed_at":"2026-07-11T03:06:37.980Z","git_recorded_at":"2026-07-11T03:06:37.953Z"}] current=[{"kind":"integration","executed_at":"2026-07-11T03:10:42.686Z","git_recorded_at":"2026-07-11T03:10:42.657Z"},{"kind":"e2e","executed_at":"2026-07-11T03:10:40.781Z","git_recorded_at":"2026-07-11T03:10:40.748Z"},{"kind":"unit","executed_at":"2026-07-11T03:10:39.015Z","git_recorded_at":"2026-07-11T03:10:38.988Z"}]
-- risk_surface_fingerprint: risk_surface_fingerprint changed previous=sha256:36d02f987785733b0a0ecd643b4de6edc9ead515cc144cf5eff4212a9c200726 current=sha256:ed1a9f7ad3ba6264eabd4919c40a42e8e817bb46b240a261a9c11342d25f94cc
+- verification_summary_fingerprint: verification_summary_fingerprint changed previous=sha256:19505009196d28b5b626d1f144e3a3609eab40707a7297b64878e3922186c3e7 current=sha256:7eb1b0934e48102622b55046990c62e5605f300d41b7fcb615992c8b883d858d
+- verification_evidence_updated_at: verification_evidence_updated_at changed previous=2026-07-11T03:10:42.686Z current=2026-07-11T04:24:43.723Z
+- verification_command_timestamps: verification_command_timestamps changed previous=[{"kind":"integration","executed_at":"2026-07-11T03:10:42.686Z","git_recorded_at":"2026-07-11T03:10:42.657Z"},{"kind":"e2e","executed_at":"2026-07-11T03:10:40.781Z","git_recorded_at":"2026-07-11T03:10:40.748Z"},{"kind":"unit","executed_at":"2026-07-11T03:10:39.015Z","git_recorded_at":"2026-07-11T03:10:38.988Z"}] current=[{"kind":"integration","executed_at":"2026-07-11T04:24:43.723Z","git_recorded_at":"2026-07-11T04:24:43.693Z"},{"kind":"e2e","executed_at":"2026-07-11T04:24:42.305Z","git_recorded_at":"2026-07-11T04:24:42.280Z"},{"kind":"unit","executed_at":"2026-07-11T04:24:40.888Z","git_recorded_at":"2026-07-11T04:24:40.860Z"}]
+- risk_surface_fingerprint: risk_surface_fingerprint changed previous=sha256:abe23eaf1a45c56e998a7689a6632875a57deecdccf97dd9ab17e629fc991d3f current=sha256:bc60368fc67b61394bbf4e616ca50caefa07e9b25464c20abe8e92da7c7726e8
 
 
 ## Coordinator指示
@@ -69,7 +68,6 @@ coordinator runtimeがsubagentを使える場合は、このgate workflowの一�
 ## Bounded Artifact Handoff
 
 以下のartifactはper-fileサイズ予算（16384 bytes）を超過しています。まずbounded summaryを読み、full artifactは狙いを定めた深掘り時のみ開いてください。over-budgetのfull artifactをinlineで読み込まないでください。
-- `.vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.summary.json`（bounded summary。まずこれを読む）。full artifact `decision-index.json` は必要な深掘り時のみ開く。
 - `.vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.summary.json`（bounded summary。まずこれを読む）。full artifact `design-ssot-reconciliation.json` は必要な深掘り時のみ開く。
 - `.vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.summary.json`（bounded summary。まずこれを読む）。full artifact `senior-gap-judgment.json` は必要な深掘り時のみ開く。
 - `.vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.summary.json`（bounded summary。まずこれを読む）。full artifact `decision-records.json` は必要な深掘り時のみ開く。

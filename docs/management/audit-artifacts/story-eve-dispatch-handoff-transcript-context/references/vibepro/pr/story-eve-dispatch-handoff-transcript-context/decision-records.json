@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "model": "vibepro-decision-records-v1",
   "story_id": "story-eve-dispatch-handoff-transcript-context",
-  "updated_at": "2026-07-11T02:55:19.457Z",
+  "updated_at": "2026-07-11T04:27:29.345Z",
   "warnings": [
     {
       "id": "managed_worktree_locality",
@@ -15,12 +15,55 @@
       "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
       "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
       "expected_root": null,
-      "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-      "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+      "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+      "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
       "managed_worktree": null
     }
   ],
   "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783744049343-fbb8f6df",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:requirement",
+      "source_status": "needs_review",
+      "summary": "Story未明示シナリオ2件（旧キーワード互換のdeprecated解決）は許容: clientContext送信fixはstory S-001（handoffがEve agentに届く）の実運用実現であり、新しいユーザーシナリオを追加しない。transport層のフィールド名修正でstory ACの意味は不変。",
+      "reason": "eveフレームワークのparseCreateBodyがcontextを無視しclientContextのみをagentへ渡す実挙動を、実セッションstream（note_source欠落報告）とeve dist読解で確認した上での修正。テストはstrict toEqualでfix無しでは失敗する。",
+      "reviewer": "claude_code",
+      "artifact": "tests/server/services/eve-session-client.test.js",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+          "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "current_branch": "claude/eve-clientcontext-fix",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T04:27:29.337Z"
+      },
+      "recorded_at": "2026-07-11T04:27:29.345Z"
+    },
     {
       "schema_version": "0.1.0",
       "decision_id": "decision-1783738519456-f7fe0a4e",
@@ -496,13 +539,13 @@
     }
   ],
   "summary": {
-    "total": 11,
+    "total": 12,
     "open": 0,
     "by_type": {
-      "needs_review": 11
+      "needs_review": 12
     },
     "by_status": {
-      "accepted": 11
+      "accepted": 12
     },
     "warnings": [
       {
@@ -516,23 +559,23 @@
         "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
         "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
         "expected_root": null,
-        "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-        "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
         "managed_worktree": null
       }
     ],
     "latest": {
       "schema_version": "0.1.0",
-      "decision_id": "decision-1783738519456-f7fe0a4e",
+      "decision_id": "decision-1783744049343-fbb8f6df",
       "story_id": "story-eve-dispatch-handoff-transcript-context",
       "type": "needs_review",
       "status": "accepted",
-      "source": "gate:judgment_axis_scope_reviewability",
-      "source_status": "needs_evidence",
-      "summary": "scope_reviewed: 本PRは単一intent（Eve dispatch handoffへのtranscript/契約同梱）で、実装はworkflow-service.js内の1機能追加とその証跡（テスト2ファイル・story・runbook・script・authority登録）に閉じる。1人のreviewerが一貫して読める粒度であり、分割しない判断を維持する。",
-      "reason": "8ファイル・実装diff約240行。5-stage agent reviewで各roleが単独で全diffを読み切れている実績が粒度の妥当性を裏付ける。split判断はgate:pr_scope_judgment / gate:split_resolutionの既存決定と一致。",
+      "source": "gate:requirement",
+      "source_status": "needs_review",
+      "summary": "Story未明示シナリオ2件（旧キーワード互換のdeprecated解決）は許容: clientContext送信fixはstory S-001（handoffがEve agentに届く）の実運用実現であり、新しいユーザーシナリオを追加しない。transport層のフィールド名修正でstory ACの意味は不変。",
+      "reason": "eveフレームワークのparseCreateBodyがcontextを無視しclientContextのみをagentへ渡す実挙動を、実セッションstream（note_source欠落報告）とeve dist読解で確認した上での修正。テストはstrict toEqualでfix無しでは失敗する。",
       "reviewer": "claude_code",
-      "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "artifact": "tests/server/services/eve-session-client.test.js",
       "secret_exposure": null,
       "redaction": {
         "applied": false,
@@ -550,19 +593,19 @@
           "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
           "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
           "expected_root": null,
-          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+          "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
           "managed_worktree": null
         }
       ],
       "git_context": {
-        "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
-        "current_branch": "claude/eve-dispatch-handoff-context",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "current_branch": "claude/eve-clientcontext-fix",
         "dirty": false,
         "status_fingerprint": "",
-        "recorded_at": "2026-07-11T02:55:19.449Z"
+        "recorded_at": "2026-07-11T04:27:29.337Z"
       },
-      "recorded_at": "2026-07-11T02:55:19.457Z"
+      "recorded_at": "2026-07-11T04:27:29.345Z"
     }
   },
   "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.json"

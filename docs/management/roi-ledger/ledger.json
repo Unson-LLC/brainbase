@@ -1,7 +1,7 @@
 {
   "schema_version": "0.1.0",
   "model": "vibepro-gate-outcome-ledger-v3",
-  "updated_at": "2026-07-11T03:12:34.733Z",
+  "updated_at": "2026-07-11T04:34:17.392Z",
   "entries": [
     {
       "schema_version": "0.1.0",
@@ -282,6 +282,56 @@
     },
     {
       "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:artifact_consistency|stale_evidence|passed|2026-07-11T04:24:47.040Z|2026-07-11T04:27:08.446Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:artifact_consistency",
+      "gate_type": "artifact_consistency_gate",
+      "previous_status": "stale_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:47.040Z",
+      "resolved_at": "2026-07-11T04:27:08.446Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:common_judgment_spine|needs_evidence|passed|2026-07-11T04:24:08.542Z|2026-07-11T04:24:47.040Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:common_judgment_spine",
+      "gate_type": "engineering_judgment_spine_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:08.542Z",
+      "resolved_at": "2026-07-11T04:24:47.040Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
       "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:definition_of_done|needs_evidence|passed|2026-07-11T02:45:34.967Z|2026-07-11T02:49:26.605Z",
       "story_id": "story-eve-dispatch-handoff-transcript-context",
       "gate_id": "gate:definition_of_done",
@@ -375,6 +425,31 @@
     },
     {
       "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:definition_of_done|needs_evidence|passed|2026-07-11T04:24:08.542Z|2026-07-11T04:24:47.040Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:definition_of_done",
+      "gate_type": "definition_of_done_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:08.542Z",
+      "resolved_at": "2026-07-11T04:24:47.040Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
       "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:e2e|needs_evidence|passed|2026-07-11T01:43:29.997Z|2026-07-11T01:46:11.843Z",
       "story_id": "story-eve-dispatch-handoff-transcript-context",
       "gate_id": "gate:e2e",
@@ -400,6 +475,31 @@
           "server/services/workflow/workflow-service.js",
           "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
           "tests/server/routes/workflows.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:e2e|needs_evidence|passed|2026-07-11T04:24:08.542Z|2026-07-11T04:24:47.040Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:e2e",
+      "gate_type": "verification_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:08.542Z",
+      "resolved_at": "2026-07-11T04:24:47.040Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
         ]
       }
     },
@@ -438,6 +538,38 @@
           "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
           "tests/server/routes/workflows.test.js",
           "tests/server/services/workflow-org-agent-control.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:integration|needs_evidence|passed|2026-07-11T04:24:08.542Z|2026-07-11T04:24:47.040Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:integration",
+      "gate_type": "verification_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "evidence_added",
+      "classification": "new_verification_or_review_evidence",
+      "overridden": false,
+      "evidence_refs": [
+        {
+          "kind": "verification_command",
+          "command": "npm run test:run -- --reporter=json --outputFile=var/story-evidence/vitest-eve-handoff.json tests/server/services/eve-session-client.test.js tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js",
+          "status": "pass",
+          "recorded_at": "2026-07-11T04:24:43.723Z"
+        }
+      ],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:08.542Z",
+      "resolved_at": "2026-07-11T04:24:47.040Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
         ]
       }
     },
@@ -629,6 +761,32 @@
     },
     {
       "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:judgment_axis_public_contract|block|passed|2026-07-11T04:31:18.450Z|2026-07-11T04:34:17.392Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:judgment_axis_public_contract",
+      "gate_type": "judgment_axis_gate",
+      "previous_status": "block",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:31:18.450Z",
+      "resolved_at": "2026-07-11T04:34:17.392Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "fff848243eaa3ea54aed604d0cf8e0086f133b83",
+        "changed_files": [
+          "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
       "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:judgment_axis_release_ops|block|passed|2026-07-11T02:30:30.232Z|2026-07-11T02:35:29.095Z",
       "story_id": "story-eve-dispatch-handoff-transcript-context",
       "gate_id": "gate:judgment_axis_release_ops",
@@ -752,6 +910,31 @@
     },
     {
       "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:requirement|needs_review|passed|2026-07-11T04:28:54.897Z|2026-07-11T04:30:38.222Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:requirement",
+      "gate_type": "requirement_gate",
+      "previous_status": "needs_review",
+      "resolved_status": "passed",
+      "outcome": "source_fix",
+      "classification": "resolving_diff_contains_source_changes_for_source_sensitive_gate",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:28:54.897Z",
+      "resolved_at": "2026-07-11T04:30:38.222Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
       "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:senior_gap_judgment|block|passed|2026-07-11T03:06:44.847Z|2026-07-11T03:08:26.814Z",
       "story_id": "story-eve-dispatch-handoff-transcript-context",
       "gate_id": "gate:senior_gap_judgment",
@@ -814,6 +997,32 @@
     },
     {
       "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:senior_gap_judgment|block|passed|2026-07-11T04:31:18.450Z|2026-07-11T04:34:17.392Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:senior_gap_judgment",
+      "gate_type": "senior_gap_judgment_gate",
+      "previous_status": "block",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:31:18.450Z",
+      "resolved_at": "2026-07-11T04:34:17.392Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "fff848243eaa3ea54aed604d0cf8e0086f133b83",
+        "changed_files": [
+          "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
       "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:senior_gap_judgment|needs_review|passed|2026-07-11T02:53:43.781Z|2026-07-11T02:55:22.841Z",
       "story_id": "story-eve-dispatch-handoff-transcript-context",
       "gate_id": "gate:senior_gap_judgment",
@@ -871,6 +1080,56 @@
           "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
           "tests/server/routes/workflows.test.js",
           "tests/server/services/workflow-org-agent-control.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:traceability_clause_coverage|needs_evidence|passed|2026-07-11T04:24:08.542Z|2026-07-11T04:24:47.040Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:traceability_clause_coverage",
+      "gate_type": "traceability_clause_coverage_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:08.542Z",
+      "resolved_at": "2026-07-11T04:24:47.040Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-dispatch-handoff-transcript-context|gate:unit|needs_evidence|passed|2026-07-11T04:24:08.542Z|2026-07-11T04:24:47.040Z",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "gate_id": "gate:unit",
+      "gate_type": "verification_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-11T04:24:08.542Z",
+      "resolved_at": "2026-07-11T04:24:47.040Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+        "changed_files": [
+          "server/services/external-runner/eve-session-client.js",
+          "tests/server/services/eve-session-client.test.js"
         ]
       }
     },

@@ -1,0 +1,105 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "clientContext fixのdiffは実装+テストの2ファイルのみ。テストはstrict toEqualでfix reverts時に必ず失敗する形。151/151（138+13）・playwright 18/18、evidence head束縛一致。既存coverageの後退なし。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "diff全読・assertion検証・test file単体実行（13/13, arm64）・artifact解析・head束縛確認。",
+    "evidence": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-7.output.md",
+    "inputs": [
+      "git diff origin/develop...82f48e528",
+      "tests/server/services/eve-session-client.test.js:47-54"
+    ]
+  },
+  "judgment_delta": [
+    "fake-green concern (loose matcher / stale counts) -> pass because the strict toEqual provably fails without the fix and artifact counts match the diff arithmetic"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "expected_root": null,
+    "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+    "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "expected_root": null,
+      "expected_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+      "current_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T04:27:03.624Z",
+  "git_context": {
+    "head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+    "current_branch": "claude/eve-clientcontext-fix",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T04:27:03.616Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "unbound",
+    "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+    "recorded_head_sha": "82f48e528e2b7414423a3a752a3f29fc2579ed85",
+    "surface_files": [],
+    "missing_files": [
+      "tests/server/services/eve-session-client.test.js:47-54"
+    ],
+    "surface_hash": null
+  },
+  "source_fingerprint": "674fc537f66dee923bda14f56bb4045041d1335ed4c86dae74d7d844c867eee5",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "a6f32efc73510af7a",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-7.output.md",
+    "request_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -3,15 +3,9 @@
   "model": "vibepro-evidence-decision-index-v1",
   "planner_version": "0.1.0",
   "story_id": "story-eve-dispatch-handoff-transcript-context",
-  "created_at": "2026-07-11T03:13:32.375Z",
+  "created_at": "2026-07-11T04:34:36.125Z",
   "evidence_depth": "standard",
   "targeted_full_surfaces": [
-    {
-      "surface": "core_workflow_state",
-      "reason": "risk surface detected",
-      "source": "change_classification",
-      "gate": null
-    },
     {
       "surface": "server_api",
       "reason": "risk surface detected",
@@ -31,7 +25,7 @@
       "gate": null
     },
     {
-      "surface": "workflow_heavy",
+      "surface": "api_contract",
       "reason": "high-risk profile detected",
       "source": "change_classification",
       "gate": null
@@ -46,28 +40,27 @@
   "git": {
     "base_ref": "develop",
     "head_ref": "HEAD",
-    "head_sha": "cb9d0143c45a978e0514be19f726af6091f5bd86",
-    "changed_file_count": 10
+    "head_sha": "fff848243eaa3ea54aed604d0cf8e0086f133b83",
+    "changed_file_count": 3
   },
   "file_groups": {
     "story_docs": 1,
     "architecture_docs": 0,
     "specifications": 0,
     "policy_docs": 0,
-    "responsibility_authority_metadata": 1,
+    "responsibility_authority_metadata": 0,
     "contract_metadata": 0,
     "source": 1,
-    "tests": 3,
-    "repo_control": 2,
+    "tests": 1,
+    "repo_control": 0,
     "vibepro_artifacts": 0,
-    "other": 2
+    "other": 0
   },
   "scope": {
     "status": "needs_clean_branch",
     "recommended_strategy": "clean_branch_or_split_pr",
     "reasons": [
-      "repo制御ファイルやagent設定が差分に含まれている",
-      "baseからのcommitが 17 件あり、Story外の変更混入を確認する必要がある"
+      "baseからのcommitが 2 件あり、Story外の変更混入を確認する必要がある"
     ]
   },
   "gate_summary": {
@@ -84,21 +77,18 @@
     "confidence": 0.82,
     "signals": [
       "surface:agent_or_gate_workflow",
-      "risk_profile:workflow_heavy"
+      "risk_profile:api_contract"
     ],
-    "active_axis_count": 5,
+    "active_axis_count": 2,
     "active_axes": [
       "public_contract",
-      "data_state",
-      "execution_topology",
-      "scope_reviewability",
-      "release_ops"
+      "scope_reviewability"
     ],
     "judgment_axes": [
       {
         "axis": "public_contract",
         "status": "active_passed",
-        "reason": "pr_route:config_or_agent_policy; file_group:contract_docs; text:public_contract"
+        "reason": "pr_route:runtime_change; file_group:contract_docs; text:public_contract"
       },
       {
         "axis": "rollback_sensitive",
@@ -112,13 +102,13 @@
       },
       {
         "axis": "data_state",
-        "status": "active_accepted_followup",
-        "reason": "changed_path:data_state"
+        "status": "inactive",
+        "reason": "No data_state signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
       },
       {
         "axis": "execution_topology",
-        "status": "active_accepted_followup",
-        "reason": "surface:workflow_or_agent; changed_path:execution_topology; text:execution_topology"
+        "status": "inactive",
+        "reason": "execution_topology has only text-derived candidates; suppressing activation until a changed-path, route, scope, docs, network-contract, or risk-surface corroboration exists"
       },
       {
         "axis": "ux_surface",
@@ -133,24 +123,19 @@
       {
         "axis": "scope_reviewability",
         "status": "active_accepted_followup",
-        "reason": "scope:needs_clean_branch; mixed_surface:repo_control_with_product_change; graphify:related_files"
+        "reason": "scope:needs_clean_branch; graphify:related_files"
       },
       {
         "axis": "release_ops",
-        "status": "active_passed",
-        "reason": "changed_path:release_ops"
+        "status": "inactive",
+        "reason": "No release_ops signal detected in Story, diff, PR route, risk surfaces, optional Graphify context, or optional code topology context"
       }
     ]
   },
   "risk_signals": [
     {
       "kind": "risk_profile",
-      "value": "workflow_heavy",
-      "source": "change_classification"
-    },
-    {
-      "kind": "risk_surface",
-      "value": "core_workflow_state",
+      "value": "api_contract",
       "source": "change_classification"
     },
     {
@@ -175,17 +160,17 @@
     }
   ],
   "pr_route": {
-    "route_type": "config_or_agent_policy",
+    "route_type": "runtime_change",
     "required_gates": [
-      "repo_control_boundary",
-      "split_resolution",
+      "story",
+      "spec",
+      "verification",
       "pr_body_contract",
-      "workflow_heavy"
+      "split_resolution"
     ],
     "signals": [
-      "file_group:repo_control",
-      "scope:needs_clean_branch",
-      "risk_profile:workflow_heavy"
+      "file_group:source",
+      "scope:needs_clean_branch"
     ]
   },
   "traceability_clause_coverage": {
@@ -206,21 +191,15 @@
     "schema_version": "0.1.0",
     "model": "vibepro-evidence-summary-reuse-v1",
     "story_id": "story-eve-dispatch-handoff-transcript-context",
-    "evidence_key": "evk_de660715d720d257d1934badc8f094ff",
+    "evidence_key": "evk_638dfbb7bd479a671eb00f31e84efb30",
     "status": "stale",
-    "reason": "evidence_key_inputs_changed",
+    "reason": "evidence_key_changed",
     "stale_reasons": [
       {
-        "field": "risk_surface_fingerprint",
-        "previous": "sha256:36d02f987785733b0a0ecd643b4de6edc9ead515cc144cf5eff4212a9c200726",
-        "current": "sha256:e3894bfe99cef79c62ec4a1c5b4bc531145b501961620de835fbdecd700cef8e",
-        "reason": "risk_surface_fingerprint changed"
-      },
-      {
-        "field": "base_sha",
-        "previous": "b989d354eebf4e927cc5bd2e8261ff2574467638",
-        "current": "b81314793ad8f0ef40809bdf699a73147db2b39e",
-        "reason": "base_sha changed"
+        "field": "evidence_key",
+        "previous": "evk_a27fe1cbf14c0acb15f715d8b0b64cb0",
+        "current": "evk_638dfbb7bd479a671eb00f31e84efb30",
+        "reason": "evidence key changed"
       }
     ],
     "fresh_use_allowed": false,
@@ -245,23 +224,23 @@
       "session_count": 0,
       "unattributed_count": 0
     },
-    "verification_summary_fingerprint": "sha256:19505009196d28b5b626d1f144e3a3609eab40707a7297b64878e3922186c3e7",
-    "verification_evidence_updated_at": "2026-07-11T03:10:42.686Z",
+    "verification_summary_fingerprint": "sha256:f74ca06f1e7be9fac25df7068330768825d59d86baebb3d45fa3603b0b20272f",
+    "verification_evidence_updated_at": "2026-07-11T04:34:13.841Z",
     "verification_command_timestamps": [
       {
         "kind": "integration",
-        "executed_at": "2026-07-11T03:10:42.686Z",
-        "git_recorded_at": "2026-07-11T03:10:42.657Z"
+        "executed_at": "2026-07-11T04:34:13.841Z",
+        "git_recorded_at": "2026-07-11T04:34:13.814Z"
       },
       {
         "kind": "e2e",
-        "executed_at": "2026-07-11T03:10:40.781Z",
-        "git_recorded_at": "2026-07-11T03:10:40.748Z"
+        "executed_at": "2026-07-11T04:34:12.239Z",
+        "git_recorded_at": "2026-07-11T04:34:12.215Z"
       },
       {
         "kind": "unit",
-        "executed_at": "2026-07-11T03:10:39.015Z",
-        "git_recorded_at": "2026-07-11T03:10:38.988Z"
+        "executed_at": "2026-07-11T04:34:10.697Z",
+        "git_recorded_at": "2026-07-11T04:34:10.672Z"
       }
     ],
     "full_evidence": {
@@ -269,8 +248,8 @@
       "generation_count": 1,
       "generation_count_scope": "same_evidence_key",
       "same_key_generation_count": 1,
-      "cumulative_generation_count": 32,
-      "digest": "sha256:b3d141e05a6eecaa220e6b93d4178a3f491c160a3bd7bc72e529df6fb218bb61",
+      "cumulative_generation_count": 41,
+      "digest": "sha256:1c7f0841412bc072a8e0de965e8f609d059040d904642d9d710ddf8f676088d2",
       "reference": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json"
     },
     "summary_artifacts": {
@@ -283,9 +262,9 @@
   },
   "senior_gap_judgment": {
     "status": "passed_with_residual_risk",
-    "gap_count": 5,
+    "gap_count": 3,
     "blocking_gap_count": 0,
-    "residual_risk_count": 5,
-    "followup_count": 5
+    "residual_risk_count": 3,
+    "followup_count": 3
   }
 }

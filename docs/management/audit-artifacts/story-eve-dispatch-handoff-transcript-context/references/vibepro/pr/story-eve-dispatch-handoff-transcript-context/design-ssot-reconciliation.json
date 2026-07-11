@@ -3,19 +3,12 @@
   "model": "vibepro-design-ssot-reconciliation-v1",
   "workflow": "design-ssot-reconcile",
   "status": "not_applicable",
-  "generated_at": "2026-07-11T03:13:31.822Z",
+  "generated_at": "2026-07-11T04:34:35.586Z",
   "registry_sources": [],
   "changed_paths": [
-    ".claude/hooks/session-start-copy-plugins.sh",
-    ".claude/skills/brainbase-ops-guide/SKILL.md",
-    "docs/responsibility-authority/eve-dispatch-handoff-transcript-context.json",
-    "docs/runbooks/eve-meeting-note-backfill.md",
     "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
-    "script/backfill-eve-meeting-note-dispatch.mjs",
-    "server/services/workflow/workflow-service.js",
-    "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
-    "tests/server/routes/workflows.test.js",
-    "tests/server/services/workflow-org-agent-control.test.js"
+    "server/services/external-runner/eve-session-client.js",
+    "tests/server/services/eve-session-client.test.js"
   ],
   "summary": {
     "registry_source_count": 0,
@@ -34,19 +27,12 @@
     "model": "vibepro-design-ssot-coverage-v1",
     "workflow": "design-ssot-coverage",
     "status": "not_applicable",
-    "generated_at": "2026-07-11T03:13:31.822Z",
+    "generated_at": "2026-07-11T04:34:35.586Z",
     "registry_sources": [],
     "changed_paths": [
-      ".claude/hooks/session-start-copy-plugins.sh",
-      ".claude/skills/brainbase-ops-guide/SKILL.md",
-      "docs/responsibility-authority/eve-dispatch-handoff-transcript-context.json",
-      "docs/runbooks/eve-meeting-note-backfill.md",
       "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
-      "script/backfill-eve-meeting-note-dispatch.mjs",
-      "server/services/workflow/workflow-service.js",
-      "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
-      "tests/server/routes/workflows.test.js",
-      "tests/server/services/workflow-org-agent-control.test.js"
+      "server/services/external-runner/eve-session-client.js",
+      "tests/server/services/eve-session-client.test.js"
     ],
     "summary": {
       "registry_source_count": 0,

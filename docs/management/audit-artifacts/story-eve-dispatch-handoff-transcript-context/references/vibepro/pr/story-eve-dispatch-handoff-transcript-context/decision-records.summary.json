@@ -2,15 +2,15 @@
   "schema_version": "0.1.0",
   "kind": "artifact_summary",
   "source_artifact": "decision-records.json",
-  "source_bytes": 30175,
-  "source_content_hash": "sha256:194748c2bd8681dede12a5adae4bfd82c3773f06b952381d7479caf484a4103b",
+  "source_bytes": 32578,
+  "source_content_hash": "sha256:00073a26fc8f11f81b16cd6bfb302442b55ba6f10d67b2facfea4d14be17a50a",
   "conclusion": {
     "status_fields": {
       "model": "vibepro-decision-records-v1"
     },
     "top_level_counts": {
       "warnings_count": 1,
-      "decisions_count": 11
+      "decisions_count": 12
     }
   },
   "highlights": [

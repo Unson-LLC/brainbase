@@ -58,8 +58,15 @@
           }
         ]
       },
+      "inherited_behavior": {
+        "condition": "error instanceof EveSessionClientError",
+        "classification": "existing",
+        "files": [
+          "server/services/external-runner/eve-session-client.js"
+        ]
+      },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "INV-002",
@@ -102,7 +109,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "INV-003",
@@ -145,7 +152,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "INV-004",
@@ -188,7 +195,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "INV-005",
@@ -231,7 +238,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "INV-006",
@@ -278,7 +285,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "S-005",
@@ -323,7 +330,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:41:36.648Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "S-006",
@@ -364,7 +371,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:41:36.648Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "S-003",
@@ -401,7 +408,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:23:29.060Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     },
     {
       "id": "S-007",
@@ -444,7 +451,7 @@
         ]
       },
       "first_seen_at": "2026-07-11T01:41:36.648Z",
-      "last_revised_at": "2026-07-11T01:41:36.648Z"
+      "last_revised_at": "2026-07-11T04:30:35.032Z"
     }
   ],
   "diagrams": [
@@ -463,6 +470,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-07-11T01:41:36.642Z",
-  "previous_spec_id": "2026-07-11T01:23:40.897Z"
+  "generated_at": "2026-07-11T04:30:35.027Z",
+  "previous_spec_id": "2026-07-11T04:28:48.185Z"
 }

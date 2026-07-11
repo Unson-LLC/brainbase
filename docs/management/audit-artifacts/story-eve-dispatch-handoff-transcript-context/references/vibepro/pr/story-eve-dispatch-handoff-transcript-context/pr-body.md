@@ -1,11 +1,11 @@
 ## 判断
-- このPRで判断すること: Eve dispatch handoffにtranscript本文と書き戻し契約を含める を満たすための Runtime / Contract Docs / Tests / Repo Control 変更として、このPRを受け入れてよいか。
+- このPRで判断すること: Eve dispatch handoffにtranscript本文と書き戻し契約を含める を満たすための Runtime / Contract Docs / Tests 変更として、このPRを受け入れてよいか。
 - Story: story-eve-dispatch-handoff-transcript-context - Eve dispatch handoffにtranscript本文と書き戻し契約を含める
 - 正本: [docs/stories/story-eve-dispatch-handoff-transcript-context.md](docs/stories/story-eve-dispatch-handoff-transcript-context.md)
-- 変更範囲: 10 files / Runtime / Contract Docs / Tests / Repo Control
+- 変更範囲: 3 files / Runtime / Contract Docs / Tests
 - 設計/Story: [docs/stories/story-eve-dispatch-handoff-transcript-context.md](docs/stories/story-eve-dispatch-handoff-transcript-context.md)
-- 実装: server/services/workflow/workflow-service.js
-- テスト: [tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts](tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts), [tests/server/routes/workflows.test.js](tests/server/routes/workflows.test.js), [tests/server/services/workflow-org-agent-control.test.js](tests/server/services/workflow-org-agent-control.test.js)
+- 実装: server/services/external-runner/eve-session-client.js
+- テスト: [tests/server/services/eve-session-client.test.js](tests/server/services/eve-session-client.test.js)
 
 ## 経緯
 - 要求: Eve dispatch handoffにtranscript本文と書き戻し契約を含める
@@ -13,20 +13,19 @@
 
 
 ## 原因
-- repo制御ファイルが差分に含まれるため、アプリ変更と分けてレビューする
+- 最新診断gateが needs_review
 
 ## 解決
 - Story文書を更新: [docs/stories/story-eve-dispatch-handoff-transcript-context.md](docs/stories/story-eve-dispatch-handoff-transcript-context.md)
 
 ## レビュー観点
 - Gate: 未解決の必須Gateはありません。ただしリリース判断Warning: Design Input Judgment Gate, Managed Worktree Gate。 詳細はVibePro証跡の Gate DAG / Gate Enforcement を確認してください。
-- Scope: 差分範囲の説明または分割判断が必要。理由: repo制御ファイルやagent設定が差分に含まれている; baseからのcommitが 17 件あり、Story外の変更混入を確認する必要がある / split=split_by_lane_then_prepare
+- Scope: 差分範囲の説明または分割判断が必要。理由: baseからのcommitが 2 件あり、Story外の変更混入を確認する必要がある / split=split_by_lane_then_prepare
 - 管理worktree: needs_review
 - Storyの受け入れ基準と実装差分が対応しているか
 - ADRなしで既存設計の範囲に収まっているか
-- 主要ソース差分: server/services/workflow/workflow-service.js
+- 主要ソース差分: server/services/external-runner/eve-session-client.js
 - ...and 1 more
-- Risk: repo制御ファイルが差分に含まれるため、アプリ変更と分けてレビューする
 - Risk: 最新診断gateが needs_review
 
 ## 確認
