@@ -186,7 +186,7 @@ SNS運用は `/ohayo` に寄せる。毎朝、週次編集カレンダーを前�
 ```bash
 cd /Users/ksato/workspace/code/brainbase
 TODAY=$(date +%F)
-CONTEXT_FILE="/Users/ksato/workspace/shared/_codex/sns/x/ops/generation-contexts/${TODAY}.json"
+CONTEXT_FILE="/Users/ksato/workspace/sns/x/ops/generation-contexts/${TODAY}.json"
 npm run sns:generation-context -- \
   --date "$TODAY" \
   --out "$CONTEXT_FILE"
@@ -205,9 +205,9 @@ npm run sns:import-review-pack -- --date "$TODAY"
 
 | 出力 | 場所 |
 |---|---|
-| 人間レビュー用brief | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
-| weekly pack投入用signals | `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
-| AI生成用context | `/Users/ksato/workspace/shared/_codex/sns/x/ops/generation-contexts/YYYY-MM-DD.json` |
+| 人間レビュー用brief | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
+| weekly pack投入用signals | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
+| AI生成用context | `/Users/ksato/workspace/sns/x/ops/generation-contexts/YYYY-MM-DD.json` |
 | UI用SNS Posting Ledger | `POST /api/sns-growth/review-pack` 経由で `GET /api/sns-growth/posts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` に反映 |
 
 扱い:

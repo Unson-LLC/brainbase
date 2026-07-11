@@ -135,7 +135,7 @@ SNS運用の夜処理も `/oyasumi` に寄せる。今日投稿したものを�
 出力先:
 
 ```bash
-mkdir -p /Users/ksato/workspace/shared/_codex/sns/x/ops/feedback
+mkdir -p /Users/ksato/workspace/sns/x/ops/feedback
 ```
 
 SNS Posting Ledger に投稿済みURLと反応数値を戻せる場合は、feedback markdown だけで終わらせず、まず対象日の投稿済み Ledger を metrics polling し、成功した `posted` を `learning_ready` に進めてから Ledger → candidate-store の handoff まで進める。
@@ -165,7 +165,7 @@ npm run sns:feedback-learning -- --date YYYY-MM-DD
 
 重要: `SNS_METRICS_POLLING_ENABLED=true` を設定せずに実行して `metrics_polling_disabled` で終了した場合は、投稿反応 0 件ではなく「X metrics polling 未実行」として扱う。対象日に `posted` があるのに `sns:poll-metrics` の `polled=0`、`failed>0`、または `skipped>0` の場合、それは「投稿反応 0 件」ではなく「X metrics 未取得 / 取得失敗 / 取得不能」として扱う。`scanned` / `polled` / `failed` / `skipped` / `learning_ready` 件数を分けて feedback markdown と `/oyasumi` 報告に残す。`sns:feedback-learning --date` は `learning_ready` のみ candidate 化するため、polling 未実行のまま `created=0` を成功扱いしない。
 
-`/Users/ksato/workspace/shared/_codex/sns/x/ops/feedback/YYYY-MM-DD.md` に以下を残す:
+`/Users/ksato/workspace/sns/x/ops/feedback/YYYY-MM-DD.md` に以下を残す:
 
 - posted_url
 - lane

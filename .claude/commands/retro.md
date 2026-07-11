@@ -49,10 +49,10 @@
 
    入力:
 
-   - `/Users/ksato/workspace/shared/_codex/sns/x/ops/daily-briefs/YYYY-MM-DD.md`
-   - `/Users/ksato/workspace/shared/_codex/sns/x/ops/feedback/YYYY-MM-DD.md`
-   - `/Users/ksato/workspace/shared/_codex/sns/content_pillars.md`
-   - `/Users/ksato/workspace/shared/_codex/sns/x/ops/weekly_content_calendar_*.md`
+   - `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD.md`
+   - `/Users/ksato/workspace/sns/x/ops/feedback/YYYY-MM-DD.md`
+   - `/Users/ksato/workspace/sns/content_pillars.md`
+   - `/Users/ksato/workspace/sns/x/ops/weekly_content_calendar_*.md`
 
    集計するもの:
 
