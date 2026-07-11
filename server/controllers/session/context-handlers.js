@@ -81,7 +81,7 @@ function buildSessionMemoryPolicy(req, session) {
 //
 // VibePro story-session-switch-performance evidence:
 // /api/sessions/:id/context p95 was 5179ms (cold switch). The hot work is
-// worktreeService.getStatus(), which shells out to git/jj per call. The
+// worktreeService.getStatus(), which shells out to git per call. The
 // payload only changes when commits/merges happen, which doesn't need to be
 // reflected within the same second the user clicks a session row.
 //

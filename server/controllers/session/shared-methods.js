@@ -507,9 +507,9 @@ export function installSharedMethods(controller) {
             return repoPath;
         }
 
-        if (typeof controller.worktreeService?._isJujutsuRepo === 'function') {
+        if (typeof controller.worktreeService?._isGitRepo === 'function') {
             for (const candidate of existingCandidates) {
-                if (await controller.worktreeService._isJujutsuRepo(candidate)) {
+                if (await controller.worktreeService._isGitRepo(candidate)) {
                     return candidate;
                 }
             }

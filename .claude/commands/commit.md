@@ -6,7 +6,7 @@
 ## 前提
 
 - brainbaseは素の **git** で管理されている
-- `git add -A` でステージし、`git commit` でコミットする
+- 意図に対応するファイルを明示的に `git add <path>` してから `git commit` する（`git add -A` / `git add .` は禁止）
 - dirty なまま放置するのは禁止。詳細は `.claude/rules/commit-strategy.md`
 
 ## 実行手順
@@ -26,7 +26,7 @@
 
 4. **ステージしてコミット:**
    ```bash
-   git add -A && git commit -m "$(cat <<'EOF'
+   git add <対象ファイル...> && git commit -m "$(cat <<'EOF'
    <type>: <summary>
 
    悩み→判断:
@@ -52,7 +52,7 @@
    git log -1 --stat
    ```
 
-7. **学習抽出をバックグラウンドで起動（明示的な作業完了イベント）:**
+6. **学習抽出をバックグラウンドで起動（明示的な作業完了イベント）:**
    ```bash
    # 作業単位の区切り = commit なので、このタイミングで学習候補抽出を走らせる
    # 終わるのを待たず、nohup で投げっぱなし（2h cron が保険で拾う）

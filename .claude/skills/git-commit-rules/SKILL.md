@@ -1,6 +1,6 @@
 ---
 name: git-commit-rules
-description: コミットメッセージのフォーマット定義（jj対応）。type一覧、メッセージ構造、実行コマンドの正本。コミット粒度・自律提案は `.claude/rules/commit-strategy.md` を参照。
+description: コミットメッセージのフォーマット定義（git対応）。type一覧、メッセージ構造、実行コマンドの正本。コミット粒度・自律提案は `.claude/rules/commit-strategy.md` を参照。
 ---
 
 ## Triggers
@@ -10,25 +10,26 @@ description: コミットメッセージのフォーマット定義（jj対応�
 - コミットメッセージのフォーマットを確認したいとき
 - /commitコマンドを実行するとき
 
-# コミットメッセージフォーマット（jj対応）
+# コミットメッセージフォーマット（git対応）
 
 このSkillは**フォーマット定義の正本**。コミット粒度・AI自律提案のルールは `.claude/rules/commit-strategy.md` に定義。
 
 ## Instructions
 
-### 1. jjでのコミットフロー
+### 1. gitでのコミットフロー
 
-jjではworking copyが常にコミット。`git add` + `git commit` は不要。
+変更ファイルを明示的に `git add` してから `git commit` する。
 
 ```bash
 # 1. 変更内容を確認
-jj diff --stat
+git status --porcelain
+git diff --stat
 
-# 2. コミット説明を設定
-jj describe -m "<message>"
+# 2. 対象ファイルを明示的にステージ
+git add <path1> <path2>
 
-# 3. 次の変更に進む
-jj new
+# 3. コミット
+git commit -m "<message>"
 ```
 
 ### 2. コミットメッセージフォーマット
@@ -62,12 +63,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 > **詳細は `.claude/rules/commit-strategy.md` を参照**
 
-基本: 1つの意図 = 1コミット。分割は `jj split` で。dirty な `(no description set)` を残したまま次へ進まない。
+基本: 1つの意図 = 1コミット。分割は、意図ごとにファイルを分けて個別に `git add` + `git commit` する。未コミットの変更を残したまま次へ進まない。
 
 ### 5. コミット実行コマンド
 
 ```bash
-jj describe -m "$(cat <<'EOF'
+git add <path1> <path2>
+
+git commit -m "$(cat <<'EOF'
 <type>: <summary>
 
 なぜ:
@@ -77,23 +80,22 @@ jj describe -m "$(cat <<'EOF'
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
-
-jj new
 ```
 
-### 6. jj特有の操作
+### 6. git特有の操作
 
 | 操作 | コマンド | 説明 |
 |------|---------|------|
-| 説明を書き直す | `jj describe -m "..."` | 何度でも変更可能 |
-| 過去のコミットを修正 | `jj edit <change-id>` | 子孫は自動rebase |
-| コミットを分割 | `jj split` | 大きな変更を分ける |
-| bookmark設定 | `jj bookmark set <name> -r @-` | 手動で設定が必要 |
+| 直前のコミットメッセージを書き直す | `git commit --amend` | 未pushのコミットのみ |
+| 過去のコミットを修正 | `git rebase -i` | 対話的操作は禁止（本ルールでは非対話環境のため使用しない） |
+| コミットを分割 | ファイル単位で `git add` を分けて複数回 `git commit` | 大きな変更を分ける |
+| リモートへ反映 | `git push origin <branch>` | 明示的にブランチ名を指定 |
 
 ### 7. 禁止事項
 
 - 秘密情報（.env, credentials.json等）を含む変更を放置しない
 - mainへの直接変更は原則禁止（セッション内作業時）
+- `git add -A` / `git add .` / `git commit -a` は禁止
 
 ## Examples
 

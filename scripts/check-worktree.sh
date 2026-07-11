@@ -57,7 +57,7 @@ if [ "$IS_TEST_MODE" != "true" ] && [ "$EFFECTIVE_PORT" = "31013" ] && [ "$CURRE
     echo "現在のブランチ: ${CURRENT_BRANCH:-unknown}"
     echo ""
     echo "使える起動方法:"
-    echo -e "  - ${GREEN}jj bookmark set develop && npm start${NC}"
+    echo -e "  - ${GREEN}git checkout develop && npm start${NC}"
     echo -e "  - ${GREEN}PORT=31014 npm run dev${NC}"
     echo -e "  - ${GREEN}PORT=31014 npm start${NC}"
     echo ""

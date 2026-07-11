@@ -114,22 +114,23 @@ launchctl list | grep brainbase
 systemctl start brainbase-ui  # ❌ macOSでは動作しない
 ```
 
-### 1.4 PRマージ後のworkspace更新とサーバー再起動
+### 1.4 PRマージ後の正本checkout更新とサーバー再起動
 
-**問題**: PRをマージしても、サーバーのworkspace（`default@`）は自動更新されない
+**問題**: PRをマージしても、サーバーが読む正本checkout（`develop`）は自動更新されない
 
 **必須フロー**:
 
 ```bash
 # 1. 最新を取得
 cd /Users/ksato/workspace/code/brainbase
-jj git fetch
+git fetch origin
 
-# 2. サーバーworkspaceを更新
-jj rebase -b default@ -d develop
+# 2. 正本checkoutを更新
+git checkout develop
+git merge --ff-only origin/develop
 
 # 3. 変更内容を確認
-jj diff -r 'default@^::default@' --stat
+git diff --stat "$BEFORE"..HEAD
 
 # 4. 再起動判定
 # - server/ 配下の変更 → 再起動必要
@@ -151,18 +152,17 @@ curl -s http://localhost:31013/ | head -5
 **自動化コマンド**: `/deploy-merged-pr`
 
 **なぜ必要か**:
-- jjのworkspaceはGitのworktreeと同様、手動更新が必要
-- サーバーは`default@`から起動しているため、PRマージ後に明示的な更新が必須
+- git worktreeやcheckoutは、fetchしただけでは他のブランチのworking treeへ反映されない
+- サーバーは`develop`ブランチの正本checkoutから起動しているため、PRマージ後に明示的な更新が必須
 
 **コンフリクトが発生した場合**:
 ```bash
 # コンフリクトマーカーを確認
 grep -n "<<<<<<" server/path/to/file.js
 
-# 手動解決後にsquash
-jj new <conflicted-commit>
-# ファイルを編集
-jj squash
+# 手動解決後
+git add server/path/to/file.js
+git commit
 ```
 
 ---

@@ -4,11 +4,10 @@ import { WorktreeService } from '../../../server/services/worktree-service.js';
 
 function makeLockError(repoPath) {
     const err = new Error(
-        `Command failed: jj -R "${repoPath}" workspace add ...\n` +
-        `Error: Failed to reset Git HEAD state\n` +
-        `Caused by:\n` +
-        `1: Could not acquire lock for index file\n` +
-        `2: The lock for resource '${repoPath}/.git/index' could not be obtained immediately after 1 attempt(s). The lockfile at '${repoPath}/.git/index.lock' might need manual deletion.\n`
+        `Command failed: git -C "${repoPath}" worktree add ...\n` +
+        `fatal: Unable to create '${repoPath}/.git/index.lock': File exists.\n` +
+        `Could not acquire lock for index file\n` +
+        `The lock for resource '${repoPath}/.git/index' could not be obtained. The lockfile at '${repoPath}/.git/index.lock' might need manual deletion.\n`
     );
     return err;
 }
@@ -95,14 +94,14 @@ describe('WorktreeService stale index.lock recovery', () => {
         });
     });
 
-    describe('_execJujutsuWithStaleRetry index.lock recovery', () => {
+    describe('_execGitWithLockRetry index.lock recovery', () => {
         it('index.lockエラー発生時_lockfileがstaleなら自動削除して再試行する', async () => {
             mockExec
                 .mockRejectedValueOnce(makeLockError(repoPath))
                 .mockResolvedValueOnce({ stdout: 'recovered output' });
             vi.spyOn(service, '_recoverStaleLockfile').mockResolvedValue(true);
 
-            const result = await service._execJujutsuWithStaleRetry(repoPath, 'workspace list');
+            const result = await service._execGitWithLockRetry(repoPath, 'worktree list --porcelain');
 
             expect(result.stdout).toBe('recovered output');
             expect(mockExec).toHaveBeenCalledTimes(2);
@@ -114,7 +113,7 @@ describe('WorktreeService stale index.lock recovery', () => {
             mockExec.mockRejectedValueOnce(lockErr);
             vi.spyOn(service, '_recoverStaleLockfile').mockResolvedValue(false);
 
-            await expect(service._execJujutsuWithStaleRetry(repoPath, 'workspace list'))
+            await expect(service._execGitWithLockRetry(repoPath, 'worktree list --porcelain'))
                 .rejects.toBe(lockErr);
             expect(mockExec).toHaveBeenCalledTimes(1);
         });
@@ -124,23 +123,9 @@ describe('WorktreeService stale index.lock recovery', () => {
             mockExec.mockRejectedValueOnce(otherErr);
             const recoverSpy = vi.spyOn(service, '_recoverStaleLockfile');
 
-            await expect(service._execJujutsuWithStaleRetry(repoPath, 'workspace list'))
+            await expect(service._execGitWithLockRetry(repoPath, 'worktree list --porcelain'))
                 .rejects.toBe(otherErr);
             expect(recoverSpy).not.toHaveBeenCalled();
-        });
-
-        it('既存のstale working copy回復経路は変わらず動く', async () => {
-            const staleErr = new Error('The working copy is stale, run `jj workspace update-stale`');
-            mockExec
-                .mockRejectedValueOnce(staleErr)
-                .mockResolvedValueOnce({ stdout: '' })  // workspace update-stale
-                .mockResolvedValueOnce({ stdout: 'after-stale-recovery' });
-
-            const result = await service._execJujutsuWithStaleRetry(repoPath, 'workspace list');
-
-            expect(result.stdout).toBe('after-stale-recovery');
-            expect(mockExec).toHaveBeenCalledTimes(3);
-            expect(mockExec.mock.calls[1][0]).toContain('workspace update-stale');
         });
     });
 });

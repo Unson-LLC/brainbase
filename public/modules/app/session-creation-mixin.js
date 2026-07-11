@@ -120,11 +120,11 @@ export function applySessionCreationMixin(AppClass) {
                 if (worktreeHint) {
                     worktreeHint.textContent = hasGit
                         ? 'ブランチを分離して安全に作業できます'
-                        : 'このプロジェクトにはGitリポジトリがないため、jj workspaceを作成できません';
+                        : 'このプロジェクトにはGitリポジトリがないため、git worktreeを作成できません';
                 }
                 if (worktreeLabel) {
                     if (!hasGit) {
-                        worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、jj workspaceを作成できません';
+                        worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、git worktreeを作成できません';
                         worktreeLabel.style.opacity = '0.5';
                     } else {
                         worktreeLabel.title = '';
@@ -802,7 +802,7 @@ export function applySessionCreationMixin(AppClass) {
             const project = session?.project || 'general';
             const engine = session?.engine === 'codex' ? 'OpenAI Codex' : 'Claude Code';
             const workspace = session?.worktree || session?.startupStatus === 'pending' || session?.startupStatus === 'failed'
-                ? 'jj workspace'
+                ? 'git worktree'
                 : 'main workspace';
 
             if (projectChip) projectChip.textContent = project;

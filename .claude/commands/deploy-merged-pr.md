@@ -1,6 +1,6 @@
 # deploy-merged-pr
 
-PRマージ後にサーバーworkspaceを更新し、必要に応じて再起動するコマンド。
+PRマージ後にサーバーが読む正本checkout（develop）を更新し、必要に応じて再起動するコマンド。
 
 ## トリガー
 
@@ -9,19 +9,32 @@ PRマージ後にサーバーworkspaceを更新し、必要に応じて再起動
 
 ## 実行フロー
 
-### Phase 1: Workspace更新
+### Phase 1: 正本checkout更新（git）
 
 ```bash
 cd /Users/ksato/workspace/code/brainbase
-jj git fetch
-jj rebase -b default@ -d develop
+
+# 反映前のHEADを控える（Phase 2の差分確認に使う）
+BEFORE=$(git rev-parse HEAD)
+
+# dirtyなら中断（正本checkoutに作業を残さない）
+if git status --porcelain | grep -qvE '^\?\? (\.claude/|node_modules/|\.DS_Store)'; then
+  echo "❌ 正本checkoutがdirty。先に退避/整理してください"
+  exit 1
+fi
+
+git fetch origin
+git checkout develop 2>/dev/null || git checkout -B develop origin/develop
+git merge --ff-only origin/develop
 ```
+
+- `--ff-only` が失敗した場合はローカルにdevelopへの直接コミットが混入している。原因を特定するまで `reset --hard` しない。
 
 ### Phase 2: 変更内容の確認
 
 ```bash
-# マージされたPRの変更ファイルを確認
-jj diff -r 'default@^::default@' --stat
+git diff --stat "$BEFORE"..HEAD
+git log --oneline "$BEFORE"..HEAD
 ```
 
 ### Phase 3: 再起動判定
@@ -57,35 +70,20 @@ curl -s http://localhost:31013/ | head -5
 
 ```bash
 # 再起動した場合
-echo "✅ サーバーworkspace更新完了 & 再起動完了"
+echo "✅ 正本checkout更新完了 & 再起動完了"
 echo "ブラウザをリロードしてください"
 
 # 再起動不要な場合
-echo "✅ サーバーworkspace更新完了（再起動不要）"
+echo "✅ 正本checkout更新完了（再起動不要）"
 echo "フロントエンドのみの変更の場合は、ブラウザをリロードしてください"
-```
-
-## 使用例
-
-```bash
-# ユーザー: "PR #56マージしたから、サーバーに反映して"
-Claude: /deploy-merged-pr を実行
-
-# 1. workspace更新
-# 2. server/services/session-monitor.js が変更されていることを確認
-# 3. 再起動が必要と判定
-# 4. アクティブセッション数を確認: 16個
-# 5. ユーザーに確認 → 承認
-# 6. サーバー再起動
-# 7. 起動確認
-# 8. "✅ サーバーworkspace更新完了 & 再起動完了"
 ```
 
 ## 注意事項
 
-- **コンフリクトが発生した場合**: 手動解決が必要
+- **`--ff-only` 失敗時**: 正本checkoutに直接コミットが混入している。ログを確認し、必要ならセッションブランチへ退避してから揃える
 - **複数PRを連続でマージした場合**: 1回の実行で全て反映される
-- **default@以外のworkspace**: このコマンドはサーバーのworkspace（default@）のみを更新
+- **正本checkout以外のworktree**: このコマンドはサーバーが読む正本checkout（develop）のみを更新する
+- **デプロイガード**: サーバー側の `getMergeDeploymentGuardStatus` が「HEADとorigin/developの不一致」「dirty」を検知して merge deployment を止める。このコマンドはそのガードを通すための正規手順
 
 ## 関連
 

@@ -68,7 +68,7 @@
 
 | コマンド | 用途 |
 |---------|------|
-| `/commit` | git add -A + git commit |
+| `/commit` | git add <対象ファイル> + git commit |
 | `/merge` | PR作成 → マージ → クリーンアップ |
 | `/retro` | 週次振り返り → Wiki SSOT |
 | `/cso` | 月次戦略レビュー → 詳細レポート |

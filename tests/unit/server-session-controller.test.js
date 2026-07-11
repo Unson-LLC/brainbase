@@ -135,7 +135,7 @@ describe('SessionController (Server)', () => {
       getStatus: vi.fn(),
       getMergeDeploymentGuardStatus: vi.fn(async () => ({ ready: true })),
       autoHealArchiveState: vi.fn(),
-      _isJujutsuRepo: vi.fn()
+      _isGitRepo: vi.fn()
     };
 
     // Create SessionController instance
@@ -1479,7 +1479,7 @@ describe('SessionController (Server)', () => {
   });
 
   describe('createWithWorktree', () => {
-    it('staleなrepoPath時_jj repoを優先してfallbackする', async () => {
+    it('staleなrepoPath時_git repoを優先してfallbackする', async () => {
       const projectsRoot = path.join(tempDir, 'projects');
       const codeProjectsRoot = path.join(tempDir, 'code');
       const staleRepoPath = path.join(projectsRoot, 'tech-knight');
@@ -1527,7 +1527,7 @@ describe('SessionController (Server)', () => {
           canTakeover: false
         }
       });
-      mockWorktreeService._isJujutsuRepo.mockImplementation(async (candidate) => candidate === fallbackRepoPath);
+      mockWorktreeService._isGitRepo.mockImplementation(async (candidate) => candidate === fallbackRepoPath);
       mockWorktreeService.create.mockResolvedValue({
         worktreePath,
         branchName: 'session/session-new',
@@ -1628,7 +1628,7 @@ describe('SessionController (Server)', () => {
         branchName: 'session/session-bad',
         startCommit: 'abc123'
       });
-      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      mockWorktreeService._isGitRepo.mockResolvedValue(true);
       controller._updateStateWithRetry = vi.fn(async () => ({
         sessions: [{
           id: 'session-bad',
@@ -1673,7 +1673,7 @@ describe('SessionController (Server)', () => {
         branchName: 'session/session-runtime-fail',
         startCommit: 'abc123'
       });
-      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      mockWorktreeService._isGitRepo.mockResolvedValue(true);
       mockSessionManager.startTtyd.mockRejectedValue(new Error('ttyd failed'));
       mockWorktreeService.remove.mockImplementation(() => new Promise((resolve) => {
         resolveCleanup = resolve;
@@ -1728,7 +1728,7 @@ describe('SessionController (Server)', () => {
         branchName: 'session/session-appserver-metadata-fail',
         startCommit: 'abc123'
       });
-      mockWorktreeService._isJujutsuRepo.mockResolvedValue(true);
+      mockWorktreeService._isGitRepo.mockResolvedValue(true);
       mockSessionManager.startTtyd.mockResolvedValue({
         port: 40125,
         proxyPath: '/console/session-appserver-metadata-fail'
@@ -2568,7 +2568,7 @@ describe('SessionController (Server)', () => {
           intendedState: 'active'
         }]
       });
-      mockWorktreeService._isJujutsuRepo.mockResolvedValue(false);
+      mockWorktreeService._isGitRepo.mockResolvedValue(false);
 
       await controller.getFileContent({
         params: { id: 'session-1' },
@@ -2622,7 +2622,7 @@ describe('SessionController (Server)', () => {
         'POST http://localhost:31013/api/sessions/session-ai/merge'
       );
       expect(mockRes.json.mock.calls[0][0].clipboardContent).toContain(
-        'raw gh/jj を組み合わせず'
+        'raw gh/git を組み合わせず'
       );
     });
 

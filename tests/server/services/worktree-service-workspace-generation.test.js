@@ -18,18 +18,14 @@ describe('WorktreeService workspace generation', () => {
             if (targetPath === '/tmp/repo') return undefined;
             throw Object.assign(new Error('not found'), { code: 'ENOENT' });
         });
-        vi.spyOn(service, '_isJujutsuRepo').mockResolvedValue(true);
-        vi.spyOn(service, '_ensureGitCompatibility').mockResolvedValue({
-            gitWorktreePath: '/tmp/repo/.git/worktrees/session-1-g1-repo'
-        });
+        vi.spyOn(service, '_isGitRepo').mockResolvedValue(true);
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
-        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('develop');
+        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('origin/develop');
         vi.spyOn(service, '_getWorkspaceStartCommit').mockResolvedValue('base123');
 
         execPromise
-            .mockResolvedValueOnce({ stdout: '' }) // workspace list
-            .mockResolvedValueOnce({ stdout: '' }) // workspace add
-            .mockResolvedValueOnce({ stdout: '' }); // bookmark create
+            .mockResolvedValueOnce({ stdout: '' }) // worktree list --porcelain
+            .mockResolvedValueOnce({ stdout: '' }); // worktree add -b ...
 
         const result = await service.create('session-1', '/tmp/repo', {
             workspaceId: 'session-1-g1',
@@ -46,29 +42,24 @@ describe('WorktreeService workspace generation', () => {
             startCommit: 'base123'
         });
         expect(execPromise).toHaveBeenCalledWith(
-            'jj -R "/tmp/repo" workspace add --name "session-1-g1-repo" -r "develop" --sparse-patterns full "/tmp/worktrees/session-1-g1-repo"'
+            'git -C "/tmp/repo" worktree add -b "session/session-1-g1" "/tmp/worktrees/session-1-g1-repo" "origin/develop"'
         );
-        expect(execPromise).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark create -r develop "session/session-1-g1"');
     });
 
-    it('C-2: workspace add race reuses an existing workspace when jj reports already exists', async () => {
+    it('C-2: worktree add race reuses an existing workspace when git reports already exists', async () => {
         vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
         vi.spyOn(fs, 'access').mockImplementation(async (targetPath) => {
             if (targetPath === '/tmp/repo') return undefined;
-            if (targetPath === '/tmp/worktrees/session-1-g1-repo') return undefined;
             throw Object.assign(new Error('not found'), { code: 'ENOENT' });
         });
-        vi.spyOn(service, '_isJujutsuRepo').mockResolvedValue(true);
-        vi.spyOn(service, '_ensureGitCompatibility').mockResolvedValue({
-            gitWorktreePath: '/tmp/repo/.git/worktrees/session-1-g1-repo'
-        });
+        vi.spyOn(service, '_isGitRepo').mockResolvedValue(true);
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
-        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('develop');
+        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('origin/develop');
         vi.spyOn(service, '_getWorkspaceStartCommit').mockResolvedValue('base123');
 
         execPromise
-            .mockResolvedValueOnce({ stdout: '' }) // workspace list before race
-            .mockRejectedValueOnce(new Error("Command failed: jj workspace add\nError: Workspace named 'session-1-g1-repo' already exists\n"));
+            .mockResolvedValueOnce({ stdout: '' }) // worktree list --porcelain (not yet registered)
+            .mockRejectedValueOnce(new Error("fatal: '/tmp/worktrees/session-1-g1-repo' already exists"));
 
         const result = await service.create('session-1', '/tmp/repo', {
             workspaceId: 'session-1-g1',
@@ -84,19 +75,41 @@ describe('WorktreeService workspace generation', () => {
             branchName: 'session/session-1-g1',
             startCommit: 'base123'
         });
-        expect(service._ensureGitCompatibility).toHaveBeenCalledWith(
-            'session-1',
-            '/tmp/repo',
-            '/tmp/worktrees/session-1-g1-repo',
-            expect.objectContaining({ workspaceId: 'session-1-g1', generation: 1 })
+    });
+
+    it('C-3: worktree add fails because the branch already exists_retries without -b', async () => {
+        vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockImplementation(async (targetPath) => {
+            if (targetPath === '/tmp/repo') return undefined;
+            throw Object.assign(new Error('not found'), { code: 'ENOENT' });
+        });
+        vi.spyOn(service, '_isGitRepo').mockResolvedValue(true);
+        vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
+        vi.spyOn(service, '_resolveWorkspaceBaseRevision').mockResolvedValue('origin/develop');
+        vi.spyOn(service, '_getWorkspaceStartCommit').mockResolvedValue('base123');
+
+        execPromise
+            .mockResolvedValueOnce({ stdout: '' }) // worktree list --porcelain
+            .mockRejectedValueOnce(new Error("fatal: a branch named 'session/session-1-g1' already exists"))
+            .mockResolvedValueOnce({ stdout: '' }); // worktree add (no -b) succeeds
+
+        const result = await service.create('session-1', '/tmp/repo', {
+            workspaceId: 'session-1-g1',
+            generation: 1,
+            skipFetch: true
+        });
+
+        expect(result.worktreePath).toBe('/tmp/worktrees/session-1-g1-repo');
+        expect(execPromise).toHaveBeenCalledWith(
+            'git -C "/tmp/repo" worktree add "/tmp/worktrees/session-1-g1-repo" "session/session-1-g1"'
         );
     });
 
     it('S-1: merge can retire the active generation and create the next generation', async () => {
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
         vi.spyOn(service, '_getGitHubRepoSpec').mockResolvedValue('Unson-LLC/brainbase-unson');
-        vi.spyOn(service, '_resolveMergeBookmarkName').mockResolvedValue('session/session-1-g1');
-        vi.spyOn(service, '_pushBookmarkForMerge').mockResolvedValue(undefined);
+        vi.spyOn(service, '_resolveMergeBranchName').mockResolvedValue('session/session-1-g1');
+        vi.spyOn(service, '_pushBranchForMerge').mockResolvedValue(undefined);
         vi.spyOn(service, 'syncCanonicalWorkspaceAfterMerge').mockResolvedValue({ success: true });
         vi.spyOn(service, '_readPrMergeMetadata').mockResolvedValue({
             mergedAt: '2026-05-16T08:00:00Z',
@@ -156,13 +169,13 @@ describe('WorktreeService workspace generation', () => {
     it('S-5: getStatus resolves the active workspace generation path', async () => {
         vi.spyOn(fs, 'access').mockResolvedValue(undefined);
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('develop');
-        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([
-            { name: 'session/session-1-g2', pushed: true, output: 'session/session-1-g2: abc@origin' }
+        vi.spyOn(service, '_getBranchInfos').mockResolvedValue([
+            { name: 'session/session-1-g2', pushed: true, output: 'session/session-1-g2@origin' }
         ]);
         vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
         execPromise
             .mockResolvedValueOnce({ stdout: '0\n' })
-            .mockResolvedValueOnce({ stdout: 'The working copy has no changes.\n' });
+            .mockResolvedValueOnce({ stdout: '' });
 
         const status = await service.getStatus('session-1', '/tmp/repo', 'base2', {
             workspaceId: 'session-1-g2',

@@ -142,5 +142,5 @@ gh pr create \
 ---
 
 **関連コマンド**:
-- `/commit`: `git add -A + git commit` でコミット確定
+- `/commit`: `git add <path> + git commit` でコミット確定
 - `/merge`: PR作成〜マージ〜worktree掃除まで実行

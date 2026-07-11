@@ -20,62 +20,29 @@ if [ -f "$STATE_FILE" ]; then
     exit 0
 fi
 
-# Check and setup Jujutsu (required for AI-first session management)
-echo "🥋 Checking Jujutsu..."
-if command -v jj &> /dev/null; then
-    echo "   ✅ Jujutsu is installed: $(jj version 2>&1 | head -1)"
+# Check Git repository setup (required for AI-first session management)
+echo "🔧 Checking Git..."
+if command -v git &> /dev/null; then
+    echo "   ✅ Git is installed: $(git --version 2>&1 | head -1)"
 
-    # Check if .jj exists and is valid
-    if [ -d "$REPO_ROOT/.jj" ]; then
-        # Validate .jj directory structure
-        if [ ! -d "$REPO_ROOT/.jj/repo" ] || [ ! -f "$REPO_ROOT/.jj/repo/store" ]; then
-            echo "   ⚠️  Incomplete .jj directory detected. Removing and reinitializing..."
-            rm -rf "$REPO_ROOT/.jj"
-        fi
-    fi
+    if [ -d "$REPO_ROOT/.git" ]; then
+        echo "   ✅ Git repository already initialized"
 
-    # Initialize Jujutsu if not already done or was removed
-    if [ ! -d "$REPO_ROOT/.jj" ]; then
-        echo "   📦 Initializing Jujutsu in this repository..."
-        cd "$REPO_ROOT"
-        if jj git init --colocate 2>/dev/null; then
-            echo "   ✅ Jujutsu initialized"
-
-            # Configure user if Git config exists
-            GIT_USER_NAME=$(git config user.name 2>/dev/null)
-            GIT_USER_EMAIL=$(git config user.email 2>/dev/null)
-            if [ -n "$GIT_USER_NAME" ] && [ -n "$GIT_USER_EMAIL" ]; then
-                jj config set --user user.name "$GIT_USER_NAME"
-                jj config set --user user.email "$GIT_USER_EMAIL"
-                echo "   ✅ Jujutsu user configured from Git settings"
-            fi
+        GIT_USER_NAME=$(git config user.name 2>/dev/null)
+        GIT_USER_EMAIL=$(git config user.email 2>/dev/null)
+        if [ -n "$GIT_USER_NAME" ] && [ -n "$GIT_USER_EMAIL" ]; then
+            echo "   ✅ Git user configured: $GIT_USER_NAME <$GIT_USER_EMAIL>"
         else
-            echo "   ❌ Failed to initialize Jujutsu"
+            echo "   ⚠️  Git user is not configured. Set it with:"
+            echo "      git config user.name \"Your Name\""
+            echo "      git config user.email \"you@example.com\""
         fi
     else
-        echo "   ✅ Jujutsu already initialized"
+        echo "   ⚠️  This directory is not a Git repository (.git not found)"
+        echo "      Run: git init"
     fi
 else
-    echo "   ⚠️  Jujutsu (jj) is not installed"
-    echo ""
-    echo "   Jujutsu is required for AI-first session management."
-    echo "   Install now? (y/n)"
-    read -r response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        if command -v brew &> /dev/null; then
-            echo "   📦 Installing Jujutsu via Homebrew..."
-            brew install jj
-            # Recursively call this section after install
-            exec "$0"
-        else
-            echo "   ❌ Homebrew not found. Please install manually:"
-            echo "      macOS: brew install jj"
-            echo "      Linux: cargo install jj-cli"
-        fi
-    else
-        echo "   Note: You can install later with: brew install jj"
-        echo "   Then run: jj git init --colocate"
-    fi
+    echo "   ❌ Git is not installed. Please install Git before continuing."
 fi
 echo ""
 
@@ -221,12 +188,11 @@ echo "1. Start the server: npm start"
 echo "2. Open http://localhost:31013 in your browser"
 echo "3. Explore the sample tasks and sessions"
 echo ""
-echo "🥋 Jujutsu (AI-first VCS):"
-if command -v jj &> /dev/null; then
-    echo "   ✅ Ready! Use 'jj status' to see your workspace"
+echo "🔧 Git (AI-first VCS):"
+if command -v git &> /dev/null; then
+    echo "   ✅ Ready! Use 'git status' to see your workspace"
 else
-    echo "   Install: brew install jj"
-    echo "   Initialize: jj git init"
+    echo "   Install Git for your platform, then run: git init"
 fi
 echo ""
 echo "Optional: Set BRAINBASE_ROOT to use a different workspace"

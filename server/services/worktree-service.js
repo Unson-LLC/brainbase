@@ -1,13 +1,13 @@
 // @ts-check
 /**
  * WorktreeService
- * Jujutsu workspace操作を管理するサービス（Git worktreeから移行）
+ * Git worktree操作を管理するサービス
  *
- * 変更点:
- * - Git worktree → Jujutsu workspace
- * - jj workspace add --name <name> <path>
- * - jj git push --bookmark <name>
- * - jj workspace forget <name> + 物理ディレクトリ削除
+ * 2026-07-11: Jujutsu(jj)依存を撤去し、gitネイティブ実装へ移行した
+ * (story-worktree-service-git-migration)。
+ * - セッションworktreeのライフサイクルは `git worktree add/remove` で完結する。
+ * - 正本repoマージデプロイガードは `git rev-parse` / `git status --porcelain` /
+ *   `git diff --name-only` を用いて同等の保護レベルを維持する。
  */
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -39,12 +39,12 @@ export class WorktreeService {
         this.worktreesDir = worktreesDir;
         this.canonicalRoot = canonicalRoot;
         this.execPromise = execPromise;
-        this._jjRepoCache = new Map();  // repoPath単位のキャッシュ
+        this._gitRepoCache = new Map();  // repoPath単位のキャッシュ
         this._repoMutex = new Map();    // repoPath -> Promise (last in chain)
     }
 
     /**
-     * 同一 repoPath への jj/git 書き込みを直列化する。
+     * 同一 repoPath への git書き込みを直列化する。
      * 異なる repoPath 間は並列実行を許可。chain内の例外は次の呼び出しに伝播しない。
      */
     async _withRepoLock(repoPath, fn) {
@@ -56,20 +56,20 @@ export class WorktreeService {
     }
 
     /**
-     * Jujutsuリポジトリかどうかを判定
+     * Gitリポジトリかどうかを判定
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<boolean>}
      */
-    async _isJujutsuRepo(repoPath) {
-        if (this._jjRepoCache.has(repoPath)) {
-            return this._jjRepoCache.get(repoPath);
+    async _isGitRepo(repoPath) {
+        if (this._gitRepoCache.has(repoPath)) {
+            return this._gitRepoCache.get(repoPath);
         }
         try {
-            await this.execPromise(`jj -R "${repoPath}" version`);
-            this._jjRepoCache.set(repoPath, true);
+            await this.execPromise(`git -C "${repoPath}" rev-parse --git-dir`);
+            this._gitRepoCache.set(repoPath, true);
             return true;
         } catch {
-            this._jjRepoCache.set(repoPath, false);
+            this._gitRepoCache.set(repoPath, false);
             return false;
         }
     }
@@ -86,9 +86,38 @@ export class WorktreeService {
     }
 
     /**
+     * `git worktree list --porcelain` の出力をパースする
+     * @param {string} stdout
+     * @returns {Array<{path: string, branch: string|null}>}
+     */
+    _parseWorktreeListPorcelain(stdout) {
+        const worktrees = [];
+        let current = null;
+
+        for (const line of String(stdout || '').split('\n')) {
+            if (line.startsWith('worktree ')) {
+                if (current) worktrees.push(current);
+                current = { path: line.slice('worktree '.length).trim(), branch: null };
+            } else if (line.startsWith('branch ')) {
+                if (current) {
+                    current.branch = line.slice('branch '.length).trim().replace(/^refs\/heads\//, '');
+                }
+            } else if (!line.trim()) {
+                if (current) {
+                    worktrees.push(current);
+                    current = null;
+                }
+            }
+        }
+        if (current) worktrees.push(current);
+
+        return worktrees;
+    }
+
+    /**
      * ゾンビworktreeを検出して物理ディレクトリを削除する。
-     * ゾンビ = .jj/working_copy は存在するが、jj workspace list に登録されていないworktree。
-     * workspace forgetされたが物理ディレクトリが残った状態を自動クリーンアップする。
+     * ゾンビ = `.git`（file/dir）は存在するが、`git worktree list --porcelain` に登録されていないworktree。
+     * worktree removeされたが物理ディレクトリが残った状態を自動クリーンアップする。
      * @param {string} repoPath - メインリポジトリのパス
      * @returns {Promise<string[]>} 削除したディレクトリ名の配列
      */
@@ -100,11 +129,11 @@ export class WorktreeService {
             const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
             if (!dirs.length) return removed;
 
-            let registeredWorkspaces;
+            let registeredPaths;
             try {
-                const { stdout } = await this.execPromise(`jj -R "${repoPath}" workspace list --no-pager`);
-                registeredWorkspaces = new Set(
-                    stdout.split('\n').filter(Boolean).map((line) => line.split(':')[0].trim())
+                const { stdout } = await this.execPromise(`git -C "${repoPath}" worktree list --porcelain`);
+                registeredPaths = new Set(
+                    this._parseWorktreeListPorcelain(stdout).map((w) => path.resolve(w.path))
                 );
             } catch {
                 return removed;
@@ -112,22 +141,30 @@ export class WorktreeService {
 
             for (const dir of dirs) {
                 const worktreePath = path.join(this.worktreesDir, dir);
-                const jjDir = path.join(worktreePath, '.jj');
+                const gitPath = path.join(worktreePath, '.git');
                 try {
-                    await fs.access(jjDir);
+                    await fs.access(gitPath);
                 } catch {
                     continue;
                 }
 
-                if (registeredWorkspaces.has(dir)) continue;
+                if (registeredPaths.has(path.resolve(worktreePath))) continue;
 
-                logger.warn(`[workspace] Zombie worktree detected: ${dir} (not in jj workspace list). Removing.`);
+                logger.warn(`[workspace] Zombie worktree detected: ${dir} (not in git worktree list). Removing.`);
                 try {
                     await fs.rm(worktreePath, { recursive: true, force: true });
                     removed.push(dir);
                     logger.info(`[workspace] Zombie worktree removed: ${dir}`);
                 } catch (rmErr) {
                     logger.error(`[workspace] Failed to remove zombie worktree ${dir}: ${rmErr.message}`);
+                }
+            }
+
+            if (removed.length > 0) {
+                try {
+                    await this.execPromise(`git -C "${repoPath}" worktree prune`);
+                } catch {
+                    // best-effort
                 }
             }
         } catch (err) {
@@ -170,11 +207,9 @@ export class WorktreeService {
         return `session/${workspaceId}`;
     }
 
-    _getSessionBookmarkCandidates(sessionId, options = {}) {
+    _getSessionBranchCandidates(sessionId, options = {}) {
         const { workspaceId } = this._getWorkspaceIdentity(sessionId, options);
-        const candidates = workspaceId === sessionId
-            ? [this._getSessionBranchName(sessionId, options), workspaceId]
-            : [this._getSessionBranchName(sessionId, options), workspaceId];
+        const candidates = [this._getSessionBranchName(sessionId, options), workspaceId];
         return candidates
             .filter((value, index, list) => value && list.indexOf(value) === index);
     }
@@ -195,16 +230,45 @@ export class WorktreeService {
         return repoRealpath === canonicalRealpath;
     }
 
-    async _getJjCommitId(repoPath, revset) {
-        const { stdout } = await this._execJujutsuWithStaleRetry(
-            repoPath,
-            `--ignore-working-copy log -r "${revset}" -T 'commit_id ++ "\\n"' --no-pager --no-graph`,
-            { retryStale: false }
-        );
-        return stdout
-            .split('\n')
-            .map((line) => line.trim())
-            .find(Boolean) || null;
+    async _getGitCommitId(repoPath, revspec) {
+        try {
+            const { stdout } = await this.execPromise(`git -C "${repoPath}" rev-parse "${revspec}"`);
+            return stdout.trim() || null;
+        } catch {
+            return null;
+        }
+    }
+
+    async _resolveMainCommit(repoPath, mainBranchName) {
+        const candidates = [
+            `refs/remotes/origin/${mainBranchName}`,
+            `refs/heads/${mainBranchName}`
+        ];
+        for (const candidate of candidates) {
+            const commit = await this._getGitCommitId(repoPath, candidate);
+            if (commit) return commit;
+        }
+        return null;
+    }
+
+    async _getGitStatusPorcelain(repoPath) {
+        try {
+            const { stdout } = await this.execPromise(`git -C "${repoPath}" status --porcelain`);
+            return stdout;
+        } catch {
+            return '';
+        }
+    }
+
+    async _getGitDiffNameOnly(repoPath, fromRef, toRef) {
+        try {
+            const { stdout } = await this.execPromise(
+                `git -C "${repoPath}" diff --name-only "${fromRef}" "${toRef}"`
+            );
+            return stdout;
+        } catch {
+            return '';
+        }
     }
 
     async getMergeDeploymentGuardStatus(repoPath, options = {}) {
@@ -239,57 +303,54 @@ export class WorktreeService {
             };
         }
 
-        if (!await this._isJujutsuRepo(repoPath)) {
+        if (!await this._isGitRepo(repoPath)) {
             return {
                 ...baseStatus,
                 ready: false,
-                reason: 'not_jj_repo',
-                error: 'Canonical Brainbase repo must be a Jujutsu repo for merge deployment guard'
+                reason: 'not_git_repo',
+                error: 'Canonical Brainbase repo must be a Git repo for merge deployment guard'
             };
         }
 
         try {
             if (fetchRemote) {
-                await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
+                await this._execGitWithLockRetry(repoPath, 'fetch origin');
             }
 
-            const [defaultCommit, mainCommit, statusResult] = await Promise.all([
-                this._getJjCommitId(repoPath, 'default@'),
-                this._getJjCommitId(repoPath, resolvedMainBranchName),
-                this._execJujutsuWithStaleRetry(repoPath, 'status --no-pager')
+            const [headCommit, mainCommit, statusOutput] = await Promise.all([
+                this._getGitCommitId(repoPath, 'HEAD'),
+                this._resolveMainCommit(repoPath, resolvedMainBranchName),
+                this._getGitStatusPorcelain(repoPath)
             ]);
-            const hasRelevantWorkingCopyChanges = this._statusHasRelevantWorkingCopyChanges(statusResult.stdout);
+            const hasRelevantWorkingCopyChanges = this._statusHasRelevantWorkingCopyChanges(statusOutput);
 
             if (hasRelevantWorkingCopyChanges) {
                 return {
                     ...baseStatus,
                     ready: false,
                     reason: 'canonical_workspace_dirty',
-                    defaultCommit,
+                    defaultCommit: headCommit,
                     mainCommit
                 };
             }
 
-            if (!defaultCommit || !mainCommit) {
+            if (!headCommit || !mainCommit) {
                 return {
                     ...baseStatus,
                     ready: false,
-                    reason: 'unresolved_jj_revision',
-                    defaultCommit,
+                    reason: 'unresolved_git_revision',
+                    defaultCommit: headCommit,
                     mainCommit
                 };
             }
 
-            if (defaultCommit !== mainCommit) {
-                const { stdout: diffPaths } = await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    `diff -r "${resolvedMainBranchName}..default@" --name-only`
-                );
+            if (headCommit !== mainCommit) {
+                const diffPaths = await this._getGitDiffNameOnly(repoPath, mainCommit, headCommit);
                 if (!this._diffOutputHasRelevantPaths(diffPaths)) {
                     return {
                         ...baseStatus,
                         reason: 'ok_ignored_artifact_delta',
-                        defaultCommit,
+                        defaultCommit: headCommit,
                         mainCommit
                     };
                 }
@@ -298,12 +359,12 @@ export class WorktreeService {
                     ...baseStatus,
                     ready: false,
                     reason: 'canonical_workspace_not_deployed',
-                    defaultCommit,
+                    defaultCommit: headCommit,
                     mainCommit
                 };
             }
 
-            return { ...baseStatus, defaultCommit, mainCommit };
+            return { ...baseStatus, defaultCommit: headCommit, mainCommit };
         } catch (error) {
             return {
                 ...baseStatus,
@@ -324,8 +385,8 @@ export class WorktreeService {
         }
 
         try {
-            await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
-            await this._execJujutsuWithStaleRetry(repoPath, `rebase -b default@ -d "${mainBranchName}"`);
+            await this._execGitWithLockRetry(repoPath, 'fetch origin');
+            await this._execGitWithLockRetry(repoPath, `checkout -B "${mainBranchName}" "origin/${mainBranchName}"`);
         } catch (error) {
             return {
                 success: false,
@@ -344,20 +405,6 @@ export class WorktreeService {
         }
 
         return { success: true, status };
-    }
-
-    _isStaleWorkingCopyError(error) {
-        const message = [
-            error?.message,
-            error?.stderr,
-            error?.stdout
-        ]
-            .filter(Boolean)
-            .join('\n')
-            .toLowerCase();
-
-        return message.includes('working copy is stale')
-            || message.includes('workspace update-stale');
     }
 
     _isIndexLockError(error) {
@@ -445,20 +492,16 @@ export class WorktreeService {
         }
     }
 
-    async _execJujutsuWithStaleRetry(repoPath, command, options = {}) {
-        const { retryStale = true } = options;
-        const fullCommand = `jj -R "${repoPath}" ${command}`;
+    /**
+     * repo lockの下でgitコマンドを実行し、`.git/index.lock` の stale回復を1回だけ試みる。
+     */
+    async _execGitWithLockRetry(repoPath, command) {
+        const fullCommand = `git -C "${repoPath}" ${command}`;
 
         return this._withRepoLock(repoPath, async () => {
             try {
                 return await this.execPromise(fullCommand);
             } catch (error) {
-                if (retryStale && this._isStaleWorkingCopyError(error)) {
-                    logger.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
-                    await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
-                    return await this.execPromise(fullCommand);
-                }
-
                 if (this._isIndexLockError(error) && await this._recoverStaleLockfile(repoPath)) {
                     return await this.execPromise(fullCommand);
                 }
@@ -468,92 +511,60 @@ export class WorktreeService {
         });
     }
 
-    async _getBookmarkInfos(repoPath, sessionId, options = {}) {
+    async _gitRefExists(repoPath, ref) {
+        try {
+            await this.execPromise(`git -C "${repoPath}" rev-parse --verify "${ref}"`);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async _getBranchInfos(repoPath, sessionId, options = {}) {
         const { fetchRemote = true } = options;
 
         if (fetchRemote) {
             try {
-                await this.execPromise(`jj -R "${repoPath}" git fetch`);
+                await this.execPromise(`git -C "${repoPath}" fetch origin`);
             } catch (fetchErr) {
                 logger.info(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
             }
         }
 
-        const bookmarkCandidates = this._getSessionBookmarkCandidates(sessionId, options);
+        const branchCandidates = this._getSessionBranchCandidates(sessionId, options);
         const infos = [];
 
-        for (const candidate of bookmarkCandidates) {
-            try {
-                const { stdout } = await this.execPromise(
-                    `jj -R "${repoPath}" bookmark list "${candidate}" --all-remotes --no-pager`
-                );
-                const output = stdout.trim();
-                if (!output || output.includes('No matching bookmarks') || output.includes('(deleted)')) {
-                    continue;
-                }
+        for (const candidate of branchCandidates) {
+            const localExists = await this._gitRefExists(repoPath, `refs/heads/${candidate}`);
+            if (!localExists) continue;
 
-                infos.push({
-                    name: candidate,
-                    pushed: /@origin(?::|\b)/.test(output) || /origin:/.test(output),
-                    output
-                });
-            } catch {
-                // ignore missing bookmark candidate
-            }
+            const pushed = await this._gitRefExists(repoPath, `refs/remotes/origin/${candidate}`);
+            infos.push({
+                name: candidate,
+                pushed,
+                output: pushed ? `${candidate}@origin` : candidate
+            });
         }
 
         return infos;
     }
 
-    async _resolveMergeBookmarkName(sessionId, repoPath, options = {}) {
-        const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { ...options, fetchRemote: false });
-        return bookmarkInfos.find(info => info.pushed)?.name
-            || bookmarkInfos[0]?.name
+    async _resolveMergeBranchName(sessionId, repoPath, options = {}) {
+        const branchInfos = await this._getBranchInfos(repoPath, sessionId, { ...options, fetchRemote: false });
+        return branchInfos.find(info => info.pushed)?.name
+            || branchInfos[0]?.name
             || this._getSessionBranchName(sessionId, options);
     }
 
-    _isNonTrackingRemoteBookmarkError(error, bookmarkName) {
-        const message = [
-            error?.message,
-            error?.stderr,
-            error?.stdout,
-            String(error || '')
-        ].filter(Boolean).join('\n');
-
-        return message.includes(`Non-tracking remote bookmark ${bookmarkName}@origin exists`);
+    async _pushBranchForMerge(repoPath, branchName) {
+        await this._execGitWithLockRetry(repoPath, `push origin "${branchName}"`);
     }
 
-    async _pushBookmarkForMerge(repoPath, bookmarkName) {
-        try {
-            await this._execJujutsuWithStaleRetry(
-                repoPath,
-                `git push --bookmark "${bookmarkName}"`,
-                { retryStale: false }
-            );
-        } catch (pushErr) {
-            if (!this._isNonTrackingRemoteBookmarkError(pushErr, bookmarkName)) {
-                throw pushErr;
-            }
-
-            logger.info(`[merge] Tracking existing remote bookmark before retry: ${bookmarkName}@origin`);
-            await this._execJujutsuWithStaleRetry(
-                repoPath,
-                `bookmark track "${bookmarkName}" --remote=origin`,
-                { retryStale: false }
-            );
-            await this._execJujutsuWithStaleRetry(
-                repoPath,
-                `git push --bookmark "${bookmarkName}"`,
-                { retryStale: false }
-            );
-        }
-    }
-
-    async _resolveGitRefForBookmark(workspacePath, bookmarkName) {
+    async _resolveGitRefForBranch(workspacePath, branchName) {
         const refCandidates = [
-            `refs/remotes/origin/${bookmarkName}`,
-            `origin/${bookmarkName}`,
-            bookmarkName
+            `refs/remotes/origin/${branchName}`,
+            `origin/${branchName}`,
+            branchName
         ];
 
         for (const candidate of refCandidates) {
@@ -568,36 +579,8 @@ export class WorktreeService {
         return null;
     }
 
-    async _ensureGitExclude(gitDirPath, pattern) {
-        const infoDir = path.join(gitDirPath, 'info');
-        const excludePath = path.join(infoDir, 'exclude');
-        let current = '';
-
-        await fs.mkdir(infoDir, { recursive: true });
-
-        try {
-            current = await fs.readFile(excludePath, 'utf8');
-        } catch (error) {
-            if (error?.code !== 'ENOENT') {
-                throw error;
-            }
-        }
-
-        const lines = current
-            .split('\n')
-            .map(line => line.trim())
-            .filter(Boolean);
-
-        if (!lines.includes(pattern)) {
-            const next = current && !current.endsWith('\n')
-                ? `${current}\n${pattern}\n`
-                : `${current}${pattern}\n`;
-            await fs.writeFile(excludePath, next);
-        }
-    }
-
-    async _workspaceMatchesBookmark(workspacePath, bookmarkName) {
-        const gitRef = await this._resolveGitRefForBookmark(workspacePath, bookmarkName);
+    async _workspaceMatchesBranch(workspacePath, branchName) {
+        const gitRef = await this._resolveGitRefForBranch(workspacePath, branchName);
         if (!gitRef) {
             return false;
         }
@@ -649,7 +632,7 @@ export class WorktreeService {
 
         try {
             const { stdout } = await this.execPromise(
-                `jj -R "${repoPath}" log -r "${baseRef}..${targetRef}" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
+                `git -C "${repoPath}" rev-list --count "${baseRef}..${targetRef}"`
             );
             return parseInt(stdout.trim(), 10) || 0;
         } catch {
@@ -689,26 +672,47 @@ export class WorktreeService {
             || artifactBasenames.has(basename);
     }
 
-    _statusHasRelevantWorkingCopyChanges(statusOutput) {
-        if (!String(statusOutput || '').includes('Working copy changes:')) {
-            return false;
+    /**
+     * `git status --porcelain` の1行から対象パスを取り出す。
+     * リネーム/コピー行（`old -> new`）は既存の `{from => to}` 判定ロジックへ正規化する。
+     */
+    _extractPorcelainStatusPath(line) {
+        const rest = line.slice(3);
+        const renameMatch = rest.match(/^(.+) -> (.+)$/);
+        if (renameMatch) {
+            return `{${renameMatch[1]} => ${renameMatch[2]}}`;
         }
+        return rest;
+    }
 
+    _statusHasRelevantWorkingCopyChanges(statusOutput) {
         return String(statusOutput || '')
             .split('\n')
             .some((line) => {
-                const match = line.match(/^\s*[A-Z?][A-Z? ]*\s+(.+)$/);
-                if (!match) return false;
-                return !this._isWorkspaceArtifactStatusPath(match[1]);
+                if (!line.trim()) return false;
+                const filePath = this._extractPorcelainStatusPath(line);
+                if (!filePath) return false;
+                return !this._isWorkspaceArtifactStatusPath(filePath);
             });
+    }
+
+    /**
+     * Classify a `git ls-files -u` failure as a benign no-conflicts result.
+     * "not a git repository": the workspace directory disappeared/was never a git
+     * worktree (e.g. mid-teardown race). This is a legitimate state and must not
+     * spam the error log on every poll.
+     */
+    _isBenignConflictInspectError(output) {
+        const text = String(output || '');
+        return /not a git repository/i.test(text);
     }
 
     async _hasWorkingCopyConflicts(workspacePath) {
         try {
             const { stdout } = await this.execPromise(
-                `jj -R "${workspacePath}" resolve --list --no-pager`
+                `git -C "${workspacePath}" ls-files -u`
             );
-            return this._resolveListHasConflicts(stdout);
+            return stdout.trim().length > 0;
         } catch (error) {
             const output = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`;
             if (this._isBenignConflictInspectError(output)) {
@@ -719,40 +723,21 @@ export class WorktreeService {
         }
     }
 
-    /**
-     * Classify a `jj resolve --list` failure as a benign no-conflicts result.
-     * - "No conflicts found": some jj versions report no conflicts via a non-zero exit.
-     * - "There is no jj repo": the workspace is not a jj repo (e.g. a git-only worktree),
-     *   so there are no jj conflicts to inspect. This is a legitimate state and must not
-     *   spam the error log on every poll.
-     */
-    _isBenignConflictInspectError(output) {
-        const text = String(output || '');
-        return /No conflicts found/i.test(text) || /no jj repo/i.test(text);
-    }
-
-    _resolveListHasConflicts(resolveOutput) {
-        return String(resolveOutput || '')
-            .split('\n')
-            .some((line) => line.trim() && !/No conflicts found/i.test(line));
-    }
-
     _diffOutputHasRelevantPaths(diffOutput) {
         return String(diffOutput || '')
             .split('\n')
             .some((line) => {
-                const statMatch = line.match(/^\s*(.+?)\s+\|\s+/);
-                const filePath = (statMatch ? statMatch[1] : line).trim();
-                if (!filePath || /^[0-9]+ files? changed/.test(filePath)) return false;
+                const filePath = line.trim();
+                if (!filePath) return false;
                 return !this._isWorkspaceArtifactStatusPath(filePath);
             });
     }
 
-    async _resolveArchiveTargetBookmark(sessionId, repoPath, workspacePath, bookmarkInfos) {
-        const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
-        if (officialBookmark) {
+    async _resolveArchiveTargetBranch(sessionId, repoPath, workspacePath, branchInfos) {
+        const officialBranch = branchInfos.find(info => info.pushed) || null;
+        if (officialBranch) {
             return {
-                bookmarkName: officialBookmark.name,
+                bookmarkName: officialBranch.name,
                 adoptSessionBookmark: false
             };
         }
@@ -782,7 +767,7 @@ export class WorktreeService {
         const repoName = path.basename(repoPath);
         const workspaceIdentity = this._getWorkspaceIdentity(sessionId, options);
         const workspaceName = this._getWorkspaceName(sessionId, repoPath, workspaceIdentity);
-        const fallbackBookmarkName = this._getSessionBranchName(sessionId, workspaceIdentity);
+        const fallbackBranchName = this._getSessionBranchName(sessionId, workspaceIdentity);
 
         try {
             await fs.access(workspacePath);
@@ -793,9 +778,9 @@ export class WorktreeService {
             try {
                 const baseRef = startCommit || mainBranchName;
                 const { stdout: aheadCount } = await this.execPromise(
-                    `jj -R "${workspacePath}" log -r "${baseRef}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
+                    `git -C "${workspacePath}" rev-list --count "${baseRef}..HEAD"`
                 );
-                changesNotPushed = parseInt(aheadCount.trim()) || 0;
+                changesNotPushed = parseInt(aheadCount.trim(), 10) || 0;
             } catch {
                 changesNotPushed = 0;
             }
@@ -803,18 +788,18 @@ export class WorktreeService {
             let hasWorkingCopyChanges = false;
             try {
                 const { stdout: statusOutput } = await this.execPromise(
-                    `jj -R "${workspacePath}" status --no-pager`
+                    `git -C "${workspacePath}" status --porcelain`
                 );
                 hasWorkingCopyChanges = this._statusHasRelevantWorkingCopyChanges(statusOutput);
             } catch {
                 hasWorkingCopyChanges = false;
             }
 
-            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { ...options, fetchRemote });
-            const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
-            const bookmarkPushed = Boolean(officialBookmark);
-            const mergeTargetRef = officialBookmark?.name || bookmarkInfos[0]?.name || null;
-            const bookmarkName = mergeTargetRef || fallbackBookmarkName;
+            const branchInfos = await this._getBranchInfos(repoPath, sessionId, { ...options, fetchRemote });
+            const officialBranch = branchInfos.find(info => info.pushed) || null;
+            const bookmarkPushed = Boolean(officialBranch);
+            const mergeTargetRef = officialBranch?.name || branchInfos[0]?.name || null;
+            const bookmarkName = mergeTargetRef || fallbackBranchName;
             const commitsAheadOfBase = await this._countCommitsAheadOfBase(
                 repoPath,
                 mainBranchName,
@@ -833,7 +818,7 @@ export class WorktreeService {
                 worktreePath: workspacePath,
                 workspaceName,
                 bookmarkName,
-                officialBookmarkName: officialBookmark?.name || null,
+                officialBookmarkName: officialBranch?.name || null,
                 mainBranch: mainBranchName,
                 changesNotPushed,
                 hasWorkingCopyChanges,
@@ -856,7 +841,7 @@ export class WorktreeService {
                 repoName,
                 worktreePath: workspacePath,
                 workspaceName,
-                bookmarkName: fallbackBookmarkName,
+                bookmarkName: fallbackBranchName,
                 officialBookmarkName: null,
                 needsIntegration: false,
                 needsMerge: false,
@@ -866,84 +851,18 @@ export class WorktreeService {
         }
     }
 
-    async _ensureGitCompatibility(sessionId, repoPath, workspacePath, options = {}) {
-        const { updateBranch = true, resetWorkspace = true } = options;
-        const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
-        const branchName = this._getSessionBranchName(sessionId, options);
-        const gitRoot = path.join(repoPath, '.git');
-        const gitWorktreePath = path.join(gitRoot, 'worktrees', workspaceName);
+    _isBranchAlreadyExistsError(err) {
+        const message = err instanceof Error ? err.message : String(err || '');
+        return /already exists/i.test(message) && /branch/i.test(message);
+    }
 
-        await fs.mkdir(gitWorktreePath, { recursive: true });
-
-        const { stdout: headCommit } = await this.execPromise(
-            `git -C "${repoPath}" rev-parse HEAD`
-        );
-        const commit = headCommit.trim();
-
-        if (!commit) {
-            throw new Error(`Failed to resolve HEAD commit for ${repoPath}`);
-        }
-
-        if (updateBranch) {
-            await this.execPromise(
-                `git -C "${repoPath}" branch --force "${branchName}" "${commit}"`
-            );
-        } else {
-            try {
-                await this.execPromise(
-                    `git -C "${repoPath}" rev-parse --verify "refs/heads/${branchName}"`
-                );
-            } catch {
-                await this.execPromise(
-                    `git -C "${repoPath}" branch "${branchName}" "${commit}"`
-                );
-            }
-        }
-
-        await fs.writeFile(
-            path.join(gitWorktreePath, 'gitdir'),
-            path.join(workspacePath, '.git') + '\n'
-        );
-        await fs.writeFile(
-            path.join(gitWorktreePath, 'commondir'),
-            '../..\n'
-        );
-        await fs.writeFile(
-            path.join(gitWorktreePath, 'HEAD'),
-            `ref: refs/heads/${branchName}\n`
-        );
-        await fs.writeFile(
-            path.join(workspacePath, '.git'),
-            `gitdir: ${gitWorktreePath}\n`
-        );
-
-        await this._ensureGitExclude(gitWorktreePath, '.jj/');
-
-        // Untrack .jj/ from git index if it was accidentally committed upstream.
-        // .gitignore only prevents new tracking; already-tracked files need explicit removal.
-        // Without this, git reset --hard restores a stale .jj/working_copy/checkout
-        // from the parent commit, corrupting the jj workspace identity.
-        try {
-            await this.execPromise(`git -C "${workspacePath}" rm -r --cached .jj/ 2>/dev/null || true`);
-        } catch {
-            // .jj/ may not be tracked — that's fine
-        }
-
-        if (resetWorkspace) {
-            // Align the git worktree metadata with the freshly materialized JJ workspace.
-            await this.execPromise(`git -C "${workspacePath}" reset --hard HEAD`);
-        }
-
-        return { workspaceName, branchName, gitWorktreePath };
+    _isWorktreeAlreadyExistsError(err) {
+        const message = err instanceof Error ? err.message : String(err || '');
+        return /already exists/i.test(message) && !/branch/i.test(message);
     }
 
     async _reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity) {
         logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
-        await this._ensureGitCompatibility(sessionId, repoPath, workspacePath, {
-            ...workspaceIdentity,
-            updateBranch: false,
-            resetWorkspace: false
-        });
         const mainBranchName = await this._getMainBranchName(repoPath);
         const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
         const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
@@ -958,32 +877,8 @@ export class WorktreeService {
         };
     }
 
-    _isWorkspaceAlreadyExistsError(err, workspaceName) {
-        const message = err instanceof Error ? err.message : String(err || '');
-        return message.includes(`Workspace named '${workspaceName}' already exists`)
-            || message.includes(`Workspace named "${workspaceName}" already exists`);
-    }
-
-    async _removeGitCompatibility(sessionId, repoPath, options = {}) {
-        const workspaceName = this._getWorkspaceName(sessionId, repoPath, options);
-        const branchName = this._getSessionBranchName(sessionId, options);
-        const gitWorktreePath = path.join(repoPath, '.git', 'worktrees', workspaceName);
-
-        try {
-            await fs.rm(gitWorktreePath, { recursive: true, force: true });
-        } catch (err) {
-            logger.info(`[workspace] Git metadata cleanup skipped: ${err instanceof Error ? err.message : String(err)}`);
-        }
-
-        try {
-            await this.execPromise(`git -C "${repoPath}" branch -D "${branchName}"`);
-        } catch (err) {
-            logger.info(`[workspace] Git branch cleanup skipped: ${err instanceof Error ? err.message : String(err)}`);
-        }
-    }
-
     /**
-     * 新しいJujutsu workspaceを作成
+     * 新しいgit worktreeを作成
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<{worktreePath: string, branchName: string, repoPath: string}|null>}
@@ -995,46 +890,45 @@ export class WorktreeService {
         const workspaceIdentity = this._getWorkspaceIdentity(sessionId, options);
         const workspaceName = this._getWorkspaceName(sessionId, repoPath, workspaceIdentity);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = this._getSessionBranchName(sessionId, workspaceIdentity);
+        const branchName = this._getSessionBranchName(sessionId, workspaceIdentity);
 
         try {
             // Check if directory exists first
             try {
                 await fs.access(repoPath);
-            } catch (accessErr) {
+            } catch {
                 throw new Error(`Directory does not exist: ${repoPath}. Please check your project configuration in config.yml (local.path or github setting).`);
             }
 
-            // Check if Jujutsu is available
-            const isJujutsu = await this._isJujutsuRepo(repoPath);
-            if (!isJujutsu) {
-                logger.info(`[workspace] Not a jj repo, auto-initializing at ${repoPath}...`);
+            // Check if this is a git repo; auto-initialize otherwise
+            const isGitRepo = await this._isGitRepo(repoPath);
+            if (!isGitRepo) {
+                logger.info(`[workspace] Not a git repo, auto-initializing at ${repoPath}...`);
                 try {
-                    await this.execPromise(`cd "${repoPath}" && jj git init --colocate`);
-                    logger.info(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
-                    this._jjRepoCache.set(repoPath, true); // 初期化成功をキャッシュ
+                    await this.execPromise(`git -C "${repoPath}" init`);
+                    logger.info(`[workspace] git init succeeded at ${repoPath}`);
+                    this._gitRepoCache.set(repoPath, true); // 初期化成功をキャッシュ
                 } catch (initErr) {
-                    throw new Error(`jj git init failed at ${repoPath}: ${initErr instanceof Error ? initErr.message : String(initErr)}`);
+                    throw new Error(`git init failed at ${repoPath}: ${initErr instanceof Error ? initErr.message : String(initErr)}`);
                 }
             }
 
-            // Check if workspace already exists
+            // Check if worktree already registered
             try {
-                const { stdout: workspaceList } = await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    'workspace list'
-                );
-                if (workspaceList.includes(`${workspaceName}:`)) {
+                const { stdout: worktreeList } = await this._execGitWithLockRetry(repoPath, 'worktree list --porcelain');
+                const alreadyRegistered = this._parseWorktreeListPorcelain(worktreeList)
+                    .some((entry) => path.resolve(entry.path) === path.resolve(workspacePath));
+                if (alreadyRegistered) {
                     return await this._reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity);
                 }
             } catch {
-                // Workspace doesn't exist, continue to create
+                // Not registered yet (or listing failed) — continue to create
             }
 
             // Fetch latest from remote (skipFetch=trueで省略可能、2-3秒短縮)
             if (!skipFetch) {
                 try {
-                    await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
+                    await this._execGitWithLockRetry(repoPath, 'fetch origin');
                 } catch (fetchErr) {
                     logger.info(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
                 }
@@ -1045,48 +939,51 @@ export class WorktreeService {
             const mainBranchName = await this._getMainBranchName(repoPath);
             const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
 
-            // Create workspace
+            // Create worktree (+ branch)
             try {
-                await this._execJujutsuWithStaleRetry(
+                await this._execGitWithLockRetry(
                     repoPath,
-                    `workspace add --name "${workspaceName}" -r "${workspaceBaseRevision}" --sparse-patterns full "${workspacePath}"`
+                    `worktree add -b "${branchName}" "${workspacePath}" "${workspaceBaseRevision}"`
                 );
-                logger.info(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
+                logger.info(`[workspace] Created worktree: ${workspaceName} at ${workspacePath}`);
             } catch (addErr) {
-                if (this._isWorkspaceAlreadyExistsError(addErr, workspaceName)) {
-                    logger.warn(`[workspace] Workspace appeared during create: ${workspaceName}, reusing existing workspace`);
+                if (this._isBranchAlreadyExistsError(addErr)) {
+                    logger.warn(`[workspace] Branch already exists, retrying worktree add without -b: ${branchName}`);
+                    try {
+                        await this._execGitWithLockRetry(
+                            repoPath,
+                            `worktree add "${workspacePath}" "${branchName}"`
+                        );
+                        logger.info(`[workspace] Created worktree for existing branch: ${workspaceName} at ${workspacePath}`);
+                    } catch (retryErr) {
+                        if (this._isWorktreeAlreadyExistsError(retryErr)) {
+                            return await this._reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity);
+                        }
+                        throw retryErr;
+                    }
+                } else if (this._isWorktreeAlreadyExistsError(addErr)) {
+                    logger.warn(`[workspace] Worktree appeared during create: ${workspaceName}, reusing existing workspace`);
                     return await this._reuseExistingWorkspace(sessionId, repoPath, workspacePath, workspaceName, workspaceIdentity);
+                } else {
+                    throw addErr;
                 }
-                throw addErr;
             }
 
             // Run post-creation tasks in parallel (all non-critical, try-catch wrapped)
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
-            const [gitResult, bookmarkResult, , , , startCommitResult] = await Promise.allSettled([
-                this._ensureGitCompatibility(sessionId, repoPath, workspacePath, workspaceIdentity),
-                this._execJujutsuWithStaleRetry(repoPath, `bookmark create -r ${workspaceBaseRevision} "${bookmarkName}"`),
+            const [, , , startCommitResult] = await Promise.allSettled([
                 this._symlinkIfMissing(path.join(repoPath, '.env'), path.join(workspacePath, '.env'), '.env'),
                 this._symlinkIfMissing(path.join(workspaceRoot, '.claude'), path.join(workspacePath, '.claude'), '.claude'),
                 this._symlinkIfMissing(path.join(workspaceRoot, '.mcp.json'), path.join(workspacePath, '.mcp.json'), '.mcp.json'),
                 this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision)
             ]);
 
-            if (gitResult.status === 'fulfilled') {
-                logger.info(`[workspace] Registered git worktree at ${gitResult.value?.gitWorktreePath}`);
-            } else {
-                logger.info(`[workspace] Git worktree registration failed (non-critical): ${gitResult.reason?.message || gitResult.reason}`);
-            }
-            if (bookmarkResult.status === 'fulfilled') {
-                logger.info(`[workspace] Created bookmark: ${bookmarkName}`);
-            } else {
-                logger.info(`[workspace] Bookmark creation skipped: ${bookmarkResult.reason?.message || bookmarkResult.reason}`);
-            }
             const startCommit = startCommitResult.status === 'fulfilled' ? startCommitResult.value : null;
 
-            logger.info(`Created Jujutsu workspace at ${workspacePath}`);
+            logger.info(`Created git worktree at ${workspacePath}`);
             return {
                 worktreePath: workspacePath,
-                branchName: this._getSessionBranchName(sessionId, workspaceIdentity),
+                branchName,
                 repoPath,
                 startCommit,
                 workspaceName,
@@ -1100,7 +997,7 @@ export class WorktreeService {
     }
 
     /**
-     * Jujutsu workspaceを削除
+     * git worktreeを削除
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<boolean>}
@@ -1110,30 +1007,22 @@ export class WorktreeService {
         const workspacePath = path.join(this.worktreesDir, workspaceName);
 
         try {
-            // Forget workspace (metadata only)
             try {
-                await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
-                logger.info(`[workspace] Forgot workspace: ${workspaceName}`);
-            } catch (forgetErr) {
-                logger.info(`[workspace] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
-            }
-
-            // Delete canonical and legacy session bookmarks.
-            for (const candidate of this._getSessionBookmarkCandidates(sessionId, options)) {
+                await this._execGitWithLockRetry(repoPath, `worktree remove --force "${workspacePath}"`);
+                logger.info(`[workspace] Removed worktree: ${workspaceName}`);
+            } catch (removeErr) {
+                logger.info(`[workspace] worktree remove failed, falling back to fs.rm: ${removeErr instanceof Error ? removeErr.message : String(removeErr)}`);
                 try {
-                    await this.execPromise(`jj -R "${repoPath}" bookmark delete "${candidate}"`);
-                    logger.info(`[workspace] Deleted bookmark: ${candidate}`);
-                } catch (bookmarkErr) {
-                    logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+                    await fs.rm(workspacePath, { recursive: true, force: true });
+                    logger.info(`[workspace] Removed physical directory: ${workspacePath}`);
+                } catch (rmErr) {
+                    logger.warn(`[workspace] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
                 }
-            }
-
-            // Remove physical directory — must succeed to prevent zombie worktrees
-            try {
-                await fs.rm(workspacePath, { recursive: true, force: true });
-                logger.info(`[workspace] Removed physical directory: ${workspacePath}`);
-            } catch (rmErr) {
-                logger.warn(`[workspace] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+                try {
+                    await this._execGitWithLockRetry(repoPath, 'worktree prune');
+                } catch {
+                    // best-effort
+                }
             }
 
             // Verify removal — zombie prevention
@@ -1145,7 +1034,15 @@ export class WorktreeService {
                 // Expected: directory no longer exists
             }
 
-            await this._removeGitCompatibility(sessionId, repoPath, options);
+            // Delete canonical and legacy session branches.
+            for (const candidate of this._getSessionBranchCandidates(sessionId, options)) {
+                try {
+                    await this.execPromise(`git -C "${repoPath}" branch -D "${candidate}"`);
+                    logger.info(`[workspace] Deleted branch: ${candidate}`);
+                } catch (branchErr) {
+                    logger.info(`[workspace] Branch deletion skipped: ${branchErr instanceof Error ? branchErr.message : String(branchErr)}`);
+                }
+            }
 
             return true;
         } catch (err) {
@@ -1160,32 +1057,20 @@ export class WorktreeService {
         const workspacePath = options.workspacePath || path.join(this.worktreesDir, workspaceName);
 
         try {
-            await this._execJujutsuWithStaleRetry(
-                repoPath,
-                `workspace forget "${workspaceName}"`,
-                { retryStale: false }
-            );
-        } catch (forgetErr) {
-            logger.info(`[merge] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
-        }
-
-        for (const candidate of this._getSessionBookmarkCandidates(sessionId, workspaceIdentity)) {
+            await this._execGitWithLockRetry(repoPath, `worktree remove --force "${workspacePath}"`);
+        } catch (removeErr) {
+            logger.info(`[merge] worktree remove failed, falling back to fs.rm: ${removeErr instanceof Error ? removeErr.message : String(removeErr)}`);
             try {
-                await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    `bookmark delete "${candidate}"`,
-                    { retryStale: false }
-                );
-            } catch (bookmarkErr) {
-                logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
+                await fs.rm(workspacePath, { recursive: true, force: true });
+                logger.info(`[merge] Removed physical directory: ${workspacePath}`);
+            } catch (rmErr) {
+                logger.warn(`[merge] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
             }
-        }
-
-        try {
-            await fs.rm(workspacePath, { recursive: true, force: true });
-            logger.info(`[merge] Removed physical directory: ${workspacePath}`);
-        } catch (rmErr) {
-            logger.warn(`[merge] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+            try {
+                await this._execGitWithLockRetry(repoPath, 'worktree prune');
+            } catch {
+                // best-effort
+            }
         }
 
         try {
@@ -1202,7 +1087,13 @@ export class WorktreeService {
             // Expected: directory no longer exists
         }
 
-        await this._removeGitCompatibility(sessionId, repoPath, workspaceIdentity);
+        for (const candidate of this._getSessionBranchCandidates(sessionId, workspaceIdentity)) {
+            try {
+                await this.execPromise(`git -C "${repoPath}" branch -D "${candidate}"`);
+            } catch (branchErr) {
+                logger.info(`[merge] Branch deletion skipped: ${branchErr instanceof Error ? branchErr.message : String(branchErr)}`);
+            }
+        }
 
         return {
             success: true,
@@ -1231,7 +1122,7 @@ export class WorktreeService {
     }
 
     /**
-     * Jujutsu workspaceの状態を取得
+     * git worktreeの状態を取得
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @param {string|null} startCommit - セッション開始時のコミットハッシュ
@@ -1269,12 +1160,12 @@ export class WorktreeService {
             return { ...result, reason: 'changes_not_pushed' };
         }
 
-        const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
-        const archiveTarget = await this._resolveArchiveTargetBookmark(
+        const branchInfos = await this._getBranchInfos(repoPath, sessionId);
+        const archiveTarget = await this._resolveArchiveTargetBranch(
             sessionId,
             repoPath,
             workspacePath,
-            bookmarkInfos
+            branchInfos
         );
         if (!archiveTarget) {
             return { ...result, reason: 'missing_official_bookmark' };
@@ -1282,12 +1173,12 @@ export class WorktreeService {
 
         const workspaceMatches = archiveTarget.adoptSessionBookmark
             ? await this._workspaceMatchesGitHead(workspacePath)
-            : await this._workspaceMatchesBookmark(workspacePath, archiveTarget.bookmarkName);
+            : await this._workspaceMatchesBranch(workspacePath, archiveTarget.bookmarkName);
         if (!workspaceMatches) {
             return { ...result, reason: 'working_copy_differs' };
         }
 
-        const staleLocalBookmarks = bookmarkInfos.filter(
+        const staleLocalBranches = branchInfos.filter(
             info => info.name !== this._getSessionBranchName(sessionId) && !info.pushed
         );
 
@@ -1296,23 +1187,24 @@ export class WorktreeService {
         if (archiveTarget.adoptSessionBookmark) {
             const sessionBranchName = this._getSessionBranchName(sessionId);
             await this.execPromise(
-                `jj -R "${repoPath}" bookmark set "${sessionBranchName}" -r "${archiveTarget.bookmarkName}"`
+                `git -C "${repoPath}" branch -f "${sessionBranchName}" "${archiveTarget.bookmarkName}"`
             );
-            result.actions.push(`move-bookmark:${sessionBranchName}->${archiveTarget.bookmarkName}`);
+            result.actions.push(`move-branch:${sessionBranchName}->${archiveTarget.bookmarkName}`);
         }
 
-        for (const bookmark of staleLocalBookmarks) {
-            await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmark.name}"`);
-            result.actions.push(`delete-bookmark:${bookmark.name}`);
+        for (const branch of staleLocalBranches) {
+            await this.execPromise(`git -C "${repoPath}" branch -D "${branch.name}"`);
+            result.actions.push(`delete-branch:${branch.name}`);
         }
 
+        // Only reset the working copy after we've confirmed above (via
+        // _workspaceMatchesBranch / _workspaceMatchesGitHead) that it matches the
+        // archive target — this reset is a no-op content-wise, purely to clear
+        // the "dirty" bookkeeping state.
         await this.execPromise(
-            `jj -R "${workspacePath}" new "${this._getSessionBranchName(sessionId)}" -m "wip: archive clean working copy"`
+            `git -C "${workspacePath}" reset --hard "${this._getSessionBranchName(sessionId)}"`
         );
         result.actions.push(`reset-working-copy:${this._getSessionBranchName(sessionId)}`);
-
-        await this.execPromise(`jj -R "${repoPath}" git export`);
-        result.actions.push('git-export');
 
         const statusAfter = await this._collectStatus(sessionId, repoPath, workspacePath, startCommit);
         result.statusAfter = statusAfter;
@@ -1323,7 +1215,7 @@ export class WorktreeService {
     }
 
     /**
-     * ローカルmainを更新（Jujutsu: jj git fetch）
+     * ローカルmainを更新（git fetch）
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<{success: boolean, updated?: boolean, error?: string, mainBranch?: string}>}
      */
@@ -1331,14 +1223,11 @@ export class WorktreeService {
         const mainBranchName = await this._getMainBranchName(repoPath);
 
         try {
-            // Fetch latest from remote
-            await this.execPromise(`jj -R "${repoPath}" git fetch`);
+            await this.execPromise(`git -C "${repoPath}" fetch origin`);
         } catch (err) {
             return { success: false, error: `fetch失敗: ${err instanceof Error ? err.message : String(err)}` };
         }
 
-        // Jujutsu doesn't need explicit "update local main" like Git
-        // The main bookmark is automatically updated on fetch
         return { success: true, updated: true, mainBranch: mainBranchName };
     }
 
@@ -1364,43 +1253,33 @@ export class WorktreeService {
     }
 
     async _resolveWorkspaceBaseRevision(repoPath, preferredRevision) {
-        const candidates = [preferredRevision, 'main', 'trunk()']
+        const candidates = [
+            preferredRevision ? `origin/${preferredRevision}` : null,
+            preferredRevision,
+            'HEAD'
+        ]
             .filter(Boolean)
             .filter((value, index, list) => list.indexOf(value) === index);
 
         for (const candidate of candidates) {
-            try {
-                await this.execPromise(
-                    `jj -R "${repoPath}" --ignore-working-copy log -r "${candidate}" -T 'commit_id ++ "\\n"' --no-pager`
-                );
+            const commit = await this._getGitCommitId(repoPath, candidate);
+            if (commit) {
                 return candidate;
-            } catch {
-                // try next candidate
             }
         }
 
-        throw new Error(`Unable to resolve Jujutsu workspace base revision for ${repoPath}`);
+        throw new Error(`Unable to resolve git worktree base revision for ${repoPath}`);
     }
 
-    async _getWorkspaceStartCommit(workspacePath, preferredRevision) {
-        const candidates = [preferredRevision, '@-', 'main', 'trunk()']
+    async _getWorkspaceStartCommit(workspacePath, preferredRevision = null) {
+        const candidates = [preferredRevision, 'HEAD']
             .filter(Boolean)
             .filter((value, index, list) => list.indexOf(value) === index);
 
         for (const candidate of candidates) {
-            try {
-                const { stdout } = await this.execPromise(
-                    `jj -R "${workspacePath}" --ignore-working-copy log -r "${candidate}" -T 'commit_id ++ "\\n"' --no-pager`
-                );
-                const commit = stdout
-                    .split('\n')
-                    .map((line) => line.trim())
-                    .find(Boolean);
-                if (commit) {
-                    return commit;
-                }
-            } catch {
-                // try next candidate
+            const commit = await this._getGitCommitId(workspacePath, candidate);
+            if (commit) {
+                return commit;
             }
         }
 
@@ -1408,7 +1287,7 @@ export class WorktreeService {
     }
 
     /**
-     * Jujutsu workspaceをベースブランチにマージ（PR経由）
+     * git worktreeをベースブランチにマージ（PR経由）
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @param {string|null} sessionName - セッション名（オプション）
@@ -1420,12 +1299,12 @@ export class WorktreeService {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
             const ghRepoSpec = await this._getGitHubRepoSpec(repoPath);
-            const bookmarkName = await this._resolveMergeBookmarkName(sessionId, repoPath, workspaceIdentity);
+            const branchName = await this._resolveMergeBranchName(sessionId, repoPath, workspaceIdentity);
 
-            // Push bookmark to remote
-            logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
+            // Push branch to remote
+            logger.info(`[merge] Pushing branch: ${branchName}`);
             try {
-                await this._pushBookmarkForMerge(repoPath, bookmarkName);
+                await this._pushBranchForMerge(repoPath, branchName);
             } catch (pushErr) {
                 return {
                     success: false,
@@ -1434,10 +1313,8 @@ export class WorktreeService {
             }
 
             // Get commits for PR description
-            const { stdout: commits } = await this._execJujutsuWithStaleRetry(
-                repoPath,
-                `log -r "${mainBranchName}..${bookmarkName}" -T '"- " ++ description.first_line() ++ "\\n"' --no-pager`,
-                { retryStale: false }
+            const { stdout: commits } = await this.execPromise(
+                `git -C "${repoPath}" log "${mainBranchName}..${branchName}" --format="- %s"`
             );
 
             // Build PR title
@@ -1445,9 +1322,9 @@ export class WorktreeService {
             const prTitle = `Merge session: ${displayName}`;
 
             // Create PR
-            logger.info(`[merge] Creating PR for ${bookmarkName}`);
+            logger.info(`[merge] Creating PR for ${branchName}`);
             const { stdout: prUrl } = await this.execPromise(
-                `gh pr create --base "${mainBranchName}" --head "${bookmarkName}" --title "${prTitle}" --body "$(cat <<'EOF'
+                `gh pr create --base "${mainBranchName}" --head "${branchName}" --title "${prTitle}" --body "$(cat <<'EOF'
 ## Summary
 
 ${commits || 'No commit messages'}
@@ -1492,7 +1369,7 @@ EOF
                 generation: workspaceIdentity.generation,
                 workspaceName: retired.workspaceName,
                 path: retired.workspacePath,
-                branch: bookmarkName,
+                branch: branchName,
                 mergedPrUrl: prUrl.trim(),
                 mergedAt,
                 mergeCommit: mergeMetadata.mergeCommit,
@@ -1516,7 +1393,7 @@ EOF
             }
 
             if (!options.rotateAfterMerge) {
-                logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
+                logger.info(`[merge] Merged ${branchName} into ${mainBranchName}`);
                 return {
                     success: true,
                     message: 'Merged via PR',
@@ -1564,7 +1441,7 @@ EOF
                 };
             }
 
-            logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName} and rotated workspace to ${active.workspaceId}`);
+            logger.info(`[merge] Merged ${branchName} into ${mainBranchName} and rotated workspace to ${active.workspaceId}`);
             return {
                 success: true,
                 message: 'Merged via PR and rotated workspace generation',
@@ -1603,13 +1480,7 @@ EOF
             return { commits: [], repoType: 'unknown', repoName: dirName, worktreePath: workspacePath };
         }
 
-        const isJujutsu = await this._isJujutsuRepo(repoPath);
-        const repoName = await this._getRemoteRepoName(repoPath, isJujutsu) || dirName;
-
-        if (isJujutsu) {
-            const result = await this._getJujutsuCommitLog(workspacePath, limit);
-            return { ...result, repoName };
-        }
+        const repoName = await this._getRemoteRepoName(repoPath) || dirName;
         const result = await this._getGitCommitLog(workspacePath, limit);
         return { ...result, repoName };
     }
@@ -1629,63 +1500,13 @@ EOF
             return { commits: [], repoType: 'unknown', repoName: dirName, worktreePath: repoPath };
         }
 
-        const isJujutsu = await this._isJujutsuRepo(repoPath);
-        const repoName = await this._getRemoteRepoName(repoPath, isJujutsu) || dirName;
-
-        if (isJujutsu) {
-            const result = await this._getJujutsuCommitLog(repoPath, limit);
-            return { ...result, repoName };
-        }
+        const repoName = await this._getRemoteRepoName(repoPath) || dirName;
         const result = await this._getGitCommitLog(repoPath, limit);
         return { ...result, repoName };
     }
 
     /**
-     * Jujutsuのコミットログを取得
-     * @private
-     */
-    async _getJujutsuCommitLog(workspacePath, limit) {
-        try {
-            const template = 'commit_id ++ "\\x00" ++ description.first_line() ++ "\\x00" ++ committer.timestamp() ++ "\\x00" ++ author.name() ++ "\\x00" ++ bookmarks ++ "\\x00" ++ if(self.working_copies(), "true", "false") ++ "\\x00" ++ parents.map(|c| c.commit_id()).join(",") ++ "\\n"';
-            const { stdout } = await this.execPromise(
-                `jj -R "${workspacePath}" log -r "::@" -T '${template}' --no-graph --no-pager -n ${limit}`
-            );
-
-            const commits = this._parseJujutsuLog(stdout);
-            return { commits, repoType: 'jj', worktreePath: workspacePath };
-        } catch (err) {
-            logger.error(`[commitLog] jj log failed for ${workspacePath}:`, err instanceof Error ? err.message : String(err));
-            return { commits: [], repoType: 'jj', worktreePath: workspacePath };
-        }
-    }
-
-    /**
-     * Jujutsuログ出力をパース
-     * @private
-     */
-    _parseJujutsuLog(stdout) {
-        if (!stdout || !stdout.trim()) return [];
-
-        return stdout.trim().split('\n')
-            .filter(line => line.includes('\x00'))
-            .map(line => {
-                const parts = line.split('\x00');
-                const hash = (parts[0] || '').trim();
-                const parentStr = (parts[6] || '').trim();
-                return {
-                    hash: hash.substring(0, 12),
-                    description: (parts[1] || '').trim() || '(empty)',
-                    timestamp: (parts[2] || '').trim(),
-                    author: (parts[3] || '').trim(),
-                    bookmarks: (parts[4] || '').trim().split(/\s+/).filter(Boolean),
-                    isWorkingCopy: (parts[5] || '').trim() === 'true',
-                    parents: parentStr ? parentStr.split(',').map(p => p.trim().substring(0, 12)) : []
-                };
-            });
-    }
-
-    /**
-     * Gitのコミットログを取得（フォールバック）
+     * Gitのコミットログを取得
      * @private
      */
     async _getGitCommitLog(workspacePath, limit) {
@@ -1734,24 +1555,14 @@ EOF
      * origin remoteのURLからリポジトリ名を取得
      * @private
      * @param {string} repoPath - リポジトリパス
-     * @param {boolean} isJujutsu - jjリポジトリかどうか
      * @returns {Promise<string|null>}
      */
-    async _getRemoteRepoName(repoPath, isJujutsu) {
+    async _getRemoteRepoName(repoPath) {
         try {
-            let url;
-            if (isJujutsu) {
-                const { stdout } = await this.execPromise(
-                    `jj -R "${repoPath}" git remote list --no-pager 2>/dev/null`
-                );
-                const originLine = stdout.split('\n').find(l => l.startsWith('origin '));
-                url = originLine?.split(/\s+/)[1];
-            } else {
-                const { stdout } = await this.execPromise(
-                    `git -C "${repoPath}" remote get-url origin 2>/dev/null`
-                );
-                url = stdout.trim();
-            }
+            const { stdout } = await this.execPromise(
+                `git -C "${repoPath}" remote get-url origin 2>/dev/null`
+            );
+            const url = stdout.trim();
             if (!url) return null;
             // Extract repo name from URL: https://github.com/Org/repo-name.git → repo-name
             const match = url.match(/\/([^/]+?)(?:\.git)?$/);
@@ -1762,37 +1573,26 @@ EOF
     }
 
     /**
-     * 全てのJujutsu workspaceをリストアップ
+     * 全てのgit worktreeをリストアップ
      * @returns {Promise<Array<{name: string, path: string, isMain: boolean}>>}
      */
     async listWorktrees() {
         try {
             const { stdout } = await this.execPromise(
-                `jj -R "${this.canonicalRoot}" workspace list --no-pager`
+                `git -C "${this.canonicalRoot}" worktree list --porcelain`
             );
 
-            const workspaces = [];
-            const lines = stdout.trim().split('\n');
-
-            for (const line of lines) {
-                const match = line.match(/^(\S+):/);
-                if (match) {
-                    const name = match[1];
-                    const isMain = name === 'default';
-                    const workspacePath = isMain
-                        ? this.canonicalRoot
-                        : path.join(this.worktreesDir, name);
-
-                    workspaces.push({
-                        name,
-                        path: workspacePath,
-                        branch: isMain ? 'main' : `session/${name.split('-')[0]}`,
-                        isMain
-                    });
-                }
-            }
-
-            return workspaces;
+            const entries = this._parseWorktreeListPorcelain(stdout);
+            return entries.map((entry) => {
+                const isMain = path.resolve(entry.path) === path.resolve(this.canonicalRoot);
+                const name = isMain ? 'default' : path.basename(entry.path);
+                return {
+                    name,
+                    path: entry.path,
+                    branch: entry.branch || (isMain ? 'main' : `session/${name.split('-')[0]}`),
+                    isMain
+                };
+            });
         } catch (err) {
             logger.error('Failed to list workspaces:', err instanceof Error ? err.message : String(err));
             return [];
