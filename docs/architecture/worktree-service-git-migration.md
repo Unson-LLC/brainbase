@@ -64,9 +64,17 @@ created_at: 2026-07-11
 - ゾンビ定義を「`.jj/working_copy` があるのに jj workspace list に無い」から「worktreeディレクトリに `.git`（file/dir）があるのに `git worktree list --porcelain` に無い」へ変更。
 - 削除後に `git worktree prune` を実行する。
 
+## Stop Hook Guard: Enforcement Trade-off (disclosed)
+
+- 旧 `jj-commit-guard.ts`（Stop hook）はdirty working copyを**自動checkpoint commit**していた。jjは全変更を自動追跡するためこれが安全だった。
+- 新 `git-commit-guard.ts` は**助言のみ**（dirtyパスの一覧をsystemMessageで通知、自動コミットなし）。gitでの自動コミットは `git add -A` 相当を要し、明示的ステージングポリシー（`git add -A` 禁止）と矛盾し、mixed worktreeで無関係ファイルを巻き込むため意図的に降格した。
+- 補完: セッションマージ経路では `getMergeDeploymentGuardStatus` の dirty 検査（`canonical_workspace_dirty` で ready:false）が決定論的に止める。作業消失リスクはStop通知＋マージガードの2層で受ける。
+- 旧 `scripts/bin/jj` wrapper（jjコマンドのブロック用shim）は.jj撤去後に無意味になるため、post-merge opsで撤去する。
+
 ## Out of Service Scope (post-merge ops)
 
 - `code/brainbase/.jj` の物理撤去。
+- `scripts/bin/jj` wrapper shimの撤去。
 - `.claude/commands/deploy-merged-pr.md`（workspace root / brainbase）のgitフロー化。
 - 正本checkoutの detached HEAD → `git checkout develop` 復帰（syncCanonicalWorkspaceAfterMergeの `checkout -B` が以後これを維持する）。
 

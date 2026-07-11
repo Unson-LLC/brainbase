@@ -18,7 +18,10 @@ cd /Users/ksato/workspace/code/brainbase
 BEFORE=$(git rev-parse HEAD)
 
 # dirtyなら中断（正本checkoutに作業を残さない）
-git status --porcelain | grep -vE '^\?\? (\.claude/|node_modules/|\.DS_Store)' && { echo "❌ 正本checkoutがdirty。先に退避/整理してください"; }
+if git status --porcelain | grep -qvE '^\?\? (\.claude/|node_modules/|\.DS_Store)'; then
+  echo "❌ 正本checkoutがdirty。先に退避/整理してください"
+  exit 1
+fi
 
 git fetch origin
 git checkout develop 2>/dev/null || git checkout -B develop origin/develop
