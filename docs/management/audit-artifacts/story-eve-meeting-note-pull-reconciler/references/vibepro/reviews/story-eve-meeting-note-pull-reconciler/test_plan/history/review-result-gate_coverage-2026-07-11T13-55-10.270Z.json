@@ -1,0 +1,135 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-note-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "e8ce10685で再検証済みpass（全AC/clauseの実行可能テスト対応・artifact整合・sha256照合済み）。e8ce10685以降の差分はdocs/runbooks/eve-meeting-note-backfill.mdのみ（git diff e8ce10685..bf7c7b0c9 -- server/ tests/ は空）でproduct/test surfaceは不変。残low 3件（spec文言の追随はfollow-up）",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "verification-evidence.jsonと両artifactをJSON parser+sha256で再検証、focused unit 19/19再実行。以降の差分はrunbookのみ",
+    "evidence": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl",
+    "inputs": [
+      "var/story-evidence/*.json (sha256 content binding一致)",
+      "git diff e8ce10685..bf7c7b0c9 --stat (docs only)"
+    ]
+  },
+  "judgment_delta": [
+    "初回pass→修正差分再検証でpass維持（新挙動3件はpre-fixで落ちる専用テスト付き、カウント154->157は追加3テストと一致）。以降docs-only差分のためverdict不変"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+    "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+    "expected_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+    "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+    "managed_worktree": {
+      "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+      "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+      "branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+      "actual_branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+      "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+      "dirty": false,
+      "dirty_fingerprint": "clean",
+      "raw_dirty": false,
+      "raw_dirty_fingerprint": "clean",
+      "fingerprint_scope": {
+        "user_excludes": [
+          ".vibepro/",
+          ".worktrees/vibepro/"
+        ]
+      }
+    }
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+      "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+      "expected_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+      "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+      "managed_worktree": {
+        "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+        "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+        "branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+        "actual_branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+        "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+        "dirty": false,
+        "dirty_fingerprint": "clean",
+        "raw_dirty": false,
+        "raw_dirty_fingerprint": "clean",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        }
+      }
+    }
+  ],
+  "recorded_at": "2026-07-11T13:55:10.270Z",
+  "git_context": {
+    "head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+    "current_branch": "claude/eve-meeting-note-reconciler",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T13:55:10.261Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "unbound",
+    "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+    "recorded_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "4e8ff6234d2021fe5eee0267b9cd2e7c81e9f32e1961919c83b893e528137796",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "cc-testplan-gate_coverage-03",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": "high",
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

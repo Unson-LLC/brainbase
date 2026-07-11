@@ -1,0 +1,179 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-note-pull-reconciler",
+  "created_at": "2026-07-11T14:09:32.615Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.json",
+    "decision_records": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADR不要: 既存部品（`EveSessionClient.readSessionStream`・`recordMeetingNoteGeneration`・`meeting-source` sync workerのスケジューラ型）を組み合わせた追加的workerで、公開契約の変更はない。"
+    },
+    "spec": {
+      "status": "inferred",
+      "required": true,
+      "reason": "14 clauses inferred from Story+Code+Test"
+    },
+    "decision_records": {
+      "total": 21,
+      "open": 0,
+      "by_type": {
+        "needs_review": 20,
+        "waiver": 1
+      },
+      "by_status": {
+        "accepted": 21
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+          "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+          "expected_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+          "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+          "managed_worktree": {
+            "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+            "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+            "branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+            "actual_branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+            "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+            "dirty": false,
+            "dirty_fingerprint": "clean",
+            "raw_dirty": false,
+            "raw_dirty_fingerprint": "clean",
+            "fingerprint_scope": {
+              "user_excludes": [
+                ".vibepro/",
+                ".worktrees/vibepro/"
+              ]
+            }
+          }
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783778938268-d6946676",
+        "story_id": "story-eve-meeting-note-pull-reconciler",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "gate:judgment_axis_public_contract",
+        "source_status": null,
+        "summary": "public_contract traceability: POST eve-note-reconcile契約はstory/spec/runbookに文書化（contract_doc）され、200/503/403のcompat_or_output_testで検証。既存契約は不変",
+        "reason": "追加APIは新設1本のみでadditive、契約はspec INV-009→unit/e2e testsへtraceabilityが張られ、既存契約はregression 138件で不変を検証済みのため",
+        "reviewer": "keigo",
+        "artifact": "docs/stories/story-eve-meeting-note-pull-reconciler.md",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+            "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+            "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+            "expected_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+            "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+            "managed_worktree": {
+              "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+              "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+              "branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+              "actual_branch": "vibepro/story-eve-meeting-note-pull-reconciler-1r2709",
+              "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+              "dirty": false,
+              "dirty_fingerprint": "clean",
+              "raw_dirty": false,
+              "raw_dirty_fingerprint": "clean",
+              "fingerprint_scope": {
+                "user_excludes": [
+                  ".vibepro/",
+                  ".worktrees/vibepro/"
+                ]
+              }
+            }
+          }
+        ],
+        "git_context": {
+          "head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+          "current_branch": "claude/eve-meeting-note-reconciler",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-11T14:08:58.262Z"
+        },
+        "recorded_at": "2026-07-11T14:08:58.270Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": null,
+      "final_20_auto_closure_rate": null,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-11T14:09:29.724Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "c08eb5187e676a1263878c1a045713f55e375d7c",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}
