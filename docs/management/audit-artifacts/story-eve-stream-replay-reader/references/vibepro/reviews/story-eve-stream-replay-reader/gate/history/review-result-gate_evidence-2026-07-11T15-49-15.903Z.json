@@ -1,0 +1,160 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-stream-replay-reader",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Gate evidence verified genuine and current-head-bound: all sha256 content bindings match the working tree at c7e55cafa, unit 104/104 (4 new live-tail + 13 unchanged contract tests), integration 19/19, playwright 0 unexpected; diff of 0ad2caaba matches AC-001..005 and INV-reader-001..004 exactly. Two low-severity hygiene findings (duplicate playwright collection via nested managed worktree; live-API replay claim recorded as observation text without a bound log artifact) do not undermine the gate.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewer re-hashed all content-binding surface files, parsed the three JSON artifacts with jq to confirm counts and test titles, read the full diff of 0ad2caaba against the story AC/INV sections, verified git_context head/clean status, and resolved the 12-vs-6 e2e count as benign duplicate collection.",
+    "evidence": ".vibepro/reviews/story-eve-stream-replay-reader/gate/transcripts/gate_evidence.json",
+    "inputs": [
+      ".vibepro/pr/story-eve-stream-replay-reader/verification-evidence.json",
+      "var/story-evidence/vitest-eve-stream-reader.json",
+      "var/story-evidence/playwright-eve-stream-reader.json",
+      "var/story-evidence/vitest-eve-reconciler-integration.json",
+      "tests/e2e/story-eve-stream-replay-reader-contract.spec.ts",
+      "git show 0ad2caaba full diff vs docs/stories/story-eve-stream-replay-reader.md"
+    ]
+  },
+  "judgment_delta": [
+    "initial skepticism about e2e 12/12 count and possible stale pre-e2e-head artifacts -> final pass because independent sha256 re-hashing bound every artifact to head c7e55cafa and the 12-vs-6 discrepancy resolved to duplicate collection of the identical spec from the nested managed worktree, not fabrication"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+    "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+    "expected_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+    "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+    "managed_worktree": {
+      "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+      "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+      "branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+      "actual_branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+      "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+      "dirty": false,
+      "dirty_fingerprint": "clean",
+      "raw_dirty": false,
+      "raw_dirty_fingerprint": "clean",
+      "fingerprint_scope": {
+        "user_excludes": [
+          ".vibepro/",
+          ".worktrees/vibepro/"
+        ]
+      }
+    }
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+      "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+      "expected_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+      "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+      "managed_worktree": {
+        "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+        "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+        "branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+        "actual_branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+        "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+        "dirty": false,
+        "dirty_fingerprint": "clean",
+        "raw_dirty": false,
+        "raw_dirty_fingerprint": "clean",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        }
+      }
+    }
+  ],
+  "recorded_at": "2026-07-11T15:49:15.903Z",
+  "git_context": {
+    "head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+    "current_branch": "claude/eve-stream-replay-reader",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T15:49:15.876Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 4 file(s)",
+    "recorded_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+    "surface_files": [
+      {
+        "path": "tests/e2e/story-eve-stream-replay-reader-contract.spec.ts",
+        "sha256": "f59c3de7c65e4a995bfdfb896b3c67a7f351bca7dd471fe8d2c9f275a854631e",
+        "size": 6851
+      },
+      {
+        "path": "var/story-evidence/playwright-eve-stream-reader.json",
+        "sha256": "c8db7d2732015d7f71890acd8e0a7cc408c83dddbeccac55ad210f62c094fd88",
+        "size": 16629
+      },
+      {
+        "path": "var/story-evidence/vitest-eve-reconciler-integration.json",
+        "sha256": "c134d63b46d99fba4c401f5e5daf1081506ebf0f11c3bdc3b98f6bda0f66c529",
+        "size": 6816
+      },
+      {
+        "path": "var/story-evidence/vitest-eve-stream-reader.json",
+        "sha256": "43e94fa2ce7a2dd087ca32754a79cede689e486b84ca36ce24e9722e42d9df7b",
+        "size": 36118
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "6ada97e03190c2a714deecce3674b0e5d8c6e39f90958e06be26a53a18649d27"
+  },
+  "source_fingerprint": "8eca28f2ba277054637fb38b4f057a85b6fad101c77d359aac939b439fb5c9cf",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "claude-gate-evidence-eve-stream-replay-01",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": "high",
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-stream-replay-reader/gate/transcripts/gate_evidence.json",
+    "request_artifact": ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

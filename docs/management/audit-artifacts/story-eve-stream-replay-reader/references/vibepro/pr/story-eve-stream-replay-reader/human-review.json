@@ -1,0 +1,178 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-stream-replay-reader",
+  "created_at": "2026-07-11T15:50:00.616Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-eve-stream-replay-reader/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-eve-stream-replay-reader/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-eve-stream-replay-reader/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-eve-stream-replay-reader/split-plan.json",
+    "decision_records": ".vibepro/pr/story-eve-stream-replay-reader/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADR不要: クライアント内部の読取方式変更のみで、公開契約・依存・永続状態は不変。代替案（eve側にreplay-onlyオプション追加）はeve packageの改変が必要で管轄外のため却下。ロールバックはgit revertで安全（読取方式が戻るだけ）。"
+    },
+    "spec": {
+      "status": "inferred",
+      "required": true,
+      "reason": "6 clauses inferred from Story+Code+Test"
+    },
+    "decision_records": {
+      "total": 8,
+      "open": 0,
+      "by_type": {
+        "needs_review": 8
+      },
+      "by_status": {
+        "accepted": 8
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+          "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+          "expected_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+          "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+          "managed_worktree": {
+            "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+            "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+            "branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+            "actual_branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+            "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+            "dirty": false,
+            "dirty_fingerprint": "clean",
+            "raw_dirty": false,
+            "raw_dirty_fingerprint": "clean",
+            "fingerprint_scope": {
+              "user_excludes": [
+                ".vibepro/",
+                ".worktrees/vibepro/"
+              ]
+            }
+          }
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783784647797-f0f37885",
+        "story_id": "story-eve-stream-replay-reader",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "gate:bug_physics_triage",
+        "source_status": null,
+        "summary": "bug_physics_triage: class=deployment-adjacent runtime bug, probed before fixing. Probe: the reconciler's first real tick after deploy timed out on all 6 pending runs ('Eve session stream timed out after 30000ms'); curl against the live Eve API showed HTTP 200 with all 123KB replay data received while the connection stayed open (live-tail design). version stamp: after deploying the fixed artifact version, the running session read 276 events (last=session.waiting) in 1.4s and the staged note tool-call was extractable.",
+        "reason": "Probe evidence (real 6-run timeout + curl live-tail observation) identified the physics: the stream route never closes, so text()-based reads cannot complete; gate profile deployment/version-stamp is satisfied by the post-deploy live verification.",
+        "reviewer": null,
+        "artifact": "docs/stories/story-eve-stream-replay-reader.md",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "repo root /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler is not recorded managed worktree /Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+            "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+            "expected_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+            "expected_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+            "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+            "managed_worktree": {
+              "source_repo": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler",
+              "path": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-note-reconciler/.worktrees/vibepro/story-eve-stream-replay-reader-1aapio",
+              "branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+              "actual_branch": "vibepro/story-eve-stream-replay-reader-1aapio",
+              "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+              "dirty": false,
+              "dirty_fingerprint": "clean",
+              "raw_dirty": false,
+              "raw_dirty_fingerprint": "clean",
+              "fingerprint_scope": {
+                "user_excludes": [
+                  ".vibepro/",
+                  ".worktrees/vibepro/"
+                ]
+              }
+            }
+          }
+        ],
+        "git_context": {
+          "head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+          "current_branch": "claude/eve-stream-replay-reader",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-11T15:44:07.790Z"
+        },
+        "recorded_at": "2026-07-11T15:44:07.798Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": null,
+      "final_20_auto_closure_rate": null,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-11T15:49:58.221Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "c08eb5187e676a1263878c1a045713f55e375d7c",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}
