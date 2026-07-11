@@ -10,16 +10,25 @@ describe('WorktreeService.cleanupZombieWorktrees', () => {
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
     });
 
-    it('登録済みワークスペースは削除しない', async () => {
+    it('登録済みworktreeは削除しない', async () => {
         const { promises: fs } = await import('fs');
 
         vi.spyOn(fs, 'readdir').mockResolvedValueOnce([
             { name: 'session-1-brainbase', isDirectory: () => true }
         ]);
-        vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined); // .jj exists
+        vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined); // .git exists
 
         mockExec.mockResolvedValueOnce({
-            stdout: 'session-1-brainbase: abc123\ndefault: def456\n'
+            stdout: [
+                'worktree /tmp/repo',
+                'HEAD abc123',
+                'branch refs/heads/main',
+                '',
+                'worktree /tmp/worktrees/session-1-brainbase',
+                'HEAD def456',
+                'branch refs/heads/session/session-1',
+                ''
+            ].join('\n')
         });
 
         const removed = await service.cleanupZombieWorktrees('/tmp/repo');
@@ -27,22 +36,33 @@ describe('WorktreeService.cleanupZombieWorktrees', () => {
         expect(removed).toEqual([]);
     });
 
-    it('jj workspace listに無いworktreeをゾンビとして削除する', async () => {
+    it('git worktree listに無いworktreeをゾンビとして削除する', async () => {
         const { promises: fs } = await import('fs');
 
         vi.spyOn(fs, 'readdir').mockResolvedValueOnce([
             { name: 'session-zombie-brainbase', isDirectory: () => true },
             { name: 'session-alive-brainbase', isDirectory: () => true }
         ]);
-        // .jj access checks: both exist
+        // .git access checks: both exist
         vi.spyOn(fs, 'access')
-            .mockResolvedValueOnce(undefined)   // zombie .jj exists
-            .mockResolvedValueOnce(undefined);  // alive .jj exists
+            .mockResolvedValueOnce(undefined)   // zombie .git exists
+            .mockResolvedValueOnce(undefined);  // alive .git exists
         vi.spyOn(fs, 'rm').mockResolvedValueOnce(undefined);
 
-        mockExec.mockResolvedValueOnce({
-            stdout: 'session-alive-brainbase: abc123\ndefault: def456\n'
-        });
+        mockExec
+            .mockResolvedValueOnce({
+                stdout: [
+                    'worktree /tmp/repo',
+                    'HEAD abc123',
+                    'branch refs/heads/main',
+                    '',
+                    'worktree /tmp/worktrees/session-alive-brainbase',
+                    'HEAD def456',
+                    'branch refs/heads/session/session-alive',
+                    ''
+                ].join('\n')
+            })
+            .mockResolvedValueOnce({ stdout: '' }); // worktree prune
 
         const removed = await service.cleanupZombieWorktrees('/tmp/repo');
 
@@ -51,32 +71,33 @@ describe('WorktreeService.cleanupZombieWorktrees', () => {
             '/tmp/worktrees/session-zombie-brainbase',
             { recursive: true, force: true }
         );
+        expect(mockExec).toHaveBeenCalledWith('git -C "/tmp/repo" worktree prune');
     });
 
-    it('.jjディレクトリがないディレクトリはスキップする', async () => {
+    it('.gitがないディレクトリはスキップする', async () => {
         const { promises: fs } = await import('fs');
 
         vi.spyOn(fs, 'readdir').mockResolvedValueOnce([
             { name: 'random-dir', isDirectory: () => true }
         ]);
-        // .jj access fails (not a worktree)
+        // .git access fails (not a worktree)
         vi.spyOn(fs, 'access').mockRejectedValueOnce(new Error('ENOENT'));
 
-        mockExec.mockResolvedValueOnce({ stdout: 'default: abc123\n' });
+        mockExec.mockResolvedValueOnce({ stdout: 'worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/main\n' });
 
         const removed = await service.cleanupZombieWorktrees('/tmp/repo');
 
         expect(removed).toEqual([]);
     });
 
-    it('jjコマンド失敗時は空配列を返す', async () => {
+    it('git worktree listコマンド失敗時は空配列を返す', async () => {
         const { promises: fs } = await import('fs');
 
         vi.spyOn(fs, 'readdir').mockResolvedValueOnce([
             { name: 'session-1-brainbase', isDirectory: () => true }
         ]);
 
-        mockExec.mockRejectedValueOnce(new Error('jj not found'));
+        mockExec.mockRejectedValueOnce(new Error('git not found'));
 
         const removed = await service.cleanupZombieWorktrees('/tmp/repo');
 

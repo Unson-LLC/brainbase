@@ -98,7 +98,7 @@ describe('WorktreeService _withRepoLock', () => {
     });
 });
 
-describe('WorktreeService _execJujutsuWithStaleRetry mutex', () => {
+describe('WorktreeService _execGitWithLockRetry mutex', () => {
     let service;
     let mockExec;
 
@@ -125,8 +125,8 @@ describe('WorktreeService _execJujutsuWithStaleRetry mutex', () => {
             return { stdout: '2' };
         });
 
-        const p1 = service._execJujutsuWithStaleRetry('/repo-A', 'workspace list');
-        const p2 = service._execJujutsuWithStaleRetry('/repo-A', 'bookmark list');
+        const p1 = service._execGitWithLockRetry('/repo-A', 'worktree list --porcelain');
+        const p2 = service._execGitWithLockRetry('/repo-A', 'branch --list');
 
         await Promise.resolve();
         await Promise.resolve();
@@ -141,9 +141,18 @@ describe('WorktreeService _execJujutsuWithStaleRetry mutex', () => {
         await p2;
         expect(callOrder).toEqual(['first-start', 'first-end', 'second-start', 'second-end']);
     });
+
+    it('コマンドをgit -C repoPath形式に組み立てて実行する', async () => {
+        mockExec.mockResolvedValueOnce({ stdout: 'ok' });
+
+        const result = await service._execGitWithLockRetry('/repo-A', 'fetch origin');
+
+        expect(result.stdout).toBe('ok');
+        expect(mockExec).toHaveBeenCalledWith('git -C "/repo-A" fetch origin');
+    });
 });
 
-describe('WorktreeService.merge uses _execJujutsuWithStaleRetry for main-repo writes', () => {
+describe('WorktreeService.merge uses _execGitWithLockRetry for main-repo writes', () => {
     let service;
     let mockExec;
     const repoPath = '/repo-merge-test';
@@ -154,25 +163,26 @@ describe('WorktreeService.merge uses _execJujutsuWithStaleRetry for main-repo wr
         service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
     });
 
-    it('jj git push --bookmark が _execJujutsuWithStaleRetry 経由で実行される（auto-recovery 有効）', async () => {
-        const wrapSpy = vi.spyOn(service, '_execJujutsuWithStaleRetry').mockImplementation(async () => ({ stdout: '' }));
+    it('git push が _execGitWithLockRetry 経由で実行される（stale index.lock auto-recovery 有効）', async () => {
+        const wrapSpy = vi.spyOn(service, '_execGitWithLockRetry').mockImplementation(async () => ({ stdout: '' }));
 
-        // _getMainBranchName / _getGitHubRepoSpec mocks
         vi.spyOn(service, '_getMainBranchName').mockResolvedValue('main');
         vi.spyOn(service, '_getGitHubRepoSpec').mockResolvedValue('owner/repo');
+        vi.spyOn(service, '_getBranchInfos').mockResolvedValue([
+            { name: 'session/session-1', pushed: false, output: 'session/session-1' }
+        ]);
+        vi.spyOn(service, 'syncCanonicalWorkspaceAfterMerge').mockResolvedValue({ success: true });
 
-        // gh pr create / gh pr merge / non-jj
         mockExec.mockResolvedValue({ stdout: 'https://github.com/o/r/pull/1' });
 
-        // fs operations - cleanup
         const { promises: fsPromises } = await import('fs');
-        vi.spyOn(fsPromises, 'rm').mockResolvedValue(undefined);
         vi.spyOn(fsPromises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
 
         const result = await service.merge('session-1', repoPath, 'My Session');
 
         expect(result.success).toBe(true);
         const wrappedCommands = wrapSpy.mock.calls.map((c) => c[1]);
-        expect(wrappedCommands.some((cmd) => cmd.includes('git push --bookmark'))).toBe(true);
+        expect(wrappedCommands.some((cmd) => cmd.includes('push origin'))).toBe(true);
+        expect(wrappedCommands.some((cmd) => cmd.includes('worktree remove --force'))).toBe(true);
     });
 });
