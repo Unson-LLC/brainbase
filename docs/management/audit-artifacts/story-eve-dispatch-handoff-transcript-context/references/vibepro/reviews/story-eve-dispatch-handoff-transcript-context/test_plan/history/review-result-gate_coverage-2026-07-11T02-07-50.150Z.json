@@ -1,0 +1,113 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "証跡はartifact実体と一致（playwright 18/18・vitest 138/138）し、AC/failure modeのassertionはルール破壊時に失敗する形。指摘したAC-004 org/project分岐未テストは8d54a7d48の新テスト（expected/actual scope詳細をassert、branch固有shapeのためguard削除で失敗）で解消。fake-greenパターンなし。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "review request・story AC・spec clauses・verification-evidence.json・両テストファイルのassertion実体・scope guard実装（両分岐）・playwright artifact統計を検査し、suiteを現HEADで実行（70/70）。",
+    "evidence": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-1.output.md",
+    "inputs": [
+      "tests/server/services/workflow-org-agent-control.test.js:451-477",
+      "server/services/workflow/workflow-service.js:3229-3260",
+      "var/story-evidence/playwright-eve-handoff.json"
+    ]
+  },
+  "judgment_delta": [
+    "needs_changes (AC-004 org/project branch untested; deleting the guard left all gates green) -> pass because the new cross-org test asserts the branch-unique expected/actual error shape plus zero Eve calls at current HEAD"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "expected_root": null,
+    "expected_head_sha": "8d54a7d48f606a4ae59b2ada5435160396d2ca0b",
+    "current_head_sha": "8d54a7d48f606a4ae59b2ada5435160396d2ca0b",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "expected_root": null,
+      "expected_head_sha": "8d54a7d48f606a4ae59b2ada5435160396d2ca0b",
+      "current_head_sha": "8d54a7d48f606a4ae59b2ada5435160396d2ca0b",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T02:07:50.150Z",
+  "git_context": {
+    "head_sha": "8d54a7d48f606a4ae59b2ada5435160396d2ca0b",
+    "current_branch": "claude/eve-dispatch-handoff-context",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T02:07:50.140Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 1 file(s)",
+    "recorded_head_sha": "8d54a7d48f606a4ae59b2ada5435160396d2ca0b",
+    "surface_files": [
+      {
+        "path": "var/story-evidence/playwright-eve-handoff.json",
+        "sha256": "44059607b05cafc0f74a75269f831876ca973202f55985aa0ef3b7032f7287de",
+        "size": 23703
+      }
+    ],
+    "missing_files": [
+      "server/services/workflow/workflow-service.js:3229-3260",
+      "tests/server/services/workflow-org-agent-control.test.js:451-477"
+    ],
+    "surface_hash": "7ecf86655f0ecdf8ed576e5d8f75f520f7c70193feeea82c6335001046b66291"
+  },
+  "source_fingerprint": "9048c057ea8a81918e4cd030b85e4dc44f7380900ce1915f29fab2e774dcf53c",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "a6f32efc73510af7a",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-1.output.md",
+    "request_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,268 @@
+{
+  "schema_version": "0.1.0",
+  "planner_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "created_at": "2026-07-11T03:13:32.375Z",
+  "evidence_depth": "standard",
+  "default_depth": "standard",
+  "manual_override": {
+    "status": "none",
+    "depth": null,
+    "reason": null,
+    "consumer": null
+  },
+  "planner_inputs": {
+    "base_ref": "develop",
+    "head_ref": "HEAD",
+    "head_sha": "cb9d0143c45a978e0514be19f726af6091f5bd86",
+    "changed_file_count": 10,
+    "scope_status": "needs_clean_branch",
+    "risk_profile": "workflow_heavy",
+    "risk_surfaces": [
+      "core_workflow_state",
+      "server_api",
+      "service_orchestration",
+      "test_coverage"
+    ],
+    "pr_route": "config_or_agent_policy",
+    "engineering_route": "agent_workflow"
+  },
+  "risk_signals": [
+    {
+      "kind": "risk_profile",
+      "value": "workflow_heavy",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "core_workflow_state",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "server_api",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "service_orchestration",
+      "source": "change_classification"
+    },
+    {
+      "kind": "risk_surface",
+      "value": "test_coverage",
+      "source": "change_classification"
+    },
+    {
+      "kind": "engineering_route",
+      "value": "agent_workflow",
+      "source": "engineering_judgment"
+    }
+  ],
+  "targeted_full_surfaces": [
+    {
+      "surface": "core_workflow_state",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "server_api",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "service_orchestration",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "test_coverage",
+      "reason": "risk surface detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "workflow_heavy",
+      "reason": "high-risk profile detected",
+      "source": "change_classification",
+      "gate": null
+    },
+    {
+      "surface": "agent_workflow",
+      "reason": "high-risk engineering judgment route detected",
+      "source": "engineering_judgment",
+      "gate": null
+    }
+  ],
+  "escalation_reasons": [
+    {
+      "surface": "core_workflow_state",
+      "reason": "risk surface detected",
+      "source": "change_classification"
+    },
+    {
+      "surface": "server_api",
+      "reason": "risk surface detected",
+      "source": "change_classification"
+    },
+    {
+      "surface": "service_orchestration",
+      "reason": "risk surface detected",
+      "source": "change_classification"
+    },
+    {
+      "surface": "test_coverage",
+      "reason": "risk surface detected",
+      "source": "change_classification"
+    },
+    {
+      "surface": "workflow_heavy",
+      "reason": "high-risk profile detected",
+      "source": "change_classification"
+    },
+    {
+      "surface": "agent_workflow",
+      "reason": "high-risk engineering judgment route detected",
+      "source": "engineering_judgment"
+    }
+  ],
+  "artifact_policy": {
+    "write_html_reports": true,
+    "write_full_gate_dag_dump": true,
+    "write_full_review_lifecycle_dump": false,
+    "write_raw_logs": false,
+    "pr_body_token_policy": {
+      "status": "bounded_by_artifact_links",
+      "duplicates_canonical_artifacts": false,
+      "reason": "PR body stays concise and links canonical VibePro artifacts instead of embedding full diagnostics"
+    },
+    "generated_artifacts": [
+      "evidence-reuse.json",
+      "evidence-plan.json",
+      "decision-index.json",
+      "senior-gap-judgment.json",
+      "pr-prepare.json",
+      "pr-body.md",
+      "split-plan.json",
+      "traceability.json",
+      "human-review.json",
+      "architecture-review.json",
+      "decision-records.json",
+      "pr-prepare.html",
+      "review-cockpit.html",
+      "gate-dag.html",
+      "gate-dag.json",
+      "split-plan.html"
+    ],
+    "skipped_artifacts": []
+  },
+  "generated_artifacts": [
+    "evidence-reuse.json",
+    "evidence-plan.json",
+    "decision-index.json",
+    "senior-gap-judgment.json",
+    "pr-prepare.json",
+    "pr-body.md",
+    "split-plan.json",
+    "traceability.json",
+    "human-review.json",
+    "architecture-review.json",
+    "decision-records.json",
+    "pr-prepare.html",
+    "review-cockpit.html",
+    "gate-dag.html",
+    "gate-dag.json",
+    "split-plan.html"
+  ],
+  "skipped_artifacts": [],
+  "consumers": [
+    "evidence-reuse.json",
+    "review-cockpit.html",
+    "gate-dag.html",
+    "split-plan.html",
+    "decision-index.json",
+    "senior-gap-judgment.json"
+  ],
+  "evidence_reuse": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-evidence-summary-reuse-v1",
+    "story_id": "story-eve-dispatch-handoff-transcript-context",
+    "evidence_key": "evk_de660715d720d257d1934badc8f094ff",
+    "status": "stale",
+    "reason": "evidence_key_inputs_changed",
+    "stale_reasons": [
+      {
+        "field": "risk_surface_fingerprint",
+        "previous": "sha256:36d02f987785733b0a0ecd643b4de6edc9ead515cc144cf5eff4212a9c200726",
+        "current": "sha256:e3894bfe99cef79c62ec4a1c5b4bc531145b501961620de835fbdecd700cef8e",
+        "reason": "risk_surface_fingerprint changed"
+      },
+      {
+        "field": "base_sha",
+        "previous": "b989d354eebf4e927cc5bd2e8261ff2574467638",
+        "current": "b81314793ad8f0ef40809bdf699a73147db2b39e",
+        "reason": "base_sha changed"
+      }
+    ],
+    "fresh_use_allowed": false,
+    "used_as_fresh": false,
+    "gate_status": "needs_refresh",
+    "artifact_value_ledger": {
+      "status": "present",
+      "model": "vibepro-artifact-value-ledger-v1",
+      "head_binding_status": "current_head_bound",
+      "artifact_count": 5,
+      "decision_bound_count": 5,
+      "linked_consumer_count": 5,
+      "session_attribution_status": "not_collected_in_pr_prepare",
+      "session_attribution_confidence": "none",
+      "total_token_estimate": 329
+    },
+    "session_attribution_ledger": {
+      "status": "not_collected_in_pr_prepare",
+      "model": "vibepro-session-attribution-ledger-v1",
+      "confidence": "none",
+      "reason": "PR prepare did not receive Codex session attribution; downstream usage mentions must not be treated as clean product-value adoption.",
+      "session_count": 0,
+      "unattributed_count": 0
+    },
+    "verification_summary_fingerprint": "sha256:19505009196d28b5b626d1f144e3a3609eab40707a7297b64878e3922186c3e7",
+    "verification_evidence_updated_at": "2026-07-11T03:10:42.686Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "integration",
+        "executed_at": "2026-07-11T03:10:42.686Z",
+        "git_recorded_at": "2026-07-11T03:10:42.657Z"
+      },
+      {
+        "kind": "e2e",
+        "executed_at": "2026-07-11T03:10:40.781Z",
+        "git_recorded_at": "2026-07-11T03:10:40.748Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-07-11T03:10:39.015Z",
+        "git_recorded_at": "2026-07-11T03:10:38.988Z"
+      }
+    ],
+    "full_evidence": {
+      "status": "generated",
+      "generation_count": 1,
+      "generation_count_scope": "same_evidence_key",
+      "same_key_generation_count": 1,
+      "cumulative_generation_count": 32,
+      "digest": "sha256:b3d141e05a6eecaa220e6b93d4178a3f491c160a3bd7bc72e529df6fb218bb61",
+      "reference": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json"
+    },
+    "summary_artifacts": {
+      "evidence_reuse": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-reuse.json",
+      "evidence_plan": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-plan.json",
+      "decision_index": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json",
+      "pr_prepare": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.json",
+      "gate_dag": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.json"
+    }
+  }
+}

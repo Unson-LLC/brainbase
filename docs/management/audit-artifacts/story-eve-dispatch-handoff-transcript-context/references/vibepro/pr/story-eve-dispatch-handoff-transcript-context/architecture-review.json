@@ -1,0 +1,56 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "created_at": "2026-07-11T03:13:32.375Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADR不要: dispatch入力への対象run参照追加という最小変更を採用。代替案（EveのBrainbase API直接参照、loop intent input_payloadへのtranscript同梱）は比較のうえ却下。境界・影響範囲はdispatch経路（workflow-service.js）に閉じ、公開契約は後方互換（参照なしdispatch不変）。ロールバックはgit revertで安全に戻せる（永続追加はadditiveなrun.metadataのみ）。後続followupとしてバックフィルの重複セッションガードを保留として追跡。書き戻し契約の正本はサーバー実装のまま。",
+  "source_artifacts": {
+    "story": "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+    "review_cockpit": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/review-cockpit.html",
+    "gate_dag": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.json"
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADR不要: dispatch入力への対象run参照追加という最小変更を採用。代替案（EveのBrainbase API直接参照、loop intent input_payloadへのtranscript同梱）は比較のうえ却下。境界・影響範囲はdispatch経路（workflow-service.js）に閉じ、公開契約は後方互換（参照なしdispatch不変）。ロールバックはgit revertで安全に戻せる（永続追加はadditiveなrun.metadataのみ）。後続followupとしてバックフィルの重複セッションガードを保留として追跡。書き戻し契約の正本はサーバー実装のまま。"
+    },
+    "spec": {
+      "status": "inferred",
+      "reason": "10 clauses inferred from Story+Code+Test"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-11T03:13:30.330Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "c08eb5187e676a1263878c1a045713f55e375d7c",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

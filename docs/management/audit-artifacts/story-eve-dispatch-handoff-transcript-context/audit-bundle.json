@@ -1,0 +1,1415 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-11T03:18:29.602Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:2963da877839e4aeea7b9c91aff26809717344185120e57ffe1b81eea206bf92",
+    "compressed_hash": "sha256:3c17975c92cec6720be5fb00c3965b42662aac0253e8c6c3f5127b6dd204bb91",
+    "expanded_bytes": 32724,
+    "compressed_bytes": 6996,
+    "expanded_line_count": 763,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-eve-dispatch-handoff-transcript-context",
+    "cost": {
+      "compressed_bytes": 6996,
+      "expanded_bytes": 32724,
+      "expanded_line_count": 763,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1022",
+    "merge_commit_sha": "d7998e5c3910db3a0b3d6f684ed47b8879375b79",
+    "merged_at": "2026-07-11T03:18:28Z",
+    "current_head_sha": "cb9d0143c45a978e0514be19f726af6091f5bd86",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...cb9d0143c45a978e0514be19f726af6091f5bd86"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 93,
+    "copied_reference_count": 68,
+    "unresolved_reference_count": 8,
+    "replay_bundle": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-eve-dispatch-handoff-transcript-context"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:2963da877839e4aeea7b9c91aff26809717344185120e57ffe1b81eea206bf92"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:c486779a7750086720a5f820219bdf0155a57cd4c9723d1eedbfc5576617a28f",
+      "audit_digest": "sha256:c486779a7750086720a5f820219bdf0155a57cd4c9723d1eedbfc5576617a28f",
+      "line_count": 205,
+      "raw_line_count": 205,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:98fc24f9f17b363359dff4293898cab4a6c1bc32ccd82735f4b2e22af5f474f2",
+      "audit_digest": "sha256:5de7206d0690d28fe0d0aa81656d7d8cf62500b1e0a16e6929580aa4273b1c70",
+      "line_count": 7331,
+      "raw_line_count": 20041,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:d2d0706ad8c9c466a8d9ebd630303d340d21eb49d849542d893461a6aea8657f",
+      "audit_digest": "sha256:b8ad8a71e65c0a8b3725e7bbefc0b35123a835d1138deee425d77cb01833cee6",
+      "line_count": 2583,
+      "raw_line_count": 5500,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:0259694e66fda9c8f9bc922627fcae7eced5737c2f03ff3c241a8885209b23a5",
+      "audit_digest": "sha256:99e057cf98dea06e210fdc30e32cdb80075bb3b4da9229c277a42fabcf231f82",
+      "line_count": 2437,
+      "raw_line_count": 5333,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:3ec2ec3c1f1131c81554884a63da9ad7f2a6d8e487c53c46bf978e874c8de5a0",
+      "audit_digest": "sha256:fbb61f7554a11c8df4a70c0e48790b00b03cf4fee67418f92161de7bd52eea05",
+      "line_count": 112,
+      "raw_line_count": 1206,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:27ff51bea8d37abb5a5c726e9eb435f55c3ef05a13c217611de12bb8cc56a7ab",
+      "audit_digest": "sha256:5c0763b15222cec3cefebc90e6df1faf8e90ba8276d61d7e903709bef0b14341",
+      "line_count": 2607,
+      "raw_line_count": 5547,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:ba35bea1b062dc7d0956320c9446a73816f97c40921e97bb6d1e0c5559319ba2",
+      "audit_digest": "sha256:ba35bea1b062dc7d0956320c9446a73816f97c40921e97bb6d1e0c5559319ba2",
+      "line_count": 388,
+      "raw_line_count": 388,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:c11dcfc4c6f8c226c5395a1942af9216ef8c5598a0c8e927dc5b621775e79ada",
+      "audit_digest": "sha256:0e003801a2750db4e1fa45b1e488c71ad0e60c2277e04376db58c0c9c2dc902b",
+      "line_count": 52,
+      "raw_line_count": 367,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:73ca09900b231df9980545ecc38526c07a415043ab0eae39cca974ad621de9d9",
+      "audit_digest": "sha256:73ca09900b231df9980545ecc38526c07a415043ab0eae39cca974ad621de9d9",
+      "line_count": 111,
+      "raw_line_count": 111,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/review-request-regression_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:c299bc7d09b82275bb127e06bb52df6d051f92ea408ef6945eb60960ea09975b",
+      "audit_digest": "sha256:c299bc7d09b82275bb127e06bb52df6d051f92ea408ef6945eb60960ea09975b",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/review-result-regression_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:f43528ae5101ae5ada5a5b12874ff833966863a434320f12958696e838adacce",
+      "audit_digest": "sha256:f43528ae5101ae5ada5a5b12874ff833966863a434320f12958696e838adacce",
+      "line_count": 110,
+      "raw_line_count": 110,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:9fd5e0f21429dd1de4e61e3d720827c0a79a2af57917cd2eedad13d3d0c33d22",
+      "audit_digest": "sha256:9fd5e0f21429dd1de4e61e3d720827c0a79a2af57917cd2eedad13d3d0c33d22",
+      "line_count": 284,
+      "raw_line_count": 284,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:c218a1b3257d78ee0fec8989c8937d8a101011294c05fcbfe4dfd0d61dfe1c1d",
+      "audit_digest": "sha256:c218a1b3257d78ee0fec8989c8937d8a101011294c05fcbfe4dfd0d61dfe1c1d",
+      "line_count": 263,
+      "raw_line_count": 263,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:eb9236e77535c85b70691906c68c61b3ab7534aff0b183dc66d2163c98827c25",
+      "audit_digest": "sha256:eb9236e77535c85b70691906c68c61b3ab7534aff0b183dc66d2163c98827c25",
+      "line_count": 134,
+      "raw_line_count": 134,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-request-release_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:6c2dcdbe8d6e5c37667f0d0a935d99be8ceb8fd7b4c46a771c0af8bf694c7488",
+      "audit_digest": "sha256:6c2dcdbe8d6e5c37667f0d0a935d99be8ceb8fd7b4c46a771c0af8bf694c7488",
+      "line_count": 134,
+      "raw_line_count": 134,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:d852528256b491fa9779b3123d2488736eb1e8d4d5fe97a65d76c0a187248926",
+      "audit_digest": "sha256:d852528256b491fa9779b3123d2488736eb1e8d4d5fe97a65d76c0a187248926",
+      "line_count": 110,
+      "raw_line_count": 110,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-result-release_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:b4b585fefb48f19561ab0cd3d79fb6d7cfb845d2690a00720ca668335c1a2d85",
+      "audit_digest": "sha256:b4b585fefb48f19561ab0cd3d79fb6d7cfb845d2690a00720ca668335c1a2d85",
+      "line_count": 110,
+      "raw_line_count": 110,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:04670443c5de0a6e643287c17870b462142fc90125e089137ee097cae64c1e5d",
+      "audit_digest": "sha256:04670443c5de0a6e643287c17870b462142fc90125e089137ee097cae64c1e5d",
+      "line_count": 572,
+      "raw_line_count": 572,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:49d58d45a3c5fcaec75ea98f23257cabeaf7f2de2eff9a527306d357d376490a",
+      "audit_digest": "sha256:49d58d45a3c5fcaec75ea98f23257cabeaf7f2de2eff9a527306d357d376490a",
+      "line_count": 163,
+      "raw_line_count": 163,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-request-runtime_contract.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:200d4e799f0a7542ccc0855b0947468ff47c84c040880eb19b3c2aab5cf5d9fb",
+      "audit_digest": "sha256:200d4e799f0a7542ccc0855b0947468ff47c84c040880eb19b3c2aab5cf5d9fb",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-request-ux_completion.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:8f185f7c8507a63e9c0fa7171856e6817bb6d8124686e468cd35eb8a11ef4f19",
+      "audit_digest": "sha256:8f185f7c8507a63e9c0fa7171856e6817bb6d8124686e468cd35eb8a11ef4f19",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-result-runtime_contract.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:5acde739d57c8415c58a2f16ad3cda23afcd99c135495464b59fcad980feaa44",
+      "audit_digest": "sha256:5acde739d57c8415c58a2f16ad3cda23afcd99c135495464b59fcad980feaa44",
+      "line_count": 107,
+      "raw_line_count": 107,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-result-ux_completion.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:234af7570d2bc11e47766a532422cbef9f79abeb5b88f60fd31438a07847d16a",
+      "audit_digest": "sha256:234af7570d2bc11e47766a532422cbef9f79abeb5b88f60fd31438a07847d16a",
+      "line_count": 112,
+      "raw_line_count": 112,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:788b5d89281a9d17ef37a9a602387127f6fa8851948fc2bf7a9104b9d481f62e",
+      "audit_digest": "sha256:788b5d89281a9d17ef37a9a602387127f6fa8851948fc2bf7a9104b9d481f62e",
+      "line_count": 464,
+      "raw_line_count": 464,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:10f07be233aaeef8172fe9d39fd888147627f4454056a67a93ef98b863fb04f8",
+      "audit_digest": "sha256:10f07be233aaeef8172fe9d39fd888147627f4454056a67a93ef98b863fb04f8",
+      "line_count": 138,
+      "raw_line_count": 138,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-request-human_usability.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:dff4401b4d92c2b320c710184f3fff09f544cd3dca4791ed2aedfc8e82f6b316",
+      "audit_digest": "sha256:dff4401b4d92c2b320c710184f3fff09f544cd3dca4791ed2aedfc8e82f6b316",
+      "line_count": 131,
+      "raw_line_count": 131,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-request-network_runtime.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:f1168d1b16bee959b3710be3a723ee6dec33446b9b3a58df5f252c0badc28c67",
+      "audit_digest": "sha256:f1168d1b16bee959b3710be3a723ee6dec33446b9b3a58df5f252c0badc28c67",
+      "line_count": 129,
+      "raw_line_count": 129,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-result-human_usability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:844688fed542a9b184edfa57570a6cb871e8e08020f4b80f7b8ac70a757a31fb",
+      "audit_digest": "sha256:844688fed542a9b184edfa57570a6cb871e8e08020f4b80f7b8ac70a757a31fb",
+      "line_count": 112,
+      "raw_line_count": 112,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-result-network_runtime.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:31df9eca0ebefe6e6074a47a2f3ab1e06d2318230529ab75df82fdcd0a39d213",
+      "audit_digest": "sha256:31df9eca0ebefe6e6074a47a2f3ab1e06d2318230529ab75df82fdcd0a39d213",
+      "line_count": 106,
+      "raw_line_count": 106,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:12b0377c6cb693b7654e8e817d71d5d069c9ffd875dd4ecd6664ffa0caf05a9d",
+      "audit_digest": "sha256:12b0377c6cb693b7654e8e817d71d5d069c9ffd875dd4ecd6664ffa0caf05a9d",
+      "line_count": 432,
+      "raw_line_count": 432,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:24bb4763f05d7dbce1d6291abc2a969e27af530e4bf323355379bef47b06b8da",
+      "audit_digest": "sha256:24bb4763f05d7dbce1d6291abc2a969e27af530e4bf323355379bef47b06b8da",
+      "line_count": 238,
+      "raw_line_count": 238,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-request-e2e_ux.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:786394191f4de811d77d0dc27a112074be83d7d295ff18f273c6ccb582e41cfc",
+      "audit_digest": "sha256:786394191f4de811d77d0dc27a112074be83d7d295ff18f273c6ccb582e41cfc",
+      "line_count": 129,
+      "raw_line_count": 129,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-request-gate_coverage.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:3df0b6c5500dc038b12a1d7f11dde77ea4222734192172c36ae35e6ce159b95d",
+      "audit_digest": "sha256:3df0b6c5500dc038b12a1d7f11dde77ea4222734192172c36ae35e6ce159b95d",
+      "line_count": 135,
+      "raw_line_count": 135,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-result-e2e_ux.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:3ceceec21f81cba369cbff7dca177f703437e41d6549a41d1ac65a817146ad9a",
+      "audit_digest": "sha256:3ceceec21f81cba369cbff7dca177f703437e41d6549a41d1ac65a817146ad9a",
+      "line_count": 110,
+      "raw_line_count": 110,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-result-gate_coverage.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:4b8811ae46bb8f985b3442efec34b64bbd6178be22d22dcd1c18d6f8929ac164",
+      "audit_digest": "sha256:4b8811ae46bb8f985b3442efec34b64bbd6178be22d22dcd1c18d6f8929ac164",
+      "line_count": 110,
+      "raw_line_count": 110,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz",
+      "digest": "sha256:3583ff4821df554e6c15f8a663a4d114163a56823fe48b693a1dca36d5168f11",
+      "audit_digest": "sha256:3583ff4821df554e6c15f8a663a4d114163a56823fe48b693a1dca36d5168f11",
+      "line_count": 548,
+      "raw_line_count": 548,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T01-55-17.867Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T01-55-17.867Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-08.329Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-08.329Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-35.289Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-35.289Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-26-21.999Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-26-21.999Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/review-request-regression_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/architecture_spec/review-request-regression_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/review-result-regression_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/architecture_spec/review-result-regression_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/transcripts/cc-arch-regression-3.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/transcripts/cc-arch-regression-3.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-49-15.977Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-49-15.977Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-51-33.985Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-51-33.985Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-49-18.988Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-49-18.988Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-51-35.699Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-51-35.699Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-request-release_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/gate/review-request-release_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-result-release_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/gate/review-result-release_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-evidence-4.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-evidence-4.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-release-4.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-release-4.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-runtime_contract-2026-07-11T02-14-51.723Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-runtime_contract-2026-07-11T02-14-51.723Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-14-53.079Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-14-53.079Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-30-25.475Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-30-25.475Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-43-47.968Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-43-47.968Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-request-runtime_contract.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/implementation/review-request-runtime_contract.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-request-ux_completion.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/implementation/review-request-ux_completion.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-result-runtime_contract.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/implementation/review-result-runtime_contract.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/review-result-ux_completion.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/implementation/review-result-ux_completion.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-runtime-1.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-runtime-1.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-ux-3.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-ux-3.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-24-01.256Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-24-01.256Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-45-29.733Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-45-29.733Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-network_runtime-2026-07-11T02-23-59.869Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-network_runtime-2026-07-11T02-23-59.869Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-request-human_usability.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/preview/review-request-human_usability.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-request-network_runtime.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/preview/review-request-network_runtime.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-result-human_usability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/preview/review-result-human_usability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-result-network_runtime.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/preview/review-result-network_runtime.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-human-2.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-human-2.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-net-1.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-net-1.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-e2e_ux-2026-07-11T02-07-48.852Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-e2e_ux-2026-07-11T02-07-48.852Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-07-50.150Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-07-50.150Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-28-28.225Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-28-28.225Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-42-04.142Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-42-04.142Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-08-21.930Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-08-21.930Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-12-22.989Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-12-22.989Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-request-e2e_ux.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/test_plan/review-request-e2e_ux.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-request-gate_coverage.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/test_plan/review-request-gate_coverage.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-result-e2e_ux.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/test_plan/review-result-e2e_ux.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/review-result-gate_coverage.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/reviews/test_plan/review-result-gate_coverage.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-e2eux-1.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-e2eux-1.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-6.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-6.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/spec/story-eve-dispatch-handoff-transcript-context/spec.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/spec/story-eve-dispatch-handoff-transcript-context/spec.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/diagnostics/2026-07-11T010503Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T01-55-17.867Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T01-55-17.867Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-08.329Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-08.329Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-35.289Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-01-35.289Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-26-21.999Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/history/review-result-regression_risk-2026-07-11T02-26-21.999Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/transcripts/cc-arch-regression-3.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/transcripts/cc-arch-regression-3.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-49-15.977Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-49-15.977Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-51-33.985Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-gate_evidence-2026-07-11T02-51-33.985Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-49-18.988Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-49-18.988Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-51-35.699Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/history/review-result-release_risk-2026-07-11T02-51-35.699Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-evidence-4.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-evidence-4.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-release-4.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-release-4.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-runtime_contract-2026-07-11T02-14-51.723Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-runtime_contract-2026-07-11T02-14-51.723Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-14-53.079Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-14-53.079Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-30-25.475Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-30-25.475Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-43-47.968Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/history/review-result-ux_completion-2026-07-11T02-43-47.968Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-runtime-1.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-runtime-1.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-ux-3.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/implementation/transcripts/cc-impl-ux-3.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-24-01.256Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-24-01.256Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-45-29.733Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-human_usability-2026-07-11T02-45-29.733Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-network_runtime-2026-07-11T02-23-59.869Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/history/review-result-network_runtime-2026-07-11T02-23-59.869Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-human-2.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-human-2.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-net-1.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-net-1.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-e2e_ux-2026-07-11T02-07-48.852Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-e2e_ux-2026-07-11T02-07-48.852Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-07-50.150Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-07-50.150Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-28-28.225Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-28-28.225Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-42-04.142Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T02-42-04.142Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-08-21.930Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-08-21.930Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-12-22.989Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/history/review-result-gate_coverage-2026-07-11T03-12-22.989Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-e2eux-1.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-e2eux-1.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-6.output.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/reviews/story-eve-dispatch-handoff-transcript-context/test_plan/transcripts/cc-testplan-gatecov-6.output.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/spec/story-eve-dispatch-handoff-transcript-context/spec.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/spec/story-eve-dispatch-handoff-transcript-context/spec.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/references/vibepro/stories/story-eve-dispatch-handoff-transcript-context/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 10285190
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T010503Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1485330
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8830862
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-agent-report-approval-inbox/spec.md",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-dispatch-handoff-transcript-context/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-dispatch-handoff-transcript-context/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/verification/",
+      "reason": "source_missing"
+    }
+  ]
+}

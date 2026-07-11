@@ -1,0 +1,308 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "status": "split_recommended",
+  "recommended_strategy": "split_by_lane_then_prepare",
+  "rationale": [
+    "repo制御ファイルやagent設定が差分に含まれている",
+    "baseからのcommitが 17 件あり、Story外の変更混入を確認する必要がある",
+    "4 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphifyで 3 changed files が一致し、37 related files を影響調査候補にした"
+  ],
+  "graph_context": {
+    "available": true,
+    "graph_path": ".vibepro/graphify/graph.json",
+    "edge_source_key": "links",
+    "node_count": 6553,
+    "edge_count": 13661,
+    "matched_file_count": 3,
+    "related_file_count": 37,
+    "investigation_files": [
+      "cli/sync.js",
+      "lib/config-parser.js",
+      "lib/state-store.js",
+      "public/modules/core/di-container.js",
+      "public/modules/core/http-client.js",
+      "public/modules/core/session-data-cache.js",
+      "scripts/populate-auth-grants.mjs",
+      "server/bootstrap/core-services.js",
+      "server/lib/errors.js",
+      "server/routes/workflows.js",
+      "server/services/admin-visualization-service.js",
+      "server/services/companion/decision-event-service.js",
+      "server/services/external-runner/eve-session-client.js",
+      "server/services/google-calendar-service.js",
+      "server/services/info-ssot-service.js",
+      "server/services/meeting-source/meeting-source-mcp-adapters.js",
+      "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+      "server/services/workflow/loop-pack-design-gate.js",
+      "server/services/workflow/meeting-workflow-pack.js",
+      "server/services/workflow/workflow-draft-generator.js",
+      "server/services/workflow/workflow-repository.js",
+      "server/services/workflow/workflow-service.js",
+      "tests/e2e/story-brainbase-agent-report-approval-inbox-contract.spec.ts",
+      "tests/e2e/story-brainbase-workflow-mission-control-contract.spec.ts",
+      "tests/e2e/story-eve-runtime-session-connection-v0-contract.spec.ts",
+      "tests/e2e/story-loop-pack-design-gate-v0-contract.spec.ts",
+      "tests/e2e/story-meeting-note-generation-dag-wiring-contract.spec.ts",
+      "tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts",
+      "tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts",
+      "tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts"
+    ],
+    "impact_by_file": [
+      {
+        "file": "server/services/workflow/workflow-service.js",
+        "matched_nodes": [
+          "server_services_workflow_workflow_service_js",
+          "workflow_workflow_service_meetingreviewvalidationerror",
+          "workflow_workflow_service_normalizeprojectkey",
+          "workflow_workflow_service_projectaccesskeys",
+          "workflow_workflow_service_workflowpriority",
+          "workflow_workflow_service_companionapprovalpriority",
+          "workflow_workflow_service_isactionablecompanionapprovalrun",
+          "workflow_workflow_service_outputsummary"
+        ],
+        "related_files": [
+          "cli/sync.js",
+          "lib/config-parser.js",
+          "lib/state-store.js",
+          "public/modules/core/di-container.js",
+          "public/modules/core/http-client.js",
+          "public/modules/core/session-data-cache.js",
+          "scripts/populate-auth-grants.mjs",
+          "server/bootstrap/core-services.js",
+          "server/lib/errors.js",
+          "server/services/admin-visualization-service.js",
+          "server/services/companion/decision-event-service.js",
+          "server/services/external-runner/eve-session-client.js"
+        ]
+      },
+      {
+        "file": "tests/server/routes/workflows.test.js",
+        "matched_nodes": [
+          "tests_server_routes_workflows_test_js",
+          "routes_workflows_test_makeapp",
+          "routes_workflows_test_makeevesessionclient",
+          "routes_workflows_test_samplemeetingreviewpackage",
+          "routes_workflows_test_makepkg"
+        ],
+        "related_files": [
+          "server/routes/workflows.js",
+          "server/services/workflow/meeting-workflow-pack.js",
+          "server/services/workflow/workflow-service.js"
+        ]
+      },
+      {
+        "file": "tests/server/services/workflow-org-agent-control.test.js",
+        "matched_nodes": [
+          "tests_server_services_workflow_org_agent_control_test_js",
+          "services_workflow_org_agent_control_test_makeservice",
+          "services_workflow_org_agent_control_test_makeinfossotpeopleservice",
+          "services_workflow_org_agent_control_test_makeevesessionclient",
+          "services_workflow_org_agent_control_test_samplemeetingreviewpackage",
+          "services_workflow_org_agent_control_test_expectedlegacystableid",
+          "services_workflow_org_agent_control_test_triggerpersistencefailurerepository",
+          "services_workflow_org_agent_control_test_triggerpersistencefailurerepository_upsertworkflowtrigger"
+        ],
+        "related_files": [
+          "server/services/workflow/meeting-workflow-pack.js",
+          "server/services/workflow/workflow-service.js"
+        ]
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "repo-control",
+      "order": 5,
+      "title": "Repository control and agent policy",
+      "category": "repo_control",
+      "recommendation": "separate_pr",
+      "files": [
+        ".claude/hooks/session-start-copy-plugins.sh",
+        ".claude/skills/brainbase-ops-guide/SKILL.md"
+      ],
+      "required_gates": [
+        "Integration Gate"
+      ],
+      "review_focus": [
+        "アプリ挙動変更とrepo制御変更が混ざっていないか",
+        "無関係なagent設定やignore規則を巻き込んでいないか"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/eve-dispatch-handoff-transcript-context-repo-control"
+    },
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+        "docs/runbooks/eve-meeting-note-backfill.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/eve-dispatch-handoff-transcript-context-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "server/services/workflow/workflow-service.js",
+        "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+        "tests/server/routes/workflows.test.js",
+        "tests/server/services/workflow-org-agent-control.test.js"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate",
+        "E2E Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 4,
+      "graph_investigation_files": [
+        "cli/sync.js",
+        "lib/config-parser.js",
+        "lib/state-store.js",
+        "public/modules/core/di-container.js",
+        "public/modules/core/http-client.js",
+        "public/modules/core/session-data-cache.js",
+        "scripts/populate-auth-grants.mjs",
+        "server/bootstrap/core-services.js",
+        "server/lib/errors.js",
+        "server/routes/workflows.js",
+        "server/services/admin-visualization-service.js",
+        "server/services/companion/decision-event-service.js"
+      ],
+      "suggested_branch": "feat/eve-dispatch-handoff-transcript-context-runtime-behavior"
+    },
+    {
+      "id": "misc-follow-up",
+      "order": 90,
+      "title": "Miscellaneous follow-up",
+      "category": "other",
+      "recommendation": "separate_pr",
+      "files": [
+        "script/backfill-eve-meeting-note-dispatch.mjs",
+        "docs/responsibility-authority/eve-dispatch-handoff-transcript-context.json"
+      ],
+      "required_gates": [
+        "Manual Review"
+      ],
+      "review_focus": [
+        "Storyとの対応が不明な差分をPRから外すか、Storyに根拠を追記する"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/eve-dispatch-handoff-transcript-context-misc-follow-up"
+    }
+  ],
+  "merge_order": [
+    "repo-control",
+    "requirements-ssot",
+    "runtime-behavior",
+    "misc-follow-up"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 4,
+      "cumulative_gate_count": 0,
+      "requires_cumulative_e2e": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "repo-control",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "git diff --check",
+          "npm run test:run -- --reporter=json --outputFile=var/story-evidence/vitest-eve-handoff.json tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js"
+        ],
+        "cumulative_checks": [],
+        "review_note": "repo-control は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm run test:run -- --reporter=json --outputFile=var/story-evidence/vitest-eve-handoff.json tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js",
+          "npm run test:run -- --reporter=json --outputFile=var/story-evidence/vitest-eve-handoff.json tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。"
+      },
+      {
+        "lane_id": "misc-follow-up",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "manual review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "misc-follow-up は単体PRとしてレビュー可能。"
+      }
+    ],
+    "final_validation": {
+      "required": false,
+      "trigger": "各PRのisolated checksで十分",
+      "commands": [
+        "npm run test:run -- --reporter=json --outputFile=var/story-evidence/vitest-eve-handoff.json tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js",
+        "npm run test:run -- --reporter=json --outputFile=var/story-evidence/vitest-eve-handoff.json tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "lane_id": "repo-control",
+      "action": "Create feat/eve-dispatch-handoff-transcript-context-repo-control with 2 files",
+      "command": "git switch -c feat/eve-dispatch-handoff-transcript-context-repo-control <base> && git add .claude/hooks/session-start-copy-plugins.sh .claude/skills/brainbase-ops-guide/SKILL.md"
+    },
+    {
+      "lane_id": "requirements-ssot",
+      "action": "Create feat/eve-dispatch-handoff-transcript-context-requirements-ssot with 2 files",
+      "command": "git switch -c feat/eve-dispatch-handoff-transcript-context-requirements-ssot <base> && git add docs/stories/story-eve-dispatch-handoff-transcript-context.md docs/runbooks/eve-meeting-note-backfill.md"
+    },
+    {
+      "lane_id": "runtime-behavior",
+      "action": "Create feat/eve-dispatch-handoff-transcript-context-runtime-behavior with 4 files",
+      "command": "git switch -c feat/eve-dispatch-handoff-transcript-context-runtime-behavior <base> && git add server/services/workflow/workflow-service.js tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/server/routes/workflows.test.js tests/server/services/workflow-org-agent-control.test.js"
+    },
+    {
+      "lane_id": "misc-follow-up",
+      "action": "Create feat/eve-dispatch-handoff-transcript-context-misc-follow-up with 2 files",
+      "command": "git switch -c feat/eve-dispatch-handoff-transcript-context-misc-follow-up <base> && git add script/backfill-eve-meeting-note-dispatch.mjs docs/responsibility-authority/eve-dispatch-handoff-transcript-context.json"
+    }
+  ]
+}

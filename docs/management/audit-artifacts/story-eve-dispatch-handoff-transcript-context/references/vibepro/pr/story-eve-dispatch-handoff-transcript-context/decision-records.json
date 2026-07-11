@@ -1,0 +1,569 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "updated_at": "2026-07-11T02:55:19.457Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "expected_root": null,
+      "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+      "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783738519456-f7fe0a4e",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "scope_reviewed: 本PRは単一intent（Eve dispatch handoffへのtranscript/契約同梱）で、実装はworkflow-service.js内の1機能追加とその証跡（テスト2ファイル・story・runbook・script・authority登録）に閉じる。1人のreviewerが一貫して読める粒度であり、分割しない判断を維持する。",
+      "reason": "8ファイル・実装diff約240行。5-stage agent reviewで各roleが単独で全diffを読み切れている実績が粒度の妥当性を裏付ける。split判断はgate:pr_scope_judgment / gate:split_resolutionの既存決定と一致。",
+      "reviewer": "claude_code",
+      "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T02:55:19.449Z"
+      },
+      "recorded_at": "2026-07-11T02:55:19.457Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783738420298-fcb0603b",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "scope_reviewed: 本PRは単一intent（Eve dispatch handoffへのtranscript/契約同梱）で、実装はworkflow-service.js内の1機能追加＋その証跡（テスト2ファイル・story・runbook・script・authority登録）に閉じる。1人のreviewerが一貫して読める粒度であり分割しない判断を維持（gate:pr_scope_judgment / gate:split_resolution決定に同じ）。",
+      "reason": "8ファイル・実装diffは約240行。5-stage agent reviewで各roleが単独で全diffを読み切れている実績が粒度の妥当性を裏付ける。",
+      "reviewer": "claude_code",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T02:53:40.291Z"
+      },
+      "recorded_at": "2026-07-11T02:53:40.299Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783738418945-7c05a4be",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_execution_topology",
+      "source_status": "needs_evidence",
+      "summary": "execution_topology判断: dispatch topologyはstory docのDAG mermaidとspec.jsonのstate/threat_model diagramに記録済み。dispatch経路はworkflow lock（TTL 600s）＋in-flight dedupe＋timeout recovery runで直列化され、deadlockは既存機構のまま（本変更はlock内の解決ステップ追加のみ）。証跡lifecycleは5-stage agent reviewのlifecycle.json＋transcriptsで追跡可能。",
+      "reason": "新規プロセス・worker・retry機構は導入していない。session-reuse guardは同一lock内の純関数比較で、ブロッキング呼び出しを追加しない。",
+      "reviewer": "claude_code",
+      "artifact": ".vibepro/spec/story-eve-dispatch-handoff-transcript-context/spec.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T02:53:38.938Z"
+      },
+      "recorded_at": "2026-07-11T02:53:38.947Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783738417473-e5d8fcb4",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_data_state",
+      "source_status": "needs_evidence",
+      "summary": "data_state判断: migration不要（スキーマ変更なし、永続追加はrun.metadata.meeting_note_generationのhash参照のみで旧コード非参照）。idempotencyはテスト済み（ingest idempotent replay・same-run dispatch reuse・source_artifact_match dedupe、vitest 138/138内）。rollback_planはrunbookリリース手順とロールバック節に正本化済み。query semanticsは変更なし（読み経路は既存listOutputs/getRunのみ）。",
+      "reason": "書き戻しはsource_text_hash一致必須の既存契約で、別会議データの混入をテストで遮断。追加metadataはadditiveで、revert時に読み手が存在しない。",
+      "reviewer": "claude_code",
+      "artifact": "docs/runbooks/eve-meeting-note-backfill.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T02:53:37.466Z"
+      },
+      "recorded_at": "2026-07-11T02:53:37.475Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733605191-c80e2731",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "failure_mode:evidence_lifecycle_regression",
+      "source_status": "missing_coverage",
+      "summary": "evidence_lifecycle_regression非該当: 本変更はevidence lifecycle実装（review record・verify record経路）に触れない。",
+      "reason": "変更はEve dispatch handoff（workflow-service.js）・テスト・runbook・backfillスクリプト・authority登録のみ。",
+      "reviewer": "claude_code",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "4cf52502e1d82dc45a73fbb688ff67e68d67d166",
+          "current_head_sha": "4cf52502e1d82dc45a73fbb688ff67e68d67d166",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4cf52502e1d82dc45a73fbb688ff67e68d67d166",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:33:25.184Z"
+      },
+      "recorded_at": "2026-07-11T01:33:25.192Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733398428-30d3da21",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "failure_mode:evidence_lifecycle_regression",
+      "source_status": "missing_coverage",
+      "summary": "evidence_lifecycle_regression非該当: 本変更はVibePro evidence lifecycle実装に触れない。",
+      "reason": "変更はEve dispatch handoff（workflow-service.js）・テスト・runbook・backfillスクリプトのみ。evidence記録・review record経路のコードは変更していない。",
+      "reviewer": "claude_code",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "12e67e9411a3d1ea4a10ebf41edbf3f11a87ca4b",
+          "current_head_sha": "12e67e9411a3d1ea4a10ebf41edbf3f11a87ca4b",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "12e67e9411a3d1ea4a10ebf41edbf3f11a87ca4b",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:29:58.411Z"
+      },
+      "recorded_at": "2026-07-11T01:29:58.430Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733236458-7a016508",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:responsibility_authority",
+      "source_status": "needs_review",
+      "summary": "変更responsibility surface（workflow dispatch orchestration）の権限者はbrainbase workflow controlのowner（keigo）であり、本storyの実装・レビューを本人監督下で実施。",
+      "reason": "[REDACTED:4cc622cad17d]-service.js のEve dispatch経路は既存story（eve-runtime-session-connection-v0 / meeting-note-generation-dag-wiring）と同一のresponsibility surfaceで、同一ownerが継続して保持する。",
+      "reviewer": "claude_code",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "current_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:27:16.432Z"
+      },
+      "recorded_at": "2026-07-11T01:27:16.459Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733233782-dbccfbbb",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Split不要のclean-branch判断を記録（gate:pr_scope_judgment決定に同じ）。",
+      "reason": "claude/eve-dispatch-handoff-context はorigin/develop起点で本storyのcommitのみを含む。",
+      "reviewer": "claude_code",
+      "artifact": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "current_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:27:13.762Z"
+      },
+      "recorded_at": "2026-07-11T01:27:13.791Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733230753-c92d5b07",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "単一PRで出荷する判断: 変更は1 intent（handoff契約の完全化）に閉じた6ファイル（実装1・テスト2・story/runbook/script）で、分割はレビュー可能性を下げる。",
+      "reason": "実装はworkflow-service.js内の単一機能追加。テスト・runbook・storyは同一契約の証跡であり分離すると検証が壊れる。branchはorigin/develop起点のclean branch。",
+      "reviewer": "claude_code",
+      "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "current_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:27:10.739Z"
+      },
+      "recorded_at": "2026-07-11T01:27:10.761Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733227996-e6cc9daf",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "ADR-unnecessary: 既存のEve dispatch handoffとrecordMeetingNoteGeneration契約の範囲内で、dispatch入力に対象run参照を追加する最小変更。新規state machine・API contract・データモデルは導入しない。",
+      "reason": "書き戻し契約の正本はサーバー実装のまま。handoff内契約記述は導出値であり、story doc Architecture Decision節に記録済み。",
+      "reviewer": "claude_code",
+      "artifact": "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "current_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:27:07.977Z"
+      },
+      "recorded_at": "2026-07-11T01:27:08.001Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783733225310-e179beab",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:failure_mode_coverage",
+      "source_status": "missing_coverage",
+      "summary": "evidence_lifecycle_regression: 本変更はVibePro evidence lifecycleを扱うコードに触れない（server/services/workflow のdispatch handoffとテストのみ）。該当failure modeは非該当。",
+      "reason": "変更ファイルは workflow-service.js / routes tests / e2e contract / runbook / script のみで、evidence lifecycle実装（.vibepro管理・review record経路）への変更は無い。",
+      "reviewer": "claude_code",
+      "artifact": "server/services/workflow/workflow-service.js",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "current_head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "23852dac829f36f45941697aa63eaa11e123919c",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T01:27:05.293Z"
+      },
+      "recorded_at": "2026-07-11T01:27:05.313Z"
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "open": 0,
+    "by_type": {
+      "needs_review": 11
+    },
+    "by_status": {
+      "accepted": 11
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+        "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+        "expected_root": null,
+        "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783738519456-f7fe0a4e",
+      "story_id": "story-eve-dispatch-handoff-transcript-context",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "scope_reviewed: 本PRは単一intent（Eve dispatch handoffへのtranscript/契約同梱）で、実装はworkflow-service.js内の1機能追加とその証跡（テスト2ファイル・story・runbook・script・authority登録）に閉じる。1人のreviewerが一貫して読める粒度であり、分割しない判断を維持する。",
+      "reason": "8ファイル・実装diff約240行。5-stage agent reviewで各roleが単独で全diffを読み切れている実績が粒度の妥当性を裏付ける。split判断はgate:pr_scope_judgment / gate:split_resolutionの既存決定と一致。",
+      "reviewer": "claude_code",
+      "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+          "expected_root": null,
+          "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+        "current_branch": "claude/eve-dispatch-handoff-context",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T02:55:19.449Z"
+      },
+      "recorded_at": "2026-07-11T02:55:19.457Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/decision-records.json"
+}

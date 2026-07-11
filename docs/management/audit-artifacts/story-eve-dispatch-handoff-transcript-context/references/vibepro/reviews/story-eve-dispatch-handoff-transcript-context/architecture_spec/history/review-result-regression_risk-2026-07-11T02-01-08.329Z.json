@@ -1,0 +1,115 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "指摘のsilent-ref-drop修正を実機reproで確認: 2パッケージingestで2つの独立Eveセッションが作られ2件目のtranscriptがhandoffされる。同一run再dispatchはidempotent reuse維持。no-ref dispatch形状・timeout recovery順序・scope guard・best-effort ingestは回帰なし。残findingはlow 3件（error precedence / latest-run-only reuse判定 / message override時のタスク指示欠落）でいずれも非破壊。unit 68/68・e2e 9/9 pass。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "fix commit diff、gate ordering（lock→timeout recovery→blocked→control refs→ref resolution→reuse gate→isConfigured）、2パッケージrepro再実行、unit/e2eスイートをHEADで検査。",
+    "evidence": "scratchpad repro at HEAD: 2 Eve createSession calls with second transcript",
+    "inputs": [
+      "git show HEAD -- server/services/workflow/workflow-service.js",
+      "tests/server/routes/workflows.test.js",
+      "docs/runbooks/eve-meeting-note-backfill.md"
+    ]
+  },
+  "judgment_delta": [
+    "needs_changes -> pass because the reuse gate now keys on existingRun.metadata.meeting_note_generation.run_id equality, verified by live repro and a dedicated regression test that fails pre-fix"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "expected_root": null,
+    "expected_head_sha": "f4c8acc67d6d6117d47224485561b40d7b45ea95",
+    "current_head_sha": "f4c8acc67d6d6117d47224485561b40d7b45ea95",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "expected_root": null,
+      "expected_head_sha": "f4c8acc67d6d6117d47224485561b40d7b45ea95",
+      "current_head_sha": "f4c8acc67d6d6117d47224485561b40d7b45ea95",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T02:01:08.329Z",
+  "git_context": {
+    "head_sha": "f4c8acc67d6d6117d47224485561b40d7b45ea95",
+    "current_branch": "claude/eve-dispatch-handoff-context",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T02:01:08.304Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 2 file(s)",
+    "recorded_head_sha": "f4c8acc67d6d6117d47224485561b40d7b45ea95",
+    "surface_files": [
+      {
+        "path": "docs/runbooks/eve-meeting-note-backfill.md",
+        "sha256": "1b6123aa858e8d6e53dd10b95df8c5dd7d99f018d6f8587a2772d8e2bde744d9",
+        "size": 3474
+      },
+      {
+        "path": "tests/server/routes/workflows.test.js",
+        "sha256": "768437442523d8cdc1220b17368ea5b4f6c20bd9db59d04ce5d5eb26b743b601",
+        "size": 123134
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "c0d94802fcdb1bbcc307e5edc7d8b8548068aeb77a56ca3caa44567b66d3c273"
+  },
+  "source_fingerprint": "6851d34c62814f236afd4395e5dc9f52c6ea52f97b48048eb4d4e77c75ca159f",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "cc-arch-regression-2",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "declared"
+  },
+  "agent_usage": null
+}

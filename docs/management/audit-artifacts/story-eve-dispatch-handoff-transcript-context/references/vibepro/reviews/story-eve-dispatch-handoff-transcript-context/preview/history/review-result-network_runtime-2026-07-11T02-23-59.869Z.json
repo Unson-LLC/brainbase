@@ -1,0 +1,105 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "stage": "preview",
+  "role": "network_runtime",
+  "status": "pass",
+  "summary": "実リクエスト/レスポンス証跡で検証: 参照付きdispatchの正常系・invalid ref・scope不一致・source欠落はすべて400 JSON + state_transition（5xxなし）、ingest自動dispatchはbest-effortでaudit記録。camelCase aliasテスト追加で残findingゼロ。route 68/68・live server e2e 9/9・auth境界401確認。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "diff・routesの400整形・live test server起動プローブ・supertest suite・playwright live webServer実行で検査。715241b7bはserver/変更なしを確認。",
+    "evidence": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-net-1.output.md",
+    "inputs": [
+      "server/routes/workflows.js:136-151",
+      "npm run test:run -- tests/server/routes/workflows.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "initial concern that stubbed test error handlers might hide real HTTP shapes -> pass because the route handler itself formats 400+state_transition before middleware, verified by live-server probes and e2e"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "expected_root": null,
+    "expected_head_sha": "715241b7b6159c402912cccf5f2e164755b8c1ba",
+    "current_head_sha": "715241b7b6159c402912cccf5f2e164755b8c1ba",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "expected_root": null,
+      "expected_head_sha": "715241b7b6159c402912cccf5f2e164755b8c1ba",
+      "current_head_sha": "715241b7b6159c402912cccf5f2e164755b8c1ba",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T02:23:59.869Z",
+  "git_context": {
+    "head_sha": "715241b7b6159c402912cccf5f2e164755b8c1ba",
+    "current_branch": "claude/eve-dispatch-handoff-context",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T02:23:59.859Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "unbound",
+    "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+    "recorded_head_sha": "715241b7b6159c402912cccf5f2e164755b8c1ba",
+    "surface_files": [],
+    "missing_files": [
+      "server/routes/workflows.js:136-151"
+    ],
+    "surface_hash": null
+  },
+  "source_fingerprint": "6863455938f0f573707478323dfde0e9b9efd98bca2b1f39832f1a2e867fc382",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ae4c3b29782b89938",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/transcripts/cc-preview-net-1.output.md",
+    "request_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/preview/review-request-network_runtime.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

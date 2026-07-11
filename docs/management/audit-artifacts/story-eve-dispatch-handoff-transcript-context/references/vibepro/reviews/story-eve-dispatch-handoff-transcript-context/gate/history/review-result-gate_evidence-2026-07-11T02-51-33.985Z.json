@@ -1,0 +1,109 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "最終確認: HEAD不変・worktreeクリーンで、deltaは推奨どおりのrollout_plan登録のみ。9/9 content-binding hash一致、unit/e2e記録とartifactは不変、release_opsは実artifact裏付けでpassed。残non-greenはこのレビュー自身の構造的closureと他roleレーンの既存axisのみ。偽green・stale束縛・矛盾なし。残findingはlow 3件（hygiene）。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "HEAD/クリーンツリー確認・rollout_plan scenarioのartifact裏付け検証・全content-binding再hash・gate-dag/pr-prepareのrelease_ops passed確認。",
+    "evidence": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-evidence-4.output.md",
+    "inputs": [
+      ".vibepro/pr/story-eve-dispatch-handoff-transcript-context/gate-dag.json",
+      "docs/runbooks/eve-meeting-note-backfill.md"
+    ]
+  },
+  "judgment_delta": [
+    "verification-only skepticism (a relabeled-string flip already occurred once in this story) -> pass because the cited artifact exists, contains the claimed content verified line-by-line, is hash-bound at the unchanged HEAD, and test artifacts were provably untouched"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+    "expected_root": null,
+    "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+    "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/eve-handoff-context",
+      "expected_root": null,
+      "expected_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+      "current_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T02:51:33.985Z",
+  "git_context": {
+    "head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+    "current_branch": "claude/eve-dispatch-handoff-context",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T02:51:33.966Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 1 file(s)",
+    "recorded_head_sha": "2f9d9f7ebcd3e9b5626935aa916cfef8c69a0008",
+    "surface_files": [
+      {
+        "path": "docs/runbooks/eve-meeting-note-backfill.md",
+        "sha256": "58e6af8ca9312404cb7bcd6f351184217f710bf67459f0305f87843ce76b7613",
+        "size": 5755
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "3dbb3caa03ffcdc53dee638d8eba5c1fa8ed8017f014757777b37c84feb7d44c"
+  },
+  "source_fingerprint": "2cc84b9c058b3e8719320e1c888ad63cbe0df83956b87f945f6ad94debe37c26",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "a735b6824c16b450a",
+    "agent_role": null,
+    "model": "claude-fable-5",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/transcripts/cc-gate-evidence-4.output.md",
+    "request_artifact": ".vibepro/reviews/story-eve-dispatch-handoff-transcript-context/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,468 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-dispatch-handoff-transcript-context",
+  "generated_by": {
+    "caller": "claude_code",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "meeting_note_generation contextはdispatch inputに対象run参照（run_id/package_id）が与えられた場合にのみhandoffへ付与され、参照なしdispatchのhandoff構造は変えない。",
+      "rationale": "AC-001/AC-006。transcript_to_meeting_note以外のloop intentや既存の手動dispatchを後方互換に保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 5
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "function readMeetingNoteGenerationDispatchRef"
+          },
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "_resolveMeetingNoteGenerationHandoff"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:6 S-003 dispatches without a meeting_note_generation reference keep the existing handoff shape"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "function readMeetingNoteGenerationDispatchRef"
+          },
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "_resolveMeetingNoteGenerationHandoff"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "meeting_note_generation"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "対象runはrun_id（またはpackage_id由来のstable run id）で解決し、runのorg_id/project_idまたはoutputのloop_intent_idがdispatch対象loop intentと一致しない場合はEveセッション作成前に拒否する。",
+      "rationale": "AC-004。別プロジェクト・別loopのtranscriptをhandoffへ載せない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "blocked_meeting_note_generation_scope"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:4 S-002 a dispatch whose run belongs to another loop intent is rejected before any Eve session"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "blocked_meeting_note_generation_scope"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "blocked_meeting_note_generation_scope"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "対象runにmeeting_note_draft outputが無い、またはpayload.source_text_hashが欠落している場合、参照付きdispatchはEveセッション作成前にvalidationエラーで失敗する。",
+      "rationale": "AC-005。transcript欠落のままEveへ投げるとfailedエンベロープになるだけなので入口で止める。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "blocked_meeting_note_generation_source_missing"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:5 ac:7 S-002 transcript-less runs block referenced dispatch while ingest stays best-effort"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "blocked_meeting_note_generation_source_missing"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "blocked_meeting_note_generation_source_missing"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "handoffのmeeting_note_generationには該当runのmeeting_note_draft output payload由来のデータ（transcript本文・run識別子・source_text_hash・書き戻し契約）のみを含め、continuation_token等のserver-owned secretは含めない。",
+      "rationale": "AC-002。Eveに渡すのは生成に必要な一次資料と契約だけ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "function buildMeetingNoteGenerationHandoffContext"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:1 ac:2 ac:3 S-001 ingest auto-dispatch hands off transcript, run refs and write-back contract"
+          }
+        ]
+      },
+      "confidence": 0.9,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "function buildMeetingNoteGenerationHandoffContext"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "write_back"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "ingest経由の自動dispatchはbest-effortを維持し、context構築失敗はingestを失敗させずnote_generation_dispatch.status=skipped + reasonとしてaudit logに記録する。",
+      "rationale": "AC-007。story-meeting-note-generation-dag-wiring INV-note-dag-003の維持。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "_dispatchMeetingNoteGeneration"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:5 ac:7 S-002 transcript-less runs block referenced dispatch while ingest stays best-effort"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "note_generation.dispatch_skipped"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "dispatch_failed"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "handoff内の書き戻し契約記述はrecordMeetingNoteGenerationの検証仕様（必須フィールド・source_text_hash一致・run_id/package_idいずれか必須）と一致し、契約に無い書き込み経路を新設しない。",
+      "rationale": "AC-002。契約の正本はサーバー実装であり、handoff記述は導出値。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "path: '/api/workflows/control/meeting-pack/note-generation'"
+          },
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "async recordMeetingNoteGeneration"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/workflows.test.js",
+            "case": "story-eve-dispatch-handoff-transcript-context AC-001 AC-002 AC-003 S-001 hands off transcript body, run refs and write-back contract to Eve"
+          }
+        ]
+      },
+      "confidence": 0.9,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/workflow/workflow-service.js",
+            "must_contain": "path: '/api/workflows/control/meeting-pack/note-generation'"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/workflows.test.js",
+            "must_cover": "note-generation"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "Review Package ingest成功後の自動dispatchで、handoff.context.meeting_note_generationに正規化transcript本文・run_id/package_id/source_text_hash・書き戻し契約が含まれ、Eve dispatch runのmetadataに参照が記録される。 (workflow state transition: brainbase_source_ready -> awaiting_eve_result via dispatch handoff)",
+      "rationale": "brainbase_source_ready → dispatched(awaiting_eve_result) 遷移の入力完全性を固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 2
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "meeting_note_generation"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:1 ac:2 ac:3 S-001 ingest auto-dispatch hands off transcript, run refs and write-back contract"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "S-001"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:41:36.648Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "S-006",
+      "type": "scenario",
+      "statement": "スコープ不一致run、またはtranscript欠落runへの参照付きdispatchは、Eveセッション作成前にblocked_meeting_note_generation_scope / blocked_meeting_note_generation_source_missingで拒否される（状態遷移は発生しない）。 (workflow state transition guard: invalid dispatch input produces no state transition)",
+      "rationale": "不正な遷移入力を状態機械の外で止める。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 4
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "blocked_meeting_note_generation_scope"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:4 S-002 a dispatch whose run belongs to another loop intent is rejected before any Eve session"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "S-002"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:41:36.648Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "meeting_note_generation参照なしのdispatch（他のloop intent・従来の手動dispatch）はhandoff構造・冪等性・状態遷移が従来どおり（loop_intent_loaded→…→awaiting_eve_result）である。 (workflow status flow unchanged: loop_intent_loaded -> awaiting_eve_result)",
+      "rationale": "後方互換の状態遷移を固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/workflow/workflow-service.js",
+            "anchor": "buildEveSessionContext"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:6 S-003 dispatches without a meeting_note_generation reference keep the existing handoff shape"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "S-003"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:23:29.060Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    },
+    {
+      "id": "S-007",
+      "type": "scenario",
+      "statement": "既存のbrainbase_source_ready runは、runbookに従いforce_new_session + meeting_note_generation参照の手動dispatch APIでバックフィルでき、dry-runスクリプトが候補（hash欠落skipを含む）を列挙する。 (workflow state transition backfill: brainbase_source_ready -> brainbase_generated via manual dispatch and write-back)",
+      "rationale": "過去17件のrunをbrainbase_generatedへ遷移させる運用経路を固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "script/backfill-eve-meeting-note-dispatch.mjs",
+            "anchor": "listBackfillCandidates"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "case": "ac:8 S-004 backfill script lists brainbase_source_ready runs from the ledger in dry-run"
+          }
+        ]
+      },
+      "confidence": 0.9,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "script/backfill-eve-meeting-note-dispatch.mjs",
+            "must_contain": "listBackfillCandidates"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+            "must_cover": "S-004"
+          }
+        ]
+      },
+      "first_seen_at": "2026-07-11T01:41:36.648Z",
+      "last_revised_at": "2026-07-11T01:41:36.648Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "state",
+      "entities": [
+        "meeting_note_draft"
+      ],
+      "mermaid": "stateDiagram-v2\n  [*] --> brainbase_source_ready\n  brainbase_source_ready --> resolving_handoff: dispatch with meeting_note_generation ref\n  resolving_handoff --> brainbase_source_ready: blocked_meeting_note_generation_scope (rejected, no state change)\n  resolving_handoff --> brainbase_source_ready: blocked_meeting_note_generation_source_missing (rejected, no state change)\n  resolving_handoff --> awaiting_eve_result: handoff includes transcript + write-back contract\n  awaiting_eve_result --> brainbase_generated: POST note-generation (source_text_hash match)\n  awaiting_eve_result --> awaiting_eve_result: blocked_source_hash_mismatch (write-back rejected)\n  brainbase_generated --> human_approval: approve_meeting_note_publish\n  human_approval --> [*]",
+      "rationale": "brainbase_source_ready→brainbase_generatedの単方向遷移と、dispatch前ブロック状態を固定する。"
+    },
+    {
+      "kind": "threat_model",
+      "mermaid": "flowchart LR\n  Caller[\"dispatch caller\"] -->|meeting_note_generation ref| Guard[\"scope guard: org/project + output loop_intent_id\"]\n  Guard -->|mismatch| Reject[\"400 blocked_meeting_note_generation_scope\"]\n  Guard -->|ok| Handoff[\"handoff to Eve (transcript + contract)\"]\n  Handoff -.->|never includes| Secret[\"continuation_token (server-owned)\"]\n  Eve[\"Eve agent\"] -->|write-back| HashGate[\"source_text_hash equality gate\"]\n  HashGate -->|mismatch| RejectWB[\"400 blocked_source_hash_mismatch\"]\n  HashGate -->|match| Draft[\"meeting_note_draft update (not publish)\"]\n  Draft --> Human[\"human approval gate stays in Brainbase\"]",
+      "rationale": "別会議transcriptの混入・server-owned secretの流出・人間承認バイパスを遮断する境界を固定する。"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-07-11T01:41:36.642Z",
+  "previous_spec_id": "2026-07-11T01:23:40.897Z"
+}
