@@ -1,0 +1,116 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-worktree-service-git-migration",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "developマージhead f6adf7dc3でGate証跡を再検証: server/testsのstory差分はshasumで前回同一、競合解決はレビュー済みours一致、再記録verify証跡は現headバインドでraw artifact件数(141/6/1, fail0)と整合。pass維持",
+  "findings": [
+    {
+      "severity": "low",
+      "id": "merge-resolution-surface-note",
+      "detail": "combined diffにohayo/oyasumi/retro.mdとsns fileも現れるが、blob照合でdevelop側verbatim取込・story対象外と確認済み（情報提供のみ）"
+    }
+  ],
+  "finding_dispositions": [
+    {
+      "finding_id": "merge-resolution-surface-note",
+      "disposition": "accepted",
+      "resolved_by": [],
+      "reason": "実検査で無害と確認済みの情報提供finding",
+      "inferred_from_resolution": false
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "merge commitの両親差分解析、blob sha照合（sns fileはdevelop側verbatim）、story差分のshasum前回一致確認、verification-evidence.jsonのhead_sha/dirty/artifact_check/content_binding検査、raw artifact件数の独立再計算とmtime順序検証",
+    "evidence": ".vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+    "inputs": [
+      ".vibepro/reviews/story-worktree-service-git-migration/gate/review-request-gate_evidence.md"
+    ]
+  },
+  "judgment_delta": [
+    "initial concern: マージで検査対象コードと証跡バインドが変わった可能性 -> story差分shasum同一・blob照合・現headバインドの証跡再計算で解消され final pass at f6adf7dc3"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+    "expected_root": null,
+    "expected_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "current_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "expected_root": null,
+      "expected_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+      "current_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T11:37:28.984Z",
+  "git_context": {
+    "head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "current_branch": "story/worktree-service-git-migration",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T11:37:28.976Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "unbound",
+    "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+    "recorded_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "567fbb6bb626c1e1398a200d01c3a0b5e4e13d3d7efdfd2599589be3b8a604a5",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "cc-gate-evidence-02",
+    "agent_role": null,
+    "model": "claude-sonnet-5",
+    "reasoning_effort": "medium",
+    "cost_tier": "medium",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+    "request_artifact": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

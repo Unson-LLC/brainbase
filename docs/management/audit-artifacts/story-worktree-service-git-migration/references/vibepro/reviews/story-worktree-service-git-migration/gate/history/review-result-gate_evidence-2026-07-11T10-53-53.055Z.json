@@ -1,0 +1,102 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-worktree-service-git-migration",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Gate証跡の実在・現head紐付け・内容整合を独立検証してpass。vitest/playwright raw artifactの件数再計算、content_binding sha256照合、INV-002の9状態がguard実装に逐語存在することを確認（保護等価要件充足）",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "pr-prepare.json/verification-evidence.json/decision-records.json/spec.jsonを解析し、raw artifactから検証件数を独立再計算(141+6+1, fail0)。content_binding sha256が現HEADのworktree-service.jsと一致。runtime-handlers.js差分が診断文字列置換のみであることをgit diffで確認。decision record 8件の根拠とartifact実在を検証",
+    "evidence": ".vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+    "inputs": [
+      ".vibepro/reviews/story-worktree-service-git-migration/gate/review-request-gate_evidence.md"
+    ]
+  },
+  "judgment_delta": [
+    "initial concern: evidence reuse keyのhead mismatchでキャッシュ証跡を信用できない -> raw vitest/playwright JSONから件数を独立再計算しsha256 content_bindingが現HEADと一致することを確認したため final pass"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+    "expected_root": null,
+    "expected_head_sha": "2e6769605cbfc4eaac4fcd6f0e995048d96ccaad",
+    "current_head_sha": "2e6769605cbfc4eaac4fcd6f0e995048d96ccaad",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "expected_root": null,
+      "expected_head_sha": "2e6769605cbfc4eaac4fcd6f0e995048d96ccaad",
+      "current_head_sha": "2e6769605cbfc4eaac4fcd6f0e995048d96ccaad",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T10:53:53.055Z",
+  "git_context": {
+    "head_sha": "2e6769605cbfc4eaac4fcd6f0e995048d96ccaad",
+    "current_branch": "story/worktree-service-git-migration",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T10:53:53.048Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "unbound",
+    "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+    "recorded_head_sha": "2e6769605cbfc4eaac4fcd6f0e995048d96ccaad",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "b7187cfb8bb18215470fb3fc48fabb15093450b56f255032419be0581a93d2ea",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "cc-gate-evidence-01",
+    "agent_role": null,
+    "model": "claude-sonnet-5",
+    "reasoning_effort": "medium",
+    "cost_tier": "medium",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+    "request_artifact": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

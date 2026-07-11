@@ -1,0 +1,897 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-worktree-service-git-migration",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-11T11:58:57.101Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-worktree-service-git-migration",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:a3596849fc149ba7adfb97357d80c3c79b877e8f9b7f17645379443aeb5e44b6",
+    "compressed_hash": "sha256:96de8d9a0eaab9df126ac4fa64d622bca7ec481a93b0ac6667a37cd2886cbae7",
+    "expanded_bytes": 15418,
+    "compressed_bytes": 3557,
+    "expanded_line_count": 406,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-worktree-service-git-migration",
+    "cost": {
+      "compressed_bytes": 3557,
+      "expanded_bytes": 15418,
+      "expanded_line_count": 406,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1026",
+    "merge_commit_sha": "dd49bef1e44d708388f733404cf6c0782ae1c230",
+    "merged_at": "2026-07-11T11:58:55Z",
+    "current_head_sha": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...b5df9d8cdb8caf76892ce05b5edbda15f1386673"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 59,
+    "copied_reference_count": 48,
+    "unresolved_reference_count": 6,
+    "replay_bundle": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-worktree-service-git-migration"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:a3596849fc149ba7adfb97357d80c3c79b877e8f9b7f17645379443aeb5e44b6"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:71740ec66fca99da2f4c2ea6b6e9596439ab7f71ed29b77e4e8d171b850ed859",
+      "audit_digest": "sha256:71740ec66fca99da2f4c2ea6b6e9596439ab7f71ed29b77e4e8d171b850ed859",
+      "line_count": 196,
+      "raw_line_count": 196,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:0f662c484c6f788ea5ead2fdf98ed359aa986af1d3c7f1265ca63d9536da4ebb",
+      "audit_digest": "sha256:e836bc77640e8df7710005e273c5333b707bcb4a115d0c50597d608026ec034c",
+      "line_count": 5935,
+      "raw_line_count": 20213,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:faec88192b21fd8ad82cf52a91d0a2cd85e9b667af2f5bfa6c32dc39ce97927f",
+      "audit_digest": "sha256:4efe2040b802c5174d7b7967a83fc095073c7d4a32fb1e8f847a63119876562a",
+      "line_count": 2633,
+      "raw_line_count": 5438,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:dda0f15aee5e1dcecbf8c9afa68d927f9b6383d477733c4e1d6d1d9cae197f1e",
+      "audit_digest": "sha256:8a8e85c41540c992bb98872a8aaed207966aaf1ac2a85a9b13dae02a0988ef32",
+      "line_count": 2487,
+      "raw_line_count": 5271,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:b9fcf1ddae8f1b84f806e33ddc444ac60e9668166203b4831c9ff6f7d54af997",
+      "audit_digest": "sha256:18af73f0f00c9932f86dbca5bb3f1e4b1c41433b996735cee5fc21db528a0b5e",
+      "line_count": 60,
+      "raw_line_count": 752,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:3b8012e2607f476a0d698e55499309139a076ac61560c4c6d5fc5f0df1e88cfc",
+      "audit_digest": "sha256:5077ae16af095bc0e76c6bbe124a2b1588a7fe71f0e996a437ca8b80b49a6032",
+      "line_count": 2657,
+      "raw_line_count": 5593,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:e8181114b6592ba9d0e90e1f193075a9011f3a28cc37921b6d77ec22d8c76d1e",
+      "audit_digest": "sha256:e8181114b6592ba9d0e90e1f193075a9011f3a28cc37921b6d77ec22d8c76d1e",
+      "line_count": 314,
+      "raw_line_count": 314,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-worktree-service-git-migration/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:4d044bcdc8b79011ef7f51bc5aacff87f77286448f70aed2568c2917a5cb2d2a",
+      "audit_digest": "sha256:d1f7dcfea56d1443a650565d99f5818236a23cdf71db12b8430adff9e1e93b71",
+      "line_count": 56,
+      "raw_line_count": 325,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:ab8394aaed2dcc7b34182b36b63ddd6d8087d74ed3b0dc9926c525ea282b7425",
+      "audit_digest": "sha256:ab8394aaed2dcc7b34182b36b63ddd6d8087d74ed3b0dc9926c525ea282b7425",
+      "line_count": 84,
+      "raw_line_count": 84,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:fc256bf7c063032dc9d256b7080aebe606ab97eaa44ec8062b32fa24f8c5834c",
+      "audit_digest": "sha256:fc256bf7c063032dc9d256b7080aebe606ab97eaa44ec8062b32fa24f8c5834c",
+      "line_count": 135,
+      "raw_line_count": 135,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:22cea47080801b13aa089eaa54fa9700f496277c73a1af357847121745dced2c",
+      "audit_digest": "sha256:22cea47080801b13aa089eaa54fa9700f496277c73a1af357847121745dced2c",
+      "line_count": 103,
+      "raw_line_count": 103,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:b75b2d37ea51ab91d6fa3eca40ebd98765fd579e0c756ed3f51ba418f8e0e8b9",
+      "audit_digest": "sha256:b75b2d37ea51ab91d6fa3eca40ebd98765fd579e0c756ed3f51ba418f8e0e8b9",
+      "line_count": 239,
+      "raw_line_count": 239,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:a493b70ad06a8f8da673cbf4874e8573a56c3490044da9e13f2a0512edfd9146",
+      "audit_digest": "sha256:a493b70ad06a8f8da673cbf4874e8573a56c3490044da9e13f2a0512edfd9146",
+      "line_count": 84,
+      "raw_line_count": 84,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/review-request-human_usability.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:f59c3cd26a5cdeb8aaf393975d04183d10f2d3821e18a15a484ef29ebf5bc2a3",
+      "audit_digest": "sha256:f59c3cd26a5cdeb8aaf393975d04183d10f2d3821e18a15a484ef29ebf5bc2a3",
+      "line_count": 132,
+      "raw_line_count": 132,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/review-result-human_usability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:7f5eee97e1f7495f74d2823a9a38c5f07f435039b75ef6eddf6ec5c1373332d6",
+      "audit_digest": "sha256:7f5eee97e1f7495f74d2823a9a38c5f07f435039b75ef6eddf6ec5c1373332d6",
+      "line_count": 103,
+      "raw_line_count": 103,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+      "digest": "sha256:57f6b5b90abcdeb9f8ebda9831b3528127b03f45f27abe937cfd329ad0afa287",
+      "audit_digest": "sha256:57f6b5b90abcdeb9f8ebda9831b3528127b03f45f27abe937cfd329ad0afa287",
+      "line_count": 239,
+      "raw_line_count": 239,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/artifacts/session-launch-git-worktree-label.png",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/session-launch-git-worktree-label.png",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-worktree-service-git-migration-playwright.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/story-worktree-service-git-migration-playwright.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/journeys/default-product-journey.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/journeys/default-product-journey.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T10-53-53.055Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T10-53-53.055Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-37-28.984Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-37-28.984Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-52-32.079Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-52-32.079Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T10-49-38.556Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T10-49-38.556Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-36-53.327Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-36-53.327Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-52-27.837Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-52-27.837Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/review-request-human_usability.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/reviews/preview/review-request-human_usability.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/review-result-human_usability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/reviews/preview/review-result-human_usability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/transcripts/human_usability-cc-preview-husability-01.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/transcripts/human_usability-cc-preview-husability-01.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-worktree-service-git-migration/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/stories/story-worktree-service-git-migration/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-worktree-service-git-migration/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/stories/story-worktree-service-git-migration/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/artifacts/session-launch-git-worktree-label.png",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/session-launch-git-worktree-label.png",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-worktree-service-git-migration-playwright.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/story-worktree-service-git-migration-playwright.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/diagnostics/2026-07-11T095517Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/journeys/default-product-journey.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/journeys/default-product-journey.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T10-53-53.055Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T10-53-53.055Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-37-28.984Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-37-28.984Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-52-32.079Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/history/review-result-gate_evidence-2026-07-11T11-52-32.079Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/gate/transcripts/gate_evidence-cc-gate-evidence-01.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T10-49-38.556Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T10-49-38.556Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-36-53.327Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-36-53.327Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-52-27.837Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/history/review-result-human_usability-2026-07-11T11-52-27.837Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-worktree-service-git-migration/preview/transcripts/human_usability-cc-preview-husability-01.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/reviews/story-worktree-service-git-migration/preview/transcripts/human_usability-cc-preview-husability-01.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-worktree-service-git-migration/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/stories/story-worktree-service-git-migration/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-worktree-service-git-migration/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-worktree-service-git-migration/references/vibepro/stories/story-worktree-service-git-migration/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 10300384
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T095517Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1485525
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8850024
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-worktree-service-git-migration/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-worktree-service-git-migration/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro PR Split Plan</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="split-plan">
+    <header class="topbar">
+      <div>
+        <h1>VibePro PR Split Plan</h1>
+        <p class="meta">Generated by VibePro at 2026-07-11T11:58:45.836Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-split-status="split_recommended">
+        <div>
+          <p class="eyebrow">Review lane board</p>
+          <h2>story-worktree-service-git-migration</h2>
+          <p class="muted">split_by_lane_then_prepare</p>
+        </div>
+        <span class="status warn">split_recommended</span>
+      </section>
+      <section class="metrics">
+        <article class="metric"><span>Lanes</span><strong>4</strong><span>review lanes</span></article>
+        <article class="metric"><span>Graphify</span><strong>available</strong><span>45 related</span></article>
+        <article class="metric"><span>Cumulative Gates</span><strong>0</strong><span>lanes</span></article>
+        <article class="metric"><span>Final Validation</span><strong>not required</strong><span>各PRのisolated checksで十分</span></article>
+      </section>
+      <section>
+        <h2>PR Lanes</h2>
+        <div class="lane-board">
+    <article class="lane" data-lane-id="repo-control">
+      <h3>Repository control and agent policy</h3>
+      <p><span class="status warn">separate_pr</span></p>
+      <p class="muted">repo_control / 13 files</p>
+      <h3>Review Focus</h3>
+      <ul><li>アプリ挙動変更とrepo制御変更が混ざっていないか</li><li>無関係なagent設定やignore規則を巻き込んでいないか</li></ul>
+      <h3>Files</h3>
+      <ul><li>.claude/commands/commit.md</li><li>.claude/commands/create-pr.md</li><li>.claude/commands/deploy-merged-pr.md</li><li>.claude/commands/workflow.md</li><li>.claude/rules/commit-strategy.md</li><li>.claude/scripts/hooks/stop/git-commit-guard.ts</li><li>.claude/scripts/hooks/stop/jj-commit-guard.ts</li><li>.claude/scripts/lib/config/env-section-injector.ts</li></ul>
+
+      <h3>Gate Mode</h3><p><span class="status neutral">isolated_pr</span></p><p>repo-control は単体PRとしてレビュー可能。</p>
+    </article>
+
+    <article class="lane" data-lane-id="requirements-ssot">
+      <h3>Story / Spec / Architecture / Policy SSOT</h3>
+      <p><span class="status warn">separate_pr</span></p>
+      <p class="muted">requirements / 2 files</p>
+      <h3>Review Focus</h3>
+      <ul><li>Story / Spec / Architecture / Policy の正本が互いに矛盾していないか</li><li>実装差分が要求の範囲を超えていないか</li><li>Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか</li></ul>
+      <h3>Files</h3>
+      <ul><li>docs/stories/story-worktree-service-git-migration.md</li><li>docs/architecture/worktree-service-git-migration.md</li></ul>
+
+      <h3>Gate Mode</h3><p><span class="status neutral">isolated_pr</span></p><p>requirements-ssot は単体PRとしてレビュー可能。</p>
+    </article>
+
+    <article class="lane" data-lane-id="runtime-behavior">
+      <h3>Runtime behavior and unit coverage</h3>
+      <p><span class="status good">primary_pr</span></p>
+      <p class="muted">implementation / 18 files</p>
+      <h3>Review Focus</h3>
+      <ul><li>受け入れ基準と実装分岐が対応しているか</li><li>Graphifyで隣接するファイルまで影響確認されているか</li></ul>
+      <h3>Files</h3>
+      <ul><li>public/modules/app/session-creation-mixin.js</li><li>scripts/check-worktree.sh</li><li>scripts/codex-hooks-reminder.sh</li><li>server/controllers/session/context-handlers.js</li><li>server/controllers/session/runtime-handlers.js</li><li>server/controllers/session/shared-methods.js</li><li>server/services/worktree-service.js</li><li>tests/e2e/story-worktree-service-git-migration.spec.js</li></ul>
+      <h3>Graphify Related</h3><ul><li>cli/sync.js</li><li>lib/state-store.js</li><li>public/modules/app/codex-app-server-display-mixin.js</li><li>public/modules/app/mobile-navigation-mixin.js</li><li>public/modules/app/terminal-display-mixin.js</li><li>public/modules/app/terminal-input-ux-mixin.js</li><li>public/modules/app/terminal-mobile-mixin.js</li><li>public/modules/app/ui-setup-mixin.js</li><li>public/modules/confirm-modal.js</li><li>public/modules/core/di-container.js</li><li>public/modules/core/http-client.js</li><li>public/modules/core/message-queue.js</li></ul>
+      <h3>Gate Mode</h3><p><span class="status neutral">isolated_pr</span></p><p>runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。</p>
+    </article>
+
+    <article class="lane" data-lane-id="misc-follow-up">
+      <h3>Miscellaneous follow-up</h3>
+      <p><span class="status warn">separate_pr</span></p>
+      <p class="muted">other / 2 files</p>
+      <h3>Review Focus</h3>
+      <ul><li>Storyとの対応が不明な差分をPRから外すか、Storyに根拠を追記する</li></ul>
+      <h3>Files</h3>
+      <ul><li>public/index.html</li><li>setup.sh</li></ul>
+
+      <h3>Gate Mode</h3><p><span class="status neutral">isolated_pr</span></p><p>misc-follow-up は単体PRとしてレビュー可能。</p>
+    </article>
+  </div>
+      </section>
+      <section class="grid-2">
+        <div>
+          <h2>Merge Order</h2>
+          <ol><li>repo-control</li><li>requirements-ssot</li><li>runtime-behavior</li><li>misc-follow-up</li></ol>
+        </div>
+        <div>
+          <h2>Rationale</h2>
+          <ul><li>差分が 35 files あり、レビュー可能な目安 30 files を超えている</li><li>repo制御ファイルやagent設定が差分に含まれている</li><li>baseからのcommitが 14 件あり、Story外の変更混入を確認する必要がある</li><li>4 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる</li><li>Graphifyで 14 changed files が一致し、45 related files を影響調査候補にした</li></ul>
+        </div>
+      </section>
+      <section>
+        <h2>Graphify Investigation Scope</h2>
+
+    <table>
+      <thead><tr><th>変更ファイル</th><th>一致したgraph node</th><th>確認する関連ファイル</th></tr></thead>
+      <tbody>
+        <tr><td>public/modules/app/session-creation-mixin.js</td><td>public_modules_app_session_creation_mixin_js<br>app_session_creation_mixin_applysessioncreationmixin</td><td>-</td></tr><tr><td>server/controllers/session/context-handlers.js</td><td>server_controllers_session_context_handlers_js<br>session_context_handlers_isephemeralcwd<br>session_context_handlers_encodepreviewpath<br>session_context_handlers_parsecsv<br>session_context_handlers_buildsessionmemorypolicy<br>session_context_handlers_getcachedcontext<br>session_context_handlers_setcachedcontext<br>session_context_handlers_invalidatecontextcache</td><td>lib/state-store.js<br>public/modules/core/http-client.js<br>public/modules/core/message-queue.js<br>public/modules/core/session-data-cache.js<br>server/controllers/info-ssot-controller.js<br>server/controllers/session-controller.js<br>server/middleware/auth.js</td></tr><tr><td>server/controllers/session/runtime-handlers.js</td><td>server_controllers_session_runtime_handlers_js<br>session_runtime_handlers_ismissingtmuxpaneerror<br>session_runtime_handlers_repaircollapsedterminalgeometry<br>session_runtime_handlers_isinteractiveruntimeready<br>session_runtime_handlers_buildobservedruntimestatus<br>session_runtime_handlers_isstartupshell<br>session_runtime_handlers_hasruntimeissue<br>session_runtime_handlers_hasunsafettydissue</td><td>public/modules/core/session-data-cache.js<br>server/controllers/session-controller.js<br>server/services/workflow/workflow-repository.js</td></tr><tr><td>server/controllers/session/shared-methods.js</td><td>server_controllers_session_shared_methods_js<br>session_shared_methods_geterrormessage<br>session_shared_methods_isephemeralcwd<br>session_shared_methods_buildsessionworktreestatussummary<br>session_shared_methods_installsharedmethods</td><td>server/controllers/session-controller.js</td></tr><tr><td>server/services/worktree-service.js</td><td>server_services_worktree_service_js<br>services_worktree_service_parsegithubrepospec<br>services_worktree_service_worktreeservice<br>services_worktree_service_worktreeservice_constructor<br>services_worktree_service_worktreeservice_withrepolock<br>services_worktree_service_worktreeservice_isgitrepo<br>services_worktree_service_worktreeservice_ensureworktreesdir<br>services_worktree_service_worktreeservice_parseworktreelistporcelain</td><td>cli/sync.js<br>lib/state-store.js<br>public/modules/app/codex-app-server-display-mixin.js<br>public/modules/app/mobile-navigation-mixin.js<br>public/modules/app/terminal-display-mixin.js<br>public/modules/app/terminal-input-ux-mixin.js<br>public/modules/app/terminal-mobile-mixin.js<br>public/modules/app/ui-setup-mixin.js<br>public/modules/confirm-modal.js<br>public/modules/core/di-container.js<br>public/modules/core/session-data-cache.js<br>public/modules/core/terminal-transport-client.js</td></tr><tr><td>tests/server/services/worktree-service-commit-log.test.js</td><td>tests_server_services_worktree_service_commit_log_test_js</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-conflict-inspect.test.js</td><td>tests_server_services_worktree_service_conflict_inspect_test_js<br>services_worktree_service_conflict_inspect_test_service</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-git-migration.test.js</td><td>tests_server_services_worktree_service_git_migration_test_js</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-remove.test.js</td><td>tests_server_services_worktree_service_remove_test_js</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-repo-mutex.test.js</td><td>tests_server_services_worktree_service_repo_mutex_test_js<br>services_worktree_service_repo_mutex_test_deferred</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-stale-lock.test.js</td><td>tests_server_services_worktree_service_stale_lock_test_js<br>services_worktree_service_stale_lock_test_makelockerror</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-workspace-generation.test.js</td><td>tests_server_services_worktree_service_workspace_generation_test_js</td><td>-</td></tr><tr><td>tests/server/services/worktree-service-zombie-cleanup.test.js</td><td>tests_server_services_worktree_service_zombie_cleanup_test_js</td><td>-</td></tr><tr><td>tests/unit/server-session-controller.test.js</td><td>tests_unit_server_session_controller_test_js<br>unit_server_session_controller_test_buildcontrollerdeps</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+      </section>
+      <section>
+        <h2>Next Actions</h2>
+        <div><p><code>git switch -c feat/worktree-service-git-migration-repo-control &lt;base&gt; &amp;&amp; git add .claude/commands/commit.md .claude/commands/create-pr.md .claude/commands/deploy-merged-pr.md .claude/commands/workflow.md .claude/rules/commit-strategy.md .claude/scripts/hooks/stop/git-commit-guard.ts .claude/scripts/hooks/stop/jj-commit-guard.ts .claude/scripts/lib/config/env-section-injector.ts .claude/settings.json .claude/skills/brainbase-ops-guide/SKILL.md .claude/skills/dev-workflow-guide/SKILL.md .claude/skills/git-commit-rules/SKILL.md .claude/skills/git-workflow/SKILL.md</code></p><p><code>git switch -c feat/worktree-service-git-migration-requirements-ssot &lt;base&gt; &amp;&amp; git add docs/stories/story-worktree-service-git-migration.md docs/architecture/worktree-service-git-migration.md</code></p><p><code>git switch -c feat/worktree-service-git-migration-runtime-behavior &lt;base&gt; &amp;&amp; git add public/modules/app/session-creation-mixin.js scripts/check-worktree.sh scripts/codex-hooks-reminder.sh server/controllers/session/context-handlers.js server/controllers/session/runtime-handlers.js server/controllers/session/shared-methods.js server/services/worktree-service.js tests/e2e/story-worktree-service-git-migration.spec.js tests/server/services/worktree-service-commit-log.test.js tests/server/services/worktree-service-conflict-inspect.test.js tests/server/services/worktree-service-git-migration.e2e.test.js tests/server/services/worktree-service-git-migration.test.js tests/server/services/worktree-service-remove.test.js tests/server/services/worktree-service-repo-mutex.test.js tests/server/services/worktree-service-stale-lock.test.js tests/server/services/worktree-service-workspace-generation.test.js tests/server/services/worktree-service-zombie-cleanup.test.js tests/unit/server-session-controller.test.js</code></p><p><code>git switch -c feat/worktree-service-git-migration-misc-follow-up &lt;base&gt; &amp;&amp; git add public/index.html setup.sh</code></p></div>
+      </section>
+
+  </main>
+</body>
+</html>

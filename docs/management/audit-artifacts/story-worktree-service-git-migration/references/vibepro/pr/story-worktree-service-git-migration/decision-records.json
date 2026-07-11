@@ -1,0 +1,440 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-worktree-service-git-migration",
+  "updated_at": "2026-07-11T10:30:41.862Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "expected_root": null,
+      "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+      "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783765841860-f47410a3",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:requirement",
+      "source_status": null,
+      "summary": "REQ-GAP-001/002/003は本diffで未変更の既存分岐への指摘。本PRの変更はUI文言と診断コマンド文字列のみで分岐ロジック不変",
+      "reason": "session-creation-mixin.jsのshouldPresentSession分岐・runtime-handlers.jsのcodexResumeId分岐は本Story以前から存在し、本diffは同ファイル内のjj→git文言置換のみ。分岐挙動はserver-session-controller/既存テスト群でカバーされておりStory受け入れ基準の対象外",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:30:41.852Z"
+      },
+      "recorded_at": "2026-07-11T10:30:41.862Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783765840707-d3c749f7",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_release_ops",
+      "source_status": null,
+      "summary": "release ops判断: operator手順は.claude/commands/deploy-merged-pr.md（rollout: fetch→checkout develop→ff-only merge→再起動判定→アクティブセッション確認）に正本化",
+      "reason": "release_note=PR body+deploy-merged-pr.md。rollout_plan=マージ後にdeploy-merged-pr.md手順で正本反映、.jj撤去、develop checkout復帰、再起動はアクティブセッション確認+ユーザー許可必須。rollback_instruction=git revert PR→同手順で反映。observability_evidence=guard reasonコード+loggerログ+stop hookログで運用者が状態を追える",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".claude/commands/deploy-merged-pr.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:30:40.700Z"
+      },
+      "recorded_at": "2026-07-11T10:30:40.709Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783765839570-d1bf7eb8",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": null,
+      "summary": "scope判断: 単一意図(jj→git移行)。core変更はworktree-service.js 1ファイル集中、周辺はjj記述の機械的追従",
+      "reason": "blast radius: server/services/worktree-service.js(本体)+runtime-handlers等の診断文言+テスト+docs/commands文言。コミットはtest/refactor/chore/docsの意図別に分離済みで1人のreviewerが順に読める。owner map: coordinator=claude_main, impl=sonnet_subagent, review=parallel_subagents",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:30:39.563Z"
+      },
+      "recorded_at": "2026-07-11T10:30:39.572Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783765838468-ea5a7bc9",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_rollback_sensitive",
+      "source_status": null,
+      "summary": "rollback判断: 本PRはgit revertで完全に戻せる。feature gate(BRAINBASE_DISABLE_MERGE_DEPLOY_GUARD=1)無効時挙動はテスト済み",
+      "reason": "stored objectのmigrationなし（git refs/worktreeメタデータのみ、session/*命名不変）。jj時代合成の.git/worktreesメタデータは新実装のgit worktree listで可読（downgrade互換）。.jj物理撤去はマージ後の別作業なので本PR時点ではjj実装へのrevertも可能。kill-switch挙動はunit/e2eで検証済み",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:30:38.461Z"
+      },
+      "recorded_at": "2026-07-11T10:30:38.470Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783764892131-1328ee26",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:bug_physics_deployment_version_stamp",
+      "source_status": null,
+      "summary": "deployment version stamp: 稼働セッションが読む正本checkoutのHEADとorigin/developの一致検査こそが本guardの機能",
+      "reason": "getMergeDeploymentGuardStatusがHEAD(=稼働サーバーが読むartifactバージョン)とorigin/develop(=期待バージョン)をrev-parseで比較し、不一致をcanonical_workspace_not_deployedとして検出することをテストで検証済み。マージ後の実機反映はdeploy-merged-pr.md手順とマージ後の.jj撤去作業で実施",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "current_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:14:52.124Z"
+      },
+      "recorded_at": "2026-07-11T10:14:52.133Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783764890970-4b451a49",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:bug_physics_triage",
+      "source_status": null,
+      "summary": "bug physics triage: 本Storyはバグ修正ではなくVCS移行。デプロイ経路のprobe証跡はguardユニットテスト141件で確保",
+      "reason": "『PR merge済み未デプロイ』事故の再発防止guardをgitで等価再実装し、not_git_repo/dirty/not_deployed/artifact-delta/sync失敗の各probeをテストで検証済み（vitest機械可読artifact添付）",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "current_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:14:50.963Z"
+      },
+      "recorded_at": "2026-07-11T10:14:50.972Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783764889797-d4979f00",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": null,
+      "summary": "split不要と判断（bundled-scope正当化と同根拠）",
+      "reason": "分割するとjj撤去とjj手順書の不整合ウィンドウが生じる。ブランチはorigin/develop起点のclean branchで、コミットは意図別(test/refactor/chore/docs)に分離済みのため段階レビュー可能",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "current_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:14:49.788Z"
+      },
+      "recorded_at": "2026-07-11T10:14:49.801Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783764888640-7d25e19c",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": null,
+      "summary": "bundled-scope判断: server実装+テスト+周辺jj記述(commands/skills/setup.sh/UI文言/hook)を単一PRに束ねる",
+      "reason": "本Storyはjj全廃の最終段。周辺のjj手順書・setup.shのjj git init・stop hookを別PRに分けると、マージ間隙で『.jj撤去済みなのにjj手順を案内する』不整合ウィンドウが生じ、setup.shが.jjを再生成して移行が巻き戻るため、単一PRでの同時反映が安全。core変更はworktree-service.js 1ファイルに集中しreviewer 1人で一貫判断可能",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/pr/story-worktree-service-git-migration/split-plan.summary.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "current_head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "33426876394a1c2f8c3f4ee9f5f393326d0cd450",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:14:48.633Z"
+      },
+      "recorded_at": "2026-07-11T10:14:48.641Z"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "open": 0,
+    "by_type": {
+      "needs_review": 8
+    },
+    "by_status": {
+      "accepted": 8
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+        "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+        "expected_root": null,
+        "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783765841860-f47410a3",
+      "story_id": "story-worktree-service-git-migration",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:requirement",
+      "source_status": null,
+      "summary": "REQ-GAP-001/002/003は本diffで未変更の既存分岐への指摘。本PRの変更はUI文言と診断コマンド文字列のみで分岐ロジック不変",
+      "reason": "session-creation-mixin.jsのshouldPresentSession分岐・runtime-handlers.jsのcodexResumeId分岐は本Story以前から存在し、本diffは同ファイル内のjj→git文言置換のみ。分岐挙動はserver-session-controller/既存テスト群でカバーされておりStory受け入れ基準の対象外",
+      "reviewer": "sato_keigo_agent",
+      "artifact": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+        "current_branch": "story/worktree-service-git-migration",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-11T10:30:41.852Z"
+      },
+      "recorded_at": "2026-07-11T10:30:41.862Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-worktree-service-git-migration/decision-records.json"
+}

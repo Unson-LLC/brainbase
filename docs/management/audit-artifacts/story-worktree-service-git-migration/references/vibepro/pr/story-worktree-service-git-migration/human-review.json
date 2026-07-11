@@ -1,0 +1,156 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-worktree-service-git-migration",
+  "created_at": "2026-07-11T11:58:45.836Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr. Visual QA is ready_for_review; 0 run(s) exceed the 5% residual threshold.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-worktree-service-git-migration/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-worktree-service-git-migration/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-worktree-service-git-migration/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-worktree-service-git-migration/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-worktree-service-git-migration/split-plan.json",
+    "decision_records": ".vibepro/pr/story-worktree-service-git-migration/decision-records.json",
+    "visual_qa": [
+      ".vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "server/services/worktree-service.js",
+      ".vibepro/artifacts/session-launch-git-worktree-label.png",
+      ".vibepro/artifacts/story-worktree-service-git-migration-playwright.json"
+    ]
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/worktree-service-git-migration.md)"
+    },
+    "spec": {
+      "status": "inferred",
+      "required": true,
+      "reason": "9 clauses inferred from Story+Code+Test"
+    },
+    "decision_records": {
+      "total": 8,
+      "open": 0,
+      "by_type": {
+        "needs_review": 8
+      },
+      "by_status": {
+        "accepted": 8
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+          "expected_root": null,
+          "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783765841860-f47410a3",
+        "story_id": "story-worktree-service-git-migration",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "gate:requirement",
+        "source_status": null,
+        "summary": "REQ-GAP-001/002/003は本diffで未変更の既存分岐への指摘。本PRの変更はUI文言と診断コマンド文字列のみで分岐ロジック不変",
+        "reason": "session-creation-mixin.jsのshouldPresentSession分岐・runtime-handlers.jsのcodexResumeId分岐は本Story以前から存在し、本diffは同ファイル内のjj→git文言置換のみ。分岐挙動はserver-session-controller/既存テスト群でカバーされておりStory受け入れ基準の対象外",
+        "reviewer": "sato_keigo_agent",
+        "artifact": ".vibepro/artifacts/worktree-service-git-migration-vitest.json",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+            "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+            "expected_root": null,
+            "expected_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+            "current_head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "94ec0ccb15f30aea08c5b2529d941efff2c195ca",
+          "current_branch": "story/worktree-service-git-migration",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-11T10:30:41.852Z"
+        },
+        "recorded_at": "2026-07-11T10:30:41.862Z"
+      }
+    },
+    "visual_qa": {
+      "status": "ready_for_review",
+      "threshold_pct": null,
+      "checked_runs": 1,
+      "needs_review_count": 0
+    },
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": null,
+      "final_20_auto_closure_rate": 1,
+      "visual_qa_pass_rate": 1,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-11T11:58:42.367Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "c08eb5187e676a1263878c1a045713f55e375d7c",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

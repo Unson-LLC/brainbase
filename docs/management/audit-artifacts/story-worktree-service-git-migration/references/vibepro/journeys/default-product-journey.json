@@ -1,0 +1,3784 @@
+{
+  "schema_version": "0.1.0",
+  "journey_id": "default-product-journey",
+  "artifact_kind": "curated_journey",
+  "machine_derived": false,
+  "authoritative": true,
+  "curation_status": "curated",
+  "generated_at": "2026-07-11T10:15:34.119Z",
+  "source_story_ids": [
+    "ai-first-brainbase-story-map",
+    "audit-classify-v6-reviewer-coverage",
+    "audit-script-classification-precision",
+    "brainbase-story",
+    "capability-personal-kg",
+    "commit-tree-panel",
+    "decommission-graph-brain-base-work",
+    "graph-ssot-trigger-improvements",
+    "kernel-entity-id-citation",
+    "knowledge-graph-kernel-story-map",
+    "oyasumi-conversation-personal-kg",
+    "sessionstart-memory-preamble",
+    "simplify-ssot-self-assessment-hook",
+    "sns-approval-schedules-posting-story",
+    "sns-mobile-pwa-terminal-guard-evidence",
+    "sns-mobile-review-terminal-guard-story",
+    "sprint.brainbase.mesh-agent-query",
+    "story-active-indicator-claude-heartbeat-revival",
+    "story-active-indicator-claude-toolless-staleness",
+    "story-active-indicator-event-flicker",
+    "story-active-indicator-pane-spinner-unchanged-drop",
+    "story-activity-bridge-hook-precompile",
+    "story-brainbase-admin-visualization-bdd",
+    "story-brainbase-agent-report-approval-inbox",
+    "story-brainbase-decision-events-kpi-v1",
+    "story-brainbase-mcp-core-ontology",
+    "story-codex-appserver-assistant-ui-native-adoption",
+    "story-codex-appserver-assistant-ui-transcript-panel",
+    "story-codex-appserver-chatgpt-polish",
+    "story-codex-appserver-display-route-consumer",
+    "story-codex-appserver-session-create",
+    "story-codex-appserver-transcript-ui",
+    "story-codex-appserver-xterm-default-fallback",
+    "story-companion-approval-inbox-v1",
+    "story-companion-reply-draft-api",
+    "story-control-mode-stdout-oncost",
+    "story-csrf-exempt-report-activity",
+    "story-graph-entity-resolver",
+    "story-local-data-server-ssot-migration",
+    "story-local-ssot-additive-upsert",
+    "story-local-ssot-root-priority",
+    "story-meeting-pack-owner-context-candidates",
+    "story-meeting-source-integration-catalog",
+    "story-meeting-source-runtime-sync-policy",
+    "story-notification-waiting-indicator",
+    "story-oyasumi-sns-feedback-metrics-gate",
+    "story-personal-kg-extraction-backlog",
+    "story-personal-kg-review-projection",
+    "story-personal-kg-tokenized-search",
+    "story-session-hook-provisioning-backfill",
+    "story-session-list-idle-recency-sort",
+    "story-session-list-sticky-sort",
+    "story-session-switch-auth-nonblocking",
+    "story-session-switch-connect-hang",
+    "story-sns-mobile-review-flow",
+    "story-sns-persona-brain-gate",
+    "story-sns-posting-cockpit",
+    "story-terminal-output-backpressure",
+    "story-terminal-write-coalesce",
+    "story-vibepro-diagnosis-commercialization-roadmap",
+    "story-waiting-indicator-sticky-until-response",
+    "str.brainbase.oyasumi-meeting-personal-kg",
+    "str.brainbase.oyasumi-personal-kg-agent-fanout",
+    "str.brainbase.personal-kg-sns-seed-mvp",
+    "str.brainbase.session-context-window-typing",
+    "str.brainbase.sns-account-management",
+    "str.brainbase.sns-auth-health-unified",
+    "str.brainbase.sns-learning-informed-generation",
+    "str.brainbase.sns-ledger-live-refresh",
+    "str.brainbase.sns-ledger-manual-refresh",
+    "str.brainbase.sns-mobile-pwa-terminal-guard",
+    "str.brainbase.sns-ohayo-dedupe-generation",
+    "str.brainbase.sns-posted-content-dedupe",
+    "str.brainbase.sns-scheduled-publisher",
+    "str.brainbase.sns-x-algorithm-quality",
+    "STR-001",
+    "STR-002",
+    "STR-003",
+    "STR-004",
+    "STR-vibepro-brainbase-dogfood",
+    "STR-005",
+    "STR-006",
+    "STR-007",
+    "story-candidate-store-cross-repo-write",
+    "story-salestailor-ops-refactor-kernel-adapter",
+    "story-ai-session-log-kernel-adapter",
+    "story-active-indicator-timeline-behavior",
+    "story-session-switch-performance",
+    "story-session-workspace-generation-rotation",
+    "story-settings-contract-alignment",
+    "story-terminal-input-latency",
+    "story-terminal-snapshot-refresh-on-switch",
+    "story-session-shell-first-startup-ux",
+    "story-xterm-focus-report-sanitize",
+    "terminal-copy-usability",
+    "story-codex-app-server-adapter",
+    "story-inline-session-creation",
+    "story-session-hibernation-mvp",
+    "story-terminal-input-render-stability",
+    "story-terminal-stale-runtime-auto-recovery",
+    "story-brainbase-session-resume-integrity-guard",
+    "story-live-feed-activity-timeline",
+    "story-live-feed-agent-activity-history",
+    "story-codex-appserver-indicator-stability",
+    "story-codex-appserver-repl-activity-bridge",
+    "story-codex-appserver-session-state-ssot",
+    "story-codex-appserver-thread-session-foundation",
+    "story-live-feed-current-session-scope",
+    "story-live-feed-readable-current-log",
+    "story-session-launch-picker-startup-composer",
+    "story-terminal-open-scroll-bottom",
+    "terminal-same-viewer-multitab-orphan",
+    "story-terminal-snapshot-handoff",
+    "story-brainbase-workflow-mission-control",
+    "STR-008",
+    "story-workflow-ai-draft-builder",
+    "STR-009",
+    "STR-010",
+    "STR-011",
+    "STR-012",
+    "story-external-runner-adapter-contract-v0",
+    "story-org-agent-loop-control-v0",
+    "story-mana-meeting-workflow-pack-data-v1",
+    "story-mana-meeting-workflow-pack-v0",
+    "story-meeting-workflow-pack-cockpit-ui-v1",
+    "story-meeting-workflow-calendar-input-v1",
+    "story-loop-pack-design-gate-v0",
+    "story-meeting-review-package-ingest-v1",
+    "story-eve-runtime-session-connection-v0",
+    "story-meeting-pack-graph-ssot-playbook",
+    "story-meeting-task-owner-ssot-resolution",
+    "story-meeting-source-mcp-sync-worker",
+    "story-meeting-source-brainbase-note-generation",
+    "story-meeting-note-generation-dag-wiring",
+    "story-eve-dispatch-handoff-transcript-context",
+    "story-worktree-service-git-migration"
+  ],
+  "source_digest": {
+    "algorithm": "sha256",
+    "value": "d5f6508cd9e90c675ad930b79602ce3ca23c9a714fca13455c22d542a5327ee5"
+  },
+  "source": {
+    "story_count": 136,
+    "story_catalog_available": false,
+    "input_paths": [
+      ".vibepro/pr/story-worktree-service-git-migration/verification-evidence.json",
+      "docs/specs/oyasumi-meeting-personal-kg-spec.md",
+      "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md",
+      "docs/specs/session-context-window-typing-spec.md",
+      "docs/specs/sns-account-management-spec.md",
+      "docs/specs/sns-auth-health-unified-spec.md",
+      "docs/specs/sns-ledger-manual-refresh-spec.md",
+      "docs/specs/sns-mobile-pwa-terminal-guard-spec.md",
+      "docs/specs/sns-posted-content-dedupe-spec.md",
+      "docs/specs/story-brainbase-admin-visualization-bdd-spec.md",
+      "docs/specs/story-inline-session-creation-spec.md",
+      "docs/specs/story-live-feed-agent-activity-history-spec.md",
+      "docs/specs/story-loop-pack-design-gate-v0-spec.md",
+      "docs/specs/story-meeting-note-generation-dag-wiring-spec.md",
+      "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+      "docs/specs/story-meeting-review-package-ingest-v1-spec.md",
+      "docs/specs/story-meeting-source-brainbase-note-generation-spec.md",
+      "docs/specs/story-meeting-source-mcp-sync-worker-spec.md",
+      "docs/specs/story-meeting-source-runtime-sync-policy-spec.md",
+      "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md",
+      "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md",
+      "docs/specs/story-personal-kg-tokenized-search-spec.md",
+      "docs/specs/story-session-launch-picker-startup-composer-spec.md",
+      "docs/specs/story-session-shell-first-startup-ux-spec.md",
+      "docs/specs/story-terminal-input-latency-spec.md",
+      "docs/specs/story-terminal-input-render-stability-spec.md",
+      "docs/specs/story-xterm-focus-report-sanitize-spec.md",
+      "docs/stories/STR-001-wiki-project-filter.md",
+      "docs/stories/STR-002-archive-records-direct-push.md",
+      "docs/stories/STR-003-stale-index-lock-recovery.md",
+      "docs/stories/STR-004-repo-mutex-recovery.md",
+      "docs/stories/STR-005-conversation-linker-load-shedding.md",
+      "docs/stories/STR-005-terminal-history-scrollback.md",
+      "docs/stories/STR-006-mana-secretary-memory-promotion.md",
+      "docs/stories/STR-006-terminal-width-sync.md",
+      "docs/stories/STR-007-state-store-responsibility-split.md",
+      "docs/stories/STR-008-ttyd-stderr-log-level.md",
+      "docs/stories/STR-009-ps-inventory-maxbuffer.md",
+      "docs/stories/STR-010-reconciler-xterm-transport-aware.md",
+      "docs/stories/STR-011-xterm-only-mode-gate.md",
+      "docs/stories/STR-012-jj-norepo-conflict-guard.md",
+      "docs/stories/ai-first-brainbase-story-map.md",
+      "docs/stories/audit-classify-v6-reviewer-coverage-story.md",
+      "docs/stories/audit-script-classification-precision-story.md",
+      "docs/stories/brainbase-story.md",
+      "docs/stories/capability-personal-kg-story.md",
+      "docs/stories/commit-tree-panel.md",
+      "docs/stories/decommission-graph-brain-base-work-story.md",
+      "docs/stories/graph-ssot-trigger-improvements-story.md",
+      "docs/stories/kernel-entity-id-citation-story.md",
+      "docs/stories/knowledge-graph-kernel-story-map.md",
+      "docs/stories/mesh-agent-query-story.md",
+      "docs/stories/oyasumi-meeting-personal-kg-story.md",
+      "docs/stories/oyasumi-personal-kg-agent-fanout-story.md",
+      "docs/stories/personal-kg-conversation-extraction-backlog-story.md",
+      "docs/stories/personal-kg-sns-seed-mvp-story.md",
+      "docs/stories/session-context-window-typing-story.md",
+      "docs/stories/sessionstart-memory-preamble-story.md",
+      "docs/stories/simplify-ssot-self-assessment-hook-story.md",
+      "docs/stories/sns-account-management-story.md",
+      "docs/stories/sns-approval-schedules-posting-story.md",
+      "docs/stories/sns-auth-health-unified-story.md",
+      "docs/stories/sns-learning-informed-generation-story.md",
+      "docs/stories/sns-ledger-live-refresh-story.md",
+      "docs/stories/sns-ledger-manual-refresh-story.md",
+      "docs/stories/sns-mobile-pwa-terminal-guard-evidence.md",
+      "docs/stories/sns-mobile-pwa-terminal-guard-story.md",
+      "docs/stories/sns-mobile-review-flow-story.md",
+      "docs/stories/sns-mobile-review-terminal-guard-story.md",
+      "docs/stories/sns-ohayo-dedupe-generation-story.md",
+      "docs/stories/sns-persona-brain-gate-story.md",
+      "docs/stories/sns-posted-content-dedupe-story.md",
+      "docs/stories/sns-posting-cockpit-mvp-story.md",
+      "docs/stories/sns-scheduled-publisher-story.md",
+      "docs/stories/sns-x-algorithm-quality-story.md",
+      "docs/stories/story-active-indicator-claude-heartbeat-revival.md",
+      "docs/stories/story-active-indicator-claude-toolless-staleness.md",
+      "docs/stories/story-active-indicator-event-flicker.md",
+      "docs/stories/story-active-indicator-pane-spinner-unchanged-drop.md",
+      "docs/stories/story-active-indicator-timeline-behavior.md",
+      "docs/stories/story-activity-bridge-hook-precompile.md",
+      "docs/stories/story-ai-session-log-kernel-adapter.md",
+      "docs/stories/story-brainbase-admin-visualization-bdd.md",
+      "docs/stories/story-brainbase-agent-report-approval-inbox.md",
+      "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+      "docs/stories/story-brainbase-mcp-core-ontology.md",
+      "docs/stories/story-brainbase-session-resume-integrity-guard.md",
+      "docs/stories/story-brainbase-workflow-mission-control.md",
+      "docs/stories/story-candidate-store-cross-repo-write.md",
+      "docs/stories/story-codex-app-server-adapter.md",
+      "docs/stories/story-codex-appserver-assistant-ui-native-adoption.md",
+      "docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md",
+      "docs/stories/story-codex-appserver-chatgpt-polish.md",
+      "docs/stories/story-codex-appserver-display-route-consumer.md",
+      "docs/stories/story-codex-appserver-indicator-stability.md",
+      "docs/stories/story-codex-appserver-repl-activity-bridge.md",
+      "docs/stories/story-codex-appserver-session-create.md",
+      "docs/stories/story-codex-appserver-session-state-ssot.md",
+      "docs/stories/story-codex-appserver-thread-session-foundation.md",
+      "docs/stories/story-codex-appserver-transcript-ui.md",
+      "docs/stories/story-codex-appserver-xterm-default-fallback.md",
+      "docs/stories/story-companion-approval-inbox-v1.md",
+      "docs/stories/story-companion-reply-draft-api.md",
+      "docs/stories/story-control-mode-stdout-oncost.md",
+      "docs/stories/story-csrf-exempt-report-activity.md",
+      "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+      "docs/stories/story-eve-runtime-session-connection-v0.md",
+      "docs/stories/story-external-runner-adapter-contract-v0.md",
+      "docs/stories/story-graph-entity-resolver.md",
+      "docs/stories/story-live-feed-activity-timeline.md",
+      "docs/stories/story-live-feed-agent-activity-history.md",
+      "docs/stories/story-live-feed-current-session-scope.md",
+      "docs/stories/story-live-feed-readable-current-log.md",
+      "docs/stories/story-local-data-server-ssot-migration.md",
+      "docs/stories/story-local-ssot-additive-upsert.md",
+      "docs/stories/story-local-ssot-root-priority.md",
+      "docs/stories/story-loop-pack-design-gate-v0.md",
+      "docs/stories/story-mana-meeting-workflow-pack-data-v1.md",
+      "docs/stories/story-mana-meeting-workflow-pack-v0.md",
+      "docs/stories/story-meeting-note-generation-dag-wiring.md",
+      "docs/stories/story-meeting-pack-graph-ssot-playbook.md",
+      "docs/stories/story-meeting-pack-owner-context-candidates.md",
+      "docs/stories/story-meeting-review-package-ingest-v1.md",
+      "docs/stories/story-meeting-source-brainbase-note-generation.md",
+      "docs/stories/story-meeting-source-integration-catalog.md",
+      "docs/stories/story-meeting-source-mcp-sync-worker.md",
+      "docs/stories/story-meeting-source-runtime-sync-policy.md",
+      "docs/stories/story-meeting-task-owner-ssot-resolution.md",
+      "docs/stories/story-meeting-workflow-calendar-input-v1.md",
+      "docs/stories/story-meeting-workflow-pack-cockpit-ui-v1.md",
+      "docs/stories/story-notification-waiting-indicator.md",
+      "docs/stories/story-org-agent-loop-control-v0.md",
+      "docs/stories/story-personal-kg-review-projection.md",
+      "docs/stories/story-personal-kg-tokenized-search.md",
+      "docs/stories/story-salestailor-ops-refactor-kernel-adapter.md",
+      "docs/stories/story-session-hibernation-mvp.md",
+      "docs/stories/story-session-hook-provisioning-backfill.md",
+      "docs/stories/story-session-list-idle-recency-sort.md",
+      "docs/stories/story-session-list-sticky-sort.md",
+      "docs/stories/story-session-shell-first-startup-ux.md",
+      "docs/stories/story-session-switch-auth-nonblocking.md",
+      "docs/stories/story-session-switch-connect-hang.md",
+      "docs/stories/story-session-workspace-generation-rotation.md",
+      "docs/stories/story-settings-contract-alignment.md",
+      "docs/stories/story-terminal-input-latency.md",
+      "docs/stories/story-terminal-input-render-stability.md",
+      "docs/stories/story-terminal-open-scroll-bottom.md",
+      "docs/stories/story-terminal-output-backpressure.md",
+      "docs/stories/story-terminal-same-viewer-multitab-orphan.md",
+      "docs/stories/story-terminal-snapshot-handoff.md",
+      "docs/stories/story-terminal-stale-runtime-auto-recovery.md",
+      "docs/stories/story-terminal-write-coalesce.md",
+      "docs/stories/story-waiting-indicator-sticky-until-response.md",
+      "docs/stories/story-workflow-ai-draft-builder.md",
+      "docs/stories/story-worktree-service-git-migration.md",
+      "docs/stories/story-xterm-focus-report-sanitize.md",
+      "docs/stories/vibepro-brainbase-dogfood-story.md",
+      "docs/user_stories/active/oyasumi-conversation-personal-kg.md",
+      "docs/user_stories/active/story-inline-session-creation.md",
+      "docs/user_stories/active/story-oyasumi-sns-feedback-metrics-gate.md",
+      "docs/user_stories/active/story-session-launch-picker-startup-composer.md",
+      "docs/user_stories/active/story-session-switch-performance.md",
+      "docs/user_stories/active/story-terminal-snapshot-refresh-on-switch.md",
+      "docs/user_stories/active/terminal-copy-usability.md"
+    ]
+  },
+  "backbone": [
+    {
+      "activity_id": "acquisition",
+      "label": "価値を知る",
+      "order": 0,
+      "steps": [
+        {
+          "step_id": "contact",
+          "label": "問い合わせる",
+          "order": 0,
+          "story_ids": [
+            "ai-first-brainbase-story-map",
+            "brainbase-story",
+            "knowledge-graph-kernel-story-map",
+            "sprint.brainbase.mesh-agent-query",
+            "story-active-indicator-event-flicker",
+            "story-brainbase-agent-report-approval-inbox",
+            "story-companion-approval-inbox-v1",
+            "story-graph-entity-resolver",
+            "story-local-data-server-ssot-migration",
+            "story-notification-waiting-indicator",
+            "story-session-list-sticky-sort",
+            "story-session-switch-connect-hang",
+            "story-waiting-indicator-sticky-until-response",
+            "story-session-shell-first-startup-ux",
+            "story-live-feed-activity-timeline",
+            "story-live-feed-agent-activity-history",
+            "story-brainbase-workflow-mission-control",
+            "story-external-runner-adapter-contract-v0",
+            "story-meeting-review-package-ingest-v1"
+          ],
+          "story_labels": {
+            "ai-first-brainbase-story-map": "AI-first Brainbase Story Map Draft",
+            "brainbase-story": "Brainbase ストーリー集",
+            "knowledge-graph-kernel-story-map": "Knowledge Graph Kernel Story Map（Codex review revised）",
+            "sprint.brainbase.mesh-agent-query": "ストーリー: 全委託メンバーのAIに一斉問い合わせして数秒で全体像を統合したい",
+            "story-active-indicator-event-flicker": "Active Indicator Flicker",
+            "story-brainbase-agent-report-approval-inbox": "agentレポートをworkflow engine経由でCompanion approval inboxに集約する",
+            "story-companion-approval-inbox-v1": "Brainbase Companion Approval Inbox API v1",
+            "story-graph-entity-resolver": "Graph entity resolver prevents false not-found results",
+            "story-local-data-server-ssot-migration": "Local data to server Graph SSOT migration",
+            "story-notification-waiting-indicator": "Notification hook で「ユーザー返答待ち」をオレンジ稼働インジケータにする",
+            "story-session-list-sticky-sort": "セッションリスト timeline の sticky-done 並び順を島レンダラに復元する",
+            "story-session-switch-connect-hang": "Session switch never hangs — superseded terminal connect settles deterministically",
+            "story-waiting-indicator-sticky-until-response": "入力待ち(orange)インジケータをユーザー応答まで継続させる",
+            "story-session-shell-first-startup-ux": "Session shell-first startup UX",
+            "story-live-feed-activity-timeline": "Live Feed Activity Timeline",
+            "story-live-feed-agent-activity-history": "Live Feed エージェント活動履歴",
+            "story-brainbase-workflow-mission-control": "Brainbase Workflow Mission Control",
+            "story-external-runner-adapter-contract-v0": "Eve Runtime Adapter Contract v0",
+            "story-meeting-review-package-ingest-v1": "Meeting Review Package Ingest v1"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/ai-first-brainbase-story-map.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/ai-first-brainbase-story-map.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/brainbase-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/brainbase-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/knowledge-graph-kernel-story-map.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/knowledge-graph-kernel-story-map.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/mesh-agent-query-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/mesh-agent-query-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-active-indicator-event-flicker.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-active-indicator-event-flicker.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-brainbase-agent-report-approval-inbox.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-brainbase-agent-report-approval-inbox.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-companion-approval-inbox-v1.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-companion-approval-inbox-v1.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-graph-entity-resolver.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-graph-entity-resolver.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-local-data-server-ssot-migration.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-local-data-server-ssot-migration.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-notification-waiting-indicator.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-notification-waiting-indicator.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-list-sticky-sort.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-list-sticky-sort.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-switch-connect-hang.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-switch-connect-hang.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-waiting-indicator-sticky-until-response.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-waiting-indicator-sticky-until-response.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-shell-first-startup-ux.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-session-launch-picker-startup-composer-spec.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-7",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-8",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-1",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-2",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-3",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-4",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-5",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-6",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-7",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-9",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-5",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-6",
+              "source": "docs/specs/story-session-shell-first-startup-ux-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-shell-first-startup-ux.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-live-feed-activity-timeline.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-live-feed-activity-timeline.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-live-feed-agent-activity-history.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-live-feed-agent-activity-history-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-10",
+              "source": "docs/specs/story-live-feed-agent-activity-history-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-11",
+              "source": "docs/specs/story-live-feed-agent-activity-history-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-12",
+              "source": "docs/specs/story-live-feed-agent-activity-history-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-7",
+              "source": "docs/specs/story-live-feed-agent-activity-history-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-8",
+              "source": "docs/specs/story-live-feed-agent-activity-history-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-live-feed-agent-activity-history.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-brainbase-workflow-mission-control.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-brainbase-workflow-mission-control.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-external-runner-adapter-contract-v0.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-external-runner-adapter-contract-v0.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-review-package-ingest-v1.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-001",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-002",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-003",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-004",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-005",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-006",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-007",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-008",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-009",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-010",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-011",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-012",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-013",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-014",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-015",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-016",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-001",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-002",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-003",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-004",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-005",
+              "source": "docs/specs/story-meeting-review-package-ingest-v1-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-review-package-ingest-v1.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "step_id": "discover",
+          "label": "価値を理解する",
+          "order": 1,
+          "story_ids": [
+            "audit-script-classification-precision",
+            "decommission-graph-brain-base-work",
+            "graph-ssot-trigger-improvements",
+            "story-brainbase-mcp-core-ontology",
+            "story-meeting-pack-owner-context-candidates",
+            "STR-001",
+            "story-ai-session-log-kernel-adapter",
+            "story-meeting-task-owner-ssot-resolution"
+          ],
+          "story_labels": {
+            "audit-script-classification-precision": "Graph/Capmap/KG 日次監査スクリプトを永続化し、誤判定除外で hit 率の真値を測れるようにする",
+            "decommission-graph-brain-base-work": "graph.brain-base.work ルートを廃止し Infisical 経由で bb.unson.jp に統一する",
+            "graph-ssot-trigger-improvements": "Graph SSOT / Capability Map 引きを「常時 wallpaper」から「パターン条件付き強リマインド」に変える",
+            "story-brainbase-mcp-core-ontology": "Brainbase MCPを固定Core ontologyと明示的Extension registryに分ける",
+            "story-meeting-pack-owner-context-candidates": "Meeting Pack Owner Context Candidates",
+            "STR-001": "Wiki検索結果にページのproject_idフィルタを追加",
+            "story-ai-session-log-kernel-adapter": "AI セッションログ (codex + claude) を candidate-store kernel に流す adapter",
+            "story-meeting-task-owner-ssot-resolution": "Meeting Task Owners Resolve from people SSOT"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/audit-script-classification-precision-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/audit-script-classification-precision-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/decommission-graph-brain-base-work-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/decommission-graph-brain-base-work-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/graph-ssot-trigger-improvements-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/graph-ssot-trigger-improvements-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-brainbase-mcp-core-ontology.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-brainbase-mcp-core-ontology.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-pack-owner-context-candidates.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-pack-owner-context-candidates.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-001-wiki-project-filter.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-001-wiki-project-filter.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-ai-session-log-kernel-adapter.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-ai-session-log-kernel-adapter.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-task-owner-ssot-resolution.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-001",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-002",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-003",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-004",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-005",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-006",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-007",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-001",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-002",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-003",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-004",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-005",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-006",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-007",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-008",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "FM-009",
+              "source": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-task-owner-ssot-resolution.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "step_id": "content",
+          "label": "コンテンツを見る",
+          "order": 2,
+          "story_ids": [
+            "sessionstart-memory-preamble",
+            "story-codex-appserver-assistant-ui-native-adoption",
+            "story-codex-appserver-chatgpt-polish",
+            "story-local-ssot-additive-upsert",
+            "story-local-ssot-root-priority",
+            "story-sns-persona-brain-gate",
+            "story-sns-posting-cockpit",
+            "story-terminal-write-coalesce",
+            "str.brainbase.oyasumi-meeting-personal-kg",
+            "str.brainbase.sns-learning-informed-generation",
+            "str.brainbase.sns-posted-content-dedupe",
+            "terminal-copy-usability",
+            "story-live-feed-current-session-scope",
+            "story-terminal-open-scroll-bottom",
+            "story-meeting-source-mcp-sync-worker",
+            "story-meeting-source-brainbase-note-generation",
+            "story-meeting-note-generation-dag-wiring"
+          ],
+          "story_labels": {
+            "sessionstart-memory-preamble": "毎プロンプト reminder を廃し、SessionStart で3層メモリ (個人KG/Graph/Capability) を1回注入する",
+            "story-codex-appserver-assistant-ui-native-adoption": "Codex App Server assistant-ui native adoption",
+            "story-codex-appserver-chatgpt-polish": "Codex App Server ChatGPT-like assistant-ui polish",
+            "story-local-ssot-additive-upsert": "Local SSOT additive upsert dry-run and guarded execute",
+            "story-local-ssot-root-priority": "Local SSOT duplicate root priority",
+            "story-sns-persona-brain-gate": "SNS drafts require persona brain before copy",
+            "story-sns-posting-cockpit": "SNS Posting Cockpit MVP",
+            "story-terminal-write-coalesce": "Terminal input echo lag — coalesce the serialized write queue",
+            "str.brainbase.oyasumi-meeting-personal-kg": "Oyasumi meeting minutes to Personal KG",
+            "str.brainbase.sns-learning-informed-generation": "SNS Learning Informed Generation",
+            "str.brainbase.sns-posted-content-dedupe": "SNS posted content dedupe and test ledger isolation",
+            "terminal-copy-usability": "Improve terminal copy usability around file links and long ranges",
+            "story-live-feed-current-session-scope": "Live Feed current session scope",
+            "story-terminal-open-scroll-bottom": "Open terminal at latest output",
+            "story-meeting-source-mcp-sync-worker": "Meeting Source MCP Sync Worker",
+            "story-meeting-source-brainbase-note-generation": "Meeting Source MCP transcriptからBrainbase議事録を生成する",
+            "story-meeting-note-generation-dag-wiring": "Meeting Pack ingest後にBrainbase議事録生成DAGを接続する"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sessionstart-memory-preamble-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sessionstart-memory-preamble-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-assistant-ui-native-adoption.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-assistant-ui-native-adoption.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-chatgpt-polish.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-chatgpt-polish.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-local-ssot-additive-upsert.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-local-ssot-additive-upsert.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-local-ssot-root-priority.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-local-ssot-root-priority.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-persona-brain-gate-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-persona-brain-gate-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-posting-cockpit-mvp-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-posting-cockpit-mvp-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-write-coalesce.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-write-coalesce.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/oyasumi-meeting-personal-kg-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-7",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-5",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-6",
+              "source": "docs/specs/oyasumi-meeting-personal-kg-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/oyasumi-meeting-personal-kg-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-learning-informed-generation-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-learning-informed-generation-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-posted-content-dedupe-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/sns-posted-content-dedupe-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-posted-content-dedupe-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/terminal-copy-usability.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/terminal-copy-usability.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-live-feed-current-session-scope.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-live-feed-current-session-scope.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-open-scroll-bottom.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-open-scroll-bottom.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-source-mcp-sync-worker.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-001",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-002",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-003",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-004",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-005",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-006",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-007",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-008",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-009",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-010",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-011",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-012",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-013",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-014",
+              "source": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-source-mcp-sync-worker.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-source-brainbase-note-generation.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-001",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-002",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-003",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-004",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-005",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-006",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SC-007",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AC-006",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AC-007",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AC-008",
+              "source": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-source-brainbase-note-generation.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-note-generation-dag-wiring.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "ST-001",
+              "source": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "ST-002",
+              "source": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "ST-003",
+              "source": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "ST-004",
+              "source": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "ST-005",
+              "source": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-note-generation-dag-wiring.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "activation",
+      "label": "利用開始する",
+      "order": 1,
+      "steps": [
+        {
+          "step_id": "signup",
+          "label": "登録・認証する",
+          "order": 0,
+          "story_ids": [
+            "capability-personal-kg",
+            "kernel-entity-id-citation",
+            "simplify-ssot-self-assessment-hook",
+            "sns-mobile-pwa-terminal-guard-evidence",
+            "story-brainbase-admin-visualization-bdd",
+            "story-brainbase-decision-events-kpi-v1",
+            "story-companion-reply-draft-api",
+            "story-csrf-exempt-report-activity",
+            "story-meeting-source-integration-catalog",
+            "story-session-hook-provisioning-backfill",
+            "story-session-switch-auth-nonblocking",
+            "str.brainbase.sns-account-management",
+            "str.brainbase.sns-auth-health-unified",
+            "str.brainbase.sns-x-algorithm-quality",
+            "STR-003",
+            "story-candidate-store-cross-repo-write",
+            "story-salestailor-ops-refactor-kernel-adapter",
+            "story-settings-contract-alignment",
+            "story-codex-app-server-adapter",
+            "story-session-hibernation-mvp",
+            "story-codex-appserver-repl-activity-bridge",
+            "story-codex-appserver-session-state-ssot",
+            "story-workflow-ai-draft-builder",
+            "story-org-agent-loop-control-v0",
+            "story-mana-meeting-workflow-pack-data-v1",
+            "story-meeting-workflow-calendar-input-v1",
+            "story-eve-dispatch-handoff-transcript-context"
+          ],
+          "story_labels": {
+            "capability-personal-kg": "個人KG (personal-kg) capability を入口 pointer として capability map に追加",
+            "kernel-entity-id-citation": "人物・組織・顧客・案件を含む応答で Graph entity ID 併記を必須化 (kernel 規範)",
+            "simplify-ssot-self-assessment-hook": "効かない複数介入を全削除し、meta-cognitive な単一 self-assessment hook に置き換える",
+            "sns-mobile-pwa-terminal-guard-evidence": "Evidence: SNSモバイルPWAの戻る導線とターミナル誤表示を防ぐ",
+            "story-brainbase-admin-visualization-bdd": "Brainbase管理画面で個人KGとDB接続状態を可視化する",
+            "story-brainbase-decision-events-kpi-v1": "判断委任KPIフェーズ1 サーバー側イベント受信・週次集計",
+            "story-companion-reply-draft-api": "Brainbase Mac Companion reply context handoff API",
+            "story-csrf-exempt-report-activity": "CSRF-exempt /api/sessions/report_activity (hook telemetry — dev log spam + prod activity drop)",
+            "story-meeting-source-integration-catalog": "Meeting Source Integration Catalog",
+            "story-session-hook-provisioning-backfill": "非brainbaseプロジェクトのセッションにhook登録ファイルを補完し稼働インジケータを機能させる",
+            "story-session-switch-auth-nonblocking": "Session switch — remove blocking auth verify from the connect critical path",
+            "str.brainbase.sns-account-management": "SNS Account Management",
+            "str.brainbase.sns-auth-health-unified": "SNS auth health follows posting credentials",
+            "str.brainbase.sns-x-algorithm-quality": "SNS X Algorithm Quality",
+            "STR-003": "brainbase main repo の stale .git/index.lock を自動検出・自動復旧する",
+            "story-candidate-store-cross-repo-write": "candidate-store の cross-repo write API endpoint を公開する",
+            "story-salestailor-ops-refactor-kernel-adapter": "salestailor ops-department-auto-refactoring を kernel adapter 化する",
+            "story-settings-contract-alignment": "Settings contracts match story and runtime behavior",
+            "story-codex-app-server-adapter": "Codex App Server adapter first slice",
+            "story-session-hibernation-mvp": "Session Hibernation MVP: keep only visible Codex sessions hot",
+            "story-codex-appserver-repl-activity-bridge": "Codex App Server REPL activity bridge completion",
+            "story-codex-appserver-session-state-ssot": "Codex App Server session state SSOT",
+            "story-workflow-ai-draft-builder": "AI Workflow Draft Builder",
+            "story-org-agent-loop-control-v0": "Org Agent Loop Control v0",
+            "story-mana-meeting-workflow-pack-data-v1": "Mana Meeting Workflow Pack Data Connection v1",
+            "story-meeting-workflow-calendar-input-v1": "Meeting Workflow Pack Calendar Input v1",
+            "story-eve-dispatch-handoff-transcript-context": "Eve dispatch handoffにtranscript本文と書き戻し契約を含める"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/capability-personal-kg-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/capability-personal-kg-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/kernel-entity-id-citation-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/kernel-entity-id-citation-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/simplify-ssot-self-assessment-hook-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/simplify-ssot-self-assessment-hook-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-mobile-pwa-terminal-guard-evidence.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-mobile-pwa-terminal-guard-evidence.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-brainbase-admin-visualization-bdd.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-7",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-8",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-9",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-10",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-11",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-12",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-13",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-14",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-15",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-16",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-17",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-18",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-19",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-5",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-6",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-7",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-8",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-9",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-10",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-11",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-12",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-13",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-14",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-15",
+              "source": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-brainbase-admin-visualization-bdd.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-brainbase-decision-events-kpi-v1.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-brainbase-decision-events-kpi-v1.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-companion-reply-draft-api.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-companion-reply-draft-api.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-csrf-exempt-report-activity.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-csrf-exempt-report-activity.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-source-integration-catalog.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-source-integration-catalog.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-hook-provisioning-backfill.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-hook-provisioning-backfill.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-switch-auth-nonblocking.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-switch-auth-nonblocking.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-account-management-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/sns-account-management-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-account-management-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-auth-health-unified-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/sns-auth-health-unified-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-auth-health-unified-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-x-algorithm-quality-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-x-algorithm-quality-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-003-stale-index-lock-recovery.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-003-stale-index-lock-recovery.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-candidate-store-cross-repo-write.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-candidate-store-cross-repo-write.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-salestailor-ops-refactor-kernel-adapter.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-salestailor-ops-refactor-kernel-adapter.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-settings-contract-alignment.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-settings-contract-alignment.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-app-server-adapter.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-app-server-adapter.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-hibernation-mvp.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-hibernation-mvp.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-repl-activity-bridge.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-repl-activity-bridge.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-session-state-ssot.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-session-state-ssot.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-workflow-ai-draft-builder.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-workflow-ai-draft-builder.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-org-agent-loop-control-v0.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-org-agent-loop-control-v0.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-mana-meeting-workflow-pack-data-v1.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-mana-meeting-workflow-pack-data-v1.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-workflow-calendar-input-v1.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-workflow-calendar-input-v1.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-eve-dispatch-handoff-transcript-context.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "step_id": "enter-app",
+          "label": "アプリに入る",
+          "order": 1,
+          "story_ids": [
+            "story-sns-mobile-review-flow",
+            "story-inline-session-creation"
+          ],
+          "story_labels": {
+            "story-sns-mobile-review-flow": "SNS Mobile Review Flow",
+            "story-inline-session-creation": "Remove the create-session modal and configure new sessions in the startup shell"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-mobile-review-flow-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-mobile-review-flow-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/story-inline-session-creation.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-7",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-8",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-9",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-10",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-1",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-2",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-3",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-4",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-5",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-6",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-7",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-8",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-9",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-10",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-5",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-6",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-7",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "OQ-1",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "OQ-2",
+              "source": "docs/specs/story-inline-session-creation-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/story-inline-session-creation.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "step_id": "onboarding",
+          "label": "初期設定する",
+          "order": 2,
+          "story_ids": [
+            "str.brainbase.sns-scheduled-publisher",
+            "STR-002"
+          ],
+          "story_labels": {
+            "str.brainbase.sns-scheduled-publisher": "SNS scheduled publisher from Posting Ledger",
+            "STR-002": "アーカイブ証跡を archive-records 専用ブランチ直push に変更しPRを廃止"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-scheduled-publisher-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-scheduled-publisher-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-002-archive-records-direct-push.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-002-archive-records-direct-push.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "core_usage",
+      "label": "主要価値を得る",
+      "order": 2,
+      "steps": [
+        {
+          "step_id": "personalize",
+          "label": "体験を個人化する",
+          "order": 0,
+          "story_ids": [
+            "audit-classify-v6-reviewer-coverage",
+            "oyasumi-conversation-personal-kg",
+            "story-codex-appserver-session-create",
+            "story-personal-kg-extraction-backlog",
+            "story-personal-kg-review-projection",
+            "story-personal-kg-tokenized-search",
+            "str.brainbase.oyasumi-personal-kg-agent-fanout",
+            "str.brainbase.personal-kg-sns-seed-mvp",
+            "str.brainbase.sns-ohayo-dedupe-generation",
+            "story-terminal-stale-runtime-auto-recovery"
+          ],
+          "story_labels": {
+            "audit-classify-v6-reviewer-coverage": "監査 classify.ts の VibePro reviewer 除外 regex を拡張し、真の denominator を測れるようにする",
+            "oyasumi-conversation-personal-kg": "OyasumiでCodex/Claude Code会話をPersonal KGへ取り込む",
+            "story-codex-appserver-session-create": "story-codex-appserver-session-create: Codex App Server backed session creation",
+            "story-personal-kg-extraction-backlog": "Personal KG conversation extraction backlog",
+            "story-personal-kg-review-projection": "personal kg review projection",
+            "story-personal-kg-tokenized-search": "Personal KG search supports compound keyword queries",
+            "str.brainbase.oyasumi-personal-kg-agent-fanout": "Oyasumi Personal KG agent fan-out",
+            "str.brainbase.personal-kg-sns-seed-mvp": "Personal KG can seed SNS drafts",
+            "str.brainbase.sns-ohayo-dedupe-generation": "SNS ohayo 重複回避生成",
+            "story-terminal-stale-runtime-auto-recovery": "Terminal stale runtime auto recovery"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/audit-classify-v6-reviewer-coverage-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/audit-classify-v6-reviewer-coverage-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/oyasumi-conversation-personal-kg.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/oyasumi-conversation-personal-kg.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-session-create.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-session-create.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/personal-kg-conversation-extraction-backlog-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/personal-kg-conversation-extraction-backlog-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-personal-kg-review-projection.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-personal-kg-review-projection.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-personal-kg-tokenized-search.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-personal-kg-tokenized-search-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-001",
+              "source": "docs/specs/story-personal-kg-tokenized-search-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-002",
+              "source": "docs/specs/story-personal-kg-tokenized-search-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-003",
+              "source": "docs/specs/story-personal-kg-tokenized-search-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-personal-kg-tokenized-search.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/oyasumi-personal-kg-agent-fanout-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-7",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-8",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-5",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-6",
+              "source": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/oyasumi-personal-kg-agent-fanout-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/personal-kg-sns-seed-mvp-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/personal-kg-sns-seed-mvp-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-ohayo-dedupe-generation-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-ohayo-dedupe-generation-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-stale-runtime-auto-recovery.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-stale-runtime-auto-recovery.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "step_id": "first-value",
+          "label": "最初の価値を得る",
+          "order": 1,
+          "story_ids": [
+            "commit-tree-panel",
+            "story-active-indicator-claude-heartbeat-revival",
+            "story-active-indicator-claude-toolless-staleness",
+            "story-active-indicator-pane-spinner-unchanged-drop",
+            "story-activity-bridge-hook-precompile",
+            "story-session-list-idle-recency-sort",
+            "STR-004",
+            "STR-vibepro-brainbase-dogfood",
+            "STR-007",
+            "story-terminal-snapshot-refresh-on-switch",
+            "story-xterm-focus-report-sanitize",
+            "story-codex-appserver-indicator-stability",
+            "terminal-same-viewer-multitab-orphan",
+            "STR-009",
+            "STR-010",
+            "story-mana-meeting-workflow-pack-v0"
+          ],
+          "story_labels": {
+            "commit-tree-panel": "Commit Tree Panel",
+            "story-active-indicator-claude-heartbeat-revival": "Claude ハートビートの稼働インジケータ表示維持",
+            "story-active-indicator-claude-toolless-staleness": "ツール無し区間でも Claude 稼働インジケータを維持する",
+            "story-active-indicator-pane-spinner-unchanged-drop": "pane-title フォールバックの 30 秒未変化ドロップで Claude 稼働インジケータが消える",
+            "story-activity-bridge-hook-precompile": "activity-bridge フックを事前バンドル + CSRF ディスクキャッシュで 3 秒 timeout 内に収める",
+            "story-session-list-idle-recency-sort": "セッションリスト timeline の idle(無印) 並びを直近活動時刻の時系列に直す",
+            "STR-004": "brainbase main repo の jj/git 書き込みを per-repoPath mutex で直列化し、merge() にも index.lock 自動復旧を適用",
+            "STR-vibepro-brainbase-dogfood": "BrainbaseでVibeProの評価分離dogfoodを回す",
+            "STR-007": "State store責務分離を段階実装する",
+            "story-terminal-snapshot-refresh-on-switch": "Refresh terminal snapshot after session switch",
+            "story-xterm-focus-report-sanitize": "Xterm focus report sanitization",
+            "story-codex-appserver-indicator-stability": "Codex App Server activity indicator stability",
+            "terminal-same-viewer-multitab-orphan": "同一viewerIdのマルチタブでterminal接続をorphan化させずsupersedeする",
+            "STR-009": "ps inventory スキャンの maxBuffer 不足による無音失明を解消する",
+            "STR-010": "xterm transport 時に reconciler が ttyd 欠落で churn しないようにする",
+            "story-mana-meeting-workflow-pack-v0": "Mana Meeting Workflow Pack v0"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/commit-tree-panel.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/commit-tree-panel.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-active-indicator-claude-heartbeat-revival.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-active-indicator-claude-heartbeat-revival.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-active-indicator-claude-toolless-staleness.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-active-indicator-claude-toolless-staleness.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-active-indicator-pane-spinner-unchanged-drop.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-active-indicator-pane-spinner-unchanged-drop.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-activity-bridge-hook-precompile.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-activity-bridge-hook-precompile.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-list-idle-recency-sort.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-list-idle-recency-sort.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-004-repo-mutex-recovery.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-004-repo-mutex-recovery.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/vibepro-brainbase-dogfood-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/vibepro-brainbase-dogfood-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-007-state-store-responsibility-split.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-007-state-store-responsibility-split.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/story-terminal-snapshot-refresh-on-switch.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/story-terminal-snapshot-refresh-on-switch.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-xterm-focus-report-sanitize.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-1",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-2",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-3",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-4",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-5",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/story-xterm-focus-report-sanitize-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-xterm-focus-report-sanitize.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-indicator-stability.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-indicator-stability.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-same-viewer-multitab-orphan.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-same-viewer-multitab-orphan.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-009-ps-inventory-maxbuffer.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-009-ps-inventory-maxbuffer.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-010-reconciler-xterm-transport-aware.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-010-reconciler-xterm-transport-aware.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-mana-meeting-workflow-pack-v0.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-mana-meeting-workflow-pack-v0.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "step_id": "review-work",
+          "label": "作業を確認する",
+          "order": 2,
+          "story_ids": [
+            "story-meeting-source-runtime-sync-policy",
+            "str.brainbase.sns-ledger-live-refresh",
+            "str.brainbase.sns-mobile-pwa-terminal-guard",
+            "STR-006",
+            "story-session-switch-performance",
+            "story-terminal-snapshot-handoff",
+            "story-meeting-workflow-pack-cockpit-ui-v1",
+            "story-loop-pack-design-gate-v0",
+            "story-eve-runtime-session-connection-v0",
+            "story-meeting-pack-graph-ssot-playbook"
+          ],
+          "story_labels": {
+            "story-meeting-source-runtime-sync-policy": "Meeting Source Runtime Sync Policy",
+            "str.brainbase.sns-ledger-live-refresh": "SNS Ledger Live Refresh",
+            "str.brainbase.sns-mobile-pwa-terminal-guard": "SNS mobile PWA safe back and terminal guard",
+            "STR-006": "Terminal width follows visible workspace",
+            "story-session-switch-performance": "Improve Brainbase session switch xterm readiness",
+            "story-terminal-snapshot-handoff": "Terminal snapshot->live handoff render stability",
+            "story-meeting-workflow-pack-cockpit-ui-v1": "Meeting Workflow Pack Cockpit UI v1",
+            "story-loop-pack-design-gate-v0": "Loop Pack Design Gate v0",
+            "story-eve-runtime-session-connection-v0": "Eve Runtime Session Connection v0",
+            "story-meeting-pack-graph-ssot-playbook": "Meeting Pack Graph SSOT Playbook"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-source-runtime-sync-policy.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-source-runtime-sync-policy.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-ledger-live-refresh-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-ledger-live-refresh-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-mobile-pwa-terminal-guard-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/sns-mobile-pwa-terminal-guard-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/sns-mobile-pwa-terminal-guard-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/sns-mobile-pwa-terminal-guard-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-mobile-pwa-terminal-guard-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-006-mana-secretary-memory-promotion.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-006-terminal-width-sync.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-006-mana-secretary-memory-promotion.md",
+              "source": "source_path"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-006-terminal-width-sync.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/story-session-switch-performance.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/story-session-switch-performance.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-snapshot-handoff.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-snapshot-handoff.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-workflow-pack-cockpit-ui-v1.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-001",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-002",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-003",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-004",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-005",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-006",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-001",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-002",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-003",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-004",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-005",
+              "source": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-workflow-pack-cockpit-ui-v1.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-loop-pack-design-gate-v0.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-007",
+              "source": "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-008",
+              "source": "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-009",
+              "source": "docs/specs/story-loop-pack-design-gate-v0-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-loop-pack-design-gate-v0.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-eve-runtime-session-connection-v0.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-eve-runtime-session-connection-v0.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-meeting-pack-graph-ssot-playbook.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-001",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-002",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-003",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-004",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-005",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-006",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "WSC-007",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-001",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-002",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-003",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-004",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-005",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-006",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-007",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-008",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-009",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-010",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "SCN-011",
+              "source": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-meeting-pack-graph-ssot-playbook.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "retention",
+      "label": "継続利用する",
+      "order": 4,
+      "steps": [
+        {
+          "step_id": "return",
+          "label": "再訪する",
+          "order": 0,
+          "story_ids": [
+            "story-codex-appserver-transcript-ui",
+            "story-worktree-service-git-migration"
+          ],
+          "story_labels": {
+            "story-codex-appserver-transcript-ui": "Codex App Server transcript UI",
+            "story-worktree-service-git-migration": "worktree-serviceの完全git化（jj依存撤去）"
+          },
+          "enabler_story_ids": [],
+          "enabler_story_labels": {},
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-transcript-ui.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-transcript-ui.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-worktree-service-git-migration.md"
+            },
+            {
+              "type": "source_path",
+              "ref": ".vibepro/pr/story-worktree-service-git-migration/verification-evidence.json"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-worktree-service-git-migration.md",
+              "source": "source_path"
+            },
+            {
+              "type": "gate_evidence",
+              "ref": "typecheck:pass",
+              "source": ".vibepro/pr/story-worktree-service-git-migration/verification-evidence.json"
+            },
+            {
+              "type": "gate_evidence",
+              "ref": "unit:pass",
+              "source": ".vibepro/pr/story-worktree-service-git-migration/verification-evidence.json"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "operations",
+      "label": "運用する",
+      "order": 5,
+      "steps": [
+        {
+          "step_id": "operate",
+          "label": "運用する",
+          "order": 0,
+          "story_ids": [],
+          "story_labels": {},
+          "enabler_story_ids": [
+            "sns-mobile-review-terminal-guard-story",
+            "story-session-launch-picker-startup-composer"
+          ],
+          "enabler_story_labels": {
+            "sns-mobile-review-terminal-guard-story": "SNS mobile review terminal guard",
+            "story-session-launch-picker-startup-composer": "Split new session launch settings from startup input"
+          },
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-mobile-review-terminal-guard-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-mobile-review-terminal-guard-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/story-session-launch-picker-startup-composer.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/story-session-launch-picker-startup-composer.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "risk_control",
+      "label": "信頼境界を守る",
+      "order": 6,
+      "steps": [
+        {
+          "step_id": "trust-boundary",
+          "label": "信頼境界を守る",
+          "order": 0,
+          "story_ids": [],
+          "story_labels": {},
+          "enabler_story_ids": [
+            "str.brainbase.sns-ledger-manual-refresh"
+          ],
+          "enabler_story_labels": {
+            "str.brainbase.sns-ledger-manual-refresh": "SNS cockpit manual ledger refresh"
+          },
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-ledger-manual-refresh-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/sns-ledger-manual-refresh-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/sns-ledger-manual-refresh-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/sns-ledger-manual-refresh-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/sns-ledger-manual-refresh-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-ledger-manual-refresh-story.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "quality_gate",
+      "label": "品質を保つ",
+      "order": 7,
+      "steps": [
+        {
+          "step_id": "quality-evidence",
+          "label": "品質証跡を揃える",
+          "order": 0,
+          "story_ids": [],
+          "story_labels": {},
+          "enabler_story_ids": [
+            "story-codex-appserver-assistant-ui-transcript-panel",
+            "story-codex-appserver-display-route-consumer",
+            "story-codex-appserver-xterm-default-fallback",
+            "story-control-mode-stdout-oncost",
+            "story-oyasumi-sns-feedback-metrics-gate",
+            "story-terminal-output-backpressure",
+            "story-vibepro-diagnosis-commercialization-roadmap",
+            "str.brainbase.session-context-window-typing",
+            "STR-005",
+            "story-active-indicator-timeline-behavior",
+            "story-session-workspace-generation-rotation",
+            "story-terminal-input-latency",
+            "story-terminal-input-render-stability",
+            "story-brainbase-session-resume-integrity-guard",
+            "story-codex-appserver-thread-session-foundation",
+            "story-live-feed-readable-current-log",
+            "STR-008",
+            "STR-011",
+            "STR-012"
+          ],
+          "enabler_story_labels": {
+            "story-codex-appserver-assistant-ui-transcript-panel": "Codex App Server assistant-ui transcript panel",
+            "story-codex-appserver-display-route-consumer": "Codex App Server display route consumer",
+            "story-codex-appserver-xterm-default-fallback": "Codex App Server xterm default fallback",
+            "story-control-mode-stdout-oncost": "Paste freezes terminal ~1min and drops the connection — O(n^2) control-mode stdout buffering",
+            "story-oyasumi-sns-feedback-metrics-gate": "Oyasumi SNS feedback metrics gate",
+            "story-terminal-output-backpressure": "Long-paste hang + server instability — terminal output backpressure",
+            "story-vibepro-diagnosis-commercialization-roadmap": "M1: VibePro 診断→商用化ロードマップ",
+            "str.brainbase.session-context-window-typing": "Session context bar window typing",
+            "STR-005": "Terminal session history remains scrollable across live sessions",
+            "story-active-indicator-timeline-behavior": "Active indicator timeline behavior",
+            "story-session-workspace-generation-rotation": "Session workspace generation rotation after merge",
+            "story-terminal-input-latency": "Terminal input latency improvement",
+            "story-terminal-input-render-stability": "Terminal input and render stability refactor",
+            "story-brainbase-session-resume-integrity-guard": "Brainbase session resume integrity guard",
+            "story-codex-appserver-thread-session-foundation": "Codex App Server thread session foundation",
+            "story-live-feed-readable-current-log": "Live Feed readable current session log",
+            "STR-008": "ttyd起動バナーをerrorとして記録せず正しいログレベルに分類する",
+            "STR-011": "本番を xterm-only と正しく認識させ ttyd-vestigial churn を解消する",
+            "STR-012": "jj非リポジトリのworktreeでconflict検査warnを出さない"
+          },
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-display-route-consumer.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-display-route-consumer.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-xterm-default-fallback.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-xterm-default-fallback.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-control-mode-stdout-oncost.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-control-mode-stdout-oncost.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/user_stories/active/story-oyasumi-sns-feedback-metrics-gate.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/user_stories/active/story-oyasumi-sns-feedback-metrics-gate.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-output-backpressure.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-output-backpressure.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/session-context-window-typing-story.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/session-context-window-typing-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-1",
+              "source": "docs/specs/session-context-window-typing-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-2",
+              "source": "docs/specs/session-context-window-typing-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/session-context-window-typing-story.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-005-conversation-linker-load-shedding.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-005-terminal-history-scrollback.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-005-conversation-linker-load-shedding.md",
+              "source": "source_path"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-005-terminal-history-scrollback.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-active-indicator-timeline-behavior.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-active-indicator-timeline-behavior.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-session-workspace-generation-rotation.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-session-workspace-generation-rotation.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-input-latency.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-3",
+              "source": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-4",
+              "source": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-5",
+              "source": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-1",
+              "source": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-2",
+              "source": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-3",
+              "source": "docs/specs/story-terminal-input-latency-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-input-latency.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-terminal-input-render-stability.md"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-6",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-7",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-8",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "INV-9",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-1",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-2",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-3",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-4",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-5",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "CON-6",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "spec_clause",
+              "ref": "AP-4",
+              "source": "docs/specs/story-terminal-input-render-stability-spec.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-terminal-input-render-stability.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-brainbase-session-resume-integrity-guard.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-brainbase-session-resume-integrity-guard.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-codex-appserver-thread-session-foundation.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-codex-appserver-thread-session-foundation.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/story-live-feed-readable-current-log.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/story-live-feed-readable-current-log.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-008-ttyd-stderr-log-level.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-008-ttyd-stderr-log-level.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-011-xterm-only-mode-gate.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-011-xterm-only-mode-gate.md",
+              "source": "source_path"
+            },
+            {
+              "type": "source_path",
+              "ref": "docs/stories/STR-012-jj-norepo-conflict-guard.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/STR-012-jj-norepo-conflict-guard.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "activity_id": "knowledge_recovery",
+      "label": "正本を復元する",
+      "order": 9,
+      "steps": [
+        {
+          "step_id": "recover-source",
+          "label": "正本を復元する",
+          "order": 0,
+          "story_ids": [],
+          "story_labels": {},
+          "enabler_story_ids": [
+            "sns-approval-schedules-posting-story"
+          ],
+          "enabler_story_labels": {
+            "sns-approval-schedules-posting-story": "SNS approval schedules posting"
+          },
+          "evidence": [
+            {
+              "type": "source_path",
+              "ref": "docs/stories/sns-approval-schedules-posting-story.md"
+            },
+            {
+              "type": "surface",
+              "ref": "document:docs/stories/sns-approval-schedules-posting-story.md",
+              "source": "source_path"
+            }
+          ],
+          "confidence": "low"
+        }
+      ]
+    }
+  ],
+  "release_slices": [
+    {
+      "slice_id": "walking_skeleton",
+      "label": "最小体験",
+      "kind": "walking_skeleton",
+      "story_ids": [
+        "ai-first-brainbase-story-map",
+        "audit-classify-v6-reviewer-coverage",
+        "audit-script-classification-precision",
+        "brainbase-story",
+        "capability-personal-kg",
+        "commit-tree-panel",
+        "decommission-graph-brain-base-work",
+        "graph-ssot-trigger-improvements",
+        "kernel-entity-id-citation",
+        "knowledge-graph-kernel-story-map",
+        "oyasumi-conversation-personal-kg",
+        "sessionstart-memory-preamble",
+        "simplify-ssot-self-assessment-hook",
+        "sns-mobile-pwa-terminal-guard-evidence",
+        "sprint.brainbase.mesh-agent-query",
+        "story-active-indicator-claude-heartbeat-revival",
+        "story-active-indicator-claude-toolless-staleness",
+        "story-active-indicator-event-flicker",
+        "story-active-indicator-pane-spinner-unchanged-drop",
+        "story-activity-bridge-hook-precompile",
+        "story-brainbase-admin-visualization-bdd",
+        "story-brainbase-agent-report-approval-inbox",
+        "story-brainbase-decision-events-kpi-v1",
+        "story-brainbase-mcp-core-ontology",
+        "story-codex-appserver-assistant-ui-native-adoption",
+        "story-codex-appserver-chatgpt-polish",
+        "story-codex-appserver-session-create",
+        "story-companion-approval-inbox-v1",
+        "story-companion-reply-draft-api",
+        "story-csrf-exempt-report-activity",
+        "story-graph-entity-resolver",
+        "story-local-data-server-ssot-migration",
+        "story-local-ssot-additive-upsert",
+        "story-local-ssot-root-priority",
+        "story-meeting-pack-owner-context-candidates",
+        "story-meeting-source-integration-catalog",
+        "story-meeting-source-runtime-sync-policy",
+        "story-notification-waiting-indicator",
+        "story-personal-kg-extraction-backlog",
+        "story-personal-kg-review-projection",
+        "story-personal-kg-tokenized-search",
+        "story-session-hook-provisioning-backfill",
+        "story-session-list-idle-recency-sort",
+        "story-session-list-sticky-sort",
+        "story-session-switch-auth-nonblocking",
+        "story-session-switch-connect-hang",
+        "story-sns-mobile-review-flow",
+        "story-sns-persona-brain-gate",
+        "story-sns-posting-cockpit",
+        "story-terminal-write-coalesce",
+        "story-waiting-indicator-sticky-until-response",
+        "str.brainbase.oyasumi-meeting-personal-kg",
+        "str.brainbase.oyasumi-personal-kg-agent-fanout",
+        "str.brainbase.personal-kg-sns-seed-mvp",
+        "str.brainbase.sns-account-management",
+        "str.brainbase.sns-auth-health-unified",
+        "str.brainbase.sns-learning-informed-generation",
+        "str.brainbase.sns-ledger-live-refresh",
+        "str.brainbase.sns-mobile-pwa-terminal-guard",
+        "str.brainbase.sns-ohayo-dedupe-generation",
+        "str.brainbase.sns-posted-content-dedupe",
+        "str.brainbase.sns-scheduled-publisher",
+        "str.brainbase.sns-x-algorithm-quality",
+        "STR-001",
+        "STR-002",
+        "STR-003",
+        "STR-004",
+        "STR-vibepro-brainbase-dogfood",
+        "STR-006",
+        "STR-007",
+        "story-candidate-store-cross-repo-write",
+        "story-salestailor-ops-refactor-kernel-adapter",
+        "story-ai-session-log-kernel-adapter",
+        "story-session-switch-performance",
+        "story-settings-contract-alignment",
+        "story-terminal-snapshot-refresh-on-switch",
+        "story-session-shell-first-startup-ux",
+        "story-xterm-focus-report-sanitize",
+        "terminal-copy-usability",
+        "story-codex-app-server-adapter",
+        "story-inline-session-creation",
+        "story-session-hibernation-mvp",
+        "story-terminal-stale-runtime-auto-recovery",
+        "story-live-feed-activity-timeline",
+        "story-live-feed-agent-activity-history",
+        "story-codex-appserver-indicator-stability",
+        "story-codex-appserver-repl-activity-bridge",
+        "story-codex-appserver-session-state-ssot",
+        "story-live-feed-current-session-scope",
+        "story-terminal-open-scroll-bottom",
+        "terminal-same-viewer-multitab-orphan",
+        "story-terminal-snapshot-handoff",
+        "story-brainbase-workflow-mission-control",
+        "story-workflow-ai-draft-builder",
+        "STR-009",
+        "STR-010",
+        "story-external-runner-adapter-contract-v0",
+        "story-org-agent-loop-control-v0",
+        "story-mana-meeting-workflow-pack-data-v1",
+        "story-mana-meeting-workflow-pack-v0",
+        "story-meeting-workflow-pack-cockpit-ui-v1",
+        "story-meeting-workflow-calendar-input-v1",
+        "story-loop-pack-design-gate-v0",
+        "story-meeting-review-package-ingest-v1",
+        "story-eve-runtime-session-connection-v0",
+        "story-meeting-pack-graph-ssot-playbook",
+        "story-meeting-task-owner-ssot-resolution",
+        "story-meeting-source-mcp-sync-worker",
+        "story-meeting-source-brainbase-note-generation",
+        "story-meeting-note-generation-dag-wiring",
+        "story-eve-dispatch-handoff-transcript-context"
+      ],
+      "required_step_ids": [
+        "discover",
+        "signup",
+        "first-value"
+      ],
+      "status": "present"
+    },
+    {
+      "slice_id": "next_slice",
+      "label": "次の成長領域",
+      "kind": "next_slice",
+      "story_ids": [
+        "story-codex-appserver-transcript-ui",
+        "story-worktree-service-git-migration"
+      ],
+      "required_step_ids": [],
+      "status": "present"
+    },
+    {
+      "slice_id": "hardening",
+      "label": "信頼性・品質強化",
+      "kind": "hardening",
+      "story_ids": [
+        "sns-approval-schedules-posting-story",
+        "sns-mobile-review-terminal-guard-story",
+        "story-codex-appserver-assistant-ui-transcript-panel",
+        "story-codex-appserver-display-route-consumer",
+        "story-codex-appserver-xterm-default-fallback",
+        "story-control-mode-stdout-oncost",
+        "story-oyasumi-sns-feedback-metrics-gate",
+        "story-terminal-output-backpressure",
+        "story-vibepro-diagnosis-commercialization-roadmap",
+        "str.brainbase.session-context-window-typing",
+        "str.brainbase.sns-ledger-manual-refresh",
+        "STR-005",
+        "story-active-indicator-timeline-behavior",
+        "story-session-workspace-generation-rotation",
+        "story-terminal-input-latency",
+        "story-terminal-input-render-stability",
+        "story-brainbase-session-resume-integrity-guard",
+        "story-codex-appserver-thread-session-foundation",
+        "story-live-feed-readable-current-log",
+        "story-session-launch-picker-startup-composer",
+        "STR-008",
+        "STR-011",
+        "STR-012"
+      ],
+      "required_step_ids": [],
+      "status": "present"
+    }
+  ],
+  "walking_skeleton": {
+    "status": "covered",
+    "required_step_ids": [
+      "discover",
+      "signup",
+      "first-value"
+    ],
+    "covered_step_ids": [
+      "discover",
+      "signup",
+      "first-value"
+    ],
+    "gaps": [],
+    "story_ids": [
+      "audit-script-classification-precision",
+      "decommission-graph-brain-base-work",
+      "graph-ssot-trigger-improvements",
+      "story-brainbase-mcp-core-ontology",
+      "story-meeting-pack-owner-context-candidates",
+      "STR-001",
+      "story-ai-session-log-kernel-adapter",
+      "story-meeting-task-owner-ssot-resolution",
+      "capability-personal-kg",
+      "kernel-entity-id-citation",
+      "simplify-ssot-self-assessment-hook",
+      "sns-mobile-pwa-terminal-guard-evidence",
+      "story-brainbase-admin-visualization-bdd",
+      "story-brainbase-decision-events-kpi-v1",
+      "story-companion-reply-draft-api",
+      "story-csrf-exempt-report-activity",
+      "story-meeting-source-integration-catalog",
+      "story-session-hook-provisioning-backfill",
+      "story-session-switch-auth-nonblocking",
+      "str.brainbase.sns-account-management",
+      "str.brainbase.sns-auth-health-unified",
+      "str.brainbase.sns-x-algorithm-quality",
+      "STR-003",
+      "story-candidate-store-cross-repo-write",
+      "story-salestailor-ops-refactor-kernel-adapter",
+      "story-settings-contract-alignment",
+      "story-codex-app-server-adapter",
+      "story-session-hibernation-mvp",
+      "story-codex-appserver-repl-activity-bridge",
+      "story-codex-appserver-session-state-ssot",
+      "story-workflow-ai-draft-builder",
+      "story-org-agent-loop-control-v0",
+      "story-mana-meeting-workflow-pack-data-v1",
+      "story-meeting-workflow-calendar-input-v1",
+      "story-eve-dispatch-handoff-transcript-context",
+      "commit-tree-panel",
+      "story-active-indicator-claude-heartbeat-revival",
+      "story-active-indicator-claude-toolless-staleness",
+      "story-active-indicator-pane-spinner-unchanged-drop",
+      "story-activity-bridge-hook-precompile",
+      "story-session-list-idle-recency-sort",
+      "STR-004",
+      "STR-vibepro-brainbase-dogfood",
+      "STR-007",
+      "story-terminal-snapshot-refresh-on-switch",
+      "story-xterm-focus-report-sanitize",
+      "story-codex-appserver-indicator-stability",
+      "terminal-same-viewer-multitab-orphan",
+      "STR-009",
+      "STR-010",
+      "story-mana-meeting-workflow-pack-v0"
+    ]
+  },
+  "unplaced_stories": [],
+  "conflicts": [],
+  "open_questions": [],
+  "handoff": {
+    "status": "ready_for_ai",
+    "purpose": "Use this machine-derived context to create or revise a curated product Journey. Do not treat the candidate placements as authoritative.",
+    "artifact_kind": "ai_handoff",
+    "target_curated_artifact": ".vibepro/journeys/default-product-journey.json",
+    "candidate_artifact_kind": "curated_journey",
+    "candidate_journey_id": "default-product-journey",
+    "source_story_count": 136,
+    "candidate_activity_count": 8,
+    "conflict_count": 0,
+    "open_question_count": 0,
+    "blocking_question_count": 0,
+    "instructions": [
+      "Decide which product loop or user/business journey is being curated.",
+      "Classify candidate Story placements as core steps, supporting concerns, or out-of-journey evidence.",
+      "Resolve conflicts and blocking open questions explicitly.",
+      "Write a curated Journey JSON artifact before treating Journey status as available."
+    ]
+  },
+  "curated_at": "2026-07-11T10:17:13.445Z",
+  "curation": {
+    "input_path": ".vibepro/journey/curation-judgments.json",
+    "next_slice": null,
+    "notes": "story-worktree-service-git-migration はユーザーjourneyのcore stepではなく、セッションマージ本番経路（operations/quality_gate）の基盤移行。UI変更はセッション作成モーダルの文言（jj workspace→git worktree）のみで、journey構造・導線に変更なし。machine-derivedの retention/return 配置は誤分類であり、operations 支援関心として扱う。",
+    "conflicts": {},
+    "open_questions": {}
+  }
+}

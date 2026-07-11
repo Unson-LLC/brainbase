@@ -1,0 +1,102 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-worktree-service-git-migration",
+  "stage": "preview",
+  "role": "human_usability",
+  "status": "pass",
+  "summary": "developマージhead f6adf7dc3で人間可読面の一貫性を再確認。コンフリクト解決でgit add -A禁止のレビュー済み版が全ファイルで維持され、dirty中断・開示セクション・jj残存なしを3系統の独立検査で検証してpass（4ラウンド累計: 指摘5件全解消）",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "merge commit f6adf7dc3の解決を最終状態diff(origin/develop...HEAD -- .claude/commands/)、git add -A残存grep、develop側ファイルbyte一致検査の3系統で検証。git diff-tree --ccで両親から逸脱する解決内容がないことも確認",
+    "evidence": ".vibepro/reviews/story-worktree-service-git-migration/preview/transcripts/human_usability-cc-preview-husability-01.md",
+    "inputs": [
+      ".vibepro/reviews/story-worktree-service-git-migration/preview/review-request-human_usability.md"
+    ]
+  },
+  "judgment_delta": [
+    "initial concern: developマージでgit add -A矛盾の再混入やdirty中断fixの喪失 -> 3系統の独立検査（最終diff/grep/develop側byte一致）で否定されたため final pass at f6adf7dc3"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+    "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+    "expected_root": null,
+    "expected_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "current_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "actual_root": "/Users/ksato/workspace/code/brainbase/.worktrees/jj-retirement",
+      "expected_root": null,
+      "expected_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+      "current_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-11T11:36:53.327Z",
+  "git_context": {
+    "head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "current_branch": "story/worktree-service-git-migration",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-11T11:36:53.320Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "unbound",
+    "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+    "recorded_head_sha": "f6adf7dc328225556a945a60a070e762466acf0e",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "541b34d88173c0aa20446314fa754f692010000346ee3caabc012952526f221c",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "claude_code",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "cc-preview-husability-02",
+    "agent_role": null,
+    "model": "claude-sonnet-5",
+    "reasoning_effort": "medium",
+    "cost_tier": "medium",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-worktree-service-git-migration/preview/transcripts/human_usability-cc-preview-husability-01.md",
+    "request_artifact": ".vibepro/reviews/story-worktree-service-git-migration/preview/review-request-human_usability.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,400 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-worktree-service-git-migration",
+  "source": "execute_merge",
+  "generated_at": "2026-07-11T11:58:57.101Z",
+  "evidence_depth": "standard",
+  "budget_status": "within_budget",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "gate:gate:managed_worktree:needs_review"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+      "base_sha": "94ad7192b4e964f82145b7e15443162e37991851",
+      "head_sha": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+      "merge_commit_sha": "dd49bef1e44d708388f733404cf6c0782ae1c230"
+    },
+    "diff_stats_collected_at": "2026-07-11T11:58:53.721Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 1324,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 3033,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "test": {
+          "files": 11,
+          "changed_lines": 1408,
+          "unknown_files": 0,
+          "paths": [
+            "tests/e2e/story-worktree-service-git-migration.spec.js",
+            "tests/server/services/worktree-service-commit-log.test.js",
+            "tests/server/services/worktree-service-conflict-inspect.test.js",
+            "tests/server/services/worktree-service-git-migration.e2e.test.js",
+            "tests/server/services/worktree-service-git-migration.test.js",
+            "tests/server/services/worktree-service-remove.test.js",
+            "tests/server/services/worktree-service-repo-mutex.test.js",
+            "tests/server/services/worktree-service-stale-lock.test.js",
+            "tests/server/services/worktree-service-workspace-generation.test.js",
+            "tests/server/services/worktree-service-zombie-cleanup.test.js",
+            "tests/unit/server-session-controller.test.js"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 1,
+          "changed_lines": 84,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/worktree-service-git-migration.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 23,
+          "changed_lines": 1541,
+          "unknown_files": 0,
+          "paths": [
+            ".claude/commands/commit.md",
+            ".claude/commands/create-pr.md",
+            ".claude/commands/deploy-merged-pr.md",
+            ".claude/commands/workflow.md",
+            ".claude/rules/commit-strategy.md",
+            ".claude/scripts/hooks/stop/git-commit-guard.ts",
+            ".claude/scripts/hooks/stop/jj-commit-guard.ts",
+            ".claude/scripts/lib/config/env-section-injector.ts",
+            ".claude/settings.json",
+            ".claude/skills/brainbase-ops-guide/SKILL.md",
+            ".claude/skills/dev-workflow-guide/SKILL.md",
+            ".claude/skills/git-commit-rules/SKILL.md",
+            ".claude/skills/git-workflow/SKILL.md",
+            "docs/stories/story-worktree-service-git-migration.md",
+            "public/index.html",
+            "public/modules/app/session-creation-mixin.js",
+            "scripts/check-worktree.sh",
+            "scripts/codex-hooks-reminder.sh",
+            "server/controllers/session/context-handlers.js",
+            "server/controllers/session/runtime-handlers.js",
+            "server/controllers/session/shared-methods.js",
+            "server/services/worktree-service.js",
+            "setup.sh"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+        "base_sha": "94ad7192b4e964f82145b7e15443162e37991851",
+        "head_sha": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+        "merge_commit_sha": "dd49bef1e44d708388f733404cf6c0782ae1c230"
+      },
+      "collected_at": "2026-07-11T11:58:53.721Z",
+      "reason": null
+    },
+    "product_changed_lines": 3033,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "artifact_code_ratio": 0.437,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "canonical_artifact_lines": 1500,
+      "effective_canonical_artifact_lines": 9099,
+      "artifact_code_ratio": 3
+    },
+    "budget_status": "within_budget",
+    "budget_exceeded_reasons": [],
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "source": null,
+      "window": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "started_at": null,
+      "finished_at": null,
+      "source": null,
+      "window": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    },
+    "replay_bundle": {
+      "compressed_bytes": 3557,
+      "expanded_bytes": 15418,
+      "expanded_line_count": 406,
+      "persisted_line_count": 1
+    },
+    "raw_source_artifact_lines": 15457,
+    "raw_source_artifact_code_ratio": 5.096,
+    "artifact_lines_source": "persisted_canonical_compact"
+  },
+  "pr_prepare": {
+    "present": true,
+    "created_at": "2026-07-11T11:58:45.836Z",
+    "gate_status": {
+      "ready_for_pr_create": true,
+      "overall_status": "ready_for_review",
+      "fast_lane": false,
+      "critical_unresolved_gate_count": 0
+    }
+  },
+  "evidence_reuse": {
+    "present": true,
+    "created_at": "2026-07-11T11:58:45.836Z",
+    "status": "hit",
+    "evidence_key": "evk_ce794af5fedf14117a63dbac3371cd65",
+    "verification_summary_fingerprint": "sha256:641bf7ce319f82fdbacf4a6f6986c7187eed7995f8a31389d9a8a42f38ff4476",
+    "verification_evidence_updated_at": "2026-07-11T11:52:24.018Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "typecheck",
+        "executed_at": "2026-07-11T11:52:24.018Z",
+        "git_recorded_at": "2026-07-11T11:52:24.012Z"
+      },
+      {
+        "kind": "e2e",
+        "executed_at": "2026-07-11T11:52:19.517Z",
+        "git_recorded_at": "2026-07-11T11:52:19.507Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-07-11T11:52:18.174Z",
+        "git_recorded_at": "2026-07-11T11:52:18.148Z"
+      }
+    ],
+    "stale_reason_count": 0,
+    "full_evidence_status": "reused",
+    "full_evidence_generation_count": 1,
+    "full_evidence_generation_count_scope": "same_evidence_key",
+    "full_evidence_same_key_generation_count": 1,
+    "full_evidence_cumulative_generation_count": 16
+  },
+  "pr_create": {
+    "present": true,
+    "created_at": "2026-07-11T11:58:45.898Z",
+    "status": "updated_existing_pr",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1026",
+    "gate_override_allowed": false
+  },
+  "pr_merge": {
+    "present": true,
+    "summary": {
+      "status": "merged",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1026",
+      "merge_commit_sha": "dd49bef1e44d708388f733404cf6c0782ae1c230",
+      "merged_at": "2026-07-11T11:58:55Z",
+      "current_head_sha": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...b5df9d8cdb8caf76892ce05b5edbda15f1386673"
+    }
+  },
+  "gate_dag": {
+    "present": true,
+    "overall_status": "ready_for_review",
+    "node_count": 68,
+    "blocking_count": 1
+  },
+  "senior_gap_judgment": {
+    "present": true,
+    "status": null,
+    "gap_count": 2,
+    "blocking_gap_count": 0,
+    "residual_risk_count": 0,
+    "followup_count": 0
+  },
+  "traceability": {
+    "present": true,
+    "lifecycle": "merged",
+    "coverage_summary": {
+      "clause_count": 5,
+      "acceptance_criteria_count": 5,
+      "scenario_clause_count": 0,
+      "mapped_count": 5,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "examples": []
+    }
+  },
+  "verification": {
+    "present": true,
+    "command_count": 3,
+    "pass_count": 3,
+    "fail_count": 0
+  },
+  "review": {
+    "summary_count": 2,
+    "result_count": 2,
+    "pass_count": 2,
+    "block_count": 0,
+    "stale_count": 0
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay_unresolved_reference_count": 6,
+  "missing_artifacts": [],
+  "raw_artifact_count": 16,
+  "automation_value_audit": {
+    "schema_version": "0.1.0",
+    "artifact_kind": "vibepro_automation_value_audit",
+    "story_id": "story-worktree-service-git-migration",
+    "generated_at": "2026-07-11T11:58:57.101Z",
+    "status": "partial",
+    "purpose": "daily_automation_input",
+    "sources": {
+      "canonical_audit": true,
+      "cost_summary": true,
+      "pr_lifecycle": true,
+      "verification": true,
+      "review": true,
+      "senior_gap_judgment": true
+    },
+    "merge_context": {
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1026",
+      "merge_status": "merged",
+      "merge_commit_sha": "dd49bef1e44d708388f733404cf6c0782ae1c230",
+      "merged_at": "2026-07-11T11:58:55Z"
+    },
+    "allocation": {
+      "changed_lines_status": "available",
+      "total_changed_lines": 3033,
+      "implementation_changed_lines": 0,
+      "verification_and_docs_changed_lines": 1492,
+      "audit_evidence_changed_lines": 1492,
+      "buckets": {
+        "src": 0,
+        "test": 1408,
+        "story_spec_architecture_docs": 84,
+        "audit_artifacts": 0,
+        "other": 1541
+      }
+    },
+    "ratios": {
+      "test_to_src": null,
+      "story_spec_architecture_to_src": null,
+      "audit_artifacts_to_src": null,
+      "automation_evidence_to_src": null,
+      "artifact_lines_to_product_changed_lines": 0.437
+    },
+    "session_cost": {
+      "token_status": "unavailable",
+      "total_tokens": null,
+      "token_source": null,
+      "token_window": null,
+      "elapsed_status": "unavailable",
+      "elapsed_ms": null,
+      "elapsed_source": null,
+      "elapsed_window": null
+    },
+    "value_signal_inputs": {
+      "budget_status": "within_budget",
+      "budget_exceeded_reasons": [],
+      "evidence_depth": "standard",
+      "verification_pass_count": 3,
+      "verification_fail_count": 0,
+      "review_result_count": 2,
+      "review_pass_count": 2,
+      "review_block_count": 0,
+      "senior_gap_status": null,
+      "senior_gap_residual_risk_count": 0,
+      "evidence_reuse_status": "hit",
+      "evidence_reuse_stale_reason_count": 0,
+      "traceability_lifecycle": "merged",
+      "handoff_replay_status": "blocked",
+      "handoff_replay_unresolved_reference_count": 6,
+      "missing_artifact_count": 0
+    },
+    "cost_controls": {
+      "status": "action_required",
+      "budget_status": "within_budget",
+      "artifact_code_ratio": 0.437,
+      "automation_evidence_to_src": null,
+      "budget_exceeded_reasons": [],
+      "canonical_artifact_lines": 1324,
+      "product_changed_lines": 3033,
+      "evidence_depth": "standard",
+      "recommended_evidence_depth": "standard",
+      "recommendations": [
+        {
+          "id": "collect_runtime_cost_before_merge",
+          "action": "run execute merge with --session-id <id>|auto and --automation-memory <path>, or set VIBEPRO_SESSION_ID/CODEX_SESSION_ID and VIBEPRO_AUTOMATION_MEMORY",
+          "reason": "daily automation cannot judge time/token efficiency without measured session cost"
+        }
+      ]
+    },
+    "findings": [
+      {
+        "id": "session_cost_unavailable",
+        "severity": "needs_context",
+        "reason": "token or elapsed-time accounting is not available in canonical audit summary",
+        "token_status": "unavailable",
+        "elapsed_status": "unavailable"
+      },
+      {
+        "id": "canonical_handoff_replay_blocked",
+        "severity": "review_needed",
+        "reason": "canonical audit references cannot be fully replayed by another engineer or agent",
+        "unresolved_reference_count": 6
+      },
+      {
+        "id": "no_src_changed_lines",
+        "severity": "review_needed",
+        "reason": "automation evidence changed without src/ implementation changes"
+      }
+    ]
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:a3596849fc149ba7adfb97357d80c3c79b877e8f9b7f17645379443aeb5e44b6",
+    "compressed_hash": "sha256:96de8d9a0eaab9df126ac4fa64d622bca7ec481a93b0ac6667a37cd2886cbae7",
+    "expanded_bytes": 15418,
+    "compressed_bytes": 3557,
+    "expanded_line_count": 406,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-worktree-service-git-migration",
+    "cost": {
+      "compressed_bytes": 3557,
+      "expanded_bytes": 15418,
+      "expanded_line_count": 406,
+      "persisted_line_count": 1
+    }
+  }
+}

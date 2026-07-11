@@ -1,0 +1,429 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-worktree-service-git-migration",
+  "status": "split_recommended",
+  "recommended_strategy": "split_by_lane_then_prepare",
+  "rationale": [
+    "差分が 35 files あり、レビュー可能な目安 30 files を超えている",
+    "repo制御ファイルやagent設定が差分に含まれている",
+    "baseからのcommitが 14 件あり、Story外の変更混入を確認する必要がある",
+    "4 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphifyで 14 changed files が一致し、45 related files を影響調査候補にした"
+  ],
+  "graph_context": {
+    "available": true,
+    "graph_path": ".vibepro/graphify/graph.json",
+    "edge_source_key": "links",
+    "node_count": 6567,
+    "edge_count": 13688,
+    "matched_file_count": 14,
+    "related_file_count": 45,
+    "investigation_files": [
+      "cli/sync.js",
+      "lib/state-store.js",
+      "public/modules/app/codex-app-server-display-mixin.js",
+      "public/modules/app/mobile-navigation-mixin.js",
+      "public/modules/app/terminal-display-mixin.js",
+      "public/modules/app/terminal-input-ux-mixin.js",
+      "public/modules/app/terminal-mobile-mixin.js",
+      "public/modules/app/ui-setup-mixin.js",
+      "public/modules/confirm-modal.js",
+      "public/modules/core/di-container.js",
+      "public/modules/core/http-client.js",
+      "public/modules/core/message-queue.js",
+      "public/modules/core/session-data-cache.js",
+      "public/modules/core/terminal-transport-client.js",
+      "public/modules/file-upload.js",
+      "public/modules/mobile-keyboard.js",
+      "public/modules/pages/admin-visualization-page.js",
+      "public/modules/session-indicators.js",
+      "public/modules/settings/settings-ui.js",
+      "public/modules/terminal/terminal-reconnect-manager.js",
+      "public/modules/toast.js",
+      "public/modules/ui/choice-overlay-controller.js",
+      "public/modules/ui/mobile-input-focus-manager.js",
+      "public/modules/ui/mobile-input-sheet-manager.js",
+      "public/modules/ui/mobile-input-ui-controller.js",
+      "public/modules/ui/mobile-tab-controller.js",
+      "public/modules/ui/modals/base-modal.js",
+      "public/modules/ui/modals/health-alert-modal.js",
+      "public/modules/ui/modals/learning-candidate-modal.js",
+      "public/modules/ui/modals/timeline-item-modal.js"
+    ],
+    "impact_by_file": [
+      {
+        "file": "public/modules/app/session-creation-mixin.js",
+        "matched_nodes": [
+          "public_modules_app_session_creation_mixin_js",
+          "app_session_creation_mixin_applysessioncreationmixin"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "server/controllers/session/context-handlers.js",
+        "matched_nodes": [
+          "server_controllers_session_context_handlers_js",
+          "session_context_handlers_isephemeralcwd",
+          "session_context_handlers_encodepreviewpath",
+          "session_context_handlers_parsecsv",
+          "session_context_handlers_buildsessionmemorypolicy",
+          "session_context_handlers_getcachedcontext",
+          "session_context_handlers_setcachedcontext",
+          "session_context_handlers_invalidatecontextcache"
+        ],
+        "related_files": [
+          "lib/state-store.js",
+          "public/modules/core/http-client.js",
+          "public/modules/core/message-queue.js",
+          "public/modules/core/session-data-cache.js",
+          "server/controllers/info-ssot-controller.js",
+          "server/controllers/session-controller.js",
+          "server/middleware/auth.js"
+        ]
+      },
+      {
+        "file": "server/controllers/session/runtime-handlers.js",
+        "matched_nodes": [
+          "server_controllers_session_runtime_handlers_js",
+          "session_runtime_handlers_ismissingtmuxpaneerror",
+          "session_runtime_handlers_repaircollapsedterminalgeometry",
+          "session_runtime_handlers_isinteractiveruntimeready",
+          "session_runtime_handlers_buildobservedruntimestatus",
+          "session_runtime_handlers_isstartupshell",
+          "session_runtime_handlers_hasruntimeissue",
+          "session_runtime_handlers_hasunsafettydissue"
+        ],
+        "related_files": [
+          "public/modules/core/session-data-cache.js",
+          "server/controllers/session-controller.js",
+          "server/services/workflow/workflow-repository.js"
+        ]
+      },
+      {
+        "file": "server/controllers/session/shared-methods.js",
+        "matched_nodes": [
+          "server_controllers_session_shared_methods_js",
+          "session_shared_methods_geterrormessage",
+          "session_shared_methods_isephemeralcwd",
+          "session_shared_methods_buildsessionworktreestatussummary",
+          "session_shared_methods_installsharedmethods"
+        ],
+        "related_files": [
+          "server/controllers/session-controller.js"
+        ]
+      },
+      {
+        "file": "server/services/worktree-service.js",
+        "matched_nodes": [
+          "server_services_worktree_service_js",
+          "services_worktree_service_parsegithubrepospec",
+          "services_worktree_service_worktreeservice",
+          "services_worktree_service_worktreeservice_constructor",
+          "services_worktree_service_worktreeservice_withrepolock",
+          "services_worktree_service_worktreeservice_isgitrepo",
+          "services_worktree_service_worktreeservice_ensureworktreesdir",
+          "services_worktree_service_worktreeservice_parseworktreelistporcelain"
+        ],
+        "related_files": [
+          "cli/sync.js",
+          "lib/state-store.js",
+          "public/modules/app/codex-app-server-display-mixin.js",
+          "public/modules/app/mobile-navigation-mixin.js",
+          "public/modules/app/terminal-display-mixin.js",
+          "public/modules/app/terminal-input-ux-mixin.js",
+          "public/modules/app/terminal-mobile-mixin.js",
+          "public/modules/app/ui-setup-mixin.js",
+          "public/modules/confirm-modal.js",
+          "public/modules/core/di-container.js",
+          "public/modules/core/session-data-cache.js",
+          "public/modules/core/terminal-transport-client.js"
+        ]
+      },
+      {
+        "file": "tests/server/services/worktree-service-commit-log.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_commit_log_test_js"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-conflict-inspect.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_conflict_inspect_test_js",
+          "services_worktree_service_conflict_inspect_test_service"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-git-migration.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_git_migration_test_js"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-remove.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_remove_test_js"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-repo-mutex.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_repo_mutex_test_js",
+          "services_worktree_service_repo_mutex_test_deferred"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-stale-lock.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_stale_lock_test_js",
+          "services_worktree_service_stale_lock_test_makelockerror"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-workspace-generation.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_workspace_generation_test_js"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/worktree-service-zombie-cleanup.test.js",
+        "matched_nodes": [
+          "tests_server_services_worktree_service_zombie_cleanup_test_js"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/unit/server-session-controller.test.js",
+        "matched_nodes": [
+          "tests_unit_server_session_controller_test_js",
+          "unit_server_session_controller_test_buildcontrollerdeps"
+        ],
+        "related_files": []
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "repo-control",
+      "order": 5,
+      "title": "Repository control and agent policy",
+      "category": "repo_control",
+      "recommendation": "separate_pr",
+      "files": [
+        ".claude/commands/commit.md",
+        ".claude/commands/create-pr.md",
+        ".claude/commands/deploy-merged-pr.md",
+        ".claude/commands/workflow.md",
+        ".claude/rules/commit-strategy.md",
+        ".claude/scripts/hooks/stop/git-commit-guard.ts",
+        ".claude/scripts/hooks/stop/jj-commit-guard.ts",
+        ".claude/scripts/lib/config/env-section-injector.ts",
+        ".claude/settings.json",
+        ".claude/skills/brainbase-ops-guide/SKILL.md",
+        ".claude/skills/dev-workflow-guide/SKILL.md",
+        ".claude/skills/git-commit-rules/SKILL.md",
+        ".claude/skills/git-workflow/SKILL.md"
+      ],
+      "required_gates": [
+        "Integration Gate"
+      ],
+      "review_focus": [
+        "アプリ挙動変更とrepo制御変更が混ざっていないか",
+        "無関係なagent設定やignore規則を巻き込んでいないか"
+      ],
+      "file_count": 13,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/worktree-service-git-migration-repo-control"
+    },
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/stories/story-worktree-service-git-migration.md",
+        "docs/architecture/worktree-service-git-migration.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/worktree-service-git-migration-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "public/modules/app/session-creation-mixin.js",
+        "scripts/check-worktree.sh",
+        "scripts/codex-hooks-reminder.sh",
+        "server/controllers/session/context-handlers.js",
+        "server/controllers/session/runtime-handlers.js",
+        "server/controllers/session/shared-methods.js",
+        "server/services/worktree-service.js",
+        "tests/e2e/story-worktree-service-git-migration.spec.js",
+        "tests/server/services/worktree-service-commit-log.test.js",
+        "tests/server/services/worktree-service-conflict-inspect.test.js",
+        "tests/server/services/worktree-service-git-migration.e2e.test.js",
+        "tests/server/services/worktree-service-git-migration.test.js",
+        "tests/server/services/worktree-service-remove.test.js",
+        "tests/server/services/worktree-service-repo-mutex.test.js",
+        "tests/server/services/worktree-service-stale-lock.test.js",
+        "tests/server/services/worktree-service-workspace-generation.test.js",
+        "tests/server/services/worktree-service-zombie-cleanup.test.js",
+        "tests/unit/server-session-controller.test.js"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 18,
+      "graph_investigation_files": [
+        "cli/sync.js",
+        "lib/state-store.js",
+        "public/modules/app/codex-app-server-display-mixin.js",
+        "public/modules/app/mobile-navigation-mixin.js",
+        "public/modules/app/terminal-display-mixin.js",
+        "public/modules/app/terminal-input-ux-mixin.js",
+        "public/modules/app/terminal-mobile-mixin.js",
+        "public/modules/app/ui-setup-mixin.js",
+        "public/modules/confirm-modal.js",
+        "public/modules/core/di-container.js",
+        "public/modules/core/http-client.js",
+        "public/modules/core/message-queue.js"
+      ],
+      "suggested_branch": "feat/worktree-service-git-migration-runtime-behavior"
+    },
+    {
+      "id": "misc-follow-up",
+      "order": 90,
+      "title": "Miscellaneous follow-up",
+      "category": "other",
+      "recommendation": "separate_pr",
+      "files": [
+        "public/index.html",
+        "setup.sh"
+      ],
+      "required_gates": [
+        "Manual Review"
+      ],
+      "review_focus": [
+        "Storyとの対応が不明な差分をPRから外すか、Storyに根拠を追記する"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/worktree-service-git-migration-misc-follow-up"
+    }
+  ],
+  "merge_order": [
+    "repo-control",
+    "requirements-ssot",
+    "runtime-behavior",
+    "misc-follow-up"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 4,
+      "cumulative_gate_count": 0,
+      "requires_cumulative_e2e": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "repo-control",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "git diff --check",
+          "npm run typecheck"
+        ],
+        "cumulative_checks": [],
+        "review_note": "repo-control は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm test -- tests/e2e/story-worktree-service-git-migration.spec.js tests/server/services/worktree-service-commit-log.test.js tests/server/services/worktree-service-conflict-inspect.test.js tests/server/services/worktree-service-git-migration.e2e.test.js tests/server/services/worktree-service-git-migration.test.js tests/server/services/worktree-service-remove.test.js",
+          "npm run typecheck"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。"
+      },
+      {
+        "lane_id": "misc-follow-up",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "manual review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "misc-follow-up は単体PRとしてレビュー可能。"
+      }
+    ],
+    "final_validation": {
+      "required": false,
+      "trigger": "各PRのisolated checksで十分",
+      "commands": [
+        "npm test -- tests/e2e/story-worktree-service-git-migration.spec.js tests/server/services/worktree-service-commit-log.test.js tests/server/services/worktree-service-conflict-inspect.test.js tests/server/services/worktree-service-git-migration.e2e.test.js tests/server/services/worktree-service-git-migration.test.js tests/server/services/worktree-service-remove.test.js",
+        "npm run typecheck"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "lane_id": "repo-control",
+      "action": "Create feat/worktree-service-git-migration-repo-control with 13 files",
+      "command": "git switch -c feat/worktree-service-git-migration-repo-control <base> && git add .claude/commands/commit.md .claude/commands/create-pr.md .claude/commands/deploy-merged-pr.md .claude/commands/workflow.md .claude/rules/commit-strategy.md .claude/scripts/hooks/stop/git-commit-guard.ts .claude/scripts/hooks/stop/jj-commit-guard.ts .claude/scripts/lib/config/env-section-injector.ts .claude/settings.json .claude/skills/brainbase-ops-guide/SKILL.md .claude/skills/dev-workflow-guide/SKILL.md .claude/skills/git-commit-rules/SKILL.md .claude/skills/git-workflow/SKILL.md"
+    },
+    {
+      "lane_id": "requirements-ssot",
+      "action": "Create feat/worktree-service-git-migration-requirements-ssot with 2 files",
+      "command": "git switch -c feat/worktree-service-git-migration-requirements-ssot <base> && git add docs/stories/story-worktree-service-git-migration.md docs/architecture/worktree-service-git-migration.md"
+    },
+    {
+      "lane_id": "runtime-behavior",
+      "action": "Create feat/worktree-service-git-migration-runtime-behavior with 18 files",
+      "command": "git switch -c feat/worktree-service-git-migration-runtime-behavior <base> && git add public/modules/app/session-creation-mixin.js scripts/check-worktree.sh scripts/codex-hooks-reminder.sh server/controllers/session/context-handlers.js server/controllers/session/runtime-handlers.js server/controllers/session/shared-methods.js server/services/worktree-service.js tests/e2e/story-worktree-service-git-migration.spec.js tests/server/services/worktree-service-commit-log.test.js tests/server/services/worktree-service-conflict-inspect.test.js tests/server/services/worktree-service-git-migration.e2e.test.js tests/server/services/worktree-service-git-migration.test.js tests/server/services/worktree-service-remove.test.js tests/server/services/worktree-service-repo-mutex.test.js tests/server/services/worktree-service-stale-lock.test.js tests/server/services/worktree-service-workspace-generation.test.js tests/server/services/worktree-service-zombie-cleanup.test.js tests/unit/server-session-controller.test.js"
+    },
+    {
+      "lane_id": "misc-follow-up",
+      "action": "Create feat/worktree-service-git-migration-misc-follow-up with 2 files",
+      "command": "git switch -c feat/worktree-service-git-migration-misc-follow-up <base> && git add public/index.html setup.sh"
+    }
+  ]
+}
