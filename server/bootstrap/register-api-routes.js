@@ -1,6 +1,5 @@
 import path from 'path';
 import { Pool } from 'pg';
-import { createTaskRouter } from '../routes/tasks.js';
 import { createStateRouter } from '../routes/state.js';
 import { createConfigRouter } from '../routes/config.js';
 import { createScheduleRouter } from '../routes/schedule.js';
@@ -98,7 +97,6 @@ function createSnsAccountProvider() {
 }
 
 export function registerApiRoutes(app, {
-    taskParser,
     stateStore,
     sessionServices,
     testMode,
@@ -129,7 +127,6 @@ export function registerApiRoutes(app, {
     runtimeInfo,
     brainbaseRoot
 }) {
-    app.use('/api/tasks', createTaskRouter(taskParser));
     app.use('/api/state', createStateRouter(
         stateStore,
         sessionServices.runtime.registry,
@@ -153,7 +150,6 @@ export function registerApiRoutes(app, {
         }
     ));
     app.use('/api/brainbase', createBrainbaseRouter({
-        taskParser,
         worktreeService,
         configParser,
         projectsRoot,

@@ -37,9 +37,6 @@ const defaultHttpGetResponse = async (url) => {
   if (url === '/api/state') {
     return { sessions: [], currentSessionId: null, preferences: {} };
   }
-  if (url === '/api/tasks') {
-    return [];
-  }
   if (url === '/api/schedule/today') {
     return { events: [], items: [] };
   }
@@ -2716,7 +2713,6 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
         });
       })
     };
-    app.taskService = { loadTasks: vi.fn() };
     app.scheduleService = { loadSchedule: vi.fn() };
     app.refreshSessionUiSummaries = vi.fn();
     app.loadSessionData = vi.fn();
@@ -2748,7 +2744,6 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
         });
       })
     };
-    app.taskService = { loadTasks: vi.fn() };
     app.scheduleService = { loadSchedule: vi.fn() };
     app.refreshSessionUiSummaries = vi.fn();
     app.loadSessionData = vi.fn();
@@ -2761,7 +2756,6 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
     expect(emitSpy).not.toHaveBeenCalledWith('session:changed', expect.anything());
     expect(appStore.getState().currentSessionId).toBeNull();
     expect(app.loadSessionData).not.toHaveBeenCalled();
-    expect(app.taskService.loadTasks).toHaveBeenCalled();
     expect(app.scheduleService.loadSchedule).toHaveBeenCalled();
     expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith([]);
   });
@@ -2780,7 +2774,6 @@ describe('app switchSession runtime handling', { timeout: 20000 }, () => {
       });
 
     app.sessionService = { loadSessions };
-    app.taskService = { loadTasks: vi.fn() };
     app.scheduleService = { loadSchedule: vi.fn() };
     app.refreshSessionUiSummaries = vi.fn();
     app.loadSessionData = vi.fn();

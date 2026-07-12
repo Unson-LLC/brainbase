@@ -10,7 +10,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
         systemService,
         storageService,
         nocodbService,
-        taskParser,
         worktreeService,
         configParser
     } = options;
@@ -20,14 +19,13 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * すべての監視情報を一括取得
      */
     router.get('/', asyncHandler(async (req, res) => {
-        const [github, system, tasks, worktrees, projects] = await Promise.all([
+        const [github, system, worktrees, projects] = await Promise.all([
             getGitHubInfo(),
             systemService.getSystemStatus(),
-            getTasksInfo(),
             getWorktreesInfo(),
             getProjectsWithHealth()
         ]);
-        res.json({ github, system, tasks, worktrees, projects, timestamp: new Date().toISOString() });
+        res.json({ github, system, worktrees, projects, timestamp: new Date().toISOString() });
     }));
 
     router.get('/github/runners', asyncHandler(async (req, res) => {
@@ -48,10 +46,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
 
     router.get('/storage', asyncHandler(async (req, res) => {
         res.json(await storageService.getStorageSummary());
-    }));
-
-    router.get('/tasks', asyncHandler(async (req, res) => {
-        res.json(await getTasksInfo());
     }));
 
     router.get('/worktrees', asyncHandler(async (req, res) => {
@@ -188,52 +182,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
             runners,
             workflows
         };
-    }
-
-    async function getTasksInfo() {
-        if (!taskParser) {
-            return { error: 'TaskParser not initialized' };
-        }
-
-        try {
-            const tasks = await taskParser.getTasks();
-            const total = tasks.length;
-            const completed = tasks.filter((t) => t.status === 'completed').length;
-            const inProgress = tasks.filter((t) => t.status === 'in_progress').length;
-            const pending = tasks.filter((t) => t.status === 'pending').length;
-            const blocked = tasks.filter((t) => t.status === 'blocked').length;
-
-            const now = new Date();
-            const overdue = tasks.filter((t) => {
-                if (t.status === 'completed') return false;
-                if (!t.deadline) return false;
-                return new Date(t.deadline) < now;
-            });
-
-            const focus = tasks.find((t) => t.focus) || null;
-
-            return {
-                total,
-                completed,
-                inProgress,
-                pending,
-                blocked,
-                overdue: overdue.length,
-                overdueList: overdue.slice(0, 5).map((t) => ({
-                    title: t.title,
-                    deadline: t.deadline,
-                    status: t.status
-                })),
-                focus: focus ? {
-                    title: focus.title,
-                    status: focus.status,
-                    deadline: focus.deadline
-                } : null
-            };
-        } catch (error) {
-            logger.error('Error parsing tasks', { error });
-            return { error: 'Failed to parse tasks' };
-        }
     }
 
     async function getWorktreesInfo() {

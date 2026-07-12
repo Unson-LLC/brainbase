@@ -2,7 +2,6 @@ import { appStore } from '../core/store.js';
 import { httpClient } from '../core/http-client.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { TimelineView } from '../ui/views/timeline-view.js';
-import { NextTasksView } from '../ui/views/next-tasks-view.js';
 import { InboxView } from '../ui/views/inbox-view.js';
 import { NocoDBTasksView } from '../ui/views/nocodb-tasks-view.js';
 import { setupNocoDBFilters } from '../ui/nocodb-filters.js';
@@ -238,12 +237,6 @@ export function applyPluginRegistrationMixin(AppClass) {
             slots: {
                 'sidebar:next-tasks': {
                     mount: ({ container }) => {
-                        const nextTasksContainer = document.getElementById('next-tasks-list');
-                        if (nextTasksContainer) {
-                            this.views.nextTasksView = new NextTasksView({ taskService: this.taskService });
-                            this.views.nextTasksView.mount(nextTasksContainer);
-                        }
-
                         const cleanupTabs = setupTaskTabs({
                             eventBus,
                             events: EVENTS,
@@ -254,8 +247,6 @@ export function applyPluginRegistrationMixin(AppClass) {
 
                         return () => {
                             cleanupTabs?.();
-                            this.views.nextTasksView?.unmount?.();
-                            delete this.views.nextTasksView;
                             container.style.display = 'none';
                         };
                     }

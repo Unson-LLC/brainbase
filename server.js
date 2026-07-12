@@ -68,7 +68,7 @@ const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json')
 const APP_VERSION = `v${packageJson.version}`;
 
 // Environment variables for directory structure
-// BRAINBASE_ROOT: Personal data location (_tasks, _schedules, config.yml)
+// BRAINBASE_ROOT: Personal data location (config.yml)
 // BRAINBASE_VAR_DIR: Runtime data location (state.json, uploads, logs)
 // PROJECTS_ROOT: Project code location (where projects are stored)
 //
@@ -277,8 +277,6 @@ async function writePortFiles(port) {
 }
 
 // Configuration
-const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
-const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
 const STATE_FILE = RUNTIME_PATHS.stateFile;
 const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(__dirname, 'examples', 'codex');
@@ -297,12 +295,9 @@ const ensureDir = async (dir) => {
 await ensureDir(BRAINBASE_ROOT);
 await ensureDir(VAR_DIR);
 await ensureDir(UPLOADS_DIR);
-await ensureDir(path.join(BRAINBASE_ROOT, '_tasks'));
-await ensureDir(SCHEDULES_DIR);
 await ensureShadowRuntimeLinks(RUNTIME_PATHS, console);
 
 const {
-    taskParser,
     googleCalendarService,
     scheduleParser,
     stateStore,
@@ -328,8 +323,6 @@ const {
     eveMeetingNoteReconciler,
     uploadMiddleware
 } = createCoreServices({
-    tasksFile: TASKS_FILE,
-    schedulesDir: SCHEDULES_DIR,
     varDir: VAR_DIR,
     stateFile: STATE_FILE,
     brainbaseRoot: BRAINBASE_ROOT,
@@ -433,7 +426,6 @@ app.get('/health/ready', (req, res) => {
 });
 
 registerApiRoutes(app, {
-    taskParser,
     stateStore,
     sessionServices,
     testMode: TEST_MODE,
@@ -576,8 +568,6 @@ app.use(errorHandler);
 const server = app.listen(PORT, async () => {
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
-    console.log(`Reading tasks from: ${TASKS_FILE}`);
-    console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
     await writePortFiles(PORT);
 
     const meetingSourceSchedule = meetingSourceMcpSyncService?.startScheduledSync?.();

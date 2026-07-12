@@ -5,23 +5,19 @@ import { BaseModal } from './base-modal.js';
 const ERROR_ID = 'add-task-error';
 
 /**
- * タスク追加モーダル
+ * タスク追加モーダル（NocoDBタスクのみ）
  */
 export class TaskAddModal extends BaseModal {
-    constructor({ taskService, nocodbTaskService }) {
+    constructor({ nocodbTaskService }) {
         super('add-task-modal');
-        this.taskService = taskService;
         this.nocodbTaskService = nocodbTaskService;
-        this.mode = 'local';
-        this.projects = [];
         this.nocodbProjects = [];
         this._configLoaded = false;
     }
 
-    async open({ mode = 'local' } = {}) {
+    async open() {
         if (!this.modalElement) return;
 
-        this.mode = mode;
         this._setModalTitle();
         await this._clearForm();
         this.modalElement.classList.add('active');
@@ -68,7 +64,7 @@ export class TaskAddModal extends BaseModal {
             this._setVal('add-task-due', due);
         }
 
-        const project = this._val('add-task-project') || (this.mode === 'nocodb' ? '' : 'general');
+        const project = this._val('add-task-project');
         if (!project) {
             this._showError(ERROR_ID, 'プロジェクトは必須です');
             this._focus('add-task-project');
@@ -76,18 +72,12 @@ export class TaskAddModal extends BaseModal {
         }
 
         try {
-            if (this.mode === 'nocodb') {
-                if (!this.nocodbTaskService) {
-                    throw new Error('NocoDBタスクサービスが初期化されていません');
-                }
-                await this.nocodbTaskService.createTask({
-                    projectId: project, title, assignee, priority, due, description
-                });
-            } else {
-                await this.taskService.createTask({
-                    title, project, priority, due, description, owner: assignee
-                });
+            if (!this.nocodbTaskService) {
+                throw new Error('NocoDBタスクサービスが初期化されていません');
             }
+            await this.nocodbTaskService.createTask({
+                projectId: project, title, assignee, priority, due, description
+            });
             this.close();
         } catch (error) {
             console.error('Failed to create task:', error);
@@ -107,7 +97,7 @@ export class TaskAddModal extends BaseModal {
     _setModalTitle() {
         const titleEl = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-modal-title'));
         if (!titleEl) return;
-        titleEl.textContent = this.mode === 'nocodb' ? 'プロジェクトタスク追加' : 'ローカルタスク追加';
+        titleEl.textContent = 'プロジェクトタスク追加';
     }
 
     _getDefaultAssignee() {
@@ -134,12 +124,10 @@ export class TaskAddModal extends BaseModal {
             }
             const data = await res.json();
             const projects = data.projects || [];
-            this.projects = projects.filter(p => !p.archived);
-            this.nocodbProjects = this.projects.filter(p => p.nocodb);
+            this.nocodbProjects = projects.filter(p => !p.archived && p.nocodb);
             this._configLoaded = true;
         } catch (error) {
             console.warn('Failed to load projects:', error);
-            this.projects = [];
             this.nocodbProjects = [];
         }
     }
@@ -150,7 +138,7 @@ export class TaskAddModal extends BaseModal {
 
         await this._loadProjects();
 
-        const list = this.mode === 'nocodb' ? this.nocodbProjects : this.projects;
+        const list = this.nocodbProjects;
         const previousValue = projectInput.value;
 
         projectInput.innerHTML = '';
@@ -164,19 +152,10 @@ export class TaskAddModal extends BaseModal {
             return;
         }
 
-        if (this.mode !== 'nocodb') {
-            const generalOption = document.createElement('option');
-            generalOption.value = 'general';
-            generalOption.textContent = 'general';
-            projectInput.appendChild(generalOption);
-        }
-
         list.forEach(project => {
             const option = document.createElement('option');
             option.value = project.id;
-            option.textContent = this.mode === 'nocodb'
-                ? (project.nocodb?.base_name || project.id)
-                : project.id;
+            option.textContent = project.nocodb?.base_name || project.id;
             projectInput.appendChild(option);
         });
 
@@ -184,9 +163,7 @@ export class TaskAddModal extends BaseModal {
         if (previousValue && optionValues.includes(previousValue)) {
             projectInput.value = previousValue;
         } else {
-            projectInput.value = this.mode === 'nocodb'
-                ? (list[0]?.id || '')
-                : 'general';
+            projectInput.value = list[0]?.id || '';
         }
     }
 }

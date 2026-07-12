@@ -8,7 +8,6 @@ import { SettingsPluginRegistry } from '../settings/settings-plugin-api.js';
 import { SettingsUI } from '../settings/settings-ui.js';
 import { showSuccess, showError, showInfo } from '../toast.js';
 import { refreshIcons } from '../ui-helpers.js';
-import { TaskService } from '../domain/task/task-service.js';
 import { SessionService } from '../domain/session/session-service.js';
 import { ScheduleService } from '../domain/schedule/schedule-service.js';
 import { InboxService } from '../domain/inbox/inbox-service.js';
@@ -118,7 +117,6 @@ export function applyUiSetupMixin(AppClass) {
 
     AppClass.prototype.initServices = function() {
         // Register services in DI container
-        this.container.register('taskService', () => new TaskService());
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
         this.container.register('inboxService', () => new InboxService());
@@ -149,7 +147,6 @@ export function applyUiSetupMixin(AppClass) {
         this.container.register('manaChatService', () => new ManaChatService());
 
         // Get service instances
-        this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
@@ -300,16 +297,14 @@ export function applyUiSetupMixin(AppClass) {
     };
 
     AppClass.prototype.initModals = function() {
-        // Task add modal (supports both local and NocoDB tasks)
+        // Task add modal (NocoDB tasks)
         this.modals.taskAddModal = new TaskAddModal({
-            taskService: this.taskService,
             nocodbTaskService: this.nocodbTaskService
         });
         this.modals.taskAddModal.mount();
 
-        // Task edit modal (supports both local and NocoDB tasks)
+        // Task edit modal (NocoDB tasks)
         this.modals.taskEditModal = new TaskEditModal({
-            taskService: this.taskService,
             nocodbTaskService: this.nocodbTaskService
         });
         this.modals.taskEditModal.mount();
@@ -499,32 +494,11 @@ export function applyUiSetupMixin(AppClass) {
             };
         }
 
-        // Add task buttons (local / NocoDB)
-        const addLocalTaskBtn = document.getElementById('add-local-task-btn');
-        if (addLocalTaskBtn) {
-            addLocalTaskBtn.onclick = () => {
-                this.modals.taskAddModal?.open({ mode: 'local' });
-            };
-        }
-
+        // Add task button (NocoDB)
         const addNocodbTaskBtn = document.getElementById('add-nocodb-task-btn');
         if (addNocodbTaskBtn) {
             addNocodbTaskBtn.onclick = () => {
-                this.modals.taskAddModal?.open({ mode: 'nocodb' });
-            };
-        }
-
-        // Focus button (footer)
-        const focusBtn = document.getElementById('focus-btn');
-        if (focusBtn) {
-            focusBtn.onclick = () => {
-                const focusTask = this.taskService.getFocusTask();
-                if (!focusTask) {
-                    showInfo('フォーカスタスクがありません');
-                    return;
-                }
-                // Open focus engine modal to select which engine to use
-                this.modals.focusEngineModal.open(focusTask);
+                this.modals.taskAddModal?.open();
             };
         }
 

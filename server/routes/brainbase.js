@@ -26,7 +26,6 @@ export function createBrainbaseRouter(options = {}) {
         systemService = new SystemService(),
         storageService = new StorageService(),
         nocodbService = new NocoDBService(),
-        taskParser,
         worktreeService,
         configParser,
         projectsRoot,
@@ -46,7 +45,6 @@ export function createBrainbaseRouter(options = {}) {
         systemService,
         storageService,
         nocodbService,
-        taskParser,
         worktreeService,
         configParser
     }));

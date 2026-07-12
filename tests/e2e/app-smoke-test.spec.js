@@ -68,25 +68,15 @@ test.describe('brainbase-ui smoke test', () => {
         const sessionList = await page.locator('#session-list');
         await expect(sessionList).toBeVisible();
 
-        // フォーカスタスクは空の場合、現行UIでは親セクションごと非表示
-        const focusTask = await page.locator('#focus-task');
-        await expect(focusTask).toHaveCount(1);
-        const hasFocusContent = await focusTask.evaluate((el) => el.textContent.trim().length > 0 || el.children.length > 0);
-        if (hasFocusContent) {
-            await expect(focusTask).toBeVisible();
-        } else {
-            await expect(page.locator('#focus-section')).toBeHidden();
-        }
-
         const bodyText = await page.locator('body').innerText();
 
         // タイムライン: slot移動後は元コンテナがhidden判定になるため、画面テキストとDOMを確認
         expect(bodyText).toContain('タイムライン');
         await expect(page.locator('#timeline-list')).toHaveCount(1);
 
-        // Next Tasks
+        // Next Tasks (NocoDB)
         expect(bodyText).toContain('次にやること');
-        await expect(page.locator('#next-tasks-list')).toHaveCount(1);
+        await expect(page.locator('#nocodb-tasks-list')).toHaveCount(1);
     });
 
     test('should have no console errors', async ({ page }) => {
@@ -154,7 +144,7 @@ test.describe('brainbase-ui smoke test', () => {
             return {
                 hasViews: Object.keys(app.views || {}).length > 0,
                 hasModals: Object.keys(app.modals || {}).length > 0,
-                hasServices: app.taskService !== undefined &&
+                hasServices: app.nocodbTaskService !== undefined &&
                             app.sessionService !== undefined &&
                             app.scheduleService !== undefined
             };

@@ -3,7 +3,6 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { JSDOM } from 'jsdom';
-import { TaskView } from '../../../public/modules/ui/views/task-view.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
 
@@ -24,7 +23,6 @@ const htmlPath = path.join(repoRoot, 'public/index.html');
 
 describe('app task start flow (app.js integration)', { timeout: 20000 }, () => {
   let app;
-  let taskView;
 
   beforeEach(async () => {
     // Prevent auto-start side effects
@@ -39,23 +37,6 @@ describe('app task start flow (app.js integration)', { timeout: 20000 }, () => {
     const { createApp } = await import('../../../public/app.js');
     app = createApp();
 
-    // Mock services for the flow
-    const focusTask = {
-      id: 'task-1',
-      name: 'Focus Task',
-      status: 'todo',
-      priority: 'high',
-      project: 'brainbase'
-    };
-
-    const mockTaskService = {
-      getFocusTask: vi.fn(() => focusTask),
-      getFilteredTasks: vi.fn(() => [focusTask]),
-      updateTask: vi.fn(async () => {}),
-      completeTask: vi.fn(async () => {}),
-      deferTask: vi.fn(async () => {})
-    };
-
     const mockSessionService = {
       createSession: vi.fn(async () => ({ id: 'session-1' })),
       updateSession: vi.fn(async () => {}),
@@ -65,7 +46,6 @@ describe('app task start flow (app.js integration)', { timeout: 20000 }, () => {
       refreshSessionUiSummaries: vi.fn(async () => ({}))
     };
 
-    app.taskService = mockTaskService;
     app.sessionService = mockSessionService;
     app.nocodbTaskService = { updateStatus: vi.fn(async () => {}) };
     app.switchSession = vi.fn(async (sessionId) => {
@@ -76,24 +56,27 @@ describe('app task start flow (app.js integration)', { timeout: 20000 }, () => {
 
     app.initModals();
     await app.setupEventListeners();
-
-    const focusContainer = document.getElementById('focus-task');
-    taskView = new TaskView({ taskService: mockTaskService });
-    taskView.mount(focusContainer);
   });
 
   afterEach(() => {
-    taskView?.unmount?.();
     app?.destroy?.();
     vi.restoreAllMocks();
   });
 
-  it('routes TaskView start through app.js handler and creates session with selected engine', async () => {
+  it('routes START_TASK (NocoDB task) through app.js handler and creates session with selected engine', async () => {
     const modal = document.getElementById('focus-engine-modal');
 
-    // Start from TaskView
-    const startBtn = document.querySelector('.focus-btn-start');
-    startBtn.click();
+    const nocodbTask = {
+      id: 'task-1',
+      name: 'Focus Task',
+      status: 'todo',
+      priority: 'high',
+      project: 'brainbase',
+      source: 'nocodb'
+    };
+
+    // Start from a NocoDB task action (no engine specified → opens engine picker)
+    eventBus.emit(EVENTS.START_TASK, { task: nocodbTask });
 
     await vi.waitFor(() => {
       expect(modal.classList.contains('active')).toBe(true);
@@ -121,7 +104,7 @@ describe('app task start flow (app.js integration)', { timeout: 20000 }, () => {
     });
 
     await vi.waitFor(() => {
-      expect(app.taskService.updateTask).toHaveBeenCalledWith('task-1', expect.any(Object));
+      expect(app.nocodbTaskService.updateStatus).toHaveBeenCalledWith('task-1', 'in_progress');
     });
   });
 

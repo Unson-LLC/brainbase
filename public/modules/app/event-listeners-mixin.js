@@ -255,22 +255,11 @@ export function applyEventListenersMixin(AppClass) {
 
         // Start task: create session and switch to it
         const unsub2 = eventBus.onAsync(EVENTS.START_TASK, async (event) => {
-            const { task: taskObj, taskId, engine } = event.detail;
+            const { task: taskObj, engine } = event.detail;
 
             try {
                 // Step 1: Task objectを取得
                 let task = taskObj;
-                if (!task && taskId) {
-                    // taskIdのみの場合はTaskServiceから取得
-                    const tasks = this.taskService.getFilteredTasks();
-                    task = tasks.find(t => t.id === taskId);
-
-                    if (!task) {
-                        console.error('Task not found:', taskId);
-                        showError('Task not found');
-                        return;
-                    }
-                }
 
                 if (!task) {
                     console.error('No task provided to START_TASK event');
@@ -342,15 +331,9 @@ export function applyEventListenersMixin(AppClass) {
                 console.log('Session created for task:', task.id, '→', newSession.id);
                 showSuccess(`Session "${sessionName}" created`);
 
-                // Step 6: タスクステータスを「進行中」に更新
+                // Step 6: タスクステータスを「進行中」に更新（NocoDBタスクのみ）
                 try {
-                    if (task.source === 'nocodb') {
-                        // NocoDBタスクの場合
-                        await this.nocodbTaskService.updateStatus(task.id, 'in_progress');
-                    } else {
-                        // ローカルタスクの場合
-                        await this.taskService.updateTask(task.id, { status: 'in_progress' });
-                    }
+                    await this.nocodbTaskService.updateStatus(task.id, 'in_progress');
                     console.log('Task status updated to in_progress:', task.id);
                 } catch (statusError) {
                     // ステータス更新失敗はログのみ（セッション作成は成功しているため）

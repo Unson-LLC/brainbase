@@ -1,22 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TaskEditModal } from '../../../public/modules/ui/modals/task-edit-modal.js';
-import { TaskService } from '../../../public/modules/domain/task/task-service.js';
-import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
-
-// TaskServiceをモック化
-vi.mock('../../../public/modules/domain/task/task-service.js', () => {
-    return {
-        TaskService: class MockTaskService {
-            constructor() {
-                this.updateTask = vi.fn();
-            }
-        }
-    };
-});
 
 describe('TaskEditModal', () => {
     let modal;
-    let mockTaskService;
+    let mockNocodbTaskService;
     let modalElement;
 
     beforeEach(() => {
@@ -63,8 +50,8 @@ describe('TaskEditModal', () => {
         `;
 
         modalElement = document.getElementById('edit-task-modal');
-        mockTaskService = new TaskService();
-        modal = new TaskEditModal({ taskService: mockTaskService });
+        mockNocodbTaskService = { updateTask: vi.fn() };
+        modal = new TaskEditModal({ nocodbTaskService: mockNocodbTaskService });
 
         vi.clearAllMocks();
     });
@@ -171,7 +158,7 @@ describe('TaskEditModal', () => {
         });
 
         it('should update task on save', async () => {
-            mockTaskService.updateTask.mockResolvedValue();
+            mockNocodbTaskService.updateTask.mockResolvedValue();
 
             modal.open({ id: 'task-1', name: 'Old Name' });
 
@@ -186,17 +173,16 @@ describe('TaskEditModal', () => {
             saveBtn.click();
 
             await vi.waitFor(() => {
-                expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', expect.objectContaining({
-                    title: 'New Name',
-                    project: 'brainbase',
+                expect(mockNocodbTaskService.updateTask).toHaveBeenCalledWith('task-1', expect.objectContaining({
+                    name: 'New Name',
                     priority: 'high',
-                    deadline: '2025-12-31'
+                    due: '2025-12-31'
                 }));
             });
         });
 
         it('should close modal after save', async () => {
-            mockTaskService.updateTask.mockResolvedValue();
+            mockNocodbTaskService.updateTask.mockResolvedValue();
 
             modal.open({ id: 'task-1', name: 'Test' });
 
@@ -209,7 +195,7 @@ describe('TaskEditModal', () => {
         });
 
         it('should handle null due date', async () => {
-            mockTaskService.updateTask.mockResolvedValue();
+            mockNocodbTaskService.updateTask.mockResolvedValue();
 
             modal.open({ id: 'task-1', name: 'Test', due: '2025-12-31' });
 
@@ -220,8 +206,8 @@ describe('TaskEditModal', () => {
             saveBtn.click();
 
             await vi.waitFor(() => {
-                expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', expect.objectContaining({
-                    deadline: null
+                expect(mockNocodbTaskService.updateTask).toHaveBeenCalledWith('task-1', expect.objectContaining({
+                    due: null
                 }));
             });
         });

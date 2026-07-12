@@ -34,7 +34,6 @@ import { TerminalReconnectManager } from './modules/terminal/terminal-reconnect-
 import { getSessionStatus, hydrateSessionRecentFiles } from './modules/session-ui-state.js';
 
 // Services
-import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
@@ -52,7 +51,6 @@ import { ManaChatView } from './modules/ui/views/mana-chat-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
-import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
@@ -262,7 +260,6 @@ export class App {
      */
     initServices() {
         // Register services in DI container
-        this.container.register('taskService', () => new TaskService());
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
         this.container.register('inboxService', () => new InboxService());
@@ -292,7 +289,6 @@ export class App {
 
         // Get service instances
         const safeGet = (name) => { try { return this.container.get(name); } catch(e) { console.error(`[App] Failed to get ${name}:`, e.message); return null; } };
-        this.taskService = safeGet('taskService');
         this.sessionService = safeGet('sessionService');
         this.scheduleService = safeGet('scheduleService');
         this.inboxService = safeGet('inboxService');

@@ -1,7 +1,6 @@
 import path from 'path';
 import multer from 'multer';
 
-import { TaskParser } from '../../lib/task-parser.js';
 import { ScheduleParser } from '../../lib/schedule-parser.js';
 import { SqliteStore as StateStore } from '../../lib/sqlite-store.js';
 import { StateStore as JsonStateStore } from '../../lib/state-store.js';
@@ -43,8 +42,6 @@ import {
 } from '../services/workflow/workflow-service.js';
 
 export function createCoreServices({
-    tasksFile,
-    schedulesDir,
     varDir,
     stateFile,
     brainbaseRoot,
@@ -58,9 +55,8 @@ export function createCoreServices({
     port,
     testMode = false
 }) {
-    const taskParser = new TaskParser(tasksFile);
     const googleCalendarService = new GoogleCalendarService();
-    const scheduleParser = new ScheduleParser(schedulesDir, { googleCalendarService });
+    const scheduleParser = new ScheduleParser({ googleCalendarService });
 
     process.env.BRAINBASE_VAR_DIR = varDir;
     process.env.BRAINBASE_STATE_PATH = stateFile;
@@ -217,7 +213,6 @@ export function createCoreServices({
     const upload = multer({ storage });
 
     return {
-        taskParser,
         googleCalendarService,
         scheduleParser,
         stateStore,

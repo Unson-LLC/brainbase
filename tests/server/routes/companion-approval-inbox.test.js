@@ -73,7 +73,6 @@ function makeBootstrapApp({
     const app = express();
     app.use(express.json());
     registerApiRoutes(app, {
-        taskParser: {},
         stateStore: {},
         sessionServices: {
             runtime: {

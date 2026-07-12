@@ -97,55 +97,6 @@ describe('ScheduleService', () => {
         });
     });
 
-    describe('schedule mutations', () => {
-        it('addEvent呼び出し時_キャッシュ無効化後に最新スケジュールを再取得する', async () => {
-            const refreshedSchedule = {
-                ...mockSchedule,
-                items: [...mockSchedule.items, { id: '3', title: 'Focus', start: '15:00', end: '16:00' }]
-            };
-            httpClient.get.mockResolvedValueOnce(mockSchedule).mockResolvedValueOnce(refreshedSchedule);
-            httpClient.post.mockResolvedValue({ id: '3' });
-
-            await scheduleService.loadSchedule();
-            await scheduleService.addEvent({ title: 'Focus', start: '15:00', end: '16:00' });
-
-            expect(httpClient.get).toHaveBeenCalledTimes(2);
-            expect(appStore.getState().schedule).toEqual(refreshedSchedule);
-        });
-
-        it('updateEvent呼び出し時_キャッシュ無効化後に最新スケジュールを再取得する', async () => {
-            const refreshedSchedule = {
-                ...mockSchedule,
-                items: mockSchedule.items.map(item =>
-                    item.id === '1' ? { ...item, title: 'Updated Meeting' } : item
-                )
-            };
-            httpClient.get.mockResolvedValueOnce(mockSchedule).mockResolvedValueOnce(refreshedSchedule);
-            httpClient.put.mockResolvedValue({ id: '1' });
-
-            await scheduleService.loadSchedule();
-            await scheduleService.updateEvent('1', { title: 'Updated Meeting' });
-
-            expect(httpClient.get).toHaveBeenCalledTimes(2);
-            expect(appStore.getState().schedule).toEqual(refreshedSchedule);
-        });
-
-        it('deleteEvent呼び出し時_キャッシュ無効化後に最新スケジュールを再取得する', async () => {
-            const refreshedSchedule = {
-                ...mockSchedule,
-                items: mockSchedule.items.filter(item => item.id !== '2')
-            };
-            httpClient.get.mockResolvedValueOnce(mockSchedule).mockResolvedValueOnce(refreshedSchedule);
-            httpClient.delete.mockResolvedValue({});
-
-            await scheduleService.loadSchedule();
-            await scheduleService.deleteEvent('2');
-
-            expect(httpClient.get).toHaveBeenCalledTimes(2);
-            expect(appStore.getState().schedule).toEqual(refreshedSchedule);
-        });
-    });
-
     describe('getTimeline', () => {
         it('getTimeline呼び出し時_schedule.itemsが返却される', () => {
             appStore.setState({ schedule: mockSchedule });
