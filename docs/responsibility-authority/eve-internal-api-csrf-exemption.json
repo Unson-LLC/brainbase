@@ -12,7 +12,7 @@
       "supporting_authority": [
         {
           "kind": "spec",
-          "ref": "docs/specs/eve-internal-api-csrf-exemption.md#invariants"
+          "ref": "docs/specs/story-eve-internal-api-csrf-exemption.md#invariants"
         },
         {
           "kind": "spec",

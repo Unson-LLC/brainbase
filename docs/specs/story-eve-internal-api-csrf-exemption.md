@@ -40,6 +40,13 @@ diagrams:
   path: `docs/architecture/ADR-eve-internal-api-csrf-exemption.md`
   purpose: browser、internal client、CSRF境界、認証境界、workflow routeのtrust boundaryを示す。
 
+## Failure Modes
+
+- FM-001: server secret未設定時はinternal exemptionを無効にする。
+- FM-002: key欠落、不一致、複数値headerはCSRF 403でfail closedにする。
+- FM-003: CSRF通過は認証成功を意味せず、`requireAuth`を必須とする。
+- FM-004: browser requestのCSRF token契約は変更しない。
+
 ## Verification
 
 - Unit: `tests/unit/csrf-internal-api-key-exempt.test.js`

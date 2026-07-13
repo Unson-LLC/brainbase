@@ -64,6 +64,13 @@ Brainbaseのserver-to-server workflowを運用し、会議候補の自動取得�
 - Static: typecheckと変更ファイルのESLintを通す
 - Production: Lightsailへmerge commitを反映し、対象runに限定したdry-runとexecuteで候補生成を確認する
 
+## Failure Modes
+
+- FM-001: `INTERNAL_API_SECRET` が未設定ならinternal exemptionを無効にし、CSRF tokenなしのPOSTを403で拒否する。
+- FM-002: `x-internal-api-key` が欠落、不一致、または複数値ならtiming-safe比較の対象にせず403で拒否する。
+- FM-003: 正しいinternal keyでCSRFを通過しても、後段の`requireAuth`を省略せずroute authorityをCSRF層へ移さない。
+- FM-004: internal keyを持たないbrowser requestは従来のCSRF token検証を維持し、workflow path単位では除外しない。
+
 ## Engineering Judgment Spine
 
 current_reality: internal API keyは`requireAuth`がserver-to-server認証として受理するが、前段のCSRF middlewareがブラウザ用tokenなしの本番POSTを403にしている。

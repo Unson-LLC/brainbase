@@ -46,7 +46,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
         else process.env.INTERNAL_API_SECRET = originalInternalApiSecret;
     });
 
-    test('story-eve-internal-api-csrf-exemption AC-001 ac:1 S-001 exact internal key passes CSRF and authenticates as internal service', () => {
+    test('story-eve-internal-api-csrf-exemption AC-001 ac1 S-001 exact internal key passes CSRF and authenticates as internal service', () => {
         const result = runProductionChain({ 'x-internal-api-key': 'e2e-internal-secret' });
 
         expect(result.statusCode).toBeNull();
@@ -55,7 +55,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
         expect(result.req.access?.employmentType).toBe('internal_service');
     });
 
-    test('story-eve-internal-api-csrf-exemption AC-002 ac:2 S-002 wrong key fails closed before route authority', () => {
+    test('story-eve-internal-api-csrf-exemption AC-002 ac2 S-002 wrong key fails closed before route authority', () => {
         const result = runProductionChain({ 'x-internal-api-key': 'wrong-secret' });
 
         expect(result.statusCode).toBe(403);
@@ -63,7 +63,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
         expect(result.req.authSource).toBeUndefined();
     });
 
-    test('story-eve-internal-api-csrf-exemption AC-003 ac:3 S-003 browser request without internal key remains under CSRF validation', () => {
+    test('story-eve-internal-api-csrf-exemption AC-003 ac3 S-003 browser request without internal key remains under CSRF validation', () => {
         const result = runProductionChain();
 
         expect(result.statusCode).toBe(403);
@@ -71,7 +71,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
         expect(result.req.authSource).toBeUndefined();
     });
 
-    test('story-eve-internal-api-csrf-exemption AC-004 ac:4 S-004 exact-run workflow POST reaches its route through the production middleware order', () => {
+    test('story-eve-internal-api-csrf-exemption AC-004 ac4 S-004 exact-run workflow POST reaches its route through the production middleware order', () => {
         const result = runProductionChain({ 'x-internal-api-key': 'e2e-internal-secret' });
 
         expect(result.req.path).toBe('/api/workflows/control/loop-intents/exact-run/eve-session');
