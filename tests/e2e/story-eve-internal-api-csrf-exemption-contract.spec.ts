@@ -50,7 +50,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
         const result = runProductionChain({ 'x-internal-api-key': 'e2e-internal-secret' });
 
         expect(result.statusCode).toBeNull();
-        expect(result.routeReached).toBe(true);
+        expect(result.routeReached, 'ac1 S-001 exact internal key reaches the route').toBe(true);
         expect(result.req.authSource).toBe('internal');
         expect(result.req.access?.employmentType).toBe('internal_service');
     });
@@ -58,7 +58,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
     test('story-eve-internal-api-csrf-exemption AC-002 ac2 S-002 wrong key fails closed before route authority', () => {
         const result = runProductionChain({ 'x-internal-api-key': 'wrong-secret' });
 
-        expect(result.statusCode).toBe(403);
+        expect(result.statusCode, 'ac2 S-002 wrong internal key is auth_denied').toBe(403);
         expect(result.routeReached).toBe(false);
         expect(result.req.authSource).toBeUndefined();
     });
@@ -66,7 +66,7 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
     test('story-eve-internal-api-csrf-exemption AC-003 ac3 S-003 browser request without internal key remains under CSRF validation', () => {
         const result = runProductionChain();
 
-        expect(result.statusCode).toBe(403);
+        expect(result.statusCode, 'ac3 S-003 browser request remains permission_denied without CSRF token').toBe(403);
         expect(result.routeReached).toBe(false);
         expect(result.req.authSource).toBeUndefined();
     });
@@ -76,6 +76,6 @@ test.describe('story-eve-internal-api-csrf-exemption', () => {
 
         expect(result.req.path).toBe('/api/workflows/control/loop-intents/exact-run/eve-session');
         expect(result.statusCode).toBeNull();
-        expect(result.routeReached).toBe(true);
+        expect(result.routeReached, 'ac4 S-004 exact-run reaches its route through the production chain').toBe(true);
     });
 });
