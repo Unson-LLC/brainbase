@@ -552,107 +552,21 @@ function sourceEvidenceRef(sourceEvent) {
     ].filter(Boolean).join(':');
 }
 
-function sentenceCandidatesFromTranscript(meetingNoteSummary = {}, cues = /./u, limit = 5) {
-    const transcripts = Array.isArray(meetingNoteSummary.source_transcripts)
-        ? meetingNoteSummary.source_transcripts
-        : [];
-    const text = normalizeMultilineText(transcripts.map((source) => source.text || '').filter(Boolean).join('\n'));
-    const rawSentences = text
-        .split(/(?<=[。！？!?])\s*|\n+/u)
-        .map(normalizeWhitespace)
-        .filter((sentence) => sentence.length >= 12);
-    const matched = rawSentences.filter((sentence) => cues.test(sentence));
-    const selected = (matched.length > 0 ? matched : rawSentences).slice(0, limit);
-    return selected.map((sentence, index) => ({
-        sentence,
-        index
-    }));
-}
-
-function titleFromSentence(sentence, fallback) {
-    const title = normalizeWhitespace(sentence)
-        .replace(/^[・*-]\s*/u, '')
-        .slice(0, 80);
-    return title || fallback;
-}
-
-function ownerHintFromSentence(sentence) {
-    const match = String(sentence || '').match(/([一-龯ぁ-んァ-ヶA-Za-z0-9_.-]{2,24})(さん|様|氏)/u);
-    return match?.[0] || null;
-}
-
-function buildTaskCandidatesFromTranscript(meetingNoteSummary = {}, { caseScope = null, evidenceRefs = [] } = {}) {
-    const cues = /(対応|確認|共有|連絡|送付|準備|作成|修正|調整|検討|参加|引継ぎ|請求書|タスク|宿題|TODO|action|follow-up|next step)/iu;
-    const sentences = sentenceCandidatesFromTranscript(meetingNoteSummary, cues, 5);
-    const fallbackTitle = `${meetingNoteSummary.title || '会議'}の議事録を確認し、次アクションを整理する`;
-    const candidates = sentences.map(({ sentence, index }) => ({
-        id: `task_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:task:${sentence}:${index}`).slice(0, 12)}`,
-        title: titleFromSentence(sentence, fallbackTitle),
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        owner_hint: ownerHintFromSentence(sentence),
-        due_hint: null,
-        source_excerpt: sentence,
-        evidence_refs: evidenceRefs
-    }));
-    if (candidates.length > 0) return candidates;
-    return [{
-        id: `task_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:task:fallback`).slice(0, 12)}`,
-        title: fallbackTitle,
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        owner_hint: null,
-        due_hint: null,
-        source_excerpt: meetingNoteSummary.summary || meetingNoteSummary.title || '',
-        evidence_refs: evidenceRefs
-    }];
-}
-
-function buildDecisionCandidatesFromTranscript(meetingNoteSummary = {}, { caseScope = null, evidenceRefs = [] } = {}) {
-    const cues = /(決定|判断|合意|方針|承認|採用|見送り|不要|固定|位置づけ|収束|確認された|主要論点|重要)/iu;
-    const sentences = sentenceCandidatesFromTranscript(meetingNoteSummary, cues, 5);
-    const fallbackTitle = `${meetingNoteSummary.title || '会議'}の判断事項を確認する`;
-    const candidates = sentences.map(({ sentence, index }) => ({
-        id: `decision_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:decision:${sentence}:${index}`).slice(0, 12)}`,
-        title: titleFromSentence(sentence, fallbackTitle),
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        decision_type: 'meeting_decision',
-        source_excerpt: sentence,
-        evidence_refs: evidenceRefs
-    }));
-    if (candidates.length > 0) return candidates;
-    return [{
-        id: `decision_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:decision:fallback`).slice(0, 12)}`,
-        title: fallbackTitle,
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        decision_type: 'meeting_decision',
-        source_excerpt: meetingNoteSummary.summary || meetingNoteSummary.title || '',
-        evidence_refs: evidenceRefs
-    }];
-}
-
-function buildFollowUpDraft(meetingNoteSummary = {}, taskCandidates = [], decisionCandidates = []) {
-    const title = meetingNoteSummary.title || '本日の打ち合わせ';
-    const summary = normalizeWhitespace(meetingNoteSummary.summary || meetingNoteSummary.body || '');
-    const taskLines = taskCandidates.slice(0, 5).map((candidate) => `- ${candidate.title}`);
-    const decisionLines = decisionCandidates.slice(0, 5).map((candidate) => `- ${candidate.title}`);
-    const body = [
-        `${title}について、議事録ドラフトをもとに以下を確認候補として整理しました。`,
-        summary ? `\n概要:\n${summary}` : '',
-        taskLines.length > 0 ? `\nタスク候補:\n${taskLines.join('\n')}` : '',
-        decisionLines.length > 0 ? `\n判断候補:\n${decisionLines.join('\n')}` : '',
-        '\n必要に応じて内容を確認・修正してから送信してください。'
-    ].filter(Boolean).join('\n').trim();
+// Task / decision / follow-up candidates are no longer produced by a deterministic
+// sentence splitter at ingest time. They are generated by Eve (LLM) in the same
+// meeting session that produces the note and reconciled back onto these outputs by
+// the pull-based reconciler (server/services/external-runner/eve-meeting-note-reconciler.js
+// -> workflowService.recordMeetingCandidates). At ingest the candidate outputs are
+// created as non-null awaiting-Eve placeholders (see buildAwaitingEveCandidates below).
+function buildAwaitingEveCandidates() {
     return {
-        status: 'draft_only',
-        external_send_required_approval: true,
-        body
+        task_candidates: [],
+        decision_candidates: [],
+        follow_up_draft: {
+            status: 'awaiting_eve_generation',
+            external_send_required_approval: true,
+            body: ''
+        }
     };
 }
 
@@ -1239,15 +1153,10 @@ export class MeetingSourceMcpSyncService {
             sourceEvent,
             supportingSourceEvents
         });
-        const taskCandidates = buildTaskCandidatesFromTranscript(meetingNoteSummary, {
-            caseScope,
-            evidenceRefs
-        });
-        const decisionCandidates = buildDecisionCandidatesFromTranscript(meetingNoteSummary, {
-            caseScope,
-            evidenceRefs
-        });
-        const followUpDraft = buildFollowUpDraft(meetingNoteSummary, taskCandidates, decisionCandidates);
+        // Candidates start empty (awaiting Eve). The pull-based reconciler fills
+        // task_candidates / decision_candidates / follow_up_draft from the LLM-generated
+        // candidates in the same Eve session that produces the meeting note.
+        const { task_candidates: taskCandidates, decision_candidates: decisionCandidates, follow_up_draft: followUpDraft } = buildAwaitingEveCandidates();
         return {
             package_id: `meeting-source:${cluster.source_cluster_id}`,
             org_id: orgId,

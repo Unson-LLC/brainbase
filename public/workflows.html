@@ -712,6 +712,34 @@
                 return '';
             }
         }
+        function eveReconciliationLabel(value) {
+            const labels = {
+                already_recorded: '記録済み',
+                already_started: '処理開始済み',
+                awaiting_candidates_after_note: '議事録を取得済み・Task候補を待機中',
+                awaiting_eve_result: 'Eveの処理結果を待機中',
+                blocked: '要対応',
+                candidate_writeback_failed: 'Task候補の書き戻しに失敗',
+                disabled: '自動取得は無効',
+                eve_not_configured: 'Eveが未設定',
+                failed: '失敗',
+                no_candidate_call: 'Task候補なし',
+                note_reconciled: '議事録を取得済み',
+                not_started: '未開始',
+                pending: '待機中',
+                polling: 'Eveの結果を確認中',
+                reconcile_runtime_failed: '照合処理に失敗',
+                reconcile_runtime_recovered: '照合処理が復旧',
+                record_failed_permanent: '議事録の記録に失敗',
+                recorded: '記録済み',
+                retrying: '再試行中',
+                session_ended_without_note: 'Eveセッションが議事録なしで終了',
+                session_stream_read_failed: 'Eveセッションの取得に失敗',
+                session_stream_recovered: 'Eveセッションの取得が復旧',
+                success: '完了'
+            };
+            return labels[value] || value || '';
+        }
         function renderTaskCandidateOwnerSummary(output) {
             const payload = Array.isArray(output.payload) ? output.payload : [];
             if (output.type !== 'task_candidates' || !payload.length) return '';
@@ -724,7 +752,9 @@
             };
             const reasonLabels = {
                 unique_exact_name_or_alias: 'people SSOTの名前/別名に一意一致',
+                unique_partial_name_or_alias: 'people SSOTの名前/別名に一意の部分一致',
                 context_ranked_owner_hint: 'people SSOT候補をプロジェクト文脈で第一候補に解決',
+                generic_owner_hint_requires_human_selection: 'AI候補が汎用表現のため人による担当者選択が必要',
                 no_people_ssot_candidate: 'people SSOTに一致候補なし',
                 ambiguous_people_ssot_candidate: 'people SSOTに複数候補あり',
                 speaker_label_is_not_people_ssot: 'Speaker表記は担当者として使わない',
@@ -1415,6 +1445,14 @@
             const inputPayload = run.input_payload || runMetadata.input_payload || loopControl.input_payload;
             const inputPayloadSummary = summarizeJson(inputPayload);
             const runner = runMetadata.runner && typeof runMetadata.runner === 'object' ? runMetadata.runner : {};
+            const eveNoteReconciler = runMetadata.eve_note_reconciler && typeof runMetadata.eve_note_reconciler === 'object'
+                ? runMetadata.eve_note_reconciler
+                : {};
+            const eveCandidates = eveNoteReconciler.candidates && typeof eveNoteReconciler.candidates === 'object'
+                ? eveNoteReconciler.candidates
+                : {};
+            const evePollError = eveNoteReconciler.last_poll_error || '';
+            const eveRuntimeError = eveNoteReconciler.last_runtime_error || '';
             const eveSessionId = runner.session_id || run.eve_session_id || runMetadata.eve_session_id;
             const eveContinuationPresent = runner.continuation_token_present ?? runMetadata.continuation_token_present;
             const eveTraceRef = runner.eve_trace_ref || runMetadata.eve_trace_ref;
@@ -1445,6 +1483,19 @@
                 ['Write-back Status', writeBackStatus],
                 ['Workflow Reason', run.selected_workflow_reason || runMetadata.selected_workflow_reason],
                 ['Run Message', run.message || runMetadata.message],
+                ['Eve Reconciliation', eveReconciliationLabel(eveNoteReconciler.reason || eveNoteReconciler.status)],
+                ['Eve Reconciler Status', eveReconciliationLabel(eveNoteReconciler.status)],
+                ['Eve Poll Error', evePollError],
+                ['Eve Poll Failed At', eveNoteReconciler.last_poll_failed_at],
+                ['Eve Poll Failure Count', eveNoteReconciler.poll_failure_count],
+                ['Eve Poll Recovered At', eveNoteReconciler.last_poll_recovered_at],
+                ['Eve Runtime Error', eveRuntimeError],
+                ['Eve Runtime Failed At', eveNoteReconciler.last_runtime_failed_at],
+                ['Eve Runtime Failure Count', eveNoteReconciler.runtime_failure_count],
+                ['Eve Runtime Recovered At', eveNoteReconciler.last_runtime_recovered_at],
+                ['Eve Candidates', eveReconciliationLabel(eveCandidates.status)],
+                ['Eve Candidate Scope Mismatches', eveCandidates.mismatched_candidate_calls],
+                ['Eve Candidate Error', eveCandidates.error],
                 ['Runner', runner.type],
                 ['Eve Session', eveSessionId],
                 ['Eve Continuation Token', eveContinuationPresent === undefined ? '' : eveContinuationPresent ? 'present' : 'not present'],

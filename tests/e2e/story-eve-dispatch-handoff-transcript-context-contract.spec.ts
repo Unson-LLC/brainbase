@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
@@ -372,6 +372,21 @@ test(`story-eve-dispatch-handoff-transcript-context ac:8 AC-008 S-004 backfill s
   expect(stdout).toContain('run=run_no_hash_1');
   expect(stdout).toContain('skip: source_text_hash missing');
   expect(stdout).toContain('dry-run (use --execute to dispatch)');
+});
+
+test(`story-eve-dispatch-handoff-transcript-context ac:8 AC-008 backfill execute requires exactly one run before reading the ledger`, () => {
+  for (const runIds of [[], ['run_1', 'run_2']]) {
+    const result = spawnSync('node', [
+      'script/backfill-eve-meeting-note-dispatch.mjs',
+      '--ledger', '/path/that/must/not/be/read.json',
+      ...runIds.flatMap((runId) => ['--run-id', runId]),
+      '--execute'
+    ], { encoding: 'utf8' });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('--execute requires exactly one --run-id');
+    expect(result.stderr).not.toContain('ENOENT');
+  }
 });
 
 test(`story-eve-dispatch-handoff-transcript-context ac:8 AC-008 docs contract: backfill runbook prescribes force_new_session and the dispatch API`, async () => {

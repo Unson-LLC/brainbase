@@ -543,6 +543,20 @@ test('story-meeting-task-owner-ssot-resolution S-008 S-009 AC-019 AC-020 scenari
         { person_id: 'person_yajima_takeshi', display_name: '矢島毅' }
       ],
       owner_resolution: { source: 'graph_ssot', status: 'ambiguous', reason: 'ambiguous_people_ssot_candidate' }
+    },
+    {
+      title: '汐里さんが提案資料を更新する。',
+      owner_hint: '@汐里さん',
+      selected_owner_id: 'person_hori_shiori',
+      selected_owner: '堀 汐里',
+      owner_candidates: [{ person_id: 'person_hori_shiori', display_name: '堀 汐里' }],
+      owner_resolution: { source: 'graph_ssot', status: 'resolved', reason: 'unique_partial_name_or_alias' }
+    },
+    {
+      title: '担当者が次回日程を調整する。',
+      owner_hint: '担当者',
+      owner_candidates: [],
+      owner_resolution: { source: 'graph_ssot', status: 'unresolved', reason: 'generic_owner_hint_requires_human_selection' }
     }
   ];
 
@@ -615,7 +629,7 @@ test('story-meeting-task-owner-ssot-resolution S-008 S-009 AC-019 AC-020 scenari
             id: 'out-task-candidates',
             type: 'task_candidates',
             title: 'Task候補',
-            preview: '4件のTask候補',
+            preview: '6件のTask候補',
             payload: taskCandidates
           }],
           audit_logs: []
@@ -637,5 +651,9 @@ test('story-meeting-task-owner-ssot-resolution S-008 S-009 AC-019 AC-020 scenari
   await expect(page.getByText(/口コミ投稿QR.*担当者: 担当者未設定.*状態: 未解決.*people SSOTを更新するか、Mac Companionで担当者を選択してください/), 'ac:8 ac:20 unresolved owners remain visible for manual Mac Companion selection').toBeVisible();
   await expect(page.getByText(/プレミアムコスプレ.*状態: 対象外.*Speaker表記は担当者として使わない.*必要なら実名担当者を選択してください/)).toBeVisible();
   await expect(page.getByText(/客室内導線整備.*状態: 要選択.*候補から正しいpeople SSOT担当者を選択してください.*people候補: 矢島剛 \(person_yajima_tsuyoshi\) \/ 矢島毅 \(person_yajima_takeshi\)/)).toBeVisible();
+  await expect(page.getByText(/汐里さんが提案資料.*担当者: 堀 汐里.*状態: 解決済み.*理由: people SSOTの名前\/別名に一意の部分一致/)).toBeVisible();
+  await expect(page.getByText(/担当者が次回日程.*担当者: 担当者未設定.*状態: 未解決.*理由: AI候補が汎用表現のため人による担当者選択が必要/)).toBeVisible();
+  await expect(page.getByText('unique_partial_name_or_alias', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('generic_owner_hint_requires_human_selection', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
 });

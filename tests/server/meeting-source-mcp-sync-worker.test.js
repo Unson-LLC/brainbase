@@ -341,12 +341,15 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(confirmed.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
         expect(confirmed.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
         expect(confirmed.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
-        expect(confirmed.review_packages[0].task_candidates[0].source_excerpt).toBe('[redacted]');
-        expect(confirmed.review_packages[0].task_candidates[0].source_excerpt_redacted).toBe(true);
-        expect(confirmed.review_packages[0].decision_candidates[0].source_excerpt).toBe('[redacted]');
-        expect(confirmed.review_packages[0].decision_candidates[0].source_excerpt_redacted).toBe(true);
-        expect(confirmed.review_packages[0].follow_up_draft.body).toBe('[redacted]');
-        expect(confirmed.review_packages[0].follow_up_draft.body_redacted).toBe(true);
+        // Candidates are no longer generated deterministically at ingest; they
+        // start empty (awaiting Eve) and are filled by the pull-based reconciler.
+        expect(confirmed.review_packages[0].task_candidates).toEqual([]);
+        expect(confirmed.review_packages[0].decision_candidates).toEqual([]);
+        expect(confirmed.review_packages[0].follow_up_draft).toMatchObject({
+            status: 'awaiting_eve_generation',
+            external_send_required_approval: true,
+            body: ''
+        });
         const submitted = workflowService.ingestMeetingReviewPackage.mock.calls[0][0];
         expect(submitted).toMatchObject({
             org_id: 'brainbase',
@@ -387,33 +390,17 @@ describe('MeetingSourceMcpSyncService', () => {
                         })
                     ]
                 }),
-                task_candidates: expect.arrayContaining([
-                    expect.objectContaining({
-                        status: 'candidate',
-                        source: 'meeting_review_package',
-                        source_excerpt: expect.stringContaining('authoritative transcript')
-                    })
-                ]),
-                decision_candidates: expect.arrayContaining([
-                    expect.objectContaining({
-                        status: 'candidate',
-                        source: 'meeting_review_package',
-                        source_excerpt: expect.stringContaining('authoritative transcript')
-                    })
-                ]),
-                follow_up_draft: expect.objectContaining({
-                    status: 'draft_only',
-                    external_send_required_approval: true,
-                    body: expect.stringContaining('タスク候補')
-                }),
                 promotion_candidates: expect.any(Object)
             })
         });
-        expect(confirmed.review_packages[0].task_candidates[0].source_excerpt).toBe('[redacted]');
-        expect(confirmed.review_packages[0].task_candidates[0].source_excerpt_redacted).toBe(true);
-        expect(confirmed.review_packages[0].decision_candidates[0].source_excerpt).toBe('[redacted]');
-        expect(confirmed.review_packages[0].follow_up_draft.body).toBe('[redacted]');
-        expect(confirmed.review_packages[0].follow_up_draft.body_redacted).toBe(true);
+        // Ingest hands empty awaiting-Eve candidate placeholders (no deterministic splitter).
+        expect(submitted.review_package.task_candidates).toEqual([]);
+        expect(submitted.review_package.decision_candidates).toEqual([]);
+        expect(submitted.review_package.follow_up_draft).toEqual({
+            status: 'awaiting_eve_generation',
+            external_send_required_approval: true,
+            body: ''
+        });
         const meetingNoteBody = submitted.review_package.meeting_note_summary.body;
         expect(meetingNoteBody).toContain('Brainbase Meeting Pack');
         expect(meetingNoteBody).toContain('same text from the authoritative transcript');

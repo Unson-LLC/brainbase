@@ -293,12 +293,14 @@ test.describe(storyId, () => {
     expect(confirmed.body.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
-    expect(confirmed.body.review_packages[0].task_candidates[0].source_excerpt).toBe('[redacted]');
-    expect(confirmed.body.review_packages[0].task_candidates[0].source_excerpt_redacted).toBe(true);
-    expect(confirmed.body.review_packages[0].decision_candidates[0].source_excerpt).toBe('[redacted]');
-    expect(confirmed.body.review_packages[0].decision_candidates[0].source_excerpt_redacted).toBe(true);
-    expect(confirmed.body.review_packages[0].follow_up_draft.body).toBe('[redacted]');
-    expect(confirmed.body.review_packages[0].follow_up_draft.body_redacted).toBe(true);
+    // Candidates start empty (awaiting Eve); the pull-based reconciler fills them post-ingest.
+    expect(confirmed.body.review_packages[0].task_candidates).toEqual([]);
+    expect(confirmed.body.review_packages[0].decision_candidates).toEqual([]);
+    expect(confirmed.body.review_packages[0].follow_up_draft).toMatchObject({
+      status: 'awaiting_eve_generation',
+      external_send_required_approval: true,
+      body: ''
+    });
     expect(workflowService.calls).toHaveLength(1);
     expect(workflowService.calls[0].reviewPackage).toMatchObject({
       org_id: 'brainbase',
@@ -360,24 +362,12 @@ test.describe(storyId, () => {
             })
           ]
         }),
-        task_candidates: expect.arrayContaining([
-          expect.objectContaining({
-            status: 'candidate',
-            source: 'meeting_review_package',
-            source_excerpt: expect.stringContaining('online meeting')
-          })
-        ]),
-        decision_candidates: expect.arrayContaining([
-          expect.objectContaining({
-            status: 'candidate',
-            source: 'meeting_review_package',
-            source_excerpt: expect.stringContaining('online meeting')
-          })
-        ]),
+        task_candidates: [],
+        decision_candidates: [],
         follow_up_draft: expect.objectContaining({
-          status: 'draft_only',
+          status: 'awaiting_eve_generation',
           external_send_required_approval: true,
-          body: expect.stringContaining('タスク候補')
+          body: ''
         }),
         promotion_candidates: expect.any(Object),
         meeting_identity: {

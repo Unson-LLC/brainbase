@@ -15,6 +15,10 @@
                     "ref": "docs/stories/story-eve-meeting-note-pull-reconciler.md#invariants"
                 },
                 {
+                    "kind": "spec",
+                    "ref": "docs/stories/story-eve-meeting-candidates-pull-reconciler.md#acceptance-criteria"
+                },
+                {
                     "kind": "architecture",
                     "ref": "docs/responsibility-authority/eve-dispatch-handoff-transcript-context.json"
                 }
@@ -45,7 +49,7 @@
             "required_evidence": [
                 "current_head_verification"
             ],
-            "unknown_policy": "The reconciler is a pull-only loop closer: it may read Eve session streams through the authenticated EveSessionClient and write meeting notes exclusively through workflowService.recordMeetingNoteGeneration, whose source_text_hash equality gate stays the write-back validator of record. A stream tool-call is only trusted when its source_text_hash and run_id match the dispatch run's persisted metadata.meeting_note_generation; anything else is never written back. Sessions that end without a matching note are surfaced as blocked dispatch runs (operator_review_eve_session) instead of being polled forever, transient failures leave run state untouched for retry, and the human publish approval (approve_meeting_note_publish) stays in Brainbase untouched by this worker."
+            "unknown_policy": "The reconciler is a pull-only loop closer: it may read Eve session streams through the authenticated EveSessionClient and write meeting notes exclusively through workflowService.recordMeetingNoteGeneration, while candidate tool calls use workflowService.recordMeetingCandidates. The persisted run scope and source_text_hash remain the write-back validators of record, and malformed candidate lists are rejected before any output mutation. An already-generated note is never rewritten; when the same session is still active and candidate outputs remain awaiting-Eve, polling may continue only until candidates arrive or the session terminates. Sessions that end without a matching note are surfaced as blocked dispatch runs (operator_review_eve_session), candidate write failures after session end require operator_review_eve_candidates, transient stream failures retain running state for retry, and the human publish, task creation, and external-send approvals stay in Brainbase untouched by this worker."
         }
     ]
 }

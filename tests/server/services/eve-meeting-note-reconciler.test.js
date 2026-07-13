@@ -14,13 +14,35 @@ import {
     EveMeetingNoteReconciler,
     classifySessionStreamPhase,
     createEveMeetingNoteReconcilerConfigFromEnv,
+    extractMeetingCandidatesToolCalls,
     extractMeetingNoteToolCalls
 } from '../../../server/services/external-runner/eve-meeting-note-reconciler.js';
 
 const SOURCE_TEXT_HASH = 'hash-reconciler-note-001';
 
-function makeService({ eveSessionClient = null } = {}) {
-    const repository = new InMemoryWorkflowRepository();
+function makeInfoSSOTPeopleService(records = []) {
+    return {
+        async listGraphEntities(_access, options = {}) {
+            const query = String(options.query || '').trim().replace(/^@+/, '').toLowerCase();
+            return records.filter((record) => {
+                const payload = record.payload || {};
+                const values = [
+                    record.id,
+                    payload.name,
+                    payload.display_name,
+                    ...(Array.isArray(payload.aliases) ? payload.aliases : [])
+                ].filter(Boolean).map((value) => String(value).toLowerCase());
+                return !query || values.some((value) => value.includes(query));
+            });
+        }
+    };
+}
+
+function makeService({
+    eveSessionClient = null,
+    infoSSOTService = null,
+    repository = new InMemoryWorkflowRepository()
+} = {}) {
     const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
     const configParser = {
         async getProjects() {
@@ -36,7 +58,7 @@ function makeService({ eveSessionClient = null } = {}) {
         configParser,
         googleCalendarService: null,
         eveSessionClient,
-        infoSSOTService: null
+        infoSSOTService
     });
     const actor = {
         sub: 'keigo',
@@ -45,6 +67,22 @@ function makeService({ eveSessionClient = null } = {}) {
         projectCodes: ['salestailor']
     };
     return { repository, service, actor };
+}
+
+class CandidateOutputFailureRepository extends InMemoryWorkflowRepository {
+    constructor() {
+        super();
+        this.failCandidateOutputKey = null;
+    }
+
+    updateOutput(outputId, patch) {
+        const output = this.getOutput(outputId);
+        if (this.failCandidateOutputKey === output?.metadata?.output_key) {
+            this.failCandidateOutputKey = null;
+            throw new Error(`injected ${output.metadata.output_key} update failure`);
+        }
+        return super.updateOutput(outputId, patch);
+    }
 }
 
 function makeEveSessionClient({
@@ -72,7 +110,9 @@ function makeEveSessionClient({
 function sampleMeetingReviewPackage({
     orgId = 'salestailor',
     projectId = 'salestailor',
-    packageId = 'meeting-review-package-reconciler-test'
+    packageId = 'meeting-review-package-reconciler-test',
+    taskCandidates = ['タスク候補'],
+    decisionCandidates = ['意思決定候補']
 } = {}) {
     return {
         schema_version: '0.1.0',
@@ -127,8 +167,8 @@ function sampleMeetingReviewPackage({
                 text_length: 34
             }]
         },
-        task_candidates: ['タスク候補'],
-        decision_candidates: ['意思決定候補'],
+        task_candidates: taskCandidates,
+        decision_candidates: decisionCandidates,
         follow_up_draft: {
             status: 'draft_only',
             external_send_required_approval: true,
@@ -169,6 +209,45 @@ function noteToolCallEvent({
     };
 }
 
+function candidatesToolCallEvent({
+    runId,
+    orgId = 'salestailor',
+    projectId = 'salestailor',
+    sourceTextHash = SOURCE_TEXT_HASH,
+    taskCandidates = [{ title: '請求書を送付する', owner_hint: '佐藤さん', source_excerpt: 'Speaker 1: 請求書を送ります。' }],
+    decisionCandidates = [{ title: 'PMSはSTAYEで進める', decision_type: 'meeting_decision' }],
+    followUpDraft = { body: '本日はありがとうございました。次アクションをまとめました。' },
+    callId = 'call_candidates_001'
+}) {
+    return {
+        type: 'actions.requested',
+        data: {
+            actions: [{
+                kind: 'tool-call',
+                callId,
+                toolName: 'record_meeting_candidates',
+                input: {
+                    org_id: orgId,
+                    project_id: projectId,
+                    run_id: runId,
+                    source_text_hash: sourceTextHash,
+                    task_candidates: taskCandidates,
+                    decision_candidates: decisionCandidates,
+                    follow_up_draft: followUpDraft
+                }
+            }],
+            sequence: 20,
+            stepIndex: 2,
+            turnId: 'turn-1'
+        }
+    };
+}
+
+function outputByKey(repository, ingestRunId, outputKey) {
+    return repository.listOutputs(ingestRunId)
+        .find((output) => output.metadata?.output_key === outputKey);
+}
+
 const PARKED_TAIL = [
     { type: 'turn.completed', data: { sequence: 90, turnId: 'turn-1' } },
     { type: 'session.waiting', data: { wait: 'next-user-message' } }
@@ -177,7 +256,10 @@ const PARKED_TAIL = [
 async function dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient }) {
     await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
     const ingest = await service.ingestMeetingReviewPackage({
-        review_package: sampleMeetingReviewPackage()
+        review_package: sampleMeetingReviewPackage({
+            taskCandidates: [],
+            decisionCandidates: []
+        })
     }, actor);
     const ingestRunId = ingest.meeting_review_ingest.run.id;
     const loopIntentId = meetingPackIds({
@@ -221,6 +303,28 @@ describe('extractMeetingNoteToolCalls', () => {
     it('ignores malformed events without throwing', () => {
         expect(extractMeetingNoteToolCalls(null)).toEqual([]);
         expect(extractMeetingNoteToolCalls([{ type: 'actions.requested' }, null, { type: 'actions.requested', data: { actions: [{ kind: 'tool-call', toolName: 'record_meeting_note_generation' }] } }])).toEqual([]);
+    });
+});
+
+describe('extractMeetingCandidatesToolCalls', () => {
+    it('collects only record_meeting_candidates tool-call inputs, ignoring note calls', () => {
+        const events = [
+            noteToolCallEvent({ runId: 'run-1' }),
+            candidatesToolCallEvent({ runId: 'run-1' }),
+            { type: 'actions.requested', data: { actions: [{ kind: 'tool-call', callId: 'c9', toolName: 'todo', input: {} }] } }
+        ];
+        const calls = extractMeetingCandidatesToolCalls(events);
+        expect(calls).toHaveLength(1);
+        expect(calls[0]).toMatchObject({
+            call_id: 'call_candidates_001',
+            input: expect.objectContaining({ run_id: 'run-1', source_text_hash: SOURCE_TEXT_HASH })
+        });
+        expect(calls[0].input.task_candidates[0].title).toBe('請求書を送付する');
+    });
+
+    it('ignores malformed events without throwing', () => {
+        expect(extractMeetingCandidatesToolCalls(null)).toEqual([]);
+        expect(extractMeetingCandidatesToolCalls([{ type: 'actions.requested', data: { actions: [{ kind: 'tool-call', toolName: 'record_meeting_candidates' }] } }])).toEqual([]);
     });
 });
 
@@ -369,15 +473,22 @@ describe('EveMeetingNoteReconciler', () => {
         let streamRead = false;
         eveSessionClient.readSessionStream = async () => {
             streamRead = true;
-            return [];
+            return PARKED_TAIL;
         };
 
         const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
         const summary = await reconciler.runOnce();
 
         expect(summary).toMatchObject({ checked: 1, already_recorded: 1, recorded: 0 });
-        expect(streamRead).toBe(false);
-        expect(repository.getRun(dispatchRunId).status).toBe('success');
+        expect(streamRead).toBe(true);
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    candidates: { status: 'no_candidate_call', mismatched_candidate_calls: 0 }
+                }
+            }
+        });
         expect(noteDraftOutput(repository, ingestRunId).payload.body).toBe('既に書き戻し済みの本文');
     });
 
@@ -442,10 +553,10 @@ describe('EveMeetingNoteReconciler', () => {
         expect(dispatchRun.metadata).toEqual({ concurrent: true });
     });
 
-    it('records stream read failures as errors and keeps the run pending', async () => {
+    it('preserves stream failure diagnostics when the recovery poll closes the run', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        const { dispatchRunId } = await dispatchMeetingNoteRun({
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({
             service, repository, actor, eveSessionClient
         });
         eveSessionClient.readSessionStream = async () => {
@@ -461,7 +572,108 @@ describe('EveMeetingNoteReconciler', () => {
 
         expect(summary.errors).toHaveLength(1);
         expect(summary.errors[0]).toMatchObject({ run_id: dispatchRunId });
-        expect(repository.getRun(dispatchRunId).status).toBe('running');
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'running',
+            message: expect.stringContaining('retrying automatically'),
+            metadata: {
+                eve_note_reconciler: {
+                    status: 'retrying',
+                    reason: 'session_stream_read_failed',
+                    last_poll_error: 'Eve session stream failed with HTTP 502',
+                    poll_failure_count: 1
+                }
+            }
+        });
+        expect(repository.listAuditLogs({ targetId: dispatchRunId, limit: 100 })
+            .map((entry) => entry.action))
+            .toContain('workflow.meeting_pack.eve_session_stream.read_failed');
+
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+        const recovered = await reconciler.runOnce();
+
+        expect(recovered).toMatchObject({ checked: 1, recorded: 1, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    reason: 'note_reconciled',
+                    last_poll_error: 'Eve session stream failed with HTTP 502',
+                    poll_failure_count: 1,
+                    last_poll_recovered_at: expect.any(String)
+                }
+            }
+        });
+        expect(repository.listAuditLogs({ targetId: dispatchRunId, limit: 100 })
+            .map((entry) => entry.action))
+            .toContain('workflow.meeting_pack.eve_session_stream.recovered');
+    });
+
+    it('classifies a transient note write failure separately from stream polling', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({
+            service, repository, actor, eveSessionClient
+        });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+        const recordMeetingNoteGeneration = service.recordMeetingNoteGeneration.bind(service);
+        let shouldFail = true;
+        service.recordMeetingNoteGeneration = async (...args) => {
+            if (shouldFail) {
+                shouldFail = false;
+                throw new Error('meeting note database unavailable');
+            }
+            return recordMeetingNoteGeneration(...args);
+        };
+
+        const reconciler = new EveMeetingNoteReconciler({
+            workflowService: service,
+            eveSessionClient,
+            logger: { warn() {} }
+        });
+        const failed = await reconciler.runOnce();
+
+        expect(failed.errors).toHaveLength(1);
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'running',
+            metadata: {
+                eve_note_reconciler: {
+                    status: 'retrying',
+                    reason: 'reconcile_runtime_failed',
+                    last_runtime_error: 'meeting note database unavailable',
+                    runtime_failure_count: 1
+                }
+            }
+        });
+        expect(repository.getRun(dispatchRunId).metadata.eve_note_reconciler).not.toHaveProperty('last_poll_error');
+        const failedActions = repository.listAuditLogs({ targetId: dispatchRunId, limit: 100 })
+            .map((entry) => entry.action);
+        expect(failedActions).toContain('workflow.meeting_pack.eve_reconcile.failed');
+        expect(failedActions).not.toContain('workflow.meeting_pack.eve_session_stream.read_failed');
+
+        const recovered = await reconciler.runOnce();
+
+        expect(recovered).toMatchObject({ checked: 1, recorded: 1, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    reason: 'note_reconciled',
+                    last_runtime_error: 'meeting note database unavailable',
+                    runtime_failure_count: 1,
+                    last_runtime_recovered_at: expect.any(String)
+                }
+            }
+        });
+        const recoveredActions = repository.listAuditLogs({ targetId: dispatchRunId, limit: 100 })
+            .map((entry) => entry.action);
+        expect(recoveredActions).toContain('workflow.meeting_pack.eve_reconcile.recovered');
+        expect(recoveredActions).not.toContain('workflow.meeting_pack.eve_session_stream.recovered');
     });
 
     it('skips entirely when the eve session client is not configured', async () => {
@@ -514,6 +726,580 @@ describe('EveMeetingNoteReconciler', () => {
         expect(running.startScheduledReconcile()).toEqual({ started: false, reason: 'already_started' });
         expect(running.stopScheduledReconcile()).toEqual({ stopped: true });
         expect(running.stopScheduledReconcile()).toEqual({ stopped: false, reason: 'not_started' });
+    });
+});
+
+describe('WorkflowService.recordMeetingCandidates', () => {
+    it('normalizes and writes Eve candidates onto the sibling outputs when the hash matches', async () => {
+        const infoSSOTService = makeInfoSSOTPeopleService([{
+            id: 'person-sato',
+            payload: {
+                name: '佐藤圭吾',
+                display_name: '佐藤圭吾',
+                aliases: ['佐藤さん'],
+                project_codes: ['salestailor']
+            }
+        }]);
+        const { repository, service, actor } = makeService({ infoSSOTService });
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingestRunId = ingest.meeting_review_ingest.run.id;
+
+        const result = await service.recordMeetingCandidates({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            run_id: ingestRunId,
+            source_text_hash: SOURCE_TEXT_HASH,
+            task_candidates: [
+                { title: '請求書を送付する', owner_hint: '佐藤さん', due_hint: '2026-07-15', source_excerpt: '請求書を送ります' }
+            ],
+            decision_candidates: [{ title: 'PMSはSTAYEで進める' }],
+            follow_up_draft: { body: '本日はありがとうございました。', external_send_required_approval: false },
+            runner: { type: 'eve', session_id: 'sess-cand-1' }
+        }, actor);
+
+        expect(result.meeting_candidates.run_id).toBe(ingestRunId);
+
+        const taskOutput = outputByKey(repository, ingestRunId, 'task_candidates');
+        expect(Array.isArray(taskOutput.payload)).toBe(true);
+        expect(taskOutput.payload).toHaveLength(1);
+        expect(taskOutput.payload[0]).toMatchObject({
+            title: '請求書を送付する',
+            status: 'candidate',
+            source: 'eve_meeting_agent',
+            owner_hint: '佐藤さん',
+            selected_owner_id: 'person-sato',
+            selected_owner: '佐藤圭吾',
+            due_hint: '2026-07-15',
+            case_scope: 'reconciler-test',
+            evidence_refs: ['transcript:00:01:00-00:02:00']
+        });
+        expect(taskOutput.payload[0].owner_candidates[0]).toMatchObject({
+            person_id: 'person-sato',
+            display_name: '佐藤圭吾'
+        });
+        expect(taskOutput.payload[0].owner_resolution).toMatchObject({ status: 'resolved' });
+        expect(typeof taskOutput.payload[0].id).toBe('string');
+        expect(taskOutput.payload[0].id.startsWith('task_candidate_')).toBe(true);
+
+        const decisionOutput = outputByKey(repository, ingestRunId, 'decision_candidates');
+        expect(decisionOutput.payload[0]).toMatchObject({
+            title: 'PMSはSTAYEで進める',
+            status: 'candidate',
+            source: 'eve_meeting_agent',
+            decision_type: 'meeting_decision'
+        });
+
+        const followUpOutput = outputByKey(repository, ingestRunId, 'follow_up_draft');
+        // The external-send approval flag is forced true regardless of model input.
+        expect(followUpOutput.payload).toMatchObject({
+            status: 'draft_only',
+            external_send_required_approval: true,
+            body: '本日はありがとうございました。'
+        });
+
+        const audit = repository.listAuditLogs({ targetId: ingestRunId, limit: 100 })
+            .find((entry) => entry.action === 'workflow.meeting_pack.candidates.recorded');
+        expect(audit).toBeTruthy();
+        expect(audit.after).toMatchObject({
+            task_candidate_count: 1,
+            decision_candidate_count: 1,
+            follow_up_recorded: true,
+            runner_type: 'eve'
+        });
+    });
+
+    it('rejects candidates whose source_text_hash does not match the meeting_note_draft output', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingestRunId = ingest.meeting_review_ingest.run.id;
+
+        await expect(service.recordMeetingCandidates({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            run_id: ingestRunId,
+            source_text_hash: 'tampered-hash',
+            task_candidates: [{ title: 'x' }]
+        }, actor)).rejects.toMatchObject({ details: { state_transition: 'blocked_source_hash_mismatch' } });
+
+        // The pre-existing candidate outputs are left untouched on rejection.
+        const taskOutput = outputByKey(repository, ingestRunId, 'task_candidates');
+        expect(taskOutput.payload).toEqual(['タスク候補']);
+    });
+
+    it('rejects malformed candidate payloads before changing any output or audit history', async () => {
+        const { repository, service, actor } = makeService();
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingestRunId = ingest.meeting_review_ingest.run.id;
+        const outputKeys = ['task_candidates', 'decision_candidates', 'follow_up_draft'];
+        const beforeOutputs = Object.fromEntries(outputKeys.map((key) => [
+            key,
+            outputByKey(repository, ingestRunId, key)
+        ]));
+        const beforeAudit = repository.listAuditLogs({ targetId: ingestRunId, limit: 100 });
+
+        const invalidCandidateInputs = [
+            {
+                task_candidates: [{ title: '既存候補を消してはいけない' }],
+                decision_candidates: 'not-an-array',
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [{ title: '   ' }],
+                decision_candidates: [],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: Array.from({ length: 6 }, (_, index) => ({ title: `候補${index + 1}` })),
+                decision_candidates: [],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [{ title: 'x'.repeat(501) }],
+                decision_candidates: [],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [{ title: '候補', owner_hint: 'x'.repeat(201) }],
+                decision_candidates: [],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [{ title: '候補', due_hint: 'x'.repeat(201) }],
+                decision_candidates: [],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [{ title: '候補', source_excerpt: 'x'.repeat(2_001) }],
+                decision_candidates: [],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [],
+                decision_candidates: [{ title: '決定', decision_type: 'x'.repeat(101) }],
+                follow_up_draft: { body: '送信しない' }
+            },
+            {
+                task_candidates: [],
+                decision_candidates: [],
+                follow_up_draft: { body: 'x'.repeat(10_001) }
+            }
+        ];
+
+        for (const invalidCandidateInput of invalidCandidateInputs) {
+            await expect(service.recordMeetingCandidates({
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                run_id: ingestRunId,
+                source_text_hash: SOURCE_TEXT_HASH,
+                ...invalidCandidateInput
+            }, actor)).rejects.toMatchObject({ details: { state_transition: 'blocked_invalid_candidates' } });
+        }
+
+        for (const outputKey of outputKeys) {
+            expect(outputByKey(repository, ingestRunId, outputKey)).toEqual(beforeOutputs[outputKey]);
+        }
+        expect(repository.listAuditLogs({ targetId: ingestRunId, limit: 100 })).toEqual(beforeAudit);
+    });
+
+    it('rolls back all candidate outputs and audit history when a mid-write update fails', async () => {
+        const repository = new CandidateOutputFailureRepository();
+        const { service, actor } = makeService({ repository });
+        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingestRunId = ingest.meeting_review_ingest.run.id;
+        const outputKeys = ['task_candidates', 'decision_candidates', 'follow_up_draft'];
+        const beforeOutputs = Object.fromEntries(outputKeys.map((key) => [
+            key,
+            outputByKey(repository, ingestRunId, key)
+        ]));
+        const beforeAudit = repository.listAuditLogs({ targetId: ingestRunId, limit: 100 });
+        repository.failCandidateOutputKey = 'decision_candidates';
+
+        await expect(service.recordMeetingCandidates({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            run_id: ingestRunId,
+            source_text_hash: SOURCE_TEXT_HASH,
+            task_candidates: [{ title: '更新されないタスク候補' }],
+            decision_candidates: [{ title: '失敗する意思決定候補' }],
+            follow_up_draft: { body: '更新されないフォローアップ' }
+        }, actor)).rejects.toThrow('injected decision_candidates update failure');
+
+        for (const outputKey of outputKeys) {
+            expect(outputByKey(repository, ingestRunId, outputKey)).toEqual(beforeOutputs[outputKey]);
+        }
+        const afterAudit = repository.listAuditLogs({ targetId: ingestRunId, limit: 100 });
+        expect(afterAudit).toEqual(beforeAudit);
+        expect(afterAudit.some((entry) => entry.action === 'workflow.meeting_pack.candidates.recorded')).toBe(false);
+    });
+});
+
+describe('EveMeetingNoteReconciler candidate write-back', () => {
+    it('records LLM candidates from the same session after the note and closes on the note', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const summary = await reconciler.runOnce();
+        expect(summary).toMatchObject({ checked: 1, recorded: 1, errors: [] });
+
+        expect(outputByKey(repository, ingestRunId, 'meeting_note_draft').payload.generation_status).toBe('brainbase_generated');
+        const taskOutput = outputByKey(repository, ingestRunId, 'task_candidates');
+        expect(taskOutput.payload[0]).toMatchObject({ title: '請求書を送付する', source: 'eve_meeting_agent' });
+        const followUp = outputByKey(repository, ingestRunId, 'follow_up_draft');
+        expect(followUp.payload).toMatchObject({ status: 'draft_only', external_send_required_approval: true });
+        expect(repository.getRun(dispatchRunId).status).toBe('success');
+
+        const candidatesAudit = repository.listAuditLogs({ targetId: ingestRunId, limit: 100 })
+            .some((entry) => entry.action === 'workflow.meeting_pack.candidates.recorded');
+        expect(candidatesAudit).toBe(true);
+    });
+
+    it('keeps an Eve candidate unassigned when People SSOT has multiple matching owners', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const infoSSOTService = makeInfoSSOTPeopleService([
+            {
+                id: 'person-sato-keigo',
+                payload: {
+                    name: '佐藤圭吾',
+                    display_name: '佐藤圭吾',
+                    aliases: ['佐藤さん'],
+                    project_codes: ['salestailor']
+                }
+            },
+            {
+                id: 'person-sato-taro',
+                payload: {
+                    name: '佐藤太郎',
+                    display_name: '佐藤太郎',
+                    aliases: ['佐藤さん'],
+                    project_codes: ['salestailor']
+                }
+            }
+        ]);
+        const { repository, service, actor } = makeService({ eveSessionClient, infoSSOTService });
+        const { ingestRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const summary = await reconciler.runOnce();
+
+        expect(summary).toMatchObject({ checked: 1, recorded: 1, errors: [] });
+        const candidate = outputByKey(repository, ingestRunId, 'task_candidates').payload[0];
+        expect(candidate.selected_owner_id).toBeUndefined();
+        expect(candidate.selected_owner).toBeUndefined();
+        expect(candidate.owner_candidates).toHaveLength(2);
+        expect(candidate.owner_resolution).toMatchObject({
+            status: 'ambiguous',
+            reason: 'ambiguous_people_ssot_candidate'
+        });
+    });
+
+    it('closes on the note even when no candidate tool-call is present (candidates are best-effort)', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const summary = await reconciler.runOnce();
+        expect(summary).toMatchObject({ checked: 1, recorded: 1, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    candidates: { status: 'no_candidate_call', mismatched_candidate_calls: 0 }
+                }
+            }
+        });
+        // The real awaiting-Eve placeholder stays empty; note still reconciles.
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload).toEqual([]);
+    });
+
+    it('does not block the dispatch run when a candidate write-back is rejected (hash mismatch)', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const warnings = [];
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: ingestRunId, sourceTextHash: 'tampered-candidate-hash' }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({
+            workflowService: service,
+            eveSessionClient,
+            logger: { warn: (message) => warnings.push(message) }
+        });
+        const summary = await reconciler.runOnce();
+        // The mismatched candidate call does not match on hash, so it is skipped
+        // entirely (no_candidate_call); the note still records and the run closes.
+        expect(summary).toMatchObject({ checked: 1, recorded: 1, blocked: 0, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    candidates: { status: 'no_candidate_call', mismatched_candidate_calls: 1 }
+                }
+            }
+        });
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload).toEqual([]);
+    });
+
+    it('rejects candidate calls outside the exact org, project, and run scope', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: undefined, callId: 'call_missing_run' }),
+            candidatesToolCallEvent({ runId: 'other-run', callId: 'call_other_run' }),
+            candidatesToolCallEvent({ runId: ingestRunId, orgId: 'other-org', callId: 'call_other_org' }),
+            candidatesToolCallEvent({ runId: ingestRunId, projectId: 'other-project', callId: 'call_other_project' }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const summary = await reconciler.runOnce();
+
+        expect(summary).toMatchObject({ checked: 1, recorded: 1, blocked: 0, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    candidates: { status: 'no_candidate_call', mismatched_candidate_calls: 4 }
+                }
+            }
+        });
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload).toEqual([]);
+    });
+
+    it('preserves the excluded candidate count when a matching call is also recorded', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: ingestRunId, sourceTextHash: 'other-hash', callId: 'call_mismatch' }),
+            candidatesToolCallEvent({ runId: ingestRunId, callId: 'call_match' }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const summary = await reconciler.runOnce();
+
+        expect(summary).toMatchObject({ checked: 1, recorded: 1, blocked: 0, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    candidates: {
+                        status: 'recorded',
+                        call_id: 'call_match',
+                        mismatched_candidate_calls: 1
+                    }
+                }
+            }
+        });
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload[0]).toMatchObject({
+            title: '請求書を送付する'
+        });
+    });
+
+    it('blocks for operator recovery when a matching candidate write-back throws', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const warnings = [];
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+        service.recordMeetingCandidates = async () => {
+            throw new Error('candidate database unavailable');
+        };
+
+        const reconciler = new EveMeetingNoteReconciler({
+            workflowService: service,
+            eveSessionClient,
+            logger: { warn: (message) => warnings.push(message) }
+        });
+        const summary = await reconciler.runOnce();
+
+        expect(summary).toMatchObject({ checked: 1, recorded: 0, blocked: 1, errors: [] });
+        expect(noteDraftOutput(repository, ingestRunId).payload.generation_status).toBe('brainbase_generated');
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'blocked',
+            closure_state: 'open',
+            human_waiting: true,
+            action_required: 'operator_review_eve_candidates',
+            metadata: {
+                eve_note_reconciler: {
+                    reason: 'candidate_writeback_failed',
+                    candidates: {
+                        status: 'failed',
+                        error: 'candidate database unavailable'
+                    }
+                }
+            }
+        });
+        expect(warnings).toHaveLength(1);
+        const blockedAudit = repository.listAuditLogs({ targetId: dispatchRunId, limit: 100 })
+            .find((entry) => entry.action === 'workflow.meeting_pack.candidates.reconcile_blocked');
+        expect(blockedAudit).toBeTruthy();
+    });
+
+    it('recovers candidates when the meeting note was already recorded before reconciliation', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        await service.recordMeetingNoteGeneration({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            run_id: ingestRunId,
+            source_text_hash: SOURCE_TEXT_HASH,
+            note: { title: '先に保存済み', body: '議事録本文' },
+            runner: { type: 'eve', session_id: 'sess-cand-1' }
+        }, actor);
+        eveSessionClient.readSessionStream = async () => [
+            candidatesToolCallEvent({ runId: ingestRunId }),
+            ...PARKED_TAIL
+        ];
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const summary = await reconciler.runOnce();
+
+        expect(summary).toMatchObject({ checked: 1, already_recorded: 1, errors: [] });
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload[0]).toMatchObject({
+            title: '請求書を送付する',
+            source: 'eve_meeting_agent'
+        });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: {
+                eve_note_reconciler: {
+                    reason: 'already_recorded',
+                    candidates: { status: 'recorded' }
+                }
+            }
+        });
+    });
+
+    it('keeps polling when the note arrives before candidates in an active session', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        let readCount = 0;
+        eveSessionClient.readSessionStream = async () => {
+            readCount += 1;
+            if (readCount === 1) {
+                return [noteToolCallEvent({ runId: ingestRunId }), { type: 'turn.started' }];
+            }
+            return [
+                noteToolCallEvent({ runId: ingestRunId }),
+                candidatesToolCallEvent({ runId: ingestRunId }),
+                ...PARKED_TAIL
+            ];
+        };
+
+        const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+        const first = await reconciler.runOnce();
+        expect(first).toMatchObject({ checked: 1, pending: 1, recorded: 0, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'running',
+            metadata: {
+                eve_note_reconciler: {
+                    reason: 'awaiting_candidates_after_note',
+                    candidates: { status: 'no_candidate_call' }
+                }
+            }
+        });
+        expect(noteDraftOutput(repository, ingestRunId).payload.generation_status).toBe('brainbase_generated');
+
+        const second = await reconciler.runOnce();
+        expect(second).toMatchObject({ checked: 1, already_recorded: 1, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: { eve_note_reconciler: { candidates: { status: 'recorded' } } }
+        });
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload[0]).toMatchObject({
+            title: '請求書を送付する',
+            source: 'eve_meeting_agent'
+        });
+    });
+
+    it('FM-002 workflow_state_regression retries candidate write-back while the Eve session is active', async () => {
+        const eveSessionClient = makeEveSessionClient();
+        const { repository, service, actor } = makeService({ eveSessionClient });
+        const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
+        eveSessionClient.readSessionStream = async () => [
+            noteToolCallEvent({ runId: ingestRunId }),
+            candidatesToolCallEvent({ runId: ingestRunId }),
+            { type: 'turn.started' }
+        ];
+        const recordMeetingCandidates = service.recordMeetingCandidates.bind(service);
+        let writeAttempts = 0;
+        service.recordMeetingCandidates = async (...args) => {
+            writeAttempts += 1;
+            if (writeAttempts === 1) {
+                throw new Error('candidate database temporarily unavailable');
+            }
+            return recordMeetingCandidates(...args);
+        };
+
+        const reconciler = new EveMeetingNoteReconciler({
+            workflowService: service,
+            eveSessionClient,
+            logger: { warn: () => {} }
+        });
+        const first = await reconciler.runOnce();
+
+        expect(first).toMatchObject({ checked: 1, pending: 1, recorded: 0, blocked: 0, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'running',
+            closure_state: 'open',
+            metadata: {
+                eve_note_reconciler: {
+                    reason: 'awaiting_candidates_after_note',
+                    candidates: {
+                        status: 'failed',
+                        error: 'candidate database temporarily unavailable'
+                    }
+                }
+            }
+        });
+        expect(noteDraftOutput(repository, ingestRunId).payload.generation_status).toBe('brainbase_generated');
+
+        const second = await reconciler.runOnce();
+
+        expect(writeAttempts).toBe(2);
+        expect(second).toMatchObject({ checked: 1, already_recorded: 1, blocked: 0, errors: [] });
+        expect(repository.getRun(dispatchRunId)).toMatchObject({
+            status: 'success',
+            metadata: { eve_note_reconciler: { candidates: { status: 'recorded' } } }
+        });
+        expect(outputByKey(repository, ingestRunId, 'task_candidates').payload[0]).toMatchObject({
+            title: '請求書を送付する',
+            source: 'eve_meeting_agent'
+        });
     });
 });
 

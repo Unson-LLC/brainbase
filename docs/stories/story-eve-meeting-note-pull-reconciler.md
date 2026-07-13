@@ -1,5 +1,6 @@
 ---
 story_id: story-eve-meeting-note-pull-reconciler
+vibepro_story_id: story-eve-meeting-candidates-pull-reconciler
 title: Eve議事録のpull型reconciler（セッションstream監視→ローカル書き戻し）
 status: active
 created_at: 2026-07-11
@@ -25,7 +26,7 @@ story-eve-dispatch-handoff-transcript-context（PR #1022/#1023）でtranscript�
 
 - INV-reconciler-001: 書き戻しは既存のnote-generation契約（`recordMeetingNoteGeneration`、`source_text_hash` 完全一致・`meeting_note_draft` output必須）のみを通す。契約に無い書き込み経路を新設しない。
 - INV-reconciler-002: streamから抽出した議事録は、dispatch時に永続化した `run.metadata.meeting_note_generation.source_text_hash` / `run_id` と一致した場合のみ採用する。hash不一致のtool-callは書き戻さない。
-- INV-reconciler-003: 対象ingest runの `meeting_note_draft` が既に `brainbase_generated` の場合は再書き込みせず、dispatch runの閉包のみ行う（冪等）。
+- INV-reconciler-003: 対象ingest runの `meeting_note_draft` が既に `brainbase_generated` の場合はnoteを再書き込みしない。通常はdispatch runの閉包のみ行うが、同一sessionが進行中かつ候補outputがawaiting-Eveの場合は、noteを変更せず候補tool-callの到着またはsession終端までstreamのpollを継続する（冪等）。
 - INV-reconciler-004: セッションが議事録なしで境界（parked / completed / failed）に達したdispatch runは `blocked` + `action_required: operator_review_eve_session` にし、無限ポーリングしない。生成途中（mid-turn）のセッションは変更せず次tickで再確認する。
 - INV-reconciler-005: stream取得・書き戻しの一時失敗はrunを変更せずerrorとして記録し、次tickで再試行する（transient failureで状態を壊さない）。
 - INV-reconciler-006: 公開承認（`approve_meeting_note_publish`）はBrainbase側humanゲートのまま。reconcilerはdraft更新（`brainbase_source_ready → brainbase_generated`）以上のことをしない。
@@ -55,7 +56,7 @@ flowchart TD
 - [ ] AC-003: `source_text_hash` が突合値と一致しないtool-callは書き戻されず、セッション終端時はdispatch runが `blocked` になる。
 - [ ] AC-004: 生成途中（stream終端が境界イベントでない）のセッションはpendingのまま残り、次回実行で書き戻される。
 - [ ] AC-005: 議事録なしでセッションが終端したdispatch runは `blocked` + `action_required: operator_review_eve_session` + audit `reconcile_blocked` になる。
-- [ ] AC-006: 対象ingest runが既に `brainbase_generated` の場合、streamを読まずにdispatch runを閉じ、noteは再書き込みされない。
+- [ ] AC-006: 対象ingest runが既に `brainbase_generated` の場合、noteは再書き込みされない。候補outputがawaiting-Eveで同一sessionが進行中の場合だけstreamを継続して読み、それ以外はdispatch runを閉じる。
 - [ ] AC-007: stream取得失敗はerrorとしてサマリーに記録され、dispatch runは `running` のまま次tickで再試行される。
 - [ ] AC-008: `POST /api/workflows/control/meeting-pack/eve-note-reconcile` で手動実行でき、サマリー（checked/recorded/blocked/pending/errors）が返る。未配線時は503。
 - [ ] AC-009: 定期実行は `BRAINBASE_EVE_NOTE_RECONCILER_ENABLED` / `_INTERVAL_MS` / `_IMMEDIATE` で制御でき、Eve client未設定時は起動しない。graceful shutdownで停止する。

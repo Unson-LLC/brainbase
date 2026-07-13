@@ -1,19 +1,17 @@
 # Eve議事録生成バックフィル runbook
 
-対象story: `story-eve-dispatch-handoff-transcript-context` / `story-eve-meeting-note-pull-reconciler`
+対象story: `story-eve-dispatch-handoff-transcript-context` / `story-eve-meeting-note-pull-reconciler` / `story-eve-meeting-candidates-pull-reconciler`
 
-> **2026-07-11更新（pull型reconciler）**: Eve側からのpush書き戻しは構造的に不可能（meeting-pack台帳はMacローカルにのみ存在し、Vercelから `localhost:31013` へ到達できずHTTP 403）。書き戻しは**brainbase側のpull型reconciler**（`EveMeetingNoteReconciler`）が行う: dispatch済みEveセッションのstreamを定期ポーリング（デフォルト5分、`BRAINBASE_EVE_NOTE_RECONCILER_INTERVAL_MS`）し、`record_meeting_note_generation` tool-call inputから議事録を取り出して、`source_text_hash` / `run_id` をdispatch時の `run.metadata.meeting_note_generation` と突合のうえローカルのnote-generation契約で反映する。即時反映したい場合は手動トリガ（internal/admin/ceoのみ）:
+> **2026-07-13更新（pull型reconciler）**: Eve側からのpush書き戻しは行わない。書き戻しは**brainbase側のpull型reconciler**（`EveMeetingNoteReconciler`）が行う: dispatch済みEveセッションのstreamを定期ポーリング（デフォルト5分、`BRAINBASE_EVE_NOTE_RECONCILER_INTERVAL_MS`）し、`record_meeting_note_generation` / `record_meeting_candidates` tool-call inputを取り出して、`source_text_hash` / `run_id` をdispatch時のmetadataと突合のうえ反映する。即時反映したい場合はLightsail内から手動トリガする:
 >
 > ```bash
-> TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
-> curl -s -X POST -H "Authorization: Bearer $TOKEN" \
->   http://localhost:31013/api/workflows/control/meeting-pack/eve-note-reconcile | jq
+> set -a; . /home/ubuntu/brainbase/.env; set +a
+> curl -s -X POST -H "x-internal-api-key: $INTERNAL_API_SECRET" \
+>   http://127.0.0.1:55123/api/workflows/control/meeting-pack/eve-note-reconcile | jq
 > # → { checked, recorded, already_recorded, blocked, pending, errors } のサマリーが返る
 > ```
 >
-> 注意: `NODE_ENV=production` のランタイムではCSRF middlewareが有効になり、上記のbare Bearer POSTは
-> 403 `CSRF token required` になる（現行のlaunchdランタイムは `NODE_ENV=development` のため不要）。
-> その場合は `GET /api/csrf-token` で取得したtokenを `x-csrf-token` ヘッダに付与する。
+> `INTERNAL_API_SECRET` の値は標準出力へ出さない。internal API key経路はブラウザ用CSRF tokenを必要としない。
 
 `transcript_to_meeting_note` のEve dispatchがtranscript未同梱だった期間にingestされたrun
 （`meeting_note_draft` outputが `generation_status: brainbase_source_ready` のまま）を、
@@ -21,7 +19,7 @@ transcript同梱の新しいhandoffで再dispatchする手順。
 
 ## 前提
 
-- brainbaseランタイム（launchd, `http://localhost:31013`）が稼働していること
+- Brainbase本番ランタイム（Lightsail `brainbase-nocodb`、systemd `brainbase-ssot.service`、`http://127.0.0.1:55123`）が稼働していること
 - Eve dispatchが設定済みであること（Infisical `brainbase/production` の `EVE_API_*` 4キー。PR #1020）
 - **Eve側のmeeting-agentが生成専任版であること**（brainbase-eve-agents PR #6以降。`record_meeting_note_generation` は外部POSTせずtool-call inputをstageするだけで、書き戻しはbrainbase側reconcilerがstreamから行う）
 - **brainbase側でreconcilerが有効であること**（デフォルト有効。`BRAINBASE_EVE_NOTE_RECONCILER_ENABLED=0` で無効化されていないこと。起動ログ `[eve-note-reconciler] scheduler started` で確認）
@@ -31,15 +29,18 @@ transcript同梱の新しいhandoffで再dispatchする手順。
 
 **リリース順序（この順を守る）:**
 
-1. brainbase-eve-agents PR #6以降（生成専任版meeting-agent）をVercelへデプロイ（`record_meeting_note_generation` はstage専用tool）
-2. brainbase本体のstory PRをdevelopへmergeし、ランタイムへ反映（`./scripts` の通常反映フロー）
-3. 本runbookに従ってバックフィルを実行
+1. brainbase-eve-agentsのproducerをVercel productionへデプロイし、deployment statusが `Ready` であることを確認する
+2. brainbase本体のconsumer story PRを`develop`へmergeする
+3. Lightsail `brainbase-nocodb:/home/ubuntu/brainbase` をmerge済み`origin/develop`へ切り替え、`brainbase-ssot.service`を再起動する
+4. `systemctl is-active`、実行中SHA、`GET http://127.0.0.1:55123/api/health`、起動ログの`[eve-note-reconciler] scheduler started`を確認する
+5. 本runbookに従い、対象を`--run-id`で1件に限定してdry-run後に再dispatchする
 
 **ロールバック:**
 
-- brainbase側は `git revert` で安全に戻せる。本変更が永続化するのは追加的な
-  `run.metadata.meeting_note_generation`（run_id/package_id/source_text_hash）のみで、
-  旧コードはこのフィールドを読まないためデータ移行・スキーマ変更は不要
+- デプロイ前に現在のLightsail checkoutを`ops/lightsail-pre-<story>-<timestamp>`へ退避し、未コミット変更があればそのブランチだけへcommitする。`git reset --hard`や未コミット変更の破棄は行わない
+- 即時ロールバックは`git switch ops/lightsail-pre-<story>-<timestamp>`、`sudo systemctl restart brainbase-ssot.service`の順で行い、active SHA、health、scheduler logを再確認する
+- merge後の正本ロールバックはmerge commitを`git revert`し、そのrevert済み`origin/develop`を同じ手順でデプロイする
+- 本変更が永続化するのは追加的な`run.metadata.meeting_note_generation`と候補output/auditで、不可逆migrationはない
 - revert後も、dispatch済みEveセッションからの書き戻しは従来から存在する
   `POST /api/workflows/control/meeting-pack/note-generation`（hash一致必須）で受理されるか、
   runが `brainbase_source_ready` のまま残るだけで破壊は起きない
@@ -55,13 +56,13 @@ transcript同梱の新しいhandoffで再dispatchする手順。
 
 ### 1. 候補の確認（dry-run）
 
-ledgerは正本ランタイムの `var/workflow-ledger.json` を読む（読み取りのみ）。
-ランタイムは launchd `com.brainbase.ui` の WorkingDirectory（通常 `/Users/ksato/workspace/code/brainbase`。
-`plutil -p ~/Library/LaunchAgents/com.brainbase.ui.plist | grep WorkingDirectory` で確認できる）。
+ledgerはLightsail正本ランタイムの `/home/var/workflow-ledger.json` を読む（dry-runは読み取りのみ）。
+作業ディレクトリは `/home/ubuntu/brainbase`、systemd unitは`brainbase-ssot.service`である。
 
 ```bash
 node script/backfill-eve-meeting-note-dispatch.mjs \
-  --ledger /Users/ksato/workspace/code/brainbase/var/workflow-ledger.json
+  --ledger /home/var/workflow-ledger.json \
+  --run-id <target_ingest_run_id>
 ```
 
 - `brainbase_source_ready` のままの `meeting_note_draft` outputを持つrunが列挙される（2026-07-11時点で17件想定）
@@ -70,9 +71,12 @@ node script/backfill-eve-meeting-note-dispatch.mjs \
 ### 2. 実dispatch
 
 ```bash
+set -a; . /home/ubuntu/brainbase/.env; set +a
 node script/backfill-eve-meeting-note-dispatch.mjs \
-  --ledger <runtime>/var/workflow-ledger.json \
+  --ledger /home/var/workflow-ledger.json \
+  --base-url http://127.0.0.1:55123 \
   --api-key "$INTERNAL_API_SECRET" \
+  --run-id <target_ingest_run_id> \
   --execute
 ```
 
@@ -82,7 +86,7 @@ node script/backfill-eve-meeting-note-dispatch.mjs \
   新規セッションを作る（session再利用は同一 `meeting_note_generation.run_id` の場合のみ）。
   `force_new_session: true` は「同じrunに対する失敗セッションをやり直す」ケースを確実に
   カバーするための明示指定として付ける
-- 特定runだけ再dispatchする場合は `--run-id <run_id>` を付ける（複数指定可）
+- 本番の`--execute`では`--run-id <run_id>`を必須とし、直前のdry-runが`backfill candidates: 1`であることを確認する。限定しない一括実行は禁止
 
 ### 3. 結果確認
 
@@ -111,6 +115,17 @@ Mission Controlの注意面に載せる。`run.message` と audit
 
 blockedにした後もreconcilerはそのrunを再ポーリングしない（対象は `status: running` のみ）。
 回復dispatchが成功すると新しいEve dispatch runが作られ、以降は通常フローで反映される。
+
+## 候補書き戻し失敗の回復手順（operator_review_eve_candidates）
+
+候補outputのtransactional writeに失敗したrunは`blocked` +
+`action_required: operator_review_eve_candidates`としてMission Controlに表示される。
+
+1. 対象runの`run.message`、`metadata.eve_note_reconciler.candidates`、audit `workflow.meeting_pack.candidates.reconcile_blocked`を確認し、`run_id`、`source_text_hash`、失敗stageを記録する
+2. 現在の`meeting_note_draft.payload.source_text_hash`とdispatch metadataのhashを突合する
+3. hash一致かつ一時的な保存失敗なら、同じingest runだけを`--run-id`に指定してdry-runし、候補が1件であることを確認して再dispatchする
+4. hash不一致なら古いEve候補を適用しない。正しいtranscriptを再ingestし、新しいrun IDを限定指定して再dispatchする
+5. 回復後は候補outputとaudit `workflow.meeting_pack.candidates.recorded`および`workflow.meeting_pack.note_generation.reconciled`を確認し、担当者曖昧時は`selected_owner`を自動設定せずPeople SSOT候補から人が選ぶ
 
 ## 失敗時の切り分け
 
