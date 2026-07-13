@@ -14,6 +14,44 @@ CSRF middlewareは、設定済み`INTERNAL_API_SECRET`とrequest headerが完全
 
 path単位でworkflow API全体を除外しない。internal keyを持たないブラウザrequestは従来のCSRF token検証を通す。
 
+## Flow
+
+```mermaid
+flowchart LR
+  Client["Internal client"] -->|"POST + exact x-internal-api-key"| CSRF["CSRF middleware"]
+  CSRF -->|"timing-safe match"| Auth["requireAuth"]
+  Auth -->|"internal_service"| Route["Workflow route"]
+  Browser["Browser client"] -->|"POST without internal key"| CSRF
+  CSRF -->|"valid CSRF token"| Auth
+  CSRF -->|"missing or invalid token"| Reject["403 Forbidden"]
+  Auth -->|"invalid internal key or bearer"| Unauthorized["401 Unauthorized"]
+```
+
+## Threat Model
+
+```mermaid
+flowchart LR
+  subgraph Untrusted["Untrusted request boundary"]
+    Browser["Browser request"]
+    Forged["Forged internal request"]
+  end
+  subgraph TrustedClient["Trusted server boundary"]
+    Eve["Eve exact-run client"]
+  end
+  subgraph Brainbase["Brainbase process boundary"]
+    CSRF["CSRF validation"]
+    Auth["Authentication authority"]
+    Workflow["Workflow route"]
+  end
+  Browser --> CSRF
+  Forged --> CSRF
+  Eve -->|"shared internal secret"| CSRF
+  CSRF -->|"exact key only"| Auth
+  Auth -->|"authorized internal service"| Workflow
+  CSRF -->|"fail closed"| Rejected["403"]
+  Auth -->|"fail closed"| Denied["401"]
+```
+
 ## Consequences
 
 - internal serviceはブラウザ用CSRF tokenなしでworkflow POSTを実行できる。

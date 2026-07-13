@@ -2,6 +2,13 @@
 story_id: story-eve-internal-api-csrf-exemption
 title: Spec - internal API key requestのCSRF境界
 status: active
+diagrams:
+  - kind: flow
+    path: docs/architecture/ADR-eve-internal-api-csrf-exemption.md
+    purpose: internal API key付きPOSTがCSRF middlewareとrequireAuthを順に通るflowを示す。
+  - kind: threat_model
+    path: docs/architecture/ADR-eve-internal-api-csrf-exemption.md
+    purpose: browser、internal client、CSRF境界、認証境界、workflow routeのtrust boundaryを示す。
 ---
 
 ## Invariants
@@ -19,10 +26,19 @@ status: active
 
 ## Scenarios
 
-- **S-1**: production POST + exact key -> CSRF通過 -> `requireAuth`でinternal service認証 -> route到達。
-- **S-2**: production POST + wrong key -> CSRF 403 -> route未到達。
-- **S-3**: production POST + missing key -> CSRF 403 -> route未到達。
-- **S-4**: production POST + server secret unset -> CSRF 403 -> route未到達。
+- **S-001**: production POST + exact key -> CSRF通過 -> `requireAuth`でinternal service認証 -> route到達。
+- **S-002**: production POST + wrong key -> CSRF 403 -> route未到達。
+- **S-003**: production POST + missing key -> CSRF 403 -> route未到達。
+- **S-004**: production POST + server secret unset -> CSRF 403 -> route未到達。
+
+## Diagrams
+
+- kind: flow
+  path: `docs/architecture/ADR-eve-internal-api-csrf-exemption.md`
+  purpose: internal API key付きPOSTがCSRF middlewareとrequireAuthを順に通るflowを示す。
+- kind: threat_model
+  path: `docs/architecture/ADR-eve-internal-api-csrf-exemption.md`
+  purpose: browser、internal client、CSRF境界、認証境界、workflow routeのtrust boundaryを示す。
 
 ## Verification
 
