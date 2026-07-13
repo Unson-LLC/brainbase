@@ -87,6 +87,17 @@ function warnOncePerInterval(message, key) {
     logger.warn(message);
 }
 
+function hasValidInternalApiKey(req) {
+    const configuredKey = process.env.INTERNAL_API_SECRET;
+    const headerValue = req.headers?.['x-internal-api-key'];
+    if (!configuredKey || typeof headerValue !== 'string') return false;
+
+    const configuredBuffer = Buffer.from(configuredKey);
+    const requestBuffer = Buffer.from(headerValue);
+    return configuredBuffer.length === requestBuffer.length
+        && crypto.timingSafeEqual(configuredBuffer, requestBuffer);
+}
+
 // Run cleanup every 15 minutes
 setInterval(cleanupExpiredTokens, 15 * 60 * 1000);
 
@@ -103,6 +114,12 @@ export function csrfMiddleware() {
     return (req, res, next) => {
         // Skip safe methods
         if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+            return next();
+        }
+
+        // Internal service requests are authenticated by the same secret checked by
+        // requireAuth. They are not browser-originated and cannot obtain a CSRF token.
+        if (hasValidInternalApiKey(req)) {
             return next();
         }
 
