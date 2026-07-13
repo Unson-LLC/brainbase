@@ -1,0 +1,102 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "静的markerとfixture bypassは実行型S-002/S-003/S-004、FM-001..FM-003検証へ置換済み",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "note-only、delayed retry、write failure block、hash mismatch、manual route、scheduler surfaceとcurrent-head証跡を確認",
+    "evidence": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-current.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md"
+    ]
+  },
+  "judgment_delta": [
+    "旧needs_changesの根拠はHEAD 5f10214で解消しgate coverageの未充足点なし"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+    "current_head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+      "current_head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T07:47:24.331Z",
+  "git_context": {
+    "head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T07:47:24.325Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "5b2f495982b5bd0c6ec51984a410e592968dd0499a518ae5e1dc97ee5b7c5092",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5a6a-ae32-7f32-a9fd-28b1d43e0380",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-current.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-current.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

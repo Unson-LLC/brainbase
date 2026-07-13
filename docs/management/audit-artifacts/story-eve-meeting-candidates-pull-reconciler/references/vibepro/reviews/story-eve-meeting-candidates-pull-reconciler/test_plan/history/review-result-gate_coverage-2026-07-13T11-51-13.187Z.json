@@ -1,0 +1,132 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "Canonical exact-head coverage is complete; prior traceability findings were VibePro aggregation/schema false positives",
+  "findings": [
+    {
+      "severity": "low",
+      "id": "vibepro-scenario-traceability-aggregation-limitation",
+      "detail": "traceability.json omits inferredSpec scenario clauses; follow up in VibePro runtime without blocking this Brainbase change"
+    }
+  ],
+  "finding_dispositions": [
+    {
+      "finding_id": "traceability-mapped-without-direct-clause-links",
+      "disposition": "false_positive",
+      "resolved_by": [
+        ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/traceability.json"
+      ],
+      "reason": "current target-matched mapped_evidence is direct clause binding under traceability.js",
+      "inferred_from_resolution": false
+    },
+    {
+      "finding_id": "traceability-missing-scenario-fm-coverage",
+      "disposition": "false_positive",
+      "resolved_by": [
+        ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-prepare.json"
+      ],
+      "reason": "canonical scenario coverage is 6/6 and failure modes are covered by a separate passed gate",
+      "inferred_from_resolution": false
+    }
+  ],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-dff6a12c6-replacement.json"
+  ],
+  "inspection": {
+    "summary": "Inspected exact HEAD, canonical E2E and failure-mode coverage, traceability runtime source, changed tests, and UI implementation",
+    "evidence": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-dff6a12c6-replacement.json",
+    "inputs": [
+      ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-prepare.json",
+      ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/traceability.json",
+      "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/pr-manager.js",
+      "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/traceability.js"
+    ]
+  },
+  "judgment_delta": [
+    "needs_changes -> pass because canonical scenario 6/6 and failure-mode gates are current; traceability zero is an aggregation limitation"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+    "current_head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+      "current_head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T11:51:13.187Z",
+  "git_context": {
+    "head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T11:51:13.173Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "3a1540a7c54320805264cd465ae14ed9f2c2672c55554eb1f36f302d57bf1ba7",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5b4a-a1dc-7d80-bfb1-bdd53b22c079",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-dff6a12c6-replacement.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-pass-dff6a12c6-replacement.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

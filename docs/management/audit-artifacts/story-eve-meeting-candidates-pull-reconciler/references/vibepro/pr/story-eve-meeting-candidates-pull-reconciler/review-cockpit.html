@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro PR Prepare</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="pr-prepare">
+    <header class="topbar">
+      <div>
+        <h1>VibePro PR Prepare</h1>
+        <p class="meta">Generated by VibePro at 2026-07-13T18:42:30.467Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-overall-status="ready_for_review">
+        <div>
+          <p class="eyebrow">StoryからPR前確認までのレビュー成果物</p>
+          <h2>meeting packのEve候補と担当者SSOT解決</h2>
+          <p class="muted">story-eve-meeting-candidates-pull-reconciler / origin/develop -> HEAD</p>
+        </div>
+        <span class="status good">ready_for_review</span>
+      </section>
+      <section class="metrics"><article class="metric"><span>スコープ</span><strong>needs_clean_branch</strong><span>clean_branch_or_split_pr</span></article><article class="metric"><span>Gate DAG</span><strong>ready_for_review</strong><span>0件 未解決</span></article><article class="metric"><span>実行Gate</span><strong>ready</strong><span>PR作成可能</span></article><article class="metric"><span>Agent Review</span><strong>pass</strong><span>0件 未充足</span></article><article class="metric"><span>要件整合性</span><strong>pass</strong><span>0件 矛盾</span></article><article class="metric"><span>分割計画</span><strong>split_recommended</strong><span>3レーン</span></article></section>
+
+    <section>
+      <h2>まず見る場所</h2>
+      <div class="cards">
+        <article class="card good">
+          <h3>1. Gateの未解決</h3>
+          <p>未解決Gateはありません。PR作成前にscopeとbranchだけ確認してください。</p>
+        </article>
+        <article class="card info">
+          <h3>2. AIエージェントへの渡し方</h3>
+          <p>実装エージェントには .vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-body.md / .vibepro/pr/story-eve-meeting-candidates-pull-reconciler/gate-dag.html / .vibepro/pr/story-eve-meeting-candidates-pull-reconciler/split-plan.html を渡してください。pr-prepare.json / decision-index.json / evidence-plan.json が正本で、pr-body.md はGitHub向けの短い判断ブリーフです。Gate DAGやsplit-planは生成されている場合に詳細確認へ使います。</p>
+        </article>
+        <article class="card good">
+          <h3>3. Requirement Consistency</h3>
+          <p>Story/Spec/Architectureと既知の実装分岐に明確な矛盾はありません。</p>
+        </article>
+      </div>
+    </section>
+
+      <section>
+        <h2>Story -> Architecture -> Spec -> Code -> Gate</h2>
+        <div class="flow">
+    <article class="flow-step" data-flow-step="Story">
+      <h3>Story</h3>
+      <p>story-eve-meeting-candidates-pull-reconciler</p>
+      <span class="status good">present</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Architecture">
+      <h3>Architecture</h3>
+      <p>ADRあり (docs/architecture/story-eve-meeting-candidates-pull-reconciler.md)</p>
+      <span class="status good">satisfied</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Spec">
+      <h3>Spec</h3>
+      <p>0ファイル</p>
+      <span class="status neutral">inferred</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Code">
+      <h3>Code</h3>
+      <p>3ファイル</p>
+      <span class="status good">present</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Gate">
+      <h3>Gate</h3>
+      <p>ready_for_review</p>
+      <span class="status good">ready_for_review</span>
+    </article>
+  </div>
+      </section>
+
+    <section>
+      <h2>人間レビューの焦点</h2>
+      <div class="cards">
+
+          <article class="card danger">
+            <h3>Risk</h3>
+
+            <p>最新診断gateが needs_review</p>
+          </article>
+
+          <article class="card info">
+            <h3>Review</h3>
+
+            <p>Storyの受け入れ基準と実装差分が対応しているか</p>
+          </article>
+
+          <article class="card info">
+            <h3>Review</h3>
+
+            <p>主要ソース差分: server/services/external-runner/eve-meeting-note-reconciler.js, server/services/meeting-source/meeting-source-mcp-sync-service.js, server/services/workflow/workflow-service.js</p>
+          </article>
+
+          <article class="card info">
+            <h3>Review</h3>
+
+            <p>テスト差分: tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts, tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts, tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts, tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts, ...</p>
+          </article>
+
+      </div>
+    </section>
+
+
+    <section>
+      <h2>Engineering Judgment</h2>
+      <div class="metrics">
+        <article class="metric"><span>Route</span><strong>agent_workflow</strong><span>agent_workflow_dag</span></article>
+        <article class="metric"><span>Active Axes</span><strong>5</strong><span>senior first scan</span></article>
+        <article class="metric"><span>Suppressed Axes</span><strong>0</strong><span>precision filtered</span></article>
+        <article class="metric"><span>accepted_followup</span><strong>1</strong><span>passedではない後続許容</span></article>
+        <article class="metric"><span>Confidence</span><strong>82%</strong><span>classifier</span></article>
+      </div>
+      <div class="cards">
+        <article class="card neutral">
+          <h3>public_contract: active_passed</h3>
+          <p class="muted">gate=passed; confidence=84%</p>
+          <p>この変更は外部利用者、CLI/API、設定、出力形式、またはPR本文契約を壊さないか。 / required=story_spec_traceability, contract_doc, compat_or_output_test, current_verification matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), current_verification:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), migration_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), release_note:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollout_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_instruction:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), observability_evidence:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), focused_test:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), current_verification:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), runtime_path_evidence:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), e2e_runtime_path:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), flow_replay:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), scenario_clause_e2e:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), focused_test:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), current_verification:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), focused_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), current_verification:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), integration_runtime_path:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), artifact_replay:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), parse_failure:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), idempotency_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), query_semantics_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), focused_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), current_verification:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), parse_failure:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), idempotency_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (10 changed / 48 related), code_topology_impact_scope:codebase-memory-mcp (18 changed / 0 related)</p>
+        </article>
+
+        <article class="card neutral">
+          <h3>data_state: active_passed</h3>
+          <p class="muted">gate=passed; confidence=82%</p>
+          <p>永続状態、migration、query/cache、idempotency、replayで既存データを壊さないか。 / required=migration_plan, rollback_plan, idempotency_test, query_semantics_test, current_verification matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), current_verification:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), migration_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), release_note:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollout_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_instruction:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), observability_evidence:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), focused_test:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), current_verification:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), runtime_path_evidence:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), e2e_runtime_path:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), flow_replay:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), scenario_clause_e2e:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), focused_test:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), current_verification:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), focused_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), current_verification:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), integration_runtime_path:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), artifact_replay:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), parse_failure:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), idempotency_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), query_semantics_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), focused_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), current_verification:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), parse_failure:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), idempotency_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (10 changed / 48 related), code_topology_impact_scope:codebase-memory-mcp (18 changed / 0 related)</p>
+        </article>
+
+        <article class="card neutral">
+          <h3>execution_topology: active_passed</h3>
+          <p class="muted">gate=passed; confidence=95%</p>
+          <p>process/thread/worker/agent/gate/retry/artifact lifecycleのつながりでdeadlockや証跡欠落が起きないか。 / required=topology_diagram, flow_replay, artifact_replay, agent_review, current_verification matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), current_verification:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), migration_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), release_note:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollout_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_instruction:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), observability_evidence:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), focused_test:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), current_verification:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), runtime_path_evidence:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), e2e_runtime_path:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), flow_replay:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), scenario_clause_e2e:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), focused_test:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), current_verification:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), focused_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), current_verification:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), integration_runtime_path:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), artifact_replay:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), parse_failure:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), idempotency_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), query_semantics_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), focused_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), current_verification:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), parse_failure:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), idempotency_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (10 changed / 48 related), code_topology_impact_scope:codebase-memory-mcp (18 changed / 0 related), agent_review:agent review summaries passed for required roles</p>
+        </article>
+
+        <article class="card warn">
+          <h3>scope_reviewability: active_accepted_followup</h3>
+          <p class="muted">gate=accepted_followup; confidence=86%</p>
+          <p>このPRは1人のreviewerが一貫した判断として読める粒度か、分割すべきか。 / required=scope_reviewed, split_plan, review_owner_map, related_file_blast_radius, decision_record matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), current_verification:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), migration_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), release_note:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollout_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_instruction:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), observability_evidence:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), focused_test:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), current_verification:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), runtime_path_evidence:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), e2e_runtime_path:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), flow_replay:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), scenario_clause_e2e:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), focused_test:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), current_verification:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), focused_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), current_verification:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), integration_runtime_path:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), artifact_replay:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), parse_failure:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), idempotency_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), query_semantics_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), focused_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), current_verification:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), parse_failure:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), idempotency_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (10 changed / 48 related), related_file_blast_radius:.vibepro/graphify/graph.json (10 changed / 48 related), code_topology_impact_scope:codebase-memory-mcp (18 changed / 0 related), related_file_blast_radius:codebase-memory-mcp (18 changed / 0 related), review_owner_map:agent review stage/role ownership map, decision_record:decision-1783924751419-db0e848d (artifact=docs/architecture/story-eve-meeting-candidates-pull-reconciler.md) missing=scope_reviewed</p>
+        </article>
+
+        <article class="card neutral">
+          <h3>release_ops: active_passed</h3>
+          <p class="muted">gate=passed; confidence=80%</p>
+          <p>release note、operator action、observability、support/rollback導線が必要か。 / required=release_note, rollout_plan, rollback_instruction, observability_evidence, current_verification matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), current_verification:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), migration_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), release_note:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollout_plan:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), rollback_instruction:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), observability_evidence:validate scoped release contract (artifact=.vibepro/qa/meeting-candidates/release-contract-d647d6666.json), focused_test:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), current_verification:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), runtime_path_evidence:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), e2e_runtime_path:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), flow_replay:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), scenario_clause_e2e:npx playwright test tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts --workers=1 (artifact=.vibepro/qa/meeting-candidates/playwright-surface-d647d6666.json), focused_test:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), current_verification:npm run typecheck; git diff --check origin/develop...HEAD; node --check script/backfill-eve-meeting-note-dispatch.mjs (artifact=.vibepro/qa/meeting-candidates/typecheck-d647d6666.json), focused_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), current_verification:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), integration_runtime_path:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), artifact_replay:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), parse_failure:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), idempotency_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), query_semantics_test:npx vitest run integration surface (artifact=.vibepro/qa/meeting-candidates/vitest-integration-surface-d647d6666.json), focused_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), current_verification:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), parse_failure:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), idempotency_test:npx vitest run unit surface (artifact=.vibepro/qa/meeting-candidates/vitest-unit-d647d6666.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (10 changed / 48 related), code_topology_impact_scope:codebase-memory-mcp (18 changed / 0 related), decision_record:decision-1783924752981-5d57c0e8 (artifact=docs/architecture/story-eve-meeting-candidates-pull-reconciler.md), rollback_plan:Release rollout and rollback path accepted, release_note:Release rollout and rollback path accepted</p>
+        </article>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>実行Gate</h2>
+      <div class="metrics">
+        <article class="metric"><span>状態</span><strong>ready</strong><span>PR作成可能</span></article>
+        <article class="metric"><span>Blocking Gate</span><strong>0</strong><span>critical</span></article>
+        <article class="metric"><span>PR作成</span><strong>allowed</strong><span>VibePro gate</span></article>
+        <article class="metric"><span>Schema</span><strong>0.1.0</strong><span>execution gate</span></article>
+      </div>
+      <div class="cards">
+        <article class="card good">
+          <h3>準備完了</h3>
+
+          <p>VibePro PR作成に対するCritical blockerは解消されています。</p>
+        </article>
+      </div>
+      <h3>必要な対応</h3>
+      <p class="muted">ブロック中の対応はありません。</p>
+    </section>
+
+
+    <section>
+      <h2>Agent Review Gate</h2>
+      <div class="metrics">
+        <article class="metric"><span>状態</span><strong>pass</strong><span>required</span></article>
+        <article class="metric"><span>必須ロール</span><strong>4</strong><span>policy</span></article>
+        <article class="metric"><span>未充足ロール</span><strong>0</strong><span>missing/stale/block</span></article>
+        <article class="metric"><span>Checkpoint未充足</span><strong>0</strong><span>checkpoint</span></article>
+        <article class="metric"><span>古い結果</span><strong>0</strong><span>current git binding</span></article>
+      </div>
+
+      <h3>未充足の必須レビュー</h3>
+      <div class="cards">
+        <article class="card good">
+          <h3>未充足レビューなし</h3>
+
+          <p>現在のgit状態に対するPR-final/checkpoint agent review roleは通過しています。</p>
+        </article>
+      </div>
+      <h3>ステージ概要</h3>
+      <div class="cards">
+        <article class="card good">
+          <h3>gate: pass</h3>
+          <p class="muted">gate</p>
+          <p>pass=2, missing=0, stale=0, block=0</p>
+        </article>
+
+        <article class="card good">
+          <h3>preview: pass</h3>
+          <p class="muted">preview</p>
+          <p>pass=2, missing=0, stale=0, block=0</p>
+        </article>
+
+        <article class="card good">
+          <h3>architecture_spec: pass</h3>
+          <p class="muted">architecture_spec</p>
+          <p>pass=1, missing=0, stale=0, block=0</p>
+        </article>
+
+        <article class="card good">
+          <h3>test_plan: pass</h3>
+          <p class="muted">test_plan</p>
+          <p>pass=2, missing=0, stale=0, block=0</p>
+        </article>
+
+        <article class="card good">
+          <h3>implementation: pass</h3>
+          <p class="muted">implementation</p>
+          <p>pass=2, missing=0, stale=0, block=0</p>
+        </article>
+
+        <article class="card good">
+          <h3>planning_spec: pass</h3>
+          <p class="muted">planning_spec</p>
+          <p>pass=3, missing=0, stale=0, block=0</p>
+        </article>
+
+        <article class="card good">
+          <h3>requirement: pass</h3>
+          <p class="muted">requirement</p>
+          <p>pass=3, missing=0, stale=0, block=0</p>
+        </article>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>PR lifecycle artifact の鮮度</h2>
+      <p class="muted">全体: current。古い pr-create / pr-merge を最新の証跡として扱わないための HEAD 照合です。</p>
+
+    <table>
+      <thead><tr><th>Kind</th><th>Status</th><th>Artifact</th><th>Artifact HEAD</th><th>Current HEAD</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>pr_create</td><td>current</td><td>.vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-create.json</td><td>d647d66668c3</td><td>d647d66668c3</td><td>pr-create artifact is bound to the current HEAD d647d66668c3</td></tr><tr><td>pr_merge</td><td>not_created</td><td>.vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-merge.json</td><td>-</td><td>d647d66668c3</td><td>pr-merge.json has not been created yet</td></tr>
+      </tbody>
+    </table>
+
+    </section>
+
+
+    <section>
+      <h2>Requirement Consistency</h2>
+      <div class="metrics">
+        <article class="metric"><span>Status</span><strong>pass</strong><span>requirement gate</span></article>
+        <article class="metric"><span>Invariants</span><strong>9</strong><span>extracted</span></article>
+        <article class="metric"><span>Scenario Gaps</span><strong>0</strong><span>needs review</span></article>
+        <article class="metric"><span>Contradictions</span><strong>0</strong><span>potential bugs</span></article>
+      </div>
+      <article class="card good">
+        <h3>次に足すもの</h3>
+        <p>Story/Spec/Architectureと既知の実装分岐に明確な矛盾はありません。</p>
+      </article>
+      <div class="cards">
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-meeting-candidates-pull-reconciler.md</p>
+          <p>EveMeetingNoteReconciler accepts record_meeting_candidates calls only when org, project, run, and source_text_hash match the dispatched meeting ingest run.</p>
+        </article>
+
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-meeting-candidates-pull-reconciler.md</p>
+          <p>Brainbase deterministically assigns candidate ids, status, source, evidence references, and approval flags before candidate outputs become reviewable.</p>
+        </article>
+
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-meeting-candidates-pull-reconciler.md</p>
+          <p>Given an awaiting-Eve candidate output, when a valid Eve candidate call is reconciled, then the workflow transitions the candidate output state by writing normalized task, decision, and follow-up payloads to the same ingest run.</p>
+        </article>
+
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-meeting-candidates-pull-reconciler.md</p>
+          <p>Given a valid note and no candidate call in an ended Eve session, when reconciliation runs, then the workflow state closes the dispatch successfully from the note while awaiting-Eve candidate outputs remain unchanged.</p>
+        </article>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>Network Contract検出</h2>
+      <div class="metrics">
+        <article class="metric"><span>状態</span><strong>pass</strong><span>route contract</span></article>
+        <article class="metric"><span>API呼び出し</span><strong>0</strong><span>detected</span></article>
+        <article class="metric"><span>Route不足</span><strong>0</strong><span>block</span></article>
+        <article class="metric"><span>新規呼び出し</span><strong>0</strong><span>diff</span></article>
+      </div>
+      <div class="cards"><article class="card good"><h3>検出なし</h3><p>API client callとroute fileは整合しています。</p></article></div>
+    </section>
+
+      <section>
+        <h2>Graphify影響範囲</h2>
+
+    <div class="metrics">
+      <article class="metric"><span>Graph</span><strong>available</strong><span>.vibepro/graphify/graph.json</span></article>
+      <article class="metric"><span>一致ファイル</span><strong>10</strong><span>変更ファイル</span></article>
+      <article class="metric"><span>関連ファイル</span><strong>48</strong><span>確認候補</span></article>
+      <article class="metric"><span>Graphサイズ</span><strong>6448/13440</strong><span>nodes / edges</span></article>
+    </div>
+
+    <table>
+      <thead><tr><th>変更ファイル</th><th>一致したgraph node</th><th>確認する関連ファイル</th></tr></thead>
+      <tbody>
+        <tr><td>script/backfill-eve-meeting-note-dispatch.mjs</td><td>script_backfill_eve_meeting_note_dispatch_mjs<br>script_backfill_eve_meeting_note_dispatch_parseargs<br>script_backfill_eve_meeting_note_dispatch_listbackfillcandidates<br>script_backfill_eve_meeting_note_dispatch_dispatchcandidate<br>script_backfill_eve_meeting_note_dispatch_describedispatchfailure<br>script_backfill_eve_meeting_note_dispatch_main</td><td>cli/sync.js<br>public/modules/pages/admin-visualization-page.js<br>relay/server.js<br>scripts/populate-auth-grants.mjs</td></tr><tr><td>server/services/external-runner/eve-meeting-note-reconciler.js</td><td>server_services_external_runner_eve_meeting_note_reconciler_js<br>external_runner_eve_meeting_note_reconciler_nowiso<br>external_runner_eve_meeting_note_reconciler_parsedurationms<br>external_runner_eve_meeting_note_reconciler_extracttoolcallsbyname<br>external_runner_eve_meeting_note_reconciler_extractmeetingnotetoolcalls<br>external_runner_eve_meeting_note_reconciler_extractmeetingcandidatestoolcalls<br>external_runner_eve_meeting_note_reconciler_classifysessionstreamphase<br>external_runner_eve_meeting_note_reconciler_evemeetingnotereconciler</td><td>cli/sync.js<br>server/bootstrap/core-services.js<br>server/services/external-runner/eve-session-client.js<br>server/services/workflow/workflow-repository.js<br>server/services/workflow/workflow-service.js</td></tr><tr><td>server/services/meeting-source/meeting-source-mcp-sync-service.js</td><td>server_services_meeting_source_meeting_source_mcp_sync_service_js<br>meeting_source_meeting_source_mcp_sync_service_nowiso<br>meeting_source_meeting_source_mcp_sync_service_parsedurationms<br>meeting_source_meeting_source_mcp_sync_service_subtractms<br>meeting_source_meeting_source_mcp_sync_service_maxiso<br>meeting_source_meeting_source_mcp_sync_service_providercursorafterartifacts<br>meeting_source_meeting_source_mcp_sync_service_stablehash<br>meeting_source_meeting_source_mcp_sync_service_normalizewhitespace</td><td>cli/sync.js<br>lib/state-store.js<br>public/modules/core/di-container.js<br>public/modules/core/session-data-cache.js<br>scripts/populate-auth-grants.mjs<br>server/services/meeting-source/meeting-source-mcp-adapters.js<br>server/services/workflow/loop-pack-design-gate.js<br>server/services/workflow/meeting-workflow-pack.js<br>server/services/workflow/workflow-service.js<br>tests/e2e/story-meeting-source-brainbase-note-generation-contract.spec.ts<br>tests/server/services/learning-health-service.test.js</td></tr><tr><td>server/services/workflow/workflow-service.js</td><td>server_services_workflow_workflow_service_js<br>workflow_workflow_service_meetingreviewvalidationerror<br>workflow_workflow_service_normalizeprojectkey<br>workflow_workflow_service_projectaccesskeys<br>workflow_workflow_service_workflowpriority<br>workflow_workflow_service_companionapprovalpriority<br>workflow_workflow_service_isactionablecompanionapprovalrun<br>workflow_workflow_service_outputsummary</td><td>cli/sync.js<br>lib/config-parser.js<br>lib/state-store.js<br>public/modules/core/di-container.js<br>public/modules/core/http-client.js<br>public/modules/core/session-data-cache.js<br>scripts/populate-auth-grants.mjs<br>server/bootstrap/core-services.js<br>server/lib/errors.js<br>server/services/admin-visualization-service.js<br>server/services/companion/decision-event-service.js<br>server/services/external-runner/eve-meeting-note-reconciler.js</td></tr><tr><td>tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts</td><td>tests_e2e_story_eve_dispatch_handoff_transcript_context_contract_spec_ts<br>e2e_story_eve_dispatch_handoff_transcript_context_contract_spec_makeevesessionclient<br>e2e_story_eve_dispatch_handoff_transcript_context_contract_spec_makeservice<br>e2e_story_eve_dispatch_handoff_transcript_context_contract_spec_samplepackage<br>e2e_story_eve_dispatch_handoff_transcript_context_contract_spec_bootstrapandingest</td><td>server/services/workflow/meeting-workflow-pack.js<br>server/services/workflow/workflow-service.js</td></tr><tr><td>tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts</td><td>tests_e2e_story_meeting_source_mcp_sync_worker_contract_spec_ts<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_readfile<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_fulfilljson<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_openapp<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_defaultmeetingsourcepreviewbody<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_stubsettingsmeetingsourceroutes<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_createsyncfixture<br>e2e_story_meeting_source_mcp_sync_worker_contract_spec_createrealworkflowservicefixture</td><td>server/mesh/message-router.js<br>server/routes/meeting-source-settings.js<br>server/services/workflow/workflow-service.js</td></tr><tr><td>tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts</td><td>tests_e2e_story_meeting_task_owner_ssot_resolution_flow_spec_ts<br>e2e_story_meeting_task_owner_ssot_resolution_flow_spec_makeinfossotpeopleservice<br>e2e_story_meeting_task_owner_ssot_resolution_flow_spec_makeservice<br>e2e_story_meeting_task_owner_ssot_resolution_flow_spec_samplepackage<br>e2e_story_meeting_task_owner_ssot_resolution_flow_spec_ingest</td><td>server/services/workflow/meeting-workflow-pack.js<br>server/services/workflow/workflow-service.js</td></tr><tr><td>tests/server/meeting-source-mcp-sync-worker.test.js</td><td>tests_server_meeting_source_mcp_sync_worker_test_js<br>server_meeting_source_mcp_sync_worker_test_makeservice</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+
+      </section>
+      <section>
+        <h2>変更ファイル分類</h2>
+
+    <table>
+      <thead><tr><th>分類</th><th>件数</th><th>ファイル</th></tr></thead>
+      <tbody>
+        <tr><td>story_docs</td><td>2</td><td>docs/stories/story-eve-meeting-candidates-pull-reconciler.md<br>docs/stories/story-eve-meeting-note-pull-reconciler.md</td></tr><tr><td>architecture_docs</td><td>1</td><td>docs/architecture/story-eve-meeting-candidates-pull-reconciler.md</td></tr><tr><td>responsibility_authority_metadata</td><td>1</td><td>docs/responsibility-authority/eve-meeting-note-pull-reconciler.json</td></tr><tr><td>source</td><td>3</td><td>server/services/external-runner/eve-meeting-note-reconciler.js<br>server/services/meeting-source/meeting-source-mcp-sync-service.js<br>server/services/workflow/workflow-service.js</td></tr><tr><td>tests</td><td>8</td><td>tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts<br>tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts<br>tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts<br>tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts<br>tests/server/meeting-source-mcp-sync-worker.test.js<br>tests/server/routes/meeting-source-settings.test.js<br>tests/server/services/eve-meeting-note-reconciler.test.js<br>tests/unit/backfill-eve-meeting-note-dispatch.test.js</td></tr><tr><td>other</td><td>3</td><td>docs/runbooks/eve-meeting-note-backfill.md<br>public/workflows.html<br>script/backfill-eve-meeting-note-dispatch.mjs</td></tr>
+      </tbody>
+    </table>
+
+      </section>
+      <section class="grid-2">
+        <div>
+          <h2>成果物</h2>
+
+    <table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>PR body draft</td><td>.vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-body.md</td></tr><tr><td>Gate DAG HTML</td><td>.vibepro/pr/story-eve-meeting-candidates-pull-reconciler/gate-dag.html</td></tr><tr><td>Split Plan HTML</td><td>.vibepro/pr/story-eve-meeting-candidates-pull-reconciler/split-plan.html</td></tr>
+      </tbody>
+    </table>
+
+        </div>
+        <div>
+          <h2>次のコマンド</h2>
+          <div><p><code>git switch -c feat/eve-meeting-candidates-pull-reconciler origin/develop</code></p><p><code>git cherry-pick &lt;story-related-commit-sha&gt;</code></p><p><code>npx vibepro pr create . --story-id story-eve-meeting-candidates-pull-reconciler --base origin/develop --head feat/eve-meeting-candidates-pull-reconciler</code></p></div>
+        </div>
+      </section>
+
+  </main>
+</body>
+</html>

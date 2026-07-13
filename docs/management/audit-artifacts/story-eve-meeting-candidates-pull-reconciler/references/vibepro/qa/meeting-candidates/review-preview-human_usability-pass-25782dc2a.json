@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "role": "human_usability",
+  "agent_id": "019f5bbf-5844-7ba3-b131-9d4887fb4951",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "担当者未設定、要選択、曖昧理由、people候補、Eve stream failure/recoveryがMission Controlで判別可能。",
+  "findings": [],
+  "evidence": [
+    "public/workflows.html",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    ".vibepro/qa/meeting-candidates/playwright-surface-25782dc2a.json"
+  ]
+}

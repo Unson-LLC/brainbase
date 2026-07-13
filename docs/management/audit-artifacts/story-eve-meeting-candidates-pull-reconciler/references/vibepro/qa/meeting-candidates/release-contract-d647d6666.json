@@ -1,0 +1,8 @@
+{
+  "status": "pass",
+  "head_sha": "d647d66668c3252e9e5264649d47de6db43a2270",
+  "migration_plan": "No schema migration; existing awaiting-Eve records are reconciled in place",
+  "rollout_plan": "Deploy the exact merged SHA, then execute one explicit run_id only",
+  "rollback_plan": "Switch to the preserved predeploy ops branch and restart brainbase-ssot.service",
+  "observability": "Verify service status, API health, workflow ledger output, audit output, and Mission Control"
+}

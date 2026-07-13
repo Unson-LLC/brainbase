@@ -1,0 +1,15 @@
+{
+  "status": "pass",
+  "summary": "unit 35/35、integration 154/154、Playwright 7/7、server staticを突合し新規欠陥なし。",
+  "inspection_summary": "回帰guard、path coverage、AC-007、server JS静的根拠をexact HEADで確認。",
+  "inspection_evidence": ".vibepro/qa/meeting-candidates/vitest-unit-25782dc2a.json, .vibepro/qa/meeting-candidates/vitest-integration-surface-25782dc2a.json",
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-unit_integration.md",
+    ".vibepro/qa/meeting-candidates/vitest-unit-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json"
+  ],
+  "judgment_delta": "unit/integration regression guardをunknownからexact-head 35/35・154/154でconfirmedへ更新。",
+  "findings": []
+}

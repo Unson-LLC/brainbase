@@ -1,0 +1,104 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "requirement",
+  "role": "product_requirement",
+  "status": "pass",
+  "summary": "Current HEAD satisfies the product requirement: the final Mission Control owner-resolution label fix is in scope and now renders friendly labels for the remaining owner-resolution reasons without changing the underlying owner-selection contract for Eve candidate flows.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-requirement-product_requirement-9be369d82.json"
+  ],
+  "inspection": {
+    "summary": "Verified HEAD 9be369d82332a4764b3462053f584522e6d8d706; read the review request, story/spec/architecture docs, traceability and verification artifacts, inspected the diff, confirmed workflow-service emits unique_partial_name_or_alias and generic_owner_hint_requires_human_selection, confirmed public/workflows.html now maps both to user-facing labels, and checked related E2E/service coverage in tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts, tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts, and tests/server/services/eve-meeting-note-reconciler.test.js; recorded Playwright evidence is current at this HEAD, though an ad hoc local Playwright rerun did not complete because config.webServer exited early in the sandbox.",
+    "evidence": ".vibepro/qa/meeting-candidates/review-requirement-product_requirement-9be369d82.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/requirement/review-request-product_requirement.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial concern: the last commit might only patch a narrow UI string path and still leave raw owner_resolution reason codes or weak acceptance coverage on adjacent surfaces. Final judgment: pass because the backend reason codes were already authoritative and persisted, Mission Control now covers the two previously raw labels, the updated E2E asserts both rendered Japanese labels and zero raw-code leakage, and the broader current-head story evidence still covers awaiting-Eve, note-only, and owner-resolution behavior without contradicting this fix."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T17:18:16.841Z",
+  "git_context": {
+    "head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T17:18:16.840Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "33f7e788833cc12ad59a016633df5fc7e44ea537d88ac1f30e8755b42c507481",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5c76-0799-7333-9ae8-e4c7c8982ca2",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-requirement-product_requirement-9be369d82.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/requirement/review-request-product_requirement.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-requirement-product_requirement-9be369d82.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,15 @@
+{
+  "status": "needs_changes",
+  "head_sha": "e4c014c0e881ade4ae32ab23202e8351ea5c3699",
+  "agent_id": "019f5b1b-82da-7701-b235-59453ff8b4a9",
+  "summary": "Recovery metadata can be overwritten by a later state update in the same successful poll.",
+  "inspection_summary": "Failure metadata, Mission Control fields, and failure/recovery audit events exist, but subsequent reconciler writers replace metadata.eve_note_reconciler.",
+  "judgment_delta": "Transient failure visibility is implemented; durable recovery visibility still needs merge-preserving metadata updates.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "network-runtime-recovery-metadata-overwritten",
+      "detail": "markCandidateWait, closeDispatchRun, or blockCandidateWriteBack can replace the reconciler metadata written by markStreamReadRecovered in the same poll."
+    }
+  ]
+}

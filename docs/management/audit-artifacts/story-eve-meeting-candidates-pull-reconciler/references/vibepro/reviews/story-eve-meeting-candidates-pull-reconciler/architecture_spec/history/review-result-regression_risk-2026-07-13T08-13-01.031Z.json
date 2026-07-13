@@ -1,0 +1,114 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "Current HEAD closes the prior AC-003 traceability gap and covers regression and path surfaces",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "path-surface-ac3-traceability-gap",
+      "disposition": "accepted",
+      "resolved_by": [
+        "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-fdf467155.json"
+  ],
+  "inspection": {
+    "summary": "Inspected Story Architecture E2E candidate writeback owner resolution reconciler states and Mission Control outputs",
+    "evidence": ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-fdf467155.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/review-request-regression_risk.md"
+    ]
+  },
+  "judgment_delta": [
+    "The stale AC-003 binding concern is resolved because current traceability maps AC-1 through AC-8 and the executable rejection test has canonical markers"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "fdf467155e06f5b7d28cdb38f24a73ee793d76c6",
+    "current_head_sha": "fdf467155e06f5b7d28cdb38f24a73ee793d76c6",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "fdf467155e06f5b7d28cdb38f24a73ee793d76c6",
+      "current_head_sha": "fdf467155e06f5b7d28cdb38f24a73ee793d76c6",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T08:13:01.031Z",
+  "git_context": {
+    "head_sha": "fdf467155e06f5b7d28cdb38f24a73ee793d76c6",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T08:13:01.024Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "fdf467155e06f5b7d28cdb38f24a73ee793d76c6",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "53c76008f4f29f59bca5c9abafb5892e0ce887fd823fe45101f5527eba586d7e",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5a86-122e-7aa3-bb72-9638b745e9f2",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-fdf467155.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-fdf467155.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,20 @@
+{
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "preview",
+  "role": "human_usability",
+  "status": "pass",
+  "head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+  "agent_id": "019f5b34-6656-7583-932f-f20e8e5ec97a",
+  "summary": "Mission Control keeps recovered poll history visible and preserves explicit owner, waiting, success, and blocked states.",
+  "resolved_findings": [
+    "human-usability-recovered-poll-error-hidden"
+  ],
+  "findings": [],
+  "evidence": [
+    "public/workflows.html:1455",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts:450",
+    ".vibepro/qa/meeting-candidates/playwright-surface-dff6a12c6.json",
+    ".vibepro/qa/meeting-candidates/vitest-unit-dff6a12c6.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-dff6a12c6.json"
+  ]
+}

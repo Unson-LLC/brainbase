@@ -1,0 +1,20 @@
+{
+  "status": "pass",
+  "summary": "Exact-head browser evidence covers recovered poll history, retry and recovery, note-only, delayed and blocked paths, and owner outcomes.",
+  "inspection_summary": "Inspected the exact-head and pre-fix workflows rendering, Playwright evidence, story E2E, owner-resolution E2E, and reconciler metadata flow.",
+  "inspection_evidence": ".vibepro/qa/meeting-candidates/playwright-surface-dff6a12c6.json",
+  "inspection_inputs": [
+    "public/workflows.html",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json"
+  ],
+  "judgment_delta": [
+    "Recovered history might lack a pre-fix-killing assertion -> pass because HEAD^ blanks poll error fields after recovery while exact-head E2E requires them to remain visible.",
+    "Owner coverage might be happy-path-only -> pass because browser tests cover unique, unresolved, ignored, and ambiguous owner states plus approval surfaces."
+  ],
+  "findings": [],
+  "agent": {"system": "codex", "id": "019f5b41-7073-7442-824f-3852fa270a25", "model": "gpt-5.4", "reasoning_effort": "high", "closed": true},
+  "head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56"
+}

@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "role": "ux_completion",
+  "agent_id": "019f5bb3-bd69-7332-8142-60a7d99db8d5",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "曖昧担当者は未設定のまま要選択として可視化され、理由と候補一覧も実装・exact-head検証済み。",
+  "findings": [],
+  "evidence": [
+    ".vibepro/qa/meeting-candidates/playwright-surface-25782dc2a.json",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    "public/workflows.html",
+    "server/services/workflow/workflow-service.js"
+  ]
+}

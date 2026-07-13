@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "status": "pass",
+  "head_sha": "8cda985b0887c166d37bb02c44899789f7308f2a",
+  "agent_id": "019f5aff-7d83-7350-90e4-2556f18b69a2",
+  "summary": "Exact-head E2E and UX evidence covers AC-001 through AC-008 and the active-session retry branch.",
+  "inspection": "Reviewed Story, Architecture, Spec, workflow and reconciler code, Mission Control UI, 7 passing story E2Es, and focused retry tests.",
+  "judgment_delta": "Previously stale E2E evidence now passes on exact HEAD, including delayed retry, mismatch visibility, owner safety, and approval boundaries.",
+  "findings": []
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "created_at": "2026-07-13T18:42:30.467Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADRあり (docs/architecture/story-eve-meeting-candidates-pull-reconciler.md)",
+  "source_artifacts": {
+    "story": "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+    "review_cockpit": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/review-cockpit.html",
+    "gate_dag": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/gate-dag.json"
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADRあり (docs/architecture/story-eve-meeting-candidates-pull-reconciler.md)"
+    },
+    "spec": {
+      "status": "inferred",
+      "reason": "9 clauses inferred from Story+Code+Test"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-13T18:42:28.660Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "7195abbbdab0b4f78d20e6dbe39c419a868208db",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

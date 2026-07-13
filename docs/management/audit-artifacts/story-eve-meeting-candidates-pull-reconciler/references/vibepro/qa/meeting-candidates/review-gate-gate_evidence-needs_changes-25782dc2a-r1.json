@@ -1,0 +1,20 @@
+{
+  "agent_id": "019f5bc6-f830-7b10-a31d-61669a030d32",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "verdict": "NEEDS_CHANGES",
+  "summary": "Exact-head tests, static checks, reviews, and live CI pass, but the imported Graphify CI artifact and pr-prepare readiness artifact are bound to older HEADs.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "gate-evidence-ci-import-stale",
+      "detail": "Import the exact-head Graphify CI result."
+    },
+    {
+      "severity": "medium",
+      "id": "gate-evidence-readiness-binding-stale",
+      "detail": "Rerun PR preparation after current gate records are complete."
+    }
+  ]
+}

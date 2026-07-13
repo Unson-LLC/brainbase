@@ -1,0 +1,104 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "status": "pass",
+  "summary": "Exact-head E2E coverage exercises AC-001 through AC-008 and user-visible states",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-test_plan-e2e_ux-pass-12880d75.json"
+  ],
+  "inspection": {
+    "summary": "Inspected Story, Architecture, spec, E2E evidence and implementation surfaces",
+    "evidence": ".vibepro/qa/meeting-candidates/review-test_plan-e2e_ux-pass-12880d75.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-e2e_ux.md"
+    ]
+  },
+  "judgment_delta": [
+    "Happy-path-only concern -> pass because delayed, mismatch, owner ambiguity, running and blocked paths are exercised"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+    "current_head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+      "current_head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T10:09:30.401Z",
+  "git_context": {
+    "head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T10:09:30.394Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "e7b7a4d57f47d2f7f5b4371b1a70c4aa16cc49eac543191a75861c4ecec175f7",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5aee-296c-7032-a1b5-b6d17f294c02",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-test_plan-e2e_ux-pass-12880d75.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-e2e_ux.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-test_plan-e2e_ux-pass-12880d75.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

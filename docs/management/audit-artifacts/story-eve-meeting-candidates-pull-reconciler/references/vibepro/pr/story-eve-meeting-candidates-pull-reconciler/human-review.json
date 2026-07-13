@@ -1,0 +1,146 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "created_at": "2026-07-13T18:42:30.467Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/split-plan.json",
+    "decision_records": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/story-eve-meeting-candidates-pull-reconciler.md)"
+    },
+    "spec": {
+      "status": "inferred",
+      "required": true,
+      "reason": "9 clauses inferred from Story+Code+Test"
+    },
+    "decision_records": {
+      "total": 5,
+      "open": 0,
+      "by_type": {
+        "needs_review": 5
+      },
+      "by_status": {
+        "accepted": 5
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783949046567-f24507bc",
+        "story_id": "story-eve-meeting-candidates-pull-reconciler",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "server_static_scope",
+        "source_status": "needs_changes",
+        "summary": "Server JS static verification uses repository ESLint plus Node syntax checks and executable semantics",
+        "reason": "The established TypeScript program covers public only; changed server JavaScript passed repository ESLint, node --check, 35 unit and 154 integration tests at exact HEAD.",
+        "reviewer": "codex",
+        "artifact": ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+            "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+            "expected_root": null,
+            "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+            "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-13T13:24:06.562Z"
+        },
+        "recorded_at": "2026-07-13T13:24:06.567Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": 1,
+      "final_20_auto_closure_rate": 1,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-13T18:42:28.660Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "7195abbbdab0b4f78d20e6dbe39c419a868208db",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

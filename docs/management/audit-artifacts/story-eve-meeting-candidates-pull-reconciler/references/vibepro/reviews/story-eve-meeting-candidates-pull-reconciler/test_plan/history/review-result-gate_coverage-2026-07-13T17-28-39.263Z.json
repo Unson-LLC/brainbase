@@ -1,0 +1,114 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "Current exact-head test-plan evidence covers the promised gate surfaces: 62/62 unit, 157/157 integration, 28/28 Playwright, operator-visible invalid-payload blocking in Mission Control, and final owner-resolution reason labels from persistence through UI rendering.",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "invalid-payload-mission-control-gap",
+      "disposition": "accepted",
+      "resolved_by": [
+        "9be369d82332a4764b3462053f584522e6d8d706"
+      ],
+      "reason": "Mission Control invalid-payload coverage retained at exact HEAD",
+      "inferred_from_resolution": false
+    }
+  ],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-9be369d82.json"
+  ],
+  "inspection": {
+    "summary": "Verified HEAD 9be369d82332a4764b3462053f584522e6d8d706; read the gate_coverage review request, Story/spec/evidence artifacts, current strict-head verification evidence, changed workflow/UI/service files, vitest unit/integration JSON artifacts, Playwright artifact, owner-resolution code paths in WorkflowService, Mission Control label mapping in public/workflows.html, and E2E/service tests covering invalid candidate payload blocking and owner-resolution observability.",
+    "evidence": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-9be369d82.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial concern from the summary-depth gate flags was that path/failure coverage might still miss operator-visible invalid-payload handling or final owner-resolution output surfaces; direct inspection of current strict-head artifacts, Mission Control E2E assertions, WorkflowService reason emission, and UI label mapping shows those surfaces are now covered end to end."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T17:28:39.263Z",
+  "git_context": {
+    "head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T17:28:39.262Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "4f5577469190c8dcb25474b736415fee6767a185069fbe1aa514b8a6e994e37b",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5c83-3dd8-7731-9e50-f430031b8517",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-9be369d82.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-test_plan-gate_coverage-9be369d82.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

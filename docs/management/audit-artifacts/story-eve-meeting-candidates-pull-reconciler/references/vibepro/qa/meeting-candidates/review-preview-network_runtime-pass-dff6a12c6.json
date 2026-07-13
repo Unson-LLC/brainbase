@@ -1,0 +1,21 @@
+{
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "preview",
+  "role": "network_runtime",
+  "status": "pass",
+  "head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+  "agent_id": "019f5b34-520d-7730-86ce-ed0892ab4d9f",
+  "summary": "Poll diagnostics survive recovery and downstream wait, close, and block writers without retaining stale status or reason.",
+  "resolved_findings": [
+    "network-runtime-recovery-metadata-overwritten"
+  ],
+  "findings": [],
+  "evidence": [
+    "server/services/external-runner/eve-meeting-note-reconciler.js:393",
+    "server/services/external-runner/eve-meeting-note-reconciler.js:462",
+    "tests/server/services/eve-meeting-note-reconciler.test.js:540",
+    ".vibepro/qa/meeting-candidates/vitest-unit-dff6a12c6.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-dff6a12c6.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-dff6a12c6.json"
+  ]
+}

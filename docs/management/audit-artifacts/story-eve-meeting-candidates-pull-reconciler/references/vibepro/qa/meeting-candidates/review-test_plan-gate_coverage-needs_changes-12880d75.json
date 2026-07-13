@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "needs_changes",
+  "head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+  "agent_id": "019f5aee-3e49-7383-977d-7654889f3b83",
+  "summary": "Broad exact-head AC coverage exists, but the active-session transient candidate write failure branch lacks a regression test.",
+  "inspection": "Inspected Story, Architecture, spec, exact-head unit, integration, E2E and CI evidence, reconciler and related service tests.",
+  "judgment_delta": "Likely pass -> needs_changes because the in-progress session candidate write failure path is implemented but not exercised.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "fm-002-active-candidate-write-failure-untested",
+      "detail": "Add a regression test proving an in-progress Eve session with transient candidate write-back failure remains running and is retried instead of being blocked."
+    }
+  ]
+}

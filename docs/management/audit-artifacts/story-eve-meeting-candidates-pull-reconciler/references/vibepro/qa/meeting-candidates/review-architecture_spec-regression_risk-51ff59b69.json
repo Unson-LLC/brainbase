@@ -1,0 +1,20 @@
+{
+  "status": "needs_changes",
+  "summary": "主要経路と現HEAD証跡は十分だが、Eve由来候補の無制限入力が性能とデータ境界の回帰を作る。",
+  "inspection_summary": "既存API、承認、運用、性能境界と自動・手動dispatch、active・ended・failure、legacy、UI、audit、runbookを実査した。空白title問題は解消済みだが、旧最大5件境界が失われていた。",
+  "inspection_evidence": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json; .vibepro/qa/meeting-candidates/*-51ff59b69.json; focused vitest 38/38 pass",
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+    "git diff origin/develop...51ff59b69146d7c1cbe2432adfeda81a0f12e1a4",
+    "server/services/workflow/workflow-service.js",
+    "tests/server/services/eve-meeting-note-reconciler.test.js"
+  ],
+  "judgment_delta": "空白titleによる既存output消去は解消したが、LLM入力の件数・長さ上限がなく旧最大5件境界を失うため needs_changes。",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "regression-unbounded-eve-candidate-payload",
+      "detail": "候補件数とtitle/owner_hint/source_excerpt/follow_up bodyの長さをmutation前に制限し、拒否時に既存output/auditが不変である回帰テストが必要。"
+    }
+  ]
+}

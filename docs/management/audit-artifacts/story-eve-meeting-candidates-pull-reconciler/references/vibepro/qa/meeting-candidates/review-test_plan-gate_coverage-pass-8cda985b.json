@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "head_sha": "8cda985b0887c166d37bb02c44899789f7308f2a",
+  "agent_id": "019f5aff-9250-7783-8ea3-50ba22f76d50",
+  "summary": "AC-001 through AC-008 and FM-001 through FM-004 have exact-head coverage; the FM-002 retry gap is resolved.",
+  "inspection": "Reviewed unit, integration-surface, E2E, typecheck artifacts and reran the focused 33-test reconciler suite and typecheck.",
+  "judgment_delta": "Prior FM-002 active candidate write failure coverage gap now passes because first-failure running state and next-poll success are tested.",
+  "findings": []
+}

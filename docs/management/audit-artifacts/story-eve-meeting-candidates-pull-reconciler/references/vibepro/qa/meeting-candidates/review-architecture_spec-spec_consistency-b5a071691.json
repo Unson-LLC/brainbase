@@ -1,0 +1,32 @@
+{
+  "status": "needs_changes",
+  "summary": "Current code and tests agree, but the prior note completion contract and owner ambiguity wording conflict with the new candidate flow.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "spec-base-reconciler-already-generated-conflict",
+      "detail": "The prior note reconciler contract closes after note generation, while the candidate extension must continue polling until candidates arrive or the session terminates."
+    },
+    {
+      "severity": "medium",
+      "id": "spec-owner-multiple-match-rule-conflict",
+      "detail": "The new story says multiple People SSOT matches are always ambiguous, while the existing contract permits a uniquely ranked project-context match."
+    },
+    {
+      "severity": "low",
+      "id": "spec-architecture-scope-count-stale",
+      "detail": "Architecture scope says nine files while the current diff has fifteen files."
+    }
+  ],
+  "inspection_summary": "Compared the new story and architecture with existing reconciler and owner SSOT contracts, current implementation, diff, and strict-head evidence.",
+  "inspection_evidence": ".vibepro/qa/meeting-candidates/playwright-surface-b5a071691.json",
+  "inspection_inputs": [
+    "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+    "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+    "docs/stories/story-eve-meeting-note-pull-reconciler.md",
+    "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "server/services/workflow/workflow-service.js"
+  ],
+  "judgment_delta": "Current tests pass, but cross-story SSOT comparison exposed two contract wording conflicts and one stale scope count."
+}

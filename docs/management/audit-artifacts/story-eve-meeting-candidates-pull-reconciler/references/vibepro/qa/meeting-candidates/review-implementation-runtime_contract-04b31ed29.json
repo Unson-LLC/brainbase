@@ -1,0 +1,19 @@
+{
+  "status": "pass",
+  "summary": "Exact-scope reconciliation, bounded-input rejection, and operator-visible blocked recovery remain aligned with the runtime contract.",
+  "inspection_summary": "Inspected candidate validation, atomic writeback, scope matching, blocked recovery, Mission Control trace fields, and exact-head verification.",
+  "inspection_evidence": [
+    "server/services/workflow/workflow-service.js",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "public/workflows.html",
+    ".vibepro/qa/meeting-candidates/playwright-surface-04b31ed29.json",
+    ".vibepro/qa/meeting-candidates/vitest-unit-04b31ed29.json"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/implementation/review-request-runtime_contract.md",
+    "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+    "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md"
+  ],
+  "judgment_delta": "The invalid-payload recovery path is head-bound, visible, and preserves the exact org, project, run, and source hash contract.",
+  "findings": []
+}

@@ -1,0 +1,18 @@
+{
+  "status": "pass",
+  "head_sha": "2e62d753946b562cb445cc8106562c959a0d30a4",
+  "summary": "The delta only exposes already-recorded runtime reconciliation diagnostics and adds E2E coverage; no regression against the accepted backend behavior was found.",
+  "inspection_summary": "Compared 0bd95a664..HEAD, the prior accepted full review, public/workflows.html, the Playwright spec, current verification evidence, and reconciler expectations.",
+  "inspection_evidence": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json",
+  "inspection_inputs": [
+    "git diff 0bd95a664..HEAD -- public/workflows.html tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-0bd95a664.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-2e62d7539.json"
+  ],
+  "judgment_delta": [
+    "The backend runtime-failure contract was already accepted; the current delta only exposes that state in Mission Control.",
+    "The existing truthy-value filter keeps empty diagnostics hidden and poll-failure rows separate.",
+    "The browser test now covers runtime failure, reconcile_runtime_failed, absence of poll error, and recovery visibility."
+  ],
+  "findings": []
+}

@@ -1,0 +1,20 @@
+{
+  "status": "block",
+  "head": "de8c05da70f9256bad361a930368d5c783c5571c",
+  "agent_id": "019f5aa8-43c0-7742-95da-f580c2662a66",
+  "summary": "Strict candidate scope binding is correct, but the published package_id fallback contract and missing operator-visible mismatch count must be corrected before release.",
+  "inspection": "Reviewed the story, architecture, reconciler, workflow handoff contract, Mission Control UI, unit tests, and E2E coverage. The reviewer ran the reconciler unit suite (31/31) and focused E2E suite (7/7).",
+  "judgment_delta": "The stricter binding was initially considered low-risk, then blocked after confirming the producer contract still advertised run_id or package_id and Mission Control collapsed out-of-scope calls into a generic no_candidate_call state.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "candidate-package-fallback-broken",
+      "detail": "candidates_write_back advertises run_id or package_id while the reconciler now requires an exact run_id match."
+    },
+    {
+      "severity": "medium",
+      "id": "scope-mismatch-not-distinguishable-on-output-surface",
+      "detail": "Mission Control does not render mismatched_candidate_calls, so an excluded call is indistinguishable from no call."
+    }
+  ]
+}

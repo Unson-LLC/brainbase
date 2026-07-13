@@ -1,0 +1,112 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "preview",
+  "role": "network_runtime",
+  "status": "pass",
+  "summary": "Prior recovery metadata overwrite finding is resolved",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "network-runtime-recovery-metadata-overwritten",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/external-runner/eve-meeting-note-reconciler.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Poll diagnostics are selectively preserved across all downstream state writers without stale status or reason",
+    "evidence": ".vibepro/qa/meeting-candidates/review-preview-network_runtime-pass-676349855.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/preview/review-request-network_runtime.md"
+    ]
+  },
+  "judgment_delta": [
+    "needs_changes to pass after selective diagnostic preservation and regression coverage"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+    "current_head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+      "current_head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T11:09:25.993Z",
+  "git_context": {
+    "head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T11:09:25.988Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "e1426c9eb1a8eb5454f7f32d0904bd349e972eee325b80e3a5ee45d0d1684e47",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5b25-f02b-7393-a756-edfd69a98f29",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-preview-network_runtime-pass-676349855.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/preview/review-request-network_runtime.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-preview-network_runtime-pass-676349855.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,27 @@
+{
+  "status": "needs_changes",
+  "head": "10547dd32311fe497c790ca6f306a9dd97572714",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "agent_id": "019f5ac2-afe9-7263-a259-ba50f7d4dd15",
+  "summary": "Core reconciler coverage passed, but changed meeting-source ingest surfaces and current CI were missing from the recorded bundle.",
+  "inspection": "Inspected changed source and tests, strict-head verification artifacts, traceability, prior review status, and focused live reconciler tests.",
+  "judgment_delta": "Likely pass from reconciler evidence -> needs_changes because the gate bundle omitted material changed meeting-source surfaces and CI binding.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "missing-current-head-surface-coverage",
+      "detail": "Changed meeting-source worker, settings route, and browser contract were not in the strict-head verification bundle."
+    },
+    {
+      "severity": "medium",
+      "id": "stale-gate-result-claim",
+      "detail": "The previous gate result was bound to fdf467155 rather than current HEAD."
+    },
+    {
+      "severity": "low",
+      "id": "missing-current-ci-binding",
+      "detail": "Current GitHub checks were not imported into VibePro evidence."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "status": "needs_changes",
+  "summary": "Malformed candidate payloads can overwrite persisted outputs, and the runbook references runtime signals that do not exist.",
+  "head": "216d1dc5e45abdd23c344b7ad1d86570e7797c2d",
+  "inspection_evidence": [
+    ".vibepro/qa/meeting-candidates/vitest-unit-216d1dc5e.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-216d1dc5e.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-216d1dc5e.json",
+    ".vibepro/qa/meeting-candidates/server-static-surface-216d1dc5e.json"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "id": "regression-malformed-candidate-payload-overwrites",
+      "detail": "record_meeting_candidates validates identity fields only; malformed candidate fields are normalized to empty values and can overwrite persisted outputs."
+    },
+    {
+      "severity": "medium",
+      "id": "regression-runbook-candidate-audit-contract-drift",
+      "detail": "The runbook names metadata and audit keys that are not emitted by the implementation."
+    }
+  ]
+}

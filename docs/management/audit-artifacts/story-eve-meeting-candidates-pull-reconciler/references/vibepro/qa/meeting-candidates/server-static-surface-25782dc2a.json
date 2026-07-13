@@ -1,0 +1,36 @@
+{
+  "status": "pass",
+  "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "scope": "changed_server_javascript",
+  "commands": [
+    {
+      "command": "npx eslint server/services/external-runner/eve-meeting-note-reconciler.js server/services/meeting-source/meeting-source-mcp-sync-service.js server/services/workflow/workflow-service.js",
+      "exit_code": 0
+    },
+    {
+      "command": "node --check server/services/external-runner/eve-meeting-note-reconciler.js",
+      "exit_code": 0
+    },
+    {
+      "command": "node --check server/services/meeting-source/meeting-source-mcp-sync-service.js",
+      "exit_code": 0
+    },
+    {
+      "command": "node --check server/services/workflow/workflow-service.js",
+      "exit_code": 0
+    }
+  ],
+  "semantic_runtime_evidence": [
+    {
+      "artifact": ".vibepro/qa/meeting-candidates/vitest-unit-25782dc2a.json",
+      "passed": 35,
+      "failed": 0
+    },
+    {
+      "artifact": ".vibepro/qa/meeting-candidates/vitest-integration-surface-25782dc2a.json",
+      "passed": 154,
+      "failed": 0
+    }
+  ],
+  "note": "The repository TypeScript program covers public/jsconfig.json only. Changed server JavaScript is covered by the repository ESLint contract, Node syntax checks, and executable unit/integration semantics."
+}

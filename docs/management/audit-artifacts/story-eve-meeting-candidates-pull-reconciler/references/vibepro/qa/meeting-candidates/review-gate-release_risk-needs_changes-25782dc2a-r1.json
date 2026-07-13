@@ -1,0 +1,16 @@
+{
+  "agent_id": "019f5bc7-21d6-7ff0-b683-770523fea3bf",
+  "stage": "gate",
+  "role": "release_risk",
+  "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "verdict": "NEEDS_CHANGES",
+  "summary": "Merge dependency is satisfied and migration risk is low, but producer deployment, scoped redispatch, release target ordering, operator recovery, and rollback evidence need clarification or remediation before merge.",
+  "findings": [
+    {"severity":"high","id":"release-producer-deploy-unverified","detail":"Verify Eve producer deployment and runtime SHA before the Brainbase consumer merge."},
+    {"severity":"high","id":"release-scoped-redispatch-unsafe","detail":"Provide a safe run-id lookup and dispatch only the run corresponding to msrc_4f7c995f."},
+    {"severity":"medium","id":"release-order-lightsail-ambiguous","detail":"Record producer deployment and Brainbase runtime deployment as separate ordered operations."},
+    {"severity":"medium","id":"operator-candidate-recovery-missing","detail":"Document the operator recovery procedure for candidate failures."},
+    {"severity":"medium","id":"rollback-disable-too-broad","detail":"Use a tested consumer revert/rollback procedure rather than the broad reconciler disable switch."
+    }
+  ]
+}

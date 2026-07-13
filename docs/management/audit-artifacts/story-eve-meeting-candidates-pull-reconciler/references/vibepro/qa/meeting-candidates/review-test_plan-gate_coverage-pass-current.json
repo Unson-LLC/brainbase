@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "agent_id": "019f5a6a-ae32-7f32-a9fd-28b1d43e0380",
+  "head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+  "status": "pass",
+  "summary": "静的scenario markerとfixture bypassは実行可能なS-002/S-003/S-004、FM-001..FM-003の検証へ置換されている",
+  "findings": [],
+  "inspection_summary": "note-only、delayed retry、write failure block、hash mismatch、manual route、scheduler surfaceとcurrent-head証跡を確認",
+  "judgment_delta": "旧needs_changesの根拠はHEAD 5f10214で解消し、gate coverageとして未充足点なし。"
+}

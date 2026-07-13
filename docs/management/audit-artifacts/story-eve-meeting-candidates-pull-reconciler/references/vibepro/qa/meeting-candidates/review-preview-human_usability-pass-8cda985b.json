@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "preview",
+  "role": "human_usability",
+  "status": "pass",
+  "head_sha": "8cda985b0887c166d37bb02c44899789f7308f2a",
+  "agent_id": "019f5b0c-050c-7ed3-8cc9-117aab1536a4",
+  "summary": "Mismatch visibility, candidate readability, owner defaults, approvals, and recovery controls passed.",
+  "inspection": "Reviewed Story UI, Mission Control, People SSOT owner resolution, approval boundaries, and exact-head tests.",
+  "judgment_delta": "No human-usability finding was identified on the reviewed head.",
+  "findings": []
+}

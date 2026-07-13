@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "implementation",
+  "role": "ux_completion",
+  "status": "needs_changes",
+  "head_sha": "10547dd32311fe497c790ca6f306a9dd97572714",
+  "agent": {
+    "system": "codex",
+    "agent_id": "019f5ad1-73ee-7223-b117-153ef5521ffe",
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high"
+  },
+  "summary": "Mission Control loses the mismatch count when valid and scope-mismatched candidate calls occur in the same Eve session.",
+  "inspection": "Inspected story, Mission Control UI, reconciler result shape, workflow metadata propagation, server tests, and exact-head E2E. The mismatch-only path is covered, but mixed valid and invalid calls discard excluded-count evidence.",
+  "judgment_delta": "Mismatch visibility is complete for all-invalid sessions but incomplete for mixed sessions, so the implementation needs one observability fix and regression coverage.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "ux-mismatch-count-drops-on-mixed-session",
+      "detail": "Return mismatched_candidate_calls on successful candidate write-back and cover mixed valid and invalid calls in unit and E2E tests."
+    }
+  ]
+}

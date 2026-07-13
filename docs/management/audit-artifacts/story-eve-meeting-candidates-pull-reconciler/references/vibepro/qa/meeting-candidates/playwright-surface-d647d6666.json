@@ -1,0 +1,1047 @@
+{
+  "config": {
+    "configFile": "/private/tmp/brainbase-meeting-source-owner-hint/playwright.config.js",
+    "rootDir": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/private/tmp/brainbase-meeting-source-owner-hint/var/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/private/tmp/brainbase-meeting-source-owner-hint",
+        "testIgnore": [],
+        "testMatch": [
+          "tests/e2e/**/*.spec.@(js|ts)",
+          "tests/e2e/**/*.test.@(js|ts)",
+          "e2e/**/*.spec.@(js|ts)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run test:server",
+      "url": "http://localhost:31978",
+      "reuseExistingServer": false,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+      "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:1 ac:2 ac:3 AC-001 AC-002 AC-003 S-001 ingest auto-dispatch hands off transcript, run refs and write-back contract",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.899Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-e5ac0205485d5f9196c1",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 138,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:1 AC-001 S-004 manual backfill dispatch resolves the ingest run from package_id",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.919Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-9776a13dcac52e2836a7",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 185,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:4 AC-004 S-002 a dispatch whose run belongs to another loop intent is rejected before any Eve session",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.929Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-4deaf1808b63ed98b659",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 202,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:5 ac:7 AC-005 AC-007 S-002 transcript-less runs block referenced dispatch while ingest stays best-effort",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 10,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.936Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-327b85e5ac54fc26cbeb",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 220,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:6 AC-006 S-003 dispatches without a meeting_note_generation reference keep the existing handoff shape",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.950Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-c4170d783cef862f42f3",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 254,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:7 AC-007 FM provider_failure Eve session create failure keeps ingest best-effort and audited",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.960Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-e9a295476946e7c31dec",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 284,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:6 AC-006 FM schema_failure malformed meeting_note_generation input is rejected by schema validation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.967Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-3b5b543b268023941c0c",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 302,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:8 AC-008 S-004 backfill script lists brainbase_source_ready runs from the ledger in dry-run",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 32,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:18.973Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-128080ff50263b8a957b",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 323,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:8 AC-008 backfill execute requires exactly one run before reading the ledger",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 51,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.008Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-a511789fd9b3e9962ce4",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 377,
+          "column": 1
+        },
+        {
+          "title": "story-eve-dispatch-handoff-transcript-context ac:8 AC-008 docs contract: backfill runbook prescribes force_new_session and the dispatch API",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.062Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "54aa3749c4c5d49dbec3-034050005a7080b34594",
+          "file": "tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts",
+          "line": 392,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+      "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler AC-001 AC-002 AC-005 AC-006 AC-007 AC-008 scenario_clause_e2e flow_replay writes Eve candidates and defaults a unique People SSOT owner",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.076Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-c423510d98d946de1ea4",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 212,
+          "column": 1
+        },
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler AC-003 ac:3 source hash mismatch rejects candidate writes",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.084Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-6a6aa43647e071ee00d0",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 252,
+          "column": 1
+        },
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler AC-007 ambiguous People SSOT matches stay unassigned",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.089Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-b9c8292c566af41a4b76",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 275,
+          "column": 1
+        },
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler S-002 SCN-002 AC-004 ac:4 production_path_matrix note-only closes successfully with an empty awaiting-Eve candidate output",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.094Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-eb072b750497f1f0e14b",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 314,
+          "column": 1
+        },
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler S-003 SCN-003 FM-002 flow_replay delayed candidates keep the run open and are recorded on the next poll",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.102Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-d54775a09565d91c5e84",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 351,
+          "column": 1
+        },
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler S-004 SCN-004 FM-003 artifact_replay matching candidate write failure blocks with an operator action",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.108Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-2ee05c3776b672d6b579",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 404,
+          "column": 1
+        },
+        {
+          "title": "story-eve-meeting-candidates-pull-reconciler S-002 S-003 S-004 e2e_ux exposes reconciliation, polling errors, owner, retry, and blocking in Mission Control",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2791,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:19.115Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "628ad9bb3997a9c2bb4b-cf187729f44a8b8b21b0",
+          "file": "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+          "line": 450,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+      "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "story-meeting-task-owner-ssot-resolution S-001 AC-001 AC-002 AC-007 scenario_clause_e2e flow_replay resolves owner_hint from people SSOT without rewriting the hint",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.233Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-cebe85748799bd8c7f83",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 203,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution production_path_matrix workflow_flow_replay scenario_clause_e2e ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 ac:13 ac:14 ac:15 ac:16 ac:17 ac:18 ac:19 ac:20 ac:21 ac:22 real HTTP review-ingest stores owner_resolution and API reads it back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 79,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.239Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-d76606ea51498842ea9b",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 217,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution S-002 S-003 AC-003 AC-008 AC-009 scenario_clause_e2e flow_replay leaves missing people and speaker labels unresolved",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.321Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-92a6c101f9c591863fb1",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 288,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution AC-004 scenario_clause_e2e flow_replay marks ambiguous people without selecting an owner",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.326Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-b6d263277f9f3f5be672",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 303,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution S-004 S-007 S-008 S-009 AC-005 AC-010 AC-013 scenario_clause_e2e flow_replay keeps human gate and idempotent output storage",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.331Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-478fdf2a6e7adb9224bb",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 318,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution S-005 AC-006 AC-011 scenario_clause_e2e flow_replay keeps ingest alive when people SSOT is unavailable",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.336Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-e50ed94a1d346828b654",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 337,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution S-006 AC-012 scenario_clause_e2e flow_replay preserves an existing selected_owner_id only when it exists in people SSOT",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.340Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-8cbe48d7eb35fabdf08f",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 348,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution AC-014 AC-015 AC-016 AC-017 AC-018 AC-019 AC-020 scenario_clause_e2e flow_replay keeps verification surfaces explicit",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.344Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-59a9a3c1715e75b321f2",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 366,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution AC-021 AC-022 scenario_clause_e2e flow_replay ranks surname and given-name owner hints with people SSOT context",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.349Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-3f6f77eec70542cc400e",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 386,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution AC-023 AC-024 AC-025 scenario_clause_e2e flow_replay auto-selects only safe people SSOT owner candidates",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.354Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-7210b381caccfe80b8e6",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 447,
+          "column": 1
+        },
+        {
+          "title": "story-meeting-task-owner-ssot-resolution S-008 S-009 AC-019 AC-020 scenario_clause_e2e ui_replay shows owner resolution states in Workflow Mission Control",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 406,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T18:18:22.359Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "19ce3d1ec202a02d5ee9-890d08bd07905a558b79",
+          "file": "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts",
+          "line": 517,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-13T18:18:17.504Z",
+    "duration": 5295.471,
+    "expected": 28,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

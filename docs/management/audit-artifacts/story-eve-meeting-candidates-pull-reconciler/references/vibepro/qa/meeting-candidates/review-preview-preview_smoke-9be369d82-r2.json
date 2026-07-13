@@ -1,0 +1,15 @@
+{
+  "role": "preview_smoke",
+  "agent_id": "019f5c9a-0999-75b1-95e0-dbecc02ee60e",
+  "status": "needs_changes",
+  "summary": "Runtime and UI path coverage is present, but the canonical typecheck-current artifact points to an older SHA while claiming current HEAD.",
+  "inspection_summary": "Inspected current preview requests, QA evidence, runtime and UI paths, and unit, integration, and E2E coverage.",
+  "judgment_delta": "The implementation path was near-pass, but contradictory current typecheck evidence requires regeneration on the next HEAD.",
+  "findings": [
+    {
+      "id": "current-typecheck-evidence-stale",
+      "severity": "high",
+      "detail": "typecheck-current.json records an older SHA and must be refreshed on the final HEAD."
+    }
+  ]
+}

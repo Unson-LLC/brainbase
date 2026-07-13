@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "preview",
+  "role": "network_runtime",
+  "status": "needs_changes",
+  "head_sha": "8cda985b0887c166d37bb02c44899789f7308f2a",
+  "agent_id": "019f5b0b-d602-79d3-b45a-ede11ed0a07b",
+  "summary": "Core reconciliation passed, but session-stream failures were not persisted for operators.",
+  "inspection": "Reviewed endpoint, client, polling, retry, security, telemetry, audit, release, and rollback surfaces.",
+  "judgment_delta": "The remaining network-runtime gap was workflow-visible polling failure telemetry.",
+  "findings": [
+    {
+      "id": "network-runtime-stream-failure-not-visible",
+      "severity": "medium",
+      "path": "server/services/external-runner/eve-meeting-note-reconciler.js"
+    }
+  ]
+}
