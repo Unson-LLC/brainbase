@@ -27,6 +27,5 @@ status: active
 ## Verification
 
 - Unit: `tests/unit/csrf-internal-api-key-exempt.test.js`
-- E2E: `tests/e2e/story-eve-internal-api-csrf-exemption.spec.ts`
+- E2E: `tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts`
 - Production: 対象meeting sourceのexact-run dry-run後にexecuteし、dispatch run作成を確認する。
-

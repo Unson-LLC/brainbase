@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-internal-api-csrf-exemption",
+  "title": "Internal API CSRF Boundary Authority",
+  "responsibilities": [
+    {
+      "id": "internal_api_csrf_boundary",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/ADR-eve-internal-api-csrf-exemption.md#decision"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": "docs/specs/eve-internal-api-csrf-exemption.md#invariants"
+        },
+        {
+          "kind": "spec",
+          "ref": "docs/stories/story-eve-internal-api-csrf-exemption.md#acceptance-criteria"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "server/middleware/csrf.js",
+          "server/middleware/auth.js"
+        ],
+        "symbols": [
+          "hasValidInternalApiKey",
+          "csrfMiddleware",
+          "requireAuth"
+        ],
+        "risk_surfaces": [
+          "auth_boundary",
+          "server_api"
+        ]
+      },
+      "required_evidence": [
+        "current_head_verification"
+      ],
+      "unknown_policy": "Only a single x-internal-api-key value that exactly matches a configured INTERNAL_API_SECRET may bypass browser CSRF validation. This bypass grants no route authority: requireAuth remains authoritative and must authenticate the same request as an internal service. Missing, wrong, multi-value, or server-unconfigured secrets fail closed, and browser requests without the exact internal key remain subject to the existing CSRF token contract."
+    }
+  ]
+}

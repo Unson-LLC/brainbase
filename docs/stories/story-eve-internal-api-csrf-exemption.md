@@ -5,6 +5,8 @@ status: active
 created_at: 2026-07-13
 updated_at: 2026-07-13
 period: 2026-W29
+responsibility_authority_docs:
+  - path: docs/responsibility-authority/eve-internal-api-csrf-exemption.json
 ---
 
 # 本番internal API key経路のCSRF除外
@@ -41,12 +43,18 @@ Brainbaseのserver-to-server workflowを運用し、会議候補の自動取得�
 - When: CSRF middlewareを通る
 - Then: 従来どおり403で拒否する
 
+### S-004: exact-run workflow経路
+
+- Given: 対象meeting sourceのbackfillが正しいinternal API keyを付けて`POST /api/workflows/control/loop-intents/:loopIntentId/eve-session`を呼ぶ
+- When: 本番と同じ順序でCSRF middlewareと`requireAuth`を通る
+- Then: CSRF 403では止まらず、internal serviceとしてworkflow routeへ到達する
+
 ## Acceptance Criteria
 
 - [ ] AC-001 / ac:1: 設定済みsecretと完全一致するinternal API keyだけがCSRFを通過し、後段の`requireAuth`でinternal serviceとして認証される
 - [ ] AC-002 / ac:2: 誤キー、header欠落、server secret未設定はいずれもCSRFで403になる
 - [ ] AC-003 / ac:3: internal keyを持たないブラウザ経路のCSRF検証は変更しない
-- [ ] AC-004 / ac:4: Lightsailへ反映後、対象meeting sourceのexact-run backfillが403なくdispatchされる
+- [ ] AC-004 / ac:4: exact-runが利用するworkflow POSTが本番middleware順序でCSRF 403なくrouteへ到達する
 
 ## Done Evidence
 
@@ -56,9 +64,21 @@ Brainbaseのserver-to-server workflowを運用し、会議候補の自動取得�
 - Static: typecheckと変更ファイルのESLintを通す
 - Production: Lightsailへmerge commitを反映し、対象runに限定したdry-runとexecuteで候補生成を確認する
 
+## Engineering Judgment Spine
+
+current_reality: internal API keyは`requireAuth`がserver-to-server認証として受理するが、前段のCSRF middlewareがブラウザ用tokenなしの本番POSTを403にしている。
+
+failure_modes: secret未設定、header欠落、値不一致、複数値header、ブラウザ由来のtokenなしPOSTをfail-closedで拒否し、正キーでも後段の`requireAuth`を必須とする。path単位の無条件除外やCSRF層での権限付与は行わない。
+
+done_evidence: Unitで全negative path、Story E2Eで本番middleware順序とAC-001からAC-004、Integrationで既存workflow route、Staticで構文・型・lint、本番で対象run限定のdry-runとexecuteを確認する。
+
+release_or_operation: merge commitをLightsailに反映し、healthとschedulerを確認してから対象meeting sourceのexact-runだけを実行する。失敗時は直前deploy branchへ戻してserviceを再起動する。
+
 ## Release / Rollback
 
 DB migrationはない。Brainbase consumerをLightsailへ反映して対象runだけを再実行する。問題時は直前のdeploy branchへ戻して`brainbase-ssot.service`を再起動し、正本ではmerge commitをrevertする。
+
+本番release verificationでは対象meeting sourceのdry-runが1件だけであることを確認してからexecuteし、CSRF 403が解消してdispatch runが作られることを記録する。
 
 ## スコープ外
 
