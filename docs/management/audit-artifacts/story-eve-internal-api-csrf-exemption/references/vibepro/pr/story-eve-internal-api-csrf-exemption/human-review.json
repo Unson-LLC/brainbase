@@ -1,0 +1,114 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-internal-api-csrf-exemption",
+  "created_at": "2026-07-13T20:04:44.000Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
+  "source_artifacts": {
+    "review_cockpit": ".vibepro/pr/story-eve-internal-api-csrf-exemption/review-cockpit.html",
+    "architecture_review": ".vibepro/pr/story-eve-internal-api-csrf-exemption/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md",
+    "gate_dag": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.json",
+    "split_plan": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+    "decision_records": ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/ADR-eve-internal-api-csrf-exemption.md)"
+    },
+    "spec": {
+      "status": "present",
+      "required": true,
+      "reason": "explicit Spec docs are present (docs/specs/story-eve-internal-api-csrf-exemption.md)"
+    },
+    "decision_records": {
+      "total": 4,
+      "open": 0,
+      "by_type": {
+        "needs_review": 4
+      },
+      "by_status": {
+        "accepted": 4
+      },
+      "warnings": [],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1783972526417-7581c057",
+        "story_id": "story-eve-internal-api-csrf-exemption",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "gate:judgment_axis_scope_reviewability",
+        "source_status": "needs_evidence",
+        "summary": "One reviewer can assess the seven-file change as one coherent auth-boundary decision",
+        "reason": "The middleware implementation, negative-path tests, real middleware-chain E2E, Story/Spec/ADR, and authority map are all evidence for one CSRF/auth contract. Splitting them would separate the runtime change from its safety proof; the completed gate_evidence review inspected the full seven-file scope with no findings.",
+        "reviewer": "codex",
+        "artifact": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-result-gate_evidence.json",
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [],
+        "git_context": {
+          "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+          "current_branch": "codex/internal-api-csrf-exemption",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-13T19:55:26.416Z"
+        },
+        "recorded_at": "2026-07-13T19:55:26.417Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": 1,
+      "final_20_auto_closure_rate": 1,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-13T20:04:42.358Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "7195abbbdab0b4f78d20e6dbe39c419a868208db",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

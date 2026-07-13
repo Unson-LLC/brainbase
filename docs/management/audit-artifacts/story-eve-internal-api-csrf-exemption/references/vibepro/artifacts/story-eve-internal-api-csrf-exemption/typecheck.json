@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-internal-api-csrf-exemption",
+  "kind": "typecheck",
+  "status": "pass",
+  "command": "npm run typecheck",
+  "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec"
+}

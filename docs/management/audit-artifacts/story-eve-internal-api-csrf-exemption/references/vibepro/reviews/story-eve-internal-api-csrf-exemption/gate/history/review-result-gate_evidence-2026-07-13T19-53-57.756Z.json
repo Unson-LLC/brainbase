@@ -1,0 +1,108 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-internal-api-csrf-exemption",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "current headのCSRF除外は正しいinternal API keyだけに限定され、既存CSRF経路と後段のrequireAuthを維持している。regression_guardとpath_surface_coverageを満たす。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "origin/developとの差分7ファイル、CSRFと認証の実装・登録順序、既存例外、workflow route、Story/Spec/ADR、責任境界、current-head検証証跡、traceability、VibePro gate生成物を読み取り専用で確認した。",
+    "evidence": ".vibepro/pr/story-eve-internal-api-csrf-exemption/verification-evidence.json; .vibepro/pr/story-eve-internal-api-csrf-exemption/traceability.json; .vibepro/artifacts/story-eve-internal-api-csrf-exemption/",
+    "inputs": [
+      "git diff origin/develop...d7b7e9e764614599ec1eb5180c466053247bd6ec",
+      "server/middleware/csrf.js and server/middleware/auth.js",
+      "tests/unit/csrf-internal-api-key-exempt.test.js and tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+      "docs/stories/story-eve-internal-api-csrf-exemption.md and docs/specs/story-eve-internal-api-csrf-exemption.md and docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+      ".vibepro/pr/story-eve-internal-api-csrf-exemption/verification-evidence.json and traceability.json"
+    ]
+  },
+  "judgment_delta": [
+    "regression_guard: global CSRF弱体化の懸念 -> exact key以外は従来処理へ流れ、誤鍵・欠落・複数値・secret未設定・既存telemetry例外がcurrent head証跡で確認できたためpass",
+    "path_surface_coverage: workflow happy pathだけの懸念 -> safe methods、既存例外、通常CSRF、後段requireAuth、HTTP status、authSource、route到達、契約文書とgate artifactまで確認できたためpass",
+    "security boundary: CSRF通過が権限付与する懸念 -> middlewareはnextだけを実行しrequireAuthが再検証するため境界維持"
+  ],
+  "managed_worktree_context": {
+    "status": "satisfied",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "review record is running inside the recorded managed worktree",
+    "repo_root": "/private/tmp/brainbase-internal-api-csrf-exemption",
+    "actual_root": "/private/tmp/brainbase-internal-api-csrf-exemption",
+    "expected_root": "/private/tmp/brainbase-internal-api-csrf-exemption",
+    "expected_head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+    "current_head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+    "managed_worktree": {
+      "source_repo": "/private/tmp/brainbase-internal-api-csrf-exemption",
+      "path": "/private/tmp/brainbase-internal-api-csrf-exemption",
+      "branch": "codex/internal-api-csrf-exemption",
+      "actual_branch": "codex/internal-api-csrf-exemption",
+      "current_head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+      "dirty": false,
+      "dirty_fingerprint": "clean",
+      "raw_dirty": false,
+      "raw_dirty_fingerprint": "clean",
+      "fingerprint_scope": {
+        "user_excludes": [
+          ".vibepro/",
+          ".worktrees/vibepro/"
+        ]
+      }
+    }
+  },
+  "warnings": [],
+  "recorded_at": "2026-07-13T19:53:57.756Z",
+  "git_context": {
+    "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+    "current_branch": "codex/internal-api-csrf-exemption",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T19:53:57.748Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "b20628b72bad2bfa1ce10dc3af7189626c9de6b492dfeca38160a8428243cabc",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5d04-fe20-7dd3-9641-42774f4c41ab",
+    "agent_role": null,
+    "model": "inherited",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/gate_evidence-agent-transcript.json",
+    "request_artifact": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,217 @@
+{
+  "config": {
+    "configFile": "/private/tmp/brainbase-in-process-playwright.config.js",
+    "rootDir": "/private/tmp/brainbase-internal-api-csrf-exemption",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/private/tmp/brainbase-internal-api-csrf-exemption/var/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/private/tmp/brainbase-internal-api-csrf-exemption",
+        "testIgnore": [],
+        "testMatch": [
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+      "file": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "story-eve-internal-api-csrf-exemption",
+          "file": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "line": 34,
+          "column": 6,
+          "specs": [
+            {
+              "title": "story-eve-internal-api-csrf-exemption AC-001 ac1 S-001 exact internal key passes CSRF and authenticates as internal service",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T19:33:00.758Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00f8e86dfc505ac80093-8e02f5cfffe71bcd5323",
+              "file": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+              "line": 49,
+              "column": 5
+            },
+            {
+              "title": "story-eve-internal-api-csrf-exemption AC-002 ac2 S-002 wrong key fails closed before route authority",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T19:33:00.772Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00f8e86dfc505ac80093-955b6115473c00189abc",
+              "file": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+              "line": 58,
+              "column": 5
+            },
+            {
+              "title": "story-eve-internal-api-csrf-exemption AC-003 ac3 S-003 browser request without internal key remains under CSRF validation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T19:33:00.778Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00f8e86dfc505ac80093-62febbe1415aa5ae724f",
+              "file": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+              "line": 66,
+              "column": 5
+            },
+            {
+              "title": "story-eve-internal-api-csrf-exemption AC-004 ac4 S-004 exact-run workflow POST reaches its route through the production middleware order",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T19:33:00.785Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00f8e86dfc505ac80093-ebfe0f421c0b7bfab5e2",
+              "file": "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+              "line": 74,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-13T19:33:00.433Z",
+    "duration": 367.12600000000003,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

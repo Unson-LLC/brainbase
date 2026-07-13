@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+  "observed": {
+    "check": "Verify VibePro Graph SSOT",
+    "conclusion": "SUCCESS",
+    "run_url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338",
+    "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec"
+  },
+  "ci_check": {
+    "name": "Verify VibePro Graph SSOT",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflow_name": "VibePro Graph SSOT Check",
+    "details_url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338"
+  }
+}
