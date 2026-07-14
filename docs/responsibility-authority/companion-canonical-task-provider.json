@@ -23,12 +23,20 @@
         "paths": [
           "server/services/companion/canonical-task-service.js",
           "server/services/companion/canonical-task-nocodb-repository.js",
+          "server/services/companion/canonical-task-operation-repository.js",
+          "server/controllers/companion-controller.js",
           "server/routes/companion.js",
-          "server/services/workflow/workflow-service.js"
+          "server/services/workflow/workflow-service.js",
+          "server/services/workflow/workflow-repository.js",
+          "server/bootstrap/core-services.js",
+          "server/bootstrap/register-api-routes.js",
+          "server/sql/canonical-task-operation-schema.sql",
+          "scripts/migrate-canonical-task-columns.js"
         ],
         "symbols": [
           "CanonicalTaskService",
           "CanonicalTaskNocoDBRepository",
+          "CanonicalTaskOperationRepository",
           "WorkflowService.resolveHumanStep"
         ],
         "risk_surfaces": [
@@ -36,6 +44,7 @@
           "task_ssot",
           "workflow_approval",
           "identity_boundary"
+          ,"durable_idempotency"
         ]
       },
       "required_evidence": [
@@ -43,7 +52,7 @@
         "runtime_path_evidence",
         "independent_review"
       ],
-      "unknown_policy": "Brainbaseの既存NocoDB Task表だけを永続化正本とする。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とID保存が終わるまでapprovedにしない。"
+      "unknown_policy": "Brainbaseの固定NocoDB Task表だけをTask永続化正本とする。Postgres operation ledgerはTask本文を持たず同時実行のclaimと結果IDだけを保持する。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、調停台帳、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とID保存が終わるまでapprovedにしない。"
     }
   ]
 }

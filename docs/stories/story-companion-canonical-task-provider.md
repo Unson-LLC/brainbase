@@ -68,12 +68,15 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:8 approval-materialization**: `task_store` を書き戻し先に持つ会議Task候補の承認は、Task作成が全件成功した後だけhuman stepをapprovedにし、応答消失後の再試行でも同じTask ID群を返す。
 - [ ] **ac:9 compatibility**: 既存 `/api/nocodb/tasks` とTask以外の承認フローは挙動を変えない。
 - [ ] **ac:10 auth**: Companion Task APIは既存Companion APIと同じnative/service/internal認証およびowner境界を通る。
+- [ ] **ac:11 concurrent-once**: 同じ冪等キーの並行POSTと同じhuman stepの並行承認を、複数Brainbase processから実行してもTaskは一度だけ作られる。
+- [ ] **ac:12 visible-approval-result**: 承認応答は作成済みTask ID、除外候補、警告、再生有無を返し、部分失敗を成功または空へ変換しない。
 
 ## Done Evidence
 
 - Unit: field mapping、People検証、冪等作成、版競合、状態遷移をservice/repository単位で検証する。
 - Integration: Companion認証guardからTask APIまでと、Workflow承認から正本化までを検証する。
-- E2E: Mac Companionが利用するHTTP契約で一覧、作成、更新、待ち、完了、競合、障害を再生する。
+- E2E: Mac Companionのconsumer branch `codex/canonical-task-lifecycle-integration`
+  （基準commit `b392fdec`）が使うHTTP schemaで一覧、作成、更新、待ち、完了、競合、障害を再生する。
 - Runtime: 正本Task表の列検査、Brainbase実プロセスのAPI応答、Mac実クライアントからの接続を記録する。
 
 ## Failure Modes
@@ -84,6 +87,8 @@ Storyであり、Taskの永続化正本を増やさない。
 - FM-004: 期待版が現行版と異なる場合は409と現行Taskを返し、変更を適用しない。
 - FM-005: 承認由来のTaskが1件でも正本化できない場合、human stepをpendingのまま残す。
 - FM-006: 旧行に自由入力担当者だけがある場合、person IDを推測せず警告付き未解決として返す。
+- FM-007: 担当者未解決、曖昧、ignored、またはlegacy文字列だけの候補を含む承認はpendingのまま409にし、除外理由を返す。
+- FM-008: 同時実行の永続調停台帳が利用不能なら503にし、プロセス内lockだけで処理を続けない。
 
 ## Release / Rollback / Observability
 
@@ -91,6 +96,7 @@ Storyであり、Taskの永続化正本を増やさない。
 - Rollback: Macを先に旧版へ戻し、BrainbaseのPRをrevertする。追加列は後方互換のため即時削除しない。
 - Observability: Task APIの構造化error code、workflow outputのmaterialized task IDs、監査ログのactor/sourceを確認する。
 - Support: migration checkで列不足を確認し、Graph/NocoDBの障害とデータ0件を区別して復旧する。
+- Release gate: 正本store ID、NocoDB列、永続調停台帳、単一owner scopeを`--check`で確認し、不一致なら起動後の書き込みをfail-closedにする。
 
 ## 実装タスク
 
@@ -99,6 +105,7 @@ Storyであり、Taskの永続化正本を増やさない。
 3. `[BE]` `/api/companion/tasks` の一覧、作成、更新、状態遷移を既存認証境界へ登録する。
 4. `[BE]` Workflow `task_store` 承認を同じ作成serviceへ接続し、冪等な再試行を保証する。
 5. `[QA]` BDD、route integration、repository unit、既存承認回帰を実行し、VibeProへ証跡を記録する。
+6. `[QA]` 同一冪等keyの並行POST、同一stepの並行承認、各保存境界での停止と前進回復をfixtureで検証する。
 
 ブランチ: `codex/canonical-task-provider`
 
