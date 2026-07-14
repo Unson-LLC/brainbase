@@ -5,6 +5,20 @@ import { fileURLToPath } from 'url';
 
 const REQUIRED_KEYS = ['schema_version', 'base_id', 'table_id', 'table_name', 'project', 'owner_person_id'];
 const DEFAULT_MANIFEST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../config/canonical-task-store.json');
+const EXPECTED_CANONICAL_IDENTITY = Object.freeze({
+    base_id: 'pva7l2qlu6fdfip',
+    table_id: 'm7iys8m7o1abr3f',
+    table_name: 'タスク',
+    project: 'brainbase'
+});
+const FORBIDDEN_IDENTITY_OVERRIDES = [
+    'CANONICAL_TASK_BASE_ID',
+    'CANONICAL_TASK_TABLE_ID',
+    'CANONICAL_TASK_TABLE_NAME',
+    'CANONICAL_TASK_PROJECT',
+    'CANONICAL_TASK_OWNER_PERSON_ID',
+    'CANONICAL_TASK_STORE_HASH'
+];
 
 function canonicalJson(manifest) {
     return JSON.stringify(Object.fromEntries(Object.keys(manifest).sort().map((key) => [key, manifest[key]])));
@@ -19,9 +33,13 @@ export function createCanonicalTaskStoreConfig({
             throw new Error(`Canonical Task store manifest requires ${key}`);
         }
     }
-    const forbiddenOverrides = ['CANONICAL_TASK_BASE_ID', 'CANONICAL_TASK_TABLE_ID'];
-    if (forbiddenOverrides.some((key) => process.env[key])) {
-        throw new Error('Canonical Task base/table overrides are forbidden; use the committed manifest');
+    for (const [key, expected] of Object.entries(EXPECTED_CANONICAL_IDENTITY)) {
+        if (manifest[key] !== expected) {
+            throw new Error(`Canonical Task manifest ${key} does not match the fixed canonical identity`);
+        }
+    }
+    if (FORBIDDEN_IDENTITY_OVERRIDES.some((key) => process.env[key] !== undefined)) {
+        throw new Error('Canonical Task identity overrides are forbidden; use the committed manifest');
     }
     return Object.freeze({
         schemaVersion: manifest.schema_version,

@@ -28,6 +28,26 @@ export class NocoDBTaskService {
         throw error;
     }
 
+    async _fetchAllCanonicalTasks() {
+        const tasks = [];
+        const seenCursors = new Set();
+        let cursor = null;
+
+        while (true) {
+            if (cursor !== null) {
+                if (seenCursors.has(cursor)) {
+                    throw new Error(`Canonical Task pagination cursor repeated: ${cursor}`);
+                }
+                seenCursors.add(cursor);
+            }
+
+            const page = await this.repository.fetchCanonicalTasks(cursor);
+            tasks.push(...(page.items || []));
+            cursor = page.next_cursor || null;
+            if (cursor === null) return tasks;
+        }
+    }
+
     /**
      * 全プロジェクトからタスク取得・ストア更新
      * @returns {Promise<Array>}
@@ -53,7 +73,7 @@ export class NocoDBTaskService {
             const rawTasks = (response.records || []).filter(record => record.baseId !== this.canonicalTaskStore?.baseId);
             this.projects = response.projects || [];
 
-            const canonicalTasks = (await this.repository.fetchCanonicalTasks()).items || [];
+            const canonicalTasks = await this._fetchAllCanonicalTasks();
             this.tasks = [
                 ...canonicalTasks.map(task => this.adapter.toInternalCanonicalTask(task)),
                 ...rawTasks.map(record => this.adapter.toInternalTask(record))

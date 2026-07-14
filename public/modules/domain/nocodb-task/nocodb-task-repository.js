@@ -12,8 +12,10 @@ export class NocoDBTaskRepository {
         return Boolean(this.http.hasBearerAuth?.());
     }
 
-    async fetchCanonicalTasks() {
-        return this.http.get('/api/companion/tasks?limit=50');
+    async fetchCanonicalTasks(cursor = null) {
+        const search = new URLSearchParams({ limit: '50' });
+        if (cursor) search.set('cursor', cursor);
+        return this.http.get(`/api/companion/tasks?${search.toString()}`);
     }
 
     async createCanonicalTask(payload, idempotencyKey) {

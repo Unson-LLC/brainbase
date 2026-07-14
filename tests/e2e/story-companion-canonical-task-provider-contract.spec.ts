@@ -1,10 +1,11 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, request as playwrightRequest, test, type APIRequestContext } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { withCanonicalTaskEvidence } from '../helpers/canonical-task-evidence.js';
+import { startCanonicalTaskLiveApiHarness } from '../helpers/canonical-task-live-api-harness.js';
 
 type EvidenceEntry = {
   id: string;
@@ -51,6 +52,19 @@ const browserMutationSuites = [
   ...legacyBrowserSuites,
 ];
 const manaSuites = ['tests/server/routes/mana-capture-routes.test.js'];
+const liveApiScenarioIds = new Set([
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15, 18, 19, 21, 32, 39, 45,
+]);
+
+let liveApiHarness: Awaited<ReturnType<typeof startCanonicalTaskLiveApiHarness>>;
+
+test.beforeAll(async () => {
+  liveApiHarness = await startCanonicalTaskLiveApiHarness();
+});
+
+test.afterAll(async () => {
+  await liveApiHarness.close();
+});
 
 const scenarioSuites: Record<number, string[]> = {
   1: coreApiSuites, 2: coreApiSuites, 3: coreApiSuites, 4: coreApiSuites,
@@ -139,6 +153,58 @@ function assertMacWireFixture() {
   expect(task.source_refs[0]).toEqual({ type: 'workflow_output', id: 'output-1', url: null });
 }
 
+async function verifyAuthenticatedTaskLifecycle() {
+  const client = await playwrightRequest.newContext({ baseURL: liveApiHarness.baseURL });
+  const key = `e2e-live-${crypto.randomUUID()}`;
+  try {
+    const createdResponse = await client.post('/api/companion/tasks', {
+      data: { title: 'HTTP経路の正本タスク', priority: 'high', source_refs: [] },
+      headers: { 'Idempotency-Key': key },
+    });
+    expect(createdResponse.status()).toBe(201);
+    const created = await createdResponse.json();
+    expect(created).toMatchObject({ status: 'pending', version: 1, assignee_person_id: 'sato_keigo' });
+
+    const listResponse = await client.get('/api/companion/tasks?limit=1');
+    expect(listResponse.status()).toBe(200);
+    expect(await listResponse.json()).toMatchObject({
+      items: [expect.objectContaining({ id: created.id })],
+      count_status: 'exact',
+      read_status: 'complete',
+    });
+
+    const readResponse = await client.get(`/api/companion/tasks/${encodeURIComponent(created.id)}`);
+    expect(readResponse.status()).toBe(200);
+    expect(await readResponse.json()).toMatchObject({ id: created.id, version: 1 });
+
+    const updatedResponse = await client.patch(`/api/companion/tasks/${encodeURIComponent(created.id)}`, {
+      data: { expected_version: 1, title: 'HTTP経路で更新済み' },
+    });
+    expect(updatedResponse.status()).toBe(200);
+    const updated = await updatedResponse.json();
+    expect(updated).toMatchObject({ title: 'HTTP経路で更新済み', version: 2 });
+
+    const transitionedResponse = await client.post(`/api/companion/tasks/${encodeURIComponent(created.id)}/transitions`, {
+      data: { expected_version: 2, to_status: 'completed' },
+    });
+    expect(transitionedResponse.status()).toBe(200);
+    const transitioned = await transitionedResponse.json();
+    expect(transitioned).toMatchObject({ status: 'completed', version: 3 });
+
+    const deletedResponse = await client.delete(`/api/companion/tasks/${encodeURIComponent(created.id)}`, {
+      data: { expected_version: 3 },
+      headers: { 'Idempotency-Key': `${key}-delete` },
+    });
+    expect(deletedResponse.status()).toBe(200);
+    expect(await deletedResponse.json()).toMatchObject({ task_id: created.id, deleted: true, version: 4 });
+
+    const missingResponse = await client.get(`/api/companion/tasks/${encodeURIComponent(created.id)}`);
+    expect(missingResponse.status()).toBe(404);
+  } finally {
+    await client.dispose();
+  }
+}
+
 async function verifyEvidenceContract(evidenceId: string, request: APIRequestContext) {
   if (evidenceId === 'scenario.SC-014') {
     const response = await request.post('/api/companion/tasks', {
@@ -170,6 +236,9 @@ async function verifyEvidenceContract(evidenceId: string, request: APIRequestCon
   }
 
   const scenario = /^scenario\.SC-(\d{3})$/.exec(evidenceId);
+  if (scenario && liveApiScenarioIds.has(Number(scenario[1]))) {
+    await verifyAuthenticatedTaskLifecycle();
+  }
   const suites = scenario ? scenarioSuites[Number(scenario[1])] : surfaceSuites[evidenceId];
   expect(suites, `No real test suite mapped for ${evidenceId}`).toBeDefined();
   runVitest(suites);
@@ -183,6 +252,10 @@ test('canonical Task API rejects an unauthenticated mutation', async ({ request 
   expect([401, 403]).toContain(response.status());
   const body = await response.json();
   expect(body.code || body.error).toBeTruthy();
+});
+
+test('canonical Task API completes an authenticated lifecycle through HTTP', async () => {
+  await verifyAuthenticatedTaskLifecycle();
 });
 
 for (const entry of registry.entries) {
