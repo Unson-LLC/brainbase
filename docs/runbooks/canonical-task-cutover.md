@@ -52,16 +52,23 @@ collectorはテスト結果から`matched_tests`と`matched_assertions`も保存
 commandの終了codeが0でも`pass: false`として失敗させる。
 
 `matched_tests`はrunnerごとの機械可読出力からevidence IDと完全一致するtest titleを数える。Vitestと
-PlaywrightはJSON reporter、Node testはTAP reporterを使う。各owner testは全assertion成功後にだけ
-`VIBEPRO_ASSERT:<evidence-id>`を1行出力し、collectorはraw stdout中の完全一致行数を
-`matched_assertions`とする。raw stdoutは別fileで保存しhashをartifactに含める。
+Playwrightはregistryの`runner_adapters`が指定する専用JSON reporter、Node testはTAP reporterを使う。
+adapterはregistered test commandからeffective commandへの決定的変換とresult pathを正本化し、artifactは
+両command、adapter、reporter/result hashを保持する。template外の引数や出力先差替えは拒否する。
+
+各owner testは全assertion成功後にだけ`VIBEPRO_ASSERT:<evidence-id>`を1回出力する。専用reporterはmarkerを
+現在のtest eventへ関連付ける。title完全一致・passed・marker単一のeventだけを成功とし、global、別test、
+failed/skipped、test終了後、重複markerは拒否する。Node TAPも該当subtest block内のdiagnostic lineだけを認める。
+process raw stdoutは別fileで保存しhashをartifactに含める。
 
 preflightはregistry自体の71件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
 owner path/hash、registry hash、source HEADをentryと照合する。別IDのartifact入替、未登録command、
 owner変更後の古いartifact、失敗をpassとしたartifact、`matched_tests == 0`、`matched_assertions == 0`、
 期待path以外のartifactをすべて拒否する。
-preflightはraw runner outputを自身で再parseし、artifact記載の両countとstdout hashを照合する。
-collector/preflightのfixtureはzero test、zero marker、改ざんcount、改ざんstdoutを個別に失敗させる。
+preflightはrunner resultとraw runner outputを自身で再parseし、artifact記載の両count、event-marker相関、
+reporter/result/stdout hashを照合する。collector/preflightのfixtureはzero test、zero marker、改ざんcount、
+改ざんstdout、global forged marker、assertion前marker、failed/skipped test marker、別test marker、
+duplicate markerを個別に失敗させる。
 
 ### BDDシナリオ証跡ID
 

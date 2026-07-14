@@ -391,17 +391,25 @@ test command、raw artifact path/schema、pre-fix assertionを完全一致で保
 owner file hash、実行command、終了codeをraw artifactへ記録する。
 raw artifactには`matched_tests`と`matched_assertions`を含める。collectorは対象テストまたは対象assertionが
 0件なら終了codeに関係なく`pass: false`として終了し、0件実行のfalse passを許可しない。
-`matched_tests`はevidence IDと完全一致するtest titleを、Vitest/PlaywrightのJSONまたはNode testの
-TAP reporterから数える。各owner testは全assertion成功後に`VIBEPRO_ASSERT:<evidence-id>`を1回だけ出力し、
-collectorはraw stdoutの完全一致marker数を`matched_assertions`とする。raw stdoutは別fileとhashで保持する。
+`matched_tests`はevidence IDと完全一致するtest titleを、Vitest/Playwrightの専用JSON reporterまたはNode testの
+TAP reporterから数える。registryの`runner_adapters`がregistered `test_command`からeffective commandへの唯一の
+決定的変換、reporter、result pathを定義する。collectorはregistered/effective command、adapter key、reporter hash、
+runner result hashをartifactへ保存し、未登録adapter、template外の引数追加、result path差替えを拒否する。
+
+各owner testは全assertion成功後に`VIBEPRO_ASSERT:<evidence-id>`を1回だけ出力する。専用reporterはmarkerを
+現在実行中のtest eventへ関連付け、test終了時にtitle、status、marker配列をJSONへ保存する。Node TAPではmarkerが
+該当subtest block内のdiagnostic lineであることを要求する。collectorはtitleが完全一致しstatusがpassedの単一eventに
+属する単一markerだけを`matched_assertions: 1`とする。global stdout、failed/skipped test、別title、test終了後、
+重複markerは証拠として数えずartifactをfailにする。process raw stdoutは別fileとhashで保持する。
 
 `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はregistryをallowlistとして扱い、
 必須回帰ID、各証跡file hash、producer/owner/schema provenance、source HEAD、manifest hash、schema version、
 writer tokenをcanonical JSON artifactへ出力する。欠落、重複、ID/path入替、未登録command、owner hashのstale、
 schema不一致、registry hash不一致を拒否する。
 `matched_tests == 0`または`matched_assertions == 0`のartifactも拒否する。
-preflightはraw outputを独立に再parseして両countとstdout hashを照合する。collector/preflight testには
-zero test、zero marker、改ざんcount、改ざんstdoutのfixtureを必須とする。
+preflightはrunner resultとraw outputを独立に再parseして両count、event-marker相関、reporter/result/stdout hashを
+照合する。collector/preflight testにはzero test、zero marker、改ざんcount、改ざんstdout、global forged marker、
+assertion完了前marker、failed/skipped test marker、別test marker、duplicate markerのfixtureを必須とする。
 `npm run canonical-task:readiness -- --enable --evidence <path>`はartifactがcurrent HEADかつ必須回帰全件passで
 あることをtransaction内で再検証し、条件成立時だけrowを`ready`へupsertする。失敗時はrowを変更しない。
 `--disable --reason <reason>`はrowをatomicに`closed`へ変更し、process-local gateも次のmutationで閉じる。
