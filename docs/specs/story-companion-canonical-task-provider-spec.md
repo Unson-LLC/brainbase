@@ -381,7 +381,8 @@ MCPは別processでも同じmanifest/hashを読み、metadataで解決したtabl
 一致した`ready` rowだけがgateを開ける。欠落、不一致、DB障害はreadを維持して全mutationを503
 `canonical_task_mutation_not_ready`にする。
 
-`npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はrunbookの必須回帰ID、
+`npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はrunbookの固定71件
+（`scenario.SC-001`〜`scenario.SC-047`と24件の`surface.*`）を完全一致allowlistとして扱い、必須回帰ID、
 各証跡file hash、source HEAD、manifest hash、schema version、writer tokenをcanonical JSON artifactへ出力する。
 `npm run canonical-task:readiness -- --enable --evidence <path>`はartifactがcurrent HEADかつ必須回帰全件passで
 あることをtransaction内で再検証し、条件成立時だけrowを`ready`へupsertする。失敗時はrowを変更しない。

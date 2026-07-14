@@ -39,6 +39,50 @@
 
 ## 必須証跡
 
+`scripts/preflight-canonical-task-cutover.js`と`tests/server/scripts/preflight-canonical-task-cutover.test.js`は、
+次の固定allowlistを`required_evidence_ids`として共有する。artifactのID集合はこの集合と完全一致しなければならず、
+未知ID、重複ID、欠落ID、`pass != true`、file hash欠落のいずれかがあればbefore-enableを失敗させる。
+
+### BDDシナリオ証跡ID
+
+`scenario.SC-001`, `scenario.SC-002`, `scenario.SC-003`, `scenario.SC-004`, `scenario.SC-005`,
+`scenario.SC-006`, `scenario.SC-007`, `scenario.SC-008`, `scenario.SC-009`, `scenario.SC-010`,
+`scenario.SC-011`, `scenario.SC-012`, `scenario.SC-013`, `scenario.SC-014`, `scenario.SC-015`,
+`scenario.SC-016`, `scenario.SC-017`, `scenario.SC-018`, `scenario.SC-019`, `scenario.SC-020`,
+`scenario.SC-021`, `scenario.SC-022`, `scenario.SC-023`, `scenario.SC-024`, `scenario.SC-025`,
+`scenario.SC-026`, `scenario.SC-027`, `scenario.SC-028`, `scenario.SC-029`, `scenario.SC-030`,
+`scenario.SC-031`, `scenario.SC-032`, `scenario.SC-033`, `scenario.SC-034`, `scenario.SC-035`,
+`scenario.SC-036`, `scenario.SC-037`, `scenario.SC-038`, `scenario.SC-039`, `scenario.SC-040`,
+`scenario.SC-041`, `scenario.SC-042`, `scenario.SC-043`, `scenario.SC-044`, `scenario.SC-045`,
+`scenario.SC-046`, `scenario.SC-047`
+
+### 横断回帰証跡ID
+
+- `surface.auth.matrix`: bearer/internal/service許可とcookie-only/insecure-header拒否
+- `surface.approval.inbox`: approval inboxの候補、安定ID、owner投影
+- `surface.approval.resolve-run`: run配下resolve route
+- `surface.approval.resolve-step`: human-step直下resolve route
+- `surface.approval.non-task`: 非`task_store`承認
+- `surface.workflow.get-run-reconcile`: getRun時の再投影
+- `surface.workflow.retry-reconcile`: retry時の再投影
+- `surface.workflow.audit-idempotency`: 監査upsertと重複なし
+- `surface.writer.claim-reconcile`: listen前claim/reconcile
+- `surface.writer.release-recover`: graceful releaseと明示回復
+- `surface.readiness.closed-start`: 起動時closedと保存row再検証
+- `surface.readiness.atomic-enable`: current HEAD/hash/schema/writerのtransaction検証
+- `surface.readiness.explicit-disable`: rollback先頭の明示disable
+- `surface.legacy.route`: 旧routeのread/非正本write/正本guard
+- `surface.legacy.ui`: waiting/urgent/unknown投影
+- `surface.mana.auth-retry-read`: session/CSRF、actor、再送、read、no-fallback
+- `surface.browser.mutations`: list/create/update/transition/deleteとcookie-only無効化
+- `surface.mcp.write-fence`: record/column mutation guardとread互換
+- `surface.delete.recovery`: prepared停止、削除後停止、actor分離
+- `surface.operational-scripts`: 4本の運用scriptの直接writer 0件
+- `surface.migrations.postgres`: operation/writer/readiness schema apply/check
+- `surface.migrations.nocodb`: 必須列と冪等key unique apply/check
+- `surface.mac.wire-contract`: 固定fixtureと実route schema
+- `surface.runtime-path`: current HEADから起動したprocessのcwd/command/commit
+
 - source HEAD、各phaseのJSON出力と終了code、各証跡fileのSHA-256
 - manifest path/canonical SHA-256、schema version、writer token owner/process identity
 - Task固有authのbearer/internal/service許可とcookie-only/insecure-header拒否
@@ -52,5 +96,5 @@
 - Postgres/NocoDB migration apply/check結果と再起動readiness回帰
 - Mac consumer固定wire fixtureと実route schema結果
 
-preflight artifactは上記の安定したevidence ID、pass状態、file hashをすべて持ち、current HEADと一致しなければならない。
+preflight artifactは上記71件の安定したevidence ID、pass状態、file hashをすべて持ち、current HEADと一致しなければならない。
 いずれかが欠落・失敗・staleの場合、明示enableはatomicに失敗し、mutation readinessは成立しない。
