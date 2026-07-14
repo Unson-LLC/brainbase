@@ -391,12 +391,17 @@ test command、raw artifact path/schema、pre-fix assertionを完全一致で保
 owner file hash、実行command、終了codeをraw artifactへ記録する。
 raw artifactには`matched_tests`と`matched_assertions`を含める。collectorは対象テストまたは対象assertionが
 0件なら終了codeに関係なく`pass: false`として終了し、0件実行のfalse passを許可しない。
+`matched_tests`はevidence IDと完全一致するtest titleを、Vitest/PlaywrightのJSONまたはNode testの
+TAP reporterから数える。各owner testは全assertion成功後に`VIBEPRO_ASSERT:<evidence-id>`を1回だけ出力し、
+collectorはraw stdoutの完全一致marker数を`matched_assertions`とする。raw stdoutは別fileとhashで保持する。
 
 `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はregistryをallowlistとして扱い、
 必須回帰ID、各証跡file hash、producer/owner/schema provenance、source HEAD、manifest hash、schema version、
 writer tokenをcanonical JSON artifactへ出力する。欠落、重複、ID/path入替、未登録command、owner hashのstale、
 schema不一致、registry hash不一致を拒否する。
 `matched_tests == 0`または`matched_assertions == 0`のartifactも拒否する。
+preflightはraw outputを独立に再parseして両countとstdout hashを照合する。collector/preflight testには
+zero test、zero marker、改ざんcount、改ざんstdoutのfixtureを必須とする。
 `npm run canonical-task:readiness -- --enable --evidence <path>`はartifactがcurrent HEADかつ必須回帰全件passで
 あることをtransaction内で再検証し、条件成立時だけrowを`ready`へupsertする。失敗時はrowを変更しない。
 `--disable --reason <reason>`はrowをatomicに`closed`へ変更し、process-local gateも次のmutationで閉じる。

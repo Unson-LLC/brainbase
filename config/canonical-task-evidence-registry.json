@@ -585,7 +585,7 @@
       "id": "surface.mcp.write-fence",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.mcp.write-fence",
       "owner_path": "mcp/nocodb/tests/canonical-task-write-guard.test.js",
-      "test_command": "node --test --experimental-test-coverage --test-name-pattern='surface\\.mcp\\.write-fence' mcp/nocodb/tests/canonical-task-write-guard.test.js",
+      "test_command": "node --test --test-reporter=tap --test-name-pattern='surface\\.mcp\\.write-fence' mcp/nocodb/tests/canonical-task-write-guard.test.js",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.mcp.write-fence.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "MCP blocks canonical record and column mutations while preserving reads"
