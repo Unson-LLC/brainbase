@@ -25,6 +25,8 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 | NocoDB Task repository | 既存Task表の永続化と検索 | 人物同定、業務判断 |
 | Graph SSOT | `person_id` と表示名 | Task状態 |
 | WorkflowService | 承認順序と再試行 | 独自Task作成ロジック |
+| Canonical store config | 起動時に確定したbase/table/owner | requestごとのstore選択 |
+| NocoDB MCP | 正本Taskのread、正本以外の汎用操作 | 正本Taskのmutation |
 
 ## SSOT
 
@@ -37,6 +39,7 @@ NocoDBの自由入力列を直接Task権限として扱わない。
   `normalization_warnings: ["assignee_unresolved"]` を返す。文字列一致で補完しない。
 - 正規化APIが作る行には版、発生元参照、冪等キーとfingerprint、期限日時、待ち情報、完了日時を保存する。
 - 外部APIのclient keyは`api:<principal>:`、Workflow候補は`workflow:<output>:`の保存namespaceへserver側で変換し、相互衝突を防ぐ。
+- `createCanonicalTaskStoreConfig()` が環境変数と既定値を起動時に一度だけ解決し、同じimmutable objectをAPI repository、旧route guard、Mana、migration policyへ注入する。各moduleが環境変数を再読込して別storeを選ぶことを禁止する。
 
 ## API構成
 
@@ -45,8 +48,11 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 - `POST /api/companion/tasks`
 - `PATCH /api/companion/tasks/:taskId`
 - `POST /api/companion/tasks/:taskId/transitions`
+- `DELETE /api/companion/tasks/:taskId`
 
-既存 `createCompanionRouter` の認証・owner guardを再利用する。owner credentialはserver-sideで
+既存 `createCompanionRouter` の認証・owner guardにTask固有guardを重ねる。Task APIで許可するのは
+internal、service token、bearerだけで、CSRF免除のCompanion routeではcookie-onlyを許可せず、既存互換の
+insecure-headerも拒否する。owner credentialはserver-sideで
 configured ownerへscopeし、別person filter/assignmentを403にする。service/internal credentialは
 固定store内でGraph確認済みpersonを扱えるが、store/projectは変更できない。actorとauth sourceを監査する。
 
@@ -58,7 +64,7 @@ service/internalだけが固定store内の未担当TaskとGraph確認済みの�
 
 ```mermaid
 flowchart LR
-  Mac["Mac Companion"] -->|"Bearer + CSRF / fixed Task contract"| Guard["Companion auth and owner guard"]
+  Mac["Mac Companion"] -->|"Bearer / fixed Task contract"| Guard["Companion auth and Task owner guard"]
   Mac -->|"resolve human step"| WorkflowAuth["Workflow auth and human-step authority"]
   Workflow["Workflow resolve routes"] --> WorkflowAuth
   Guard --> Service["CanonicalTaskService"]
@@ -81,6 +87,11 @@ flowchart LR
 | 自由入力名を人物権限に使う | Graphの`person_id`だけを権威値とし、表示名は投影に限定する |
 | 同じ作成・承認が再送される | Postgres operation uniqueとNocoDB冪等キーDB一意制約で同じTask IDへ収束する |
 | 旧route/scriptが正本へ直接書く | 旧NocoDB routeは正本base mutationを409で拒否し、固定tableへ書く運用scriptは認証済みCanonical Task APIへ移行する |
+| Manaが正本へ直接書き障害をlocal成功へ変換する | captureはserviceへpending Taskを冪等作成し、source refsへ元type/project/contentを残す。read/write障害は503にする |
+| ブラウザTask画面が拒否済み旧routeへ書く | repositoryが正本baseだけCanonical APIへ振り分け、版付きcreate/update/transition/deleteを使う |
+| NocoDB MCPがcredentialで正本を迂回する | client境界で正本baseのTask mutationを拒否し、readと他store操作だけを維持する |
+| cookieやinsecure-headerがownerへ昇格する | Task固有guardがstore到達前に拒否し、bearerだけをowner credentialとして扱う |
+| moduleごとに正本store設定がずれる | 起動時に一度だけ解決したimmutable configを全JS writer/guardへ注入し、MCPも同じenv名と既定値を検証する |
 | 既存文字列候補または並べ替えで候補権限が変わる | 文字列をowner未解決objectへ正規化し、内容hashと同一内容ordinalから並び順に依存しないcandidate ID集合を投影する |
 | 旧UIがwaiting/urgentを別値へ縮退する | adapterで待ち/緊急を双方向投影し、未知値は保持して明示する |
 | 旧writerの遅延PATCHが新writerを上書きする | 単一writer tokenを自動takeoverせず、旧process停止確認後の明示回復だけを許可する |
@@ -121,6 +132,15 @@ Task本文や状態は保存しないため、Taskの正本はNocoDBのままで
 一覧読取と正本base以外のmutationを維持するが、正本baseへのcreate/update/deleteはtable lookup前に
 `canonical_task_api_required`で拒否する。正本tableへ直接fetchする運用scriptはCanonical Task API clientへ
 移行し、静的policy testで固定table IDを使うwrite pathの再導入を防ぐ。
+
+Mana `/capture` は`mana_capture`のsource refを持つ`pending` TaskとしてCanonicalTaskServiceへ作成する。
+元の`type`と`project`はsource metadataで互換保持し、自由入力`assignee`は受理せず`assignee_person_id`だけを
+Graph確認する。`/captures`は同じsource refで正本Taskを絞って従来形へ投影し、障害を空一覧へ変換しない。
+
+ブラウザのNocoDB Task repositoryは各Taskのbaseを判定し、正本baseのmutationだけCanonical APIへ送る。
+deleteも`expected_version`と冪等keyを持つoperationとして単一writer内で実行し、削除済み再送はoperation結果を
+再生する。正本base以外は旧NocoDB APIを維持する。NocoDB MCPは正本baseかつTask tableのcreate/update/deleteを
+client呼出前に`canonical_task_api_required`で拒否し、readと他base/tableのmutationは変えない。
 
 - createはidempotency key、update/transitionは共通scopeの`taskId:expectedVersion`、承認はstep IDをclaimする。
 - claim取得後に現行Task版を再読込し、一致時だけNocoDBへ書く。変更patchには次版、最終操作key、fingerprintを含める。

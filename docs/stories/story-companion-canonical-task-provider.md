@@ -85,6 +85,11 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:24 idempotency-namespace**: clientの冪等keyを `api:<owner-or-principal>:<client-key>`、Workflow候補を `workflow:<output-id>:<fingerprint>:<ordinal>` へserver側で変換し、外部入力から予約prefixを注入できない。
 - [ ] **ac:25 candidate-compatibility**: 既存の文字列候補とIDなしobject候補を内容由来の安定candidate IDへ正規化し、並び替え・再試行後も同じ候補集合として扱う。文字列候補のownerは推測せず、MacでGraph確認済みownerが選ばれるまでpendingに残す。
 - [ ] **ac:26 legacy-projection**: 既存NocoDB Task UIでも`waiting`/`urgent`を同じ意味で双方向表示し、未知status/priorityを`pending`/`medium`へ黙って変換しない。
+- [ ] **ac:27 mana-capture**: Manaの`/capture`は`CanonicalTaskService`へ冪等作成し、`captured`という別状態ではなく`pending`として保存する。発生元に`mana_capture`と元type/project/contentを残し、担当者は`person_id`だけを受理する。正本またはPeople障害時はlocal IDや空一覧へ縮退しない。
+- [ ] **ac:28 browser-task-mutations**: 既存ブラウザTask画面は正本baseのcreate/update/status/deleteをCanonical Task APIへ振り分け、expected versionと冪等keyを渡す。正本base以外は既存NocoDB APIを維持し、正本baseの409を利用不能なUIとして放置しない。
+- [ ] **ac:29 canonical-delete**: `DELETE /api/companion/tasks/:taskId` はexpected versionと冪等keyを必須にし、同じ要求を再送しても同じ削除結果を返す。版不一致・別owner・別storeを他mutationと同じ境界で拒否する。
+- [ ] **ac:30 mcp-write-boundary**: NocoDB MCPの汎用create/update/deleteは正本baseのTask表を`canonical_task_api_required`で拒否し、readと正本以外のmutationだけを維持する。
+- [ ] **ac:31 auth-and-store-config**: Task APIはinternal、service token、bearerだけを許可し、cookie-onlyとinsecure-headerをTask store到達前に拒否する。正本base/table/ownerは起動時に一度だけ解決した共有設定をAPI、legacy guard、Mana、migrationで使用する。
 
 ## Done Evidence
 
@@ -112,6 +117,11 @@ Storyであり、Taskの永続化正本を増やさない。
 - FM-014: 外部clientが予約prefixを含む冪等keyを送ってもserver側namespaceから脱出できず、Workflow keyと衝突しない。
 - FM-015: 既存の文字列候補や候補配列の並べ替えを未知候補として捨てず、内容由来IDで同じ候補集合へ収束させる。owner未解決は明示409にする。
 - FM-016: 既存UI adapterが正本の`waiting`/`urgent`または未知値を別の状態・優先度へ黙って縮退させない。
+- FM-017: Manaの正本書込または読取が失敗した場合は503を返し、`local-*` IDや空一覧を成功として返さない。
+- FM-018: 既存ブラウザ画面が正本baseの旧APIへmutationした場合は自動fallbackせず、実装修ーティング不備として明示失敗する。
+- FM-019: deleteの期待版不一致、冪等key衝突、正本削除後の再送はそれぞれ409、409、同一成功結果へ決定的に収束する。
+- FM-020: NocoDB MCPから正本TaskへのmutationはNocoDB credentialを持っていても拒否し、readや他tableのmutation権限へ影響させない。
+- FM-021: cookie-only、insecure-header、または正本設定のprocess内不一致を検出した場合はTask storeへ到達せず拒否する。
 
 ## Release / Rollback / Observability
 
@@ -134,6 +144,10 @@ Storyであり、Taskの永続化正本を増やさない。
 9. `[BE]` 旧NocoDB task routeへ正本base write guardを追加し、固定tableへ直接書く4本の運用スクリプトをCanonical Task APIへ移行する。
 10. `[QA]` 旧route・運用スクリプトによるwriter bypassと、API/Workflow間の冪等key衝突を修正前に失敗するテストで固定する。
 11. `[BE/QA]` 文字列候補の互換正規化と内容由来candidate ID、既存NocoDB UIのwaiting/urgent投影を実装し、並べ替え・両resolve route・UI adapterの回帰を固定する。
+12. `[BE/QA]` Mana captureをCanonicalTaskServiceへ移行し、pending/source_refs/person ID、冪等性、障害時503、captures読取の互換投影を固定する。
+13. `[FE/BE/QA]` 既存ブラウザTask画面の正本base mutationをCanonical APIへ振り分け、版付きdeleteを含む作成・編集・状態変更・削除を回帰検証する。
+14. `[MCP/QA]` NocoDB MCPに正本Task mutation guardを追加し、正本read・他base/table mutationの互換性を検証する。
+15. `[BE/QA]` 起動時に一度だけ解決する正本store設定を全writer/guardへ注入し、Task固有認証guardでcookie-onlyとinsecure-headerを拒否する。
 
 ブランチ: `codex/canonical-task-provider`
 
