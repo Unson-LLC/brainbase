@@ -47,6 +47,8 @@ implementation_files:
   - scripts/recover-canonical-task-writer.js
   - scripts/preflight-canonical-task-cutover.js
   - scripts/collect-canonical-task-evidence.js
+  - scripts/evidence-reporters/canonical-task-playwright-reporter.js
+  - scripts/evidence-reporters/canonical-task-vitest-reporter.js
   - scripts/set-canonical-task-readiness.js
   - scripts/add-frame-story-tasks.js
   - scripts/add-framework-operation-tasks.js
@@ -54,6 +56,7 @@ implementation_files:
   - scripts/update-task-status.js
   - package.json
   - docs/runbooks/canonical-task-cutover.md
+  - tests/helpers/canonical-task-evidence.js
 test_files:
   - tests/e2e/story-companion-canonical-task-provider-contract.spec.ts
   - tests/server/routes/companion-canonical-tasks.test.js
@@ -82,6 +85,7 @@ test_files:
   - tests/server/routes/mana-capture-routes.test.js
   - mcp/nocodb/tests/canonical-task-write-guard.test.js
   - tests/server/scripts/preflight-canonical-task-cutover.test.js
+  - tests/server/scripts/canonical-task-evidence-reporters.test.js
   - tests/fixtures/companion-canonical-task-mac-cb9c293.json
 ---
 
@@ -393,14 +397,22 @@ raw artifactには`matched_tests`と`matched_assertions`を含める。collector
 0件なら終了codeに関係なく`pass: false`として終了し、0件実行のfalse passを許可しない。
 `matched_tests`はevidence IDと完全一致するtest titleを、Vitest/Playwrightの専用JSON reporterまたはNode testの
 TAP reporterから数える。registryの`runner_adapters`がregistered `test_command`からeffective commandへの唯一の
-決定的変換、reporter、result pathを定義する。collectorはregistered/effective command、adapter key、reporter hash、
-runner result hashをartifactへ保存し、未登録adapter、template外の引数追加、result path差替えを拒否する。
+決定的変換、reporter、result pathを定義する。collectorはshellを介さずargvと明示envでspawnし、
+`VIBEPRO_EVIDENCE_ID`、`VIBEPRO_EVIDENCE_RESULT`、runごとの64桁hex
+`VIBEPRO_EVIDENCE_NONCE`をregistryの`effective_invocation`どおりに注入する。専用reporterはこの3値が
+欠落・形式不正ならtest開始前に失敗し、resultは指定pathへatomic renameでだけ保存する。collectorは
+registered/effective argv、env名と値、nonce hash、adapter key、reporter hash、runner result hashをartifactへ保存し、
+未登録adapter/env、template外の引数追加、result path差替えを拒否する。custom reporter hashはfile SHA-256、
+Node内蔵TAPは`sha256("node:<process.version>:node:test:tap")`とする。
 
-各owner testは全assertion成功後に`VIBEPRO_ASSERT:<evidence-id>`を1回だけ出力する。専用reporterはmarkerを
-現在実行中のtest eventへ関連付け、test終了時にtitle、status、marker配列をJSONへ保存する。Node TAPではmarkerが
-該当subtest block内のdiagnostic lineであることを要求する。collectorはtitleが完全一致しstatusがpassedの単一eventに
-属する単一markerだけを`matched_assertions: 1`とする。global stdout、failed/skipped test、別title、test終了後、
-重複markerは証拠として数えずartifactをfailにする。process raw stdoutは別fileとhashで保持する。
+各owner testは`withCanonicalTaskEvidence(evidenceId, assertionCallback, runnerContext)`を使い、証拠対象の
+全assertionをcallback内で実行する。helperはevidence IDとenvを照合し、callbackのPromiseが正常完了した後にだけ
+`VIBEPRO_ASSERT:<evidence-id>:<nonce>` final eventをrunnerContextのattachment/diagnostic channelへ1回送る。
+callback中またはhelper外からのmarkerはfinal eventにならない。専用reporterはfinal eventを現在実行中のtest eventへ
+関連付け、test終了時にtitle、status、final event配列をJSONへ保存する。Node TAPではhelperがcallback完了後に
+`t.diagnostic`へ出したnonce付きlineだけを認める。collectorはtitle完全一致・status passed・nonce一致の単一eventに
+属する単一final eventだけを`matched_assertions: 1`とする。global stdout、failed/skipped test、別title、test終了後、
+raw手書きmarker、重複markerは証拠として数えずartifactをfailにする。process raw stdoutは別fileとhashで保持する。
 
 `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はregistryをallowlistとして扱い、
 必須回帰ID、各証跡file hash、producer/owner/schema provenance、source HEAD、manifest hash、schema version、
@@ -409,7 +421,8 @@ schema不一致、registry hash不一致を拒否する。
 `matched_tests == 0`または`matched_assertions == 0`のartifactも拒否する。
 preflightはrunner resultとraw outputを独立に再parseして両count、event-marker相関、reporter/result/stdout hashを
 照合する。collector/preflight testにはzero test、zero marker、改ざんcount、改ざんstdout、global forged marker、
-assertion完了前marker、failed/skipped test marker、別test marker、duplicate markerのfixtureを必須とする。
+assertion完了前marker、failed/skipped test marker、別test marker、duplicate marker、env欠落、result path差替え、
+reporter hash差替えのfixtureを必須とする。
 `npm run canonical-task:readiness -- --enable --evidence <path>`はartifactがcurrent HEADかつ必須回帰全件passで
 あることをtransaction内で再検証し、条件成立時だけrowを`ready`へupsertする。失敗時はrowを変更しない。
 `--disable --reason <reason>`はrowをatomicに`closed`へ変更し、process-local gateも次のmutationで閉じる。

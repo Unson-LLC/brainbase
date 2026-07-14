@@ -4,6 +4,16 @@
   "source_of_truth": "config/canonical-task-evidence-registry.json",
   "required_entry_count": 71,
   "collector": "scripts/collect-canonical-task-evidence.js",
+  "effective_invocation": {
+    "spawn_mode": "argv-with-explicit-env",
+    "required_env": {
+      "VIBEPRO_EVIDENCE_ID": "<evidence-id>",
+      "VIBEPRO_EVIDENCE_RESULT": "<runner-result-path>",
+      "VIBEPRO_EVIDENCE_NONCE": "<collector-generated-64-hex>"
+    },
+    "nonce_hash": "sha256",
+    "reject_unregistered_env": true
+  },
   "runner_adapters": {
     "playwright": {
       "match_prefix": "npx playwright test ",
@@ -20,6 +30,7 @@
     "node_test": {
       "match_prefix": "node --test ",
       "reporter": "tap",
+      "reporter_hash_rule": "sha256(node:<runtime-version>:node:test:tap)",
       "effective_command_template": "<registered-test-command>",
       "result_path_template": ".vibepro/verification/canonical-task-cutover/runner/<evidence-id>.tap"
     }

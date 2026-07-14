@@ -53,12 +53,17 @@ commandの終了codeが0でも`pass: false`として失敗させる。
 
 `matched_tests`はrunnerごとの機械可読出力からevidence IDと完全一致するtest titleを数える。Vitestと
 Playwrightはregistryの`runner_adapters`が指定する専用JSON reporter、Node testはTAP reporterを使う。
-adapterはregistered test commandからeffective commandへの決定的変換とresult pathを正本化し、artifactは
-両command、adapter、reporter/result hashを保持する。template外の引数や出力先差替えは拒否する。
+adapterはregistered test commandからeffective argvへの決定的変換とresult pathを正本化する。collectorは
+shellを介さずargvでspawnし、registry指定の`VIBEPRO_EVIDENCE_ID`、`VIBEPRO_EVIDENCE_RESULT`、
+64桁hex `VIBEPRO_EVIDENCE_NONCE`だけを明示envへ追加する。artifactは両command、env値、nonce hash、
+adapter、reporter/result hashを保持する。custom reporterはfile SHA-256、Node TAPは
+`sha256("node:<process.version>:node:test:tap")`を使う。env欠落、未登録env、template外引数、出力先差替えは拒否する。
 
-各owner testは全assertion成功後にだけ`VIBEPRO_ASSERT:<evidence-id>`を1回出力する。専用reporterはmarkerを
-現在のtest eventへ関連付ける。title完全一致・passed・marker単一のeventだけを成功とし、global、別test、
-failed/skipped、test終了後、重複markerは拒否する。Node TAPも該当subtest block内のdiagnostic lineだけを認める。
+各owner testは`withCanonicalTaskEvidence`へ全assertionのcallbackとrunner contextを渡す。helperはcallbackが
+正常完了した後だけnonce付きfinal eventをattachment/diagnosticへ出す。専用reporterはfinal eventを現在のtest eventへ
+関連付ける。title完全一致・passed・nonce一致・final event単一のeventだけを成功とし、global、別test、
+failed/skipped、test終了後、raw手書きmarker、重複markerは拒否する。Node TAPもhelperが該当subtest block内へ
+callback完了後に出したdiagnostic lineだけを認める。
 process raw stdoutは別fileで保存しhashをartifactに含める。
 
 preflightはregistry自体の71件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
@@ -68,7 +73,7 @@ owner変更後の古いartifact、失敗をpassとしたartifact、`matched_test
 preflightはrunner resultとraw runner outputを自身で再parseし、artifact記載の両count、event-marker相関、
 reporter/result/stdout hashを照合する。collector/preflightのfixtureはzero test、zero marker、改ざんcount、
 改ざんstdout、global forged marker、assertion前marker、failed/skipped test marker、別test marker、
-duplicate markerを個別に失敗させる。
+duplicate marker、env欠落、result path差替え、reporter hash差替えを個別に失敗させる。
 
 ### BDDシナリオ証跡ID
 
