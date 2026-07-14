@@ -43,12 +43,17 @@ export class NocoDBTaskService {
         try {
             const response = await this.repository.fetchAllTasks();
             this.canonicalTaskStore = response.canonicalTaskStore || null;
+            if (this.canonicalTaskStore && !this.repository.hasBearerAuth()) {
+                const error = /** @type {Error & {code: string}} */ (
+                    new Error('正本タスクを表示するには再認証が必要です')
+                );
+                error.code = 'task_bearer_required';
+                throw error;
+            }
             const rawTasks = (response.records || []).filter(record => record.baseId !== this.canonicalTaskStore?.baseId);
             this.projects = response.projects || [];
 
-            const canonicalTasks = this.repository.hasBearerAuth()
-                ? (await this.repository.fetchCanonicalTasks()).items || []
-                : [];
+            const canonicalTasks = (await this.repository.fetchCanonicalTasks()).items || [];
             this.tasks = [
                 ...canonicalTasks.map(task => this.adapter.toInternalCanonicalTask(task)),
                 ...rawTasks.map(record => this.adapter.toInternalTask(record))

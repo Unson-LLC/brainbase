@@ -30,6 +30,22 @@ describe('NocoDBTasksView', () => {
         expect(container.textContent).toContain('Settings');
     });
 
+    it('正本タスクの認証がない場合は再認証案内を表示する', async () => {
+        const error = new Error('正本タスクを表示するには再認証が必要です');
+        error.code = 'task_bearer_required';
+        const service = buildService({ loadTasks: vi.fn().mockRejectedValue(error) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.members = ['ksato'];
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+
+        await view.onTabActivated();
+
+        expect(service.loadTasks).toHaveBeenCalledOnce();
+        expect(container.textContent).toContain('正本タスクを表示するには再認証が必要です');
+    });
+
     it('自分だけフィルタ時は担当者名を解決して渡す', () => {
         appStore.setState({ preferences: { user: { assignee: 'ksato' } } });
         const tasks = [{

@@ -47,9 +47,7 @@ describe('NocoDBTaskService canonical routing', () => {
     it('fails closed for the canonical project without bearer auth', async () => {
         const repo = repository({ bearer: false });
         const service = new NocoDBTaskService({ httpClient: {}, repository: repo });
-        await service.loadTasks();
-
-        await expect(service.createTask({ projectId: 'brainbase', title: '作成' }))
+        await expect(service.loadTasks())
             .rejects.toMatchObject({ code: 'task_bearer_required' });
         expect(repo.fetchCanonicalTasks).not.toHaveBeenCalled();
     });

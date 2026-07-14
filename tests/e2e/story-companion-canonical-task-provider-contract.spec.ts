@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -33,7 +33,9 @@ const cutoverSuites = [
   'tests/server/bootstrap/cors-options.test.js',
   'tests/server/services/canonical-task-readiness.test.js',
   'tests/server/services/canonical-task-store-config.test.js',
+  'tests/server/scripts/canonical-task-api-client.test.js',
   'tests/server/scripts/canonical-task-writer-policy.test.js',
+  'tests/server/scripts/migrate-canonical-task-columns.test.js',
   'tests/server/scripts/preflight-canonical-task-cutover.test.js',
   'tests/server/scripts/recover-canonical-task-writer.test.js',
 ];
@@ -137,7 +139,17 @@ function assertMacWireFixture() {
   expect(task.source_refs[0]).toEqual({ type: 'workflow_output', id: 'output-1', url: null });
 }
 
-function verifyEvidenceContract(evidenceId: string) {
+async function verifyEvidenceContract(evidenceId: string, request: APIRequestContext) {
+  if (evidenceId === 'scenario.SC-014') {
+    const response = await request.post('/api/companion/tasks', {
+      data: { title: 'must-not-be-created' },
+      headers: { 'Idempotency-Key': 'e2e-unauthenticated-mutation' },
+    });
+    expect([401, 403]).toContain(response.status());
+    const body = await response.json();
+    expect(body.code || body.error).toBeTruthy();
+    return;
+  }
   if (evidenceId === 'scenario.SC-024' || evidenceId === 'surface.mac.wire-contract') {
     assertMacWireFixture();
     return;
@@ -164,9 +176,9 @@ function verifyEvidenceContract(evidenceId: string) {
 }
 
 for (const entry of registry.entries) {
-  test(entry.id, async ({}, testInfo) => {
+  test(entry.id, async ({ request }, testInfo) => {
     await withCanonicalTaskEvidence(entry.id, async () => {
-      verifyEvidenceContract(entry.id);
+      await verifyEvidenceContract(entry.id, request);
     }, testInfo);
   });
 }

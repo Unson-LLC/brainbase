@@ -58,6 +58,7 @@
     "vibepro:graphify-impact": "node scripts/vibepro-graphify-impact-gate.mjs",
     "vibepro:component-style": "node scripts/vibepro-component-style-check.mjs",
     "migrate:canonical-task-operations": "node scripts/migrate-canonical-task-operations.js",
+    "migrate:canonical-task-columns": "node scripts/migrate-canonical-task-columns.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
     "preflight:canonical-task-cutover": "node scripts/preflight-canonical-task-cutover.js",
