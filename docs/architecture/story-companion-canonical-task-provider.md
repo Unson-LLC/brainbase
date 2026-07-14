@@ -22,6 +22,8 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 | Mac Companion | 一覧・入力・状態操作・エラー回復UI | Task正本、人物名寄せ、監査 |
 | Companion Task API | 認証、入力検証、HTTP契約 | Taskの別保存 |
 | CanonicalTaskService | 状態遷移、People ID検証、冪等性、版競合、監査 | UI |
+| CanonicalTaskPrincipal | 認証済み権威IDからtyped principalと衝突しないnamespaceを生成 | body actor、表示名による同定 |
+| CanonicalTaskReadiness | 永続readiness row、証跡照合、process-local mutation gate | Task本文、回帰試験そのもの |
 | NocoDB Task repository | 既存Task表の永続化と検索 | 人物同定、業務判断 |
 | Graph SSOT | `person_id` と表示名 | Task状態 |
 | WorkflowService | 承認順序と再試行 | 独自Task作成ロジック |
@@ -38,7 +40,8 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 - 既存行で `担当者PersonID` が空の場合は `assignee_person_id: null` と
   `normalization_warnings: ["assignee_unresolved"]` を返す。文字列一致で補完しない。
 - 正規化APIが作る行には版、発生元参照、冪等キーとfingerprint、期限日時、待ち情報、完了日時を保存する。
-- 外部APIのclient keyは`api:<principal>:`、Workflow候補は`workflow:<output>:`の保存namespaceへserver側で変換し、相互衝突を防ぐ。
+- actorは認証guardが確認したGraph person ID、service credential ID、allowlist済みinternal IDから`{ type, id }`へ正規化する。固定key順canonical JSONのpaddingなしbase64url `v1.<payload>`だけをactor namespaceに使い、body actor、表示名、raw session、区切り文字連結を使わない。同じGraph personはbearer/session間で同じnamespaceへ収束する。
+- 外部APIのclient keyは`api:<actorNamespace>:`、Workflow候補は`workflow:<output>:`の保存namespaceへserver側で変換し、相互衝突を防ぐ。
 - `config/canonical-task-store.json` を正本identity manifestとし、canonical JSONのSHA-256をBrainbase、MCP、migrationが起動時に検証する。`createCanonicalTaskStoreConfig()` はmanifestを一度だけ読み、同じimmutable objectをAPI repository、旧route guard、Mana、migration policyへ注入する。base/tableの個別環境overrideは禁止し、manifest欠落、hash不一致、table/column解決不能はmutationをfail-closedにする。
 
 ## API構成
@@ -54,7 +57,7 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 internal、service token、bearerだけで、CSRF免除のCompanion routeではcookie-onlyを許可せず、既存互換の
 insecure-headerも拒否する。owner credentialはserver-sideで
 configured ownerへscopeし、別person filter/assignmentを403にする。service/internal credentialは
-固定store内でGraph確認済みpersonを扱えるが、store/projectは変更できない。actorとauth sourceを監査する。
+固定store内でGraph確認済みpersonを扱えるが、store/projectは変更できない。typed principal、namespace、auth sourceを監査する。
 
 ownerの作成で担当者が省略された場合はconfigured ownerを補完する。一覧と単体取得はowner担当Taskだけを
 返し、未担当・別person Taskは存在を開示せず404にする。ownerからの担当解除・別person指定は403である。
@@ -65,7 +68,7 @@ service/internalだけが固定store内の未担当TaskとGraph確認済みの�
 Canonical一覧失敗時に旧正本行へfallbackしない。cookie-only sessionでは正本controlsを無効化してbearer再認証を
 要求する。正本projectの担当者入力はPeople selectorとし、自由入力表示名を送らない。
 
-Mana captureはbrowser sessionとCSRFを検証し、bodyのactor/ownerを信用せずsession actor付きinternal commandへ
+Mana captureはbrowser sessionとCSRFを検証し、bodyのactor/ownerを信用せずsessionからGraph person principalを導出したinternal commandへ
 変換する。clientは操作ごとにcapture UUIDを生成し、応答確定まで同じIDを再送する。同文の新規操作は新IDを使う。
 保存keyは`mana:<actorNamespace>:<capture_id>`とし、別actor namespaceは同じcapture IDでも互いのoperation結果を参照・再生しない。
 
@@ -78,6 +81,7 @@ flowchart LR
   Workflow["Workflow resolve routes"] --> WorkflowAuth
   Guard --> Service["CanonicalTaskService"]
   WorkflowAuth -->|"actor-preserving internal Task command"| Service
+  Service -->|"assert persistent readiness"| Ready["Canonical mutation readiness"]
   Service -->|"verify person_id"| Graph["Graph People SSOT"]
   Service -->|"claim writer and operation"| PG["Postgres coordination and recovery checkpoints"]
   Service -->|"read or write canonical Task"| Noco["Fixed NocoDB Task table SSOT"]
@@ -101,6 +105,8 @@ flowchart LR
 | NocoDB MCPがcredentialで正本を迂回する | manifest identityへtable名/IDを解決し、record mutationと正本列metadata mutationを拒否する。解決不能時は全mutationを停止する |
 | cookieやinsecure-headerがownerへ昇格する | Task固有guardがstore到達前に拒否し、bearerだけをowner credentialとして扱う |
 | processごとに正本store設定がずれる | commit済みmanifestのcanonical JSON hashをBrainbase/MCP/migrationで比較し、個別overrideや解決失敗をmutation readiness失敗にする |
+| actor文字列の区切り・認証方式で冪等境界が衝突または分裂する | 権威IDをtyped canonical principalへ正規化し、固定JSONのbase64url namespaceを共通moduleで生成する |
+| 再起動や手動操作で検証前にmutationが開く | process-local gateをclosedで起動し、Postgres readiness rowとcurrent HEAD証跡、manifest/schema/writerを再検証した場合だけ開く。全mutation入口で同じassertを行う |
 | 既存文字列候補または並べ替えで候補権限が変わる | 文字列をowner未解決objectへ正規化し、内容hashと同一内容ordinalから並び順に依存しないcandidate ID集合を投影する |
 | 旧UIがwaiting/urgentを別値へ縮退する | adapterで待ち/緊急を双方向投影し、未知値は保持して明示する |
 | 旧writerの遅延PATCHが新writerを上書きする | 単一writer tokenを自動takeoverせず、旧process停止確認後の明示回復だけを許可する |
@@ -127,6 +133,17 @@ NocoDB REST PATCHはPostgres lease generationを条件にした原子的更新�
 ADR-016に従いTask mutationと`task_store`承認を単一writer processへ限定する。Postgres
 `canonical_task_writer` singleton rowにactive process tokenを保存し、他processは503にする。
 graceful shutdown時だけreleaseし、異常終了後は旧process停止確認を伴う明示回復までtakeoverしない。
+
+writer tokenは必要条件だがmutation解禁の十分条件ではない。`canonical_task_readiness` singleton rowへ
+manifest hash、schema version、writer token、current HEAD、必須回帰artifact hashを保存する。各processは
+local gateをclosedで起動し、writer claim/reconcile後に保存rowと現在値を再照合できた場合だけ開く。
+`CanonicalTaskService`のcreate/update/transition/delete、Mana internal command、`task_store` materializationは
+同じ`assertMutationReady()`をservice入口で強制する。欠落・不一致・DB障害はreadを維持して503にする。
+
+before-enable preflightは認証、approval inbox、両resolve route、非Task承認、legacy route/UI、Mana、browser、
+MCP、delete回復、4 script、migration、Mac wire fixtureの証跡file hashをcurrent HEADへ束ねる。明示enable commandは
+artifactと現在値をtransaction内で再検証し、全条件成立時だけrowをreadyへupsertする。失敗時はclosed stateを
+変更しない。restart時は保存readyを無条件に信用せず再照合し、rollbackは最初に明示disableする。
 
 `server.js`はHTTP listen前にclaimとreconcileを実行し、`registerGracefulShutdown`はHTTP close後にreleaseする。
 明示回復は`recover-canonical-task-writer.js --expected-token`だけから行う。再投影監査はoperation/phase由来の
@@ -192,10 +209,10 @@ prepared intent、固定storeでの行不存在を照合して同じ削除結果
 
 初回releaseは`docs/runbooks/canonical-task-cutover.md`が所有する。`npm run preflight:canonical-task-cutover -- --phase before-migration`で旧Brainbase、Mana、MCP、運用scriptを先に停止・排水し、直接writerが0であることを確認する。その後に
 Postgres writer/operation schema、NocoDB列/uniqueを適用し、guardを含む新Brainbase/MCPを起動する。manifest hash、
-writer claim、legacy/Mana/MCP bypass testを`--phase before-enable`で確認した後だけmutationを解禁し、実契約確認、Macの順で反映する。
+writer claimと全必須回帰を`--phase before-enable --evidence-out <artifact>`でcurrent HEADへ束ね、`canonical-task:readiness -- --enable --evidence <artifact>`がatomicに成功した後だけmutationを解禁し、実契約確認、Macの順で反映する。
 両migrationは`--apply`と`--check`を提供し、NocoDB metadata APIでDB一意制約を保証できない環境は
 fail-closedにして、基盤DB側の管理migrationを別途完了させる。
-rollbackは`--phase rollback`でschema、manifest、legacy/Mana/MCP guardの維持と旧直接writer非復活を確認する。API受付を停止してforward fixする。
+rollbackは最初にreadinessを明示disableし、`--phase rollback`でschema、manifest、legacy/Mana/MCP guardの維持と旧直接writer非復活を確認する。API受付を停止してforward fixする。
 
 ## 障害方針
 
@@ -204,5 +221,6 @@ rollbackは`--phase rollback`でschema、manifest、legacy/Mana/MCP guardの維�
 - person不存在: `422 invalid_assignee_person_id`
 - 版不一致: `409 version_conflict` とcurrent Task
 - 冪等キー再利用の内容不一致: `409 idempotency_conflict`
+- mutation readiness不成立: `503 canonical_task_mutation_not_ready`
 
 空配列、自由入力への退避、承認だけ先に進める処理は行わない。
