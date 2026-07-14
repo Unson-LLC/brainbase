@@ -28,10 +28,13 @@
           "server/routes/companion.js",
           "server/services/workflow/workflow-service.js",
           "server/services/workflow/workflow-repository.js",
+          "server/routes/workflows.js",
           "server/bootstrap/core-services.js",
           "server/bootstrap/register-api-routes.js",
           "server/sql/canonical-task-operation-schema.sql",
-          "scripts/migrate-canonical-task-columns.js"
+          "scripts/migrate-canonical-task-columns.js",
+          "scripts/migrate-canonical-task-operations.js",
+          "package.json"
         ],
         "symbols": [
           "CanonicalTaskService",
@@ -43,8 +46,10 @@
           "server_api",
           "task_ssot",
           "workflow_approval",
-          "identity_boundary"
-          ,"durable_idempotency"
+          "identity_boundary",
+          "durable_idempotency",
+          "destination_fencing",
+          "mac_wire_contract"
         ]
       },
       "required_evidence": [
@@ -52,7 +57,7 @@
         "runtime_path_evidence",
         "independent_review"
       ],
-      "unknown_policy": "Brainbaseの固定NocoDB Task表だけをTask永続化正本とする。Postgres operation ledgerはTask本文を持たず同時実行のclaimと結果IDだけを保持する。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、調停台帳、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とID保存が終わるまでapprovedにしない。"
+      "unknown_policy": "Brainbaseの固定NocoDB Task表だけをTask永続化正本とする。Postgres operation ledgerはTask本文を持たず、claim、fencing generation、全Task ID、後処理phaseだけを保持する。createの外部書き込み一意性はNocoDB正本表の冪等キーDB一意制約で保証し、update/transitionは版と最終操作markerを同じrow patchに保存する。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、調停台帳、unique制約、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とPostgres結果保存が終わるまでapprovedにしない。"
     }
   ]
 }

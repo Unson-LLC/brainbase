@@ -58,7 +58,8 @@ Storyであり、Taskの永続化正本を増やさない。
 
 ## 受け入れ基準
 
-- [ ] **ac:1 canonical-list**: 認証済みownerが `GET /api/companion/tasks` で正本Taskを状態、担当者、期限条件付きで取得でき、cursorで続きを取得できる。
+- [ ] **ac:1 canonical-read**: 認証済みownerが `GET /api/companion/tasks` で正本Taskを状態、担当者、優先度、期限条件付きで取得でき、cursorで続きを取得できる。応答はMac契約の `items`, `total_count`, `count_status`, `next_cursor`, `read_status`, `warnings`, `as_of` を必須とする。
+- [ ] **ac:13 canonical-get**: `GET /api/companion/tasks/:taskId` は固定正本storeのTaskをMac契約で返し、別storeまたは不存在IDは `task_not_found` にする。
 - [ ] **ac:2 canonical-create**: `POST /api/companion/tasks` は必須の冪等キーを受け、同じ要求の再送では同じTaskを返し、内容が異なる再利用は409にする。
 - [ ] **ac:3 canonical-update**: `PATCH /api/companion/tasks/:taskId` と状態遷移APIは期待版を必須にし、不一致を409で返す。
 - [ ] **ac:4 person-id-boundary**: 担当者はGraph SSOTの `person_id` だけを入力権限とし、表示名は投影として保存する。存在しないIDは拒否し、旧自由入力値を推測でID化しない。
@@ -70,6 +71,10 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:10 auth**: Companion Task APIは既存Companion APIと同じnative/service/internal認証およびowner境界を通る。
 - [ ] **ac:11 concurrent-once**: 同じ冪等キーの並行POSTと同じhuman stepの並行承認を、複数Brainbase processから実行してもTaskは一度だけ作られる。
 - [ ] **ac:12 visible-approval-result**: 承認応答は作成済みTask ID、除外候補、警告、再生有無を返し、部分失敗を成功または空へ変換しない。
+- [ ] **ac:14 wire-contract**: 状態遷移はMacが送る `to_status` を受け、版競合は `version_conflict`、承認成功はトップレベルの `materialized_task_ids` を必ず返す。
+- [ ] **ac:15 destination-fencing**: 作成行の冪等キーは正本Task表で一意にし、更新・遷移は版と最終操作key/fingerprintを同一row patchで保存する。leaseを失ったworkerの遅延書き込みでも重複Taskや異なる変更を作らない。
+- [ ] **ac:16 durable-recovery**: workflow承認の全Task IDと後処理phaseをPostgres調停台帳へ保存し、process-localなWorkflow JSONだけを回復根拠にしない。
+- [ ] **ac:17 task-store-approval-auth**: `task_store` 承認は既存human-step解決権限に加えてTask owner境界を検証し、owner/admin/ceo credentialによる別person Task作成を拒否する。service/internalだけがGraph確認済みの別personを扱える。
 
 ## Done Evidence
 
@@ -89,10 +94,12 @@ Storyであり、Taskの永続化正本を増やさない。
 - FM-006: 旧行に自由入力担当者だけがある場合、person IDを推測せず警告付き未解決として返す。
 - FM-007: 担当者未解決、曖昧、ignored、またはlegacy文字列だけの候補を含む承認はpendingのまま409にし、除外理由を返す。
 - FM-008: 同時実行の永続調停台帳が利用不能なら503にし、プロセス内lockだけで処理を続けない。
+- FM-009: NocoDB正本表で冪等キー一意制約または最終操作列を確認できなければ、書き込み経路を503で停止する。
+- FM-010: lease takeover後の旧workerが後処理を進めようとした場合、fencing token不一致で停止し、正本Taskの一意キーまたは同一操作マーカーから現行workerが回復する。
 
 ## Release / Rollback / Observability
 
-- Release: 先にTask表の追加列を検査・追加し、その後Brainbase APIを再起動する。MacはAPI疎通確認後に反映する。
+- Release: Postgres調停schemaをapply/checkし、次にTask表の追加列と冪等キー一意制約をapply/checkする。その後Brainbase APIを再起動し、実API契約を確認してからMacを反映する。
 - Rollback: Macを先に旧版へ戻し、BrainbaseのPRをrevertする。追加列は後方互換のため即時削除しない。
 - Observability: Task APIの構造化error code、workflow outputのmaterialized task IDs、監査ログのactor/sourceを確認する。
 - Support: migration checkで列不足を確認し、Graph/NocoDBの障害とデータ0件を区別して復旧する。
@@ -100,12 +107,13 @@ Storyであり、Taskの永続化正本を増やさない。
 
 ## 実装タスク
 
-1. `[DB]` 既存Brainbase Task表へ正規化メタデータ列を確認・追加する移行スクリプトを作る。
+1. `[DB]` Postgres調停schemaと、既存Brainbase Task表の正規化列・冪等キー一意制約をcheck/applyする移行スクリプトを作る。
 2. `[BE]` NocoDB Task repositoryとGraph People検証を組み合わせた正本Task serviceを作る。
-3. `[BE]` `/api/companion/tasks` の一覧、作成、更新、状態遷移を既存認証境界へ登録する。
+3. `[BE]` `/api/companion/tasks` の一覧、単体取得、作成、更新、状態遷移を既存認証境界へ登録する。
 4. `[BE]` Workflow `task_store` 承認を同じ作成serviceへ接続し、冪等な再試行を保証する。
 5. `[QA]` BDD、route integration、repository unit、既存承認回帰を実行し、VibeProへ証跡を記録する。
-6. `[QA]` 同一冪等keyの並行POST、同一stepの並行承認、各保存境界での停止と前進回復をfixtureで検証する。
+6. `[QA]` Mac `b392fdec` の固定wire fixtureで一覧完全性、単体取得、`to_status`、トップレベルTask ID、競合codeを検証する。
+7. `[QA]` 同一冪等keyの並行POST、同一版の異内容変更、同一stepの並行承認、lease takeover、各保存境界での停止と前進回復をfixtureで検証する。
 
 ブランチ: `codex/canonical-task-provider`
 
