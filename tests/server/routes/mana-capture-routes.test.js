@@ -201,4 +201,39 @@ describe('mana capture routes', () => {
     expect(res.body).toMatchObject({ code: 'task_store_unavailable' });
     expect(res.body.id).toBeUndefined();
   });
+
+  it('GET /captures follows canonical Task cursors before filtering Mana captures', async () => {
+    const canonicalTaskService = {
+      listTasks: vi.fn()
+        .mockResolvedValueOnce({
+          items: [{ id: 'ct1.normal', source_refs: [{ type: 'brainbase_web' }] }],
+          next_cursor: 'cursor-2'
+        })
+        .mockResolvedValueOnce({
+          items: [{
+            id: 'ct1.capture', version: 2, status: 'pending', title: '次ページの記録',
+            assignee_person_id: 'sato_keigo', created_at: '2026-07-14T00:00:00.000Z',
+            source_refs: [{ type: 'mana_capture', capture_type: 'task', content: '確認する', project: 'brainbase' }]
+          }],
+          next_cursor: null
+        })
+    };
+    const sessionGuard = (req, _res, next) => {
+      req.authSource = 'cookie';
+      req.access = { personId: 'sato_keigo' };
+      next();
+    };
+    app = express();
+    app.use(express.json());
+    app.use('/api/brainbase/mana', createManaCaptureRouter({ canonicalTaskService, sessionGuard }));
+
+    const res = await request(app).get('/api/brainbase/mana/captures');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ count: 1, items: [{ taskId: 'ct1.capture', content: '確認する' }] });
+    expect(canonicalTaskService.listTasks.mock.calls).toEqual([
+      [{ limit: 50 }, expect.any(Object)],
+      [{ limit: 50, cursor: 'cursor-2' }, expect.any(Object)]
+    ]);
+  });
 });

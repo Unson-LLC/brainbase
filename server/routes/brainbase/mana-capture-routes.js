@@ -161,22 +161,38 @@ export function createManaCaptureRouter(options = {}) {
     router.get('/captures', asyncHandler(async (req, res) => {
         try {
             if (!canonicalTaskService?.listTasks) throw Object.assign(new Error('Canonical Task service is unavailable'), { status: 503, code: 'canonical_task_service_unavailable' });
-            const page = await canonicalTaskService.listTasks({ limit: 50 }, req.manaTaskContext);
-            const items = page.items.flatMap((task) => {
-                const source = task.source_refs?.find((ref) => ref?.type === 'mana_capture');
-                return source ? [{
-                    id: task.id,
-                    taskId: task.id,
-                    version: task.version,
-                    status: task.status,
-                    title: task.title,
-                    type: source.capture_type || 'issue',
-                    content: source.content || task.description || '',
-                    assigneePersonId: task.assignee_person_id,
-                    project: source.project || '',
-                    capturedAt: task.created_at || ''
-                }] : [];
-            });
+            const items = [];
+            const seenCursors = new Set();
+            let cursor = null;
+            do {
+                const page = await canonicalTaskService.listTasks({
+                    limit: 50,
+                    ...(cursor ? { cursor } : {})
+                }, req.manaTaskContext);
+                items.push(...page.items.flatMap((task) => {
+                    const source = task.source_refs?.find((ref) => ref?.type === 'mana_capture');
+                    return source ? [{
+                        id: task.id,
+                        taskId: task.id,
+                        version: task.version,
+                        status: task.status,
+                        title: task.title,
+                        type: source.capture_type || 'issue',
+                        content: source.content || task.description || '',
+                        assigneePersonId: task.assignee_person_id,
+                        project: source.project || '',
+                        capturedAt: task.created_at || ''
+                    }] : [];
+                }));
+                cursor = page.next_cursor || null;
+                if (cursor && seenCursors.has(cursor)) {
+                    throw Object.assign(new Error('Canonical Task cursor did not advance'), {
+                        status: 503,
+                        code: 'canonical_task_cursor_loop'
+                    });
+                }
+                if (cursor) seenCursors.add(cursor);
+            } while (cursor);
             res.json({ items, count: items.length });
         } catch (err) {
             logger.error('Failed to fetch captures', { error: err.message });

@@ -192,7 +192,8 @@ export class NocoDBTaskService {
      * @param {string} payload.projectId - プロジェクトID
      * @param {string} [payload.baseId] - NocoDB base ID
      * @param {string} payload.title - タスク名
-     * @param {string} payload.assignee - 担当者
+     * @param {string} [payload.assignee] - NocoDB向け自由入力担当者
+     * @param {string} [payload.assigneePersonId] - 正本Task向けPeople SSOT人物ID
      * @param {string} payload.priority - 優先度
      * @param {string} payload.due - 期限
      * @param {string} payload.description - 説明
@@ -201,11 +202,19 @@ export class NocoDBTaskService {
         try {
             if (this._isCanonicalProject(payload.projectId, payload.baseId)) {
                 this._assertCanonicalBearer();
+                if (!payload.assigneePersonId?.trim()) {
+                    const error = /** @type {Error & {code: string}} */ (
+                        new Error('Canonical Task assignee requires a People SSOT person id')
+                    );
+                    error.code = 'task_assignee_person_id_required';
+                    throw error;
+                }
                 const created = await this.repository.createCanonicalTask({
                     title: payload.title,
                     description: payload.description || null,
                     priority: payload.priority || 'medium',
                     due_at: payload.due || null,
+                    assignee_person_id: payload.assigneePersonId.trim(),
                     source_refs: [{ type: 'brainbase_web', project: payload.projectId }]
                 }, this._operationKey('create'));
                 await this.loadTasks();
@@ -342,6 +351,10 @@ export class NocoDBTaskService {
             || projectId === this.canonicalTaskStore.project
             || this.projects.some(project => project.id === projectId && project.canonicalTaskStore)
         ));
+    }
+
+    isCanonicalProject(projectId, baseId) {
+        return this._isCanonicalProject(projectId, baseId);
     }
 
     _assertCanonicalBearer() {
