@@ -10,6 +10,8 @@ related_architecture:
 implementation_files:
   - server/bootstrap/core-services.js
   - server/bootstrap/register-api-routes.js
+  - server/bootstrap/graceful-shutdown.js
+  - server.js
   - server/controllers/companion-controller.js
   - server/routes/companion.js
   - server/services/companion/canonical-task-service.js
@@ -21,6 +23,7 @@ implementation_files:
   - server/sql/canonical-task-operation-schema.sql
   - scripts/migrate-canonical-task-columns.js
   - scripts/migrate-canonical-task-operations.js
+  - scripts/recover-canonical-task-writer.js
   - package.json
 test_files:
   - tests/e2e/story-companion-canonical-task-provider-contract.spec.ts
@@ -31,7 +34,7 @@ test_files:
   - tests/server/services/workflow-canonical-task-materialization.test.js
   - tests/server/routes/companion-approval-inbox.test.js
   - tests/server/services/workflow-org-agent-control.test.js
-  - tests/fixtures/companion-canonical-task-mac-b392fdec.json
+  - tests/fixtures/companion-canonical-task-mac-cb9c293.json
 ---
 
 # Mac Companion Canonical Task Provider Spec
@@ -53,9 +56,12 @@ test_files:
 - **INV-13 destination-idempotency**: createの冪等キーはNocoDB正本表で一意にする。operation claimは単一writer内の実行順を調停するが、外部書き込みの一意性根拠にはしない。
 - **INV-14 mutation-recovery**: update/transitionは `expected_version`, 最終操作key, fingerprint, 次版を同じNocoDB row patchへ保存し、停止後はそのマーカーだけから適用済みを判定する。旧writer停止確認前のtakeoverは禁止する。
 - **INV-15 workflow-recovery-authority**: human stepの全Task ID、候補checkpoint、human step/runの目標状態、監査checkpoint、後処理phaseはPostgres台帳を回復権限とし、Workflow JSONは起動時と読取・再試行前に再投影する。
-- **INV-16 mac-wire-contract**: Mac consumer commit `b392fdec` の固定fixtureをHTTP schemaの権限とし、互換aliasだけで必須field欠落を隠さない。
+- **INV-16 mac-wire-contract**: Mac consumer commit `cb9c293` の固定fixtureをHTTP schemaの権限とし、互換aliasだけで必須field欠落を隠さない。
 - **INV-17 owner-private-scope**: owner credentialの読取対象はconfigured owner担当Taskだけである。作成時の担当者省略はownerへ補完し、未担当・別person Taskの存在をownerへ開示しない。
 - **INV-18 terminal-completed**: `completed` は終端であり、状態遷移は公開された許可表に従う。
+- **INV-19 decision-pair**: `decision_mode` と `resolution` は公開対応表の同じ判断を表し、不一致はTask書込前に422で拒否する。
+- **INV-20 explicit-overrides**: review itemの表示値は元候補を上書きしない。`edited_fields` に列挙された許可fieldだけを編集権限として扱う。
+- **INV-21 idempotent-projection-audit**: workflow再投影の監査IDはoperationとphaseから決定し、同じIDをupsertして再試行で監査行を増やさない。
 
 ## Task契約
 
@@ -84,7 +90,9 @@ Taskは `id`, `title`, `description`, `status`, `priority`, `assignee_person_id`
 | `stale` | `unknown` | null | 1件以上 |
 
 v1はlast-known cacheを持たないため`stale`を生成しないが、Mac decoder互換fixtureとして保持する。
-NocoDBやGraphの通信失敗は`partial`や`stale`ではなく503である。
+NocoDBやGraphの通信失敗は`partial`や`stale`ではなく503である。`warnings` の各要素は
+`{ "code": String, "message": String, "source_ref"?: { "type": String, "id": String, "url"?: String } }`
+とし、文字列だけのwarningを返さない。
 
 ## シナリオ
 
@@ -114,6 +122,9 @@ NocoDBやGraphの通信失敗は`partial`や`stale`ではなく503である。
 - **SC-024 Mac wire fixture**: 固定fixtureで反復status/priority、due bounds、cursor、limit、合法な一覧metadata、GET単体、`to_status`、`version_conflict`、`invalid_transition`、トップレベル `materialized_task_ids` を実routeで再生する。
 - **SC-025 review item merge**: unresolvedな元候補をMac review itemの`selected_owner_id`で解決し、編集済みTask fieldを合成してGraph再確認後に作成する。
 - **SC-026 review item decisions**: approvedだけをTask化し、rejectedは明示的に除外する。needs_changesが1件でもあればstepをpendingのまま409にする。
+- **SC-027 decision pair validation**: top-levelとreview itemの`decision_mode`/`resolution`が対応表と不一致なら422となり、Taskとhuman stepを変更しない。reject混在と全件rejectはapproved exclusionとして到達できる。
+- **SC-028 writer lifecycle**: HTTP listen前にclaim/reconcileし、graceful shutdownでreleaseする。claim失敗時のmutationは503、expected token明示回復後は未完了operationから再開する。
+- **SC-029 idempotent audit projection**: approved後・audit/run更新前に停止して起動、getRun、approval inbox、retryを繰り返しても、同じoperation/phaseの監査IDは1件だけである。
 
 ## HTTP
 
@@ -170,20 +181,30 @@ ownerはconfigured owner担当Taskだけを更新でき、担当者nullまたは
 | service-token / internal | 固定正本store内、明示person filterと未担当を扱える | 省略で未担当、Graph確認済みperson可 | 固定正本store内で可 |
 
 全操作はactor personまたはservice principal、auth source、固定project `brainbase` を監査へ記録する。
-`task_store` 承認はこの表とは別に既存 `_assertActorCanResolveHumanStep` を先に通し、その後に
-Task owner境界を通す。bearer/insecure-header/admin/ceoはconfigured ownerだけを選択可能とし、
-service-token/internalだけがGraph確認済みの別personをmaterializeできる。両resolve routeは
-`WorkflowService.resolveHumanStep` の同一規則を使う。
+`task_store` 承認は直接Task API操作ではない。両resolve routeの既存workflow認証と
+`_assertActorCanResolveHumanStep` を先に通し、承認済み候補だけをactor付きservice-internal commandとして
+`CanonicalTaskService`へ渡す。このcommandはGraph確認済みの別personをmaterializeできるが、任意の
+store/project指定はできない。したがって承認者が別担当者を選んでも、bearer credentialでそのTaskを
+直接list/get/updateできる権限は増えない。
 
 ### 承認候補と結果
 
-- 元outputのobject候補を候補集合の権限とし、識別子は`id`または`candidate_id`を必須にする。
+- approval inbox投影時に、元outputの各object候補へ既存`id`/`candidate_id`を保持するか
+  `workflow-output:<outputId>:candidate:<sourceIndex>` の安定IDを一度付与する。Macは返された
+  `candidate_id`をそのまま返し、resolve時は元outputのobject候補だけを候補集合の権限とする。
   `response_ref.review_items`がある場合は`candidate_id`優先、なければ`id`で一対一に結合し、未知・重複・
   欠落itemは422にする。review itemがない既存clientは元候補だけを使う。
+- `decision_mode` と `resolution` の合法対応は `approve|approveWithEdits -> approved`,
+  `requestChanges -> needs_changes`, `reject -> rejected` だけである。top-levelと全review itemで不一致は
+  422 `inconsistent_approval_decision` とし、修正前fixtureで書込0件を確認する。
 - top-level resolutionが`approved`のときだけmaterializeする。review itemの`approved`はTask化、
   `rejected`は`excluded_candidates`へ`rejected_by_reviewer`として記録し、`needs_changes`が1件でも
   あればstepをpendingのまま409にする。全件rejectedはTask 0件を明示してapprovedにできる。
-- review itemの`title`, `description`, `priority`, `due_at`は存在するfieldだけ元候補を上書きする。
+- `requestChanges` itemが1件でもあればtop-levelは`needs_changes`、それ以外はrejectが混在または全件rejectでも
+  top-levelを`approved`にする。top-level `reject` はcard全体をTask化せずrejectedで閉じる。
+- review itemの`title`, `description`, `priority`, `due_at`, `assignee_person_id`は存在だけでは上書きしない。
+  `edited_fields`に列挙されたfieldだけを上書きし、未知field、列挙したfieldの値欠落、非列挙fieldの元候補と
+  異なる値は422にする。v1 Mac UIが編集権限を持つのは`assignee_person_id`だけである。
   `selected_owner_id`を担当者の最終判断とし、`assignee_person_id`もある場合は同値を必須にする。
   source refsと候補IDは元outputを権限としreview itemから追加・変更させない。
 - review itemで選択されたownerは元候補の`owner_resolution`がunresolvedでも上書きできるが、Graphで
@@ -215,9 +236,16 @@ createはさらにNocoDBの `冪等キー` 列へDB一意制約を設定する�
 回収し、fingerprint一致なら同じTask、違えば409にする。update/transitionは同じscopeを共有し、
 NocoDB rowへ `最終操作キー`, `最終操作Fingerprint`, 次版を業務変更と同じPATCHで保存する。
 現行版が期待版+1でもマーカーが一致しない場合は `version_conflict` とし、適用済みと推測しない。
-起動時およびtask_store human stepの読取・resolve前に、未完了operationをPostgresから読み、保存済み
+`server.js`はHTTP listen前にwriterをclaimして未完了operationをreconcileする。claimまたはreconcileに
+失敗しても読取serverは起動できるがTask mutationと`task_store`承認は503となる。
+`registerGracefulShutdown`はHTTP close後、session cleanup前にwriter tokenをreleaseする。
+`scripts/recover-canonical-task-writer.js --expected-token <token>`だけが旧tokenを比較して移譲し、旧processの
+停止確認を要求する。起動時およびtask_store human stepの読取・resolve前に、未完了operationをPostgresから読み、保存済み
 Task ID、human step/run目標状態、audit checkpointをWorkflow JSONへ冪等に再投影する。task_store以外の
 Workflowは既存経路を変えない。
+
+再投影監査は `canonical-task:<operationId>:<phase>` をIDとし、Workflow repositoryの`upsertAuditLog`で
+同じIDを置換または維持する。`writeAuditLog`の既存append契約は非Task workflow向けに変更しない。
 
 | 停止点 | 再送時の期待 |
 |---|---|
@@ -241,11 +269,13 @@ Workflowは既存経路を変えない。
 
 ## 検証
 
-- BDDで26シナリオをAPIとserviceの実経路へ対応付け、修正前に新規fixtureが失敗することを記録する。
+- BDDで29シナリオをAPIとserviceの実経路へ対応付け、修正前に新規fixtureが失敗することを記録する。
 - NocoDB repositoryはfake fetchでfield mapping、cursor、冪等照会、版更新を検証する。
 - Workflow serviceは実repository ledgerとfake canonical task serviceで承認順序と再試行を検証する。
 - 既存Companion認証、approval inbox、NocoDB Task controllerの回帰テストを実行する。
-- Mac consumer契約は `tests/fixtures/companion-canonical-task-mac-b392fdec.json` に固定し、
-  `/Users/ksato/workspace/code/brainbase-mac-companion` のconsumer基準`b392fdec`とschema hashを照合する。
+- Mac consumer契約は `tests/fixtures/companion-canonical-task-mac-cb9c293.json` に固定し、
+  `/Users/ksato/workspace/code/brainbase-mac-companion` のconsumer基準`cb9c293`とschema hashを照合する。
 - 既存 `/api/nocodb/tasks`、`/api/workflow-runs/:runId/human-steps/:stepId/resolve`、
   `/api/workflow-human-steps/:stepId/resolve`、非`task_store`承認を明示回帰対象にする。
+- server起動claim/reconcile、graceful release、明示回復CLI、`getRun`/approval inbox読取時reconcile、
+  retry、非`task_store`、旧NocoDB APIをcurrent-headのpath surface evidenceへ含める。

@@ -58,8 +58,10 @@ service/internalだけが固定store内の未担当TaskとGraph確認済みの�
 ```mermaid
 flowchart LR
   Mac["Mac Companion"] -->|"Bearer + CSRF / fixed Task contract"| Guard["Companion auth and owner guard"]
-  Workflow["Workflow resolve routes"] -->|"existing human-step authorization"| Guard
+  Mac -->|"resolve human step"| WorkflowAuth["Workflow auth and human-step authority"]
+  Workflow["Workflow resolve routes"] --> WorkflowAuth
   Guard --> Service["CanonicalTaskService"]
+  WorkflowAuth -->|"actor-preserving internal Task command"| Service
   Service -->|"verify person_id"| Graph["Graph People SSOT"]
   Service -->|"claim writer and operation"| PG["Postgres coordination and recovery checkpoints"]
   Service -->|"read or write canonical Task"| Noco["Fixed NocoDB Task table SSOT"]
@@ -84,8 +86,8 @@ flowchart LR
 ## 一度だけ作成
 
 1. `resolveHumanStep` がapproved要求と `write_back_target=task_store` を検出する。
-2. human stepのoutputからTask候補集合を取得し、Macの`response_ref.review_items`があれば候補IDで一対一に結合する。
-3. review itemの承認・拒否・修正依頼を適用する。承認itemの編集値と`selected_owner_id`は元候補を上書きし、Graphで再確認する。拒否itemは除外結果へ残し、修正依頼または最終owner未解決があれば理由付き409でpendingに残す。
+2. approval inbox投影時に元output候補へ安定`candidate_id`を付与し、Macの`response_ref.review_items`を同じIDで一対一に結合する。
+3. `decision_mode`と`resolution`の対応を検証する。承認itemの`edited_fields`にある許可値だけを元候補へ上書きしてGraphで再確認する。拒否itemは除外結果へ残し、修正依頼または最終owner未解決があれば理由付き409でpendingに残す。
 4. `workflow-output:<outputId>:<candidateFingerprint>:<ordinal>` を並べ替えに安定した冪等キーとして全候補を作成する。
 5. 1件ごとにTask IDをPostgres operation resultへcheckpointし、human step metadataへ互換投影する。全件成功後にphaseを進めてapprovedへ遷移する。
 6. 応答はトップレベル `materialized_task_ids` と詳細materializationを返す。
@@ -101,6 +103,10 @@ NocoDB REST PATCHはPostgres lease generationを条件にした原子的更新�
 ADR-016に従いTask mutationと`task_store`承認を単一writer processへ限定する。Postgres
 `canonical_task_writer` singleton rowにactive process tokenを保存し、他processは503にする。
 graceful shutdown時だけreleaseし、異常終了後は旧process停止確認を伴う明示回復までtakeoverしない。
+
+`server.js`はHTTP listen前にclaimとreconcileを実行し、`registerGracefulShutdown`はHTTP close後にreleaseする。
+明示回復は`recover-canonical-task-writer.js --expected-token`だけから行う。再投影監査はoperation/phase由来の
+決定的IDを`upsertAuditLog`し、既存非Task workflowのappend-only `writeAuditLog`は変えない。
 
 Postgres `canonical_task_operations` を実行調停台帳として使い、`(scope, operation_key)` のunique制約、
 writer token、fingerprint、result JSON、human step/run目標状態、監査checkpoint、後処理phaseを保存する。

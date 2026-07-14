@@ -75,17 +75,19 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:14 wire-contract**: 状態遷移はMacが送る `to_status` を受け、版競合は `version_conflict`、承認成功はトップレベルの `materialized_task_ids` を必ず返す。
 - [ ] **ac:15 destination-fencing**: 作成行の冪等キーは正本Task表で一意にし、更新・遷移は版と最終操作key/fingerprintを同一row patchで保存する。writer tokenは自動takeoverせず、旧process停止を運用確認した明示回復時だけ移譲する。
 - [ ] **ac:16 durable-recovery**: workflow承認の全Task ID、human step/runの目標状態、監査checkpoint、後処理phaseをPostgres調停台帳へ保存し、起動時と読取・再試行前にWorkflow JSONへ決定的に再投影する。
-- [ ] **ac:17 task-store-approval-auth**: `task_store` 承認は既存human-step解決権限に加えてTask owner境界を検証し、owner/admin/ceo credentialによる別person Task作成を拒否する。service/internalだけがGraph確認済みの別personを扱える。
+- [ ] **ac:17 task-store-approval-auth**: `task_store` 承認は既存human-step解決権限を先に検証し、承認済み候補をactor付きservice-internal commandとして固定storeへ書く。Graph確認済みの別担当者を選べるが、承認者の直接Task API権限は拡張しない。
 - [ ] **ac:18 owner-scope**: ownerの作成で担当者省略時はconfigured ownerを補完し、ownerの一覧・単体取得・更新はconfigured owner担当Taskだけに限定する。未担当または別personのTaskは読取時404、担当解除・別person指定は403にする。
 - [ ] **ac:19 lifecycle-and-query**: completedを終端とする許可遷移表と `invalid_transition` を提供し、Macが送る反復status/priority、due_after/due_before、cursor、limitを公開契約として検証する。
-- [ ] **ac:20 review-authority**: Macの `response_ref.review_items` を候補IDで元outputへ結合し、承認・拒否・修正依頼、編集値、選択担当者の優先規則とGraph再確認を適用する。
+- [ ] **ac:20 review-authority**: Brainbaseが安定候補IDを投影し、Macの `response_ref.review_items` を候補IDで元outputへ結合する。承認・拒否・修正依頼の全体判定、`decision_mode`/`resolution`対応、`edited_fields`だけの上書き、選択担当者のGraph再確認を適用する。
+- [ ] **ac:21 writer-lifecycle**: HTTP listen前のwriter claim/reconcile、graceful shutdown release、expected token付き明示回復CLIを提供し、自動takeoverしない。
+- [ ] **ac:22 idempotent-workflow-audit**: 起動・読取・retryによる同じworkflow再投影は決定的監査IDをupsertし、監査行を重複させない。
 
 ## Done Evidence
 
 - Unit: field mapping、People検証、冪等作成、版競合、状態遷移をservice/repository単位で検証する。
 - Integration: Companion認証guardからTask APIまでと、Workflow承認から正本化までを検証する。
 - E2E: Mac Companionのconsumer branch `codex/canonical-task-lifecycle-integration`
-  （基準commit `b392fdec`）が使うHTTP schemaで一覧、作成、更新、待ち、完了、競合、障害を再生する。
+  （基準commit `cb9c293`）が使うHTTP schemaで一覧、作成、更新、待ち、完了、競合、障害を再生する。
 - Runtime: 正本Task表の列検査、Brainbase実プロセスのAPI応答、Mac実クライアントからの接続を記録する。
 
 ## Failure Modes
@@ -118,8 +120,9 @@ Storyであり、Taskの永続化正本を増やさない。
 3. `[BE]` `/api/companion/tasks` の一覧、単体取得、作成、更新、状態遷移を既存認証境界へ登録する。
 4. `[BE]` Workflow `task_store` 承認を同じ作成serviceへ接続し、冪等な再試行を保証する。
 5. `[QA]` BDD、route integration、repository unit、既存承認回帰を実行し、VibeProへ証跡を記録する。
-6. `[QA]` Mac `b392fdec` の固定wire fixtureで一覧完全性、単体取得、`to_status`、トップレベルTask ID、競合codeを検証する。
+6. `[QA]` Mac `cb9c293` の固定wire fixtureで一覧完全性、単体取得、`to_status`、トップレベルTask ID、競合codeを検証する。
 7. `[QA]` 同一冪等keyの並行POST、同一版の異内容変更、同一stepの並行承認、別process拒否、明示writer回復、各保存境界での停止と前進回復をfixtureで検証する。
+8. `[BE]` server起動・終了・明示回復へwriter lifecycleを接続し、Workflow再投影監査を決定的IDでupsertする。
 
 ブランチ: `codex/canonical-task-provider`
 
