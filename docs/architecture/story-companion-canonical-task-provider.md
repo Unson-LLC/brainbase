@@ -31,7 +31,7 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 ## SSOT
 
 - 正本テーブルはbase `pva7l2qlu6fdfip`、table `m7iys8m7o1abr3f` の `タスク` に固定する。
-  client requestや複数project mappingから選択しない。環境上書き時も起動時に一組へ確定し、mapping不在・不一致はfail-closedにする。
+  client requestや複数project mappingから選択しない。環境変数で差し替えられるのは`CANONICAL_TASK_STORE_MANIFEST`によるmanifestパスだけであり、base/tableの個別overrideは拒否する。
 - 正本storeのproject/owner scopeは `brainbase` / configured Personal KG ownerである。
   Task IDはstore schema versionと固定storeを結合した署名付きopaque IDとし、別store IDを拒否する。
 - `担当者PersonID` が権威ある担当者識別子で、既存 `担当者` は表示互換用の投影である。
@@ -67,6 +67,7 @@ Canonical一覧失敗時に旧正本行へfallbackしない。cookie-only sessio
 
 Mana captureはbrowser sessionとCSRFを検証し、bodyのactor/ownerを信用せずsession actor付きinternal commandへ
 変換する。clientは操作ごとにcapture UUIDを生成し、応答確定まで同じIDを再送する。同文の新規操作は新IDを使う。
+保存keyは`mana:<actorNamespace>:<capture_id>`とし、別actor namespaceは同じcapture IDでも互いのoperation結果を参照・再生しない。
 
 ## データフローと脅威境界
 
@@ -153,8 +154,8 @@ client呼出前に`canonical_task_api_required`で拒否し、readと他base/tab
 deleteは二つの永続claimを使う。`task-version:<taskId>:<expectedVersion>`はupdate/transition/deleteを相互排他し、
 `task-delete:<actorNamespace>:<clientKey>`はclient再送を識別する。後者へfingerprint、削除前のactor/auth source、owner認可、
 Task ID/version snapshot、`prepared` stateを保存してからNocoDBを削除する。削除後・result保存前に停止した場合、旧writer停止と
-prepared intent、固定storeでの行不存在を照合して同じ削除結果を確定する。削除後の再送認可は保存済みsnapshotに限定し、
-actorまたはfingerprintが違う要求へ結果を開示しない。
+prepared intent、固定storeでの行不存在を照合して同じ削除結果を確定する。削除後の再送認可は保存済みsnapshotに限定する。
+同一actor namespaceの同key異fingerprintは409、別key同versionは409とし、別actor namespaceにはoperationを検索・再生せず404を返す。
 
 - createはidempotency key、update/transitionは共通scopeの`taskId:expectedVersion`、承認はstep IDをclaimする。
 - claim取得後に現行Task版を再読込し、一致時だけNocoDBへ書く。変更patchには次版、最終操作key、fingerprintを含める。
@@ -189,12 +190,12 @@ actorまたはfingerprintが違う要求へ結果を開示しない。
 運用責任はBrainbase serverが持つ。release前にPostgres schema、writer token、NocoDB列と冪等キー一意制約、固定storeをcheckし、
 不足時はTask書き込み経路を停止する。障害復旧はoperation状態とNocoDB idempotency keyを照合して前進する。
 
-初回releaseでは旧Brainbase、Mana、MCP、運用scriptを先に停止・排水し、直接writerが0であることを確認する。その後に
+初回releaseは`docs/runbooks/canonical-task-cutover.md`が所有する。`npm run preflight:canonical-task-cutover -- --phase before-migration`で旧Brainbase、Mana、MCP、運用scriptを先に停止・排水し、直接writerが0であることを確認する。その後に
 Postgres writer/operation schema、NocoDB列/uniqueを適用し、guardを含む新Brainbase/MCPを起動する。manifest hash、
-writer claim、legacy/Mana/MCP bypass testを確認した後だけmutationを解禁し、実契約確認、Macの順で反映する。
+writer claim、legacy/Mana/MCP bypass testを`--phase before-enable`で確認した後だけmutationを解禁し、実契約確認、Macの順で反映する。
 両migrationは`--apply`と`--check`を提供し、NocoDB metadata APIでDB一意制約を保証できない環境は
 fail-closedにして、基盤DB側の管理migrationを別途完了させる。
-rollbackでもschema、manifest、legacy/Mana/MCP guardは維持し、旧直接writerを再起動しない。API受付を停止してforward fixする。
+rollbackは`--phase rollback`でschema、manifest、legacy/Mana/MCP guardの維持と旧直接writer非復活を確認する。API受付を停止してforward fixする。
 
 ## 障害方針
 

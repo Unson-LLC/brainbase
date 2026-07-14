@@ -42,10 +42,11 @@ operation結果からTask ID、human step/run目標状態、監査checkpoint、p
 - Mana captureと既存ブラウザTask画面の正本base mutationもCanonical Task API/serviceへ移行し、障害時にlocal ID、空一覧、旧routeへfallbackしない。
 - 正本Taskの削除もexpected versionと冪等keyを持つsingle-writer operationに含め、削除済み再送は保存結果を再生する。
 - deleteはTask/version共通排他claimとactor namespace付きclient idempotency claimを分離し、削除前認可snapshotとprepared intentを永続化してからNocoDBを削除する。
+- delete再送は同一actor namespaceの同key異fingerprintと別key同versionを409にし、別actor namespaceには削除結果を開示せず404にする。
 - NocoDB MCPは正本Taskのrecord mutationと列metadata mutationを拒否する。NocoDB credentialそのものを正本Task writer権限にしない。
 - 正本store identityはcommit済みmanifestとcanonical JSON hashでBrainbase/MCP/migration間に共有し、不一致・個別override・table解決失敗はmutationを停止する。
 - 正本store設定は起動時に一度だけ確定したimmutable objectを全JS writer/guardへ渡し、Task APIはcookie-onlyとinsecure-headerをowner認証として受理しない。
-- 初回migration前に旧Brainbase、Mana、MCP、運用scriptを停止・排水する。rollbackでも旧直接writerを復活させない。
+- 初回migration前に`docs/runbooks/canonical-task-cutover.md`と`scripts/preflight-canonical-task-cutover.js`で旧Brainbase、Mana、MCP、運用scriptを停止・排水する。rollbackでも旧直接writerを復活させない。
 - 既存文字列候補はowner未解決objectへ正規化し、IDなし候補は内容hashと同一内容ordinalから並び順に依存しないcandidate ID集合を得る。
 - 既存NocoDB UI adapterは`waiting`/`urgent`を双方向投影し、未知値を既定値へ黙って縮退しない。
 - `task_store`以外の既存Workflow契約とrepository形式は変更しない。
