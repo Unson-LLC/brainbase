@@ -48,10 +48,13 @@ allowlistと生成元の唯一の正本は`config/canonical-task-evidence-regist
 `pre_fix_assertion`を必須とする。証拠は登録済み`producer_command`で
 `scripts/collect-canonical-task-evidence.js`を起動して生成し、collectorは現在HEAD、registry hash、
 owner file hash、実行したtest command、終了codeをraw artifactへ保存する。
+collectorはテスト結果から`matched_tests`と`matched_assertions`も保存し、どちらかが0の場合は
+commandの終了codeが0でも`pass: false`として失敗させる。
 
 preflightはregistry自体の71件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
 owner path/hash、registry hash、source HEADをentryと照合する。別IDのartifact入替、未登録command、
-owner変更後の古いartifact、失敗をpassとしたartifact、期待path以外のartifactをすべて拒否する。
+owner変更後の古いartifact、失敗をpassとしたartifact、`matched_tests == 0`、`matched_assertions == 0`、
+期待path以外のartifactをすべて拒否する。
 
 ### BDDシナリオ証跡ID
 

@@ -389,11 +389,14 @@ MCPは別processでも同じmanifest/hashを読み、metadataで解決したtabl
 test command、raw artifact path/schema、pre-fix assertionを完全一致で保持する。
 `scripts/collect-canonical-task-evidence.js`はregistry entry以外を実行せず、current HEAD、registry hash、
 owner file hash、実行command、終了codeをraw artifactへ記録する。
+raw artifactには`matched_tests`と`matched_assertions`を含める。collectorは対象テストまたは対象assertionが
+0件なら終了codeに関係なく`pass: false`として終了し、0件実行のfalse passを許可しない。
 
 `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はregistryをallowlistとして扱い、
 必須回帰ID、各証跡file hash、producer/owner/schema provenance、source HEAD、manifest hash、schema version、
 writer tokenをcanonical JSON artifactへ出力する。欠落、重複、ID/path入替、未登録command、owner hashのstale、
 schema不一致、registry hash不一致を拒否する。
+`matched_tests == 0`または`matched_assertions == 0`のartifactも拒否する。
 `npm run canonical-task:readiness -- --enable --evidence <path>`はartifactがcurrent HEADかつ必須回帰全件passで
 あることをtransaction内で再検証し、条件成立時だけrowを`ready`へupsertする。失敗時はrowを変更しない。
 `--disable --reason <reason>`はrowをatomicに`closed`へ変更し、process-local gateも次のmutationで閉じる。
