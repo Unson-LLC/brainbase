@@ -175,6 +175,16 @@ async function verifyEvidenceContract(evidenceId: string, request: APIRequestCon
   runVitest(suites);
 }
 
+test('canonical Task API rejects an unauthenticated mutation', async ({ request }) => {
+  const response = await request.post('/api/companion/tasks', {
+    data: { title: 'must-not-be-created' },
+    headers: { 'Idempotency-Key': 'e2e-explicit-unauthenticated-mutation' },
+  });
+  expect([401, 403]).toContain(response.status());
+  const body = await response.json();
+  expect(body.code || body.error).toBeTruthy();
+});
+
 for (const entry of registry.entries) {
   test(entry.id, async ({ request }, testInfo) => {
     await withCanonicalTaskEvidence(entry.id, async () => {
