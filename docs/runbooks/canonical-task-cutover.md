@@ -25,8 +25,8 @@
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
 3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。
 4. `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。
-5. `npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。
-6. mutationが解禁され、再起動後も保存rowと現在値の再検証後だけ開くことを確認する。
+5. `npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
+6. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
 7. Brainbase APIの実契約を確認してからMac Companionを反映する。
 
 ## rollback

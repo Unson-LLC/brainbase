@@ -7,7 +7,21 @@ story_id: story-companion-canonical-task-provider
 related_architecture:
   - docs/architecture/story-companion-canonical-task-provider.md
   - docs/architecture/ADR-016-canonical-task-single-writer.md
+diagrams:
+  - kind: er
+    path: docs/specs/story-companion-canonical-task-provider-spec.md
+    purpose: NocoDB Task正本、Postgres操作台帳、writer/readiness、Workflow投影の永続関係を示す。
+  - kind: state
+    path: docs/specs/story-companion-canonical-task-provider-spec.md
+    purpose: Task状態と承認materializationの回復可能な状態遷移を示す。
+  - kind: flow
+    path: docs/specs/story-companion-canonical-task-provider-spec.md
+    purpose: Mac、承認、Mana、旧UIから単一writerを経由してTask正本へ到達する処理を示す。
+  - kind: threat_model
+    path: docs/specs/story-companion-canonical-task-provider-spec.md
+    purpose: client principal、Brainbase authority、People SSOT、NocoDB/Postgres間のtrust boundaryを示す。
 implementation_files:
+  - server/bootstrap/cors-options.js
   - server/bootstrap/core-services.js
   - server/bootstrap/register-api-routes.js
   - server/bootstrap/graceful-shutdown.js
@@ -58,6 +72,7 @@ implementation_files:
   - docs/runbooks/canonical-task-cutover.md
   - tests/helpers/canonical-task-evidence.js
 test_files:
+  - tests/server/bootstrap/cors-options.test.js
   - tests/e2e/story-companion-canonical-task-provider-contract.spec.ts
   - tests/server/routes/companion-canonical-tasks.test.js
   - tests/server/services/canonical-task-service.test.js
@@ -90,6 +105,109 @@ test_files:
 ---
 
 # Mac Companion Canonical Task Provider Spec
+
+## 設計図
+
+### ER (`kind: er`)
+
+```mermaid
+erDiagram
+  CANONICAL_TASK ||--o{ CANONICAL_TASK_OPERATION : "operation_keyで変更"
+  CANONICAL_TASK_WRITER ||--o{ CANONICAL_TASK_OPERATION : "単一tokenで実行"
+  CANONICAL_TASK_READINESS ||--o{ CANONICAL_TASK_OPERATION : "mutationを許可"
+  WORKFLOW_RUN ||--o{ CANONICAL_TASK_OPERATION : "承認結果を回復"
+  CANONICAL_TASK {
+    string opaque_id PK
+    string person_id
+    string status
+    int version
+    string idempotency_key UK
+  }
+  CANONICAL_TASK_OPERATION {
+    string scope PK
+    string operation_key PK
+    string fingerprint
+    string phase
+    json result
+  }
+  CANONICAL_TASK_WRITER {
+    string singleton_id PK
+    string writer_token
+  }
+  CANONICAL_TASK_READINESS {
+    string singleton_id PK
+    string state
+    string source_head
+  }
+  WORKFLOW_RUN {
+    string run_id PK
+    json human_steps
+  }
+```
+
+### 状態 (`kind: state`)
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> in_progress
+  pending --> waiting
+  pending --> completed
+  in_progress --> waiting
+  in_progress --> completed
+  waiting --> in_progress
+  waiting --> completed
+  completed --> [*]
+
+  state "task_store承認" as Approval {
+    [*] --> prepared
+    prepared --> tasks_materialized
+    tasks_materialized --> approved_projected
+    approved_projected --> audit_completed
+  }
+```
+
+### 処理フロー (`kind: flow`)
+
+```mermaid
+flowchart LR
+  Inputs["Mac / Workflow承認 / Mana / 既存Task UI"] --> Auth["principal・CSRF・権限検証"]
+  Auth --> Ready["readinessとwriter token検証"]
+  Ready --> Service["CanonicalTaskService"]
+  Service --> People["Graph People SSOT"]
+  Service --> Ledger["Postgres operation台帳"]
+  Ledger --> Store["固定NocoDB Task正本"]
+  Store --> Audit["監査とWorkflow再投影"]
+  Audit --> Outputs["Task API / 承認結果 / UI"]
+```
+
+### 脅威境界 (`kind: threat_model`)
+
+```mermaid
+flowchart LR
+  subgraph Untrusted["Client trust boundary"]
+    Mac["Mac bearer"]
+    Browser["Browser session"]
+    Legacy["Legacy route / MCP"]
+  end
+  subgraph Authority["Brainbase authority boundary"]
+    Guard["Typed principal + fixed store guard"]
+    Service["CanonicalTaskService"]
+    Writer["Persistent single writer"]
+  end
+  subgraph SSOT["External SSOT boundary"]
+    People["Graph People SSOT"]
+    Noco["NocoDB Task SSOT"]
+    PG["Postgres recovery ledger"]
+  end
+  Mac --> Guard
+  Browser --> Guard
+  Legacy -. "canonical mutationは拒否" .-> Guard
+  Guard --> Service --> Writer
+  Writer --> People
+  Writer --> Noco
+  Writer --> PG
+```
 
 ## 不変条件
 

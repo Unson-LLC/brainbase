@@ -30,6 +30,7 @@ const workflowSuites = [
   'tests/server/routes/workflows.test.js',
 ];
 const cutoverSuites = [
+  'tests/server/bootstrap/cors-options.test.js',
   'tests/server/services/canonical-task-readiness.test.js',
   'tests/server/services/canonical-task-store-config.test.js',
   'tests/server/scripts/canonical-task-writer-policy.test.js',
@@ -42,6 +43,10 @@ const legacyBrowserSuites = [
   'tests/domain/nocodb-task/nocodb-task-repository.test.js',
   'tests/domain/nocodb-task/nocodb-task-service.test.js',
   'tests/browser/nocodb-browser.test.js',
+];
+const browserMutationSuites = [
+  'tests/server/bootstrap/cors-options.test.js',
+  ...legacyBrowserSuites,
 ];
 const manaSuites = ['tests/server/routes/mana-capture-routes.test.js'];
 
@@ -78,7 +83,7 @@ const surfaceSuites: Record<string, string[]> = {
   'surface.legacy.route': legacyBrowserSuites,
   'surface.legacy.ui': legacyBrowserSuites,
   'surface.mana.auth-retry-read': manaSuites,
-  'surface.browser.mutations': legacyBrowserSuites,
+  'surface.browser.mutations': browserMutationSuites,
   'surface.delete.recovery': coreApiSuites,
   'surface.operational-scripts': cutoverSuites,
   'surface.migrations.postgres': cutoverSuites,

@@ -42,6 +42,7 @@ import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.j
 import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
 import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-guard.js';
+import { BRAINBASE_CORS_OPTIONS } from './server/bootstrap/cors-options.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -351,12 +352,7 @@ if (canonicalTaskRuntime.ready) {
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
-app.use(cors({
-    origin: true,
-    credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'X-Session-Id'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+app.use(cors(BRAINBASE_CORS_OPTIONS));
 
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '10mb' }));

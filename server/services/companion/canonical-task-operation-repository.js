@@ -89,6 +89,58 @@ export class CanonicalTaskOperationRepository {
         return result.rows[0] || null;
     }
 
+    async reconcileReadiness({ manifestHash, schemaVersion, sourceHead, allowWriterRebind = false } = {}) {
+        this.assertConfigured();
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            const writer = await client.query(
+                `SELECT writer_token FROM canonical_task_writer
+                 WHERE singleton_id = TRUE FOR UPDATE`
+            );
+            if (!writer.rowCount || writer.rows[0].writer_token !== this.writerToken) {
+                throw canonicalTaskOperationError(
+                    'canonical_task_writer_unavailable',
+                    'This process does not own the Canonical Task writer token'
+                );
+            }
+
+            const readiness = await client.query(
+                `SELECT ready, writer_token, manifest_hash, schema_version, source_head,
+                        evidence_hash, evidence_path, reason, updated_at
+                 FROM canonical_task_readiness
+                 WHERE singleton_id = TRUE
+                 FOR UPDATE`
+            );
+            let row = readiness.rows[0] || null;
+            const releaseMatches = Boolean(
+                row?.ready
+                && row.manifest_hash === manifestHash
+                && row.schema_version === schemaVersion
+                && row.source_head === sourceHead
+                && row.evidence_hash
+            );
+            if (allowWriterRebind && releaseMatches && row.writer_token !== this.writerToken) {
+                const rebound = await client.query(
+                    `UPDATE canonical_task_readiness
+                     SET writer_token = $1, updated_at = NOW()
+                     WHERE singleton_id = TRUE
+                     RETURNING ready, writer_token, manifest_hash, schema_version, source_head,
+                               evidence_hash, evidence_path, reason, updated_at`,
+                    [this.writerToken]
+                );
+                row = rebound.rows[0] || row;
+            }
+            await client.query('COMMIT');
+            return row;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
     async releaseWriter() {
         if (!this.pool || !this.writerToken || !this.writerClaimed) return false;
         const result = await this.pool.query(

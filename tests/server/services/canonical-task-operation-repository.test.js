@@ -3,6 +3,77 @@ import { describe, expect, it, vi } from 'vitest';
 import { CanonicalTaskOperationRepository } from '../../../server/services/companion/canonical-task-operation-repository.js';
 
 describe('CanonicalTaskOperationRepository', () => {
+    it('rebinds matching verified readiness to the writer claimed after restart', async () => {
+        const queries = [];
+        const client = {
+            query: vi.fn(async (sql, params) => {
+                queries.push({ sql, params });
+                if (sql.includes('FROM canonical_task_writer')) {
+                    return { rowCount: 1, rows: [{ writer_token: 'writer-2' }] };
+                }
+                if (sql.includes('FROM canonical_task_readiness')) {
+                    return { rowCount: 1, rows: [{
+                        ready: true,
+                        writer_token: 'writer-1',
+                        manifest_hash: 'manifest-1',
+                        schema_version: '1.0.0',
+                        source_head: 'head-1',
+                        evidence_hash: 'evidence-1'
+                    }] };
+                }
+                if (sql.includes('UPDATE canonical_task_readiness')) {
+                    return { rowCount: 1, rows: [{ writer_token: 'writer-2' }] };
+                }
+                return { rowCount: 0, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client },
+            writerToken: 'writer-2'
+        });
+
+        await expect(repository.reconcileReadiness({
+            manifestHash: 'manifest-1',
+            schemaVersion: '1.0.0',
+            sourceHead: 'head-1',
+            allowWriterRebind: true
+        })).resolves.toMatchObject({ writer_token: 'writer-2' });
+
+        expect(queries.some(({ sql }) => sql.includes('UPDATE canonical_task_readiness'))).toBe(true);
+        expect(queries.some(({ sql }) => sql === 'COMMIT')).toBe(true);
+    });
+
+    it('does not rebind readiness when verified release authorities differ', async () => {
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (sql.includes('FROM canonical_task_writer')) return { rowCount: 1, rows: [{ writer_token: 'writer-2' }] };
+                if (sql.includes('FROM canonical_task_readiness')) {
+                    return { rowCount: 1, rows: [{
+                        ready: true,
+                        writer_token: 'writer-1',
+                        manifest_hash: 'manifest-old',
+                        schema_version: '1.0.0',
+                        source_head: 'head-1',
+                        evidence_hash: 'evidence-1'
+                    }] };
+                }
+                return { rowCount: 0, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client },
+            writerToken: 'writer-2'
+        });
+
+        await repository.reconcileReadiness({
+            manifestHash: 'manifest-1', schemaVersion: '1.0.0', sourceHead: 'head-1', allowWriterRebind: true
+        });
+
+        expect(client.query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE canonical_task_readiness'), expect.anything());
+    });
+
     it('fails closed instead of executing mutations without Postgres coordination', async () => {
         const repository = new CanonicalTaskOperationRepository({ writerToken: 'writer-1' });
         let executed = false;

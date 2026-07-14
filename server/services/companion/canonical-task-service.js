@@ -211,7 +211,7 @@ export class CanonicalTaskService {
     }
 
     async createTask(input, context) {
-        this.readiness?.assertMutationReady();
+        await this.readiness?.assertMutationReady();
         const payload = this.validateCreate(input);
         const clientKey = this.assertIdempotencyKey(context.idempotencyKey);
         if (this.isOwner(context)) {
@@ -243,7 +243,7 @@ export class CanonicalTaskService {
     }
 
     async createManaCapture(input = {}, context) {
-        this.readiness?.assertMutationReady();
+        await this.readiness?.assertMutationReady();
         const captureId = optionalTrimmed(input.capture_id);
         const content = optionalTrimmed(input.content);
         const fieldErrors = {};
@@ -295,7 +295,7 @@ export class CanonicalTaskService {
     }
 
     async materializeWorkflowApproval({ step, output, responseRef = null, actor = {} } = {}) {
-        this.readiness?.assertMutationReady();
+        await this.readiness?.assertMutationReady();
         if (!step?.id || !output?.id || !Array.isArray(output.payload)) {
             throw new CanonicalTaskError(
                 'invalid_task_candidate_output',
@@ -436,7 +436,7 @@ export class CanonicalTaskService {
     }
 
     async versionedMutation(taskId, expectedVersion, context, kind, apply) {
-        this.readiness?.assertMutationReady();
+        await this.readiness?.assertMutationReady();
         this.validateVersion(expectedVersion);
         const current = await this.getTask(taskId, context);
         if (current.version !== expectedVersion) {
@@ -497,7 +497,7 @@ export class CanonicalTaskService {
     }
 
     async deleteTask(taskId, input = {}, context) {
-        this.readiness?.assertMutationReady();
+        await this.readiness?.assertMutationReady();
         this.validateVersion(input.expected_version);
         const clientKey = this.assertIdempotencyKey(context.idempotencyKey);
         const namespace = principalNamespace(context.principal);
