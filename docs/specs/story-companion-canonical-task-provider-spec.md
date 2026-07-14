@@ -40,11 +40,13 @@ implementation_files:
   - mcp/nocodb/src/nocodb-client.ts
   - mcp/nocodb/package.json
   - config/canonical-task-store.json
+  - config/canonical-task-evidence-registry.json
   - server/sql/canonical-task-operation-schema.sql
   - scripts/migrate-canonical-task-columns.js
   - scripts/migrate-canonical-task-operations.js
   - scripts/recover-canonical-task-writer.js
   - scripts/preflight-canonical-task-cutover.js
+  - scripts/collect-canonical-task-evidence.js
   - scripts/set-canonical-task-readiness.js
   - scripts/add-frame-story-tasks.js
   - scripts/add-framework-operation-tasks.js
@@ -123,6 +125,7 @@ test_files:
 - **INV-34 guarded-initial-cutover**: 初回migration前に旧直接writerを停止・排水し、rollbackでも旧直接writerを復活させない。
 - **INV-35 canonical-actor-principal**: actorは認証済み権威値から`{ type, id }`へ正規化し、固定key順canonical JSONのbase64urlだけをnamespaceに使う。同一personは認証方式が異なっても同じnamespace、異なるtypeまたはIDは異なるnamespaceとなり、body値や区切り文字連結を使わない。
 - **INV-36 persistent-mutation-readiness**: 全processはmutation gateをclosedで起動する。Postgresのsingleton readiness rowとcurrent HEADの必須回帰証跡、manifest hash、schema version、writer claimを再検証できた場合だけ開き、全CanonicalTaskService mutationと`task_store`承認で同じgateを強制する。
+- **INV-37 evidence-provenance**: `config/canonical-task-evidence-registry.json` の71 entryだけを証拠生成元の権威とする。各entryはID、収集command、test command、owner path、raw artifact path/schema、pre-fix assertionを固定し、collectorとpreflightは欠落、重複、入替、owner不一致、command不一致、stale HEAD、hash不一致を拒否する。
 
 ## Actor principalとnamespace
 
@@ -381,9 +384,16 @@ MCPは別processでも同じmanifest/hashを読み、metadataで解決したtabl
 一致した`ready` rowだけがgateを開ける。欠落、不一致、DB障害はreadを維持して全mutationを503
 `canonical_task_mutation_not_ready`にする。
 
-`npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はrunbookの固定71件
-（`scenario.SC-001`〜`scenario.SC-047`と24件の`surface.*`）を完全一致allowlistとして扱い、必須回帰ID、
-各証跡file hash、source HEAD、manifest hash、schema version、writer tokenをcanonical JSON artifactへ出力する。
+`config/canonical-task-evidence-registry.json`はrunbookの固定71件
+（`scenario.SC-001`〜`scenario.SC-047`と24件の`surface.*`）と、各IDのproducer command、owner test/fixture、
+test command、raw artifact path/schema、pre-fix assertionを完全一致で保持する。
+`scripts/collect-canonical-task-evidence.js`はregistry entry以外を実行せず、current HEAD、registry hash、
+owner file hash、実行command、終了codeをraw artifactへ記録する。
+
+`npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out <path>`はregistryをallowlistとして扱い、
+必須回帰ID、各証跡file hash、producer/owner/schema provenance、source HEAD、manifest hash、schema version、
+writer tokenをcanonical JSON artifactへ出力する。欠落、重複、ID/path入替、未登録command、owner hashのstale、
+schema不一致、registry hash不一致を拒否する。
 `npm run canonical-task:readiness -- --enable --evidence <path>`はartifactがcurrent HEADかつ必須回帰全件passで
 あることをtransaction内で再検証し、条件成立時だけrowを`ready`へupsertする。失敗時はrowを変更しない。
 `--disable --reason <reason>`はrowをatomicに`closed`へ変更し、process-local gateも次のmutationで閉じる。

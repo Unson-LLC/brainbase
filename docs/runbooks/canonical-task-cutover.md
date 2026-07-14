@@ -43,6 +43,16 @@
 次の固定allowlistを`required_evidence_ids`として共有する。artifactのID集合はこの集合と完全一致しなければならず、
 未知ID、重複ID、欠落ID、`pass != true`、file hash欠落のいずれかがあればbefore-enableを失敗させる。
 
+allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。71件の各entryは
+`producer_command`、`owner_path`、`test_command`、`artifact_path`、`artifact_schema`、
+`pre_fix_assertion`を必須とする。証拠は登録済み`producer_command`で
+`scripts/collect-canonical-task-evidence.js`を起動して生成し、collectorは現在HEAD、registry hash、
+owner file hash、実行したtest command、終了codeをraw artifactへ保存する。
+
+preflightはregistry自体の71件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
+owner path/hash、registry hash、source HEADをentryと照合する。別IDのartifact入替、未登録command、
+owner変更後の古いartifact、失敗をpassとしたartifact、期待path以外のartifactをすべて拒否する。
+
 ### BDDシナリオ証跡ID
 
 `scenario.SC-001`, `scenario.SC-002`, `scenario.SC-003`, `scenario.SC-004`, `scenario.SC-005`,
@@ -96,5 +106,6 @@
 - Postgres/NocoDB migration apply/check結果と再起動readiness回帰
 - Mac consumer固定wire fixtureと実route schema結果
 
-preflight artifactは上記71件の安定したevidence ID、pass状態、file hashをすべて持ち、current HEADと一致しなければならない。
+preflight artifactは上記71件の安定したevidence ID、pass状態、file hash、producer command hash、
+owner path/hash、raw artifact path/schema、registry hashをすべて持ち、current HEADと一致しなければならない。
 いずれかが欠落・失敗・staleの場合、明示enableはatomicに失敗し、mutation readinessは成立しない。

@@ -53,6 +53,7 @@
           "mcp/nocodb/src/nocodb-client.ts",
           "mcp/nocodb/package.json",
           "config/canonical-task-store.json",
+          "config/canonical-task-evidence-registry.json",
           "server/bootstrap/core-services.js",
           "server/bootstrap/register-api-routes.js",
           "server/bootstrap/graceful-shutdown.js",
@@ -62,6 +63,7 @@
           "scripts/migrate-canonical-task-operations.js",
           "scripts/recover-canonical-task-writer.js",
           "scripts/preflight-canonical-task-cutover.js",
+          "scripts/collect-canonical-task-evidence.js",
           "scripts/set-canonical-task-readiness.js",
           "scripts/add-frame-story-tasks.js",
           "scripts/add-framework-operation-tasks.js",
@@ -124,6 +126,7 @@
           "canonical_actor_namespace",
           "persistent_readiness_interlock",
           "cutover_regression_evidence",
+          "cutover_evidence_provenance",
           "initial_cutover"
         ]
       },
