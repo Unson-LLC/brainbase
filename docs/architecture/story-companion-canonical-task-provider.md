@@ -3,6 +3,8 @@ title: Companion Canonical Task Provider Architecture
 status: proposed
 date: 2026-07-14
 story_id: story-companion-canonical-task-provider
+related_decisions:
+  - docs/architecture/ADR-016-canonical-task-single-writer.md
 ---
 
 # Companion Canonical Task Provider Architecture
@@ -47,11 +49,43 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 configured ownerへscopeし、別person filter/assignmentを403にする。service/internal credentialは
 固定store内でGraph確認済みpersonを扱えるが、store/projectは変更できない。actorとauth sourceを監査する。
 
+ownerの作成で担当者が省略された場合はconfigured ownerを補完する。一覧と単体取得はowner担当Taskだけを
+返し、未担当・別person Taskは存在を開示せず404にする。ownerからの担当解除・別person指定は403である。
+service/internalだけが固定store内の未担当TaskとGraph確認済みの別person Taskを扱える。
+
+## データフローと脅威境界
+
+```mermaid
+flowchart LR
+  Mac["Mac Companion"] -->|"Bearer + CSRF / fixed Task contract"| Guard["Companion auth and owner guard"]
+  Workflow["Workflow resolve routes"] -->|"existing human-step authorization"| Guard
+  Guard --> Service["CanonicalTaskService"]
+  Service -->|"verify person_id"| Graph["Graph People SSOT"]
+  Service -->|"claim writer and operation"| PG["Postgres coordination and recovery checkpoints"]
+  Service -->|"read or write canonical Task"| Noco["Fixed NocoDB Task table SSOT"]
+  Service --> Audit["Brainbase audit log"]
+  PG -->|"reconcile task_store target state"| JSON["Workflow JSON compatibility projection"]
+  Noco --> Service
+  Graph --> Service
+  Service --> Mac
+  Service --> Workflow
+```
+
+| 脅威 | 境界と対策 |
+|---|---|
+| clientが別storeを指定する | base/table/projectをrequestから受けず、署名付きopaque IDも固定storeへ照合する |
+| ownerが他人または未担当Taskを列挙する | server-side owner filter、単体取得の404非開示、担当変更の403 |
+| 自由入力名を人物権限に使う | Graphの`person_id`だけを権威値とし、表示名は投影に限定する |
+| 同じ作成・承認が再送される | Postgres operation uniqueとNocoDB冪等キーDB一意制約で同じTask IDへ収束する |
+| 旧writerの遅延PATCHが新writerを上書きする | 単一writer tokenを自動takeoverせず、旧process停止確認後の明示回復だけを許可する |
+| Task作成後にWorkflow JSON更新が失われる | Task IDとhuman step/run目標状態、監査checkpoint、phaseをPostgresから再投影する |
+| 下流障害を0件と誤認する | Graph/NocoDB/Postgres障害は構造化503にし、空・partialへ変換しない |
+
 ## 一度だけ作成
 
 1. `resolveHumanStep` がapproved要求と `write_back_target=task_store` を検出する。
-2. human stepのoutputからTask候補を取得する。
-3. `id|candidate_id` とGraph確認済み `selected_owner_id` を持つresolved/already_selected object候補だけを受理し、legacy文字列、unresolved、ambiguous、ignored候補があれば理由付き409でpendingに残す。
+2. human stepのoutputからTask候補集合を取得し、Macの`response_ref.review_items`があれば候補IDで一対一に結合する。
+3. review itemの承認・拒否・修正依頼を適用する。承認itemの編集値と`selected_owner_id`は元候補を上書きし、Graphで再確認する。拒否itemは除外結果へ残し、修正依頼または最終owner未解決があれば理由付き409でpendingに残す。
 4. `workflow-output:<outputId>:<candidateFingerprint>:<ordinal>` を並べ替えに安定した冪等キーとして全候補を作成する。
 5. 1件ごとにTask IDをPostgres operation resultへcheckpointし、human step metadataへ互換投影する。全件成功後にphaseを進めてapprovedへ遷移する。
 6. 応答はトップレベル `materialized_task_ids` と詳細materializationを返す。
@@ -61,20 +95,25 @@ NocoDB作成後にプロセスが停止しても、再試行は冪等キーで�
 失敗した場合はhuman stepをpendingのまま残す。Workflow ledgerのtransactionは外部NocoDBを
 巻き戻せないため、補償ではなく冪等な前進回復を採用する。
 
-## 競合制御と永続調停
+## 単一writerと永続調停
+
+NocoDB REST PATCHはPostgres lease generationを条件にした原子的更新を提供しないため、v1は
+ADR-016に従いTask mutationと`task_store`承認を単一writer processへ限定する。Postgres
+`canonical_task_writer` singleton rowにactive process tokenを保存し、他processは503にする。
+graceful shutdown時だけreleaseし、異常終了後は旧process停止確認を伴う明示回復までtakeoverしない。
 
 Postgres `canonical_task_operations` を実行調停台帳として使い、`(scope, operation_key)` のunique制約、
-owner token、lease、fencing generation、fingerprint、result JSON、後処理phaseを保存する。Task本文や
-状態は保存しないため、Taskの正本はNocoDBのままである。ただしleaseは外部書き込みを停止できないため、
-createの最終防衛はNocoDB正本表の `冪等キー` DB一意制約が担う。
+writer token、fingerprint、result JSON、human step/run目標状態、監査checkpoint、後処理phaseを保存する。
+Task本文や状態は保存しないため、Taskの正本はNocoDBのままである。createの最終防衛はNocoDB正本表の
+`冪等キー` DB一意制約が担う。
 
 - createはidempotency key、update/transitionは共通scopeの`taskId:expectedVersion`、承認はstep IDをclaimする。
 - claim取得後に現行Task版を再読込し、一致時だけNocoDBへ書く。変更patchには次版、最終操作key、fingerprintを含める。
-- worker停止時はlease満了後にgenerationを増やして別processが引継ぎ、全checkpointは最新token/generationを要求する。
-- 遅延した旧workerのcreateはNocoDB uniqueで同じ行へ収束し、mutationは同じ操作markerを同じrowへ書く。異なるfingerprintはoperation claim時に409となる。
+- writer停止時は自動引継ぎを行わない。旧process停止を運用確認した明示回復でtokenを移譲し、保存済みoperationから再開する。
+- createはNocoDB uniqueで同じ行へ収束し、mutationはexpected versionと同じ操作markerを同じrowへ書く。異なるfingerprintはoperation claim時に409となる。
 - Postgres台帳が利用不能なら503にし、process内Mapだけで正しさを代替しない。
 
-これにより同一・複数Brainbase processの並行POST、同一版更新、同一step承認を同じ方式で制御する。
+これにより同一processの並行POST、同一版更新、同一step承認を制御し、複数processの同時writeを拒否する。
 
 ## 前進回復
 
@@ -83,22 +122,23 @@ createの最終防衛はNocoDB正本表の `冪等キー` DB一意制約が担�
 | 一部Task作成後 | deterministic keyで既存Taskを回収し、残りを続行 |
 | create成功後・checkpoint前 | operation結果またはNocoDB unique key照会からIDを復元 |
 | 全ID保存後・approved前 | 外部createをせずapprovedへ進む |
-| approved後・audit/run更新前 | Postgres phase/resultを返し、最新fenceを確認して未完了の後処理だけ再実行 |
+| approved後・audit/run更新前 | Postgresの目標状態とcheckpointをWorkflow JSONへ再投影し、未完了の後処理だけ再実行 |
 | approvedだがIDなし | 全keyから復元できる場合だけmetadata修復。不足時は409で手動確認 |
-| 同時approve | destination uniqueとstep claimで同一結果へ収束し、他方は同じ完了結果を読む |
+| 同時approve | 単一writer内のstep claimとdestination uniqueで同一結果へ収束し、他方は同じ完了結果を読む |
+| writer異常終了 | 自動takeoverせず503を維持。旧process停止確認後の明示回復でoperationを再開 |
 
 ## 選択肢と決定理由
 
 - NocoDBだけのlookup-then-createは並行要求を原子的に止められないため棄却した。
-- operation leaseだけの案は、leaseを失ったworkerの遅延NocoDB書き込みをfenceできないため棄却した。
+- operation leaseと自動takeoverの案は、leaseを失ったworkerの遅延NocoDB書き込みをfenceできないため棄却した。
 - process内mutexは再起動・複数processを跨げないため補助最適化に限定した。
 - TaskをPostgresへ複製する案はSSOTを増やすため棄却した。
-- Task本文を持たない永続operation ledgerは既存NocoDB正本を保ちつつ、並行実行と回復を閉じられるため採用した。
+- Task本文を持たない単一writer tokenとoperation ledgerは既存NocoDB正本を保ちつつ、現行単一process運用で並行実行と回復を閉じられるため採用した。
 
-運用責任はBrainbase serverが持つ。release前にPostgres schema、NocoDB列と冪等キー一意制約、固定storeをcheckし、
+運用責任はBrainbase serverが持つ。release前にPostgres schema、writer token、NocoDB列と冪等キー一意制約、固定storeをcheckし、
 不足時はTask書き込み経路を停止する。障害復旧はoperation状態とNocoDB idempotency keyを照合して前進する。
 
-release順序はPostgres operation schema、NocoDB列/unique、Brainbase API、実契約確認、Macの順とする。
+release順序はPostgres writer/operation schema、NocoDB列/unique、旧writer release、Brainbase API、実契約確認、Macの順とする。
 両migrationは`--apply`と`--check`を提供し、NocoDB metadata APIでDB一意制約を保証できない環境は
 fail-closedにして、基盤DB側の管理migrationを別途完了させる。
 

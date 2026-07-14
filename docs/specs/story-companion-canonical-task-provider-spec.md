@@ -6,6 +6,7 @@ date: 2026-07-14
 story_id: story-companion-canonical-task-provider
 related_architecture:
   - docs/architecture/story-companion-canonical-task-provider.md
+  - docs/architecture/ADR-016-canonical-task-single-writer.md
 implementation_files:
   - server/bootstrap/core-services.js
   - server/bootstrap/register-api-routes.js
@@ -47,12 +48,14 @@ test_files:
 - **INV-8 audit**: 作成、更新、状態遷移、承認由来作成はactorと発生元を監査ログに残す。
 - **INV-9 compatibility**: 既存NocoDB Task APIと非Task承認の契約を変更しない。
 - **INV-10 access**: Companion認証・owner境界の外からTaskを読み書きできない。
-- **INV-11 durable-coordination**: 同じ冪等キー、Task版、human stepの実行権はPostgresの調停台帳で一意にclaimし、process内lockを正しさの根拠にしない。
+- **INV-11 single-writer-coordination**: Task mutationと`task_store`承認はPostgresの永続writer tokenを持つ単一Brainbase processだけが実行する。別processは503とし、tokenを自動takeoverしない。
 - **INV-12 canonical-store-scope**: 正本storeはbase `pva7l2qlu6fdfip`、table `m7iys8m7o1abr3f` に固定し、要求からstoreを選択させない。環境変数で上書きする場合も起動時検査で一組に確定する。
-- **INV-13 destination-idempotency**: createの冪等キーはNocoDB正本表で一意にする。operation leaseは実行順を調停するが、外部書き込みの一意性根拠にはしない。
-- **INV-14 mutation-recovery**: update/transitionは `expected_version`, 最終操作key, fingerprint, 次版を同じNocoDB row patchへ保存し、停止後はそのマーカーだけから適用済みを判定する。
-- **INV-15 workflow-recovery-authority**: human stepの全Task ID、候補checkpoint、fencing generation、後処理phaseはPostgres台帳を回復権限とし、Workflow JSON metadataは互換投影とする。
+- **INV-13 destination-idempotency**: createの冪等キーはNocoDB正本表で一意にする。operation claimは単一writer内の実行順を調停するが、外部書き込みの一意性根拠にはしない。
+- **INV-14 mutation-recovery**: update/transitionは `expected_version`, 最終操作key, fingerprint, 次版を同じNocoDB row patchへ保存し、停止後はそのマーカーだけから適用済みを判定する。旧writer停止確認前のtakeoverは禁止する。
+- **INV-15 workflow-recovery-authority**: human stepの全Task ID、候補checkpoint、human step/runの目標状態、監査checkpoint、後処理phaseはPostgres台帳を回復権限とし、Workflow JSONは起動時と読取・再試行前に再投影する。
 - **INV-16 mac-wire-contract**: Mac consumer commit `b392fdec` の固定fixtureをHTTP schemaの権限とし、互換aliasだけで必須field欠落を隠さない。
+- **INV-17 owner-private-scope**: owner credentialの読取対象はconfigured owner担当Taskだけである。作成時の担当者省略はownerへ補完し、未担当・別person Taskの存在をownerへ開示しない。
+- **INV-18 terminal-completed**: `completed` は終端であり、状態遷移は公開された許可表に従う。
 
 ## Task契約
 
@@ -71,6 +74,18 @@ Taskは `id`, `title`, `description`, `status`, `priority`, `assignee_person_id`
 を返す。完全に読み切れた場合は `read_status=complete`, `count_status=exact` とし、部分取得や
 下流障害を0件へ変換しない。単体取得、作成、更新、遷移はTask objectを直接返す。
 
+合法な一覧metadataは次だけとする。
+
+| read_status | count_status | total_count | warnings |
+|---|---|---|---|
+| `complete` | `exact` | 0以上の整数 | 0件以上 |
+| `partial` | `lower_bound` | `items.count` 以上の整数 | 1件以上 |
+| `partial` | `unknown` | null | 1件以上 |
+| `stale` | `unknown` | null | 1件以上 |
+
+v1はlast-known cacheを持たないため`stale`を生成しないが、Mac decoder互換fixtureとして保持する。
+NocoDBやGraphの通信失敗は`partial`や`stale`ではなく503である。
+
 ## シナリオ
 
 - **SC-001 list and cursor**: `requested -> auth_checked -> filters_validated -> task_store_read -> normalized -> cursor_page_returned`
@@ -78,7 +93,7 @@ Taskは `id`, `title`, `description`, `status`, `priority`, `assignee_person_id`
 - **SC-003 idempotency collision**: 同じkeyでfingerprintが違う場合は `key_found -> fingerprint_mismatch -> 409` で書き換えない。
 - **SC-004 versioned update**: `requested -> expected_version_checked -> patch_applied -> version_incremented -> audited`。不一致はcurrent Task付き409。
 - **SC-005 waiting transition**: waitingへの遷移は `waiting_on` を必須にし、`review_at` を保存する。
-- **SC-006 completed transition**: completedへの遷移は `completed_at` をサーバー時刻で保存する。completed以外へ戻すとnullにする。
+- **SC-006 completed transition**: completedへの遷移は `completed_at` をサーバー時刻で保存する。completedからの遷移は409 `invalid_transition` にする。
 - **SC-007 unresolved legacy assignee**: 担当者名だけの旧行はnull IDとwarningを返し、People検索を行わない。
 - **SC-008 invalid person**: Graphにない `person_id` は422で、Taskを作成・更新しない。
 - **SC-009 store unavailable**: NocoDB失敗は503で、空一覧を返さない。
@@ -90,51 +105,69 @@ Taskは `id`, `title`, `description`, `status`, `priority`, `assignee_person_id`
 - **SC-015 concurrent create**: 同じkeyの並行POSTは永続claimの勝者だけがNocoDBへcreateし、他方は完了結果を読み同じTaskを返す。
 - **SC-016 concurrent approval**: 同じstepの並行approveはstep claimの勝者だけがmaterializeし、他方は保存済み結果を再生する。
 - **SC-017 recovery matrix**: Task作成、candidate checkpoint、全ID保存、approval更新、workflow audit、run更新の各境界で停止しても再送で前進し、Taskを増やさない。
-- **SC-018 cross-owner rejection**: owner credentialは自分または未担当Taskだけを扱い、別person指定・別person Taskの更新を403にする。
-- **SC-019 get by opaque id**: 固定storeのopaque IDを復号して単体Taskを返し、別storeまたは不存在IDは404 `task_not_found`。
-- **SC-020 destination unique takeover**: worker Aのlease後にworker Bが引き継ぎ、Aが遅延createしてもNocoDBの冪等キー一意制約により1行だけとなり、両者は同じTask IDを回収する。
+- **SC-018 cross-owner rejection**: owner credentialはconfigured owner担当Taskだけを扱う。作成時の省略はowner補完、未担当・別personの読取は404、担当解除・別person指定は403にする。
+- **SC-019 get by opaque id**: 固定storeのopaque IDを復号する。ownerにはowner担当Taskだけを返し、別store、不存在、未担当、別personは404 `task_not_found`。service/internalは固定store内の未担当・別personを取得できる。
+- **SC-020 single writer**: writer Aがtokenを保持中はprocess Bのmutationと`task_store`承認を503にする。A異常終了後も自動takeoverせず、旧process停止を確認した明示回復後だけBが未完了operationを再開する。
 - **SC-021 mutation crash recovery**: NocoDB patch後・operation完了前の再送は、現行版が期待版+1かつ最終操作key/fingerprint一致なら適用済みTaskを返す。不一致なら409で自動再適用しない。
-- **SC-022 workflow phase recovery**: Task ID群保存後の停止はPostgresのphase/result JSONから後処理だけ再開し、各phase更新は最新fencing generationを必須とする。
+- **SC-022 workflow phase recovery**: Task ID群保存後の停止はPostgresのphase/result JSONからhuman step、run、auditの目標状態をWorkflow JSONへ再投影し、未完了の後処理だけ再開する。
 - **SC-023 task-store approval authorization**: human-step解決権限があるowner/admin/ceoでも、選択担当者がconfigured owner以外なら403。service/internalだけはGraph確認済み別personを許可する。
-- **SC-024 Mac wire fixture**: 固定fixtureで一覧完全性field、GET単体、`to_status`、`version_conflict`、トップレベル `materialized_task_ids` を実routeで再生する。
+- **SC-024 Mac wire fixture**: 固定fixtureで反復status/priority、due bounds、cursor、limit、合法な一覧metadata、GET単体、`to_status`、`version_conflict`、`invalid_transition`、トップレベル `materialized_task_ids` を実routeで再生する。
+- **SC-025 review item merge**: unresolvedな元候補をMac review itemの`selected_owner_id`で解決し、編集済みTask fieldを合成してGraph再確認後に作成する。
+- **SC-026 review item decisions**: approvedだけをTask化し、rejectedは明示的に除外する。needs_changesが1件でもあればstepをpendingのまま409にする。
 
 ## HTTP
 
 ### 一覧
 
-`GET /api/companion/tasks?status=pending&assignee_person_id=person_x&due=overdue&limit=50&cursor=...`
+`GET /api/companion/tasks?status=pending&status=waiting&priority=high&priority=urgent&assignee_person_id=person_x&due_after=...&due_before=...&limit=50&cursor=...`
 
 成功: `{ "items": [...], "total_count": 1, "count_status": "exact", "next_cursor": null, "read_status": "complete", "warnings": [], "as_of": "..." }`
 
 owner credentialでは `assignee_person_id` は設定ownerと同値だけを許可し、省略時もserverがownerへ固定する。
 service/internal credentialだけがGraphで確認済みの別personを指定できる。どの認証種別もproject/base/tableは指定できない。
+反復`status`と`priority`は各field内でOR、異なるfield間はANDとする。`due_after`と`due_before`は
+ISO 8601の包含境界で、null期限は除外する。`due_after > due_before`、未知enum、不正日時、不正cursor、
+1未満または50超の`limit`は422 `validation_failed` とfield別errorを返す。
 
 ### 単体取得
 
 `GET /api/companion/tasks/:taskId` はTask objectを直接返す。opaque IDのstore scopeを検証し、
 固定store以外または不存在の場合は404 `{ "code": "task_not_found", "message": "..." }` とする。
+owner credentialでは未担当・別personのTaskも情報非開示のため同じ404にする。
 
 ### 作成
 
 `POST /api/companion/tasks` は `Idempotency-Key` headerを必須とし、bodyに `title`,
 任意の `description`, `priority`, `assignee_person_id`, `due_at`, `source_refs` を受ける。
+owner credentialで`assignee_person_id`省略時はconfigured ownerを保存する。ownerが別personを指定した
+場合は403。service/internalでは省略を未担当として保存できる。
 
 ### 更新
 
 `PATCH /api/companion/tasks/:taskId` はbodyの `expected_version` を必須とする。変更可能なのは
 title、description、priority、assignee_person_id、due_atである。
+ownerはconfigured owner担当Taskだけを更新でき、担当者nullまたは別personへの変更は403とする。
 
 ### 状態遷移
 
 `POST /api/companion/tasks/:taskId/transitions` は `expected_version`, `to_status` と、waiting時の
 `waiting_on`, 任意の `review_at` を受ける。
 
+| 現在 | 許可する遷移先 |
+|---|---|
+| `pending` | `in_progress`, `waiting`, `completed` |
+| `in_progress` | `waiting`, `completed` |
+| `waiting` | `in_progress`, `completed` |
+| `completed` | なし |
+
+表にない遷移は409 `{ "code": "invalid_transition", "current_task": {...} }` とする。
+
 ### 認証と認可
 
-| 認証種別 | list | create | update/transition |
+| 認証種別 | list/get | create | update/transition |
 |---|---|---|---|
-| bearer / insecure-header | configured ownerへserver-side scope | owner担当だけ | owner担当または未担当だけ |
-| service-token / internal | 固定正本store内、明示person filter可 | Graph確認済みperson可 | 固定正本store内で可 |
+| bearer / insecure-header | configured owner担当だけ。未担当・別personは404 | 省略時owner補完。別personは403 | owner担当だけ。担当解除・別personは403 |
+| service-token / internal | 固定正本store内、明示person filterと未担当を扱える | 省略で未担当、Graph確認済みperson可 | 固定正本store内で可 |
 
 全操作はactor personまたはservice principal、auth source、固定project `brainbase` を監査へ記録する。
 `task_store` 承認はこの表とは別に既存 `_assertActorCanResolveHumanStep` を先に通し、その後に
@@ -144,10 +177,18 @@ service-token/internalだけがGraph確認済みの別personをmaterializeでき
 
 ### 承認候補と結果
 
-- object候補は識別子として既存producerの `id` またはMac review itemの `candidate_id`、`title`、
-  `selected_owner_id`、`owner_resolution.status=resolved|already_selected` を受ける。`already_selected`
-  はselected IDがGraph Peopleに再確認できる場合だけ有効とする。
-- `unresolved`、`ambiguous`、`ignored`、legacy文字列候補はTask化せず、stepをpendingのまま409
+- 元outputのobject候補を候補集合の権限とし、識別子は`id`または`candidate_id`を必須にする。
+  `response_ref.review_items`がある場合は`candidate_id`優先、なければ`id`で一対一に結合し、未知・重複・
+  欠落itemは422にする。review itemがない既存clientは元候補だけを使う。
+- top-level resolutionが`approved`のときだけmaterializeする。review itemの`approved`はTask化、
+  `rejected`は`excluded_candidates`へ`rejected_by_reviewer`として記録し、`needs_changes`が1件でも
+  あればstepをpendingのまま409にする。全件rejectedはTask 0件を明示してapprovedにできる。
+- review itemの`title`, `description`, `priority`, `due_at`は存在するfieldだけ元候補を上書きする。
+  `selected_owner_id`を担当者の最終判断とし、`assignee_person_id`もある場合は同値を必須にする。
+  source refsと候補IDは元outputを権限としreview itemから追加・変更させない。
+- review itemで選択されたownerは元候補の`owner_resolution`がunresolvedでも上書きできるが、Graphで
+  再確認する。review itemに選択がない場合は元候補のresolved/already_selected ownerだけを受理する。
+  最終ownerが未解決、ambiguous、ignored、legacy文字列だけなら409
   `task_candidates_require_owner_resolution` と候補別理由を返す。
 - 冪等keyは `workflow-output:<outputId>:<candidateFingerprint>:<sameFingerprintOrdinal>` とし、
   並べ替えでは変化せず、完全に同じ重複候補だけordinalで区別する。
@@ -161,38 +202,46 @@ service-token/internalだけがGraph確認済みの別personをmaterializeでき
 
 ### 永続調停と回復
 
+`canonical_task_writer`のsingleton rowでprocess tokenを永続化する。Task mutationと`task_store`承認は
+active tokenを持つprocessだけが実行し、他processは503 `canonical_task_writer_unavailable` にする。
+graceful shutdownはtokenをreleaseする。異常終了時は自動takeoverせず、運用者が旧process停止を確認して
+`--recover-writer --expected-token <token>`を実行した場合だけ新tokenへ移譲する。
+
 `canonical_task_operations(scope, operation_key)` の一意制約でcreate key、
 `task-mutation:<opaqueTaskId>:<expectedVersion>`、human step IDをclaimする。台帳はTask本文を持たず、
-fingerprint、状態、lease、fencing generation、result JSON、後処理phaseを持つ。claim中のworker停止は
-lease満了後にgenerationを増やして引き継ぎ、各checkpoint/phase更新はowner tokenとgeneration一致を必須にする。
+fingerprint、状態、writer token、result JSON、human step/run目標状態、audit checkpoint、後処理phaseを持つ。
 
 createはさらにNocoDBの `冪等キー` 列へDB一意制約を設定する。重複insertはキー検索で既存行を
 回収し、fingerprint一致なら同じTask、違えば409にする。update/transitionは同じscopeを共有し、
 NocoDB rowへ `最終操作キー`, `最終操作Fingerprint`, 次版を業務変更と同じPATCHで保存する。
 現行版が期待版+1でもマーカーが一致しない場合は `version_conflict` とし、適用済みと推測しない。
+起動時およびtask_store human stepの読取・resolve前に、未完了operationをPostgresから読み、保存済み
+Task ID、human step/run目標状態、audit checkpointをWorkflow JSONへ冪等に再投影する。task_store以外の
+Workflowは既存経路を変えない。
 
 | 停止点 | 再送時の期待 |
 |---|---|
 | 一部Task作成後 | deterministic keyで既存Taskを取得し、未作成候補から続行 |
 | Task作成後・candidate checkpoint前 | create keyの完了結果からIDを復元してcheckpoint |
 | 全ID保存後・approved前 | providerを呼ばずapprovedへ進める |
-| approved後・audit/run更新前 | Postgres phase/resultを再生し、最新fenceを確認して未完了の後処理だけ進める |
+| approved後・audit/run更新前 | Postgresの目標状態とcheckpointをWorkflow JSONへ再投影し、未完了の後処理だけ進める |
 | approvedだがID metadata欠落 | deterministic key群から全IDを復元できる場合だけ修復し、不足時は409 |
-| 同時approve | destination uniqueとstep claimで外部書き込みを同一結果へ収束させ、他方は完了を待って同じ結果を返す |
+| 同時approve | 単一writer内のstep claimとdestination uniqueで同一結果へ収束し、他方は同じ結果を返す |
+| writer異常終了 | 自動takeoverせず503。旧process停止確認後の明示回復で同じoperationから再開 |
 
 ### Migrationとrelease順序
 
 1. `node scripts/migrate-canonical-task-operations.js --apply` 後に `--check` し、Brainbaseの
-   InfoSSOT Postgres接続設定でoperation schema、unique key、result JSON、phase、generationを確認する。
+   InfoSSOT Postgres接続設定でwriter singleton、operation schema、unique key、result JSON、目標状態、phaseを確認する。
 2. `node scripts/migrate-canonical-task-columns.js --apply` 後に `--check` し、固定NocoDB Task表の
    必須列と `冪等キー` のDB一意制約を確認する。metadata APIが一意制約を作れない環境ではapplyを
    成功扱いせず、管理DB migrationが完了するまでTask書き込みを有効にしない。
-3. Brainbase APIを再起動し、fixtureによる実route契約と回帰を確認する。
+3. 旧writerのgraceful releaseを確認してBrainbase APIを再起動し、writer tokenとfixtureによる実route契約・回帰を確認する。異常終了時だけ旧process停止確認後に明示回復する。
 4. Mac Companionを反映する。rollback時も追加列・schemaは削除せず、APIを先にrevertする。
 
 ## 検証
 
-- BDDで24シナリオをAPIとserviceの実経路へ対応付け、修正前に新規fixtureが失敗することを記録する。
+- BDDで26シナリオをAPIとserviceの実経路へ対応付け、修正前に新規fixtureが失敗することを記録する。
 - NocoDB repositoryはfake fetchでfield mapping、cursor、冪等照会、版更新を検証する。
 - Workflow serviceは実repository ledgerとfake canonical task serviceで承認順序と再試行を検証する。
 - 既存Companion認証、approval inbox、NocoDB Task controllerの回帰テストを実行する。

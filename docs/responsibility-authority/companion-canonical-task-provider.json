@@ -15,6 +15,10 @@
           "ref": "docs/specs/story-companion-canonical-task-provider-spec.md#不変条件"
         },
         {
+          "kind": "architecture",
+          "ref": "docs/architecture/ADR-016-canonical-task-single-writer.md#decision"
+        },
+        {
           "kind": "story",
           "ref": "docs/stories/story-companion-canonical-task-provider.md#受け入れ基準"
         }
@@ -48,7 +52,7 @@
           "workflow_approval",
           "identity_boundary",
           "durable_idempotency",
-          "destination_fencing",
+          "single_writer_recovery",
           "mac_wire_contract"
         ]
       },
@@ -57,7 +61,7 @@
         "runtime_path_evidence",
         "independent_review"
       ],
-      "unknown_policy": "Brainbaseの固定NocoDB Task表だけをTask永続化正本とする。Postgres operation ledgerはTask本文を持たず、claim、fencing generation、全Task ID、後処理phaseだけを保持する。createの外部書き込み一意性はNocoDB正本表の冪等キーDB一意制約で保証し、update/transitionは版と最終操作markerを同じrow patchに保存する。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、調停台帳、unique制約、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とPostgres結果保存が終わるまでapprovedにしない。"
+      "unknown_policy": "Brainbaseの固定NocoDB Task表だけをTask永続化正本とする。Postgres operation ledgerはTask本文を持たず、単一writer token、claim、全Task ID、human step/run目標状態、監査checkpoint、後処理phaseだけを保持する。writer tokenは自動takeoverせず、旧process停止確認後の明示回復だけを許可する。createの外部書き込み一意性はNocoDB正本表の冪等キーDB一意制約で保証し、update/transitionは版と最終操作markerを同じrow patchに保存する。owner credentialの省略担当者はconfigured ownerへ補完し、未担当・別person Taskを公開しない。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、調停台帳、unique制約、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とPostgres結果保存が終わるまでapprovedにしない。"
     }
   ]
 }
