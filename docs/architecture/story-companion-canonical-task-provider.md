@@ -25,7 +25,7 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 | NocoDB Task repository | 既存Task表の永続化と検索 | 人物同定、業務判断 |
 | Graph SSOT | `person_id` と表示名 | Task状態 |
 | WorkflowService | 承認順序と再試行 | 独自Task作成ロジック |
-| Canonical store config | 起動時に確定したbase/table/owner | requestごとのstore選択 |
+| Canonical store manifest | Brainbase/MCP/migration共通のbase/table/owner/schema identity | processごとの個別override |
 | NocoDB MCP | 正本Taskのread、正本以外の汎用操作 | 正本Taskのmutation |
 
 ## SSOT
@@ -39,7 +39,7 @@ NocoDBの自由入力列を直接Task権限として扱わない。
   `normalization_warnings: ["assignee_unresolved"]` を返す。文字列一致で補完しない。
 - 正規化APIが作る行には版、発生元参照、冪等キーとfingerprint、期限日時、待ち情報、完了日時を保存する。
 - 外部APIのclient keyは`api:<principal>:`、Workflow候補は`workflow:<output>:`の保存namespaceへserver側で変換し、相互衝突を防ぐ。
-- `createCanonicalTaskStoreConfig()` が環境変数と既定値を起動時に一度だけ解決し、同じimmutable objectをAPI repository、旧route guard、Mana、migration policyへ注入する。各moduleが環境変数を再読込して別storeを選ぶことを禁止する。
+- `config/canonical-task-store.json` を正本identity manifestとし、canonical JSONのSHA-256をBrainbase、MCP、migrationが起動時に検証する。`createCanonicalTaskStoreConfig()` はmanifestを一度だけ読み、同じimmutable objectをAPI repository、旧route guard、Mana、migration policyへ注入する。base/tableの個別環境overrideは禁止し、manifest欠落、hash不一致、table/column解決不能はmutationをfail-closedにする。
 
 ## API構成
 
@@ -59,6 +59,14 @@ configured ownerへscopeし、別person filter/assignmentを403にする。servi
 ownerの作成で担当者が省略された場合はconfigured ownerを補完する。一覧と単体取得はowner担当Taskだけを
 返し、未担当・別person Taskは存在を開示せず404にする。ownerからの担当解除・別person指定は403である。
 service/internalだけが固定store内の未担当TaskとGraph確認済みの別person Taskを扱える。
+
+既存ブラウザTask画面はbearer利用時だけCanonical一覧を取得し、opaque ID/versionを正本行identityとして保持する。
+旧NocoDB一覧は非正本baseだけを表示し、manifestと一致するbase/table行はCanonical一覧との結合前に除外する。
+Canonical一覧失敗時に旧正本行へfallbackしない。cookie-only sessionでは正本controlsを無効化してbearer再認証を
+要求する。正本projectの担当者入力はPeople selectorとし、自由入力表示名を送らない。
+
+Mana captureはbrowser sessionとCSRFを検証し、bodyのactor/ownerを信用せずsession actor付きinternal commandへ
+変換する。clientは操作ごとにcapture UUIDを生成し、応答確定まで同じIDを再送する。同文の新規操作は新IDを使う。
 
 ## データフローと脅威境界
 
@@ -89,9 +97,9 @@ flowchart LR
 | 旧route/scriptが正本へ直接書く | 旧NocoDB routeは正本base mutationを409で拒否し、固定tableへ書く運用scriptは認証済みCanonical Task APIへ移行する |
 | Manaが正本へ直接書き障害をlocal成功へ変換する | captureはserviceへpending Taskを冪等作成し、source refsへ元type/project/contentを残す。read/write障害は503にする |
 | ブラウザTask画面が拒否済み旧routeへ書く | repositoryが正本baseだけCanonical APIへ振り分け、版付きcreate/update/transition/deleteを使う |
-| NocoDB MCPがcredentialで正本を迂回する | client境界で正本baseのTask mutationを拒否し、readと他store操作だけを維持する |
+| NocoDB MCPがcredentialで正本を迂回する | manifest identityへtable名/IDを解決し、record mutationと正本列metadata mutationを拒否する。解決不能時は全mutationを停止する |
 | cookieやinsecure-headerがownerへ昇格する | Task固有guardがstore到達前に拒否し、bearerだけをowner credentialとして扱う |
-| moduleごとに正本store設定がずれる | 起動時に一度だけ解決したimmutable configを全JS writer/guardへ注入し、MCPも同じenv名と既定値を検証する |
+| processごとに正本store設定がずれる | commit済みmanifestのcanonical JSON hashをBrainbase/MCP/migrationで比較し、個別overrideや解決失敗をmutation readiness失敗にする |
 | 既存文字列候補または並べ替えで候補権限が変わる | 文字列をowner未解決objectへ正規化し、内容hashと同一内容ordinalから並び順に依存しないcandidate ID集合を投影する |
 | 旧UIがwaiting/urgentを別値へ縮退する | adapterで待ち/緊急を双方向投影し、未知値は保持して明示する |
 | 旧writerの遅延PATCHが新writerを上書きする | 単一writer tokenを自動takeoverせず、旧process停止確認後の明示回復だけを許可する |
@@ -142,6 +150,12 @@ deleteも`expected_version`と冪等keyを持つoperationとして単一writer�
 再生する。正本base以外は旧NocoDB APIを維持する。NocoDB MCPは正本baseかつTask tableのcreate/update/deleteを
 client呼出前に`canonical_task_api_required`で拒否し、readと他base/tableのmutationは変えない。
 
+deleteは二つの永続claimを使う。`task-version:<taskId>:<expectedVersion>`はupdate/transition/deleteを相互排他し、
+`task-delete:<actorNamespace>:<clientKey>`はclient再送を識別する。後者へfingerprint、削除前のactor/auth source、owner認可、
+Task ID/version snapshot、`prepared` stateを保存してからNocoDBを削除する。削除後・result保存前に停止した場合、旧writer停止と
+prepared intent、固定storeでの行不存在を照合して同じ削除結果を確定する。削除後の再送認可は保存済みsnapshotに限定し、
+actorまたはfingerprintが違う要求へ結果を開示しない。
+
 - createはidempotency key、update/transitionは共通scopeの`taskId:expectedVersion`、承認はstep IDをclaimする。
 - claim取得後に現行Task版を再読込し、一致時だけNocoDBへ書く。変更patchには次版、最終操作key、fingerprintを含める。
 - writer停止時は自動引継ぎを行わない。旧process停止を運用確認した明示回復でtokenを移譲し、保存済みoperationから再開する。
@@ -161,6 +175,8 @@ client呼出前に`canonical_task_api_required`で拒否し、readと他base/tab
 | approvedだがIDなし | 全keyから復元できる場合だけmetadata修復。不足時は409で手動確認 |
 | 同時approve | 単一writer内のstep claimとdestination uniqueで同一結果へ収束し、他方は同じ完了結果を読む |
 | writer異常終了 | 自動takeoverせず503を維持。旧process停止確認後の明示回復でoperationを再開 |
+| delete prepared後・NocoDB削除前 | 保存済み認可/fingerprintを照合し、行が現存すれば同じwriter operationで削除を続行 |
+| NocoDB削除後・delete result保存前 | prepared intentと行不存在を照合し、保存済みsnapshotから同じ成功resultとauditを確定 |
 
 ## 選択肢と決定理由
 
@@ -173,9 +189,12 @@ client呼出前に`canonical_task_api_required`で拒否し、readと他base/tab
 運用責任はBrainbase serverが持つ。release前にPostgres schema、writer token、NocoDB列と冪等キー一意制約、固定storeをcheckし、
 不足時はTask書き込み経路を停止する。障害復旧はoperation状態とNocoDB idempotency keyを照合して前進する。
 
-release順序はPostgres writer/operation schema、NocoDB列/unique、旧writer release、Brainbase API、実契約確認、Macの順とする。
+初回releaseでは旧Brainbase、Mana、MCP、運用scriptを先に停止・排水し、直接writerが0であることを確認する。その後に
+Postgres writer/operation schema、NocoDB列/uniqueを適用し、guardを含む新Brainbase/MCPを起動する。manifest hash、
+writer claim、legacy/Mana/MCP bypass testを確認した後だけmutationを解禁し、実契約確認、Macの順で反映する。
 両migrationは`--apply`と`--check`を提供し、NocoDB metadata APIでDB一意制約を保証できない環境は
 fail-closedにして、基盤DB側の管理migrationを別途完了させる。
+rollbackでもschema、manifest、legacy/Mana/MCP guardは維持し、旧直接writerを再起動しない。API受付を停止してforward fixする。
 
 ## 障害方針
 
