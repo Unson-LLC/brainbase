@@ -1,0 +1,49 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-companion-canonical-task-provider",
+  "title": "Companion Canonical Task Provider Authority",
+  "responsibilities": [
+    {
+      "id": "canonical_task_persistence",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/story-companion-canonical-task-provider.md#ssot"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": "docs/specs/story-companion-canonical-task-provider-spec.md#不変条件"
+        },
+        {
+          "kind": "story",
+          "ref": "docs/stories/story-companion-canonical-task-provider.md#受け入れ基準"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "server/services/companion/canonical-task-service.js",
+          "server/services/companion/canonical-task-nocodb-repository.js",
+          "server/routes/companion.js",
+          "server/services/workflow/workflow-service.js"
+        ],
+        "symbols": [
+          "CanonicalTaskService",
+          "CanonicalTaskNocoDBRepository",
+          "WorkflowService.resolveHumanStep"
+        ],
+        "risk_surfaces": [
+          "server_api",
+          "task_ssot",
+          "workflow_approval",
+          "identity_boundary"
+        ]
+      },
+      "required_evidence": [
+        "current_head_verification",
+        "runtime_path_evidence",
+        "independent_review"
+      ],
+      "unknown_policy": "Brainbaseの既存NocoDB Task表だけを永続化正本とする。担当者はGraph Peopleのperson IDだけを権威値とし、旧自由入力名から推測しない。正本、People、監査のいずれかが利用不能なら失敗を明示し、空や成功へ変換しない。task_store承認は全Taskの正本化とID保存が終わるまでapprovedにしない。"
+    }
+  ]
+}
