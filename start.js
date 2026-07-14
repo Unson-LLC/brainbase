@@ -83,8 +83,8 @@ function removePidFile() {
     } catch { /* file already gone */ }
 }
 process.on('exit', removePidFile);
-process.on('SIGINT', () => { removePidFile(); process.exit(0); });
-process.on('SIGTERM', () => { removePidFile(); process.exit(0); });
+// server.js owns SIGINT/SIGTERM so HTTP shutdown and persistent writer release
+// finish before the process exits. The exit hook above removes the PID file.
 
 // --- Deploy-time build of the React session-list island bundle ---
 // public/dist/session-list-island.js is no longer committed; the runtime checkout's

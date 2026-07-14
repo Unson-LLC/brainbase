@@ -16,7 +16,12 @@ function makeService({
     handlers = createDefaultWorkflowHandlers(),
     googleCalendarService = null,
     eveSessionClient = null,
-    infoSSOTService = null
+    infoSSOTService = null,
+    canonicalTaskService = {
+        async materializeWorkflowApproval() {
+            return { status: 'completed', task_ids: [], excluded_candidates: [], warnings: [], replayed: false };
+        }
+    }
 } = {}) {
     const runner = new WorkflowRunner({ repository, handlers });
     const configParser = {
@@ -32,7 +37,15 @@ function makeService({
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient, infoSSOTService });
+    const service = new WorkflowService({
+        repository,
+        runner,
+        configParser,
+        googleCalendarService,
+        eveSessionClient,
+        infoSSOTService,
+        canonicalTaskService
+    });
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',

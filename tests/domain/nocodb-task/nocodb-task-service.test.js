@@ -1,0 +1,56 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { NocoDBTaskService } from '../../../public/modules/domain/nocodb-task/nocodb-task-service.js';
+
+function repository({ bearer = true } = {}) {
+    return {
+        hasBearerAuth: () => bearer,
+        fetchAllTasks: vi.fn(async () => ({
+            records: [{ project: 'legacy', id: 2, baseId: 'legacy-base', fields: { 'タイトル': '旧タスク', 'ステータス': '未着手', '優先度': '中' } }],
+            projects: [{ id: 'legacy', baseId: 'legacy-base' }],
+            canonicalTaskStore: { baseId: 'canonical-base', project: 'brainbase' }
+        })),
+        fetchCanonicalTasks: vi.fn(async () => ({ items: [{
+            id: 'ct1.id', version: 3, title: '正本タスク', status: 'pending', priority: 'urgent',
+            assignee_person_id: 'sato_keigo', assignee_display_name: '佐藤圭吾', source_refs: []
+        }] })),
+        transitionCanonicalTask: vi.fn(async (_id, input) => ({
+            id: 'ct1.id', version: input.expected_version + 1, title: '正本タスク',
+            status: input.to_status, priority: 'urgent', assignee_person_id: 'sato_keigo', source_refs: []
+        }))
+    };
+}
+
+describe('NocoDBTaskService canonical routing', () => {
+    it('merges the required canonical list and keeps opaque id/version', async () => {
+        const repo = repository();
+        const service = new NocoDBTaskService({ httpClient: {}, repository: repo });
+        const tasks = await service.loadTasks();
+
+        expect(tasks.map(task => task.id)).toEqual(['canonical:ct1.id', 'nocodb:legacy:2']);
+        expect(tasks[0]).toMatchObject({ canonicalTaskId: 'ct1.id', canonicalVersion: 3, priority: 'urgent' });
+    });
+
+    it('routes canonical status changes with expected version and updates the version', async () => {
+        const repo = repository();
+        const service = new NocoDBTaskService({ httpClient: {}, repository: repo });
+        await service.loadTasks();
+
+        const updated = await service.updateStatus('canonical:ct1.id', 'completed');
+
+        expect(repo.transitionCanonicalTask).toHaveBeenCalledWith('ct1.id', {
+            expected_version: 3, to_status: 'completed'
+        }, expect.stringMatching(/^browser-status-/));
+        expect(updated).toMatchObject({ status: 'completed', canonicalVersion: 4 });
+    });
+
+    it('fails closed for the canonical project without bearer auth', async () => {
+        const repo = repository({ bearer: false });
+        const service = new NocoDBTaskService({ httpClient: {}, repository: repo });
+        await service.loadTasks();
+
+        await expect(service.createTask({ projectId: 'brainbase', title: '作成' }))
+            .rejects.toMatchObject({ code: 'task_bearer_required' });
+        expect(repo.fetchCanonicalTasks).not.toHaveBeenCalled();
+    });
+});

@@ -7,6 +7,7 @@ export function registerGracefulShutdown({
     sessionServices,
     meetingSourceMcpSyncService = null,
     eveMeetingNoteReconciler = null,
+    canonicalTaskOperationRepository = null,
     getMeshService = () => null,
     log = console
 }) {
@@ -28,6 +29,12 @@ export function registerGracefulShutdown({
                 name: 'cleanup-state-store',
                 fn: async () => {
                     if (stateStore.cleanup) await stateStore.cleanup();
+                }
+            },
+            {
+                name: 'release-canonical-task-writer',
+                fn: async () => {
+                    await canonicalTaskOperationRepository?.releaseWriter?.();
                 }
             },
             {

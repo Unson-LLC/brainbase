@@ -16,6 +16,11 @@ import { TmuxCaptureCache } from '../services/tmux-capture-cache.js';
 import { TmuxControlRegistry } from '../services/tmux-control-registry.js';
 import { WorktreeService } from '../services/worktree-service.js';
 import { InfoSSOTService } from '../services/info-ssot-service.js';
+import { createCanonicalTaskStoreConfig } from '../services/companion/canonical-task-store-config.js';
+import { CanonicalTaskNocoDBRepository } from '../services/companion/canonical-task-nocodb-repository.js';
+import { CanonicalTaskOperationRepository } from '../services/companion/canonical-task-operation-repository.js';
+import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
+import { CanonicalTaskService } from '../services/companion/canonical-task-service.js';
 import { AuthService } from '../services/auth-service.js';
 import { ConversationLinker } from '../services/conversation-linker.js';
 import { ConfigService } from '../services/config-service.js';
@@ -53,6 +58,7 @@ export function createCoreServices({
     serverDir,
     execPromise,
     port,
+    sourceHead = null,
     testMode = false
 }) {
     const googleCalendarService = new GoogleCalendarService();
@@ -68,6 +74,31 @@ export function createCoreServices({
     const configParser = new ConfigParser(codexPath, configPath, brainbaseRoot, projectsRoot);
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
+    const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
+    const canonicalTaskOperationRepository = new CanonicalTaskOperationRepository({
+        pool: infoSSOTService.pool,
+        writerToken: process.env.BRAINBASE_SERVER_GENERATION || null,
+        processIdentity: {
+            pid: process.pid,
+            port,
+            source_head: sourceHead,
+            entrypoint: process.env.BRAINBASE_STARTED_BY_START_JS === '1' ? 'start.js' : 'server.js'
+        }
+    });
+    const canonicalTaskReadiness = new CanonicalTaskReadiness({
+        operationRepository: canonicalTaskOperationRepository,
+        manifestHash: canonicalTaskStoreConfig.identityHash,
+        schemaVersion: canonicalTaskStoreConfig.schemaVersion,
+        sourceHead
+    });
+    const canonicalTaskRepository = new CanonicalTaskNocoDBRepository({ storeConfig: canonicalTaskStoreConfig });
+    const canonicalTaskService = new CanonicalTaskService({
+        repository: canonicalTaskRepository,
+        infoSSOTService,
+        readiness: canonicalTaskReadiness,
+        operationRepository: canonicalTaskOperationRepository,
+        ownerPersonId: canonicalTaskStoreConfig.ownerPersonId
+    });
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
     const learningService = new LearningService({
@@ -93,7 +124,8 @@ export function createCoreServices({
         configParser,
         googleCalendarService,
         eveSessionClient,
-        infoSSOTService
+        infoSSOTService,
+        canonicalTaskService
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
         workflowService,
@@ -219,6 +251,11 @@ export function createCoreServices({
         configParser,
         configService,
         infoSSOTService,
+        canonicalTaskStoreConfig,
+        canonicalTaskReadiness,
+        canonicalTaskOperationRepository,
+        canonicalTaskRepository,
+        canonicalTaskService,
         authService,
         wikiService,
         learningService,

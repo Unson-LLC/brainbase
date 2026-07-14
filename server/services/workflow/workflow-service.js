@@ -1854,13 +1854,22 @@ function normalizeWorkflowInput(input, { projectId, ownerId, assigneeId, approve
 }
 
 export class WorkflowService {
-    constructor({ repository, runner, configParser, googleCalendarService = null, eveSessionClient = null, infoSSOTService = null }) {
+    constructor({
+        repository,
+        runner,
+        configParser,
+        googleCalendarService = null,
+        eveSessionClient = null,
+        infoSSOTService = null,
+        canonicalTaskService = null
+    }) {
         this.repository = repository;
         this.runner = runner;
         this.configParser = configParser;
         this.googleCalendarService = googleCalendarService;
         this.eveSessionClient = eveSessionClient;
         this.infoSSOTService = infoSSOTService;
+        this.canonicalTaskService = canonicalTaskService;
         this.projectConfigById = new Map();
         this.eveSessionDispatchInFlight = new Map();
     }
@@ -4393,6 +4402,80 @@ export class WorkflowService {
         };
     }
 
+    _isCanonicalTaskHumanStep(step) {
+        return step?.metadata?.write_back_target === 'task_store'
+            || step?.write_back_target === 'task_store';
+    }
+
+    _canonicalTaskOutput(step) {
+        const outputs = this.repository.listOutputs(step.workflow_run_id);
+        const outputId = step?.metadata?.output_id || null;
+        return outputs.find((output) => output.id === outputId)
+            || outputs.find((output) => output?.metadata?.write_back_target === 'task_store')
+            || null;
+    }
+
+    async _materializeCanonicalTaskApproval(step, input, actor) {
+        if (!this.canonicalTaskService?.materializeWorkflowApproval) {
+            const error = new Error('Canonical Task materialization service is unavailable');
+            error.code = 'canonical_task_service_unavailable';
+            error.status = 503;
+            error.statusCode = 503;
+            throw error;
+        }
+        const output = this._canonicalTaskOutput(step);
+        if (!output) {
+            const error = new Error(`Task candidate output for human step '${step.id}' was not found`);
+            error.code = 'task_candidate_output_not_found';
+            error.status = 409;
+            error.statusCode = 409;
+            throw error;
+        }
+        return this.canonicalTaskService.materializeWorkflowApproval({
+            step,
+            output,
+            responseRef: input.response_ref || input.responseRef || null,
+            actor
+        });
+    }
+
+    _withCanonicalTaskMaterialization(result, materialization) {
+        if (!materialization) return result;
+        return {
+            ...result,
+            materialized_task_ids: materialization.task_ids || [],
+            materialization
+        };
+    }
+
+    _recordCanonicalTaskMaterialization(step, materialization, actor) {
+        if (!materialization) return step;
+        const auditId = `audit_canonical_task_materialization_${step.id}`;
+        const existingAudit = this.repository
+            .listAuditLogs({ targetId: step.workflow_run_id, limit: 1000 })
+            .find((entry) => entry.id === auditId);
+        const persistedStep = this.repository.updateHumanStep(step.id, {
+            canonical_task_materialization: materialization
+        }) || step;
+        if (!existingAudit) {
+            this.repository.writeAuditLog({
+                id: auditId,
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actor.person_id || actor.sub || 'system',
+                action: 'workflow.canonical_tasks.materialized',
+                target_type: 'workflow_run',
+                target_id: step.workflow_run_id,
+                after: {
+                    human_step_id: step.id,
+                    task_ids: materialization.task_ids || [],
+                    status: materialization.status || 'completed'
+                }
+            });
+        }
+        return persistedStep;
+    }
+
     async resolveHumanStep(stepId, input = {}, actor = {}) {
         await this._loadProjectConfigCache();
         const step = this.repository.getHumanStep(stepId);
@@ -4402,19 +4485,41 @@ export class WorkflowService {
         }
         this._assertActorCanAccessProject(step.project_id, actor);
         this._assertActorCanResolveHumanStep(step, actor);
+        const resolution = input.resolution || input.status || 'approved';
+        const approvedResolution = isApprovedHumanResolution(resolution);
+        if (
+            step.status === 'approved'
+            && approvedResolution
+            && this._isCanonicalTaskHumanStep(step)
+        ) {
+            const replayedMaterialization = step.canonical_task_materialization
+                || await this._materializeCanonicalTaskApproval(step, input, actor);
+            const reconciledStep = step.canonical_task_materialization
+                ? step
+                : this._recordCanonicalTaskMaterialization(step, replayedMaterialization, actor);
+            return this._withCanonicalTaskMaterialization({
+                human_step: reconciledStep,
+                resumed_run: this.repository.getRun(step.workflow_run_id)
+            }, replayedMaterialization);
+        }
         if (step.status !== 'pending') {
             throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
         }
-        const resolution = input.resolution || input.status || 'approved';
-        const approvedResolution = isApprovedHumanResolution(resolution);
+        const materialization = approvedResolution && this._isCanonicalTaskHumanStep(step)
+            ? await this._materializeCanonicalTaskApproval(step, input, actor)
+            : null;
         const resolvedStatus = approvedResolution ? 'approved' : resolution;
         const resolved = this.repository.updateHumanStep(stepId, {
             status: resolvedStatus,
             response_ref: input.response_ref || input.responseRef || null,
             reason: input.reason || step.reason || null,
             resolved_at: new Date().toISOString(),
-            resolved_by: actor.person_id || actor.sub || 'system'
+            resolved_by: actor.person_id || actor.sub || 'system',
+            ...(materialization ? { canonical_task_materialization: materialization } : {})
         });
+        if (materialization) {
+            this._recordCanonicalTaskMaterialization(resolved, materialization, actor);
+        }
         this.repository.writeAuditLog({
             workspace_id: step.workspace_id,
             project_id: step.project_id,
@@ -4469,7 +4574,7 @@ export class WorkflowService {
                     status: closedRun?.status || 'cancelled'
                 }
             });
-            return { human_step: resolved, resumed_run: closedRun };
+            return this._withCanonicalTaskMaterialization({ human_step: resolved, resumed_run: closedRun }, materialization);
         }
         if (isApprovalOnlyIngestWorkflow(workflow) && previousRun) {
             const approvalLabel = isMeetingReviewPackageWorkflow(workflow)
@@ -4523,7 +4628,7 @@ export class WorkflowService {
                     closure_state: updatedRun?.closure_state || previousRun.closure_state
                 }
             });
-            return { human_step: resolved, resumed_run: updatedRun };
+            return this._withCanonicalTaskMaterialization({ human_step: resolved, resumed_run: updatedRun }, materialization);
         }
         const resume = await this.runWorkflow(step.workflow_id, {
             actorId: actor.person_id || actor.sub || 'system',
@@ -4553,7 +4658,7 @@ export class WorkflowService {
                 status: resume.run.status
             }
         });
-        return { human_step: resolved, resumed_run: resume.run };
+        return this._withCanonicalTaskMaterialization({ human_step: resolved, resumed_run: resume.run }, materialization);
     }
 
     async _assertProjectSelectable(projectId) {

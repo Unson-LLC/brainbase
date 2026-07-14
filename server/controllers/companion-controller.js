@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { ReplyDraftServiceError } from '../services/companion/reply-draft-service.js';
 import { DecisionEventValidationError } from '../services/companion/decision-event-service.js';
+import { createCanonicalTaskPrincipal } from '../services/companion/canonical-task-principal.js';
 
 function serializeError(error) {
     if (error instanceof ReplyDraftServiceError) {
@@ -91,12 +92,90 @@ function normalizePerson(record) {
 }
 
 export class CompanionController {
-    constructor(replyDraftService, { workflowService = null, infoSSOTService = null, decisionEventService = null } = {}) {
+    constructor(replyDraftService, { workflowService = null, infoSSOTService = null, decisionEventService = null, canonicalTaskService = null } = {}) {
         this.replyDraftService = replyDraftService;
         this.workflowService = workflowService;
         this.infoSSOTService = infoSSOTService;
         this.decisionEventService = decisionEventService;
+        this.canonicalTaskService = canonicalTaskService;
     }
+
+    taskContext(req) {
+        const personId = req.access?.personId || req.auth?.person_id || req.auth?.personId || (req.authSource === 'bearer' ? req.auth?.sub : null);
+        const principal = createCanonicalTaskPrincipal({
+            authSource: req.authSource,
+            personId,
+            serviceId: req.auth?.service_id || req.auth?.client_id || req.auth?.sub,
+            internalId: req.auth?.service_id || req.auth?.client_id || 'brainbase-internal'
+        });
+        return {
+            principal,
+            authSource: req.authSource,
+            access: actorAccess(req),
+            idempotencyKey: req.get('Idempotency-Key') || null
+        };
+    }
+
+    sendTaskError(res, error) {
+        logger.error('Canonical Task request failed', { error });
+        const status = error.status || error.statusCode || 500;
+        const body = {
+            code: error.code || 'canonical_task_error',
+            message: status >= 500 ? (error.message || 'Canonical Task request failed') : error.message
+        };
+        if (error.fieldErrors) body.field_errors = error.fieldErrors;
+        if (error.currentTask) body.current_task = error.currentTask;
+        if (error.details && Object.keys(error.details).length) body.details = error.details;
+        res.status(status).json(body);
+    }
+
+    listTasks = async (req, res) => {
+        try {
+            res.json(await this.canonicalTaskService.listTasks(req.query || {}, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
+
+    getTask = async (req, res) => {
+        try {
+            res.json(await this.canonicalTaskService.getTask(req.params.taskId, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
+
+    createTask = async (req, res) => {
+        try {
+            res.status(201).json(await this.canonicalTaskService.createTask(req.body || {}, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
+
+    updateTask = async (req, res) => {
+        try {
+            res.json(await this.canonicalTaskService.updateTask(req.params.taskId, req.body || {}, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
+
+    transitionTask = async (req, res) => {
+        try {
+            res.json(await this.canonicalTaskService.transitionTask(req.params.taskId, req.body || {}, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
+
+    deleteTask = async (req, res) => {
+        try {
+            res.json(await this.canonicalTaskService.deleteTask(req.params.taskId, req.body || {}, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
 
     createReplyDraft = async (req, res) => {
         try {

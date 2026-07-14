@@ -9,13 +9,14 @@ import { NocoDBTaskRepository } from './nocodb-task-repository.js';
  * NocoDBタスクのビジネスロジック
  */
 export class NocoDBTaskService {
-    constructor({ httpClient }) {
-        this.repository = new NocoDBTaskRepository({ httpClient });
-        this.adapter = new NocoDBTaskAdapter();
+    constructor({ httpClient, repository = null, adapter = null }) {
+        this.repository = repository || new NocoDBTaskRepository({ httpClient });
+        this.adapter = adapter || new NocoDBTaskAdapter();
         this.tasks = [];
         this.projects = [];
         this.loading = false;
         this.error = null;
+        this.canonicalTaskStore = null;
     }
 
     /** catchブロック共通: ログ+エラーイベント+rethrow */
@@ -41,11 +42,17 @@ export class NocoDBTaskService {
 
         try {
             const response = await this.repository.fetchAllTasks();
-            const rawTasks = response.records || [];
+            this.canonicalTaskStore = response.canonicalTaskStore || null;
+            const rawTasks = (response.records || []).filter(record => record.baseId !== this.canonicalTaskStore?.baseId);
             this.projects = response.projects || [];
 
-            // 内部形式に変換
-            this.tasks = rawTasks.map(record => this.adapter.toInternalTask(record));
+            const canonicalTasks = this.repository.hasBearerAuth()
+                ? (await this.repository.fetchCanonicalTasks()).items || []
+                : [];
+            this.tasks = [
+                ...canonicalTasks.map(task => this.adapter.toInternalCanonicalTask(task)),
+                ...rawTasks.map(record => this.adapter.toInternalTask(record))
+            ];
 
             // Store更新
             appStore.setState({
@@ -86,9 +93,20 @@ export class NocoDBTaskService {
             throw new Error('Task not found');
         }
 
-        const nocoStatus = this.adapter.toNocoDBStatus(newStatus);
-
         try {
+            if (task.canonicalTaskId) {
+                this._assertCanonicalBearer();
+                const result = await this.repository.transitionCanonicalTask(task.canonicalTaskId, {
+                    expected_version: task.canonicalVersion,
+                    to_status: newStatus
+                }, this._operationKey('status'));
+                const projected = this.adapter.toInternalCanonicalTask(result);
+                Object.assign(task, projected);
+                appStore.setState({ nocodbTasks: [...this.tasks] });
+                eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
+                return task;
+            }
+            const nocoStatus = this.adapter.toNocoDBStatus(newStatus);
             await this.repository.updateTask(
                 task.nocodbRecordId,
                 task.nocodbBaseId,
@@ -121,10 +139,23 @@ export class NocoDBTaskService {
             throw new Error('Task not found');
         }
 
-        // 内部形式→NocoDB形式に変換
-        const nocoFields = this.adapter.toNocoDBFields(updates);
-
         try {
+            if (task.canonicalTaskId) {
+                this._assertCanonicalBearer();
+                const payload = {
+                    expected_version: task.canonicalVersion,
+                    ...(updates.name ? { title: updates.name } : {}),
+                    ...(updates.priority ? { priority: updates.priority } : {}),
+                    ...(updates.due !== undefined ? { due_at: updates.due || null } : {}),
+                    ...(updates.description !== undefined ? { description: updates.description } : {})
+                };
+                const result = await this.repository.updateCanonicalTask(task.canonicalTaskId, payload, this._operationKey('update'));
+                Object.assign(task, this.adapter.toInternalCanonicalTask(result));
+                appStore.setState({ nocodbTasks: [...this.tasks] });
+                eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
+                return task;
+            }
+            const nocoFields = this.adapter.toNocoDBFields(updates);
             await this.repository.updateTask(
                 task.nocodbRecordId,
                 task.nocodbBaseId,
@@ -154,6 +185,7 @@ export class NocoDBTaskService {
      * タスク作成
      * @param {Object} payload - 新規タスク情報
      * @param {string} payload.projectId - プロジェクトID
+     * @param {string} [payload.baseId] - NocoDB base ID
      * @param {string} payload.title - タスク名
      * @param {string} payload.assignee - 担当者
      * @param {string} payload.priority - 優先度
@@ -162,6 +194,19 @@ export class NocoDBTaskService {
      */
     async createTask(payload) {
         try {
+            if (this._isCanonicalProject(payload.projectId, payload.baseId)) {
+                this._assertCanonicalBearer();
+                const created = await this.repository.createCanonicalTask({
+                    title: payload.title,
+                    description: payload.description || null,
+                    priority: payload.priority || 'medium',
+                    due_at: payload.due || null,
+                    source_refs: [{ type: 'brainbase_web', project: payload.projectId }]
+                }, this._operationKey('create'));
+                await this.loadTasks();
+                eventBus.emit(EVENTS.NOCODB_TASK_CREATED, { task: created });
+                return created;
+            }
             const created = await this.repository.createTask(payload);
             await this.loadTasks();
             eventBus.emit(EVENTS.NOCODB_TASK_CREATED, { task: created });
@@ -182,10 +227,15 @@ export class NocoDBTaskService {
         }
 
         try {
+            if (task.canonicalTaskId) {
+                this._assertCanonicalBearer();
+                await this.repository.deleteCanonicalTask(task.canonicalTaskId, task.canonicalVersion, this._operationKey('delete'));
+            } else {
             await this.repository.deleteTask(
                 task.nocodbRecordId,
                 task.nocodbBaseId
             );
+            }
 
             // ローカル状態から削除
             this.tasks = this.tasks.filter(t => t.id !== taskId);
@@ -279,5 +329,28 @@ export class NocoDBTaskService {
      */
     getError() {
         return this.error;
+    }
+
+    _isCanonicalProject(projectId, baseId) {
+        return Boolean(this.canonicalTaskStore && (
+            baseId === this.canonicalTaskStore.baseId
+            || projectId === this.canonicalTaskStore.project
+            || this.projects.some(project => project.id === projectId && project.canonicalTaskStore)
+        ));
+    }
+
+    _assertCanonicalBearer() {
+        if (!this.repository.hasBearerAuth()) {
+            const error = /** @type {Error & {code: string}} */ (
+                new Error('Canonical Task operations require bearer authentication')
+            );
+            error.code = 'task_bearer_required';
+            throw error;
+        }
+    }
+
+    _operationKey(action) {
+        const nonce = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        return `browser-${action}-${nonce}`;
     }
 }

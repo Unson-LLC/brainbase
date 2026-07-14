@@ -119,21 +119,86 @@ describe('mana capture routes', () => {
         };
       })
     };
+    const canonicalTaskService = {
+      createManaCapture: vi.fn(async input => ({
+        id: 'ct1.opaque.signature',
+        version: 1,
+        status: 'pending',
+        title: input.title,
+        source_refs: [{ type: 'mana_capture', capture_id: input.capture_id }]
+      }))
+    };
+    const sessionGuard = (req, _res, next) => {
+      req.authSource = 'cookie';
+      req.auth = { sub: 'sato_keigo' };
+      req.access = { personId: 'sato_keigo', role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'] };
+      next();
+    };
     app = express();
     app.use(express.json());
-    app.use('/api/brainbase/mana', createManaCaptureRouter({ bedrockClient }));
+    app.use('/api/brainbase/mana', createManaCaptureRouter({ bedrockClient, canonicalTaskService, sessionGuard }));
 
     const res = await request(app)
       .post('/api/brainbase/mana/capture')
-      .send({ content: '顧客オンボーディングの詰まりを整理する', type: 'issue' });
+      .send({ capture_id: 'capture-1', content: '顧客オンボーディングの詰まりを整理する', type: 'issue' });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
       title: 'オンボーディング整理',
       type: 'task',
       content: '顧客オンボーディングの詰まりを整理する',
-      nocodbId: null
+      taskId: 'ct1.opaque.signature',
+      version: 1
     });
     expect(bedrockClient.send).toHaveBeenCalledTimes(1);
+    expect(canonicalTaskService.createManaCapture).toHaveBeenCalledWith(expect.objectContaining({
+      capture_id: 'capture-1',
+      content: '顧客オンボーディングの詰まりを整理する'
+    }), expect.objectContaining({
+      principal: { type: 'person', id: 'sato_keigo' },
+      authSource: 'session'
+    }));
+  });
+
+  it('POST /capture rejects missing capture_id before calling the Task store', async () => {
+    const canonicalTaskService = { createManaCapture: vi.fn() };
+    const sessionGuard = (req, _res, next) => {
+      req.authSource = 'cookie';
+      req.access = { personId: 'sato_keigo' };
+      next();
+    };
+    app = express();
+    app.use(express.json());
+    app.use('/api/brainbase/mana', createManaCaptureRouter({ canonicalTaskService, sessionGuard }));
+
+    await request(app)
+      .post('/api/brainbase/mana/capture')
+      .send({ content: '確認する' })
+      .expect(422);
+
+    expect(canonicalTaskService.createManaCapture).not.toHaveBeenCalled();
+  });
+
+  it('POST /capture does not return a local id when the canonical store is unavailable', async () => {
+    const error = Object.assign(new Error('Canonical Task store is unavailable'), {
+      code: 'task_store_unavailable', status: 503
+    });
+    const canonicalTaskService = { createManaCapture: vi.fn(async () => { throw error; }) };
+    const sessionGuard = (req, _res, next) => {
+      req.authSource = 'cookie';
+      req.access = { personId: 'sato_keigo' };
+      next();
+    };
+    app = express();
+    app.use(express.json());
+    app.use('/api/brainbase/mana', createManaCaptureRouter({ canonicalTaskService, sessionGuard }));
+
+    const res = await request(app)
+      .post('/api/brainbase/mana/capture')
+      .send({ capture_id: 'capture-2', content: '確認する' });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({ code: 'task_store_unavailable' });
+    expect(res.body.id).toBeUndefined();
   });
 });

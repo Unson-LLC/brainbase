@@ -111,6 +111,8 @@ export function registerApiRoutes(app, {
     tmuxCaptureCache,
     authService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskService,
     learningService,
     learningHealthService,
     candidateRepository,
@@ -154,9 +156,11 @@ export function registerApiRoutes(app, {
         configParser,
         projectsRoot,
         infoSSOTService,
-        wikiService
+        wikiService,
+        canonicalTaskService,
+        authGuard: requireAuth(authService)
     }));
-    app.use('/api/nocodb', createNocoDBRouter(configParser));
+    app.use('/api/nocodb', createNocoDBRouter(configParser, { canonicalTaskStoreConfig }));
     app.use('/api/health', createHealthRouter({
         readiness: sessionServices.runtime.registry,
         configParser,
@@ -176,6 +180,7 @@ export function registerApiRoutes(app, {
         workflowService,
         infoSSOTService,
         decisionEventService: createDecisionEventService(runtimePaths),
+        canonicalTaskService,
         authGuard: requireAuth(authService)
     }));
     app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({

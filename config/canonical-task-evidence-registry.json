@@ -463,7 +463,7 @@
       "id": "surface.auth.matrix",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.auth.matrix",
       "owner_path": "tests/server/routes/companion-canonical-tasks.test.js",
-      "test_command": "npx vitest run tests/server/routes/companion-canonical-tasks.test.js -t \"surface.auth.matrix\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.auth.matrix\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.auth.matrix.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Task auth matrix rejects cookie-only and insecure actor headers"
@@ -472,7 +472,7 @@
       "id": "surface.approval.inbox",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.approval.inbox",
       "owner_path": "tests/server/routes/companion-approval-inbox.test.js",
-      "test_command": "npx vitest run tests/server/routes/companion-approval-inbox.test.js -t \"surface.approval.inbox\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.approval.inbox\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.approval.inbox.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Approval inbox returns stable candidates and owner projection"
@@ -481,7 +481,7 @@
       "id": "surface.approval.resolve-run",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.approval.resolve-run",
       "owner_path": "tests/server/routes/workflows.test.js",
-      "test_command": "npx vitest run tests/server/routes/workflows.test.js -t \"surface.approval.resolve-run\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.approval.resolve-run\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.approval.resolve-run.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Run-scoped resolve route materializes before approval"
@@ -490,7 +490,7 @@
       "id": "surface.approval.resolve-step",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.approval.resolve-step",
       "owner_path": "tests/server/routes/workflows.test.js",
-      "test_command": "npx vitest run tests/server/routes/workflows.test.js -t \"surface.approval.resolve-step\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.approval.resolve-step\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.approval.resolve-step.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Human-step resolve route materializes before approval"
@@ -499,7 +499,7 @@
       "id": "surface.approval.non-task",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.approval.non-task",
       "owner_path": "tests/server/routes/workflows.test.js",
-      "test_command": "npx vitest run tests/server/routes/workflows.test.js -t \"surface.approval.non-task\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.approval.non-task\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.approval.non-task.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Non-task approval keeps existing resolve behavior"
@@ -508,7 +508,7 @@
       "id": "surface.workflow.get-run-reconcile",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.workflow.get-run-reconcile",
       "owner_path": "tests/server/services/workflow-canonical-task-materialization.test.js",
-      "test_command": "npx vitest run tests/server/services/workflow-canonical-task-materialization.test.js -t \"surface.workflow.get-run-reconcile\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.workflow.get-run-reconcile\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.workflow.get-run-reconcile.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "getRun reprojects durable workflow state"
@@ -517,7 +517,7 @@
       "id": "surface.workflow.retry-reconcile",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.workflow.retry-reconcile",
       "owner_path": "tests/server/services/workflow-canonical-task-materialization.test.js",
-      "test_command": "npx vitest run tests/server/services/workflow-canonical-task-materialization.test.js -t \"surface.workflow.retry-reconcile\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.workflow.retry-reconcile\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.workflow.retry-reconcile.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Retry resumes only incomplete workflow phases"
@@ -526,7 +526,7 @@
       "id": "surface.workflow.audit-idempotency",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.workflow.audit-idempotency",
       "owner_path": "tests/server/services/workflow-canonical-task-materialization.test.js",
-      "test_command": "npx vitest run tests/server/services/workflow-canonical-task-materialization.test.js -t \"surface.workflow.audit-idempotency\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.workflow.audit-idempotency\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.workflow.audit-idempotency.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Repeated projection upserts one deterministic audit record"
@@ -534,8 +534,8 @@
     {
       "id": "surface.writer.claim-reconcile",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.writer.claim-reconcile",
-      "owner_path": "tests/server/bootstrap/canonical-task-writer-lifecycle.test.js",
-      "test_command": "npx vitest run tests/server/bootstrap/canonical-task-writer-lifecycle.test.js -t \"surface.writer.claim-reconcile\"",
+      "owner_path": "tests/server/services/canonical-task-readiness.test.js",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.writer.claim-reconcile\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.writer.claim-reconcile.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Writer claim and reconciliation complete before HTTP listen"
@@ -544,7 +544,7 @@
       "id": "surface.writer.release-recover",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.writer.release-recover",
       "owner_path": "tests/server/scripts/recover-canonical-task-writer.test.js",
-      "test_command": "npx vitest run tests/server/scripts/recover-canonical-task-writer.test.js -t \"surface.writer.release-recover\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.writer.release-recover\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.writer.release-recover.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Graceful release and explicit recovery preserve single writer"
@@ -553,7 +553,7 @@
       "id": "surface.readiness.closed-start",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.readiness.closed-start",
       "owner_path": "tests/server/services/canonical-task-readiness.test.js",
-      "test_command": "npx vitest run tests/server/services/canonical-task-readiness.test.js -t \"surface.readiness.closed-start\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.readiness.closed-start\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.readiness.closed-start.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Every process starts mutation readiness closed"
@@ -562,7 +562,7 @@
       "id": "surface.readiness.atomic-enable",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.readiness.atomic-enable",
       "owner_path": "tests/server/services/canonical-task-readiness.test.js",
-      "test_command": "npx vitest run tests/server/services/canonical-task-readiness.test.js -t \"surface.readiness.atomic-enable\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.readiness.atomic-enable\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.readiness.atomic-enable.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Enable atomically validates HEAD manifest schema writer and evidence"
@@ -571,7 +571,7 @@
       "id": "surface.readiness.explicit-disable",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.readiness.explicit-disable",
       "owner_path": "tests/server/services/canonical-task-readiness.test.js",
-      "test_command": "npx vitest run tests/server/services/canonical-task-readiness.test.js -t \"surface.readiness.explicit-disable\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.readiness.explicit-disable\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.readiness.explicit-disable.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Rollback explicitly disables readiness before other actions"
@@ -579,8 +579,8 @@
     {
       "id": "surface.legacy.route",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.legacy.route",
-      "owner_path": "tests/server/controllers/nocodb-canonical-task-write-guard.test.js",
-      "test_command": "npx vitest run tests/server/controllers/nocodb-canonical-task-write-guard.test.js -t \"surface.legacy.route\"",
+      "owner_path": "tests/server/routes/nocodb-canonical-task-write-guard.test.js",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.legacy.route\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.legacy.route.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Legacy route blocks canonical writes before NocoDB access"
@@ -589,7 +589,7 @@
       "id": "surface.legacy.ui",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.legacy.ui",
       "owner_path": "tests/domain/nocodb-task/nocodb-task-adapter.test.js",
-      "test_command": "npx vitest run tests/domain/nocodb-task/nocodb-task-adapter.test.js -t \"surface.legacy.ui\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.legacy.ui\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.legacy.ui.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Legacy UI preserves waiting urgent and unknown values"
@@ -598,7 +598,7 @@
       "id": "surface.mana.auth-retry-read",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.mana.auth-retry-read",
       "owner_path": "tests/server/routes/mana-capture-routes.test.js",
-      "test_command": "npx vitest run tests/server/routes/mana-capture-routes.test.js -t \"surface.mana.auth-retry-read\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.mana.auth-retry-read\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.mana.auth-retry-read.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Mana enforces session CSRF actor retry read and no fallback"
@@ -616,7 +616,7 @@
       "id": "surface.mcp.write-fence",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.mcp.write-fence",
       "owner_path": "mcp/nocodb/tests/canonical-task-write-guard.test.js",
-      "test_command": "node --test --test-reporter=tap --test-name-pattern='surface\\.mcp\\.write-fence' mcp/nocodb/tests/canonical-task-write-guard.test.js",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.mcp.write-fence\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.mcp.write-fence.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "MCP blocks canonical record and column mutations while preserving reads"
@@ -625,7 +625,7 @@
       "id": "surface.delete.recovery",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.delete.recovery",
       "owner_path": "tests/server/services/canonical-task-service.test.js",
-      "test_command": "npx vitest run tests/server/services/canonical-task-service.test.js -t \"surface.delete.recovery\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.delete.recovery\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.delete.recovery.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Delete recovery preserves version idempotency and actor isolation"
@@ -634,7 +634,7 @@
       "id": "surface.operational-scripts",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.operational-scripts",
       "owner_path": "tests/server/scripts/canonical-task-writer-policy.test.js",
-      "test_command": "npx vitest run tests/server/scripts/canonical-task-writer-policy.test.js -t \"surface.operational-scripts\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.operational-scripts\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.operational-scripts.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Operational scripts contain no direct canonical NocoDB writer"
@@ -643,7 +643,7 @@
       "id": "surface.migrations.postgres",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.migrations.postgres",
       "owner_path": "tests/server/scripts/preflight-canonical-task-cutover.test.js",
-      "test_command": "npx vitest run tests/server/scripts/preflight-canonical-task-cutover.test.js -t \"surface.migrations.postgres\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.migrations.postgres\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.migrations.postgres.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Postgres operation writer readiness schema apply and check pass"
@@ -652,7 +652,7 @@
       "id": "surface.migrations.nocodb",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.migrations.nocodb",
       "owner_path": "tests/server/scripts/preflight-canonical-task-cutover.test.js",
-      "test_command": "npx vitest run tests/server/scripts/preflight-canonical-task-cutover.test.js -t \"surface.migrations.nocodb\"",
+      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.migrations.nocodb\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.migrations.nocodb.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "NocoDB required columns and idempotency uniqueness check pass"

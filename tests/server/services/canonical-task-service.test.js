@@ -1,0 +1,203 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { CanonicalTaskService, CanonicalTaskError } from '../../../server/services/companion/canonical-task-service.js';
+
+const OWNER = 'sato_keigo';
+
+function task(overrides = {}) {
+    return {
+        id: 'task_1', version: 1, title: '確認する', description: null,
+        status: 'pending', priority: 'medium', assignee_person_id: OWNER,
+        assignee_display_name: '佐藤圭吾', due_at: null, waiting_on: null,
+        review_at: null, completed_at: null, source_refs: [], created_at: '2026-07-14T00:00:00.000Z',
+        updated_at: '2026-07-14T00:00:00.000Z', web_url: null, normalization_warnings: [],
+        ...overrides
+    };
+}
+
+function setup() {
+    const repository = {
+        list: vi.fn(async () => ({ items: [task()], nextCursor: null })),
+        get: vi.fn(async () => task()),
+        findByIdempotencyKey: vi.fn(async () => null),
+        create: vi.fn(async () => task()),
+        update: vi.fn(async (_id, fields) => task({ ...fields, version: 2 })),
+        delete: vi.fn(async () => undefined)
+    };
+    const people = {
+        listGraphEntities: vi.fn(async (_access, { id }) => id === OWNER
+            ? [{ entity_id: OWNER, entity_type: 'person', payload: { display_name: '佐藤圭吾', person_id: OWNER } }]
+            : [])
+    };
+    const readiness = { assertMutationReady: vi.fn() };
+    const operations = {
+        execute: vi.fn(async ({ run }) => run()),
+        executePreparedDelete: vi.fn(async ({ prepare, findTask, removeTask }) => {
+            const prepared = await prepare();
+            const current = await findTask();
+            if (current) await removeTask(current);
+            return prepared.result;
+        })
+    };
+    return {
+        repository, people, readiness, operations,
+        service: new CanonicalTaskService({ repository, infoSSOTService: people, readiness, operationRepository: operations, ownerPersonId: OWNER })
+    };
+}
+
+function ownerContext() {
+    return {
+        principal: { type: 'person', id: OWNER }, authSource: 'bearer',
+        access: { role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'], personId: OWNER }
+    };
+}
+
+describe('CanonicalTaskService', () => {
+    let fixture;
+    beforeEach(() => { fixture = setup(); });
+
+    it('lists only the configured owner tasks with exact metadata', async () => {
+        const page = await fixture.service.listTasks({}, ownerContext());
+        expect(fixture.repository.list).toHaveBeenCalledWith(expect.objectContaining({ assigneePersonId: OWNER }));
+        expect(page).toMatchObject({ total_count: 1, count_status: 'exact', read_status: 'complete', warnings: [] });
+    });
+
+    it('creates once with a server-side actor namespace', async () => {
+        const first = await fixture.service.createTask({ title: '確認する', priority: 'high' }, { ...ownerContext(), idempotencyKey: 'request-1' });
+        expect(first.id).toBe('task_1');
+        expect(fixture.readiness.assertMutationReady).toHaveBeenCalled();
+        expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
+            assignee_person_id: OWNER,
+            idempotency_key: expect.stringMatching(/^api:v1\..+:request-1$/)
+        }));
+    });
+
+    it('materializes a Mana capture with an actor-scoped stable command key', async () => {
+        await fixture.service.createManaCapture({
+            capture_id: 'capture-1',
+            title: 'オンボーディング整理',
+            content: '顧客オンボーディングの詰まりを整理する',
+            type: 'task',
+            project: 'brainbase'
+        }, { ...ownerContext(), authSource: 'session' });
+
+        expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'pending',
+            assignee_person_id: OWNER,
+            idempotency_key: expect.stringMatching(/^mana:v1\..+:capture-1$/),
+            source_refs: [{
+                type: 'mana_capture',
+                capture_id: 'capture-1',
+                capture_type: 'task',
+                project: 'brainbase',
+                content: '顧客オンボーディングの詰まりを整理する'
+            }]
+        }));
+    });
+
+    it('rejects a Mana capture without a stable capture id before writing', async () => {
+        await expect(fixture.service.createManaCapture({ title: '確認する', content: '確認する' }, {
+            ...ownerContext(), authSource: 'session'
+        })).rejects.toMatchObject({ code: 'validation_failed', status: 422 });
+        expect(fixture.repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a different assignee for owner credentials', async () => {
+        await expect(fixture.service.createTask({ title: '別担当', assignee_person_id: 'person_other' }, { ...ownerContext(), idempotencyKey: 'request-2' }))
+            .rejects.toMatchObject({ code: 'forbidden_assignee', status: 403 });
+        expect(fixture.repository.create).not.toHaveBeenCalled();
+    });
+
+    it('returns current task on version conflict', async () => {
+        fixture.repository.get.mockResolvedValue(task({ version: 3 }));
+        await expect(fixture.service.updateTask('task_1', { expected_version: 2, title: '変更' }, ownerContext()))
+            .rejects.toMatchObject({ code: 'version_conflict', status: 409, currentTask: expect.objectContaining({ version: 3 }) });
+    });
+
+    it('requires waiting_on and seals completed tasks', async () => {
+        await expect(fixture.service.transitionTask('task_1', { expected_version: 1, to_status: 'waiting' }, ownerContext()))
+            .rejects.toMatchObject({ code: 'validation_failed', status: 422 });
+        fixture.repository.get.mockResolvedValue(task({ status: 'completed' }));
+        await expect(fixture.service.transitionTask('task_1', { expected_version: 1, to_status: 'in_progress' }, ownerContext()))
+            .rejects.toMatchObject({ code: 'invalid_transition', status: 409 });
+    });
+
+    it('keeps Task store failures explicit', async () => {
+        fixture.repository.list.mockRejectedValue(new Error('network'));
+        await expect(fixture.service.listTasks({}, ownerContext()))
+            .rejects.toEqual(expect.objectContaining({ code: 'task_store_unavailable', status: 503 }));
+    });
+
+    it('prepares an actor-scoped delete intent before removing the Task', async () => {
+        const context = { ...ownerContext(), authSource: 'bearer', idempotencyKey: 'delete-1' };
+
+        const result = await fixture.service.deleteTask('task_1', { expected_version: 1 }, context);
+
+        expect(fixture.operations.executePreparedDelete).toHaveBeenCalledWith(expect.objectContaining({
+            operationKey: expect.stringMatching(/^delete:v1\..+:delete-1$/),
+            versionClaimKey: 'task-version:task_1:1',
+            principalNamespace: expect.stringMatching(/^v1\./)
+        }));
+        expect(fixture.repository.delete).toHaveBeenCalledWith('task_1');
+        expect(result).toEqual({ task_id: 'task_1', deleted: true, version: 2 });
+    });
+
+    it('materializes approved workflow candidates and applies only declared edits', async () => {
+        fixture.repository.create
+            .mockResolvedValueOnce(task({ id: 'task_approved', title: '修正後タイトル', priority: 'high' }));
+
+        const result = await fixture.service.materializeWorkflowApproval({
+            step: { id: 'human_1', workflow_run_id: 'run_1', project_id: 'brainbase' },
+            output: {
+                id: 'out_1',
+                payload: [
+                    { id: 'candidate-a', title: '元タイトル', selected_owner_id: OWNER, priority: 'medium' },
+                    { id: 'candidate-b', title: '除外する', selected_owner_id: OWNER }
+                ]
+            },
+            responseRef: {
+                decision_mode: 'approveWithEdits',
+                review_items: [
+                    {
+                        candidate_id: 'out_1_item_1',
+                        resolution: 'approved',
+                        title: '修正後タイトル',
+                        priority: 'high',
+                        edited_fields: ['title', 'priority']
+                    },
+                    {
+                        candidate_id: 'out_1_item_2',
+                        resolution: 'rejected',
+                        edited_fields: []
+                    }
+                ]
+            },
+            actor: { person_id: OWNER, projectCodes: ['brainbase'], role: 'admin', authSource: 'test' }
+        });
+
+        expect(fixture.repository.create).toHaveBeenCalledTimes(1);
+        expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
+            title: '修正後タイトル',
+            priority: 'high',
+            assignee_person_id: OWNER,
+            idempotency_key: expect.stringMatching(/^workflow:out_1:/)
+        }));
+        expect(result).toMatchObject({
+            status: 'completed',
+            task_ids: ['task_approved'],
+            excluded_candidates: [expect.objectContaining({ candidate_id: 'candidate-b', resolution: 'rejected' })],
+            replayed: false
+        });
+    });
+
+    it('rejects unresolved assignees before writing any workflow Task', async () => {
+        await expect(fixture.service.materializeWorkflowApproval({
+            step: { id: 'human_1', workflow_run_id: 'run_1', project_id: 'brainbase' },
+            output: { id: 'out_1', payload: [{ title: '担当者未確定' }] },
+            responseRef: null,
+            actor: { person_id: OWNER, projectCodes: ['brainbase'], role: 'admin', authSource: 'test' }
+        })).rejects.toMatchObject({ code: 'unresolved_task_assignee', status: 409 });
+
+        expect(fixture.repository.create).not.toHaveBeenCalled();
+    });
+});

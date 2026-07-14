@@ -30,7 +30,9 @@ export function createBrainbaseRouter(options = {}) {
         configParser,
         projectsRoot,
         infoSSOTService,
-        wikiService
+        wikiService,
+        canonicalTaskService,
+        authGuard
     } = options;
     const resolvedProjectsRoot = projectsRoot || process.env.PROJECTS_ROOT || null;
     const manaRepoPath = process.env.MANA_REPO_PATH
@@ -64,7 +66,11 @@ export function createBrainbaseRouter(options = {}) {
 
     // ==================== mana Capture + Chat API (P0) ====================
     const honchoService = createHonchoService();
-    router.use('/mana', createManaCaptureRouter({ nocodbService, honchoService }));
+    router.use('/mana', createManaCaptureRouter({
+        honchoService,
+        canonicalTaskService,
+        sessionGuard: authGuard
+    }));
 
     // ==================== Actions API (Story 3) ====================
     const actionController = new BrainbaseActionController(nocodbService);

@@ -4,6 +4,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { fromIni } from '@aws-sdk/credential-providers';
 import { logger } from '../../utils/logger.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { createCanonicalTaskPrincipal } from '../../services/companion/canonical-task-principal.js';
 
 /**
  * manaキャプチャ + チャットAPIルーター
@@ -11,7 +12,35 @@ import { asyncHandler } from '../../lib/async-handler.js';
  */
 export function createManaCaptureRouter(options = {}) {
     const router = express.Router();
-    const { nocodbService, honchoService, bedrockClient: providedBedrockClient } = options;
+    const {
+        honchoService,
+        bedrockClient: providedBedrockClient,
+        canonicalTaskService,
+        sessionGuard
+    } = options;
+
+    const requireCaptureSession = (req, res, next) => {
+        if (typeof sessionGuard !== 'function') {
+            return res.status(503).json({ code: 'mana_session_guard_unavailable', message: 'Mana capture authentication is unavailable' });
+        }
+        return sessionGuard(req, res, () => {
+            if (req.authSource !== 'cookie') {
+                return res.status(401).json({ code: 'mana_session_required', message: 'Mana capture requires an authenticated session' });
+            }
+            const personId = req.access?.personId || req.auth?.person_id || req.auth?.personId || req.auth?.sub;
+            if (!personId) {
+                return res.status(401).json({ code: 'mana_session_required', message: 'Mana capture session has no person identity' });
+            }
+            req.manaTaskContext = {
+                principal: createCanonicalTaskPrincipal({ authSource: 'session', personId }),
+                authSource: 'session',
+                access: req.access
+            };
+            return next();
+        });
+    };
+
+    router.use(['/capture', '/captures'], requireCaptureSession);
 
     // Bedrock client (lazy init)
     let bedrockClient = providedBedrockClient || null;
@@ -28,21 +57,23 @@ export function createManaCaptureRouter(options = {}) {
         return bedrockClient;
     }
 
-    // Default NocoDB base for captured tasks (brainbase base)
-    const CAPTURE_BASE_ID = process.env.NOCODB_CAPTURE_BASE_ID || 'pva7l2qlu6fdfip';
-
     /**
      * POST /capture
-     * 課題/タスクを即キャプチャ → NocoDBに保存（status: "captured"）
+     * 課題/タスクを即キャプチャしてCanonical Taskへ保存する。
      */
     router.post('/capture', asyncHandler(async (req, res) => {
-        const { content, type, project, assignee } = req.body;
+        const { capture_id: captureId, content, type, project } = req.body;
         if (!content || typeof content !== 'string' || !content.trim()) {
             return res.status(400).json({ error: 'content is required' });
         }
+        if (!captureId || typeof captureId !== 'string' || !captureId.trim()) {
+            return res.status(422).json({ code: 'validation_failed', field_errors: { capture_id: ['required'] } });
+        }
+        if (!canonicalTaskService?.createManaCapture) {
+            return res.status(503).json({ code: 'canonical_task_service_unavailable', message: 'Canonical Task service is unavailable' });
+        }
 
         const captureType = type || 'issue';
-        const capturedAt = new Date().toISOString();
 
         // LLMでタイトル抽出（Bedrock）
         let title = content.trim().slice(0, 100); // fallback
@@ -55,46 +86,33 @@ export function createManaCaptureRouter(options = {}) {
             logger.warn('LLM title extraction failed, using raw content', { error: err.message });
         }
 
-        // NocoDBに書き込み
-        let record = null;
-        if (nocodbService) {
-            try {
-                record = await nocodbService._fetchWithRetry(
-                    `${nocodbService.baseUrl}/api/v2/tables/${await getTasksTableId()}/records`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'xc-token': nocodbService.apiToken,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            タイトル: title,
-                            ステータス: 'captured',
-                            背景: content.trim(),
-                            タイプ: category,
-                            担当者: assignee || '',
-                            プロジェクト: project || '',
-                            作成日時: capturedAt
-                        })
-                    }
-                );
-                const result = await nocodbService._handleResponse(record, 'manaCapture');
-                record = result;
-            } catch (err) {
-                logger.error('Failed to save capture to NocoDB', { error: err.message });
-            }
+        try {
+            const task = await canonicalTaskService.createManaCapture({
+                capture_id: captureId.trim(),
+                title,
+                content: content.trim(),
+                type: category,
+                project
+            }, req.manaTaskContext);
+            logger.info('Mana capture materialized as Canonical Task', { title, type: category, taskId: task.id });
+            res.status(201).json({
+                id: task.id,
+                taskId: task.id,
+                version: task.version,
+                status: task.status,
+                title: task.title,
+                type: category,
+                content: content.trim(),
+                capturedAt: task.created_at || null
+            });
+        } catch (error) {
+            logger.error('Failed to materialize Mana capture', { error: error.message });
+            res.status(error.status || 503).json({
+                code: error.code || 'task_store_unavailable',
+                message: error.message || 'Canonical Task store is unavailable',
+                ...(error.fieldErrors ? { field_errors: error.fieldErrors } : {})
+            });
         }
-
-        logger.info('Mana capture saved', { title, type: category, recordId: record?.Id });
-
-        res.status(201).json({
-            id: record?.Id || `local-${Date.now()}`,
-            title,
-            type: category,
-            content: content.trim(),
-            capturedAt,
-            nocodbId: record?.Id || null
-        });
     }));
 
     /**
@@ -141,50 +159,32 @@ export function createManaCaptureRouter(options = {}) {
      * キャプチャ済みタスク一覧取得
      */
     router.get('/captures', asyncHandler(async (req, res) => {
-        if (!nocodbService) {
-            return res.json({ items: [], count: 0 });
-        }
-
         try {
-            const tableId = await getTasksTableId();
-            if (!tableId) {
-                return res.json({ items: [], count: 0 });
-            }
-
-            const url = `${nocodbService.baseUrl}/api/v2/tables/${tableId}/records?where=(ステータス,eq,captured)&limit=50&sort=-作成日時`;
-            const response = await nocodbService._fetchWithRetry(url, {
-                headers: { 'xc-token': nocodbService.apiToken }
+            if (!canonicalTaskService?.listTasks) throw Object.assign(new Error('Canonical Task service is unavailable'), { status: 503, code: 'canonical_task_service_unavailable' });
+            const page = await canonicalTaskService.listTasks({ limit: 50 }, req.manaTaskContext);
+            const items = page.items.flatMap((task) => {
+                const source = task.source_refs?.find((ref) => ref?.type === 'mana_capture');
+                return source ? [{
+                    id: task.id,
+                    taskId: task.id,
+                    version: task.version,
+                    status: task.status,
+                    title: task.title,
+                    type: source.capture_type || 'issue',
+                    content: source.content || task.description || '',
+                    assigneePersonId: task.assignee_person_id,
+                    project: source.project || '',
+                    capturedAt: task.created_at || ''
+                }] : [];
             });
-            const data = await nocodbService._handleResponse(response, 'manaCaptures');
-
-            const items = (data.list || []).map(item => ({
-                id: item.Id,
-                title: item.タイトル || '',
-                type: item.タイプ || 'issue',
-                content: item.背景 || '',
-                assignee: item.担当者 || '',
-                project: item.プロジェクト || '',
-                capturedAt: item.作成日時 || ''
-            }));
-
             res.json({ items, count: items.length });
         } catch (err) {
             logger.error('Failed to fetch captures', { error: err.message });
-            res.json({ items: [], count: 0 });
+            res.status(err.status || 503).json({ code: err.code || 'task_store_unavailable', message: err.message || 'Canonical Task store is unavailable' });
         }
     }));
 
     // --- Helpers ---
-
-    let tasksTableId = null;
-
-    async function getTasksTableId() {
-        if (tasksTableId) return tasksTableId;
-        if (nocodbService) {
-            tasksTableId = await nocodbService._getTableId(CAPTURE_BASE_ID, 'タスク');
-        }
-        return tasksTableId;
-    }
 
     async function extractCaptureMeta(text) {
         const prompt = `以下のテキストから、課題/タスクのメタデータを抽出してください。

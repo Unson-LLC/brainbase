@@ -1,0 +1,419 @@
+import { createHash } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import {
+  buildEffectiveInvocation,
+  collectCanonicalTaskEvidence,
+  evaluateRunnerEvidence,
+  validateEvidenceRegistry,
+} from '../../../scripts/collect-canonical-task-evidence.js';
+import {
+  buildBeforeEnableEvidence,
+  verifyEvidenceArtifact,
+} from '../../../scripts/preflight-canonical-task-cutover.js';
+
+const NONCE = 'b'.repeat(64);
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function registryFixture(entryOverrides = {}) {
+  return {
+    schema_version: '1.0.0',
+    story_id: 'story-companion-canonical-task-provider',
+    source_of_truth: 'config/canonical-task-evidence-registry.json',
+    required_entry_count: 1,
+    collector: 'scripts/collect-canonical-task-evidence.js',
+    effective_invocation: {
+      spawn_mode: 'argv-with-explicit-env',
+      required_env: {
+        VIBEPRO_EVIDENCE_ID: '<evidence-id>',
+        VIBEPRO_EVIDENCE_RESULT: '<runner-result-path>',
+        VIBEPRO_EVIDENCE_NONCE: '<collector-generated-64-hex>',
+      },
+      nonce_hash: 'sha256',
+      reject_unregistered_env: true,
+    },
+    runner_adapters: {
+      playwright: {
+        match_prefix: 'npx playwright test ',
+        reporter: 'scripts/evidence-reporters/canonical-task-playwright-reporter.js',
+        effective_command_template: '<registered-test-command> --reporter=scripts/evidence-reporters/canonical-task-playwright-reporter.js',
+        result_path_template: '.vibepro/verification/canonical-task-cutover/runner/<evidence-id>.json',
+      },
+      vitest: {
+        match_prefix: 'npx vitest run ',
+        reporter: 'scripts/evidence-reporters/canonical-task-vitest-reporter.js',
+        effective_command_template: '<registered-test-command> --reporter=scripts/evidence-reporters/canonical-task-vitest-reporter.js',
+        result_path_template: '.vibepro/verification/canonical-task-cutover/runner/<evidence-id>.json',
+      },
+      node_test: {
+        match_prefix: 'node --test ',
+        reporter: 'tap',
+        reporter_hash_rule: 'sha256(node:<runtime-version>:node:test:tap)',
+        effective_command_template: '<registered-test-command>',
+        result_path_template: '.vibepro/verification/canonical-task-cutover/runner/<evidence-id>.tap',
+      },
+    },
+    entries: [{
+      id: 'scenario.SC-001',
+      producer_command: 'node scripts/collect-canonical-task-evidence.js --id scenario.SC-001',
+      owner_path: 'tests/e2e/owner.spec.ts',
+      test_command: 'npx playwright test tests/e2e/owner.spec.ts --grep "scenario.SC-001"',
+      artifact_path: '.vibepro/verification/canonical-task-cutover/raw/scenario.SC-001.json',
+      artifact_schema: 'canonical-task-evidence-v1',
+      pre_fix_assertion: 'fails before implementation',
+      ...entryOverrides,
+    }],
+  };
+}
+
+async function createEvidenceFixture(overrides = {}) {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), 'canonical-task-preflight-'));
+  const registry = registryFixture(overrides.entry);
+  const registryPath = path.join(rootDir, 'config/canonical-task-evidence-registry.json');
+  const ownerPath = path.join(rootDir, registry.entries[0].owner_path);
+  const reporterPath = path.join(rootDir, registry.runner_adapters.playwright.reporter);
+  const runnerResultPath = path.join(
+    rootDir,
+    '.vibepro/verification/canonical-task-cutover/runner/scenario.SC-001.json',
+  );
+  const stdoutPath = path.join(
+    rootDir,
+    '.vibepro/verification/canonical-task-cutover/stdout/scenario.SC-001.log',
+  );
+  const artifactPath = path.join(rootDir, registry.entries[0].artifact_path);
+  const manifestPath = path.join(rootDir, 'config/canonical-task-store.json');
+  await Promise.all([
+    mkdir(path.dirname(registryPath), { recursive: true }),
+    mkdir(path.dirname(ownerPath), { recursive: true }),
+    mkdir(path.dirname(reporterPath), { recursive: true }),
+    mkdir(path.dirname(runnerResultPath), { recursive: true }),
+    mkdir(path.dirname(stdoutPath), { recursive: true }),
+    mkdir(path.dirname(artifactPath), { recursive: true }),
+  ]);
+
+  const registryBytes = `${JSON.stringify(registry, null, 2)}\n`;
+  const ownerBytes = 'test("scenario.SC-001", () => {});\n';
+  const reporterBytes = 'export default class Reporter {}\n';
+  const runnerResult = overrides.runnerResult ?? {
+    protocol: 'canonical-task-runner-evidence-v1',
+    schema_version: '1.0.0',
+    adapter: 'playwright',
+    evidence_id: 'scenario.SC-001',
+    nonce_hash: sha256(NONCE),
+    tests: [{
+      title: 'scenario.SC-001',
+      status: 'passed',
+      final_events: [{
+        kind: 'canonical-task-evidence-final',
+        evidence_id: 'scenario.SC-001',
+        nonce: NONCE,
+        marker: `VIBEPRO_ASSERT:scenario.SC-001:${NONCE}`,
+      }],
+    }],
+  };
+  const runnerBytes = `${JSON.stringify(runnerResult, null, 2)}\n`;
+  const stdoutBytes = overrides.stdout ?? '1 passed\n';
+  const manifest = { schema_version: '1.0.0', table_id: 'task-table' };
+
+  await Promise.all([
+    writeFile(registryPath, registryBytes),
+    writeFile(ownerPath, ownerBytes),
+    writeFile(reporterPath, reporterBytes),
+    writeFile(runnerResultPath, runnerBytes),
+    writeFile(stdoutPath, stdoutBytes),
+    writeFile(manifestPath, `${JSON.stringify(manifest)}\n`),
+  ]);
+
+  const invocation = buildEffectiveInvocation({
+    registry,
+    entry: registry.entries[0],
+    rootDir,
+    nonce: NONCE,
+  });
+  const artifact = {
+    artifact_schema: 'canonical-task-evidence-v1',
+    evidence_id: 'scenario.SC-001',
+    pass: true,
+    source_head: 'abc123',
+    registry_path: registry.source_of_truth,
+    registry_hash: sha256(registryBytes),
+    owner_path: registry.entries[0].owner_path,
+    owner_hash: sha256(ownerBytes),
+    producer_command: registry.entries[0].producer_command,
+    registered_test_command: registry.entries[0].test_command,
+    registered_argv: invocation.registeredArgv,
+    effective_argv: invocation.effectiveArgv,
+    effective_env: invocation.effectiveEnv,
+    nonce_hash: sha256(NONCE),
+    adapter: 'playwright',
+    reporter: registry.runner_adapters.playwright.reporter,
+    reporter_hash: sha256(reporterBytes),
+    runner_result_path: path.relative(rootDir, runnerResultPath),
+    runner_result_hash: sha256(runnerBytes),
+    stdout_path: path.relative(rootDir, stdoutPath),
+    stdout_hash: sha256(stdoutBytes),
+    exit_code: 0,
+    matched_tests: 1,
+    matched_assertions: 1,
+  };
+  Object.assign(artifact, overrides.artifact);
+  await writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+  return {
+    rootDir,
+    registry,
+    registryPath,
+    artifactPath,
+    manifestPath,
+    runnerResultPath,
+    stdoutPath,
+    artifact,
+  };
+}
+
+describe('canonical task evidence registry and runner parsing', () => {
+  it('requires a complete registry with unique IDs, artifact paths, and one registered adapter', () => {
+    expect(validateEvidenceRegistry(registryFixture())).toHaveLength(1);
+    const duplicate = registryFixture();
+    duplicate.required_entry_count = 2;
+    duplicate.entries.push({ ...duplicate.entries[0] });
+    expect(() => validateEvidenceRegistry(duplicate)).toThrow(/duplicate evidence id/i);
+  });
+
+  it('derives effective argv, result path, and exactly the registered evidence env without a shell', () => {
+    const registry = registryFixture();
+    const invocation = buildEffectiveInvocation({
+      registry,
+      entry: registry.entries[0],
+      rootDir: process.cwd(),
+      nonce: NONCE,
+      inheritedEnv: {
+        PATH: '/bin',
+        VIBEPRO_EVIDENCE_RESULT: '/forged/result.json',
+        VIBEPRO_EVIDENCE_EXTRA: 'forged',
+      },
+    });
+
+    expect(invocation.command).toBe('npx');
+    expect(invocation.effectiveArgv).toEqual([
+      'npx', 'playwright', 'test', 'tests/e2e/owner.spec.ts', '--grep', 'scenario.SC-001',
+      '--reporter=scripts/evidence-reporters/canonical-task-playwright-reporter.js',
+    ]);
+    expect(invocation.spawnOptions.shell).toBe(false);
+    expect(Object.keys(invocation.spawnOptions.env).filter((key) => key.startsWith('VIBEPRO_EVIDENCE_')).sort())
+      .toEqual(['VIBEPRO_EVIDENCE_ID', 'VIBEPRO_EVIDENCE_NONCE', 'VIBEPRO_EVIDENCE_RESULT']);
+    expect(invocation.effectiveEnv.VIBEPRO_EVIDENCE_RESULT)
+      .toBe('.vibepro/verification/canonical-task-cutover/runner/scenario.SC-001.json');
+  });
+
+  it('fails closed for zero tests, zero final markers, failed tests, wrong titles, and duplicates', () => {
+    const base = {
+      protocol: 'canonical-task-runner-evidence-v1',
+      adapter: 'playwright',
+      evidence_id: 'scenario.SC-001',
+      nonce_hash: sha256(NONCE),
+      tests: [],
+    };
+    expect(evaluateRunnerEvidence({ adapterKey: 'playwright', result: base, evidenceId: 'scenario.SC-001', nonce: NONCE }))
+      .toMatchObject({ matchedTests: 0, matchedAssertions: 0 });
+
+    const event = {
+      kind: 'canonical-task-evidence-final', evidence_id: 'scenario.SC-001', nonce: NONCE,
+      marker: `VIBEPRO_ASSERT:scenario.SC-001:${NONCE}`,
+    };
+    for (const test of [
+      { title: 'scenario.SC-001', status: 'passed', final_events: [] },
+      { title: 'scenario.SC-001', status: 'failed', final_events: [event] },
+      { title: 'scenario.SC-001', status: 'skipped', final_events: [event] },
+      { title: 'scenario.SC-002', status: 'passed', final_events: [event] },
+      { title: 'scenario.SC-001', status: 'passed', final_events: [event, event] },
+    ]) {
+      const parsed = evaluateRunnerEvidence({
+        adapterKey: 'playwright',
+        result: { ...base, tests: [test] },
+        evidenceId: 'scenario.SC-001',
+        nonce: NONCE,
+      });
+      expect(parsed.matchedAssertions).toBe(0);
+      expect(parsed.errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('correlates a Node TAP diagnostic only with its exact passing subtest', () => {
+    const validTap = [
+      'TAP version 13',
+      '# Subtest: scenario.SC-001',
+      `    # VIBEPRO_ASSERT:scenario.SC-001:${NONCE}`,
+      'ok 1 - scenario.SC-001',
+      '1..1',
+      '',
+    ].join('\n');
+    expect(evaluateRunnerEvidence({
+      adapterKey: 'node_test',
+      result: validTap,
+      evidenceId: 'scenario.SC-001',
+      nonce: NONCE,
+    })).toMatchObject({ matchedTests: 1, matchedAssertions: 1, errors: [] });
+
+    const forgedGlobalTap = `# VIBEPRO_ASSERT:scenario.SC-001:${NONCE}\n${validTap}`;
+    expect(evaluateRunnerEvidence({
+      adapterKey: 'node_test',
+      result: forgedGlobalTap,
+      evidenceId: 'scenario.SC-001',
+      nonce: NONCE,
+    })).toMatchObject({ matchedTests: 1, matchedAssertions: 0 });
+  });
+});
+
+describe('canonical task evidence collector', () => {
+  it('writes a passing artifact only after independently correlating the reporter result', async () => {
+    const fixture = await createEvidenceFixture();
+    const registryPath = path.relative(fixture.rootDir, fixture.registryPath);
+
+    const artifact = await collectCanonicalTaskEvidence({
+      id: 'scenario.SC-001',
+      rootDir: fixture.rootDir,
+      registryPath,
+      nonce: NONCE,
+      sourceHead: 'abc123',
+      inheritedEnv: { PATH: '/bin', VIBEPRO_EVIDENCE_EXTRA: 'forged' },
+      spawnImpl: async (_command, _args, options) => {
+        const runnerPath = path.join(fixture.rootDir, options.env.VIBEPRO_EVIDENCE_RESULT);
+        await writeFile(runnerPath, `${JSON.stringify({
+          protocol: 'canonical-task-runner-evidence-v1',
+          schema_version: '1.0.0',
+          adapter: 'playwright',
+          evidence_id: options.env.VIBEPRO_EVIDENCE_ID,
+          nonce_hash: sha256(options.env.VIBEPRO_EVIDENCE_NONCE),
+          tests: [{
+            title: 'scenario.SC-001',
+            status: 'passed',
+            final_events: [{
+              kind: 'canonical-task-evidence-final',
+              evidence_id: 'scenario.SC-001',
+              nonce: options.env.VIBEPRO_EVIDENCE_NONCE,
+              marker: `VIBEPRO_ASSERT:scenario.SC-001:${options.env.VIBEPRO_EVIDENCE_NONCE}`,
+            }],
+          }],
+        }, null, 2)}\n`);
+        return { exitCode: 0, signal: null, stdout: Buffer.from('1 passed\n'), stderr: Buffer.alloc(0) };
+      },
+    });
+
+    expect(artifact).toMatchObject({
+      pass: true,
+      evidence_id: 'scenario.SC-001',
+      matched_tests: 1,
+      matched_assertions: 1,
+      exit_code: 0,
+    });
+    expect(Object.keys(artifact.effective_env).sort())
+      .toEqual(['VIBEPRO_EVIDENCE_ID', 'VIBEPRO_EVIDENCE_NONCE', 'VIBEPRO_EVIDENCE_RESULT']);
+    expect(JSON.parse(await readFile(fixture.artifactPath, 'utf8'))).toEqual(artifact);
+  });
+
+  it('writes failed evidence when the registered test process cannot start', async () => {
+    const fixture = await createEvidenceFixture();
+    const artifact = await collectCanonicalTaskEvidence({
+      id: 'scenario.SC-001',
+      rootDir: fixture.rootDir,
+      registryPath: path.relative(fixture.rootDir, fixture.registryPath),
+      nonce: NONCE,
+      sourceHead: 'abc123',
+      spawnImpl: async () => { throw new Error('spawn denied'); },
+    });
+
+    expect(artifact).toMatchObject({ pass: false, exit_code: 1, matched_tests: 0, matched_assertions: 0 });
+    expect(artifact.errors.join('\n')).toMatch(/failed to start|runner result unavailable/);
+    expect(JSON.parse(await readFile(fixture.artifactPath, 'utf8'))).toEqual(artifact);
+  });
+});
+
+describe('before-enable evidence preflight', () => {
+  it('accepts one current, registered, independently reparsed artifact', async () => {
+    const fixture = await createEvidenceFixture();
+    await expect(verifyEvidenceArtifact({
+      rootDir: fixture.rootDir,
+      registry: fixture.registry,
+      registryHash: fixture.artifact.registry_hash,
+      entry: fixture.registry.entries[0],
+      sourceHead: 'abc123',
+    })).resolves.toMatchObject({ evidence_id: 'scenario.SC-001', matched_tests: 1, matched_assertions: 1 });
+  });
+
+  it.each([
+    ['zero matched tests', { artifact: { matched_tests: 0 } }, /matched_tests/],
+    ['zero matched assertions', { artifact: { matched_assertions: 0 } }, /matched_assertions/],
+    ['tampered count', { artifact: { matched_tests: 2 } }, /matched_tests/],
+    ['changed result path', { artifact: { runner_result_path: 'forged.json' } }, /runner_result_path/],
+    ['changed reporter hash', { artifact: { reporter_hash: '0'.repeat(64) } }, /reporter_hash/],
+  ])('rejects %s', async (_name, overrides, expected) => {
+    const fixture = await createEvidenceFixture(overrides);
+    await expect(verifyEvidenceArtifact({
+      rootDir: fixture.rootDir,
+      registry: fixture.registry,
+      registryHash: fixture.artifact.registry_hash,
+      entry: fixture.registry.entries[0],
+      sourceHead: 'abc123',
+    })).rejects.toThrow(expected);
+  });
+
+  it('rejects tampered raw stdout and global forged markers', async () => {
+    const fixture = await createEvidenceFixture();
+    await writeFile(fixture.stdoutPath, `VIBEPRO_ASSERT:scenario.SC-001:${NONCE}\n`);
+    await expect(verifyEvidenceArtifact({
+      rootDir: fixture.rootDir,
+      registry: fixture.registry,
+      registryHash: fixture.artifact.registry_hash,
+      entry: fixture.registry.entries[0],
+      sourceHead: 'abc123',
+    })).rejects.toThrow(/stdout_(hash|marker)/);
+  });
+
+  it('builds a canonical before-enable artifact bound to all registry entries and cutover inputs', async () => {
+    const fixture = await createEvidenceFixture();
+    const outputPath = path.join(fixture.rootDir, 'before-enable.json');
+    const output = await buildBeforeEnableEvidence({
+      rootDir: fixture.rootDir,
+      registryPath: fixture.registryPath,
+      evidenceOut: outputPath,
+      sourceHead: 'abc123',
+      manifestPath: fixture.manifestPath,
+      schemaVersion: 'schema-v1',
+      writerToken: 'writer-token-1',
+    });
+
+    expect(output).toMatchObject({
+      artifact_schema: 'canonical-task-cutover-evidence-v1',
+      phase: 'before-enable',
+      pass: true,
+      source_head: 'abc123',
+      schema_version: 'schema-v1',
+      writer_token: 'writer-token-1',
+      required_evidence_ids: ['scenario.SC-001'],
+    });
+    expect(output.evidence).toHaveLength(1);
+    expect(JSON.parse(await readFile(outputPath, 'utf8'))).toEqual(output);
+  });
+
+  it('rejects an unregistered raw evidence artifact', async () => {
+    const fixture = await createEvidenceFixture();
+    const unknownPath = path.join(path.dirname(fixture.artifactPath), 'unregistered.json');
+    await writeFile(unknownPath, '{}\n');
+
+    await expect(buildBeforeEnableEvidence({
+      rootDir: fixture.rootDir,
+      registryPath: fixture.registryPath,
+      evidenceOut: path.join(fixture.rootDir, 'before-enable.json'),
+      sourceHead: 'abc123',
+      manifestPath: fixture.manifestPath,
+      schemaVersion: 'schema-v1',
+      writerToken: 'writer-token-1',
+    })).rejects.toThrow(/unregistered evidence artifact/i);
+  });
+});

@@ -125,7 +125,7 @@ async function resolveGitInfo(repoDir) {
     };
 
     try {
-        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --short HEAD`);
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse HEAD`);
         const sha = stdout.trim();
         if (sha) info.sha = sha;
     } catch (error) {
@@ -304,6 +304,10 @@ const {
     configParser,
     configService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskReadiness,
+    canonicalTaskOperationRepository,
+    canonicalTaskService,
     authService,
     wikiService,
     learningService,
@@ -334,8 +338,16 @@ const {
     serverDir: __dirname,
     execPromise,
     port: PORT,
+    sourceHead: RUNTIME_INFO.git.sha,
     testMode: TEST_MODE
 });
+
+const canonicalTaskRuntime = await canonicalTaskReadiness.initialize();
+if (canonicalTaskRuntime.ready) {
+    console.log('[canonical-task] writer claimed and persisted readiness verified');
+} else {
+    console.warn(`[canonical-task] mutation disabled: ${canonicalTaskRuntime.reason}`);
+}
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
@@ -440,6 +452,8 @@ registerApiRoutes(app, {
     tmuxCaptureCache,
     authService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskService,
     learningService,
     learningHealthService,
     candidateRepository,
@@ -625,6 +639,7 @@ registerGracefulShutdown({
     sessionServices,
     meetingSourceMcpSyncService,
     eveMeetingNoteReconciler,
+    canonicalTaskOperationRepository,
     getMeshService: () => meshService,
     log: console
 });
