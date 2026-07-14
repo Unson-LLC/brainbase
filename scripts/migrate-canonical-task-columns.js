@@ -1,10 +1,7 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const MANIFEST_PATH = path.join(ROOT, 'config/canonical-task-store.json');
+import { createCanonicalTaskStoreConfig } from '../server/services/companion/canonical-task-store-config.js';
 
 export const REQUIRED_CANONICAL_TASK_COLUMNS = Object.freeze([
     { title: 'タイトル', uidt: 'SingleLineText' },
@@ -90,8 +87,8 @@ export async function migrateCanonicalTaskColumns({
 
 export async function runCanonicalTaskColumnMigration(argv = process.argv.slice(2)) {
     const args = parseCanonicalTaskColumnMigrationArgs(argv);
-    const manifest = JSON.parse(await readFile(process.env.CANONICAL_TASK_STORE_MANIFEST || MANIFEST_PATH, 'utf8'));
-    return migrateCanonicalTaskColumns({ ...args, tableId: manifest.table_id });
+    const storeConfig = createCanonicalTaskStoreConfig();
+    return migrateCanonicalTaskColumns({ ...args, tableId: storeConfig.tableId });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

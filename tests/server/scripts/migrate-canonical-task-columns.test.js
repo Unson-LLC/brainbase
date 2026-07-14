@@ -1,10 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     REQUIRED_CANONICAL_TASK_COLUMNS,
     checkCanonicalTaskColumns,
-    migrateCanonicalTaskColumns
+    migrateCanonicalTaskColumns,
+    runCanonicalTaskColumnMigration
 } from '../../../scripts/migrate-canonical-task-columns.js';
+
+const temporaryDirectories = [];
+
+afterEach(async () => {
+    vi.unstubAllEnvs();
+    await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })));
+});
 
 describe('Canonical Task NocoDB column migration', () => {
     it('reports missing columns and a non-unique idempotency key', () => {
@@ -35,5 +47,24 @@ describe('Canonical Task NocoDB column migration', () => {
         expect(result.ok).toBe(true);
         expect(columns).toHaveLength(REQUIRED_CANONICAL_TASK_COLUMNS.length);
         expect(columns.find(column => column.title === '冪等キー')).toMatchObject({ unique: true });
+    });
+
+    it('rejects a valid manifest that points migration at a non-canonical Task table', async () => {
+        const directory = await mkdtemp(path.join(os.tmpdir(), 'canonical-task-migration-'));
+        temporaryDirectories.push(directory);
+        const manifestPath = path.join(directory, 'canonical-task-store.json');
+        await writeFile(manifestPath, JSON.stringify({
+            schema_version: '1.0.0',
+            base_id: 'pva7l2qlu6fdfip',
+            table_id: 'wrong-but-valid-table-id',
+            table_name: 'タスク',
+            project: 'brainbase',
+            owner_person_id: 'sato_keigo'
+        }));
+        vi.stubEnv('CANONICAL_TASK_STORE_MANIFEST', manifestPath);
+
+        await expect(runCanonicalTaskColumnMigration(['--check'])).rejects.toThrow(
+            'Canonical Task manifest table_id does not match the fixed canonical identity'
+        );
     });
 });
