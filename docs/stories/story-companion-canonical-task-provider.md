@@ -68,7 +68,7 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:6 source-and-audit**: 発生元参照と変更者を保存し、作成・更新・状態遷移をBrainbase監査ログへ残す。
 - [ ] **ac:7 fail-closed**: NocoDBまたはGraphが利用不能な場合、空一覧や未担当として成功扱いせず、構造化503を返す。
 - [ ] **ac:8 approval-materialization**: `task_store` を書き戻し先に持つ会議Task候補の承認は、Task作成が全件成功した後だけhuman stepをapprovedにし、応答消失後の再試行でも同じTask ID群を返す。
-- [ ] **ac:9 compatibility**: 既存 `/api/nocodb/tasks` とTask以外の承認フローは挙動を変えない。
+- [ ] **ac:9 compatibility**: 既存 `/api/nocodb/tasks` の読取と正本base以外の書込、Task以外の承認フローは挙動を変えない。正本baseへの旧create/update/deleteだけは409 `canonical_task_api_required` で拒否し、正規化APIへ誘導する。
 - [ ] **ac:10 auth**: Companion Task APIは既存Companion APIと同じnative/service/internal認証およびowner境界を通る。
 - [ ] **ac:11 concurrent-once**: 同じ冪等キーの並行POSTと同じhuman stepの並行承認を単一writer process内で実行してもTaskは一度だけ作られる。別processは永続writer tokenを取得できず503になり、自動takeoverしない。
 - [ ] **ac:12 visible-approval-result**: 承認応答は作成済みTask ID、除外候補、警告、再生有無を返し、部分失敗を成功または空へ変換しない。
@@ -81,6 +81,10 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:20 review-authority**: Brainbaseが安定候補IDを投影し、Macの `response_ref.review_items` を候補IDで元outputへ結合する。承認・拒否・修正依頼の全体判定、`decision_mode`/`resolution`対応、`edited_fields`だけの上書き、選択担当者のGraph再確認を適用する。
 - [ ] **ac:21 writer-lifecycle**: HTTP listen前のwriter claim/reconcile、graceful shutdown release、expected token付き明示回復CLIを提供し、自動takeoverしない。
 - [ ] **ac:22 idempotent-workflow-audit**: 起動・読取・retryによる同じworkflow再投影は決定的監査IDをupsertし、監査行を重複させない。
+- [ ] **ac:23 no-bypass-writers**: 正本Task表への全mutationを棚卸しし、旧NocoDB routeは正本baseへの書込を拒否し、運用スクリプトは認証済みCanonical Task APIだけを使う。固定table IDへの直接fetchを残さない。
+- [ ] **ac:24 idempotency-namespace**: clientの冪等keyを `api:<owner-or-principal>:<client-key>`、Workflow候補を `workflow:<output-id>:<fingerprint>:<ordinal>` へserver側で変換し、外部入力から予約prefixを注入できない。
+- [ ] **ac:25 candidate-compatibility**: 既存の文字列候補とIDなしobject候補を内容由来の安定candidate IDへ正規化し、並び替え・再試行後も同じ候補集合として扱う。文字列候補のownerは推測せず、MacでGraph確認済みownerが選ばれるまでpendingに残す。
+- [ ] **ac:26 legacy-projection**: 既存NocoDB Task UIでも`waiting`/`urgent`を同じ意味で双方向表示し、未知status/priorityを`pending`/`medium`へ黙って変換しない。
 
 ## Done Evidence
 
@@ -104,6 +108,10 @@ Storyであり、Taskの永続化正本を増やさない。
 - FM-010: writer token保持processが異常終了した場合は自動takeoverせず503を維持する。運用者が旧process停止を確認して明示回復した後だけ、新writerが正本Taskの一意キーまたは同一操作マーカーから再開する。
 - FM-011: ownerが未担当・別person Taskのopaque IDを指定した場合は存在を開示せず404にする。担当解除・別personへの変更要求は403にする。
 - FM-012: 許可表にない状態遷移は409 `invalid_transition` とcurrent Taskを返し、変更しない。
+- FM-013: 旧NocoDB routeが正本baseをmutateしようとした場合は409 `canonical_task_api_required` にし、NocoDBへ到達させない。
+- FM-014: 外部clientが予約prefixを含む冪等keyを送ってもserver側namespaceから脱出できず、Workflow keyと衝突しない。
+- FM-015: 既存の文字列候補や候補配列の並べ替えを未知候補として捨てず、内容由来IDで同じ候補集合へ収束させる。owner未解決は明示409にする。
+- FM-016: 既存UI adapterが正本の`waiting`/`urgent`または未知値を別の状態・優先度へ黙って縮退させない。
 
 ## Release / Rollback / Observability
 
@@ -111,7 +119,7 @@ Storyであり、Taskの永続化正本を増やさない。
 - Rollback: Macを先に旧版へ戻し、BrainbaseのPRをrevertする。追加列は後方互換のため即時削除しない。
 - Observability: Task APIの構造化error code、workflow outputのmaterialized task IDs、監査ログのactor/sourceを確認する。
 - Support: migration checkで列不足を確認し、Graph/NocoDBの障害とデータ0件を区別して復旧する。
-- Release gate: 正本store ID、NocoDB列、永続調停台帳、単一owner scopeを`--check`で確認し、不一致なら起動後の書き込みをfail-closedにする。
+- Release gate: 正本store ID、NocoDB列、永続調停台帳、単一owner scope、旧writer遮断、文字列候補互換、旧UIのwaiting/urgent投影を確認し、不一致なら起動後の書き込みをfail-closedにする。
 
 ## 実装タスク
 
@@ -123,6 +131,9 @@ Storyであり、Taskの永続化正本を増やさない。
 6. `[QA]` Mac `cb9c293` の固定wire fixtureで一覧完全性、単体取得、`to_status`、トップレベルTask ID、競合codeを検証する。
 7. `[QA]` 同一冪等keyの並行POST、同一版の異内容変更、同一stepの並行承認、別process拒否、明示writer回復、各保存境界での停止と前進回復をfixtureで検証する。
 8. `[BE]` server起動・終了・明示回復へwriter lifecycleを接続し、Workflow再投影監査を決定的IDでupsertする。
+9. `[BE]` 旧NocoDB task routeへ正本base write guardを追加し、固定tableへ直接書く4本の運用スクリプトをCanonical Task APIへ移行する。
+10. `[QA]` 旧route・運用スクリプトによるwriter bypassと、API/Workflow間の冪等key衝突を修正前に失敗するテストで固定する。
+11. `[BE/QA]` 文字列候補の互換正規化と内容由来candidate ID、既存NocoDB UIのwaiting/urgent投影を実装し、並べ替え・両resolve route・UI adapterの回帰を固定する。
 
 ブランチ: `codex/canonical-task-provider`
 

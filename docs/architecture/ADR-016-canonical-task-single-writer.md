@@ -36,7 +36,11 @@ operation結果からTask ID、human step/run目標状態、監査checkpoint、p
 
 - Task本文の正本はNocoDB Task表のままで、Postgresはwriter権限と回復checkpointだけを持つ。
 - createの最終一意性はNocoDB Task表の冪等キーDB一意制約が担う。
+- 外部APIとWorkflowの保存冪等keyはそれぞれ`api:<principal>:`と`workflow:<output>:`へserver側で分離する。
 - update/transitionは単一writer内でexpected versionを検査し、版と操作markerを同じPATCHに保存する。
+- 旧NocoDB routeは正本base mutationを拒否し、正本tableへ直接書く運用scriptはCanonical Task APIへ移行する。正本base以外の旧route互換は維持する。
+- 既存文字列候補はowner未解決objectへ正規化し、IDなし候補は内容hashと同一内容ordinalから並び順に依存しないcandidate ID集合を得る。
+- 既存NocoDB UI adapterは`waiting`/`urgent`を双方向投影し、未知値を既定値へ黙って縮退しない。
 - `task_store`以外の既存Workflow契約とrepository形式は変更しない。
 - 複数writerを必要とする将来構成では、NocoDB backing store側の条件付き更新またはtransactional outboxへ移行する。このADRの自動takeover禁止を解除してはならない。
 

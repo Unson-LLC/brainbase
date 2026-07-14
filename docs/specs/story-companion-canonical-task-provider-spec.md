@@ -20,10 +20,18 @@ implementation_files:
   - server/services/workflow/workflow-service.js
   - server/services/workflow/workflow-repository.js
   - server/routes/workflows.js
+  - server/routes/nocodb.js
+  - server/controllers/nocodb-controller.js
+  - public/modules/domain/nocodb-task/nocodb-task-adapter.js
+  - public/modules/utils/task-filters.js
   - server/sql/canonical-task-operation-schema.sql
   - scripts/migrate-canonical-task-columns.js
   - scripts/migrate-canonical-task-operations.js
   - scripts/recover-canonical-task-writer.js
+  - scripts/add-frame-story-tasks.js
+  - scripts/add-framework-operation-tasks.js
+  - scripts/complete-doc-tasks.js
+  - scripts/update-task-status.js
   - package.json
 test_files:
   - tests/e2e/story-companion-canonical-task-provider-contract.spec.ts
@@ -33,7 +41,16 @@ test_files:
   - tests/server/services/canonical-task-operation-repository.test.js
   - tests/server/services/workflow-canonical-task-materialization.test.js
   - tests/server/routes/companion-approval-inbox.test.js
+  - tests/server/controllers/nocodb-canonical-task-write-guard.test.js
+  - tests/server/scripts/canonical-task-writer-policy.test.js
   - tests/server/services/workflow-org-agent-control.test.js
+  - tests/server/routes/workflows.test.js
+  - tests/server/controllers/nocodb-controller.test.js
+  - tests/server/bootstrap/canonical-task-writer-lifecycle.test.js
+  - tests/server/lib/graceful-cleanup.test.js
+  - tests/server/scripts/recover-canonical-task-writer.test.js
+  - tests/domain/nocodb-task/nocodb-task-adapter.test.js
+  - tests/ui/views/nocodb-tasks-view.test.js
   - tests/fixtures/companion-canonical-task-mac-cb9c293.json
 ---
 
@@ -49,7 +66,7 @@ test_files:
 - **INV-6 materialize-before-approve**: `task_store` 承認は全Taskが正本化された後だけapprovedになる。
 - **INV-7 fail-closed**: 正本またはPeople確認が失敗した場合は明示的に失敗し、空・未担当へ変換しない。
 - **INV-8 audit**: 作成、更新、状態遷移、承認由来作成はactorと発生元を監査ログに残す。
-- **INV-9 compatibility**: 既存NocoDB Task APIと非Task承認の契約を変更しない。
+- **INV-9 compatibility**: 既存NocoDB Task APIの読取、正本base以外の書込、非Task承認は変更しない。正本baseへの旧Task mutationはCanonical Task APIへ一本化するため明示拒否する。
 - **INV-10 access**: Companion認証・owner境界の外からTaskを読み書きできない。
 - **INV-11 single-writer-coordination**: Task mutationと`task_store`承認はPostgresの永続writer tokenを持つ単一Brainbase processだけが実行する。別processは503とし、tokenを自動takeoverしない。
 - **INV-12 canonical-store-scope**: 正本storeはbase `pva7l2qlu6fdfip`、table `m7iys8m7o1abr3f` に固定し、要求からstoreを選択させない。環境変数で上書きする場合も起動時検査で一組に確定する。
@@ -62,6 +79,10 @@ test_files:
 - **INV-19 decision-pair**: `decision_mode` と `resolution` は公開対応表の同じ判断を表し、不一致はTask書込前に422で拒否する。
 - **INV-20 explicit-overrides**: review itemの表示値は元候補を上書きしない。`edited_fields` に列挙された許可fieldだけを編集権限として扱う。
 - **INV-21 idempotent-projection-audit**: workflow再投影の監査IDはoperationとphaseから決定し、同じIDをupsertして再試行で監査行を増やさない。
+- **INV-22 no-canonical-writer-bypass**: 正本base/tableを変更するHTTP routeと運用scriptはCanonicalTaskServiceのwriter claim、People検証、版、監査を迂回しない。旧routeは正本base mutationをNocoDB到達前に拒否する。
+- **INV-23 disjoint-idempotency-namespaces**: 外部create keyとWorkflow生成keyはserver-sideで異なる保存namespaceへ変換し、client文字列を正本列へそのまま保存しない。
+- **INV-24 candidate-compatibility**: 既存の文字列候補とobject候補を同じ権限付き候補へ正規化し、並べ替えに依存しない内容由来IDを投影する。文字列の担当者は未解決のまま保持し、自動名寄せしない。
+- **INV-25 legacy-projection**: 正本の`waiting`/`urgent`を既存NocoDB Task UIでも同じ意味へ双方向投影し、未知値を`pending`/`medium`へ黙って変換しない。
 
 ## Task契約
 
@@ -118,13 +139,19 @@ NocoDBやGraphの通信失敗は`partial`や`stale`ではなく503である。`w
 - **SC-020 single writer**: writer Aがtokenを保持中はprocess Bのmutationと`task_store`承認を503にする。A異常終了後も自動takeoverせず、旧process停止を確認した明示回復後だけBが未完了operationを再開する。
 - **SC-021 mutation crash recovery**: NocoDB patch後・operation完了前の再送は、現行版が期待版+1かつ最終操作key/fingerprint一致なら適用済みTaskを返す。不一致なら409で自動再適用しない。
 - **SC-022 workflow phase recovery**: Task ID群保存後の停止はPostgresのphase/result JSONからhuman step、run、auditの目標状態をWorkflow JSONへ再投影し、未完了の後処理だけ再開する。
-- **SC-023 task-store approval authorization**: human-step解決権限があるowner/admin/ceoでも、選択担当者がconfigured owner以外なら403。service/internalだけはGraph確認済み別personを許可する。
+- **SC-023 task-store approval authorization**: 両resolve routeでhuman-step解決権限を持つactorは、承認候補をactor付きinternal commandとして渡し、Graph確認済み別personへmaterializeできる。同じactorがbearerで直接Task APIから別personをcreate/updateする要求は403にする。
 - **SC-024 Mac wire fixture**: 固定fixtureで反復status/priority、due bounds、cursor、limit、合法な一覧metadata、GET単体、`to_status`、`version_conflict`、`invalid_transition`、トップレベル `materialized_task_ids` を実routeで再生する。
 - **SC-025 review item merge**: unresolvedな元候補をMac review itemの`selected_owner_id`で解決し、編集済みTask fieldを合成してGraph再確認後に作成する。
 - **SC-026 review item decisions**: approvedだけをTask化し、rejectedは明示的に除外する。needs_changesが1件でもあればstepをpendingのまま409にする。
 - **SC-027 decision pair validation**: top-levelとreview itemの`decision_mode`/`resolution`が対応表と不一致なら422となり、Taskとhuman stepを変更しない。reject混在と全件rejectはapproved exclusionとして到達できる。
 - **SC-028 writer lifecycle**: HTTP listen前にclaim/reconcileし、graceful shutdownでreleaseする。claim失敗時のmutationは503、expected token明示回復後は未完了operationから再開する。
 - **SC-029 idempotent audit projection**: approved後・audit/run更新前に停止して起動、getRun、approval inbox、retryを繰り返しても、同じoperation/phaseの監査IDは1件だけである。
+- **SC-030 legacy canonical write guard**: `/api/nocodb/tasks` のcreate/update/deleteで正本baseを指定すると409 `canonical_task_api_required` となり、NocoDB fetchは呼ばれない。正本base以外と読取は既存契約を維持する。
+- **SC-031 operational writer migration**: 正本tableを直接呼ぶ4本の運用scriptは認証済み`/api/companion/tasks` create/update/transitionへ移行し、固定table IDとNocoDB write URLを含まない。
+- **SC-032 cross-source idempotency isolation**: 同じclient文字列を送っても直接APIは`api:<principal>:<key>`、Workflowは`workflow:<output>:<fingerprint>:<ordinal>`を保存し、互いのoperation/result/approval summaryへ衝突しない。
+- **SC-033 legacy string candidate compatibility**: 既存fixtureの文字列候補を`title`と未解決ownerを持つ候補へ正規化し、approval inboxと両resolve routeで同じ内容由来`candidate_id`を使う。Mac review itemでGraph確認済みownerを選ぶと一度だけTask化し、未選択なら409でpendingに残す。
+- **SC-034 reorder-stable candidate identity**: IDなしobject候補と文字列候補を並べ替えて再投影しても、候補内容ハッシュと同一内容内ordinalから同じcandidate ID集合・Workflow冪等key集合を生成し、停止・再試行後もTaskを増やさない。
+- **SC-035 legacy lifecycle projection**: 既存NocoDB adapterは`waiting`を`待ち`、`urgent`を`緊急`へ双方向変換し、未知status/priorityは明示的なunknown値またはwarningとして保持して`pending`/`medium`へ縮退しない。
 
 ## HTTP
 
@@ -152,6 +179,9 @@ owner credentialでは未担当・別personのTaskも情報非開示のため同
 任意の `description`, `priority`, `assignee_person_id`, `due_at`, `source_refs` を受ける。
 owner credentialで`assignee_person_id`省略時はconfigured ownerを保存する。ownerが別personを指定した
 場合は403。service/internalでは省略を未担当として保存できる。
+headerはclient keyであり、`api:`または`workflow:`から始まる予約prefixは422
+`reserved_idempotency_prefix`にする。保存keyはserverが`api:<actor-principal>:<client-key>`へ変換し、
+client文字列を正本列へそのまま保存しない。
 
 ### 更新
 
@@ -177,8 +207,9 @@ ownerはconfigured owner担当Taskだけを更新でき、担当者nullまたは
 
 | 認証種別 | list/get | create | update/transition |
 |---|---|---|---|
-| bearer / insecure-header | configured owner担当だけ。未担当・別personは404 | 省略時owner補完。別personは403 | owner担当だけ。担当解除・別personは403 |
+| bearer / cookie | configured owner担当だけ。未担当・別personは404 | 省略時owner補完。別personは403 | owner担当だけ。担当解除・別personは403 |
 | service-token / internal | 固定正本store内、明示person filterと未担当を扱える | 省略で未担当、Graph確認済みperson可 | 固定正本store内で可 |
+| insecure-header | 403 `task_owner_identity_required` | 403 `task_owner_identity_required` | 403 `task_owner_identity_required` |
 
 全操作はactor personまたはservice principal、auth source、固定project `brainbase` を監査へ記録する。
 `task_store` 承認は直接Task API操作ではない。両resolve routeの既存workflow認証と
@@ -189,11 +220,15 @@ store/project指定はできない。したがって承認者が別担当者を�
 
 ### 承認候補と結果
 
-- approval inbox投影時に、元outputの各object候補へ既存`id`/`candidate_id`を保持するか
-  `workflow-output:<outputId>:candidate:<sourceIndex>` の安定IDを一度付与する。Macは返された
-  `candidate_id`をそのまま返し、resolve時は元outputのobject候補だけを候補集合の権限とする。
+- approval inbox投影時に、文字列候補はtrim済み文字列を`title`、owner未解決を持つ互換objectへ正規化する。
+  object候補も同じcanonical field集合へ正規化し、既存`id`/`candidate_id`は保持する。IDがない候補は
+  `workflow-output:<outputId>:candidate:<candidateContentHash>:<sameContentOrdinal>`を投影する。
+  `candidateContentHash`はtrim済みtitle/description、元owner IDまたは未解決状態、priority、due、sort済みsource refsの
+  canonical JSONから作る。同一内容候補は内容ごとに個数を数えたordinal集合を割り当てるため、配列の並べ替えでID集合が変わらない。
+  Macは返された`candidate_id`をそのまま返し、resolve時はこの正規化済み候補集合だけを権限とする。
   `response_ref.review_items`がある場合は`candidate_id`優先、なければ`id`で一対一に結合し、未知・重複・
-  欠落itemは422にする。review itemがない既存clientは元候補だけを使う。
+  欠落itemは422にする。review itemがない既存clientは元候補だけを使う。文字列候補はowner未解決のため、
+  review itemでGraph確認済みownerが選ばれない限りTask化しない。
 - `decision_mode` と `resolution` の合法対応は `approve|approveWithEdits -> approved`,
   `requestChanges -> needs_changes`, `reject -> rejected` だけである。top-levelと全review itemで不一致は
   422 `inconsistent_approval_decision` とし、修正前fixtureで書込0件を確認する。
@@ -211,15 +246,28 @@ store/project指定はできない。したがって承認者が別担当者を�
   再確認する。review itemに選択がない場合は元候補のresolved/already_selected ownerだけを受理する。
   最終ownerが未解決、ambiguous、ignored、legacy文字列だけなら409
   `task_candidates_require_owner_resolution` と候補別理由を返す。
-- 冪等keyは `workflow-output:<outputId>:<candidateFingerprint>:<sameFingerprintOrdinal>` とし、
+- candidateの安定IDは上記の内容hash形式を使い、正本へ保存する冪等keyは
+  `workflow:<outputId>:<candidateFingerprint>:<sameFingerprintOrdinal>` とし、
   並べ替えでは変化せず、完全に同じ重複候補だけordinalで区別する。
-- fingerprintはnormalized candidate ID、trim済みtitle/description、selected owner ID、priority、due、
+- fingerprintはtrim済みtitle/description、selected owner ID、priority、due、
   sort済みsource refsのcanonical JSONから作り、配列位置・表示名・resolution説明は除外する。
 - Postgres operation result JSONへ候補key別Task ID、完了状態、警告を1件ごとにcheckpointし、
   human step metadataの `canonical_task_materialization` へ互換投影する。
 - 成功応答は既存キーを保った `{ human_step, resumed_run, materialized_task_ids, materialization: { status, task_ids, excluded_candidates, warnings, replayed } }`。
   `materialized_task_ids` は `materialization.task_ids` と常に同値で、省略しない。
   部分失敗は同じ構造とerror codeを返すがapprovedにしない。
+
+### 旧writerの遮断と移行
+
+`/api/nocodb/tasks` のGETは既存一覧契約を維持する。POSTはmapping解決後、PUT/DELETEは`baseId`検証直後に、
+固定正本base `pva7l2qlu6fdfip`なら409 `{ "code": "canonical_task_api_required" }` を返し、table解決・NocoDB writeを呼ばない。
+他baseの挙動は変更しない。正本table `m7iys8m7o1abr3f`へ直接fetchしていた
+`add-frame-story-tasks.js`、`add-framework-operation-tasks.js`、`complete-doc-tasks.js`、`update-task-status.js`は、
+service tokenまたはinternal keyを使うCanonical Task API clientへ移行する。CI policy testで正本table IDと
+`/api/v2/tables/.../records` writeの再導入を拒否する。
+
+既存NocoDB UI adapterは正本列の`待ち`/`緊急`をそれぞれ`waiting`/`urgent`へ双方向変換する。
+未知status/priorityは入力値を保持してUIへ明示し、`pending`/`medium`へ黙って縮退させない。
 
 ### 永続調停と回復
 
@@ -269,13 +317,14 @@ Workflowは既存経路を変えない。
 
 ## 検証
 
-- BDDで29シナリオをAPIとserviceの実経路へ対応付け、修正前に新規fixtureが失敗することを記録する。
+- BDDで35シナリオをAPIとserviceの実経路へ対応付け、修正前に新規fixtureが失敗することを記録する。
 - NocoDB repositoryはfake fetchでfield mapping、cursor、冪等照会、版更新を検証する。
 - Workflow serviceは実repository ledgerとfake canonical task serviceで承認順序と再試行を検証する。
 - 既存Companion認証、approval inbox、NocoDB Task controllerの回帰テストを実行する。
 - Mac consumer契約は `tests/fixtures/companion-canonical-task-mac-cb9c293.json` に固定し、
   `/Users/ksato/workspace/code/brainbase-mac-companion` のconsumer基準`cb9c293`とschema hashを照合する。
-- 既存 `/api/nocodb/tasks`、`/api/workflow-runs/:runId/human-steps/:stepId/resolve`、
+- 既存 `/api/nocodb/tasks` の読取・非正本base書込・正本base write guard、`/api/workflow-runs/:runId/human-steps/:stepId/resolve`、
   `/api/workflow-human-steps/:stepId/resolve`、非`task_store`承認を明示回帰対象にする。
 - server起動claim/reconcile、graceful release、明示回復CLI、`getRun`/approval inbox読取時reconcile、
-  retry、非`task_store`、旧NocoDB APIをcurrent-headのpath surface evidenceへ含める。
+  retry、非`task_store`、旧NocoDB API、4本の移行済み運用script、旧UIのwaiting/urgent投影、文字列候補、
+  冪等key namespaceをcurrent-headのpath surface evidenceとapproval summary/gate artifactへ含める。

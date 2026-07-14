@@ -36,6 +36,7 @@ NocoDBの自由入力列を直接Task権限として扱わない。
 - 既存行で `担当者PersonID` が空の場合は `assignee_person_id: null` と
   `normalization_warnings: ["assignee_unresolved"]` を返す。文字列一致で補完しない。
 - 正規化APIが作る行には版、発生元参照、冪等キーとfingerprint、期限日時、待ち情報、完了日時を保存する。
+- 外部APIのclient keyは`api:<principal>:`、Workflow候補は`workflow:<output>:`の保存namespaceへserver側で変換し、相互衝突を防ぐ。
 
 ## API構成
 
@@ -79,6 +80,9 @@ flowchart LR
 | ownerが他人または未担当Taskを列挙する | server-side owner filter、単体取得の404非開示、担当変更の403 |
 | 自由入力名を人物権限に使う | Graphの`person_id`だけを権威値とし、表示名は投影に限定する |
 | 同じ作成・承認が再送される | Postgres operation uniqueとNocoDB冪等キーDB一意制約で同じTask IDへ収束する |
+| 旧route/scriptが正本へ直接書く | 旧NocoDB routeは正本base mutationを409で拒否し、固定tableへ書く運用scriptは認証済みCanonical Task APIへ移行する |
+| 既存文字列候補または並べ替えで候補権限が変わる | 文字列をowner未解決objectへ正規化し、内容hashと同一内容ordinalから並び順に依存しないcandidate ID集合を投影する |
+| 旧UIがwaiting/urgentを別値へ縮退する | adapterで待ち/緊急を双方向投影し、未知値は保持して明示する |
 | 旧writerの遅延PATCHが新writerを上書きする | 単一writer tokenを自動takeoverせず、旧process停止確認後の明示回復だけを許可する |
 | Task作成後にWorkflow JSON更新が失われる | Task IDとhuman step/run目標状態、監査checkpoint、phaseをPostgresから再投影する |
 | 下流障害を0件と誤認する | Graph/NocoDB/Postgres障害は構造化503にし、空・partialへ変換しない |
@@ -86,9 +90,9 @@ flowchart LR
 ## 一度だけ作成
 
 1. `resolveHumanStep` がapproved要求と `write_back_target=task_store` を検出する。
-2. approval inbox投影時に元output候補へ安定`candidate_id`を付与し、Macの`response_ref.review_items`を同じIDで一対一に結合する。
+2. approval inbox投影時に文字列をowner未解決objectへ正規化し、IDなし候補へ内容hash由来の安定`candidate_id`集合を付与する。Macの`response_ref.review_items`を同じIDで一対一に結合する。
 3. `decision_mode`と`resolution`の対応を検証する。承認itemの`edited_fields`にある許可値だけを元候補へ上書きしてGraphで再確認する。拒否itemは除外結果へ残し、修正依頼または最終owner未解決があれば理由付き409でpendingに残す。
-4. `workflow-output:<outputId>:<candidateFingerprint>:<ordinal>` を並べ替えに安定した冪等キーとして全候補を作成する。
+4. `workflow:<outputId>:<candidateFingerprint>:<ordinal>` を直接APIと分離した、並べ替えに安定な保存冪等キーとして全候補を作成する。
 5. 1件ごとにTask IDをPostgres operation resultへcheckpointし、human step metadataへ互換投影する。全件成功後にphaseを進めてapprovedへ遷移する。
 6. 応答はトップレベル `materialized_task_ids` と詳細materializationを返す。
 7. 再要求でstepがapprovedなら保存済みまたは冪等keyから復元した同じ結果を返す。
@@ -112,6 +116,11 @@ Postgres `canonical_task_operations` を実行調停台帳として使い、`(sc
 writer token、fingerprint、result JSON、human step/run目標状態、監査checkpoint、後処理phaseを保存する。
 Task本文や状態は保存しないため、Taskの正本はNocoDBのままである。createの最終防衛はNocoDB正本表の
 `冪等キー` DB一意制約が担う。
+
+単一writerは新APIだけの宣言では成立しないため、既存writerも境界へ含める。旧`/api/nocodb/tasks`は
+一覧読取と正本base以外のmutationを維持するが、正本baseへのcreate/update/deleteはtable lookup前に
+`canonical_task_api_required`で拒否する。正本tableへ直接fetchする運用scriptはCanonical Task API clientへ
+移行し、静的policy testで固定table IDを使うwrite pathの再導入を防ぐ。
 
 - createはidempotency key、update/transitionは共通scopeの`taskId:expectedVersion`、承認はstep IDをclaimする。
 - claim取得後に現行Task版を再読込し、一致時だけNocoDBへ書く。変更patchには次版、最終操作key、fingerprintを含める。
