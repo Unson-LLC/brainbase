@@ -45,6 +45,7 @@ Mana operatorとして、Lambda・self-hosted runner上で実際に完了したM
 | `blocked` | `blocked` | 上記と同じ | `resolve_blocker`とredacted blocker |
 | `waiting_human|action_required` | `waiting_human` | 上記と同じ | `review_run` |
 | `cancelled` | `cancelled` | 上記と同じ | `none` |
+| identity/status terminal既知、evidence取得不能 | source receiptのterminal statusを維持 | `unconfirmed|no_data` | status対応actionを維持し、取得不能理由をredacted blockerへ記録 |
 | identity既知、status不明/非terminal | receiptなし | connector pending | 再観測 |
 | identity不明 | `connector_observation`の`blocked` | `unconfirmed|no_data` | `check_error`または`reauthorize`とblocker |
 
@@ -60,3 +61,4 @@ Mana operatorとして、Lambda・self-hosted runner上で実際に完了したM
 
 - `tests/connectors/mana-run-receipt.test.js` は同じworkflow/native executionのattempt 1/2が別 `external_run_id` とidempotency keyで共存し、同じattemptのdelivery再送だけがduplicateになるpre-fix失敗fixtureを持つ。同じnative execution idを返す2 workflowも共存する。
 - 同fixtureは全terminal mapping、既知runのunknown/null pending、identity取得不能のsynthetic observation、delivery outbox replay、CloudWatch/GitHub evidence ref、raw content排除を検証する。
+- terminal identity/statusは取得済みだがCloudWatch/GitHub evidence取得だけが失敗するpre-fix失敗fixtureは、connector pendingや`connector_observation`へ変換せず、source receiptのterminal statusと`unconfirmed|no_data`を保存することを検証する。

@@ -48,6 +48,7 @@ GitHub Actions operatorとして、対象repositoryの実workflow run conclusion
 | `stale` | `blocked` | 上記と同じ | `retry_run`とredacted blocker |
 | `skipped|neutral`でpolicy-intended non-actionableと確認済み | `success` | `confirmed` | `none`、summaryでno-opを明示 |
 | `skipped|neutral`で意図を確認不能または介入根拠あり | `blocked` | `unconfirmed|no_data` | `review_run`とredacted blocker |
+| identity/conclusion terminal既知、evidence取得不能 | source receiptのterminal statusを維持 | `unconfirmed|no_data` | conclusion対応actionを維持し、取得不能理由をredacted blockerへ記録 |
 | identity既知、conclusion不明/非terminal | receiptなし | connector pending | 再観測 |
 | identity不明 | `connector_observation`の`blocked` | `unconfirmed|no_data` | `check_error`または`reauthorize`とblocker |
 
@@ -58,6 +59,7 @@ GitHub Actions operatorとして、対象repositoryの実workflow run conclusion
 - `tests/connectors/github-actions-run-receipt.test.js` は同じrepository/run idのattempt 1/2が異なる `external_run_id` / idempotency keyで共存し、同じattemptの再送だけがduplicateになるpre-fix失敗fixtureを持つ。同じBrainbase project内の2 repositoryが同じ数値run id/attempt/workflow名を持っても共存する。
 - 同fixtureは `success`、`failure`、`timed_out`、`startup_failure`、`cancelled`、`action_required`、`skipped`、`neutral`、`stale`、未知値、nullを全て検証する。既知attemptの未知値/nullはconnector内部のpending stateへ留まりreceiptを作らず、identity取得不能だけがsynthetic observationを作り、後から取得したsource receiptとidentity conflictせず共存する。どちらも `success` または空結果へ変換しない。
 - 同fixtureは既知attemptの `conclusion=null` eventではreceiptを0件のままdeferし、後続 `workflow_run: completed` でsource receiptを1件作り、completed eventの再配信をduplicateとして扱う。
+- terminal identity/conclusionは取得済みだがrun URL/evidence取得だけが失敗するpre-fix失敗fixtureは、connector pendingや`connector_observation`へ変換せず、source receiptのterminal statusと`unconfirmed|no_data`を保存することを検証する。
 - producerのdelivery failure fixtureは元workflowのconclusionを変更せず、outbox artifactから同じsource identityで再送できることを検証する。
 
 ## Failure Modes
