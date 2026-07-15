@@ -311,6 +311,34 @@ test('canonical Task API completes an authenticated lifecycle through HTTP', asy
   await verifyAuthenticatedTaskLifecycle();
 });
 
+test('story-companion-canonical-task-provider S-001 advances allowed lifecycle transitions exactly once', () => {
+  expect(
+    () => runVitest(['tests/server/services/canonical-task-service.test.js']),
+    'Given a canonical Task is pending, in_progress, or waiting, when an allowed lifecycle transition is requested with the current expected version, then the Task moves to the requested state and its version advances exactly once.',
+  ).not.toThrow();
+});
+
+test('story-companion-canonical-task-provider S-002 rejects transitions from completed', () => {
+  expect(
+    () => runVitest(['tests/server/services/canonical-task-service.test.js']),
+    'Given a canonical Task is completed, when any further lifecycle transition is requested, then the API rejects it as invalid_transition and leaves the persisted Task unchanged.',
+  ).not.toThrow();
+});
+
+test('story-companion-canonical-task-provider S-003 replays approval materialization without duplicates', () => {
+  expect(
+    () => runVitest(workflowSuites),
+    'Given an approved workflow output targets task_store, when materialization is retried concurrently or after a response loss, then all Tasks are created before approval is committed and every retry returns the same materialized Task IDs without duplication.',
+  ).not.toThrow();
+});
+
+test('story-companion-canonical-task-provider S-004 keeps mutation fail-closed unless release evidence matches', () => {
+  expect(
+    () => runVitest(cutoverSuites),
+    'Given a process starts with canonical Task mutation closed, when persisted readiness, manifest, schema, evidence, and the claimed single-writer token all match the current release, then readiness is rebound to the current process; otherwise every mutation remains fail-closed.',
+  ).not.toThrow();
+});
+
 for (const entry of registry.entries) {
   test(entry.id, async ({ request }, testInfo) => {
     await withCanonicalTaskEvidence(entry.id, async () => {
