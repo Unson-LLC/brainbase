@@ -172,12 +172,57 @@ export class CanonicalTaskNocoDBRepository {
             value: fields['Payload Fingerprint'] || fields.payload_fingerprint || null,
             enumerable: false
         });
+        Object.defineProperty(task, '_last_operation_key', {
+            value: fields['最終操作キー'] || fields.last_operation_key || null,
+            enumerable: false
+        });
+        Object.defineProperty(task, '_last_operation_fingerprint', {
+            value: fields['最終操作Fingerprint'] || fields.last_operation_fingerprint || null,
+            enumerable: false
+        });
         return task;
     }
 
     async allRecords() {
-        const data = await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records?limit=1000`);
-        return Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : []);
+        const pageSize = 1000;
+        const records = [];
+        const pageSignatures = new Set();
+        let offset = 0;
+        let expectedTotal = null;
+        while (true) {
+            const data = await this.request(
+                `/api/v2/tables/${this.storeConfig.tableId}/records?limit=${pageSize}&offset=${offset}`
+            );
+            const page = Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : []);
+            const totalRows = Number(data?.pageInfo?.totalRows);
+            if (Number.isInteger(totalRows) && totalRows >= 0) expectedTotal = totalRows;
+
+            if (page.length === pageSize) {
+                const signature = `${recordId(fieldsOf(page[0]))}:${recordId(fieldsOf(page.at(-1)))}:${page.length}`;
+                if (pageSignatures.has(signature)) {
+                    const error = new Error('NocoDB Task pagination did not advance');
+                    error.code = 'task_store_unavailable';
+                    error.status = 503;
+                    throw error;
+                }
+                pageSignatures.add(signature);
+            }
+            records.push(...page);
+
+            const isLastPage = data?.pageInfo?.isLastPage === true;
+            const reachedTotal = expectedTotal !== null && records.length >= expectedTotal;
+            const shortPage = page.length < pageSize;
+            if (isLastPage || reachedTotal || shortPage) {
+                if (expectedTotal !== null && records.length < expectedTotal) {
+                    const error = new Error('NocoDB Task pagination ended before all rows were read');
+                    error.code = 'task_store_unavailable';
+                    error.status = 503;
+                    throw error;
+                }
+                return records;
+            }
+            offset += page.length;
+        }
     }
 
     async list({ statuses = [], priorities = [], assigneePersonId, dueAfter, dueBefore, cursor, limit = 50 } = {}) {
@@ -191,7 +236,13 @@ export class CanonicalTaskNocoDBRepository {
             return true;
         });
         const page = items.slice(offset, offset + limit);
-        return { items: page, totalCount: items.length, nextCursor: offset + limit < items.length ? encodeCursor(offset + limit) : null };
+        return {
+            items: page,
+            totalCount: items.length,
+            countStatus: 'exact',
+            readStatus: 'complete',
+            nextCursor: offset + limit < items.length ? encodeCursor(offset + limit) : null
+        };
     }
 
     async get(taskId) {

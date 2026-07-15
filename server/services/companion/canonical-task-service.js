@@ -11,6 +11,11 @@ const TRANSITIONS = Object.freeze({
     completed: new Set()
 });
 
+function splitCsv(value) {
+    if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+    return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
 function canonical(value) {
     if (Array.isArray(value)) return value.map(canonical);
     if (value && typeof value === 'object') {
@@ -99,25 +104,80 @@ function workflowActorContext(actor = {}) {
 }
 
 export class CanonicalTaskService {
-    constructor({ repository, infoSSOTService, readiness, operationRepository, ownerPersonId, clock = () => new Date() } = {}) {
+    constructor({
+        repository,
+        infoSSOTService,
+        readiness,
+        operationRepository,
+        ownerPersonId,
+        ownerAliasIds = splitCsv(process.env.BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS),
+        webBaseUrl = process.env.BRAINBASE_PUBLIC_URL || process.env.BRAINBASE_BASE_URL || 'http://localhost:31013',
+        clock = () => new Date()
+    } = {}) {
         if (!repository) throw new Error('Canonical Task repository is required');
         this.repository = repository;
         this.infoSSOTService = infoSSOTService;
         this.readiness = readiness;
         this.operationRepository = operationRepository;
         this.ownerPersonId = ownerPersonId;
+        this.ownerPersonIds = new Set([ownerPersonId, ...splitCsv(ownerAliasIds)].filter(Boolean));
+        this.webBaseUrl = webBaseUrl;
         this.clock = clock;
     }
 
     isOwner(context) {
-        return context?.principal?.type === 'person';
+        return context?.principal?.type === 'person' && context.principal.id === this.ownerPersonId;
+    }
+
+    normalizeOwnerContext(context = {}) {
+        if (context?.principal?.type !== 'person') return context;
+        if (!this.ownerPersonIds.has(context.principal.id)) {
+            throw new CanonicalTaskError(
+                'personal_kg_owner_required',
+                'Canonical Task API requires the configured Personal KG owner',
+                403
+            );
+        }
+        return {
+            ...context,
+            principal: { ...context.principal, id: this.ownerPersonId },
+            access: context.access ? { ...context.access, personId: this.ownerPersonId } : context.access
+        };
+    }
+
+    normalizeTaskResponse(task) {
+        if (!task) return null;
+        let webUrl = task.web_url;
+        try {
+            const parsed = new URL(webUrl);
+            if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol');
+            webUrl = parsed.toString();
+        } catch {
+            webUrl = new URL(
+                `/api/companion/tasks/${encodeURIComponent(task.id)}`,
+                this.webBaseUrl
+            ).toString();
+        }
+        const normalized = {
+            ...task,
+            completed_at: task.completed_at ?? null,
+            web_url: webUrl
+        };
+        for (const key of ['_payload_fingerprint', '_last_operation_key', '_last_operation_fingerprint']) {
+            delete normalized[key];
+            if (task[key] !== undefined) {
+                Object.defineProperty(normalized, key, { value: task[key], enumerable: false });
+            }
+        }
+        return normalized;
     }
 
     assertOwnerTask(task, context) {
-        if (!task || (this.isOwner(context) && task.assignee_person_id !== this.ownerPersonId)) {
+        const normalized = this.normalizeTaskResponse(task);
+        if (!normalized || (this.isOwner(context) && normalized.assignee_person_id !== this.ownerPersonId)) {
             throw new CanonicalTaskError('task_not_found', 'Task not found', 404);
         }
-        return task;
+        return normalized;
     }
 
     async read(operation) {
@@ -150,21 +210,25 @@ export class CanonicalTaskService {
     }
 
     async listTasks(query, context) {
+        context = this.normalizeOwnerContext(context);
         const filters = this.validateQuery(query, context);
         const page = await this.read(() => this.repository.list(filters));
-        const items = page.items.filter((task) => !this.isOwner(context) || task.assignee_person_id === this.ownerPersonId);
+        const items = page.items
+            .map((task) => this.normalizeTaskResponse(task))
+            .filter((task) => !this.isOwner(context) || task.assignee_person_id === this.ownerPersonId);
         return {
             items,
             total_count: Number.isInteger(page.totalCount) ? page.totalCount : items.length,
-            count_status: 'exact',
+            count_status: page.countStatus || 'exact',
             next_cursor: page.nextCursor || null,
-            read_status: 'complete',
+            read_status: page.readStatus || 'complete',
             warnings: items.flatMap((task) => task.normalization_warnings || []),
             as_of: this.clock().toISOString()
         };
     }
 
     async getTask(taskId, context) {
+        context = this.normalizeOwnerContext(context);
         const task = await this.read(() => this.repository.get(taskId));
         return this.assertOwnerTask(task, context);
     }
@@ -212,6 +276,7 @@ export class CanonicalTaskService {
 
     async createTask(input, context) {
         await this.readiness?.assertMutationReady();
+        context = this.normalizeOwnerContext(context);
         const payload = this.validateCreate(input);
         const clientKey = this.assertIdempotencyKey(context.idempotencyKey);
         if (this.isOwner(context)) {
@@ -224,7 +289,7 @@ export class CanonicalTaskService {
         const namespace = principalNamespace(context.principal);
         const operationKey = `api:${namespace}:${clientKey}`;
         const payloadFingerprint = fingerprint(payload);
-        return this.operationRepository.execute({
+        const result = await this.operationRepository.execute({
             scope: 'task-create', operationKey, fingerprint: payloadFingerprint,
             run: async () => {
                 const existing = await this.read(() => this.repository.findByIdempotencyKey(operationKey));
@@ -240,10 +305,12 @@ export class CanonicalTaskService {
                 }));
             }
         });
+        return this.normalizeTaskResponse(result);
     }
 
     async createManaCapture(input = {}, context) {
         await this.readiness?.assertMutationReady();
+        context = this.normalizeOwnerContext(context);
         const captureId = optionalTrimmed(input.capture_id);
         const content = optionalTrimmed(input.content);
         const fieldErrors = {};
@@ -273,7 +340,7 @@ export class CanonicalTaskService {
 
         const operationKey = `mana:${principalNamespace(context.principal)}:${captureId}`;
         const payloadFingerprint = fingerprint(payload);
-        return this.operationRepository.execute({
+        const result = await this.operationRepository.execute({
             scope: 'task-create', operationKey, fingerprint: payloadFingerprint,
             run: async () => {
                 const existing = await this.read(() => this.repository.findByIdempotencyKey(operationKey));
@@ -292,6 +359,7 @@ export class CanonicalTaskService {
                 }));
             }
         });
+        return this.normalizeTaskResponse(result);
     }
 
     async materializeWorkflowApproval({ step, output, responseRef = null, actor = {} } = {}) {
@@ -435,22 +503,57 @@ export class CanonicalTaskService {
         if (!Number.isInteger(value) || value < 1) throw validationError({ expected_version: ['positive_integer_required'] });
     }
 
-    async versionedMutation(taskId, expectedVersion, context, kind, apply) {
+    async versionedMutation(taskId, expectedVersion, context, mutation, apply) {
         await this.readiness?.assertMutationReady();
+        context = this.normalizeOwnerContext(context);
         this.validateVersion(expectedVersion);
-        const current = await this.getTask(taskId, context);
-        if (current.version !== expectedVersion) {
-            throw new CanonicalTaskError('version_conflict', 'Task version does not match', 409, { currentTask: current });
-        }
-        const opFingerprint = fingerprint({ kind, taskId, expectedVersion });
-        return this.operationRepository.execute({
-            scope: 'task-version', operationKey: `task-version:${taskId}:${expectedVersion}`,
-            fingerprint: opFingerprint,
-            run: () => apply(current, { last_operation_key: kind, last_operation_fingerprint: opFingerprint })
+        const operationKey = `task-version:${taskId}:${expectedVersion}`;
+        const opFingerprint = fingerprint({
+            kind: mutation.kind,
+            task_id: taskId,
+            expected_version: expectedVersion,
+            payload: mutation.payload ?? null,
+            transition: mutation.transition ?? null,
+            actor: context.principal
         });
+        const marker = {
+            last_operation_key: operationKey,
+            last_operation_fingerprint: opFingerprint
+        };
+        const wasApplied = (task) => Boolean(
+            task
+            && task.version === expectedVersion + 1
+            && task._last_operation_key === operationKey
+            && task._last_operation_fingerprint === opFingerprint
+        );
+        const assertExpectedVersion = (task) => {
+            if (task.version !== expectedVersion) {
+                throw new CanonicalTaskError('version_conflict', 'Task version does not match', 409, { currentTask: task });
+            }
+        };
+        const current = await this.getTask(taskId, context);
+        if (!wasApplied(current)) assertExpectedVersion(current);
+        const result = await this.operationRepository.execute({
+            scope: 'task-version', operationKey,
+            fingerprint: opFingerprint,
+            recover: async () => {
+                const recovered = await this.getTask(taskId, context);
+                if (wasApplied(recovered)) return { recovered: true, result: recovered };
+                assertExpectedVersion(recovered);
+                return { recovered: false };
+            },
+            run: async () => {
+                const latest = await this.getTask(taskId, context);
+                if (wasApplied(latest)) return latest;
+                assertExpectedVersion(latest);
+                return apply(latest, marker);
+            }
+        });
+        return this.normalizeTaskResponse(result);
     }
 
     async updateTask(taskId, input = {}, context) {
+        context = this.normalizeOwnerContext(context);
         const allowed = ['title', 'description', 'priority', 'assignee_person_id', 'due_at'];
         const errors = {};
         const patch = {};
@@ -472,24 +575,42 @@ export class CanonicalTaskService {
             throw new CanonicalTaskError('forbidden_assignee', 'Owner credentials cannot change Task ownership', 403);
         }
         if ('assignee_person_id' in patch) patch.assignee_display_name = await this.verifyAssigneePerson(patch.assignee_person_id, context);
-        return this.versionedMutation(taskId, input.expected_version, context, 'update', (_current, marker) => this.read(() => this.repository.update(taskId, { ...patch, ...marker, version: input.expected_version + 1 })));
+        return this.versionedMutation(
+            taskId,
+            input.expected_version,
+            context,
+            { kind: 'update', payload: patch, transition: null },
+            (_current, marker) => this.read(() => this.repository.update(taskId, {
+                ...patch,
+                ...marker,
+                version: input.expected_version + 1
+            }))
+        );
     }
 
     async transitionTask(taskId, input = {}, context) {
+        context = this.normalizeOwnerContext(context);
         const errors = {};
         if (!STATUSES.has(input.to_status)) errors.to_status = ['invalid_status'];
         if (input.to_status === 'waiting' && (!input.waiting_on || !String(input.waiting_on).trim())) errors.waiting_on = ['required_for_waiting'];
         const reviewAt = iso(input.review_at, errors, 'review_at');
         if (Object.keys(errors).length) throw validationError(errors);
-        return this.versionedMutation(taskId, input.expected_version, context, 'transition', (current, marker) => {
-            if (!TRANSITIONS[current.status]?.has(input.to_status)) {
+        const transition = {
+            to_status: input.to_status,
+            waiting_on: input.to_status === 'waiting' ? String(input.waiting_on).trim() : null,
+            review_at: input.to_status === 'waiting' ? reviewAt : null
+        };
+        return this.versionedMutation(taskId, input.expected_version, context, {
+            kind: 'transition', payload: null, transition
+        }, (current, marker) => {
+            if (!TRANSITIONS[current.status]?.has(transition.to_status)) {
                 throw new CanonicalTaskError('invalid_transition', 'Task transition is not allowed', 409, { currentTask: current });
             }
             return this.read(() => this.repository.update(taskId, {
-                status: input.to_status,
-                waiting_on: input.to_status === 'waiting' ? String(input.waiting_on).trim() : null,
-                review_at: input.to_status === 'waiting' ? reviewAt : null,
-                completed_at: input.to_status === 'completed' ? this.clock().toISOString() : null,
+                status: transition.to_status,
+                waiting_on: transition.waiting_on,
+                review_at: transition.review_at,
+                completed_at: transition.to_status === 'completed' ? this.clock().toISOString() : null,
                 version: input.expected_version + 1,
                 ...marker
             }));
@@ -498,6 +619,7 @@ export class CanonicalTaskService {
 
     async deleteTask(taskId, input = {}, context) {
         await this.readiness?.assertMutationReady();
+        context = this.normalizeOwnerContext(context);
         this.validateVersion(input.expected_version);
         const clientKey = this.assertIdempotencyKey(context.idempotencyKey);
         const namespace = principalNamespace(context.principal);

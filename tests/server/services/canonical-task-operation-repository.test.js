@@ -149,6 +149,47 @@ describe('CanonicalTaskOperationRepository', () => {
         })).rejects.toMatchObject({ code: 'canonical_task_operation_in_progress', status: 409 });
     });
 
+    it('reclaims a matching operation left running by a previous writer and persists the recovered result', async () => {
+        const queries = [];
+        const client = {
+            query: vi.fn(async (sql) => {
+                queries.push(sql);
+                if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [{}] };
+                if (sql.includes('INSERT INTO canonical_task_operations')) return { rowCount: 0, rows: [] };
+                if (sql.includes('SELECT fingerprint, state')) {
+                    return {
+                        rowCount: 1,
+                        rows: [{
+                            fingerprint: 'fingerprint',
+                            state: 'running',
+                            result_json: null,
+                            writer_token: 'writer-before-restart'
+                        }]
+                    };
+                }
+                return { rowCount: 1, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client, query: client.query },
+            writerToken: 'writer-after-restart'
+        });
+        const run = vi.fn();
+
+        await expect(repository.execute({
+            scope: 'task-version',
+            operationKey: 'task-version:task_1:1',
+            fingerprint: 'fingerprint',
+            recover: async () => ({ recovered: true, result: { id: 'task_1', version: 2 } }),
+            run
+        })).resolves.toEqual({ id: 'task_1', version: 2 });
+
+        expect(run).not.toHaveBeenCalled();
+        expect(queries.some((sql) => sql.includes('SET writer_token = $3'))).toBe(true);
+        expect(queries.some((sql) => sql.includes("SET state = 'completed'"))).toBe(true);
+    });
+
     it('finishes a prepared delete after the Task has already disappeared', async () => {
         const result = { task_id: 'task_1', deleted: true, version: 2 };
         const queries = [];

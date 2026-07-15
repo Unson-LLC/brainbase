@@ -181,7 +181,11 @@ export function registerApiRoutes(app, {
         infoSSOTService,
         decisionEventService: createDecisionEventService(runtimePaths),
         canonicalTaskService,
-        authGuard: requireAuth(authService)
+        authGuard: requireAuth(authService),
+        accessGuardOptions: {
+            ownerPersonId: canonicalTaskStoreConfig?.ownerPersonId,
+            ownerAliasIds: canonicalTaskStoreConfig?.ownerAliasIds
+        }
     }));
     app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,

@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
+import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { createCompanionRouter } from '../../../server/routes/companion.js';
 
 function appFor({ source = 'bearer', personId = 'sato_keigo', service } = {}) {
@@ -27,6 +28,65 @@ function appFor({ source = 'bearer', personId = 'sato_keigo', service } = {}) {
         authGuard,
         accessGuardOptions: { ownerPersonId: 'sato_keigo' }
     }));
+    return { app, taskService };
+}
+
+function bootstrapAppFor({ personId = 'legacy_owner' } = {}) {
+    const taskService = {
+        listTasks: vi.fn(async () => ({
+            items: [], total_count: 0, count_status: 'exact', next_cursor: null,
+            read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z'
+        })),
+        getTask: vi.fn(),
+        createTask: vi.fn(),
+        updateTask: vi.fn(),
+        transitionTask: vi.fn(),
+        deleteTask: vi.fn()
+    };
+    const authService = {
+        verifyToken: vi.fn(() => ({
+            role: 'ceo',
+            projectCodes: ['brainbase'],
+            clearance: ['internal'],
+            personId
+        }))
+    };
+    const app = express();
+    app.use(express.json());
+    registerApiRoutes(app, {
+        stateStore: {},
+        sessionServices: { runtime: { registry: {}, query: {}, reconciler: {} }, workspace: {} },
+        testMode: true,
+        configParser: {},
+        configService: {},
+        runtimePaths: { varDir: '/tmp' },
+        scheduleParser: {},
+        googleCalendarService: {},
+        worktreeService: {},
+        conversationLinker: {},
+        projectsRoot: '/tmp',
+        tmuxCaptureCache: {},
+        authService,
+        infoSSOTService: { getContext: vi.fn(), listGraphEntities: vi.fn() },
+        canonicalTaskStoreConfig: {
+            ownerPersonId: 'canonical_owner',
+            ownerAliasIds: ['legacy_owner']
+        },
+        canonicalTaskService: taskService,
+        learningService: { searchPersonalKgCandidates: vi.fn() },
+        learningHealthService: {},
+        candidateRepository: null,
+        wikiService: {},
+        tokenUsageService: {},
+        workflowService: undefined,
+        externalRunnerIngestService: {},
+        uploadMiddleware: (_req, _res, next) => next(),
+        appVersion: 'test',
+        workspaceRoot: '/tmp',
+        uploadsDir: '/tmp/uploads',
+        runtimeInfo: {},
+        brainbaseRoot: '/tmp'
+    });
     return { app, taskService };
 }
 
@@ -56,6 +116,30 @@ describe('Companion canonical Task routes', () => {
         const response = await request(app).get('/api/companion/tasks');
         expect(response.status).toBe(403);
         expect(response.body.code).toBe(code);
+        expect(taskService.listTasks).not.toHaveBeenCalled();
+    });
+
+    it('passes canonical store owner aliases through bootstrap and canonicalizes the service principal', async () => {
+        const { app, taskService } = bootstrapAppFor();
+        const response = await request(app)
+            .get('/api/companion/tasks')
+            .set('Authorization', 'Bearer owner-alias-token');
+
+        expect(response.status).toBe(200);
+        expect(taskService.listTasks).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({
+            principal: { type: 'person', id: 'canonical_owner' },
+            access: expect.objectContaining({ personId: 'canonical_owner' })
+        }));
+    });
+
+    it('does not allow another authenticated person to act as the canonical owner', async () => {
+        const { app, taskService } = bootstrapAppFor({ personId: 'person_other' });
+        const response = await request(app)
+            .get('/api/companion/tasks')
+            .set('Authorization', 'Bearer other-person-token');
+
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe('personal_kg_owner_required');
         expect(taskService.listTasks).not.toHaveBeenCalled();
     });
 

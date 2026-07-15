@@ -48,6 +48,46 @@ describe('CanonicalTaskNocoDBRepository', () => {
             { type: 'workflow_output', id: 'out-1', url: null },
             { type: 'mana_capture', id: 'capture-1', url: null }
         ]);
+        expect(normalized).toHaveProperty('completed_at', null);
+        expect(() => new URL(normalized.web_url)).not.toThrow();
+    });
+
+    it('pages beyond 1001 rows and finds an idempotency key on the final page', async () => {
+        const records = Array.from({ length: 1002 }, (_, index) => ({
+            Id: index + 1,
+            'タイトル': `Task ${index + 1}`,
+            'ステータス': '未着手',
+            '優先度': '中',
+            '担当者PersonID': 'owner',
+            '冪等キー': index === 1001 ? 'api:owner:final-key' : null
+        }));
+        const fetchImpl = vi.fn(async (url) => {
+            const offset = Number(new URL(url).searchParams.get('offset') || 0);
+            const list = records.slice(offset, offset + 1000);
+            return response({
+                list,
+                pageInfo: {
+                    totalRows: records.length,
+                    isLastPage: offset + list.length >= records.length
+                }
+            });
+        });
+        const repository = new CanonicalTaskNocoDBRepository({
+            storeConfig,
+            fetchImpl,
+            apiToken: 'token',
+            idSecret: 'secret'
+        });
+
+        await expect(repository.list({ limit: 50 })).resolves.toMatchObject({
+            totalCount: 1002,
+            countStatus: 'exact',
+            readStatus: 'complete'
+        });
+        await expect(repository.findByIdempotencyKey('api:owner:final-key'))
+            .resolves.toMatchObject({ title: 'Task 1002' });
+        expect(fetchImpl).toHaveBeenCalledTimes(4);
+        expect(fetchImpl.mock.calls.some(([url]) => new URL(url).searchParams.get('offset') === '1000')).toBe(true);
     });
 
     it('rejects opaque ids from another store or with a forged signature', () => {

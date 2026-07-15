@@ -12,6 +12,7 @@ import {
     buildMeetingWorkflowPackRecords,
     meetingPackIds
 } from './meeting-workflow-pack.js';
+import { PostgresWorkflowCheckpointRepository } from './workflow-checkpoint-repository.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -1861,7 +1862,8 @@ export class WorkflowService {
         googleCalendarService = null,
         eveSessionClient = null,
         infoSSOTService = null,
-        canonicalTaskService = null
+        canonicalTaskService = null,
+        checkpointRepository = null
     }) {
         this.repository = repository;
         this.runner = runner;
@@ -1870,8 +1872,22 @@ export class WorkflowService {
         this.eveSessionClient = eveSessionClient;
         this.infoSSOTService = infoSSOTService;
         this.canonicalTaskService = canonicalTaskService;
+        const operationRepository = canonicalTaskService?.operationRepository || null;
+        this.checkpointRepository = checkpointRepository
+            || (operationRepository?.pool && operationRepository?.writerToken
+                ? new PostgresWorkflowCheckpointRepository({ operationRepository })
+                : null);
         this.projectConfigById = new Map();
         this.eveSessionDispatchInFlight = new Map();
+        this.canonicalTaskCheckpointInFlight = new Map();
+        this.canonicalTaskCheckpointStartupError = null;
+        this.canonicalTaskCheckpointStartup = this.checkpointRepository
+            ? Promise.resolve()
+                .then(() => this._reconcileCanonicalTaskCheckpoints({ completePrepared: false, markCompleted: false }))
+                .catch((error) => {
+                    this.canonicalTaskCheckpointStartupError = error;
+                })
+            : Promise.resolve();
     }
 
     async ensureDefaultWorkflows() {
@@ -4308,9 +4324,11 @@ export class WorkflowService {
 
     async getRun(runId, actor = {}) {
         await this._loadProjectConfigCache();
-        const run = this.repository.getRun(runId);
+        let run = this.repository.getRun(runId);
         if (!run) throw AppError.notFound('workflow_run', runId);
         this._assertActorCanAccessProject(run.project_id, actor);
+        await this._reconcileCanonicalTaskCheckpoints({ runId });
+        run = this.repository.getRun(runId);
         return {
             run,
             run_steps: this.repository.listRunSteps(runId),
@@ -4415,6 +4433,294 @@ export class WorkflowService {
             || null;
     }
 
+    async waitForCanonicalTaskCheckpointReconciliation() {
+        await this.canonicalTaskCheckpointStartup;
+        if (this.canonicalTaskCheckpointStartupError) {
+            throw this.canonicalTaskCheckpointStartupError;
+        }
+    }
+
+    _canonicalTaskCheckpointActor(actor = {}) {
+        return {
+            person_id: actor.person_id || null,
+            sub: actor.sub || null,
+            role: actor.role || null,
+            projectCodes: Array.isArray(actor.projectCodes) ? actor.projectCodes : [],
+            authSource: actor.authSource || null
+        };
+    }
+
+    _canonicalTaskCheckpointFingerprint(step, output, input, actor) {
+        return crypto.createHash('sha256').update(JSON.stringify({
+            human_step_id: step.id,
+            workflow_run_id: step.workflow_run_id,
+            output_id: output.id,
+            output_payload: output.payload,
+            response_ref: input.response_ref || input.responseRef || null,
+            reason: input.reason || step.reason || null,
+            actor: this._canonicalTaskCheckpointActor(actor)
+        })).digest('hex');
+    }
+
+    async _invokeCanonicalTaskMaterialization({ step, output, responseRef, actor }) {
+        if (!this.canonicalTaskService?.materializeWorkflowApproval) {
+            const error = new Error('Canonical Task materialization service is unavailable');
+            error.code = 'canonical_task_service_unavailable';
+            error.status = 503;
+            error.statusCode = 503;
+            throw error;
+        }
+        return this.canonicalTaskService.materializeWorkflowApproval({
+            step,
+            output,
+            responseRef,
+            actor
+        });
+    }
+
+    _canonicalTaskProjection(record, materialization) {
+        const checkpoint = record.recovery_checkpoint;
+        const claim = checkpoint.human_step_claim;
+        const step = claim.step;
+        const workflow = this.repository.getWorkflow(step.workflow_id);
+        const previousRun = this.repository.getRun(step.workflow_run_id);
+        if (!isApprovalOnlyIngestWorkflow(workflow) || !previousRun) {
+            throw AppError.conflict(`workflow '${step.workflow_id}' does not support durable approval-only projection`);
+        }
+
+        const humanStepTarget = {
+            status: 'approved',
+            response_ref: claim.response_ref,
+            reason: claim.reason,
+            resolved_at: claim.resolved_at,
+            resolved_by: claim.resolved_by,
+            canonical_task_materialization: materialization
+        };
+        const projectedHumanSteps = this.repository.listHumanSteps(step.workflow_run_id)
+            .map((humanStep) => humanStep.id === step.id
+                ? { ...humanStep, ...humanStepTarget }
+                : humanStep);
+        const pendingHumanSteps = projectedHumanSteps.filter((humanStep) => isPendingHumanStepStatus(humanStep.status));
+        const approvedHumanSteps = projectedHumanSteps.filter((humanStep) => isApprovedHumanResolution(humanStep.status));
+        const rejectedHumanSteps = projectedHumanSteps.filter((humanStep) => isRejectedHumanStepStatus(humanStep.status));
+        const allApproved = projectedHumanSteps.length > 0 && approvedHumanSteps.length === projectedHumanSteps.length;
+        const hasRejectedStep = rejectedHumanSteps.length > 0 || previousRun.status === 'cancelled';
+        const approvalLabel = isMeetingReviewPackageWorkflow(workflow)
+            ? 'Meeting Review Package'
+            : 'Agent report';
+        const auditPrefix = isMeetingReviewPackageWorkflow(workflow)
+            ? 'workflow.run.meeting_review_approvals'
+            : 'workflow.run.agent_report_approvals';
+        const runTarget = hasRejectedStep
+            ? {
+                status: 'cancelled',
+                closure_state: 'closed',
+                human_waiting: false,
+                action_required: 'none',
+                message: `${approvalLabel} human approvals stopped after rejected gate`,
+                finished_at: claim.resolved_at
+            }
+            : {
+                status: allApproved ? 'success' : 'waiting_human',
+                closure_state: allApproved ? 'closed' : 'open',
+                human_waiting: !allApproved,
+                action_required: allApproved ? 'none' : 'approve',
+                message: allApproved
+                    ? `${approvalLabel} human approvals completed`
+                    : `${approvalLabel} is waiting for ${pendingHumanSteps.length} human approval(s)`,
+                finished_at: claim.resolved_at
+            };
+        const auditBaseId = `canonical-task:${record.id}`;
+        const actorId = claim.actor.person_id || claim.actor.sub || 'system';
+        const auditEntries = [
+            {
+                id: `${auditBaseId}:tasks_materialized`,
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actorId,
+                action: 'workflow.canonical_tasks.materialized',
+                target_type: 'workflow_run',
+                target_id: step.workflow_run_id,
+                after: {
+                    human_step_id: step.id,
+                    task_ids: materialization.task_ids || [],
+                    status: materialization.status || 'completed'
+                }
+            },
+            {
+                id: `${auditBaseId}:human_step_approved`,
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actorId,
+                action: 'workflow.human_step.resolved',
+                target_type: 'workflow_human_step',
+                target_id: step.id,
+                after: { ...step, ...humanStepTarget }
+            },
+            {
+                id: `${auditBaseId}:run_projected`,
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actorId,
+                action: hasRejectedStep
+                    ? `${auditPrefix}.cancelled`
+                    : allApproved
+                    ? `${auditPrefix}.completed`
+                    : `${auditPrefix}.progressed`,
+                target_type: 'workflow_run',
+                target_id: step.workflow_run_id,
+                after: {
+                    human_step_id: step.id,
+                    approved_human_step_ids: approvedHumanSteps.map((humanStep) => humanStep.id),
+                    pending_human_step_ids: pendingHumanSteps.map((humanStep) => humanStep.id),
+                    rejected_human_step_ids: rejectedHumanSteps.map((humanStep) => humanStep.id),
+                    status: runTarget.status,
+                    closure_state: runTarget.closure_state
+                }
+            }
+        ];
+        return {
+            ...checkpoint,
+            phase: 'tasks_materialized',
+            human_step_target: humanStepTarget,
+            run_target: runTarget,
+            audit_checkpoint: {
+                ids: auditEntries.map((entry) => entry.id),
+                entries: auditEntries
+            },
+            post_processing_phase: 'pending'
+        };
+    }
+
+    async _projectCanonicalTaskCheckpoint(record, { markCompleted = true } = {}) {
+        const checkpoint = record.recovery_checkpoint;
+        if (!record.result_json || !checkpoint?.human_step_target || !checkpoint?.run_target) return null;
+        const stepId = checkpoint.human_step_id;
+        const runId = checkpoint.workflow_run_id;
+        const humanStep = this.repository.updateHumanStep(stepId, checkpoint.human_step_target);
+        for (const audit of checkpoint.audit_checkpoint?.entries || []) {
+            this.repository.upsertAuditLog(audit);
+        }
+        const run = this.repository.updateRun(runId, checkpoint.run_target);
+        if (markCompleted && record.state !== 'completed') {
+            const completedCheckpoint = {
+                ...checkpoint,
+                phase: 'completed',
+                post_processing_phase: 'completed'
+            };
+            await this.checkpointRepository.markCompleted({
+                operationKey: record.operation_key,
+                fingerprint: record.fingerprint,
+                recoveryCheckpoint: completedCheckpoint
+            });
+        }
+        return { human_step: humanStep, resumed_run: run };
+    }
+
+    async _reconcileCanonicalTaskCheckpointRecord(record, options = {}) {
+        const operationKey = record.operation_key;
+        const existing = this.canonicalTaskCheckpointInFlight.get(operationKey);
+        if (existing) return existing;
+        const reconciliation = this._reconcileCanonicalTaskCheckpointRecordNow(record, options)
+            .finally(() => this.canonicalTaskCheckpointInFlight.delete(operationKey));
+        this.canonicalTaskCheckpointInFlight.set(operationKey, reconciliation);
+        return reconciliation;
+    }
+
+    async _reconcileCanonicalTaskCheckpointRecordNow(record, { completePrepared = true, markCompleted = true } = {}) {
+        let current = record;
+        let materialization = current.result_json;
+        const claim = current.recovery_checkpoint?.human_step_claim;
+        if (!materialization && completePrepared && claim) {
+            materialization = await this._invokeCanonicalTaskMaterialization({
+                step: claim.step,
+                output: claim.output,
+                responseRef: claim.response_ref,
+                actor: claim.actor
+            });
+            const recoveryCheckpoint = this._canonicalTaskProjection(current, materialization);
+            current = await this.checkpointRepository.saveMaterialization({
+                operationKey: current.operation_key,
+                fingerprint: current.fingerprint,
+                materialization,
+                recoveryCheckpoint
+            });
+        }
+        if (materialization && !current.recovery_checkpoint?.human_step_target && markCompleted) {
+            const recoveryCheckpoint = this._canonicalTaskProjection(current, materialization);
+            current = await this.checkpointRepository.saveMaterialization({
+                operationKey: current.operation_key,
+                fingerprint: current.fingerprint,
+                materialization,
+                recoveryCheckpoint
+            });
+        }
+        if (!materialization || !current.recovery_checkpoint?.human_step_target) return null;
+        const projected = await this._projectCanonicalTaskCheckpoint(current, { markCompleted });
+        return this._withCanonicalTaskMaterialization(projected, materialization);
+    }
+
+    async _reconcileCanonicalTaskCheckpoints({
+        runId = null,
+        humanStepId = null,
+        completePrepared = true,
+        markCompleted = true
+    } = {}) {
+        if (!this.checkpointRepository) return [];
+        const records = await this.checkpointRepository.list({ runId, humanStepId });
+        const reconciled = [];
+        for (const record of records) {
+            const result = await this._reconcileCanonicalTaskCheckpointRecord(record, { completePrepared, markCompleted });
+            if (result) reconciled.push(result);
+        }
+        return reconciled;
+    }
+
+    async _resolveCanonicalTaskWithCheckpoint(step, input, actor) {
+        const output = this._canonicalTaskOutput(step);
+        if (!output) {
+            const error = new Error(`Task candidate output for human step '${step.id}' was not found`);
+            error.code = 'task_candidate_output_not_found';
+            error.status = 409;
+            error.statusCode = 409;
+            throw error;
+        }
+        const operationKey = `workflow:${step.id}`;
+        const actorSnapshot = this._canonicalTaskCheckpointActor(actor);
+        const resolvedAt = new Date().toISOString();
+        const recoveryCheckpoint = {
+            version: 1,
+            phase: 'human_step_claimed',
+            workflow_run_id: step.workflow_run_id,
+            workflow_id: step.workflow_id,
+            human_step_id: step.id,
+            output_id: output.id,
+            human_step_claim: {
+                step,
+                output,
+                response_ref: input.response_ref || input.responseRef || null,
+                reason: input.reason || step.reason || null,
+                resolved_at: resolvedAt,
+                resolved_by: actorSnapshot.person_id || actorSnapshot.sub || 'system',
+                actor: actorSnapshot
+            },
+            run_target: null,
+            audit_checkpoint: { ids: [], entries: [] },
+            post_processing_phase: 'not_started'
+        };
+        const fingerprint = this._canonicalTaskCheckpointFingerprint(step, output, input, actor);
+        const prepared = await this.checkpointRepository.prepare({
+            operationKey,
+            fingerprint,
+            authorizationSnapshot: actorSnapshot,
+            recoveryCheckpoint
+        });
+        return this._reconcileCanonicalTaskCheckpointRecord(prepared, {
+            completePrepared: true,
+            markCompleted: true
+        });
+    }
+
     async _materializeCanonicalTaskApproval(step, input, actor) {
         if (!this.canonicalTaskService?.materializeWorkflowApproval) {
             const error = new Error('Canonical Task materialization service is unavailable');
@@ -4431,7 +4737,7 @@ export class WorkflowService {
             error.statusCode = 409;
             throw error;
         }
-        return this.canonicalTaskService.materializeWorkflowApproval({
+        return this._invokeCanonicalTaskMaterialization({
             step,
             output,
             responseRef: input.response_ref || input.responseRef || null,
@@ -4478,13 +4784,15 @@ export class WorkflowService {
 
     async resolveHumanStep(stepId, input = {}, actor = {}) {
         await this._loadProjectConfigCache();
-        const step = this.repository.getHumanStep(stepId);
+        let step = this.repository.getHumanStep(stepId);
         if (!step) throw AppError.notFound('workflow_human_step', stepId);
         if (input.run_id && input.run_id !== step.workflow_run_id) {
             throw AppError.validation(`human step '${stepId}' does not belong to run '${input.run_id}'`);
         }
         this._assertActorCanAccessProject(step.project_id, actor);
         this._assertActorCanResolveHumanStep(step, actor);
+        await this._reconcileCanonicalTaskCheckpoints({ humanStepId: stepId });
+        step = this.repository.getHumanStep(stepId);
         const resolution = input.resolution || input.status || 'approved';
         const approvedResolution = isApprovedHumanResolution(resolution);
         if (
@@ -4504,6 +4812,14 @@ export class WorkflowService {
         }
         if (step.status !== 'pending') {
             throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
+        }
+        if (
+            approvedResolution
+            && this._isCanonicalTaskHumanStep(step)
+            && this.checkpointRepository
+            && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(step.workflow_id))
+        ) {
+            return this._resolveCanonicalTaskWithCheckpoint(step, input, actor);
         }
         const materialization = approvedResolution && this._isCanonicalTaskHumanStep(step)
             ? await this._materializeCanonicalTaskApproval(step, input, actor)

@@ -67,7 +67,7 @@ function createOperationRepository() {
     };
 }
 
-export async function startCanonicalTaskLiveApiHarness() {
+export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
     const repository = createRepository();
     const canonicalTaskService = new CanonicalTaskService({
         repository,
@@ -98,6 +98,9 @@ export async function startCanonicalTaskLiveApiHarness() {
     };
     const app = express();
     app.use(express.json());
+    app.get('/api/csrf-token', authGuard, (_req, res) => {
+        res.json({ token: 'canonical-task-e2e-csrf' });
+    });
     app.use('/api/companion', createCompanionRouter({
         replyDraftService: { createDraft: async () => ({}), createContext: async () => ({}) },
         canonicalTaskService,
@@ -108,7 +111,7 @@ export async function startCanonicalTaskLiveApiHarness() {
     const server = createServer(app);
     await new Promise((resolve, reject) => {
         server.once('error', reject);
-        server.listen(0, '127.0.0.1', resolve);
+        server.listen(port, '127.0.0.1', resolve);
     });
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Canonical Task test server did not bind a TCP port');

@@ -253,6 +253,23 @@ export class InMemoryWorkflowRepository {
         return clone(this.ledger.audit_logs[this.ledger.audit_logs.length - 1]);
     }
 
+    upsertAuditLog(entry) {
+        if (!entry.id) throw new Error('audit entry id is required for upsert');
+        const index = this.ledger.audit_logs.findIndex((item) => item.id === entry.id);
+        if (index === -1) {
+            this.ledger.audit_logs.push({ created_at: nowIso(), ...entry });
+            this._persist();
+            return clone(this.ledger.audit_logs[this.ledger.audit_logs.length - 1]);
+        }
+        this.ledger.audit_logs[index] = {
+            ...this.ledger.audit_logs[index],
+            ...entry,
+            created_at: this.ledger.audit_logs[index].created_at
+        };
+        this._persist();
+        return clone(this.ledger.audit_logs[index]);
+    }
+
     listAuditLogs({ targetId = null, limit = 50 } = {}) {
         const logs = this.ledger.audit_logs
             .filter((item) => !targetId || item.target_id === targetId)

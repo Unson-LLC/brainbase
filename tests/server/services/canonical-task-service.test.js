@@ -15,7 +15,7 @@ function task(overrides = {}) {
     };
 }
 
-function setup() {
+function setup({ ownerAliasIds = [] } = {}) {
     const repository = {
         list: vi.fn(async () => ({ items: [task()], nextCursor: null })),
         get: vi.fn(async () => task()),
@@ -41,7 +41,14 @@ function setup() {
     };
     return {
         repository, people, readiness, operations,
-        service: new CanonicalTaskService({ repository, infoSSOTService: people, readiness, operationRepository: operations, ownerPersonId: OWNER })
+        service: new CanonicalTaskService({
+            repository,
+            infoSSOTService: people,
+            readiness,
+            operationRepository: operations,
+            ownerPersonId: OWNER,
+            ownerAliasIds
+        })
     };
 }
 
@@ -60,6 +67,41 @@ describe('CanonicalTaskService', () => {
         const page = await fixture.service.listTasks({}, ownerContext());
         expect(fixture.repository.list).toHaveBeenCalledWith(expect.objectContaining({ assigneePersonId: OWNER }));
         expect(page).toMatchObject({ total_count: 1, count_status: 'exact', read_status: 'complete', warnings: [] });
+    });
+
+    it('preserves non-exact repository read metadata instead of claiming a complete result', async () => {
+        fixture.repository.list.mockResolvedValue({
+            items: [task()],
+            totalCount: null,
+            countStatus: 'unknown',
+            readStatus: 'partial',
+            nextCursor: null
+        });
+
+        await expect(fixture.service.listTasks({}, ownerContext())).resolves.toMatchObject({
+            count_status: 'unknown',
+            read_status: 'partial'
+        });
+    });
+
+    it('normalizes an owner alias and rejects an unrelated person principal', async () => {
+        fixture = setup({ ownerAliasIds: ['legacy_owner'] });
+        const aliasContext = {
+            ...ownerContext(),
+            principal: { type: 'person', id: 'legacy_owner' },
+            access: { ...ownerContext().access, personId: 'legacy_owner' }
+        };
+
+        await fixture.service.listTasks({}, aliasContext);
+        expect(fixture.repository.list).toHaveBeenCalledWith(expect.objectContaining({ assigneePersonId: OWNER }));
+
+        const unrelatedContext = {
+            ...ownerContext(),
+            principal: { type: 'person', id: 'person_other' },
+            access: { ...ownerContext().access, personId: 'person_other' }
+        };
+        await expect(fixture.service.listTasks({}, unrelatedContext))
+            .rejects.toMatchObject({ code: 'personal_kg_owner_required', status: 403 });
     });
 
     it('creates once with a server-side actor namespace', async () => {
@@ -112,6 +154,84 @@ describe('CanonicalTaskService', () => {
         fixture.repository.get.mockResolvedValue(task({ version: 3 }));
         await expect(fixture.service.updateTask('task_1', { expected_version: 2, title: '変更' }, ownerContext()))
             .rejects.toMatchObject({ code: 'version_conflict', status: 409, currentTask: expect.objectContaining({ version: 3 }) });
+    });
+
+    it('fingerprints normalized PATCH input, transition input, and actor identity', async () => {
+        await fixture.service.updateTask('task_1', { expected_version: 1, title: '変更A' }, ownerContext());
+        await fixture.service.updateTask('task_1', { expected_version: 1, title: '変更B' }, ownerContext());
+        await fixture.service.transitionTask('task_1', {
+            expected_version: 1,
+            to_status: 'waiting',
+            waiting_on: '先方A'
+        }, ownerContext());
+        await fixture.service.transitionTask('task_1', {
+            expected_version: 1,
+            to_status: 'waiting',
+            waiting_on: '先方B'
+        }, ownerContext());
+        await fixture.service.updateTask('task_1', { expected_version: 1, title: '変更A' }, {
+            principal: { type: 'service', id: 'service-other' },
+            authSource: 'service-token',
+            access: ownerContext().access
+        });
+
+        const fingerprints = fixture.operations.execute.mock.calls.map(([input]) => input.fingerprint);
+        expect(fingerprints[0]).not.toBe(fingerprints[1]);
+        expect(fingerprints[2]).not.toBe(fingerprints[3]);
+        expect(fingerprints[0]).not.toBe(fingerprints[4]);
+    });
+
+    it('returns 409 instead of replaying another PATCH for the same Task version', async () => {
+        const operations = new Map();
+        fixture.operations.execute.mockImplementation(async (input) => {
+            const existing = operations.get(input.operationKey);
+            if (existing) {
+                if (existing.fingerprint !== input.fingerprint) {
+                    throw new CanonicalTaskError(
+                        'idempotency_conflict',
+                        'Idempotency key was reused with different input',
+                        409
+                    );
+                }
+                return existing.result;
+            }
+            const result = await input.run();
+            operations.set(input.operationKey, { fingerprint: input.fingerprint, result });
+            return result;
+        });
+
+        await fixture.service.updateTask('task_1', { expected_version: 1, title: '変更A' }, ownerContext());
+        await expect(fixture.service.updateTask(
+            'task_1',
+            { expected_version: 1, title: '変更B' },
+            ownerContext()
+        )).rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 });
+        expect(fixture.repository.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('recovers an already-applied PATCH after restart without writing NocoDB again', async () => {
+        fixture.operations.execute.mockResolvedValueOnce(task());
+        await fixture.service.updateTask('task_1', { expected_version: 1, title: '適用済み' }, ownerContext());
+        const operation = fixture.operations.execute.mock.calls[0][0];
+
+        fixture.repository.update.mockClear();
+        fixture.repository.get.mockResolvedValue(task({
+            version: 2,
+            title: '適用済み',
+            _last_operation_key: operation.operationKey,
+            _last_operation_fingerprint: operation.fingerprint
+        }));
+        fixture.operations.execute.mockImplementationOnce(async ({ recover, run }) => {
+            const recovered = await recover();
+            return recovered.recovered ? recovered.result : run();
+        });
+
+        await expect(fixture.service.updateTask(
+            'task_1',
+            { expected_version: 1, title: '適用済み' },
+            ownerContext()
+        )).resolves.toMatchObject({ version: 2, title: '適用済み' });
+        expect(fixture.repository.update).not.toHaveBeenCalled();
     });
 
     it('requires waiting_on and seals completed tasks', async () => {

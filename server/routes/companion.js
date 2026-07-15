@@ -14,6 +14,17 @@ function actorPersonId(req) {
     return req.access?.personId || req.auth?.person_id || req.auth?.personId || req.auth?.sub || null;
 }
 
+function canonicalizeOwnerIdentity(req, ownerPersonId) {
+    if (req.access) req.access = { ...req.access, personId: ownerPersonId };
+    if (req.auth) {
+        req.auth = {
+            ...req.auth,
+            person_id: ownerPersonId,
+            personId: ownerPersonId
+        };
+    }
+}
+
 function isServerToServerOrNativeAuth(req) {
     return ['internal', 'service-token', 'bearer', 'insecure-header'].includes(String(req.authSource || ''));
 }
@@ -76,6 +87,7 @@ function createCanonicalTaskAccessGuard({
             res.status(403).json({ code: 'personal_kg_owner_required', message: 'Canonical Task API requires the configured Personal KG owner' });
             return;
         }
+        canonicalizeOwnerIdentity(req, ownerPersonId);
         next();
     };
 }

@@ -152,9 +152,10 @@ export class CanonicalTaskOperationRepository {
         return result.rowCount === 1;
     }
 
-    async execute({ scope, operationKey, fingerprint, run }) {
+    async execute({ scope, operationKey, fingerprint, recover = null, run }) {
         this.assertConfigured();
         await this.assertWriter();
+        let shouldRecover = false;
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -168,7 +169,7 @@ export class CanonicalTaskOperationRepository {
             );
             if (!inserted.rowCount) {
                 const existing = await client.query(
-                    `SELECT fingerprint, state, result_json FROM canonical_task_operations
+                    `SELECT fingerprint, state, result_json, writer_token FROM canonical_task_operations
                      WHERE scope = $1 AND operation_key = $2 FOR UPDATE`,
                     [scope, operationKey]
                 );
@@ -191,6 +192,29 @@ export class CanonicalTaskOperationRepository {
                          WHERE scope = $1 AND operation_key = $2 AND state = 'failed'`,
                         [scope, operationKey, this.writerToken]
                     );
+                    shouldRecover = typeof recover === 'function';
+                    await client.query('COMMIT');
+                } else if (
+                    row?.state === 'running'
+                    && row.writer_token
+                    && row.writer_token !== this.writerToken
+                    && typeof recover === 'function'
+                ) {
+                    const reclaimed = await client.query(
+                        `UPDATE canonical_task_operations
+                         SET writer_token = $3, updated_at = NOW()
+                         WHERE scope = $1 AND operation_key = $2
+                           AND state = 'running' AND writer_token = $4`,
+                        [scope, operationKey, this.writerToken, row.writer_token]
+                    );
+                    if (reclaimed.rowCount !== 1) {
+                        throw canonicalTaskOperationError(
+                            'canonical_task_operation_in_progress',
+                            'Canonical Task operation is already in progress',
+                            409
+                        );
+                    }
+                    shouldRecover = true;
                     await client.query('COMMIT');
                 } else {
                     throw canonicalTaskOperationError(
@@ -210,7 +234,8 @@ export class CanonicalTaskOperationRepository {
         }
 
         try {
-            const result = await run();
+            const recovery = shouldRecover ? await recover() : null;
+            const result = recovery?.recovered ? recovery.result : await run();
             await this.assertWriter();
             await this.pool.query(
                 `UPDATE canonical_task_operations
