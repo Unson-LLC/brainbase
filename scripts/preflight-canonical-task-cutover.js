@@ -86,6 +86,85 @@ async function readJsonWithBytes(filePath, label) {
   }
 }
 
+const CUTOVER_CHECKS = Object.freeze({
+  postgres: {
+    option: 'postgresCheckPath',
+    schema: 'canonical-task-postgres-check-v1',
+    kind: 'persistent_postgres',
+  },
+  nocodb: {
+    option: 'nocodbCheckPath',
+    schema: 'canonical-task-nocodb-check-v1',
+    kind: 'persistent_nocodb',
+  },
+  runtime: {
+    option: 'runtimeCheckPath',
+    schema: 'canonical-task-runtime-check-v1',
+    kind: 'brainbase_server_process',
+  },
+  mac: {
+    option: 'macCheckPath',
+    schema: 'canonical-task-mac-consumer-check-v1',
+    kind: 'mac_live_read_only_contract',
+  },
+});
+
+async function verifyCutoverCheckArtifact({ rootDir, name, checkPath, sourceHead }) {
+  const definition = CUTOVER_CHECKS[name];
+  invariant(checkPath, `before-enable requires --${name}-check`);
+  const absolutePath = path.isAbsolute(checkPath)
+    ? checkPath
+    : resolveInsideRoot(rootDir, checkPath, `${name} check path`);
+  const { bytes, value: artifact } = await readJsonWithBytes(absolutePath, `${name} check`);
+  expectField(artifact, 'artifact_schema', definition.schema);
+  expectField(artifact, 'check_kind', definition.kind);
+  expectField(artifact, 'pass', true);
+  expectField(artifact, 'source_head', sourceHead);
+  expectField(artifact, 'exit_code', 0);
+  invariant(
+    artifact.producer === 'scripts/capture-canonical-task-cutover-evidence.js',
+    `${name} check producer mismatch`,
+  );
+  invariant(typeof artifact.command === 'string' && artifact.command.length > 0, `${name} check command is required`);
+  const rawLogPath = resolveInsideRoot(rootDir, artifact.raw_log_path, `${name} raw log path`);
+  const rawLogBytes = await readFile(rawLogPath);
+  expectField(artifact, 'raw_log_hash', sha256(rawLogBytes));
+
+  if (name === 'postgres') {
+    invariant(artifact.schema_version, 'postgres check schema_version is required');
+    invariant(artifact.writer_token, 'postgres check writer_token is required');
+    invariant(artifact.required_tables?.length === 3, 'postgres check required_tables mismatch');
+  } else if (name === 'nocodb') {
+    invariant(artifact.schema_version, 'nocodb check schema_version is required');
+    invariant(artifact.table_id === 'm7iys8m7o1abr3f', 'nocodb check table_id mismatch');
+    invariant(artifact.required_columns >= 16, 'nocodb check required_columns mismatch');
+  } else if (name === 'runtime') {
+    expectField(artifact, 'runtime_kind', 'brainbase_server');
+    invariant(Number.isInteger(artifact.process?.pid) && artifact.process.pid > 0, 'runtime check process.pid is invalid');
+    invariant(Number.isInteger(artifact.process?.port) && artifact.process.port > 0, 'runtime check process.port is invalid');
+    expectField(artifact.process, 'cwd', path.resolve(rootDir));
+    expectField(artifact.process, 'source_head', sourceHead);
+    expectField(artifact.probe, 'status', 200);
+    invariant(/\/api\/companion\/tasks/.test(artifact.probe?.endpoint ?? ''), 'runtime check probe endpoint mismatch');
+  } else if (name === 'mac') {
+    expectField(artifact, 'provider_source_head', sourceHead);
+    invariant(artifact.read_only_contract?.pass === true, 'mac check read_only_contract pass mismatch');
+    invariant(artifact.read_only_contract?.exit_code === 0, 'mac check read_only_contract exit_code mismatch');
+    invariant(artifact.read_only_contract?.matched_tests >= 1, 'mac check read_only_contract matched_tests mismatch');
+    invariant(path.isAbsolute(artifact.mac_checkout ?? ''), 'mac check mac_checkout must be absolute');
+    invariant(/^[a-f0-9]{40}$/.test(artifact.mac_source_head ?? ''), 'mac check mac_source_head is invalid');
+  }
+
+  return {
+    name,
+    artifact_path: normalizeRelative(path.relative(rootDir, absolutePath)),
+    artifact_hash: sha256(bytes),
+    raw_log_path: artifact.raw_log_path,
+    raw_log_hash: artifact.raw_log_hash,
+    details: artifact,
+  };
+}
+
 export function currentGitHead(rootDir = process.cwd()) {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim();
 }
@@ -264,12 +343,12 @@ export async function buildBeforeEnableEvidence({
   evidenceOut,
   sourceHead = currentGitHead(rootDir),
   manifestPath = process.env.CANONICAL_TASK_STORE_MANIFEST ?? 'config/canonical-task-store.json',
-  schemaVersion,
-  writerToken,
+  postgresCheckPath,
+  nocodbCheckPath,
+  runtimeCheckPath,
+  macCheckPath,
 }) {
   invariant(evidenceOut, 'before-enable requires --evidence-out');
-  invariant(typeof schemaVersion === 'string' && schemaVersion.length > 0, 'before-enable requires schemaVersion');
-  invariant(typeof writerToken === 'string' && writerToken.length > 0, 'before-enable requires writerToken');
 
   const registryAbsolutePath = path.isAbsolute(registryPath)
     ? registryPath
@@ -310,6 +389,20 @@ export async function buildBeforeEnableEvidence({
     ? manifestPath
     : resolveInsideRoot(rootDir, manifestPath, 'manifest path');
   const { value: manifest } = await readJsonWithBytes(manifestAbsolutePath, 'canonical task store manifest');
+  const checkPaths = { postgresCheckPath, nocodbCheckPath, runtimeCheckPath, macCheckPath };
+  const cutoverChecks = [];
+  for (const [name, definition] of Object.entries(CUTOVER_CHECKS)) {
+    cutoverChecks.push(await verifyCutoverCheckArtifact({
+      rootDir,
+      name,
+      checkPath: checkPaths[definition.option],
+      sourceHead,
+    }));
+  }
+  const postgresCheck = cutoverChecks.find((check) => check.name === 'postgres').details;
+  const nocodbCheck = cutoverChecks.find((check) => check.name === 'nocodb').details;
+  invariant(postgresCheck.schema_version === manifest.schema_version, 'postgres schema_version does not match manifest');
+  invariant(nocodbCheck.schema_version === manifest.schema_version, 'nocodb schema_version does not match manifest');
   const output = {
     artifact_schema: 'canonical-task-cutover-evidence-v1',
     phase: 'before-enable',
@@ -319,8 +412,9 @@ export async function buildBeforeEnableEvidence({
     registry_hash: registryHash,
     manifest_path: normalizeRelative(path.relative(rootDir, manifestAbsolutePath)),
     manifest_hash: sha256(canonicalJson(manifest)),
-    schema_version: schemaVersion,
-    writer_token: writerToken,
+    schema_version: manifest.schema_version,
+    writer_token: postgresCheck.writer_token,
+    cutover_checks: cutoverChecks,
     required_evidence_ids: registry.entries.map((entry) => entry.id),
     evidence,
   };
@@ -340,8 +434,10 @@ export function parseArgs(argv) {
     else if (argument === '--evidence-out') parsed.evidenceOut = argv[++index];
     else if (argument === '--registry') parsed.registryPath = argv[++index];
     else if (argument === '--manifest') parsed.manifestPath = argv[++index];
-    else if (argument === '--schema-version') parsed.schemaVersion = argv[++index];
-    else if (argument === '--writer-token') parsed.writerToken = argv[++index];
+    else if (argument === '--postgres-check') parsed.postgresCheckPath = argv[++index];
+    else if (argument === '--nocodb-check') parsed.nocodbCheckPath = argv[++index];
+    else if (argument === '--runtime-check') parsed.runtimeCheckPath = argv[++index];
+    else if (argument === '--mac-check') parsed.macCheckPath = argv[++index];
     else throw new Error(`Unknown argument: ${argument}`);
   }
   invariant(VALID_PHASES.has(parsed.phase), '--phase must be before-migration, before-enable, or rollback');
@@ -350,11 +446,7 @@ export function parseArgs(argv) {
 
 export async function runCanonicalTaskCutoverPreflight(options) {
   if (options.phase === 'before-enable') {
-    return buildBeforeEnableEvidence({
-      ...options,
-      schemaVersion: options.schemaVersion ?? process.env.CANONICAL_TASK_SCHEMA_VERSION,
-      writerToken: options.writerToken ?? process.env.CANONICAL_TASK_WRITER_TOKEN,
-    });
+    return buildBeforeEnableEvidence(options);
   }
   if (typeof options.phaseCheck === 'function') return options.phaseCheck(options);
   return checkCanonicalTaskWriterPolicy(options);

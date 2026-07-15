@@ -25,6 +25,12 @@ describe('Canonical Task NocoDB column migration', () => {
         ] })).toThrow('missing columns');
     });
 
+    it('rejects a required column with the wrong NocoDB type', () => {
+        const columns = REQUIRED_CANONICAL_TASK_COLUMNS.map(column => ({ ...column }));
+        columns.find(column => column.title === '期限').uidt = 'SingleLineText';
+        expect(() => checkCanonicalTaskColumns({ columns })).toThrow(/期限.*DateTime/);
+    });
+
     it('creates missing columns and verifies the unique idempotency key', async () => {
         let columns = [];
         const fetchImpl = vi.fn(async (_url, options = {}) => {

@@ -42,6 +42,10 @@ export function checkCanonicalTaskColumns(metadata) {
     const byTitle = new Map(columns.map(column => [columnTitle(column), column]));
     const missing = REQUIRED_CANONICAL_TASK_COLUMNS.filter(required => !byTitle.has(required.title));
     if (missing.length) throw new Error(`Canonical Task store has missing columns: ${missing.map(column => column.title).join(', ')}`);
+    const wrongTypes = REQUIRED_CANONICAL_TASK_COLUMNS.filter(required => byTitle.get(required.title)?.uidt !== required.uidt);
+    if (wrongTypes.length) {
+        throw new Error(`Canonical Task store has invalid column types: ${wrongTypes.map(column => `${column.title} requires ${column.uidt}`).join(', ')}`);
+    }
     if (!isUnique(byTitle.get('冪等キー'))) {
         throw new Error('Canonical Task store requires a DB unique constraint on 冪等キー');
     }

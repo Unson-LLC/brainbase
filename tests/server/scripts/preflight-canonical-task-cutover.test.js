@@ -89,6 +89,7 @@ async function createEvidenceFixture(overrides = {}) {
   );
   const artifactPath = path.join(rootDir, registry.entries[0].artifact_path);
   const manifestPath = path.join(rootDir, 'config/canonical-task-store.json');
+  const cutoverDirectory = path.join(rootDir, '.vibepro/verification/canonical-task-cutover/checks');
   await Promise.all([
     mkdir(path.dirname(registryPath), { recursive: true }),
     mkdir(path.dirname(ownerPath), { recursive: true }),
@@ -96,6 +97,7 @@ async function createEvidenceFixture(overrides = {}) {
     mkdir(path.dirname(runnerResultPath), { recursive: true }),
     mkdir(path.dirname(stdoutPath), { recursive: true }),
     mkdir(path.dirname(artifactPath), { recursive: true }),
+    mkdir(cutoverDirectory, { recursive: true }),
   ]);
 
   const registryBytes = `${JSON.stringify(registry, null, 2)}\n`;
@@ -166,6 +168,54 @@ async function createEvidenceFixture(overrides = {}) {
   Object.assign(artifact, overrides.artifact);
   await writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
 
+  const writeCheck = async (name, value) => {
+    const rawLogPath = path.join(cutoverDirectory, `${name}.log`);
+    const artifactPath = path.join(cutoverDirectory, `${name}.json`);
+    const rawLog = `${name} verified\n`;
+    await writeFile(rawLogPath, rawLog);
+    const check = {
+      pass: true,
+      source_head: 'abc123',
+      exit_code: 0,
+      producer: 'scripts/capture-canonical-task-cutover-evidence.js',
+      command: `capture ${name}`,
+      raw_log_path: path.relative(rootDir, rawLogPath),
+      raw_log_hash: sha256(rawLog),
+      ...value,
+    };
+    await writeFile(artifactPath, `${JSON.stringify(check, null, 2)}\n`);
+    return artifactPath;
+  };
+  const postgresCheckPath = await writeCheck('postgres', {
+    artifact_schema: 'canonical-task-postgres-check-v1',
+    check_kind: 'persistent_postgres',
+    schema_version: '1.0.0',
+    writer_token: 'writer-token-1',
+    required_tables: ['canonical_task_writer', 'canonical_task_readiness', 'canonical_task_operations'],
+  });
+  const nocodbCheckPath = await writeCheck('nocodb', {
+    artifact_schema: 'canonical-task-nocodb-check-v1',
+    check_kind: 'persistent_nocodb',
+    schema_version: '1.0.0',
+    table_id: 'm7iys8m7o1abr3f',
+    required_columns: 16,
+  });
+  const runtimeCheckPath = await writeCheck('runtime', {
+    artifact_schema: 'canonical-task-runtime-check-v1',
+    check_kind: 'brainbase_server_process',
+    runtime_kind: 'brainbase_server',
+    process: { pid: 1234, port: 31982, cwd: rootDir, source_head: 'abc123' },
+    probe: { status: 200, endpoint: 'http://127.0.0.1:31982/api/companion/tasks?limit=1' },
+  });
+  const macCheckPath = await writeCheck('mac', {
+    artifact_schema: 'canonical-task-mac-consumer-check-v1',
+    check_kind: 'mac_live_read_only_contract',
+    provider_source_head: 'abc123',
+    mac_source_head: 'c'.repeat(40),
+    mac_checkout: '/Users/ksato/workspace/code/brainbase-mac-companion',
+    read_only_contract: { pass: true, exit_code: 0, matched_tests: 1 },
+  });
+
   return {
     rootDir,
     registry,
@@ -175,6 +225,10 @@ async function createEvidenceFixture(overrides = {}) {
     runnerResultPath,
     stdoutPath,
     artifact,
+    postgresCheckPath,
+    nocodbCheckPath,
+    runtimeCheckPath,
+    macCheckPath,
   };
 }
 
@@ -386,8 +440,10 @@ describe('before-enable evidence preflight', () => {
       evidenceOut: outputPath,
       sourceHead: 'abc123',
       manifestPath: fixture.manifestPath,
-      schemaVersion: 'schema-v1',
-      writerToken: 'writer-token-1',
+      postgresCheckPath: fixture.postgresCheckPath,
+      nocodbCheckPath: fixture.nocodbCheckPath,
+      runtimeCheckPath: fixture.runtimeCheckPath,
+      macCheckPath: fixture.macCheckPath,
     });
 
     expect(output).toMatchObject({
@@ -395,10 +451,11 @@ describe('before-enable evidence preflight', () => {
       phase: 'before-enable',
       pass: true,
       source_head: 'abc123',
-      schema_version: 'schema-v1',
+      schema_version: '1.0.0',
       writer_token: 'writer-token-1',
       required_evidence_ids: ['scenario.SC-001'],
     });
+    expect(output.cutover_checks).toHaveLength(4);
     expect(output.evidence).toHaveLength(1);
     expect(JSON.parse(await readFile(outputPath, 'utf8'))).toEqual(output);
   });
@@ -414,9 +471,35 @@ describe('before-enable evidence preflight', () => {
       evidenceOut: path.join(fixture.rootDir, 'before-enable.json'),
       sourceHead: 'abc123',
       manifestPath: fixture.manifestPath,
-      schemaVersion: 'schema-v1',
-      writerToken: 'writer-token-1',
+      postgresCheckPath: fixture.postgresCheckPath,
+      nocodbCheckPath: fixture.nocodbCheckPath,
+      runtimeCheckPath: fixture.runtimeCheckPath,
+      macCheckPath: fixture.macCheckPath,
     })).rejects.toThrow(/unregistered evidence artifact/i);
+  });
+
+  it.each([
+    ['missing Postgres check', 'postgresCheckPath', null, /postgres-check/i],
+    ['stale runtime HEAD', 'runtimeCheckPath', { source_head: 'old-head' }, /source_head/i],
+    ['in-memory runtime harness', 'runtimeCheckPath', { runtime_kind: 'in_memory_harness' }, /runtime_kind/i],
+    ['failed Mac read-only contract', 'macCheckPath', { read_only_contract: { pass: false, exit_code: 1, matched_tests: 0 } }, /read_only_contract/i],
+  ])('rejects %s', async (_name, field, mutation, expected) => {
+    const fixture = await createEvidenceFixture();
+    if (mutation) {
+      const artifact = JSON.parse(await readFile(fixture[field], 'utf8'));
+      await writeFile(fixture[field], `${JSON.stringify({ ...artifact, ...mutation }, null, 2)}\n`);
+    }
+    await expect(buildBeforeEnableEvidence({
+      rootDir: fixture.rootDir,
+      registryPath: fixture.registryPath,
+      evidenceOut: path.join(fixture.rootDir, 'before-enable.json'),
+      sourceHead: 'abc123',
+      manifestPath: fixture.manifestPath,
+      postgresCheckPath: field === 'postgresCheckPath' && mutation === null ? null : fixture.postgresCheckPath,
+      nocodbCheckPath: fixture.nocodbCheckPath,
+      runtimeCheckPath: fixture.runtimeCheckPath,
+      macCheckPath: fixture.macCheckPath,
+    })).rejects.toThrow(expected);
   });
 });
 
