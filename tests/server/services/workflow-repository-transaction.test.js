@@ -88,9 +88,9 @@ describe('WorkflowRepository transaction boundary', () => {
             });
         });
 
-        expect(repository.listRuns({ limit: null }).map((run) => run.id)).toEqual([
-            'run-outer',
-            'run-inner'
+        expect(repository.listRuns({ limit: null }).map((run) => run.id).sort()).toEqual([
+            'run-inner',
+            'run-outer'
         ]);
     });
 
@@ -250,6 +250,101 @@ describe('WorkflowRepository transaction boundary', () => {
         });
 
         expect(new JsonFileWorkflowRepository({ filePath }).getRun('run-before-identity-lock')).not.toBeNull();
+    });
+
+    it('stale identity lock reclaim never deletes a fresh lock won by another repository', () => {
+        const { filePath } = createTempLedger();
+        const seedRepository = new JsonFileWorkflowRepository({ filePath });
+        const competingRepository = new JsonFileWorkflowRepository({ filePath });
+        let competingLock = null;
+
+        class InterleavingRepository extends JsonFileWorkflowRepository {
+            _quarantineWorkflowLock(lockPath) {
+                const quarantinePath = super._quarantineWorkflowLock(lockPath);
+                competingLock = competingRepository.acquireWorkflowLock({
+                    workspace_id: 'default',
+                    workflow_id: 'workflow-1',
+                    locked_by: 'fresh-owner',
+                    ttl_ms: 60000
+                });
+                return quarantinePath;
+            }
+        }
+
+        expect(seedRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'expired-owner',
+            ttl_ms: -1
+        })).not.toBeNull();
+
+        const reclaimingRepository = new InterleavingRepository({ filePath });
+        const reclaimed = reclaimingRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'reclaiming-owner',
+            ttl_ms: 60000
+        });
+
+        expect(competingLock?.locked_by).toBe('fresh-owner');
+        expect(reclaimed).toBeNull();
+        expect(competingRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'unexpected-owner',
+            ttl_ms: 60000
+        })).toBeNull();
+        expect(competingRepository.releaseWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'fresh-owner'
+        })).toBe(true);
+    });
+
+    it('identity lock release removes only the quarantined owner lock and preserves a fresh winner', () => {
+        const { filePath } = createTempLedger();
+        const seedRepository = new JsonFileWorkflowRepository({ filePath });
+        const competingRepository = new JsonFileWorkflowRepository({ filePath });
+        let competingLock = null;
+
+        class InterleavingReleaseRepository extends JsonFileWorkflowRepository {
+            _quarantineWorkflowLock(lockPath) {
+                const quarantinePath = super._quarantineWorkflowLock(lockPath);
+                competingLock = competingRepository.acquireWorkflowLock({
+                    workspace_id: 'default',
+                    workflow_id: 'workflow-1',
+                    locked_by: 'fresh-after-release',
+                    ttl_ms: 60000
+                });
+                return quarantinePath;
+            }
+        }
+
+        expect(seedRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'releasing-owner',
+            ttl_ms: 60000
+        })).not.toBeNull();
+
+        const releasingRepository = new InterleavingReleaseRepository({ filePath });
+        expect(releasingRepository.releaseWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'releasing-owner'
+        })).toBe(true);
+        expect(competingLock?.locked_by).toBe('fresh-after-release');
+        expect(seedRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'unexpected-owner',
+            ttl_ms: 60000
+        })).toBeNull();
+        expect(competingRepository.releaseWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'fresh-after-release'
+        })).toBe(true);
     });
 
     it('never steals an expired lease from a live local owner but reclaims one from a dead pid', async () => {

@@ -47,7 +47,10 @@ function renderReceipt(item) {
     const source = item.source || {};
     const refs = Array.isArray(item.evidence_refs) ? item.evidence_refs : [];
     const metrics = formatMetrics(item.metrics);
-    const action = item.source_action || item.action_required || 'none';
+    const sourceAction = item.source_action && item.source_action !== 'none'
+        ? item.source_action
+        : null;
+    const action = sourceAction || item.action_required || 'none';
     const observationKind = item.observation_kind || 'source_run';
     const isConnectorObservation = observationKind === 'connector_observation';
     const title = isConnectorObservation

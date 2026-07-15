@@ -4,6 +4,7 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
+import { requireAuth } from '../../../server/middleware/auth.js';
 import { createRunReceiptRouter } from '../../../server/routes/run-receipts.js';
 import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
@@ -95,8 +96,69 @@ describe('run receipt routes', () => {
         expect(repository.listRuns({ limit: null })).toHaveLength(0);
     });
 
+    it('POST ingest_productionではinsecure-headerを保存前に403で拒否する', async () => {
+        const previousNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        try {
+            const { app, repository } = createApp({ authSource: 'insecure-header' });
+
+            const response = await request(app)
+                .post('/api/run-receipts/ingest')
+                .send(makeReceipt())
+                .expect(403);
+
+            expect(response.body.error).toBe('server_to_server_auth_required');
+            expect(repository.listRuns({ limit: null })).toHaveLength(0);
+        } finally {
+            if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = previousNodeEnv;
+        }
+    });
+
+    it('POST ingest_requireAuth経由のhuman JWTはBearerでもcookieでも拒否しservice tokenだけ受理する', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const ingestService = new RunReceiptIngestService({ workflowRepository: repository });
+        const workflowService = new WorkflowService({ repository, runner: {}, configParser: null });
+        const app = express();
+        app.use(express.json());
+        app.use(requireAuth({
+            verifyToken: () => ({
+                sub: 'human-operator',
+                role: 'member',
+                projectCodes: ['brainbase']
+            }),
+            verifyServiceToken: () => ({
+                sub: 'connector-service',
+                role: 'member',
+                projectCodes: ['brainbase']
+            })
+        }));
+        app.use('/api/run-receipts', createRunReceiptRouter({ ingestService, workflowService }));
+        app.use(errorHandler);
+
+        await request(app)
+            .post('/api/run-receipts/ingest')
+            .set('Authorization', 'Bearer human-jwt')
+            .send(makeReceipt({ externalRunId: 'human-bearer-run' }))
+            .expect(403);
+        await request(app)
+            .post('/api/run-receipts/ingest')
+            .set('Cookie', 'brainbase_session=human-jwt')
+            .send(makeReceipt({ externalRunId: 'human-cookie-run' }))
+            .expect(403);
+        await request(app)
+            .post('/api/run-receipts/ingest')
+            .set('Authorization', 'Bearer bbsvc_connector-token')
+            .send(makeReceipt({ externalRunId: 'service-token-run' }))
+            .expect(201);
+
+        const storedRuns = repository.listRuns({ limit: null });
+        expect(storedRuns).toHaveLength(1);
+        expect(storedRuns[0].metadata.run_receipt.source_external_run_id).toBe('service-token-run');
+    });
+
     it('POST ingest_access外projectは保存前に403で拒否する', async () => {
-        const { app, repository } = createApp({ authSource: 'bearer', projectCodes: ['brainbase'] });
+        const { app, repository } = createApp({ authSource: 'service-token', projectCodes: ['brainbase'] });
 
         const response = await request(app)
             .post('/api/run-receipts/ingest')
@@ -147,8 +209,10 @@ describe('run receipt routes', () => {
     });
 
     it('GET inboxはqueryをserviceへ渡しoperatorのproject境界を保つ', async () => {
-        const { app } = createApp({ authSource: 'bearer', projectCodes: ['brainbase'] });
-        await request(app).post('/api/run-receipts/ingest').send(makeReceipt()).expect(201);
+        const repository = new InMemoryWorkflowRepository();
+        const { app: ingestApp } = createApp({ repository, authSource: 'internal' });
+        await request(ingestApp).post('/api/run-receipts/ingest').send(makeReceipt()).expect(201);
+        const { app } = createApp({ repository, authSource: 'bearer', projectCodes: ['brainbase'] });
 
         const response = await request(app)
             .get('/api/run-receipts/inbox')

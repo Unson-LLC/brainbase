@@ -49,6 +49,7 @@
           "tests/server/services/external-runner-ingest-service.test.js",
           "tests/server/services/eve-meeting-note-reconciler.test.js",
           "tests/candidate-store/pg/pg-candidate-repository-contract.test.js",
+          "tests/candidate-store/anti/ap-3-duplicate-source-event.test.js",
           "tests/candidate-store/invariants/inv-10-unique-source-event.test.js",
           "tests/server/routes/run-receipt-routes.test.js",
           "tests/unit/csrf-run-receipt-ingest-exempt.test.js",

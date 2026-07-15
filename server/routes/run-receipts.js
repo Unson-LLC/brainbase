@@ -10,7 +10,9 @@ function normalizeProjectCode(value) {
 }
 
 function isServerToServerAuth(req) {
-    return ['internal', 'service-token', 'bearer', 'insecure-header'].includes(String(req.authSource || ''));
+    const authSource = String(req.authSource || '');
+    if (['internal', 'service-token'].includes(authSource)) return true;
+    return authSource === 'insecure-header' && process.env.NODE_ENV !== 'production';
 }
 
 function canAccessProject(req, projectId) {
@@ -41,7 +43,7 @@ export function createRunReceiptRouter({ ingestService, workflowService }) {
         if (!isServerToServerAuth(req)) {
             res.status(403).json({
                 error: 'server_to_server_auth_required',
-                message: 'run receipt ingest requires bearer, service token, or internal API authentication'
+                message: 'run receipt ingest requires service token or internal API authentication'
             });
             return;
         }

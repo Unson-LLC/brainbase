@@ -36,10 +36,10 @@ describe('renderRunReceiptInbox', () => {
                 source_status: 'blocked',
                 evidence_state: 'no_data',
                 source_action_required: true,
-                source_action: 'approve_deploy',
+                source_action: 'review_run',
                 blocker_reason: 'production approval required',
                 summary: 'Deployment is waiting',
-                evidence_refs: [{ kind: 'workflow_url', ref: 'https://example.test/run/1' }],
+                evidence_refs: [{ kind: 'log_ref', ref: 'github-actions:run/1' }],
                 metrics: { attempts: 2 },
                 effective_at: '2026-07-15T00:00:00Z'
             }],
@@ -49,10 +49,32 @@ describe('renderRunReceiptInbox', () => {
         expect(html).toContain('GitHub Actions');
         expect(html).toContain('blocked');
         expect(html).toContain('no_data');
-        expect(html).toContain('approve_deploy');
+        expect(html).toContain('review_run');
         expect(html).toContain('production approval required');
-        expect(html).toContain('workflow_url');
+        expect(html).toContain('log_ref');
         expect(html).toContain('attempts');
+    });
+
+    it('source_actionがnoneのfailed receiptは正規化済みcheck_errorを表示する', () => {
+        const html = renderRunReceiptInbox(inbox({
+            items: [{
+                id: 'failed-run',
+                project_id: 'brainbase',
+                source: { type: 'mana', workflow_id: 'daily' },
+                source_status: 'failed',
+                evidence_state: 'unconfirmed',
+                source_action_required: false,
+                source_action: 'none',
+                action_required: 'check_error',
+                blocker_reason: null,
+                evidence_refs: [],
+                metrics: {}
+            }],
+            count: 1
+        }));
+
+        expect(html).toContain('<dt>Action</dt><dd>check_error</dd>');
+        expect(html).not.toContain('<dt>Action</dt><dd>none</dd>');
     });
 
     it('connector_observationを通常runと区別する文字labelで表示する', () => {

@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 const AUTH_HEADERS = {
-  'x-brainbase-role': 'member',
-  'x-brainbase-projects': 'brainbase'
+  'x-internal-api-key': process.env.BRAINBASE_E2E_INTERNAL_API_SECRET
+    || 'brainbase-e2e-internal-api-secret'
 };
 
 function idempotencyKey(projectId: string, sourceType: string, externalRunId: string) {

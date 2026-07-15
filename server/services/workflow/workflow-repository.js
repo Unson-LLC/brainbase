@@ -605,7 +605,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         if (!this.filePath) return super.acquireWorkflowLock({ workspace_id, workflow_id, locked_by, ttl_ms });
         const lockDir = path.join(path.dirname(this.filePath), '.workflow-locks');
         fs.mkdirSync(lockDir, { recursive: true });
-        const lockPath = path.join(lockDir, `${lockKey({ workspace_id, workflow_id })}.json`);
+        const lockPath = this._workflowLockPath({ workspace_id, workflow_id });
         const now = Date.now();
         const lock = {
             workspace_id,
@@ -630,47 +630,83 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             return writeLock();
         } catch (error) {
             if (error?.code !== 'EEXIST') throw error;
-            let existing = null;
+            if (!this._acquireWorkflowLockMutation(lockPath)) return null;
+            let quarantinePath = null;
             try {
-                existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-            } catch {
-                return null;
-            }
-            if (new Date(existing.expires_at).getTime() <= now) {
+                const existing = this._readWorkflowLock(lockPath);
+                const expiresAt = new Date(existing?.expires_at).getTime();
+                if (!existing || !Number.isFinite(expiresAt) || expiresAt > Date.now()) return null;
+                quarantinePath = this._quarantineWorkflowLock(lockPath);
                 try {
-                    fs.unlinkSync(lockPath);
                     return writeLock();
                 } catch (retryError) {
                     if (retryError?.code === 'EEXIST') return null;
                     throw retryError;
                 }
+            } catch (reclaimError) {
+                if (reclaimError?.code === 'ENOENT') return null;
+                throw reclaimError;
+            } finally {
+                if (quarantinePath) fs.rmSync(quarantinePath, { force: true });
+                this._releaseWorkflowLockMutation(lockPath);
             }
-            return null;
         }
     }
 
     releaseWorkflowLock({ workspace_id, workflow_id, locked_by }) {
         if (!this.filePath) return super.releaseWorkflowLock({ workspace_id, workflow_id, locked_by });
-        const lockPath = path.join(
-            path.dirname(this.filePath),
-            '.workflow-locks',
-            `${lockKey({ workspace_id, workflow_id })}.json`
-        );
+        const lockPath = this._workflowLockPath({ workspace_id, workflow_id });
         if (!fs.existsSync(lockPath)) return false;
-        let existing = null;
+        if (!this._acquireWorkflowLockMutation(lockPath)) return false;
+        let quarantinePath = null;
         try {
-            existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-        } catch {
-            existing = null;
-        }
-        if (existing?.locked_by && existing.locked_by !== locked_by) return false;
-        try {
-            fs.unlinkSync(lockPath);
+            const existing = this._readWorkflowLock(lockPath);
+            if (!existing || existing.locked_by !== locked_by) return false;
+            quarantinePath = this._quarantineWorkflowLock(lockPath);
             return true;
         } catch (error) {
             if (error?.code === 'ENOENT') return false;
             throw error;
+        } finally {
+            if (quarantinePath) fs.rmSync(quarantinePath, { force: true });
+            this._releaseWorkflowLockMutation(lockPath);
         }
+    }
+
+    _workflowLockPath({ workspace_id, workflow_id }) {
+        return path.join(
+            path.dirname(this.filePath),
+            '.workflow-locks',
+            `${lockKey({ workspace_id, workflow_id })}.json`
+        );
+    }
+
+    _readWorkflowLock(lockPath) {
+        try {
+            return JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+        } catch {
+            return null;
+        }
+    }
+
+    _acquireWorkflowLockMutation(lockPath) {
+        try {
+            fs.mkdirSync(`${lockPath}.mutation`);
+            return true;
+        } catch (error) {
+            if (error?.code === 'EEXIST') return false;
+            throw error;
+        }
+    }
+
+    _releaseWorkflowLockMutation(lockPath) {
+        fs.rmSync(`${lockPath}.mutation`, { recursive: true, force: true });
+    }
+
+    _quarantineWorkflowLock(lockPath) {
+        const quarantinePath = `${lockPath}.stale-${crypto.randomUUID()}`;
+        fs.renameSync(lockPath, quarantinePath);
+        return quarantinePath;
     }
 
     _initializeSeedWorkflows(seedWorkflows) {
