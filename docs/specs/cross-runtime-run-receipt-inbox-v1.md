@@ -79,6 +79,7 @@
 - S-014 `operator surface`: Workflow Mission Control UI renders source status, uncertainty warning, blocker/action, evidence refs and composed filters in the same order as the API.
 - S-015 `shared ledger regression`: receipt workflows remain in the shared repository but are excluded from `GET /api/workflows` and the existing Operational Inbox, so a receipt appears exactly once in Agent Run Inbox. In a receipt + non-receipt mixed fixture, non-receipt membership, priority, and rendering remain unchanged.
 - S-016 `receipt surface failure isolation`: timeout, network failure, or 5xx from `GET /api/run-receipts/inbox` leaves the existing Workflow page and Operational Inbox usable, renders an explicit unavailable warning only in Agent Run Inbox, and never reports that failure as empty items or zero receipts.
+- S-017 `latest run selection`: receipt history is collapsed by `(project_id, source.type, source.workflow_id)` before filters, priority, count, and limit. Selection uses greatest `finished_at || started_at || created_at`, then greatest persisted `created_at`, then lexicographically greatest deterministic run id. An old blocked run followed by a new success yields only the success; a blocked-status filter does not resurrect the old run; different workflow identities remain independently visible.
 
 ## API
 
@@ -90,13 +91,14 @@
 - `GET /api/run-receipts/inbox`
   - filters: `project_id`, `source_type`, `run_status`, `evidence_state`, `limit`
   - response: `{ items, count, has_more, omitted_count }`
+  - selection/pagination: collapse to the latest run per workflow identity, then apply all filters and priority; `count` is the matching collapsed total before `limit`, `has_more = count > items.length`, and `omitted_count = count - items.length`
   - repository/service failures return an explicit non-2xx error; they are not converted to a successful empty response
 
 ## Verification
 
 - AC1/AC4/AC6/AC8: `tests/server/services/run-receipt-contract.test.js` rejects pre-fix invalid status/evidence, raw-key bypasses, oversized text, nested metrics, and delivery/status conflation.
 - AC2/AC3/AC9: `tests/server/services/run-receipt-ingest-service.test.js` proves tuple hashing, cross-project/source separation, delivery-only and reordered-field duplicate no-op, conflict rollback, concurrent one-create/many-duplicate behavior, lock timeout rollback, source status preservation, workflow collision guard, and required transaction/lock capability.
-- AC4/AC5: `tests/server/services/run-receipt-inbox.test.js` uses fixtures for all six reachable priority buckets, composed filters, connector observation, omitted count, and uncertainty preservation.
+- AC4/AC5/AC13: `tests/server/services/run-receipt-inbox.test.js` uses fixtures for all six reachable priority buckets, composed filters, connector observation, omitted count, uncertainty preservation, and latest-run collapse. Pre-fix fixtures prove old blocked + new success returns only the success, blocked filtering does not resurrect old history, a separate workflow remains visible, equal timestamps use the persisted-created-at/run-id tie-break, and count/has_more/omitted_count are computed after collapse and filters.
 - AC7/AC10: `tests/server/routes/run-receipt-routes.test.js` and `tests/unit/csrf-run-receipt-ingest-exempt.test.js` prove the pre-fix production behavior first (POST/PUT/PATCH/DELETE on the ingest path are all `403`), then prove the implementation changes only the exact `POST /api/run-receipts/ingest` predicate so it reaches route auth while same-path PUT/PATCH/DELETE and near-match POST paths such as `/api/run-receipts/ingest/extra` and `/api/run-receipts/ingest-legacy` remain `403`; they also prove POST server-to-server/project denial, cookie/session-only rejection, GET operator/project-scope behavior, and unchanged existing exemptions. This fixture must fail any prefix-based exemption such as `startsWith('/api/run-receipts/ingest')`.
 - AC5/AC11: `tests/ui/run-receipt-inbox.test.js` and workflow service/route tests use a receipt + non-receipt mixed fixture to prove visible no_data/unconfirmed warnings, source/status/evidence filters, evidence links, API ordering, exactly-once receipt rendering, exclusion from `GET /api/workflows` and Operational Inbox, and unchanged non-receipt priority/rendering.
 - AC12/S-016: `tests/ui/run-receipt-inbox.test.js` injects timeout, network, and 5xx receipt-API failures and proves the existing Workflow page/Operational Inbox stays rendered while only Agent Run Inbox shows unavailable; route tests prove repository/service errors are explicit non-2xx responses and never `{ items: [], count: 0 }` success.

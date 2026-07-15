@@ -24,7 +24,7 @@ flowchart LR;
 | `RunReceiptAdapter` | `run_receipt.v1` validation resultをWMC workflow/run/audit shapeへ決定的に変換する。 |
 | `RunReceiptIngestService` | receipt lock、idempotency、conflict検知、project整合性、transactional writeを所有する。 |
 | `createRunReceiptRouter` | POSTのserver-to-server auth、GETのoperator auth、project access、ingest/list query boundaryを所有する。 |
-| `WorkflowService.listRunReceiptInbox` | WMC runからreceiptだけを抽出し、priorityとfilterを適用する。 |
+| `WorkflowService.listRunReceiptInbox` | WMC runからreceiptだけを抽出し、source workflowごとの最新runへ畳み込んだ後にfilter、priority、paginationを適用する。 |
 | Workflow Mission Control UI | receipt専用Inbox sectionを表示し、APIと同じfilter・priority・uncertainty semanticsを使う。 |
 | Source connector | source API/scheduler、outbox、retry、raw evidenceの保管を所有する。 |
 
@@ -60,6 +60,13 @@ Priority is deterministic and lower numeric values are more urgent:
 Within the same priority, newest `finished_at || started_at || created_at` comes first.
 
 Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are stored separately from `source_action_required`; they do not by themselves promote an item to priority 1. This keeps every priority bucket reachable. Existing non-receipt WMC priority remains unchanged.
+
+## Latest Run Selection
+
+- Inbox history is collapsed by the canonical workflow identity `(project_id, source.type, source.workflow_id)`. The ledger keeps every receipt run, but `GET /api/run-receipts/inbox` exposes exactly one latest run per identity.
+- The selected run is the greatest by effective timestamp `finished_at || started_at || created_at`. Equal effective timestamps are resolved by greatest persisted `created_at`, then lexicographically greatest deterministic `workflow_runs.id`, so selection is stable.
+- Collapse happens before every query filter, urgency priority, `count`, and `limit`. Therefore an older blocked/failed run cannot survive a newer success, and filtering for `blocked` does not resurrect stale history.
+- After collapse and filters, `count` is the full matching identity count before `limit`; `items` contains the first `limit` rows; `has_more = count > items.length`; `omitted_count = count - items.length`.
 
 ## Surface Isolation
 

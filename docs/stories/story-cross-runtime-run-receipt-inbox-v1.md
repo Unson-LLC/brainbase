@@ -49,6 +49,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:10 production CSRF middlewareは `POST /api/run-receipts/ingest` だけをbrowser CSRF対象外にし、route側でserver-to-server credentialを必須化する。cookie/session-only POSTは拒否し、既存exemptionは変えない。
 - [ ] ac:11 receipt workflowは共有WMC台帳へ保存しても既存Operational Inboxと `GET /api/workflows` から除外し、Agent Run Inboxだけに1回表示する。receipt＋非receipt混在時も非receiptの既存priorityは変えない。
 - [ ] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
+- [ ] ac:13 Agent Run Inboxは `(project_id, source.type, source.workflow_id)` ごとに最新receipt runだけを表示する。古いblocked/failed履歴は台帳に保持するが、後続の新しいrunがある場合はInboxへ残さない。最新run選択後にfilter、priority、count、limitを適用する。
 
 ## Workflow State Scenarios
 
@@ -69,6 +70,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `source_unavailable`: connectorがsourceへ接続できずsource run identityも得られない場合は、connector自身の観測試行を `observation_kind=connector_observation`、synthetic external run identity、`blocked + no_data|unconfirmed` として表現する。source runを失敗扱いに偽装しない。
 - `delivery_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。
 - `receipt_inbox_failure`: receipt一覧APIの取得失敗はAgent Run Inboxだけにwarningを表示し、既存workflow一覧の取得・描画を巻き込まない。取得不能を0件と表示しない。
+- `stale_receipt_history`: 同一source workflowの古いblocked/failed runは履歴として台帳に残すが、新しいrunより上位のInbox itemとして再表示しない。
 
 ## 非目標
 
@@ -82,4 +84,5 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - 正本の利用面はWorkflow Mission Control内のAgent Run Inboxと `GET /api/run-receipts/inbox` とする。
 - `no_data` と `unconfirmed` は成功色や0件表示へ混ぜず、warning badgeと根拠不足の説明を必ず表示する。
 - `omitted_count` は現在のfilterには一致するが `limit` により返却されなかったreceipt数であり、source未確認数ではない。
+- Agent Run Inboxはworkflow identityごとに最新runへ畳み込んだ後でfilterとpriorityを適用する。`count` は畳み込み後かつfilter一致後、limit適用前の件数であり、`has_more = count > items.length`、`omitted_count = count - items.length` とする。
 - 既存の非receipt workflow一覧・承認Inboxのpriorityは変更しない。receipt workflowは `GET /api/workflows` と既存Operational Inboxへ混入させず、receiptのpriorityはreceipt専用APIとUI sectionで一元化する。
