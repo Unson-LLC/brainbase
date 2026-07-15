@@ -80,7 +80,8 @@ const scenarioSuites: Record<number, string[]> = {
   36: manaSuites, 37: manaSuites, 38: legacyBrowserSuites, 39: coreApiSuites,
   41: [...coreApiSuites, ...cutoverSuites], 42: manaSuites,
   43: legacyBrowserSuites, 44: legacyBrowserSuites, 45: coreApiSuites,
-  46: cutoverSuites, 47: manaSuites,
+  46: cutoverSuites,
+  47: [...manaSuites, 'tests/server/services/canonical-task-service.test.js'],
 };
 
 const surfaceSuites: Record<string, string[]> = {
