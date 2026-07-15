@@ -320,6 +320,7 @@ const {
     workflowService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler,
     uploadMiddleware
 } = createCoreServices({
@@ -448,6 +449,7 @@ registerApiRoutes(app, {
     workflowService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler,
     uploadMiddleware,
     appVersion: APP_VERSION,

@@ -1,6 +1,6 @@
 ---
 story_id: story-cross-runtime-run-receipt-inbox-v1
-title: Cross-runtime run receipt inbox v1
+title: Cross-runtime run receipt common control plane v1
 status: completed
 created_at: 2026-07-15
 updated_at: 2026-07-15
@@ -12,14 +12,9 @@ architecture_docs:
   - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
 spec_docs:
   - docs/specs/cross-runtime-run-receipt-inbox-v1.md
-related_stories:
-  - story-mana-run-receipt-production-connector-v1
-  - story-codex-automations-run-receipt-production-connector-v1
-  - story-github-actions-run-receipt-production-connector-v1
-  - story-salestailor-run-receipt-production-connector-v1
 ---
 
-# Cross-runtime run receipt inbox v1
+# Cross-runtime run receipt common control plane v1
 
 ## 背景
 
@@ -35,10 +30,10 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 - 対象ユーザー: 複数runtimeの自動実行を監督するBrainbase operator。
 - 課題: sourceごとの画面やログを巡回しないと、停止中のrunと証拠未取得runを区別できない。
-- 成功状態: 4ソースの最終runを1つのInboxで優先順に確認し、blocked、failed、waiting human、unconfirmed、no dataへ到達できる。
-- 主要KPI: sourceごとの手動巡回をせずに、要介入runの100%がAgent Run Inboxの上位に現れる。
+- 成功状態: 4ソース共通のreceiptを検証・冪等保存でき、届いた最終runを1つのInboxで優先順に確認し、blocked、failed、waiting human、unconfirmed、no dataへ到達できる。
+- 主要KPI: 共通契約へ到達した要介入runの100%がAgent Run Inboxの上位に現れ、receiptが既存Operational Inboxへ重複表示されない。
 - 運用指標: `blocked|failed|waiting_human` のreceiptについて、actionまたはblocker理由の欠落を0件に保つ。
-- 優先度: 4 connector Storyの前提となる共通契約なので最優先。
+- 優先度: source固有connectorの前提となる共通契約・台帳・operator surfaceなので最優先。
 
 ## Acceptance Criteria
 
@@ -61,7 +56,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 ## Verification Evidence
 
 - Unit / integration: run receipt contract、ingest、shared ledger transaction、Inbox API、UI client/service/viewを含むfocused regressionが全件pass。
-- Browser E2E: desktop/mobileでAgent Run Inboxの表示、filter、source evidence、failure boundary、Operational Inboxの維持を確認。
+- Browser E2E: tracked Playwrightで実server-to-server ingest、実Inbox API、latest-run collapse、priority、filter、failure boundary、Operational Inboxの維持を確認。desktop/mobile visual evidenceもcurrent HEADで確認。
 - Failure semantics: API 503時も既存receipt snapshotを保持し、取得不能を0件へ丸めないことを確認。
 
 ## Workflow State Scenarios
@@ -92,7 +87,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 ## 非目標
 
-- 4ソース固有のAPI接続・schedule・outbox実装は各connector Storyで扱う。
+- 4ソース固有のAPI接続・schedule・outbox実装と、本番runを使ったsource別canaryは後続の各connector Storyで扱う。本Storyのcompletedは共通control-plane基盤の完成を意味し、4ソース本接続の完了を意味しない。
 - Eve向け `external_runner.v0` を置き換えない。
 - raw logs、顧客返信、transcriptをBrainbaseへ複製しない。
 - receiptからGraph SSOTへ自動学習・自動昇格しない。
