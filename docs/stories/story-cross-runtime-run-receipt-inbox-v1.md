@@ -1,7 +1,7 @@
 ---
 story_id: story-cross-runtime-run-receipt-inbox-v1
 title: Cross-runtime run receipt inbox v1
-status: active
+status: completed
 created_at: 2026-07-15
 updated_at: 2026-07-15
 horizon: quarter
@@ -42,21 +42,27 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 ## Acceptance Criteria
 
-- [ ] ac:1 `run_receipt.v1` はsource、project、workflow、external run identity、run status、evidence stateを必須検証し、不正なreceiptを保存前に拒否する。
-- [ ] ac:2 同じ `project_id + source.type + external_run_id` の再送は既存runを返すduplicateとなり、別projectまたは別sourceの同じexternal run idは別runとして保存される。
-- [ ] ac:3 receiptはWorkflow Mission Controlのworkflow runへ投影され、sourceの `run_status` と `evidence_state` を失わない。
-- [ ] ac:4 `success`、`failed`、`blocked`、`waiting_human`、`cancelled` を区別し、`unconfirmed` と `no_data` を成功または0件へ潰さない。
-- [ ] ac:5 Workflow Mission ControlのAgent Run Inbox画面はreceiptのsource status、evidence state、action、blocker、evidence referenceを表示し、source/project/status/evidence stateで絞り込める。APIと画面は同じ決定的な優先順位を使う。filterはlabel付きでkeyboard操作でき、focusを可視化し、loading/unavailable warningは名前付きstatus regionで通知し、badgeの意味を色だけに依存させない。
-- [ ] ac:6 raw logや顧客本文は複製せず、証跡はsource-owned URLまたはartifact referenceとして保存する。
-- [ ] ac:7 ingest認証はserver-to-server credentialを要求し、認証主体がアクセスできないprojectへのreceiptを拒否する。
-- [ ] ac:8 receipt deliveryの成否とsource runの成否を別フィールドとして扱い、delivery成功をrun成功と解釈しない。
-- [ ] ac:9 同一identityの同時ingestはreceipt lockで直列化し、1件だけをcreate、残りをduplicateとして返す。lock取得不能時は部分保存せず明示的に失敗する。
-- [ ] ac:10 production CSRF middlewareは `POST /api/run-receipts/ingest` だけをbrowser CSRF対象外にし、route側でserver-to-server credentialを必須化する。cookie/session-only POSTは拒否し、既存exemptionは変えない。
-- [ ] ac:11 receipt workflowは共有WMC台帳へ保存しても既存Operational Inboxと `GET /api/workflows` から除外し、Agent Run Inboxだけに1回表示する。receipt＋非receipt混在時も非receiptの既存priorityは変えない。
-- [ ] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
-- [ ] ac:13 Agent Run Inboxは `(project_id, source.type, source.workflow_id)` ごとに最新receipt runだけを表示する。古いblocked/failed履歴は台帳に保持するが、後続の新しいrunがある場合はInboxへ残さない。最新run選択後にfilter、priority、count、limitを適用する。
-- [ ] ac:14 Inboxの全件順序はpriority、UTC instantへ正規化したeffective timestamp、persisted `created_at`、決定的run idでtotal orderにし、同値時もlimit/pagination結果を安定させる。UI取得・状態更新・通知はRun Receipt専用client/service、Reactive Store、EventBusへ分離し、`public/workflows.html` は購読と描画だけを担う。
-- [ ] ac:15 JSON台帳への異なるreceipt identityの同時ingest、receiptと既存writerの競合、失敗transactionのrollbackをrepository-wide write transactionで直列化し、どのwriterのworkflow/run/step/auditも失わない。receipt identity lockを先に、shared-ledger transaction lockを後に取得する順序を固定する。同じasync transaction ownerによるnested transactionは外側へjoinしてqueue/file leaseを再取得せず、外側だけがcommit/rollbackする。JsonFile本番のshared-ledger collection mutatorはtransaction外writeを拒否する。identity lock/lease metadataは台帳外の別control-plane stateとして同期し、lock操作は台帳reloadを行わない。startup seedは同じlease/ownerの初期化transaction、WorkflowService、WorkflowRunner、external_runnerを含む全production writerは短いtransaction境界、Candidate Store等の外部I/Oはlease外へ移す。external_runner candidateはcontract/workspace/org/project/runner/run/source candidateからglobal idを派生し、project/run scope markerと元source candidate idを `source_event_ids` に残す。Candidate Repositoryは同一primary idをdedupe keyに関係なく上書き前に拒否する。store済み未確定の再試行はfindById同値時だけ採用、相違時はactionable conflict、pending再開ではduplicate auditなし、全収束後だけ既存duplicate auditを維持する。
+- [x] ac:1 `run_receipt.v1` はsource、project、workflow、external run identity、run status、evidence stateを必須検証し、不正なreceiptを保存前に拒否する。
+- [x] ac:2 同じ `project_id + source.type + external_run_id` の再送は既存runを返すduplicateとなり、別projectまたは別sourceの同じexternal run idは別runとして保存される。
+- [x] ac:3 receiptはWorkflow Mission Controlのworkflow runへ投影され、sourceの `run_status` と `evidence_state` を失わない。
+- [x] ac:4 `success`、`failed`、`blocked`、`waiting_human`、`cancelled` を区別し、`unconfirmed` と `no_data` を成功または0件へ潰さない。
+- [x] ac:5 Workflow Mission ControlのAgent Run Inbox画面はreceiptのsource status、evidence state、action、blocker、evidence referenceを表示し、source/project/status/evidence stateで絞り込める。APIと画面は同じ決定的な優先順位を使う。filterはlabel付きでkeyboard操作でき、focusを可視化し、loading/unavailable warningは名前付きstatus regionで通知し、badgeの意味を色だけに依存させない。
+- [x] ac:6 raw logや顧客本文は複製せず、証跡はsource-owned URLまたはartifact referenceとして保存する。
+- [x] ac:7 ingest認証はserver-to-server credentialを要求し、認証主体がアクセスできないprojectへのreceiptを拒否する。
+- [x] ac:8 receipt deliveryの成否とsource runの成否を別フィールドとして扱い、delivery成功をrun成功と解釈しない。
+- [x] ac:9 同一identityの同時ingestはreceipt lockで直列化し、1件だけをcreate、残りをduplicateとして返す。lock取得不能時は部分保存せず明示的に失敗する。
+- [x] ac:10 production CSRF middlewareは `POST /api/run-receipts/ingest` だけをbrowser CSRF対象外にし、route側でserver-to-server credentialを必須化する。cookie/session-only POSTは拒否し、既存exemptionは変えない。
+- [x] ac:11 receipt workflowは共有WMC台帳へ保存しても既存Operational Inboxと `GET /api/workflows` から除外し、Agent Run Inboxだけに1回表示する。receipt＋非receipt混在時も非receiptの既存priorityは変えない。
+- [x] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
+- [x] ac:13 Agent Run Inboxは `(project_id, source.type, source.workflow_id)` ごとに最新receipt runだけを表示する。古いblocked/failed履歴は台帳に保持するが、後続の新しいrunがある場合はInboxへ残さない。最新run選択後にfilter、priority、count、limitを適用する。
+- [x] ac:14 Inboxの全件順序はpriority、UTC instantへ正規化したeffective timestamp、persisted `created_at`、決定的run idでtotal orderにし、同値時もlimit/pagination結果を安定させる。UI取得・状態更新・通知はRun Receipt専用client/service、Reactive Store、EventBusへ分離し、`public/workflows.html` は購読と描画だけを担う。
+- [x] ac:15 JSON台帳への異なるreceipt identityの同時ingest、receiptと既存writerの競合、失敗transactionのrollbackをrepository-wide write transactionで直列化し、どのwriterのworkflow/run/step/auditも失わない。receipt identity lockを先に、shared-ledger transaction lockを後に取得する順序を固定する。同じasync transaction ownerによるnested transactionは外側へjoinしてqueue/file leaseを再取得せず、外側だけがcommit/rollbackする。JsonFile本番のshared-ledger collection mutatorはtransaction外writeを拒否する。identity lock/lease metadataは台帳外の別control-plane stateとして同期し、lock操作は台帳reloadを行わない。startup seedは同じlease/ownerの初期化transaction、WorkflowService、WorkflowRunner、external_runnerを含む全production writerは短いtransaction境界、Candidate Store等の外部I/Oはlease外へ移す。external_runner candidateはcontract/workspace/org/project/runner/run/source candidateからglobal idを派生し、project/run scope markerと元source candidate idを `source_event_ids` に残す。Candidate Repositoryは同一primary idをdedupe keyに関係なく上書き前に拒否する。store済み未確定の再試行はfindById同値時だけ採用、相違時はactionable conflict、pending再開ではduplicate auditなし、全収束後だけ既存duplicate auditを維持する。
+
+## Verification Evidence
+
+- Unit / integration: run receipt contract、ingest、shared ledger transaction、Inbox API、UI client/service/viewを含むfocused regressionが全件pass。
+- Browser E2E: desktop/mobileでAgent Run Inboxの表示、filter、source evidence、failure boundary、Operational Inboxの維持を確認。
+- Failure semantics: API 503時も既存receipt snapshotを保持し、取得不能を0件へ丸めないことを確認。
 
 ## Workflow State Scenarios
 
