@@ -560,6 +560,9 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         this.leaseRetryMs = leaseRetryMs;
         this.leaseTtlMs = leaseTtlMs;
         this.transactionLeasePath = filePath ? `${filePath}.transaction-lock.json` : null;
+        this.transactionLeaseReclaimPath = this.transactionLeasePath
+            ? `${this.transactionLeasePath}.reclaim`
+            : null;
         this.ledger = readLedgerFile(filePath);
         this._requireTransactionForMutations = Boolean(filePath);
         this._initializeSeedWorkflows(seedWorkflows);
@@ -744,48 +747,77 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             acquired_at: new Date(now).toISOString(),
             expires_at: new Date(now + this.leaseTtlMs).toISOString()
         };
-        const fd = fs.openSync(this.transactionLeasePath, 'wx');
+        fs.mkdirSync(this.transactionLeasePath);
         try {
-            fs.writeFileSync(fd, `${JSON.stringify(lease, null, 2)}\n`);
-        } finally {
-            fs.closeSync(fd);
+            fs.writeFileSync(this._transactionLeaseMetadataPath(), `${JSON.stringify(lease, null, 2)}\n`);
+        } catch (error) {
+            fs.rmSync(this.transactionLeasePath, { recursive: true, force: true });
+            throw error;
         }
         return lease;
     }
 
     _reclaimStaleTransactionLease() {
-        let existing;
+        if (!this._acquireTransactionLeaseReclaimLock()) return false;
         try {
-            existing = JSON.parse(fs.readFileSync(this.transactionLeasePath, 'utf8'));
-        } catch {
-            return false;
-        }
-        const expired = new Date(existing.expires_at).getTime() <= Date.now();
-        if (!expired || isLocalProcessAlive(existing.pid)) return false;
-        try {
-            fs.unlinkSync(this.transactionLeasePath);
+            const existing = this._readTransactionLease();
+            const expired = new Date(existing?.expires_at).getTime() <= Date.now();
+            if (!existing || !expired || isLocalProcessAlive(existing.pid)) return false;
+
+            const quarantinePath = `${this.transactionLeasePath}.stale-${crypto.randomUUID()}`;
+            try {
+                fs.renameSync(this.transactionLeasePath, quarantinePath);
+            } catch (error) {
+                if (error?.code === 'ENOENT') return true;
+                throw error;
+            }
+            fs.rmSync(quarantinePath, { recursive: true, force: true });
             return true;
-        } catch (error) {
-            if (error?.code === 'ENOENT') return true;
-            throw error;
+        } finally {
+            this._releaseTransactionLeaseReclaimLock();
         }
     }
 
     _releaseTransactionLease(ownerId) {
         if (!this.transactionLeasePath || !fs.existsSync(this.transactionLeasePath)) return false;
-        let existing;
+        const existing = this._readTransactionLease();
+        if (existing?.owner_id !== ownerId) return false;
         try {
-            existing = JSON.parse(fs.readFileSync(this.transactionLeasePath, 'utf8'));
-        } catch {
-            return false;
-        }
-        if (existing.owner_id !== ownerId) return false;
-        try {
-            fs.unlinkSync(this.transactionLeasePath);
+            fs.rmSync(this.transactionLeasePath, { recursive: true });
             return true;
         } catch (error) {
             if (error?.code === 'ENOENT') return false;
             throw error;
         }
+    }
+
+    _transactionLeaseMetadataPath() {
+        return path.join(this.transactionLeasePath, 'lease.json');
+    }
+
+    _readTransactionLease() {
+        try {
+            const stat = fs.statSync(this.transactionLeasePath);
+            const metadataPath = stat.isDirectory()
+                ? this._transactionLeaseMetadataPath()
+                : this.transactionLeasePath;
+            return JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+        } catch {
+            return null;
+        }
+    }
+
+    _acquireTransactionLeaseReclaimLock() {
+        try {
+            fs.mkdirSync(this.transactionLeaseReclaimPath);
+            return true;
+        } catch (error) {
+            if (error?.code === 'EEXIST') return false;
+            throw error;
+        }
+    }
+
+    _releaseTransactionLeaseReclaimLock() {
+        fs.rmSync(this.transactionLeaseReclaimPath, { recursive: true, force: true });
     }
 }

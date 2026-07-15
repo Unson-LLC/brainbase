@@ -94,39 +94,41 @@ export class WorkflowRunner {
             ttl_ms: lockTtlMs
         });
         if (lock === null) {
-            const skipped = this.repository.createRun({
-                id: runId,
-                workspace_id: workspaceId,
-                project_id: projectId,
-                workflow_id: workflow.id,
-                workflow_name: workflow.name,
-                status: 'skipped',
-                closure_state: 'closed',
-                trigger_type: options.triggerType || 'manual',
-                env: options.env || workflow.execution_env || 'local',
-                dry_run: Boolean(options.dryRun),
-                started_by: options.actorId || 'system',
-                owner_id: workflow.owner_id,
-                assignee_id: workflow.default_assignee_id || workflow.owner_id,
-                approver_id: workflow.default_approver_id || workflow.owner_id,
-                action_required: 'rerun',
-                human_waiting: false,
-                parent_run_id: options.parentRunId || null,
-                message: `Workflow '${workflow.id}' is already running`,
-                started_at: startedAt,
-                finished_at: nowIso(),
-                duration_ms: 0
+            return this._transaction(() => {
+                const skipped = this.repository.createRun({
+                    id: runId,
+                    workspace_id: workspaceId,
+                    project_id: projectId,
+                    workflow_id: workflow.id,
+                    workflow_name: workflow.name,
+                    status: 'skipped',
+                    closure_state: 'closed',
+                    trigger_type: options.triggerType || 'manual',
+                    env: options.env || workflow.execution_env || 'local',
+                    dry_run: Boolean(options.dryRun),
+                    started_by: options.actorId || 'system',
+                    owner_id: workflow.owner_id,
+                    assignee_id: workflow.default_assignee_id || workflow.owner_id,
+                    approver_id: workflow.default_approver_id || workflow.owner_id,
+                    action_required: 'rerun',
+                    human_waiting: false,
+                    parent_run_id: options.parentRunId || null,
+                    message: `Workflow '${workflow.id}' is already running`,
+                    started_at: startedAt,
+                    finished_at: nowIso(),
+                    duration_ms: 0
+                });
+                this.repository.writeAuditLog({
+                    workspace_id: workspaceId,
+                    project_id: projectId,
+                    actor_id: options.actorId || 'system',
+                    action: 'workflow.run.skipped_locked',
+                    target_type: 'workflow_run',
+                    target_id: skipped.id,
+                    after: { workflow_id: workflow.id }
+                });
+                return { run: skipped, result: { status: 'skipped', message: skipped.message } };
             });
-            this.repository.writeAuditLog({
-                workspace_id: workspaceId,
-                project_id: projectId,
-                actor_id: options.actorId || 'system',
-                action: 'workflow.run.skipped_locked',
-                target_type: 'workflow_run',
-                target_id: skipped.id,
-                after: { workflow_id: workflow.id }
-            });
-            return { run: skipped, result: { status: 'skipped', message: skipped.message } };
         }
         const contextResolution = this._resolveContext(workflow, {
             workspaceId,
@@ -134,73 +136,89 @@ export class WorkflowRunner {
             runId
         });
 
-        let run = this.repository.createRun({
-            id: runId,
-            workspace_id: workspaceId,
-            project_id: projectId,
-            workflow_id: workflow.id,
-            workflow_name: workflow.name,
-            status: 'running',
-            closure_state: 'open',
-            trigger_type: options.triggerType || 'manual',
-            env: options.env || workflow.execution_env || 'local',
-            dry_run: Boolean(options.dryRun),
-            started_by: options.actorId || 'system',
-            owner_id: workflow.owner_id,
-            assignee_id: workflow.default_assignee_id || workflow.owner_id,
-            approver_id: workflow.default_approver_id || workflow.owner_id,
-            action_required: 'none',
-            human_waiting: false,
-            parent_run_id: options.parentRunId || null,
-            started_at: startedAt
-        });
+        let run;
         let shouldReleaseLock = true;
-        const mainStep = this.repository.createRunStep({
-            id: `step_${crypto.randomUUID()}`,
-            workspace_id: run.workspace_id,
-            project_id: run.project_id,
-            workflow_run_id: run.id,
-            step_key: options.humanStepResolution ? 'human_resume' : 'run',
-            step_name: options.humanStepResolution ? 'Human resume' : 'Run workflow',
-            status: 'running',
-            action_required: 'none',
-            started_at: startedAt
-        });
-
-        for (const snapshot of contextResolution.snapshots) {
-            this.repository.createContextSnapshot({
-                id: `ctx_${crypto.randomUUID()}`,
-                workspace_id: run.workspace_id,
-                project_id: run.project_id,
-                workflow_run_id: run.id,
-                ...snapshot
+        let mainStep;
+        try {
+            ({ run, mainStep } = await this._transaction(() => {
+                const createdRun = this.repository.createRun({
+                    id: runId,
+                    workspace_id: workspaceId,
+                    project_id: projectId,
+                    workflow_id: workflow.id,
+                    workflow_name: workflow.name,
+                    status: 'running',
+                    closure_state: 'open',
+                    trigger_type: options.triggerType || 'manual',
+                    env: options.env || workflow.execution_env || 'local',
+                    dry_run: Boolean(options.dryRun),
+                    started_by: options.actorId || 'system',
+                    owner_id: workflow.owner_id,
+                    assignee_id: workflow.default_assignee_id || workflow.owner_id,
+                    approver_id: workflow.default_approver_id || workflow.owner_id,
+                    action_required: 'none',
+                    human_waiting: false,
+                    parent_run_id: options.parentRunId || null,
+                    started_at: startedAt
+                });
+                const createdStep = this.repository.createRunStep({
+                    id: `step_${crypto.randomUUID()}`,
+                    workspace_id: createdRun.workspace_id,
+                    project_id: createdRun.project_id,
+                    workflow_run_id: createdRun.id,
+                    step_key: options.humanStepResolution ? 'human_resume' : 'run',
+                    step_name: options.humanStepResolution ? 'Human resume' : 'Run workflow',
+                    status: 'running',
+                    action_required: 'none',
+                    started_at: startedAt
+                });
+                for (const snapshot of contextResolution.snapshots) {
+                    this.repository.createContextSnapshot({
+                        id: `ctx_${crypto.randomUUID()}`,
+                        workspace_id: createdRun.workspace_id,
+                        project_id: createdRun.project_id,
+                        workflow_run_id: createdRun.id,
+                        ...snapshot
+                    });
+                }
+                return { run: createdRun, mainStep: createdStep };
+            }));
+        } catch (error) {
+            this.repository.releaseWorkflowLock?.({
+                workspace_id: workspaceId,
+                workflow_id: workflow.id,
+                locked_by: runId
             });
+            throw error;
         }
 
         if (contextResolution.missingRequired.length > 0) {
             const message = `Required context missing: ${contextResolution.missingRequired.map((item) => item.source_ref || item.source_type).join(', ')}`;
-            run = this.repository.updateRun(run.id, {
-                status: 'needs_action',
-                closure_state: 'needs_action',
-                finished_at: nowIso(),
-                duration_ms: Date.now() - new Date(startedAt).getTime(),
-                action_required: 'update_input',
-                message
-            });
-            this.repository.updateRunStep(mainStep.id, {
-                status: 'needs_action',
-                action_required: 'update_input',
-                message,
-                finished_at: nowIso()
-            });
-            this.repository.writeAuditLog({
-                workspace_id: run.workspace_id,
-                project_id: run.project_id,
-                actor_id: options.actorId || 'system',
-                action: 'workflow.run.needs_action',
-                target_type: 'workflow_run',
-                target_id: run.id,
-                after: { missing_context: contextResolution.missingRequired }
+            run = await this._transaction(() => {
+                const updatedRun = this.repository.updateRun(run.id, {
+                    status: 'needs_action',
+                    closure_state: 'needs_action',
+                    finished_at: nowIso(),
+                    duration_ms: Date.now() - new Date(startedAt).getTime(),
+                    action_required: 'update_input',
+                    message
+                });
+                this.repository.updateRunStep(mainStep.id, {
+                    status: 'needs_action',
+                    action_required: 'update_input',
+                    message,
+                    finished_at: nowIso()
+                });
+                this.repository.writeAuditLog({
+                    workspace_id: updatedRun.workspace_id,
+                    project_id: updatedRun.project_id,
+                    actor_id: options.actorId || 'system',
+                    action: 'workflow.run.needs_action',
+                    target_type: 'workflow_run',
+                    target_id: updatedRun.id,
+                    after: { missing_context: contextResolution.missingRequired }
+                });
+                return updatedRun;
             });
             this.repository.releaseWorkflowLock?.({
                 workspace_id: run.workspace_id,
@@ -211,43 +229,47 @@ export class WorkflowRunner {
         }
 
         if (hitlPolicyRequiresHumanStep(workflow, options)) {
-            const humanStep = this.repository.createHumanStep({
-                id: `human_${crypto.randomUUID()}`,
-                workspace_id: run.workspace_id,
-                project_id: run.project_id,
-                workflow_run_id: run.id,
-                workflow_id: workflow.id,
-                step_type: 'approval',
-                requested_by: run.started_by,
-                requested_to: workflow.default_approver_id || workflow.owner_id,
-                prompt: `Approve ${workflow.name || workflow.id}`,
-                reason: workflow.hitl_policy
-            });
             const message = `Human approval required by policy: ${workflow.hitl_policy}`;
-            run = this.repository.updateRun(run.id, {
-                status: 'waiting_human',
-                closure_state: 'open',
-                human_waiting: true,
-                action_required: 'approve',
-                message,
-                finished_at: nowIso(),
-                duration_ms: Date.now() - new Date(startedAt).getTime()
-            });
-            this.repository.updateRunStep(mainStep.id, {
-                status: 'waiting_human',
-                action_required: 'approve',
-                message,
-                finished_at: nowIso()
-            });
-            this.repository.writeAuditLog({
-                workspace_id: run.workspace_id,
-                project_id: run.project_id,
-                actor_id: run.started_by,
-                action: 'workflow.human_step.created',
-                target_type: 'workflow_human_step',
-                target_id: humanStep.id,
-                after: humanStep
-            });
+            let humanStep;
+            ({ run, humanStep } = await this._transaction(() => {
+                const createdHumanStep = this.repository.createHumanStep({
+                    id: `human_${crypto.randomUUID()}`,
+                    workspace_id: run.workspace_id,
+                    project_id: run.project_id,
+                    workflow_run_id: run.id,
+                    workflow_id: workflow.id,
+                    step_type: 'approval',
+                    requested_by: run.started_by,
+                    requested_to: workflow.default_approver_id || workflow.owner_id,
+                    prompt: `Approve ${workflow.name || workflow.id}`,
+                    reason: workflow.hitl_policy
+                });
+                const updatedRun = this.repository.updateRun(run.id, {
+                    status: 'waiting_human',
+                    closure_state: 'open',
+                    human_waiting: true,
+                    action_required: 'approve',
+                    message,
+                    finished_at: nowIso(),
+                    duration_ms: Date.now() - new Date(startedAt).getTime()
+                });
+                this.repository.updateRunStep(mainStep.id, {
+                    status: 'waiting_human',
+                    action_required: 'approve',
+                    message,
+                    finished_at: nowIso()
+                });
+                this.repository.writeAuditLog({
+                    workspace_id: updatedRun.workspace_id,
+                    project_id: updatedRun.project_id,
+                    actor_id: updatedRun.started_by,
+                    action: 'workflow.human_step.created',
+                    target_type: 'workflow_human_step',
+                    target_id: createdHumanStep.id,
+                    after: createdHumanStep
+                });
+                return { run: updatedRun, humanStep: createdHumanStep };
+            }));
             this.repository.releaseWorkflowLock?.({
                 workspace_id: run.workspace_id,
                 workflow_id: workflow.id,
@@ -282,113 +304,122 @@ export class WorkflowRunner {
             const result = normalizeResult(await withTimeout(handlerPromise, timeoutMs));
 
             if (result.humanStep || result.status === 'waiting_human') {
-                const humanStep = this.repository.createHumanStep({
-                    id: `human_${crypto.randomUUID()}`,
-                    workspace_id: run.workspace_id,
-                    project_id: run.project_id,
-                    workflow_run_id: run.id,
-                    workflow_id: workflow.id,
-                    step_type: result.humanStep?.stepType || 'approval',
-                    requested_by: run.started_by,
-                    requested_to: workflow.default_approver_id || workflow.owner_id,
-                    prompt: result.humanStep?.prompt || result.message || 'Human review required',
-                    reason: result.humanStep?.reason || 'hitl_policy'
-                });
-                run = this.repository.updateRun(run.id, {
-                    status: 'waiting_human',
-                    closure_state: 'open',
-                    human_waiting: true,
-                    action_required: result.actionRequired === 'none' ? 'approve' : result.actionRequired,
-                    message: result.message,
+                let humanStep;
+                ({ run, humanStep } = await this._transaction(() => {
+                    const createdHumanStep = this.repository.createHumanStep({
+                        id: `human_${crypto.randomUUID()}`,
+                        workspace_id: run.workspace_id,
+                        project_id: run.project_id,
+                        workflow_run_id: run.id,
+                        workflow_id: workflow.id,
+                        step_type: result.humanStep?.stepType || 'approval',
+                        requested_by: run.started_by,
+                        requested_to: workflow.default_approver_id || workflow.owner_id,
+                        prompt: result.humanStep?.prompt || result.message || 'Human review required',
+                        reason: result.humanStep?.reason || 'hitl_policy'
+                    });
+                    const updatedRun = this.repository.updateRun(run.id, {
+                        status: 'waiting_human',
+                        closure_state: 'open',
+                        human_waiting: true,
+                        action_required: result.actionRequired === 'none' ? 'approve' : result.actionRequired,
+                        message: result.message,
+                        output_count: result.outputCount,
+                        finished_at: nowIso(),
+                        duration_ms: Date.now() - new Date(startedAt).getTime()
+                    });
+                    this.repository.updateRunStep(mainStep.id, {
+                        status: 'waiting_human',
+                        action_required: updatedRun.action_required,
+                        message: result.message,
+                        output_count: result.outputCount,
+                        finished_at: nowIso()
+                    });
+                    this.repository.writeAuditLog({
+                        workspace_id: updatedRun.workspace_id,
+                        project_id: updatedRun.project_id,
+                        actor_id: updatedRun.started_by,
+                        action: 'workflow.human_step.created',
+                        target_type: 'workflow_human_step',
+                        target_id: createdHumanStep.id,
+                        after: createdHumanStep
+                    });
+                    return { run: updatedRun, humanStep: createdHumanStep };
+                }));
+                return { run, result, humanStep };
+            }
+
+            const status = WORKFLOW_RUN_STATUSES.has(result.status) ? result.status : 'success';
+            run = await this._transaction(() => {
+                if (result.data != null || result.outputCount > 0) {
+                    this.repository.createOutput({
+                        id: `out_${crypto.randomUUID()}`,
+                        workspace_id: run.workspace_id,
+                        project_id: run.project_id,
+                        workflow_run_id: run.id,
+                        workflow_id: workflow.id,
+                        type: 'result',
+                        title: result.message || `${workflow.name} output`,
+                        preview: previewData(result.data),
+                        metadata: { output_count: result.outputCount }
+                    });
+                }
+                const updatedRun = this.repository.updateRun(run.id, {
+                    status,
+                    closure_state: result.closureState || (status === 'success' || status === 'skipped' ? 'closed' : 'needs_action'),
+                    action_required: result.actionRequired,
                     output_count: result.outputCount,
+                    message: result.message,
+                    data_preview: previewData(result.data),
                     finished_at: nowIso(),
                     duration_ms: Date.now() - new Date(startedAt).getTime()
                 });
                 this.repository.updateRunStep(mainStep.id, {
-                    status: 'waiting_human',
-                    action_required: run.action_required,
+                    status,
+                    action_required: result.actionRequired,
                     message: result.message,
                     output_count: result.outputCount,
                     finished_at: nowIso()
                 });
                 this.repository.writeAuditLog({
-                    workspace_id: run.workspace_id,
-                    project_id: run.project_id,
-                    actor_id: run.started_by,
-                    action: 'workflow.human_step.created',
-                    target_type: 'workflow_human_step',
-                    target_id: humanStep.id,
-                    after: humanStep
+                    workspace_id: updatedRun.workspace_id,
+                    project_id: updatedRun.project_id,
+                    actor_id: updatedRun.started_by,
+                    action: 'workflow.run.finished',
+                    target_type: 'workflow_run',
+                    target_id: updatedRun.id,
+                    after: { status: updatedRun.status, closure_state: updatedRun.closure_state }
                 });
-                return { run, result, humanStep };
-            }
-
-            if (result.data != null || result.outputCount > 0) {
-                this.repository.createOutput({
-                    id: `out_${crypto.randomUUID()}`,
-                    workspace_id: run.workspace_id,
-                    project_id: run.project_id,
-                    workflow_run_id: run.id,
-                    workflow_id: workflow.id,
-                    type: 'result',
-                    title: result.message || `${workflow.name} output`,
-                    preview: previewData(result.data),
-                    metadata: { output_count: result.outputCount }
-                });
-            }
-
-            const status = WORKFLOW_RUN_STATUSES.has(result.status) ? result.status : 'success';
-            run = this.repository.updateRun(run.id, {
-                status,
-                closure_state: result.closureState || (status === 'success' || status === 'skipped' ? 'closed' : 'needs_action'),
-                action_required: result.actionRequired,
-                output_count: result.outputCount,
-                message: result.message,
-                data_preview: previewData(result.data),
-                finished_at: nowIso(),
-                duration_ms: Date.now() - new Date(startedAt).getTime()
-            });
-            this.repository.updateRunStep(mainStep.id, {
-                status,
-                action_required: result.actionRequired,
-                message: result.message,
-                output_count: result.outputCount,
-                finished_at: nowIso()
-            });
-            this.repository.writeAuditLog({
-                workspace_id: run.workspace_id,
-                project_id: run.project_id,
-                actor_id: run.started_by,
-                action: 'workflow.run.finished',
-                target_type: 'workflow_run',
-                target_id: run.id,
-                after: { status: run.status, closure_state: run.closure_state }
+                return updatedRun;
             });
             return { run, result };
         } catch (error) {
             const isTimeout = error?.name === 'WorkflowTimeoutError';
-            run = this.repository.updateRun(run.id, {
-                status: 'failed',
-                closure_state: 'needs_action',
-                action_required: 'check_error',
-                error_message: error?.message || String(error),
-                finished_at: nowIso(),
-                duration_ms: Date.now() - new Date(startedAt).getTime()
-            });
-            this.repository.updateRunStep(mainStep.id, {
-                status: 'failed',
-                action_required: 'check_error',
-                error_message: run.error_message,
-                finished_at: nowIso()
-            });
-            this.repository.writeAuditLog({
-                workspace_id: run.workspace_id,
-                project_id: run.project_id,
-                actor_id: run.started_by,
-                action: 'workflow.run.failed',
-                target_type: 'workflow_run',
-                target_id: run.id,
-                after: { error_message: run.error_message, timeout: isTimeout }
+            run = await this._transaction(() => {
+                const updatedRun = this.repository.updateRun(run.id, {
+                    status: 'failed',
+                    closure_state: 'needs_action',
+                    action_required: 'check_error',
+                    error_message: error?.message || String(error),
+                    finished_at: nowIso(),
+                    duration_ms: Date.now() - new Date(startedAt).getTime()
+                });
+                this.repository.updateRunStep(mainStep.id, {
+                    status: 'failed',
+                    action_required: 'check_error',
+                    error_message: updatedRun.error_message,
+                    finished_at: nowIso()
+                });
+                this.repository.writeAuditLog({
+                    workspace_id: updatedRun.workspace_id,
+                    project_id: updatedRun.project_id,
+                    actor_id: updatedRun.started_by,
+                    action: 'workflow.run.failed',
+                    target_type: 'workflow_run',
+                    target_id: updatedRun.id,
+                    after: { error_message: updatedRun.error_message, timeout: isTimeout }
+                });
+                return updatedRun;
             });
             if (isTimeout) {
                 shouldReleaseLock = false;
@@ -413,6 +444,13 @@ export class WorkflowRunner {
                 });
             }
         }
+    }
+
+    async _transaction(callback) {
+        if (typeof this.repository.transaction === 'function') {
+            return this.repository.transaction(callback);
+        }
+        return callback();
     }
 
     _resolveHandler(workflow) {

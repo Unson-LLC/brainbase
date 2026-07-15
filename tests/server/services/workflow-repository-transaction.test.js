@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -70,7 +72,7 @@ describe('WorkflowRepository transaction boundary', () => {
         await Promise.all([first, second]);
 
         expect(order).toEqual(['first:start', 'first:end', 'second:start', 'second:end']);
-        expect(repository.listRuns({ limit: null }).map((run) => run.id)).toEqual([
+        expect(repository.listRuns({ limit: null }).map((run) => run.id).sort()).toEqual([
             'run-first',
             'run-second'
         ]);
@@ -178,6 +180,78 @@ describe('WorkflowRepository transaction boundary', () => {
         expect(repository.writeCount).toBe(1);
     });
 
+    it('does not reacquire the Json lease for same-owner nested transactions', async () => {
+        const { filePath } = createTempLedger();
+
+        class CountingLeaseRepository extends JsonFileWorkflowRepository {
+            leaseCount = 0;
+
+            _createTransactionLease(ownerId) {
+                this.leaseCount += 1;
+                return super._createTransactionLease(ownerId);
+            }
+        }
+
+        const repository = new CountingLeaseRepository({ filePath });
+        await repository.transaction(async () => {
+            repository.createRun(createRun('run-outer-json'));
+            await repository.transaction(async () => {
+                repository.createRun(createRun('run-inner-json'));
+            });
+        });
+
+        expect(repository.leaseCount).toBe(1);
+    });
+
+    it('never lets a failed Json rollback overwrite another committed transaction', async () => {
+        const { filePath } = createTempLedger();
+        const failingRepository = new JsonFileWorkflowRepository({ filePath });
+        const committingRepository = new JsonFileWorkflowRepository({ filePath });
+        const failingEntered = createDeferred();
+        const releaseFailure = createDeferred();
+
+        const failing = failingRepository.transaction(async () => {
+            failingRepository.createRun(createRun('run-rolled-back'));
+            failingEntered.resolve();
+            await releaseFailure.promise;
+            throw new Error('rollback fixture');
+        });
+        await failingEntered.promise;
+        const committing = committingRepository.transaction(async () => {
+            committingRepository.createRun(createRun('run-committed'));
+        });
+
+        releaseFailure.resolve();
+        await expect(failing).rejects.toThrow('rollback fixture');
+        await committing;
+
+        const reloaded = new JsonFileWorkflowRepository({ filePath });
+        expect(reloaded.listRuns({ limit: null }).map((run) => run.id)).toEqual(['run-committed']);
+    });
+
+    it('keeps pending ledger memory intact while identity locks are acquired and released', async () => {
+        const { filePath } = createTempLedger();
+        const repository = new JsonFileWorkflowRepository({ filePath });
+
+        await repository.transaction(async () => {
+            repository.createRun(createRun('run-before-identity-lock'));
+            const lock = repository.acquireWorkflowLock({
+                workspace_id: 'default',
+                workflow_id: 'workflow-1',
+                locked_by: 'identity-owner'
+            });
+            expect(lock).not.toBeNull();
+            repository.releaseWorkflowLock({
+                workspace_id: 'default',
+                workflow_id: 'workflow-1',
+                locked_by: 'identity-owner'
+            });
+            expect(repository.getRun('run-before-identity-lock')).not.toBeNull();
+        });
+
+        expect(new JsonFileWorkflowRepository({ filePath }).getRun('run-before-identity-lock')).not.toBeNull();
+    });
+
     it('never steals an expired lease from a live local owner but reclaims one from a dead pid', async () => {
         const { filePath } = createTempLedger();
         const leasePath = `${filePath}.transaction-lock.json`;
@@ -206,5 +280,122 @@ describe('WorkflowRepository transaction boundary', () => {
 
         expect(fs.existsSync(leasePath)).toBe(false);
         expect(new JsonFileWorkflowRepository({ filePath }).getRun('run-after-stale-lease')).not.toBeNull();
+    });
+
+    it('serializes concurrent stale recovery without deleting a fresh live lease', async () => {
+        const { filePath } = createTempLedger();
+        const leasePath = `${filePath}.transaction-lock.json`;
+        fs.writeFileSync(leasePath, `${JSON.stringify({
+            owner_id: 'dead-owner',
+            pid: 99999999,
+            expires_at: new Date(Date.now() - 1000).toISOString()
+        })}\n`);
+        const firstRepository = new JsonFileWorkflowRepository({
+            filePath,
+            leaseAcquireTimeoutMs: 1000,
+            leaseRetryMs: 1
+        });
+        const secondRepository = new JsonFileWorkflowRepository({
+            filePath,
+            leaseAcquireTimeoutMs: 1000,
+            leaseRetryMs: 1
+        });
+        const firstEntered = createDeferred();
+        const releaseFirst = createDeferred();
+
+        const first = firstRepository.transaction(async () => {
+            firstRepository.createRun(createRun('run-stale-recovery-first'));
+            firstEntered.resolve();
+            await releaseFirst.promise;
+        });
+        await firstEntered.promise;
+        let secondEntered = false;
+        const second = secondRepository.transaction(async () => {
+            secondEntered = true;
+            secondRepository.createRun(createRun('run-stale-recovery-second'));
+        });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(secondEntered).toBe(false);
+        releaseFirst.resolve();
+        await Promise.all([first, second]);
+
+        expect(new JsonFileWorkflowRepository({ filePath })
+            .listRuns({ limit: null })
+            .map((run) => run.id)
+            .sort()).toEqual([
+            'run-stale-recovery-first',
+            'run-stale-recovery-second'
+        ]);
+    });
+
+    it('initializes seed workflows under the same cross-process lease as runtime writers', async () => {
+        const { filePath } = createTempLedger();
+        const repositoryModuleUrl = pathToFileURL(path.resolve(
+            'server/services/workflow/workflow-repository.js'
+        )).href;
+        const childScript = `
+            const [repositoryModuleUrl, filePath] = process.argv.slice(1);
+            const { JsonFileWorkflowRepository } = await import(repositoryModuleUrl);
+            const repository = new JsonFileWorkflowRepository({ filePath });
+            await repository.transaction(async () => {
+                repository.createRun({
+                    id: 'run-concurrent-with-seed',
+                    workspace_id: 'default',
+                    project_id: 'general',
+                    workflow_id: 'runtime-workflow',
+                    status: 'running'
+                });
+                process.stdout.write('READY\\n');
+                await new Promise((resolve) => setTimeout(resolve, 150));
+            });
+        `;
+        const child = spawn(process.execPath, [
+            '--input-type=module',
+            '-e',
+            childScript,
+            repositoryModuleUrl,
+            filePath
+        ], { stdio: ['ignore', 'pipe', 'pipe'] });
+        let childError = '';
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', (chunk) => {
+            childError += chunk;
+        });
+        await new Promise((resolve, reject) => {
+            child.stdout.setEncoding('utf8');
+            child.stdout.on('data', (chunk) => {
+                if (chunk.includes('READY')) resolve();
+            });
+            child.once('exit', (code) => {
+                if (code !== 0) reject(new Error(childError || `child exited ${code}`));
+            });
+        });
+
+        const seeded = new JsonFileWorkflowRepository({
+            filePath,
+            leaseAcquireTimeoutMs: 2000,
+            leaseRetryMs: 5,
+            seedWorkflows: [{
+                id: 'seed-workflow',
+                workspace_id: 'default',
+                project_id: 'general',
+                name: 'Seed workflow'
+            }]
+        });
+        if (child.exitCode === null) {
+            await new Promise((resolve, reject) => {
+                child.once('exit', (code) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(childError || `child exited ${code}`));
+                });
+            });
+        } else if (child.exitCode !== 0) {
+            throw new Error(childError || `child exited ${child.exitCode}`);
+        }
+        seeded.reload();
+
+        expect(seeded.getWorkflow('seed-workflow')).not.toBeNull();
+        expect(seeded.getRun('run-concurrent-with-seed')).not.toBeNull();
     });
 });
