@@ -108,6 +108,12 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 
 ## Connector Observation Fallback
 
+The connector fallback is a three-path state machine, not one generic error fallback:
+
+- When source identity is known but authoritative status is unknown or nonterminal, the connector retains the source run in its own pending/outbox state and emits neither a receipt nor an observation.
+- When source identity and a terminal status are known but evidence cannot be retrieved, the connector emits a source receipt with the same source identity and terminal status, sets `evidence_state=unconfirmed|no_data`, and maps action/blocker fields from that status without inventing success or zero metrics.
+- Only when source identity itself is unavailable does the connector emit the connector-owned observation below.
+
 When a connector cannot obtain a source-owned run identity, it emits its own observation attempt rather than inventing a source run failure:
 
 - `run.observation_kind=connector_observation`

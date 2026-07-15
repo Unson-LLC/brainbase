@@ -58,4 +58,5 @@ Codex Automations operatorとして、実際のautomation実行結果をBrainbas
 ## Verification
 
 - `tests/connectors/codex-automations-run-receipt.test.js` は同じautomation/native runのattempt 1/2が別identityで共存し、同じattemptの再送だけがduplicateになるpre-fix失敗fixtureを持つ。
+- 同fixtureは、異なる2つの`automation_id`が同じ`native_run_id`と`native_attempt`を返しても別々の`external_run_id`/idempotency identityとして共存するcross-automation衝突ケースを明示的に検証する。
 - 同fixtureは全terminal mapping、known-run pending、terminal-known/evidence-unavailable、identity取得不能observation、checkpoint再起動catch-up、outbox replay、task/prompt/transcript排除、no_dataを0件successへ潰さないことを検証する。
