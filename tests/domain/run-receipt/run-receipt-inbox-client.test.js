@@ -11,6 +11,13 @@ function response(body, { ok = true, status = 200 } = {}) {
 }
 
 describe('RunReceiptInboxClient', () => {
+    it.each([0, -1, 1.5])('constructor呼び出し時_不正timeout %sを拒否する', (requestTimeoutMs) => {
+        expect(() => new RunReceiptInboxClient({
+            apiFetch: vi.fn(),
+            requestTimeoutMs
+        })).toThrow('requestTimeoutMs must be a positive integer');
+    });
+
     it('list呼び出し時_指定filterだけをAPI queryへ符号化する', async () => {
         const apiFetch = vi.fn().mockResolvedValue(response({
             items: [], count: 0, has_more: false, omitted_count: 0
@@ -26,7 +33,8 @@ describe('RunReceiptInboxClient', () => {
         });
 
         expect(apiFetch).toHaveBeenCalledWith(
-            '/api/run-receipts/inbox?project_id=brainbase+%2F+ops&source_type=github_actions&evidence_state=unconfirmed&limit=50'
+            '/api/run-receipts/inbox?project_id=brainbase+%2F+ops&source_type=github_actions&evidence_state=unconfirmed&limit=50',
+            expect.objectContaining({ signal: expect.any(Object) })
         );
     });
 
@@ -50,6 +58,27 @@ describe('RunReceiptInboxClient', () => {
         });
 
         await expect(client.list()).rejects.toThrow('Run Receipt Inbox HTTP 503');
+    });
+
+    it('list呼び出し時_応答しないrequestを期限後にabortしてtimeout例外にする', async () => {
+        vi.useFakeTimers();
+        try {
+            const apiFetch = vi.fn((_url, { signal }) => new Promise((_resolve, reject) => {
+                signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+            }));
+            const client = new RunReceiptInboxClient({ apiFetch, requestTimeoutMs: 25 });
+
+            const pending = client.list();
+            const rejection = expect(pending).rejects
+                .toThrow('Run Receipt Inbox request timed out after 25ms');
+            await vi.advanceTimersByTimeAsync(25);
+
+            await rejection;
+            expect(apiFetch).toHaveBeenCalledTimes(1);
+            expect(apiFetch.mock.calls[0][1].signal.aborted).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it.each([

@@ -20,7 +20,7 @@ The common control plane has no destructive migration and no release-time backfi
 ## Observability Evidence
 
 - Ingest: HTTP 201 means created, HTTP 200 means an exact duplicate, HTTP 400 means contract/conflict, HTTP 403 means auth/project denial, and HTTP 503 with `Retry-After` means receipt-lock contention.
-- Inbox: `unavailable` is distinct from a ready empty result; the last confirmed items and filters remain visible.
+- Inbox: `unavailable` is distinct from a ready empty result; the last confirmed items and filters remain visible. The browser aborts a stalled Inbox request after 10 seconds and applies the same unavailable/snapshot-retention path as network and 5xx failures.
 - Audit: created receipts include redacted metadata and source-owned references only. Raw logs, customer prose, payload bodies, transcripts, and secrets are forbidden.
 - Release canary: capture the source run URL/artifact ref, ingest response status, deterministic Brainbase run id, Agent Run Inbox screenshot, and duplicate replay result.
 - Alert condition: any legacy workflow/run API exposes a receipt, Operational Inbox contains a receipt, non-receipt priority changes, or an unavailable source is rendered as zero/success.

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { Store } from '../../../public/modules/core/store.js';
+import { RunReceiptInboxClient } from '../../../public/modules/domain/run-receipt/run-receipt-inbox-client.js';
 import { RunReceiptInboxService } from '../../../public/modules/domain/run-receipt/run-receipt-inbox-service.js';
 
 function initialInbox(overrides = {}) {
@@ -111,6 +112,42 @@ describe('RunReceiptInboxService', () => {
             count: 1,
             filters: { project_id: 'brainbase', source_type: 'mana' }
         });
+    });
+
+    it('応答しないrequestのtimeout時_確認済みsnapshotを保持してunavailableへ遷移する', async () => {
+        vi.useFakeTimers();
+        try {
+            const apiFetch = vi.fn((_url, { signal }) => new Promise((_resolve, reject) => {
+                signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+            }));
+            const client = new RunReceiptInboxClient({ apiFetch, requestTimeoutMs: 25 });
+            const { service, store, bus } = makeService({
+                client,
+                inbox: initialInbox({
+                    items: [{ id: 'last-confirmed' }],
+                    count: 1,
+                    filters: { source_type: 'mana' }
+                })
+            });
+            const failed = vi.fn();
+            bus.on(EVENTS.RUN_RECEIPT_INBOX_FAILED, failed);
+
+            const pending = service.setFilters({ source_type: 'github_actions' });
+            const rejection = expect(pending).rejects
+                .toThrow('Run Receipt Inbox request timed out after 25ms');
+            await vi.advanceTimersByTimeAsync(25);
+
+            await rejection;
+            expect(store.getState().runReceiptInbox).toMatchObject({
+                status: 'unavailable',
+                items: [{ id: 'last-confirmed' }],
+                count: 1,
+                filters: { source_type: 'mana' }
+            });
+            expect(failed).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('setFilters呼び出し時_既存filterへmergeして再取得する', async () => {
