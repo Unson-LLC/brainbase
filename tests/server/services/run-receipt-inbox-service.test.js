@@ -64,6 +64,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
     it('全6 priority bucketをsource actionとevidence stateを混同せず順序化する', async () => {
         const service = await makeService([
             makeReceiptRun({ id: 'run-6', sourceWorkflowId: 'confirmed', effectiveAt: '2026-07-15T06:00:00Z' }),
+            makeReceiptRun({ id: 'run-cancelled', sourceWorkflowId: 'cancelled', sourceStatus: 'cancelled', effectiveAt: '2026-07-15T06:30:00Z' }),
             makeReceiptRun({ id: 'run-5', sourceWorkflowId: 'no-data', evidenceState: 'no_data', effectiveAt: '2026-07-15T05:00:00Z' }),
             makeReceiptRun({ id: 'run-4', sourceWorkflowId: 'unconfirmed', evidenceState: 'unconfirmed', effectiveAt: '2026-07-15T04:00:00Z' }),
             makeReceiptRun({ id: 'run-3', sourceWorkflowId: 'waiting', sourceStatus: 'waiting_human', effectiveAt: '2026-07-15T03:00:00Z' }),
@@ -74,8 +75,13 @@ describe('WorkflowService.listRunReceiptInbox', () => {
         const result = await service.listRunReceiptInbox({}, {});
 
         expect(result.items.map((item) => [item.id, item.priority])).toEqual([
-            ['run-1', 1], ['run-2', 2], ['run-3', 3], ['run-4', 4], ['run-5', 5], ['run-6', 6]
+            ['run-1', 1], ['run-2', 2], ['run-3', 3], ['run-4', 4], ['run-5', 5],
+            ['run-cancelled', 6], ['run-6', 6]
         ]);
+        expect(result.items.find((item) => item.id === 'run-cancelled')).toMatchObject({
+            source_status: 'cancelled',
+            priority: 6
+        });
     });
 
     it('source supplied actionはstatusより先にpriority 1へ上げる', async () => {

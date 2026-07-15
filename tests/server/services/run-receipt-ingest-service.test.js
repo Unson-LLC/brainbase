@@ -58,6 +58,20 @@ function makeService(options = {}) {
 }
 
 describe('RunReceiptIngestService', () => {
+    it('invalid receipt_workflow/run/step/auditを一切変更せず拒否する', async () => {
+        const { repository, service } = makeService();
+        const snapshot = JSON.stringify(repository.ledger);
+
+        await expect(service.ingest(makeReceipt({
+            run: { raw_log: 'source-owned raw content must not enter Brainbase' }
+        }))).rejects.toMatchObject({ code: 'forbidden_key' });
+
+        expect(JSON.stringify(repository.ledger)).toBe(snapshot);
+        expect(repository.listWorkflows()).toHaveLength(0);
+        expect(repository.listRuns({ limit: null })).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
+    });
+
     it('valid receipt_共有台帳へworkflow/run/auditを原子的に投影する', async () => {
         const { repository, service } = makeService();
         const result = await service.ingest(makeReceipt());

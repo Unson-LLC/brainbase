@@ -27,7 +27,7 @@ function makeReceipt({
   workflowId: string;
   name: string;
   externalRunId: string;
-  status: 'success' | 'failed' | 'blocked';
+  status: 'success' | 'failed' | 'blocked' | 'waiting_human' | 'cancelled';
   evidenceState: 'confirmed' | 'unconfirmed' | 'no_data';
   finishedAt: string;
   summary: string;
@@ -95,7 +95,7 @@ function makeConnectorObservation(suffix: string) {
   };
 }
 
-test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matrix scenario_clause_e2e S-001 S-002 S-003 S-009 S-010 S-013 S-014 S-015 S-016 S-017 SCN-001 SCN-002 SCN-003 SCN-009 SCN-010 SCN-013 SCN-014 SCN-015 SCN-016 SCN-017 common receipt production flow preserves the confirmed snapshot on 503', async ({ page, request }) => {
+test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matrix scenario_clause_e2e S-001 S-002 S-003 S-005 S-009 S-010 S-013 S-014 S-015 S-016 S-017 SCN-001 SCN-002 SCN-003 SCN-005 SCN-009 SCN-010 SCN-013 SCN-014 SCN-015 SCN-016 SCN-017 common receipt production flow preserves the confirmed snapshot on 503', async ({ page, request }) => {
   const suffix = `${Date.now()}-${test.info().workerIndex}`;
   const workflowA = `Tracked common E2E A ${suffix}`;
   const workflowB = `Tracked common E2E B ${suffix}`;
@@ -131,6 +131,36 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
       finishedAt: '2026-07-15T10:00:00Z',
       summary: `failed without evidence ${suffix}`
     }),
+    makeReceipt({
+      suffix,
+      workflowId: 'waiting-workflow',
+      name: `Tracked waiting E2E ${suffix}`,
+      externalRunId: 'waiting-human',
+      status: 'waiting_human',
+      evidenceState: 'confirmed',
+      finishedAt: '2026-07-15T10:05:00Z',
+      summary: `waiting for human ${suffix}`
+    }),
+    makeReceipt({
+      suffix,
+      workflowId: 'cancelled-workflow',
+      name: `Tracked cancelled E2E ${suffix}`,
+      externalRunId: 'cancelled-explicitly',
+      status: 'cancelled',
+      evidenceState: 'confirmed',
+      finishedAt: '2026-07-15T10:10:00Z',
+      summary: `cancelled explicitly ${suffix}`
+    }),
+    makeReceipt({
+      suffix,
+      workflowId: 'success-workflow',
+      name: `Tracked success E2E ${suffix}`,
+      externalRunId: 'success-confirmed',
+      status: 'success',
+      evidenceState: 'confirmed',
+      finishedAt: '2026-07-15T10:12:00Z',
+      summary: `success confirmed ${suffix}`
+    }),
     makeConnectorObservation(suffix)
   ];
 
@@ -151,7 +181,9 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
   const trackedItems = apiInbox.items.filter((item: { source?: { workflow_id?: string } }) => (
     item.source?.workflow_id?.startsWith(`tracked-e2e:${suffix}:`)
   ));
-  expect(trackedItems.map((item: { source_status: string }) => item.source_status)).toEqual(['blocked', 'failed']);
+  expect(trackedItems.map((item: { source_status: string }) => item.source_status)).toEqual([
+    'blocked', 'failed', 'waiting_human', 'success', 'cancelled'
+  ]);
   expect(trackedItems.map((item: {
     source_status: string;
     priority: number;
@@ -178,6 +210,27 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
       sourceActionRequired: false,
       sourceAction: null,
       actionRequired: 'check_error'
+    },
+    {
+      status: 'waiting_human',
+      priority: 3,
+      sourceActionRequired: false,
+      sourceAction: null,
+      actionRequired: 'review_run'
+    },
+    {
+      status: 'success',
+      priority: 6,
+      sourceActionRequired: false,
+      sourceAction: null,
+      actionRequired: 'none'
+    },
+    {
+      status: 'cancelled',
+      priority: 6,
+      sourceActionRequired: false,
+      sourceAction: null,
+      actionRequired: 'none'
     }
   ]);
   expect(trackedItems.map((item: { summary: string }) => item.summary)).not.toContain(`old success must collapse ${suffix}`);
@@ -228,6 +281,9 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
   await expect(page.getByRole('heading', { name: 'Agent Run Inbox' })).toBeVisible();
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
+  await expect(page.getByText(`waiting for human ${suffix}`)).toBeVisible();
+  await expect(page.getByText(`success confirmed ${suffix}`)).toBeVisible();
+  await expect(page.getByText(`cancelled explicitly ${suffix}`)).toBeVisible();
   const connectorObservationCard = page.locator('[data-observation-kind="connector_observation"]')
     .filter({ hasText: `connector identity unavailable ${suffix}` });
   await expect(connectorObservationCard).toContainText('Connector observation');
@@ -235,9 +291,12 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
 
   const trackedCards = page.locator('.run-receipt-card[data-observation-kind="source_run"]')
     .filter({ hasText: suffix });
-  await expect(trackedCards).toHaveCount(2);
+  await expect(trackedCards).toHaveCount(5);
   await expect(trackedCards.nth(0)).toContainText('status: blocked');
   await expect(trackedCards.nth(1)).toContainText('status: failed');
+  await expect(trackedCards.nth(2)).toContainText('status: waiting_human');
+  await expect(trackedCards.nth(3)).toContainText('status: success');
+  await expect(trackedCards.nth(4)).toContainText('status: cancelled');
 
   await page.locator('#run-receipt-project').focus();
   await expect(page.locator('#run-receipt-project')).toBeFocused();
