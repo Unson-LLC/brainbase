@@ -45,7 +45,7 @@ Brainbase operatorとして、営業・マーケ・バックオフィス・開�
 - `workflow rollback guard`: `run.workflow_id` 未指定時にBrainbaseが生成するfallback Workflow IDはprojectごとに分離し、同じEve agent / external_run_idでも別projectのrunを既存Workflowへ混入させない。
 - `workflow ownership guard`: service/internal credential以外の外部runner requestでは、`loop_control.owner_id`、`cost_owner_id`、`approval_owner_id` が認証主体本人と一致しないpayloadを保存前に拒否する。
 - `workflow ownership guard`: service/internal credential以外の外部runner requestでは、Learning Candidateの暗黙 `actor_person_id` を認証済みpersonへ固定し、runner agentを人間本人の代理actorとして保存しない。
-- `workflow rollback guard`: Learning CandidateはGraph SSOTへ直接昇格せず、Candidate Store保存またはdeferred auditへ遷移する。接続不能などretryableなCandidate Store write失敗はdeferred auditとして残し、duplicate replayで見える状態を保つ。derived candidate idの既存recordが欠落またはimmutable不一致となるidentity-integrity conflictは `external_runner.candidate_conflict` auditを残して明示的に拒否し、deferredへ丸めない。
+- `workflow rollback guard`: Learning CandidateはGraph SSOTへ直接昇格せず、Candidate Store保存またはdeferred auditへ遷移する。Candidate Store write失敗時もdeferred auditとして残し、duplicate replayで見える状態を保つ。
 
 ## Failure Modes
 

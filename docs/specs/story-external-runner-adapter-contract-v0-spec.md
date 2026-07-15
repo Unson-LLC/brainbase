@@ -61,7 +61,7 @@
 - S-004c: `workflow ownership guard` service/internal credential以外の外部runner requestは、`loop_control.owner_id`、`cost_owner_id`、`approval_owner_id` を認証主体本人以外へ委任できない。Story ACは `ac:8`。
 - S-004e: `workflow ownership guard` service/internal credential以外の外部runner requestでは、未指定の `learning_candidates[].actor_person_id` を認証主体本人に固定し、runner agentをCandidate Store上の人間actorとして暗黙保存しない。Story ACは `ac:8`。
 - S-005: `workflow rollback guard` Learning CandidateはGraph SSOTへauto promoteせず、Candidate Storeかdeferred auditへ残す。
-- S-005b: `workflow rollback guard` Candidate Store接続不能などretryableなwrite失敗は、API失敗で隠さずdeferred auditとして残し、duplicate replayでも可視化する。`DuplicateCandidateError` 後にderived idの既存recordが欠落またはimmutable不一致となるidentity-integrity conflictは `external_runner.candidate_conflict` auditを残して `external_runner_candidate_conflict` として拒否し、deferredへ丸めない。
+- S-005b: `workflow rollback guard` Candidate Store接続時にwriteが失敗した場合も、API失敗で隠さずdeferred auditとして残し、duplicate replayでも可視化する。
 - S-006: `workflow auth boundary` `/api/external-runner` は `workflowAuthGuard` 配下に置かれる。
 - S-007: `compatibility guard` 既存の `/api/sessions/report_activity` CSRF例外はローカルhook/CLI telemetry用として維持し、外部runner ingestのserver-to-server認証境界とは混ぜない。
 
@@ -90,7 +90,7 @@
 
 ## Known v0 Boundary
 
-- Candidate Store接続時のruntime failureに対するDB transaction / rollbackはv0の外側に置く。v0では、contract上検出できるCandidate不備をWorkflow保存前に拒否し、retryableなCandidate Store write失敗はdeferred auditへ落として可視化する。derived candidate idのidentity-integrity conflictはactionable auditを残して拒否し、deferredへ丸めない。実DB transactionはPostgres-backed ingestへ拡張する時点で扱う。
+- Candidate Store接続時のruntime failureに対するDB transaction / rollbackはv0の外側に置く。v0では、contract上検出できるCandidate不備をWorkflow保存前に拒否し、Candidate Store write失敗はdeferred auditへ落として可視化する。実DB transactionはPostgres-backed ingestへ拡張する時点で扱う。
 
 ## Verification
 
