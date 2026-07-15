@@ -70,7 +70,7 @@ Canonical一覧失敗時に旧正本行へfallbackしない。cookie-only sessio
 
 Mana captureはbrowser sessionとCSRFを検証し、bodyのactor/ownerを信用せずsessionからGraph person principalを導出したinternal commandへ
 変換する。clientは操作ごとにcapture UUIDを生成し、応答確定まで同じIDを再送する。同文の新規操作は新IDを使う。
-保存keyは`mana:<actorNamespace>:<capture_id>`とし、別actor namespaceは同じcapture IDでも互いのoperation結果を参照・再生しない。
+保存keyは`mana:<actorNamespace>:<capture_id>`とする。configured owner以外のactorはPersonal KG境界でoperation検索前に拒否し、同じcapture IDでもownerのoperation結果を参照・再生しない。
 
 ## データフローと脅威境界
 
