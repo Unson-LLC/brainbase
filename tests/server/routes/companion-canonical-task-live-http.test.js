@@ -23,10 +23,18 @@ describe('Companion canonical Task live HTTP contract', () => {
             },
             body: JSON.stringify({ title, priority: 'high' })
         });
-        const response = await create('Mac wire contract');
-        const body = await response.json();
+        const [response, concurrentReplay] = await Promise.all([
+            create('Mac wire contract'),
+            create('Mac wire contract')
+        ]);
+        const [body, concurrentReplayBody] = await Promise.all([
+            response.json(),
+            concurrentReplay.json()
+        ]);
 
         expect(response.status).toBe(201);
+        expect(concurrentReplay.status).toBe(201);
+        expect(concurrentReplayBody.id).toBe(body.id);
         expect(body).toHaveProperty('completed_at', null);
         expect(body).toEqual(expect.objectContaining({
             id: expect.any(String),
@@ -63,10 +71,8 @@ describe('Companion canonical Task live HTTP contract', () => {
             })
         });
 
-        const first = await request();
-        const firstBody = await first.json();
-        const replay = await request();
-        const replayBody = await replay.json();
+        const [first, replay] = await Promise.all([request(), request()]);
+        const [firstBody, replayBody] = await Promise.all([first.json(), replay.json()]);
         expect(first.status).toBe(200);
         expect(replay.status).toBe(200);
         expect(firstBody.materialized_task_ids).toHaveLength(1);

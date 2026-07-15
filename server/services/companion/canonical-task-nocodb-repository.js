@@ -1,7 +1,10 @@
 import crypto from 'crypto';
 
-const STATUS_TO_NOCO = Object.freeze({ pending: '未着手', in_progress: '進行中', waiting: '待ち', completed: '完了' });
-const NOCO_TO_STATUS = Object.freeze(Object.fromEntries(Object.entries(STATUS_TO_NOCO).map(([key, value]) => [value, key])));
+const STATUS_TO_NOCO = Object.freeze({ pending: '未着手', in_progress: '進行中', waiting: '保留', completed: '完了' });
+const NOCO_TO_STATUS = Object.freeze({
+    ...Object.fromEntries(Object.entries(STATUS_TO_NOCO).map(([key, value]) => [value, key])),
+    '待ち': 'waiting'
+});
 const PRIORITY_TO_NOCO = Object.freeze({ low: '低', medium: '中', high: '高', urgent: '緊急' });
 const NOCO_TO_PRIORITY = Object.freeze(Object.fromEntries(Object.entries(PRIORITY_TO_NOCO).map(([key, value]) => [value, key])));
 
@@ -84,13 +87,21 @@ export function decodeCanonicalTaskCursor(cursor) {
 }
 
 export class CanonicalTaskNocoDBRepository {
-    constructor({ storeConfig, fetchImpl = fetch, baseUrl = process.env.NOCODB_URL || 'https://noco.unson.jp', apiToken = process.env.NOCODB_TOKEN, idSecret } = {}) {
+    constructor({
+        storeConfig,
+        fetchImpl = fetch,
+        baseUrl = process.env.NOCODB_URL || 'https://noco.unson.jp',
+        apiToken = process.env.NOCODB_TOKEN,
+        idSecret,
+        readAfterWriteDelaysMs = [150, 500]
+    } = {}) {
         if (!storeConfig) throw new Error('Canonical Task store config is required');
         this.storeConfig = storeConfig;
         this.fetch = fetchImpl;
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.apiToken = apiToken;
         this.idSecret = idSecret || process.env.CANONICAL_TASK_ID_SECRET || process.env.AUTH_SESSION_SECRET || storeConfig.identityHash;
+        this.readAfterWriteDelaysMs = readAfterWriteDelaysMs;
     }
 
     headers(json = false) {
@@ -275,6 +286,24 @@ export class CanonicalTaskNocoDBRepository {
         return this.normalize(records.find((record) => fieldsOf(record)['冪等キー'] === key) || null);
     }
 
+    async readAfterWrite(readOperation) {
+        let lastError = null;
+        for (let attempt = 0; attempt <= this.readAfterWriteDelaysMs.length; attempt += 1) {
+            try {
+                const result = await readOperation();
+                if (result) return result;
+            } catch (error) {
+                if (error?.code !== 'task_store_unavailable') throw error;
+                lastError = error;
+            }
+            if (attempt < this.readAfterWriteDelaysMs.length) {
+                await new Promise(resolve => setTimeout(resolve, this.readAfterWriteDelaysMs[attempt]));
+            }
+        }
+        if (lastError) throw lastError;
+        return null;
+    }
+
     toFields(input) {
         const fields = {};
         const assign = (key, value) => { if (value !== undefined) fields[key] = value; };
@@ -304,10 +333,10 @@ export class CanonicalTaskNocoDBRepository {
         const record = Array.isArray(data?.list) ? data.list[0] : (Array.isArray(data) ? data[0] : data);
         const id = recordId(fieldsOf(record));
         if (id != null) {
-            const persisted = await this.get(this.encodeId(String(id)));
+            const persisted = await this.readAfterWrite(() => this.get(this.encodeId(String(id))));
             if (persisted) return persisted;
         }
-        const replay = await this.findByIdempotencyKey(input.idempotency_key);
+        const replay = await this.readAfterWrite(() => this.findByIdempotencyKey(input.idempotency_key));
         if (replay) return replay;
         const error = new Error('Created NocoDB Task could not be read back');
         error.code = 'task_store_unavailable';
@@ -320,7 +349,7 @@ export class CanonicalTaskNocoDBRepository {
         await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records`, {
             method: 'PATCH', body: JSON.stringify({ Id: /^\d+$/.test(id) ? Number(id) : id, ...this.toFields(input) })
         });
-        const persisted = await this.get(taskId);
+        const persisted = await this.readAfterWrite(() => this.get(taskId));
         if (persisted) return persisted;
         const error = new Error('Updated NocoDB Task could not be read back');
         error.code = 'task_store_unavailable';

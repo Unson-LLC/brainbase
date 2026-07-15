@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createManaCaptureRouter } from '../../../server/routes/brainbase/mana-capture-routes.js';
+import { csrfMiddleware, generateCsrfToken } from '../../../server/middleware/csrf.js';
 
 describe('mana capture routes', () => {
   const originalManaUrl = process.env.MANA_LAMBDA_URL;
   const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
   const originalOpenAiCompatibleApiKey = process.env.LLM_OPENAI_COMPATIBLE_API_KEY;
+  const originalNodeEnv = process.env.NODE_ENV;
   let fetchMock;
   let app;
 
@@ -29,6 +31,8 @@ describe('mana capture routes', () => {
     else process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
     if (originalOpenAiCompatibleApiKey === undefined) delete process.env.LLM_OPENAI_COMPATIBLE_API_KEY;
     else process.env.LLM_OPENAI_COMPATIBLE_API_KEY = originalOpenAiCompatibleApiKey;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
     vi.restoreAllMocks();
   });
 
@@ -158,6 +162,56 @@ describe('mana capture routes', () => {
       principal: { type: 'person', id: 'sato_keigo' },
       authSource: 'session'
     }));
+  });
+
+  it('POST /capture requires a valid CSRF token before the cookie session reaches the Task store', async () => {
+    process.env.NODE_ENV = 'production';
+    const bedrockClient = {
+      send: vi.fn(async () => ({
+        body: new TextEncoder().encode(JSON.stringify({
+          content: [{ text: '{"title":"CSRF境界","category":"task"}' }]
+        }))
+      }))
+    };
+    const canonicalTaskService = {
+      createManaCapture: vi.fn(async input => ({
+        id: 'ct1.csrf.signature', version: 1, status: 'pending',
+        title: input.title, created_at: '2026-07-15T00:00:00.000Z'
+      }))
+    };
+    const sessionGuard = (req, _res, next) => {
+      req.authSource = 'cookie';
+      req.auth = { sub: 'sato_keigo' };
+      req.access = { personId: 'sato_keigo', role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'] };
+      next();
+    };
+    const sessionId = 'mana-csrf-session';
+    const token = generateCsrfToken(sessionId);
+    app = express();
+    app.use(express.json());
+    app.use(csrfMiddleware());
+    app.use('/api/brainbase/mana', createManaCaptureRouter({ bedrockClient, canonicalTaskService, sessionGuard }));
+
+    await request(app)
+      .post('/api/brainbase/mana/capture')
+      .send({ capture_id: 'csrf-capture', content: 'CSRFを検証する' })
+      .expect(403);
+    await request(app)
+      .post('/api/brainbase/mana/capture')
+      .set('x-session-id', sessionId)
+      .set('x-csrf-token', 'invalid')
+      .send({ capture_id: 'csrf-capture', content: 'CSRFを検証する' })
+      .expect(403);
+
+    const accepted = await request(app)
+      .post('/api/brainbase/mana/capture')
+      .set('x-session-id', sessionId)
+      .set('x-csrf-token', token)
+      .send({ capture_id: 'csrf-capture', content: 'CSRFを検証する' })
+      .expect(201);
+
+    expect(accepted.body).toMatchObject({ taskId: 'ct1.csrf.signature', status: 'pending' });
+    expect(canonicalTaskService.createManaCapture).toHaveBeenCalledTimes(1);
   });
 
   it('POST /capture rejects missing capture_id before calling the Task store', async () => {

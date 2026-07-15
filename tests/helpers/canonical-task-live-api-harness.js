@@ -71,9 +71,38 @@ function createRepository() {
 }
 
 function createOperationRepository() {
+    const completed = new Map();
+    const inFlight = new Map();
     return {
-        async execute({ run }) {
-            return run();
+        async execute({ scope, operationKey, fingerprint, run }) {
+            const key = `${scope}:${operationKey}`;
+            const replay = completed.get(key);
+            if (replay) {
+                if (replay.fingerprint !== fingerprint) {
+                    throw Object.assign(new Error('Idempotency key was reused with different input'), {
+                        code: 'idempotency_conflict', status: 409
+                    });
+                }
+                return replay.result;
+            }
+            const concurrent = inFlight.get(key);
+            if (concurrent) {
+                if (concurrent.fingerprint !== fingerprint) {
+                    throw Object.assign(new Error('Idempotency key was reused with different input'), {
+                        code: 'idempotency_conflict', status: 409
+                    });
+                }
+                return concurrent.promise;
+            }
+            const promise = Promise.resolve().then(run);
+            inFlight.set(key, { fingerprint, promise });
+            try {
+                const result = await promise;
+                completed.set(key, { fingerprint, result });
+                return result;
+            } finally {
+                inFlight.delete(key);
+            }
         },
         async executePreparedDelete({ prepare, findTask, removeTask }) {
             const prepared = await prepare();

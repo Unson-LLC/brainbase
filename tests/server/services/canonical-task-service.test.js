@@ -241,6 +241,23 @@ describe('CanonicalTaskService', () => {
         expect(fixture.repository.create).not.toHaveBeenCalled();
     });
 
+    it('does not let another session actor replay the owner Mana capture namespace', async () => {
+        const context = {
+            ...ownerContext(),
+            principal: { type: 'person', id: 'person_other' },
+            authSource: 'session',
+            access: { ...ownerContext().access, personId: 'person_other' }
+        };
+
+        await expect(fixture.service.createManaCapture({
+            capture_id: 'capture-1',
+            title: '別actorのcapture',
+            content: '同じcapture IDを使う'
+        }, context)).rejects.toMatchObject({ code: 'personal_kg_owner_required', status: 403 });
+        expect(fixture.operations.execute).not.toHaveBeenCalled();
+        expect(fixture.repository.create).not.toHaveBeenCalled();
+    });
+
     it('rejects a different assignee for owner credentials', async () => {
         await expect(fixture.service.createTask({ title: '別担当', assignee_person_id: 'person_other' }, { ...ownerContext(), idempotencyKey: 'request-2' }))
             .rejects.toMatchObject({ code: 'forbidden_assignee', status: 403 });

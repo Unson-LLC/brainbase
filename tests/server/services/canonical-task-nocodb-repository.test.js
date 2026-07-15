@@ -35,7 +35,7 @@ describe('CanonicalTaskNocoDBRepository', () => {
     });
     it('maps waiting and urgent without lifecycle loss', async () => {
         const fetchImpl = vi.fn(async () => response({ list: [{
-            Id: 7, 'タイトル': '返事待ち', 'ステータス': '待ち', '優先度': '緊急',
+            Id: 7, 'タイトル': '返事待ち', 'ステータス': '保留', '優先度': '緊急',
             '担当者PersonID': 'owner', '担当者': 'Owner', '待ち理由': '先方確認',
             'バージョン': 4, 'ソース参照': '[]', CreatedAt: '2026-07-14T00:00:00Z', UpdatedAt: '2026-07-14T01:00:00Z'
         }] }));
@@ -43,6 +43,12 @@ describe('CanonicalTaskNocoDBRepository', () => {
         const page = await repository.list({ statuses: ['waiting'], priorities: ['urgent'], limit: 50 });
         expect(page.items[0]).toMatchObject({ status: 'waiting', priority: 'urgent', waiting_on: '先方確認', version: 4 });
         expect(await repository.get(page.items[0].id)).toMatchObject({ title: '返事待ち' });
+    });
+
+    it('keeps the former waiting projection readable during migration', () => {
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl: vi.fn(), apiToken: 'token', idSecret: 'secret' });
+        expect(repository.normalize({ Id: 70, 'タイトル': '旧待ち', 'ステータス': '待ち', '優先度': '中' }))
+            .toMatchObject({ status: 'waiting' });
     });
 
     it('does not guess a legacy free-text assignee', () => {
@@ -164,6 +170,37 @@ describe('CanonicalTaskNocoDBRepository', () => {
         await expect(repository.update(taskId, { status: 'in_progress', version: 2 }))
             .resolves.toMatchObject({ title: persisted['タイトル'], status: 'in_progress', version: 2 });
         expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries only the authoritative read when PATCH committed before a transient read failure', async () => {
+        const persisted = {
+            Id: 12,
+            'タイトル': '更新結果を再読込する',
+            'ステータス': '進行中',
+            '優先度': '中',
+            '担当者PersonID': 'owner',
+            'バージョン': 2,
+            'ソース参照': '[]'
+        };
+        let readAttempts = 0;
+        const fetchImpl = vi.fn(async (_url, options) => {
+            if (options.method === 'PATCH') return response({ Id: 12 });
+            readAttempts += 1;
+            if (readAttempts === 1) return response({ message: 'temporary' }, 503);
+            return response({ list: [persisted], pageInfo: { totalRows: 1, isLastPage: true } });
+        });
+        const repository = new CanonicalTaskNocoDBRepository({
+            storeConfig,
+            fetchImpl,
+            apiToken: 'token',
+            idSecret: 'secret',
+            readAfterWriteDelaysMs: [0]
+        });
+
+        await expect(repository.update(repository.encodeId('12'), { status: 'in_progress', version: 2 }))
+            .resolves.toMatchObject({ status: 'in_progress', version: 2 });
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(fetchImpl.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(1);
     });
 
     it('rejects opaque ids from another store or with a forged signature', () => {

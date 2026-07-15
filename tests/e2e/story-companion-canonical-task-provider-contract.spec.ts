@@ -19,6 +19,7 @@ const registry = JSON.parse(
 
 const coreApiSuites = [
   'tests/server/routes/companion-canonical-tasks.test.js',
+  'tests/server/routes/companion-canonical-task-live-http.test.js',
   'tests/server/services/canonical-task-service.test.js',
   'tests/server/services/canonical-task-operation-repository.test.js',
   'tests/server/services/canonical-task-nocodb-repository.test.js',
