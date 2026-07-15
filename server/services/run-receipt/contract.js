@@ -314,9 +314,13 @@ export function normalizeRunReceipt(payload) {
         && (!run.action_required || run.action_required === 'none')) {
         fail('missing_failure_action', `run.status=${run.status} requires blocker_reason or non-none action_required`);
     }
-    if (run.observation_kind === 'connector_observation') {
-        const valid = source.workflow_id === '__connector_observation__'
-            && run.status === 'blocked'
+    const isConnectorObservation = run.observation_kind === 'connector_observation';
+    const usesConnectorObservationIdentity = source.workflow_id === '__connector_observation__';
+    if (isConnectorObservation !== usesConnectorObservationIdentity) {
+        fail('invalid_connector_observation', 'connector_observation identity and kind must match');
+    }
+    if (isConnectorObservation) {
+        const valid = run.status === 'blocked'
             && ['no_data', 'unconfirmed'].includes(run.evidence_state)
             && Boolean(run.blocker_reason);
         if (!valid) fail('invalid_connector_observation', 'connector_observation invariants are not satisfied');

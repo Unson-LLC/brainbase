@@ -146,6 +146,14 @@ describe('normalizeRunReceipt', () => {
         }))).toThrowError(expect.objectContaining({ code: 'invalid_connector_observation' }));
     });
 
+    it('connector_observation予約workflow IDを通常source runとして送る_契約エラーになる', () => {
+        expect(() => normalizeRunReceipt(makeReceipt({
+            source: {
+                workflow_id: '__connector_observation__'
+            }
+        }))).toThrowError(expect.objectContaining({ code: 'invalid_connector_observation' }));
+    });
+
     it('有効なconnector_observation_通常source runと区別した正規化値を返す', () => {
         const normalized = normalizeRunReceipt(makeReceipt({
             source: {
