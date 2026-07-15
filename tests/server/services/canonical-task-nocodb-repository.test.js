@@ -117,6 +117,33 @@ describe('CanonicalTaskNocoDBRepository', () => {
         expect(fetchImpl.mock.calls.some(([url]) => new URL(url).searchParams.get('offset') === '1000')).toBe(true);
     });
 
+    it('fails closed when NocoDB repeats a full page instead of advancing pagination', async () => {
+        const repeatedPage = Array.from({ length: 1000 }, (_, index) => ({
+            Id: index + 1,
+            'タイトル': `Task ${index + 1}`,
+            'ステータス': '未着手',
+            '優先度': '中',
+            '担当者PersonID': 'owner'
+        }));
+        const fetchImpl = vi.fn(async () => response({
+            list: repeatedPage,
+            pageInfo: { totalRows: 2000, isLastPage: false }
+        }));
+        const repository = new CanonicalTaskNocoDBRepository({
+            storeConfig,
+            fetchImpl,
+            apiToken: 'token',
+            idSecret: 'secret'
+        });
+
+        await expect(repository.list()).rejects.toMatchObject({
+            code: 'task_store_unavailable',
+            status: 503,
+            message: 'NocoDB Task pagination did not advance'
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
     it('reads the authoritative row after NocoDB returns only the created record id', async () => {
         const persisted = {
             Id: 10,
