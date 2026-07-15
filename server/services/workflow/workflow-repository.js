@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const EMPTY_LEDGER = {
     schema_version: '0.1.0',
@@ -27,6 +28,22 @@ function clone(value) {
 
 function nowIso() {
     return new Date().toISOString();
+}
+
+function isLocalProcessAlive(pid) {
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        return error?.code === 'EPERM';
+    }
+}
+
+function waitSync(milliseconds) {
+    if (milliseconds <= 0) return;
+    const signal = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.wait(signal, 0, 0, milliseconds);
 }
 
 function lockKey({ workspace_id, workflow_id }) {
@@ -75,6 +92,10 @@ function readLedgerFile(filePath) {
 
 export class InMemoryWorkflowRepository {
     constructor({ seedWorkflows = [] } = {}) {
+        this._transactionContext = new AsyncLocalStorage();
+        this._transactionQueueTail = Promise.resolve();
+        this._requireTransactionForMutations = false;
+        this._workflowLocks = [];
         this.ledger = clone(EMPTY_LEDGER);
         for (const workflow of seedWorkflows) {
             this.upsertWorkflow(workflow);
@@ -91,6 +112,7 @@ export class InMemoryWorkflowRepository {
     }
 
     upsertWorkflow(workflow) {
+        this._assertMutationAllowed();
         if (!workflow.workspace_id) {
             throw new Error('workflow.workspace_id is required');
         }
@@ -120,12 +142,14 @@ export class InMemoryWorkflowRepository {
     }
 
     updateWorkflow(workflowId, patch) {
+        this._assertMutationAllowed();
         const current = this.getWorkflow(workflowId);
         if (!current) return null;
         return this.upsertWorkflow({ ...current, ...patch, id: workflowId });
     }
 
     createRun(run) {
+        this._assertMutationAllowed();
         const next = {
             closure_state: 'open',
             status: 'queued',
@@ -140,6 +164,7 @@ export class InMemoryWorkflowRepository {
     }
 
     updateRun(runId, patch) {
+        this._assertMutationAllowed();
         const index = this.ledger.runs.findIndex((item) => item.id === runId);
         if (index === -1) return null;
         this.ledger.runs[index] = { ...this.ledger.runs[index], ...patch };
@@ -169,12 +194,14 @@ export class InMemoryWorkflowRepository {
     }
 
     createRunStep(step) {
+        this._assertMutationAllowed();
         this.ledger.run_steps.push({ created_at: nowIso(), ...step });
         this._persist();
         return clone(this.ledger.run_steps[this.ledger.run_steps.length - 1]);
     }
 
     updateRunStep(stepId, patch) {
+        this._assertMutationAllowed();
         const index = this.ledger.run_steps.findIndex((item) => item.id === stepId);
         if (index === -1) return null;
         this.ledger.run_steps[index] = { ...this.ledger.run_steps[index], ...patch };
@@ -191,6 +218,7 @@ export class InMemoryWorkflowRepository {
     }
 
     createContextSnapshot(snapshot) {
+        this._assertMutationAllowed();
         this.ledger.context_snapshots.push({ created_at: nowIso(), ...snapshot });
         this._persist();
         return clone(this.ledger.context_snapshots[this.ledger.context_snapshots.length - 1]);
@@ -201,6 +229,7 @@ export class InMemoryWorkflowRepository {
     }
 
     createHumanStep(step) {
+        this._assertMutationAllowed();
         const next = { status: 'pending', created_at: nowIso(), ...step };
         this.ledger.human_steps.push(next);
         this._persist();
@@ -208,6 +237,7 @@ export class InMemoryWorkflowRepository {
     }
 
     updateHumanStep(stepId, patch) {
+        this._assertMutationAllowed();
         const index = this.ledger.human_steps.findIndex((item) => item.id === stepId);
         if (index === -1) return null;
         this.ledger.human_steps[index] = { ...this.ledger.human_steps[index], ...patch };
@@ -225,6 +255,7 @@ export class InMemoryWorkflowRepository {
     }
 
     createOutput(output) {
+        this._assertMutationAllowed();
         this.ledger.outputs.push({ created_at: nowIso(), ...output });
         this._persist();
         return clone(this.ledger.outputs[this.ledger.outputs.length - 1]);
@@ -240,6 +271,7 @@ export class InMemoryWorkflowRepository {
     }
 
     updateOutput(outputId, patch) {
+        this._assertMutationAllowed();
         const index = this.ledger.outputs.findIndex((item) => item.id === outputId);
         if (index === -1) return null;
         this.ledger.outputs[index] = { ...this.ledger.outputs[index], ...patch };
@@ -248,6 +280,7 @@ export class InMemoryWorkflowRepository {
     }
 
     writeAuditLog(entry) {
+        this._assertMutationAllowed();
         this.ledger.audit_logs.push({ id: entry.id || `audit_${crypto.randomUUID()}`, created_at: nowIso(), ...entry });
         this._persist();
         return clone(this.ledger.audit_logs[this.ledger.audit_logs.length - 1]);
@@ -261,14 +294,55 @@ export class InMemoryWorkflowRepository {
     }
 
     async transaction(callback) {
-        const snapshot = clone(this.ledger);
-        try {
-            return await callback();
-        } catch (error) {
-            this.ledger = snapshot;
-            this._persist();
-            throw error;
+        const current = this._transactionContext.getStore();
+        if (current?.repository === this && current.active) {
+            try {
+                return await callback();
+            } catch (error) {
+                current.rollbackOnly = true;
+                current.rollbackCause ||= error;
+                throw error;
+            }
         }
+
+        const releaseTurn = await this._waitForTransactionTurn();
+        const state = {
+            repository: this,
+            ownerId: crypto.randomUUID(),
+            active: true,
+            rollbackOnly: false,
+            rollbackCause: null,
+            dirty: false,
+            snapshot: null,
+            lease: null
+        };
+
+        return this._transactionContext.run(state, async () => {
+            try {
+                await this._beginTransaction(state);
+                state.snapshot = clone(this.ledger);
+                const result = await callback();
+                if (state.rollbackOnly) {
+                    const cause = state.rollbackCause instanceof Error
+                        ? `: ${state.rollbackCause.message}`
+                        : '';
+                    throw new Error(`Workflow transaction is rollback-only${cause}`);
+                }
+                await this._commitTransaction(state);
+                return result;
+            } catch (error) {
+                if (state.snapshot) this.ledger = state.snapshot;
+                await this._rollbackTransaction(state, error);
+                throw error;
+            } finally {
+                state.active = false;
+                try {
+                    await this._endTransaction(state);
+                } finally {
+                    releaseTurn();
+                }
+            }
+        });
     }
 
     upsertRoleAgentInstance(agent) {
@@ -351,15 +425,15 @@ export class InMemoryWorkflowRepository {
 
     acquireWorkflowLock({ workspace_id, workflow_id, locked_by, ttl_ms = 300000 }) {
         const now = Date.now();
-        const existingIndex = this.ledger.workflow_locks.findIndex((item) => (
+        const existingIndex = this._workflowLocks.findIndex((item) => (
             item.workspace_id === workspace_id && item.workflow_id === workflow_id
         ));
         if (existingIndex !== -1) {
-            const existing = this.ledger.workflow_locks[existingIndex];
+            const existing = this._workflowLocks[existingIndex];
             if (new Date(existing.expires_at).getTime() > now) {
                 return null;
             }
-            this.ledger.workflow_locks.splice(existingIndex, 1);
+            this._workflowLocks.splice(existingIndex, 1);
         }
         const lockedAt = new Date(now).toISOString();
         const lock = {
@@ -369,20 +443,18 @@ export class InMemoryWorkflowRepository {
             locked_at: lockedAt,
             expires_at: new Date(now + ttl_ms).toISOString()
         };
-        this.ledger.workflow_locks.push(lock);
-        this._persist();
+        this._workflowLocks.push(lock);
         return clone(lock);
     }
 
     releaseWorkflowLock({ workspace_id, workflow_id, locked_by }) {
-        const index = this.ledger.workflow_locks.findIndex((item) => (
+        const index = this._workflowLocks.findIndex((item) => (
             item.workspace_id === workspace_id
             && item.workflow_id === workflow_id
             && item.locked_by === locked_by
         ));
         if (index === -1) return false;
-        this.ledger.workflow_locks.splice(index, 1);
-        this._persist();
+        this._workflowLocks.splice(index, 1);
         return true;
     }
 
@@ -410,6 +482,7 @@ export class InMemoryWorkflowRepository {
     }
 
     _upsertCollectionItem(collectionName, item) {
+        this._assertMutationAllowed();
         if (!item?.id) {
             throw new Error(`${collectionName}.id is required`);
         }
@@ -440,22 +513,59 @@ export class InMemoryWorkflowRepository {
         return clone(this.ledger[collectionName]);
     }
 
-    _persist() {}
+    _assertMutationAllowed() {
+        if (!this._requireTransactionForMutations) return;
+        const state = this._transactionContext.getStore();
+        if (state?.repository === this && state.active) return;
+        throw new Error('Json workflow ledger mutation requires repository.transaction()');
+    }
+
+    async _waitForTransactionTurn() {
+        const previous = this._transactionQueueTail;
+        let release;
+        this._transactionQueueTail = new Promise((resolve) => {
+            release = resolve;
+        });
+        await previous.catch(() => {});
+        return release;
+    }
+
+    async _beginTransaction() {}
+
+    async _commitTransaction() {}
+
+    async _rollbackTransaction() {}
+
+    async _endTransaction() {}
+
+    _persist() {
+        const state = this._transactionContext.getStore();
+        if (state?.repository === this && state.active) {
+            state.dirty = true;
+        }
+    }
 }
 
 export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
-    constructor({ filePath, seedWorkflows = [] }) {
+    constructor({
+        filePath,
+        seedWorkflows = [],
+        leaseAcquireTimeoutMs = 5000,
+        leaseRetryMs = 20,
+        leaseTtlMs = 30000
+    }) {
         super();
         this.filePath = filePath;
+        this.leaseAcquireTimeoutMs = leaseAcquireTimeoutMs;
+        this.leaseRetryMs = leaseRetryMs;
+        this.leaseTtlMs = leaseTtlMs;
+        this.transactionLeasePath = filePath ? `${filePath}.transaction-lock.json` : null;
         this.ledger = readLedgerFile(filePath);
-        for (const workflow of seedWorkflows) {
-            if (!this.getWorkflow(workflow.id)) {
-                this.upsertWorkflow(workflow);
-            }
-        }
+        this._requireTransactionForMutations = Boolean(filePath);
+        this._initializeSeedWorkflows(seedWorkflows);
     }
 
-    _persist() {
+    _writeLedgerFile() {
         if (!this.filePath) return;
         fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
         const payload = {
@@ -466,6 +576,20 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         const tmpPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
         fs.writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`);
         fs.renameSync(tmpPath, this.filePath);
+    }
+
+    async _beginTransaction(state) {
+        if (!this.filePath) return;
+        state.lease = await this._acquireTransactionLease(state.ownerId);
+        this.reload();
+    }
+
+    async _commitTransaction(state) {
+        if (state.dirty) this._writeLedgerFile();
+    }
+
+    async _endTransaction(state) {
+        if (state.lease) this._releaseTransactionLease(state.ownerId);
     }
 
     reload() {
@@ -484,6 +608,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             workspace_id,
             workflow_id,
             locked_by,
+            pid: process.pid,
             locked_at: new Date(now).toISOString(),
             expires_at: new Date(now + ttl_ms).toISOString()
         };
@@ -495,7 +620,6 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             } finally {
                 fs.closeSync(fd);
             }
-            this.reload();
             return clone(lock);
         };
 
@@ -539,7 +663,125 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         if (existing?.locked_by && existing.locked_by !== locked_by) return false;
         try {
             fs.unlinkSync(lockPath);
+            return true;
+        } catch (error) {
+            if (error?.code === 'ENOENT') return false;
+            throw error;
+        }
+    }
+
+    _initializeSeedWorkflows(seedWorkflows) {
+        if (!this.filePath || seedWorkflows.length === 0) return;
+        const ownerId = `seed:${crypto.randomUUID()}`;
+        const lease = this._acquireTransactionLeaseSync(ownerId);
+        const previousLedger = clone(this.ledger);
+        try {
             this.reload();
+            const state = {
+                repository: this,
+                ownerId,
+                active: true,
+                rollbackOnly: false,
+                rollbackCause: null,
+                dirty: false,
+                snapshot: clone(this.ledger),
+                lease
+            };
+            this._transactionContext.run(state, () => {
+                for (const workflow of seedWorkflows) {
+                    if (!this.getWorkflow(workflow.id)) this.upsertWorkflow(workflow);
+                }
+            });
+            state.active = false;
+            if (state.dirty) this._writeLedgerFile();
+        } catch (error) {
+            this.ledger = previousLedger;
+            throw error;
+        } finally {
+            this._releaseTransactionLease(ownerId);
+        }
+    }
+
+    async _acquireTransactionLease(ownerId) {
+        const startedAt = Date.now();
+        while (true) {
+            try {
+                return this._createTransactionLease(ownerId);
+            } catch (error) {
+                if (error?.code !== 'EEXIST') throw error;
+                if (this._reclaimStaleTransactionLease()) continue;
+                if (Date.now() - startedAt >= this.leaseAcquireTimeoutMs) {
+                    throw new Error(`Timed out acquiring workflow ledger lease after ${this.leaseAcquireTimeoutMs}ms`);
+                }
+                await new Promise((resolve) => setTimeout(resolve, this.leaseRetryMs));
+            }
+        }
+    }
+
+    _acquireTransactionLeaseSync(ownerId) {
+        const startedAt = Date.now();
+        while (true) {
+            try {
+                return this._createTransactionLease(ownerId);
+            } catch (error) {
+                if (error?.code !== 'EEXIST') throw error;
+                if (this._reclaimStaleTransactionLease()) continue;
+                if (Date.now() - startedAt >= this.leaseAcquireTimeoutMs) {
+                    throw new Error(`Timed out acquiring workflow ledger lease after ${this.leaseAcquireTimeoutMs}ms`);
+                }
+                waitSync(this.leaseRetryMs);
+            }
+        }
+    }
+
+    _createTransactionLease(ownerId) {
+        fs.mkdirSync(path.dirname(this.transactionLeasePath), { recursive: true });
+        const now = Date.now();
+        const lease = {
+            schema_version: '1.0.0',
+            owner_id: ownerId,
+            pid: process.pid,
+            acquired_at: new Date(now).toISOString(),
+            expires_at: new Date(now + this.leaseTtlMs).toISOString()
+        };
+        const fd = fs.openSync(this.transactionLeasePath, 'wx');
+        try {
+            fs.writeFileSync(fd, `${JSON.stringify(lease, null, 2)}\n`);
+        } finally {
+            fs.closeSync(fd);
+        }
+        return lease;
+    }
+
+    _reclaimStaleTransactionLease() {
+        let existing;
+        try {
+            existing = JSON.parse(fs.readFileSync(this.transactionLeasePath, 'utf8'));
+        } catch {
+            return false;
+        }
+        const expired = new Date(existing.expires_at).getTime() <= Date.now();
+        if (!expired || isLocalProcessAlive(existing.pid)) return false;
+        try {
+            fs.unlinkSync(this.transactionLeasePath);
+            return true;
+        } catch (error) {
+            if (error?.code === 'ENOENT') return true;
+            throw error;
+        }
+    }
+
+    _releaseTransactionLease(ownerId) {
+        if (!this.transactionLeasePath || !fs.existsSync(this.transactionLeasePath)) return false;
+        let existing;
+        try {
+            existing = JSON.parse(fs.readFileSync(this.transactionLeasePath, 'utf8'));
+        } catch {
+            return false;
+        }
+        if (existing.owner_id !== ownerId) return false;
+        try {
+            fs.unlinkSync(this.transactionLeasePath);
             return true;
         } catch (error) {
             if (error?.code === 'ENOENT') return false;
