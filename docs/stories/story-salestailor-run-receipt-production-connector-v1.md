@@ -30,7 +30,8 @@ SalesTailor operatorとして、campaign・form submission・batch job等の実�
 ## Acceptance Criteria
 
 - [ ] productionで権威あるjob/run storeとstatus mappingをlive inspectionで確定し、campaign/form/batchの対象範囲を列挙する。
-- [ ] job id/run idから決定的なreceiptを生成し、success/failed/blocked/waiting human/cancelledを保持する。
+- [ ] authority確定後は `source.workflow_id = "salestailor:" + job_kind + ":" + job_definition_id`、`run.external_run_id = "salestailor:" + job_kind + ":" + native_run_id + ":attempt:" + native_attempt` を使う。attemptを持たないauthorityは1を固定し、source-defined rerunだけを別receipt、同じattemptの再送をdelivery retryとして扱う。
+- [ ] terminal stateは `completed|success -> success`、`failed|timed_out -> failed`、`blocked|partial_success -> blocked`、`waiting_human|requires_action -> waiting_human`、`cancelled -> cancelled` と決定的に変換する。`partial_success` はfailed countと `review_run` actionを保持する。既知runのrunning/unknown/nullはoutboxでpendingのまま再観測し、authority障害でrun identity自体を得られない場合だけconnector observationを作る。
 - [ ] processed/succeeded/failed等のmetricは数値だけを送り、顧客・企業・返信内容を含めない。
 - [ ] API/DB/auth障害でsource stateを読めない場合はconnector observationとし、0件successへ変換しない。
 - [ ] delivery outboxと再送checkpointを持ち、Brainbase障害時もsource jobを再実行しない。
@@ -40,3 +41,8 @@ SalesTailor operatorとして、campaign・form submission・batch job等の実�
 
 - 4xx contract/auth errorはblocked outbox、timeout/5xxはretryable deliveryとして分離する。
 - 部分成功はoverall successへ丸めず、source statusとfailed count/actionを保持する。
+
+## Verification
+
+- `tests/connectors/salestailor-run-receipt.test.js` は同じjob runのattempt 1/2が別identityで共存し、同じattemptのdelivery再送だけがduplicateになるpre-fix失敗fixtureを持つ。
+- 同fixtureは全terminal mapping、partial success、known-run pending、identity取得不能observation、outbox/checkpoint replay、数値metricだけの送信、顧客本文・PII排除を検証する。

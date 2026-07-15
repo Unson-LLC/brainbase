@@ -23,14 +23,15 @@ GitHub Actions operatorとして、対象repositoryの実workflow run conclusion
 
 ## Outcome
 
-- GitHub Actions reusable workflow/composite actionが `always()` で起動し、GitHubのrun id/attempt/conclusionをsource authorityとして送る。
+- GitHub Actionsの `workflow_run: completed` producer（または同等に最終workflow-run conclusionを取得できる外部poller）が、GitHubのrun id/attempt/conclusionをsource authorityとして送る。元workflow内の `always()` stepが読めるjob/step結果を最終workflow conclusionの代用にしない。
 - workflow run URLとartifact URLだけをevidence refにし、job logsやsecretを複製しない。
 - 各repositoryがManaを経由せずBrainbaseへ直接接続する。
 
 ## Acceptance Criteria
 
 - [ ] `github.run_id` と `github.run_attempt` をsource authorityとして読み、`run.external_run_id = "github:" + github.run_id + ":attempt:" + github.run_attempt` とする。rerun attemptは別source runであり、同じattemptのBrainbase送信再試行だけをdelivery retryとして扱う。workflow ref/nameはworkflow identityへ写像する。
-- [ ] GitHubのreachable conclusionを次のように決定的にmappingする: `success -> success`、`failure|timed_out|startup_failure -> failed`、`cancelled -> cancelled`、`action_required -> waiting_human`、`skipped|neutral|stale -> blocked`。`blocked`/`failed`はredacted blocker reasonまたはactionを必須とし、未知・null conclusionはsource runの偽successへせず `connector_observation` の `blocked + unconfirmed` として送る。
+- [ ] producerは `workflow_run: completed`、webhook、または外部pollerでauthoritative terminal conclusion確定後に起動する。既知のqueued/in_progress/null conclusionはdeferし、completed eventでそのattemptのsource receiptを1件だけ作る。
+- [ ] GitHubのreachable terminal conclusionを次のように決定的にmappingする: `success -> success`、`failure|timed_out|startup_failure -> failed`、`cancelled -> cancelled`、`action_required -> waiting_human`、`skipped|neutral|stale -> blocked`。`blocked`/`failed`はredacted blocker reasonまたはactionを必須とする。既知の `github.run_id + github.run_attempt` に対する未知・null conclusionはconnector outboxでpendingのまま再観測し、source receiptも `connector_observation` も送らない。run identity自体を取得できない観測失敗だけを、connector-owned observation attempt idを持つ `connector_observation` の `blocked + unconfirmed` として送る。
 - [ ] producer step自体が失敗した場合も元workflow conclusionを上書きせず、delivery失敗として再送可能なartifact/dispatch経路へ残す。
 - [ ] S2S credentialはGitHub secret/Environmentで最小scope管理し、fork PRや未信頼contextへ公開しない。
 - [ ] 対象production workflowへ実wireし、成功・失敗・cancelled canaryがBrainbase InboxとGitHub run URLで照合できる。
@@ -39,7 +40,8 @@ GitHub Actions operatorとして、対象repositoryの実workflow run conclusion
 ## Verification
 
 - `tests/connectors/github-actions-run-receipt.test.js` は同じ `github.run_id` の attempt 1 と attempt 2 が異なる `external_run_id` / idempotency keyで共存し、同じattemptの再送だけがduplicateになるpre-fix失敗fixtureを持つ。
-- 同fixtureは `success`、`failure`、`timed_out`、`startup_failure`、`cancelled`、`action_required`、`skipped`、`neutral`、`stale`、未知値、nullを全て検証し、未知値や証拠不足を `success` または空結果へ変換しない。
+- 同fixtureは `success`、`failure`、`timed_out`、`startup_failure`、`cancelled`、`action_required`、`skipped`、`neutral`、`stale`、未知値、nullを全て検証する。既知attemptの未知値/nullはconnector内部のpending stateへ留まりreceiptを作らず、identity取得不能だけがsynthetic observationを作り、後から取得したsource receiptとidentity conflictせず共存する。どちらも `success` または空結果へ変換しない。
+- 同fixtureは既知attemptの `conclusion=null` eventではreceiptを0件のままdeferし、後続 `workflow_run: completed` でsource receiptを1件作り、completed eventの再配信をduplicateとして扱う。
 - producerのdelivery failure fixtureは元workflowのconclusionを変更せず、outbox artifactから同じsource identityで再送できることを検証する。
 
 ## Failure Modes

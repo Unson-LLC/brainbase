@@ -30,7 +30,8 @@ Codex Automations operatorとして、実際のautomation実行結果をBrainbas
 ## Acceptance Criteria
 
 - [ ] 現行Codex automation stateの正規保存先/APIをlive inspectionで確定し、推測したファイル形式へ依存しない。
-- [ ] automation idと実run identityから決定的なreceiptを作り、completed/failed/cancelled/waiting-human相当を明示的にmappingする。
+- [ ] live inspectionで確定したauthorityから `source.workflow_id = "codex_automation:" + automation_id`、`run.external_run_id = "codex_automation:" + automation_id + ":run:" + native_run_id + ":attempt:" + native_attempt` を作る。attemptを持たないauthorityは1を固定し、source-defined rerunだけが別receipt、同じattemptの再送はdelivery retryになる。
+- [ ] terminal stateは `completed|success -> success`、`failed|timed_out -> failed`、`blocked -> blocked`、`waiting_human|requires_action -> waiting_human`、`cancelled -> cancelled` と決定的に変換する。既知runのrunning/unknown/nullはcheckpoint/outboxでpendingのまま再観測し、state authorityを読めずrun identity自体を得られない場合だけconnector observationを作る。
 - [ ] connector checkpointは最後にreceipt確認済みのrunを保持し、再起動後も欠落・二重createなくcatch upする。
 - [ ] Codex task本文、terminal transcript、prompt、secretをreceiptへ含めない。
 - [ ] state DB/APIを読めない場合はconnector observationを作り、runなしや0件成功にしない。
@@ -40,3 +41,8 @@ Codex Automations operatorとして、実際のautomation実行結果をBrainbas
 
 - schema/version driftはblocked observationと診断ログを残し、未知状態をsuccessへfallbackしない。
 - Brainbase timeout/5xxはローカルoutboxで再送し、4xxは要修正として隔離する。
+
+## Verification
+
+- `tests/connectors/codex-automations-run-receipt.test.js` は同じautomation/native runのattempt 1/2が別identityで共存し、同じattemptの再送だけがduplicateになるpre-fix失敗fixtureを持つ。
+- 同fixtureは全terminal mapping、known-run pending、identity取得不能observation、checkpoint再起動catch-up、outbox replay、task/prompt/transcript排除を検証する。
