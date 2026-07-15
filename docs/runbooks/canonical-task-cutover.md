@@ -29,7 +29,8 @@
 5. `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。
 6. `npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
 7. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
-8. Brainbase APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。
+8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json> --owner-person-id <owner Person ID>`で、Mac実契約が使用する固定Human Stepを稼働中processの起動前に作る。既に消費済みなら再利用せず失敗させる。
+9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。
 
 ## rollback
 

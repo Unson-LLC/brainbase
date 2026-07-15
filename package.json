@@ -63,6 +63,7 @@
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
     "preflight:canonical-task-cutover": "node scripts/preflight-canonical-task-cutover.js",
     "capture:canonical-task-cutover": "node scripts/capture-canonical-task-cutover-evidence.js",
+    "canonical-task:seed-live-fixture": "node scripts/seed-canonical-task-live-approval-fixture.js",
     "ssot:inventory:local": "node scripts/local-data-server-ssot-inventory.js",
     "ssot:upsert:local": "node scripts/local-data-server-ssot-upsert.js",
     "migrate:m5a": "node scripts/migrate-m5a-production-schema.js",
