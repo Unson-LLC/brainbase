@@ -45,6 +45,8 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:6 raw logや顧客本文は複製せず、証跡はsource-owned URLまたはartifact referenceとして保存する。
 - [ ] ac:7 ingest認証はserver-to-server credentialを要求し、認証主体がアクセスできないprojectへのreceiptを拒否する。
 - [ ] ac:8 receipt deliveryの成否とsource runの成否を別フィールドとして扱い、delivery成功をrun成功と解釈しない。
+- [ ] ac:9 同一identityの同時ingestはreceipt lockで直列化し、1件だけをcreate、残りをduplicateとして返す。lock取得不能時は部分保存せず明示的に失敗する。
+- [ ] ac:10 production CSRF middlewareは `POST /api/run-receipts/ingest` だけをbrowser CSRF対象外にし、route側でserver-to-server credentialを必須化する。cookie/session-only POSTは拒否し、既存exemptionは変えない。
 
 ## Workflow State Scenarios
 
@@ -54,11 +56,13 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `workflow state transition`: source `waiting_human` は `waiting_human / open / review_run` へ写る。
 - `workflow state transition`: source `cancelled` は `cancelled / closed / none` へ写り、successに含めない。
 - `workflow retry matrix`: 同じproject/source/external run idで同一payloadの再送はduplicate、内容が異なる再送はconflictとして拒否する。
+- `workflow retry matrix`: `delivery.attempt` と `delivery.sent_at` だけが変わった再送は同一payloadとしてduplicateになる。同一identityの同時送信も1件だけcreateされる。
 - `workflow rollback guard`: contract、auth、project、idempotency conflictの検証が失敗した場合、workflow runやauditを部分保存しない。
 
 ## Failure Modes
 
 - `schema_failure`: 未定義status/evidence state、空のidentity、壊れたevidence refは400で拒否する。
+- `schema_failure`: source label、summary、blocker、action、metric、evidence label/refに改行・制御文字・上限超過・禁止keyがある場合は400で拒否する。connectorは送信前に顧客本文・secret・raw logを除去する。
 - `auth_denied`: cookieだけのbrowser requestやproject非許可credentialは403で拒否する。
 - `source_unavailable`: connectorがsourceへ接続できずsource run identityも得られない場合は、connector自身の観測試行を `observation_kind=connector_observation`、synthetic external run identity、`blocked + no_data|unconfirmed` として表現する。source runを失敗扱いに偽装しない。
 - `delivery_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。

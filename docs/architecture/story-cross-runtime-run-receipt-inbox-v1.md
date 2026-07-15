@@ -22,7 +22,7 @@ flowchart LR;
 | Component | Responsibility |
 |---|---|
 | `RunReceiptAdapter` | `run_receipt.v1` validation resultをWMC workflow/run/audit shapeへ決定的に変換する。 |
-| `RunReceiptIngestService` | idempotency、conflict検知、project整合性、transactional writeを所有する。 |
+| `RunReceiptIngestService` | receipt lock、idempotency、conflict検知、project整合性、transactional writeを所有する。 |
 | `createRunReceiptRouter` | POSTのserver-to-server auth、GETのoperator auth、project access、ingest/list query boundaryを所有する。 |
 | `WorkflowService.listRunReceiptInbox` | WMC runからreceiptだけを抽出し、priorityとfilterを適用する。 |
 | Workflow Mission Control UI | receipt専用Inbox sectionを表示し、APIと同じfilter・priority・uncertainty semanticsを使う。 |
@@ -66,9 +66,10 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 1. Validate the full contract before repository writes.
 2. Canonical tuple encoding is UTF-8 JSON of `[project_id, source.type, external_run_id]` with no whitespace. The canonical delivery key is `rr1_` plus the lowercase SHA-256 hex digest of that byte sequence. The WMC run id is `run_receipt_run_` plus the first 32 digest characters.
 3. Internal workflow id is `run_receipt_wf_` plus the first 32 characters of SHA-256 over UTF-8 JSON `[project_id, source.type, source.workflow_id]`. Original source workflow id is retained in metadata. Existing workflow project/source metadata must match or ingest fails without mutation.
-4. If absent, create/project-check the source workflow, then create run and audit in one repository transaction. A repository without `transaction()` is unsupported and ingest fails before writes.
-5. If present and normalized receipt surfaces match, return `duplicate` without new run or audit.
-6. If present but the normalized surface differs, reject with `run_receipt_conflict` and preserve the original run.
+4. Acquire a repository receipt lock using `workspace_id=run.project_id`, `workflow_id=<deterministic run id>`, and a unique ingest owner. Acquisition retries for a bounded interval. Duplicate lookup, conflict comparison, and the write transaction run while the lock is held; release occurs in `finally`. Missing lock/transaction capability or lock timeout fails without writes. This serializes concurrent deliveries across the JSON repository's file lock and the in-memory repository lock.
+5. If absent, create/project-check the source workflow, then create run and audit in one repository transaction.
+6. If present and the normalized immutable projection matches, return `duplicate` without new run or audit. The projection includes normalized contract/source/run fields, recursively sorted object keys, sorted evidence references, and excludes all `delivery` metadata. Store its SHA-256 as `payload_digest`.
+7. If present but the normalized surface differs, reject with `run_receipt_conflict` and preserve the original run.
 
 ## Connector Observation Fallback
 
@@ -81,15 +82,16 @@ When a connector cannot obtain a source-owned run identity, it emits its own obs
 - `run.evidence_state=no_data|unconfirmed`
 - `run.blocker_reason` identifies the connection/read failure
 
-The source connector is authoritative for that observation attempt identity. Inbox and summary surfaces label it as a connector observation.
+The source connector is authoritative for that observation attempt identity. Inbox API and UI label it as a connector observation.
 
 ## Security and Privacy
 
 - Both routes use existing `requireAuth`.
 - `POST /ingest` additionally requires internal, service-token, bearer, or insecure-header server-to-server credential and project access.
+- Global production CSRF middleware exempts only the exact `/api/run-receipts/ingest` path because non-browser clients cannot obtain a CSRF token. The route still runs `requireAuth` and a server-to-server credential guard, so cookie/session-only POST remains forbidden. GET receives no CSRF exemption because it is a safe method. Existing exemptions remain unchanged.
 - `GET /inbox` accepts an authenticated Brainbase operator/session. With no `project_id`, it returns only projects visible to that actor; explicit inaccessible projects are rejected.
 - `project_id` must be visible to the authenticated actor.
-- Evidence references allow `url`, `artifact_ref`, or `log_ref`; forbidden raw keys are rejected recursively across the entire envelope.
-- `run.summary`, evidence labels, metric names, and string metric values have bounded lengths. Metrics remain scalar-only and may not use content/log/transcript-like keys.
+- Evidence references allow `url`, `artifact_ref`, or `log_ref`; HTTPS/opaque-ref syntax and length are validated, and forbidden raw keys are rejected recursively across the entire envelope.
+- Connector-owned labels, summary, and blocker text are single-line and bounded; action is an enum. Metrics accept finite number, boolean, or null only. Source connectors must redact customer prose, secrets, logs, and transcripts before delivery; Brainbase validation is defense in depth.
 - API credentials and source payload bodies remain in source connectors.
 - Graph SSOT and Candidate Store are not written by this adapter.

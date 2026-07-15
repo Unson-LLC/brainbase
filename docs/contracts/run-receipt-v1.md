@@ -35,3 +35,7 @@ Example:
 ```
 
 The digest shown above is the SHA-256 value for the example tuple `["brainbase","mana","2026-07-15T09:00:00+09:00"]`; connectors must compute it from the normative canonical tuple algorithm in the Spec.
+
+Duplicate comparison uses the normalized immutable `contract_version + source + run` projection defined by the Spec. The entire `delivery` object is excluded, so a retry may change `attempt` or `sent_at` without creating a conflict. Brainbase serializes concurrent deliveries under the deterministic receipt identity before duplicate lookup and transactional projection.
+
+Connectors must redact customer prose, credentials, raw logs, and transcripts before delivery. Operational summary/blocker text is bounded and single-line, action is an enum, metrics accept finite number/boolean/null only, and evidence handles must satisfy the exact HTTPS or opaque-reference schema in the Spec.

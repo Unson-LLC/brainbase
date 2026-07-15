@@ -22,7 +22,7 @@
 - `run.org_id`, `run.workflow_name`, `run.parent_external_run_id`
 - `run.finished_at`, `run.summary`, `run.blocker_reason`, `run.action_required`
 - `run.observation_kind`: `source_run | connector_observation` (default: `source_run`)
-- `run.metrics`: scalar JSON values only
+- `run.metrics`: finite number, boolean, or null values only
 - `run.evidence_refs[]`: `{ kind, ref, label? }`
 - `delivery.attempt`, `delivery.sent_at`
 
@@ -33,12 +33,17 @@
 - `failed` and `blocked` require `run.blocker_reason` or non-`none` `run.action_required`.
 - `evidence_state=confirmed` requires at least one evidence reference.
 - The forbidden key set `content|body|raw_log|rawLog|transcript|customer_text|customerText|payload` is rejected recursively anywhere in the envelope.
-- `run.summary` is at most 500 characters. Evidence labels, metric names, and string metric values are at most 200 characters.
-- `metrics` values must be string, finite number, boolean, or null; nested source payloads and content/log/transcript-like metric names are rejected.
+- `source.workflow_id` and every identity field are non-empty strings of at most 200 characters. Optional `source.name`, `source.runtime_target`, and `run.workflow_name` are single-line operational labels of at most 120 characters.
+- `run.summary` is a connector-redacted, single-line operational summary of at most 500 characters. `run.blocker_reason` is a connector-redacted, single-line operational reason of at most 300 characters. They must not contain customer prose, secrets, raw logs, or transcripts; the source connector owns redaction before delivery and Brainbase rejects control characters, line breaks, forbidden keys, and oversize values as defense in depth.
+- `run.action_required` is one of `none | check_error | resolve_blocker | review_run | retry_run | reauthorize | contact_owner`; connector-specific prose is not accepted in this field.
+- Metric names are single-line operational identifiers of at most 120 characters. Metric values must be finite number, boolean, or null; strings, nested objects/arrays, and content/log/transcript-like metric names are rejected.
+- Every evidence reference has `kind=url|artifact_ref|log_ref`, a non-empty `ref` of at most 2048 characters, and an optional single-line `label` of at most 120 characters. `url` accepts only an absolute `https:` URL. `artifact_ref` and `log_ref` require a source-owned opaque URI-like reference matching `^[a-z][a-z0-9+.-]{1,31}:[^\\s]{1,2000}$`; embedded credentials and empty/broken refs are rejected.
 - `finished_at` may not precede `started_at`.
 - Receipt delivery metadata never changes source `run.status`.
 - `connector_observation` requires `source.workflow_id=__connector_observation__`, `run.status=blocked`, `run.evidence_state=no_data|unconfirmed`, and `run.blocker_reason`. Its external run id names a connector-owned observation attempt, not a source run.
 - Ingest requires a repository transaction capability. Validation, workflow, run, and audit persistence are atomic; unsupported repositories fail before writes.
+- Before duplicate lookup, ingest acquires a receipt lock scoped by `run.project_id + deterministic run id`. Lock acquisition uses the repository lock capability with bounded retry; duplicate lookup and the transaction execute while held, and release happens in `finally`. A repository without transaction/acquire/release capability fails before writes. Concurrent identical receipts therefore produce one `created` and remaining `duplicate` responses, while lock timeout produces no mutation.
+- Duplicate equality uses a normalized immutable projection containing `contract_version`, normalized `source`, and normalized `run` fields. `delivery` is excluded in full, including `attempt` and `sent_at`; identity is already enforced by the canonical tuple/key check. Object keys are recursively sorted, absent optional fields are omitted, timestamps use their validated input strings, evidence references are sorted by `kind`, `ref`, then `label`, and metrics are sorted by key. SHA-256 over UTF-8 compact JSON of this projection is stored as `payload_digest`. A retry that changes only delivery metadata is a duplicate; any immutable projection change is `run_receipt_conflict`.
 
 ## Mapping
 
@@ -61,11 +66,14 @@
 - S-004 `workflow state transition`: waiting human maps to `waiting_human / open / review_run` unless an explicit action is supplied.
 - S-005 `workflow state transition`: cancelled remains cancelled and is not counted as success.
 - S-006 `workflow retry matrix`: exact duplicate returns the original run and writes no second run.
+- S-006a `workflow retry matrix`: a retry changing only `delivery.attempt` or `delivery.sent_at` is duplicate; reordered metric keys or evidence refs normalize to the same digest.
+- S-006b `workflow retry matrix`: simultaneous identical receipts serialize under one receipt lock and yield one created run plus duplicate responses, never multiple runs.
 - S-007 `workflow rollback guard`: same idempotency identity with different normalized content is rejected without mutation.
 - S-008 `workflow rollback guard`: invalid evidence, project mismatch, or unsupported source/status is rejected before writes.
 - S-009 `inbox priority`: blocked or source-supplied action, failed, waiting-human, unconfirmed, no-data, confirmed order is stable; adapter defaults alone do not promote priority.
 - S-010 `inbox filter`: source, project, run status, and evidence state filters compose without treating unavailable as zero.
 - S-011 `workflow auth boundary`: POST cookie/session-only ingest and inaccessible projects are rejected; authenticated operator GET is allowed and project-scoped.
+- S-011a `workflow auth boundary`: production CSRF bypass applies only to `/api/run-receipts/ingest`; bearer/service/internal clients reach route auth, cookie/session-only POST is rejected there, and existing external-runner/companion/internal-key exemptions remain unchanged.
 - S-012 `compatibility guard`: `external_runner.v0` ingest behavior and tests remain unchanged.
 - S-013 `connector observation`: source-unavailable fallback remains visible as a connector observation and is never counted as a source run failure or empty success.
 - S-014 `operator surface`: Workflow Mission Control UI renders source status, uncertainty warning, blocker/action, evidence refs and composed filters in the same order as the API.
@@ -85,8 +93,8 @@
 ## Verification
 
 - AC1/AC4/AC6/AC8: `tests/server/services/run-receipt-contract.test.js` rejects pre-fix invalid status/evidence, raw-key bypasses, oversized text, nested metrics, and delivery/status conflation.
-- AC2/AC3: `tests/server/services/run-receipt-ingest-service.test.js` proves tuple hashing, cross-project/source separation, exact duplicate no-op, conflict rollback, source status preservation, workflow collision guard, and required transaction capability.
+- AC2/AC3/AC9: `tests/server/services/run-receipt-ingest-service.test.js` proves tuple hashing, cross-project/source separation, delivery-only and reordered-field duplicate no-op, conflict rollback, concurrent one-create/many-duplicate behavior, lock timeout rollback, source status preservation, workflow collision guard, and required transaction/lock capability.
 - AC4/AC5: `tests/server/services/run-receipt-inbox.test.js` uses fixtures for all six reachable priority buckets, composed filters, connector observation, omitted count, and uncertainty preservation.
-- AC7: `tests/server/routes/run-receipt-routes.test.js` proves POST server-to-server/project denial and GET operator/project-scope behavior.
+- AC7/AC10: `tests/server/routes/run-receipt-routes.test.js` and `tests/unit/csrf-run-receipt-ingest-exempt.test.js` prove production CSRF path handling, POST server-to-server/project denial, cookie/session-only rejection, GET operator/project-scope behavior, and unchanged existing exemptions.
 - AC5: `tests/ui/run-receipt-inbox.test.js` proves visible no_data/unconfirmed warnings, source/status/evidence filters, evidence links, API ordering, and unchanged non-receipt Operational Inbox behavior.
 - S-012/S-015: existing external runner, workflow service, workflow route, and Workflow Mission Control UI tests remain green.

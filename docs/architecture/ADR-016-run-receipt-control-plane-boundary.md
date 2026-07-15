@@ -30,6 +30,8 @@ Brainbase owns the canonical operational receipt contract and Agent Run Inbox. E
 
 Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
 
+The deterministic receipt identity is also the repository lock scope. Brainbase serializes duplicate lookup and atomic projection under that lock, stores a digest of the immutable contract/source/run projection, and excludes delivery retry metadata from duplicate equality.
+
 The tuple is canonically encoded and hashed before use as a delivery key or WMC identifier, so separators inside source values cannot collide. WMC internal workflow identity is separately derived from `project_id + source.type + source.workflow_id`; original source identities remain metadata.
 
 Source unavailability without a source run identity is represented as a connector-owned observation attempt, not as a fabricated source run failure. POST ingest remains server-to-server only; GET Inbox is an authenticated operator read constrained by the actor's project scope.
