@@ -51,6 +51,45 @@ async function requestJson(url, options = {}) {
   return { status: response.status, body };
 }
 
+export async function captureClosedRuntimeTaskProbes({
+  baseUrl,
+  taskToken,
+  requestJsonImpl = requestJson,
+} = {}) {
+  invariant(baseUrl, 'Canonical Task probe base URL is required');
+  invariant(taskToken, 'Canonical Task probe bearer token is required');
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+  const headers = { Authorization: `Bearer ${taskToken}` };
+  const readEndpoint = `${normalizedBaseUrl}/api/companion/tasks?limit=1`;
+  const readProbe = await requestJsonImpl(readEndpoint, { headers });
+  invariant(readProbe.status === 200, `Canonical Task live read probe failed: ${readProbe.status}`);
+  invariant(Array.isArray(readProbe.body?.items), 'Canonical Task live read probe response is invalid');
+
+  const mutationEndpoint = `${normalizedBaseUrl}/api/companion/tasks/cutover-readiness-probe`;
+  const mutationProbe = await requestJsonImpl(mutationEndpoint, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      expected_version: 1,
+      title: 'cutover-readiness-probe',
+    }),
+  });
+  invariant(
+    mutationProbe.status === 503 && mutationProbe.body?.code === 'canonical_task_mutation_not_ready',
+    `Canonical Task fail-closed mutation probe failed: ${mutationProbe.status}`,
+  );
+
+  return {
+    read: { status: readProbe.status, endpoint: readEndpoint },
+    mutation: {
+      method: 'PATCH',
+      status: mutationProbe.status,
+      endpoint: mutationEndpoint,
+      code: mutationProbe.body.code,
+    },
+  };
+}
+
 async function writeArtifact({ rootDir, outDir, name, sourceHead, details, log }) {
   const logPath = path.join(outDir, `${name}.log`);
   const artifactPath = path.join(outDir, `${name}.json`);
@@ -117,12 +156,10 @@ export async function captureCanonicalTaskCutoverEvidence({
   invariant(Number.isInteger(runtime?.pid) && runtime.pid > 0, 'Brainbase runtime pid is invalid');
   const taskToken = process.env.BRAINBASE_TASK_LIVE_BEARER_TOKEN || process.env.BRAINBASE_SERVICE_TOKEN;
   invariant(taskToken, 'BRAINBASE_TASK_LIVE_BEARER_TOKEN or BRAINBASE_SERVICE_TOKEN is required');
-  const taskEndpoint = `${normalizedBaseUrl}/api/companion/tasks?limit=1`;
-  const taskProbe = await requestJson(taskEndpoint, {
-    headers: { Authorization: `Bearer ${taskToken}` },
+  const taskProbes = await captureClosedRuntimeTaskProbes({
+    baseUrl: normalizedBaseUrl,
+    taskToken,
   });
-  invariant(taskProbe.status === 200, `Canonical Task live probe failed: ${taskProbe.status}`);
-  invariant(Array.isArray(taskProbe.body?.items), 'Canonical Task live probe response is invalid');
 
   const absoluteMacResultPath = path.resolve(macResultPath);
   const macResult = await readJson(absoluteMacResultPath, 'Mac read-only live contract result');
@@ -175,13 +212,22 @@ export async function captureCanonicalTaskCutoverEvidence({
     outDir: absoluteOutDir,
     name: 'runtime',
     sourceHead,
-    log: JSON.stringify({ ok: true, pid: runtime.pid, port: runtime.port, cwd: runtime.cwd, source_head: runtime.git.sha, task_status: taskProbe.status }),
+    log: JSON.stringify({
+      ok: true,
+      pid: runtime.pid,
+      port: runtime.port,
+      cwd: runtime.cwd,
+      source_head: runtime.git.sha,
+      read_status: taskProbes.read.status,
+      mutation_status: taskProbes.mutation.status,
+    }),
     details: {
       artifact_schema: 'canonical-task-runtime-check-v1',
       check_kind: 'brainbase_server_process',
       runtime_kind: 'brainbase_server',
       process: { pid: runtime.pid, port: Number(runtime.port), cwd: runtime.cwd, source_head: runtime.git.sha },
-      probe: { status: taskProbe.status, endpoint: taskEndpoint },
+      probe: taskProbes.read,
+      mutation_probe: taskProbes.mutation,
     },
   });
   paths.mac = await writeArtifact({

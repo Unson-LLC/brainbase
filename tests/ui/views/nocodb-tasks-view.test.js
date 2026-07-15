@@ -245,6 +245,41 @@ describe('NocoDBTasksView', () => {
         expect(parentChange).not.toHaveBeenCalled();
     });
 
+    it('ステータス更新が閉鎖中ならエラーを再描画で消さない', async () => {
+        const tasks = [{
+            id: 'nocodb:proj:1',
+            title: 'Fail-closed task',
+            project: 'proj',
+            status: 'pending',
+            assignee: 'ksato'
+        }];
+        const error = new Error('正本タスクの更新は切替完了まで利用できません');
+        let view;
+        const updateStatus = vi.fn(async () => {
+            view._showError(error.message);
+            throw error;
+        });
+        const service = buildService({
+            getFilteredTasks: vi.fn(() => tasks),
+            updateStatus
+        });
+        view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+        view.render();
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        container.querySelector('.task-status-select').click();
+        container.querySelector('.task-status-option[data-status-value="completed"]').click();
+        await vi.waitFor(() => expect(updateStatus).toHaveBeenCalledOnce());
+
+        expect(container.textContent).toContain(error.message);
+        expect(container.textContent).not.toContain('Fail-closed task');
+        consoleError.mockRestore();
+    });
+
     it('開いたステータスメニューは再描画後も開いたままになる', () => {
         const tasks = [{
             id: 'nocodb:proj:1',

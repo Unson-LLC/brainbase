@@ -157,6 +157,13 @@ async function verifyCutoverCheckArtifact({ rootDir, name, checkPath, sourceHead
     expectField(artifact.process, 'source_head', sourceHead);
     expectField(artifact.probe, 'status', 200);
     invariant(/\/api\/companion\/tasks/.test(artifact.probe?.endpoint ?? ''), 'runtime check probe endpoint mismatch');
+    expectField(artifact.mutation_probe, 'method', 'PATCH');
+    expectField(artifact.mutation_probe, 'status', 503);
+    expectField(artifact.mutation_probe, 'code', 'canonical_task_mutation_not_ready');
+    invariant(
+      /\/api\/companion\/tasks\//.test(artifact.mutation_probe?.endpoint ?? ''),
+      'runtime check mutation probe endpoint mismatch',
+    );
   } else if (name === 'mac') {
     expectField(artifact, 'provider_source_head', sourceHead);
     invariant(artifact.read_only_contract?.pass === true, 'mac check read_only_contract pass mismatch');
@@ -404,10 +411,9 @@ export async function verifyEvidenceArtifact({
   };
 }
 
-export async function buildBeforeEnableEvidence({
+async function assembleBeforeEnableEvidence({
   rootDir = process.cwd(),
   registryPath = DEFAULT_REGISTRY_PATH,
-  evidenceOut,
   sourceHead = currentGitHead(rootDir),
   manifestPath = process.env.CANONICAL_TASK_STORE_MANIFEST ?? 'config/canonical-task-store.json',
   postgresCheckPath,
@@ -415,8 +421,6 @@ export async function buildBeforeEnableEvidence({
   runtimeCheckPath,
   macCheckPath,
 }) {
-  invariant(evidenceOut, 'before-enable requires --evidence-out');
-
   const registryAbsolutePath = path.isAbsolute(registryPath)
     ? registryPath
     : resolveInsideRoot(rootDir, registryPath, 'registry path');
@@ -470,7 +474,7 @@ export async function buildBeforeEnableEvidence({
   const nocodbCheck = cutoverChecks.find((check) => check.name === 'nocodb').details;
   invariant(postgresCheck.schema_version === manifest.schema_version, 'postgres schema_version does not match manifest');
   invariant(nocodbCheck.schema_version === manifest.schema_version, 'nocodb schema_version does not match manifest');
-  const output = {
+  return sortCanonical({
     artifact_schema: 'canonical-task-cutover-evidence-v1',
     phase: 'before-enable',
     pass: true,
@@ -484,13 +488,61 @@ export async function buildBeforeEnableEvidence({
     cutover_checks: cutoverChecks,
     required_evidence_ids: registry.entries.map((entry) => entry.id),
     evidence,
-  };
+  });
+}
 
-  const outputPath = path.isAbsolute(evidenceOut)
-    ? evidenceOut
-    : resolveInsideRoot(rootDir, evidenceOut, 'evidence output path');
-  await atomicWriteFile(outputPath, `${JSON.stringify(sortCanonical(output), null, 2)}\n`);
+export async function buildBeforeEnableEvidence(options) {
+  invariant(options.evidenceOut, 'before-enable requires --evidence-out');
+  const output = await assembleBeforeEnableEvidence(options);
+
+  const outputPath = path.isAbsolute(options.evidenceOut)
+    ? options.evidenceOut
+    : resolveInsideRoot(options.rootDir ?? process.cwd(), options.evidenceOut, 'evidence output path');
+  await atomicWriteFile(outputPath, `${JSON.stringify(output, null, 2)}\n`);
   return output;
+}
+
+export async function verifyBeforeEnableEvidenceFile({
+  rootDir = process.cwd(),
+  evidencePath,
+  sourceHead = currentGitHead(rootDir),
+  registryPath = DEFAULT_REGISTRY_PATH,
+  manifestPath = process.env.CANONICAL_TASK_STORE_MANIFEST ?? 'config/canonical-task-store.json',
+} = {}) {
+  invariant(evidencePath, 'before-enable evidence path is required');
+  const absoluteEvidencePath = path.isAbsolute(evidencePath)
+    ? evidencePath
+    : resolveInsideRoot(rootDir, evidencePath, 'before-enable evidence path');
+  const { bytes, value: candidate } = await readJsonWithBytes(absoluteEvidencePath, 'before-enable evidence');
+  expectField(candidate, 'artifact_schema', 'canonical-task-cutover-evidence-v1');
+  expectField(candidate, 'phase', 'before-enable');
+  expectField(candidate, 'pass', true);
+  expectField(candidate, 'source_head', sourceHead);
+  invariant(Array.isArray(candidate.cutover_checks), 'before-enable cutover_checks must be an array');
+  invariant(candidate.cutover_checks.length === Object.keys(CUTOVER_CHECKS).length, 'before-enable cutover_checks count mismatch');
+
+  const checksByName = new Map();
+  for (const check of candidate.cutover_checks) {
+    invariant(CUTOVER_CHECKS[check?.name], `unexpected cutover check: ${check?.name ?? '<missing>'}`);
+    invariant(!checksByName.has(check.name), `duplicate cutover check: ${check.name}`);
+    checksByName.set(check.name, check);
+  }
+  for (const name of Object.keys(CUTOVER_CHECKS)) {
+    invariant(checksByName.has(name), `missing cutover check: ${name}`);
+  }
+
+  const expected = await assembleBeforeEnableEvidence({
+    rootDir,
+    registryPath,
+    sourceHead,
+    manifestPath,
+    postgresCheckPath: checksByName.get('postgres').artifact_path,
+    nocodbCheckPath: checksByName.get('nocodb').artifact_path,
+    runtimeCheckPath: checksByName.get('runtime').artifact_path,
+    macCheckPath: checksByName.get('mac').artifact_path,
+  });
+  invariant(canonicalJson(candidate) === canonicalJson(expected), 'before-enable evidence does not match independently verified inputs');
+  return { evidence: expected, bytes, absolutePath: absoluteEvidencePath };
 }
 
 export function parseArgs(argv) {

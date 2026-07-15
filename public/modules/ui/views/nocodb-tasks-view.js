@@ -620,8 +620,6 @@ export class NocoDBTasksView extends BaseView {
                     await this.service.updateStatus(taskId, newStatus);
                 } catch (error) {
                     console.error('Failed to update status:', error);
-                    // リバート
-                    this.render();
                 }
             });
             menu.addEventListener('keydown', (e) => {
@@ -744,7 +742,6 @@ export class NocoDBTasksView extends BaseView {
                     await this.service.updateTask(taskId, { assignee: newAssignee });
                 } catch (error) {
                     console.error('Failed to update assignee:', error);
-                    this.render();
                 }
             });
         });

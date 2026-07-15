@@ -387,6 +387,62 @@ export function parseArgs(argv) {
   return parsed;
 }
 
+export async function writeCanonicalTaskEvidenceAggregate({
+  rootDir = process.cwd(),
+  registry,
+  registryBytes,
+  sourceHead,
+  artifacts,
+} = {}) {
+  validateEvidenceRegistry(registry);
+  invariant(Buffer.isBuffer(registryBytes), 'registryBytes must be a Buffer');
+  invariant(typeof sourceHead === 'string' && sourceHead.length > 0, 'sourceHead is required');
+  invariant(Array.isArray(artifacts), 'artifacts must be an array');
+  invariant(artifacts.length === registry.entries.length, 'aggregate evidence count does not match registry');
+
+  const artifactsById = new Map(artifacts.map((artifact) => [artifact.evidence_id, artifact]));
+  invariant(artifactsById.size === registry.entries.length, 'aggregate evidence IDs are not unique');
+  const evidence = [];
+  for (const entry of registry.entries) {
+    const artifact = artifactsById.get(entry.id);
+    invariant(artifact, `aggregate is missing evidence ${entry.id}`);
+    invariant(artifact.source_head === sourceHead, `aggregate evidence HEAD mismatch for ${entry.id}`);
+    const artifactPath = resolveInsideRoot(rootDir, entry.artifact_path, 'evidence artifact path');
+    const artifactBytes = await readFile(artifactPath);
+    const persistedArtifact = JSON.parse(artifactBytes.toString('utf8'));
+    invariant(JSON.stringify(persistedArtifact) === JSON.stringify(artifact), `aggregate evidence file mismatch for ${entry.id}`);
+    evidence.push({
+      evidence_id: entry.id,
+      pass: artifact.pass === true,
+      artifact_path: entry.artifact_path,
+      artifact_hash: sha256(artifactBytes),
+      owner_hash: artifact.owner_hash,
+      runner_result_hash: artifact.runner_result_hash,
+      stdout_hash: artifact.stdout_hash,
+    });
+  }
+
+  const failed = evidence.filter((item) => !item.pass).map((item) => item.evidence_id);
+  const aggregate = {
+    artifact_schema: 'canonical-task-evidence-aggregate-v1',
+    source_head: sourceHead,
+    registry_path: registry.source_of_truth,
+    registry_hash: sha256(registryBytes),
+    total: evidence.length,
+    passed: evidence.length - failed.length,
+    failed,
+    required_evidence_ids: registry.entries.map((entry) => entry.id),
+    evidence,
+  };
+  const aggregatePath = resolveInsideRoot(
+    rootDir,
+    `.vibepro/verification/canonical-task-cutover/evidence-all-${sourceHead.slice(0, 7)}.json`,
+    'aggregate evidence path',
+  );
+  await atomicWriteJson(aggregatePath, aggregate);
+  return { aggregate, aggregatePath };
+}
+
 export async function collectAllCanonicalTaskEvidence({
   rootDir = process.cwd(),
   registryPath = DEFAULT_REGISTRY_PATH,
@@ -394,7 +450,8 @@ export async function collectAllCanonicalTaskEvidence({
   inheritedEnv = process.env,
 } = {}) {
   const absoluteRegistryPath = resolveInsideRoot(rootDir, registryPath, 'registry path');
-  const registry = JSON.parse(await readFile(absoluteRegistryPath, 'utf8'));
+  const registryBytes = await readFile(absoluteRegistryPath);
+  const registry = JSON.parse(registryBytes.toString('utf8'));
   validateEvidenceRegistry(registry);
 
   const artifacts = [];
@@ -409,7 +466,14 @@ export async function collectAllCanonicalTaskEvidence({
     artifacts.push(artifact);
     process.stderr.write(`${artifact.pass ? 'PASS' : 'FAIL'} ${entry.id}\n`);
   }
-  return artifacts;
+  const aggregateResult = await writeCanonicalTaskEvidenceAggregate({
+    rootDir,
+    registry,
+    registryBytes,
+    sourceHead,
+    artifacts,
+  });
+  return { artifacts, ...aggregateResult };
 }
 
 export async function collectCanonicalTaskEvidence({
@@ -516,15 +580,12 @@ async function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
     if (args.all) {
-      const artifacts = await collectAllCanonicalTaskEvidence(args);
-      const failed = artifacts.filter((artifact) => !artifact.pass);
+      const result = await collectAllCanonicalTaskEvidence(args);
       process.stdout.write(`${JSON.stringify({
-        source_head: artifacts[0]?.source_head ?? currentGitHead(),
-        total: artifacts.length,
-        passed: artifacts.length - failed.length,
-        failed: failed.map((artifact) => artifact.evidence_id),
+        ...result.aggregate,
+        aggregate_path: relativePath(path.relative(process.cwd(), result.aggregatePath)),
       }, null, 2)}\n`);
-      if (failed.length) process.exitCode = 1;
+      if (result.aggregate.failed.length) process.exitCode = 1;
     } else {
       const artifact = await collectCanonicalTaskEvidence(args);
       process.stdout.write(`${JSON.stringify(artifact, null, 2)}\n`);

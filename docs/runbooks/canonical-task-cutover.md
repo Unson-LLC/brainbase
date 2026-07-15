@@ -16,7 +16,7 @@
 
 ## before-migration
 
-1. 旧Brainbase process、Mana capture writer、NocoDB MCP mutation、4本の運用scriptを停止し、処理中要求を排水する。
+1. 旧Brainbase process、Mana capture writer、NocoDB MCP mutation、5本の運用scriptを停止し、処理中要求を排水する。
 2. `npm run preflight:canonical-task-cutover -- --phase before-migration`を実行する。
 3. 静的writer検査とprocess evidenceの両方で、CanonicalTaskServiceを迂回する正本直接writerが0件であることを確認する。
 4. 失敗時はmigrationを開始しない。
@@ -113,7 +113,7 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - `surface.browser.mutations`: list/create/update/transition/deleteとcookie-only無効化
 - `surface.mcp.write-fence`: record/column mutation guardとread互換
 - `surface.delete.recovery`: prepared停止、削除後停止、actor分離
-- `surface.operational-scripts`: 4本の運用scriptの直接writer 0件
+- `surface.operational-scripts`: 5本の運用scriptの直接writer 0件
 - `surface.migrations.postgres`: operation/writer/readiness schema apply/check
 - `surface.migrations.nocodb`: 必須列と冪等key unique apply/check
 - `surface.mac.wire-contract`: 固定fixtureと実route schema
@@ -128,7 +128,7 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - browserのCanonical list/create/update/transition/deleteとcookie-only無効化
 - MCPの正本record/metadata mutation guard、正本read、非正本mutation互換
 - deleteのprepared停止回復、actor type/ID/区切り文字namespace分離
-- 4本の運用scriptに直接writerがない静的検査
+- 5本の運用scriptに直接writerがない静的検査
 - Postgres/NocoDB migration apply/check結果と再起動readiness回帰
 - 実Postgresでの同一operation key並行実行結果（caller 2、run 1、completed、cleanup completed）
 - Mac consumer固定wire fixtureと実route schema結果
