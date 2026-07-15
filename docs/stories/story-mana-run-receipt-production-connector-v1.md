@@ -28,13 +28,27 @@ Mana operatorとして、Lambda・self-hosted runner上で実際に完了したM
 
 ## Acceptance Criteria
 
-- [ ] `source.type=mana`、`source.workflow_id = "mana:" + runtime_target + ":" + workflow_key`、`run.external_run_id = "mana:" + runtime_target + ":" + native_execution_id + ":attempt:" + native_attempt` を使う。`native_attempt` を持たないsourceは1を固定し、同じnative executionのdelivery再送では増やさない。sourceが定義した別attemptだけが別receiptになる。
+- [ ] `source.type=mana`、`source.workflow_id = "mana:" + runtime_target + ":" + workflow_key`、`run.external_run_id = "mana:" + runtime_target + ":" + workflow_key + ":run:" + native_execution_id + ":attempt:" + native_attempt` を使う。`native_attempt` を持たないsourceは1を固定し、同じnative executionのdelivery再送では増やさない。sourceが定義した別attemptだけが別receiptになる。同じnative execution idを返す2 workflowのcross-scope fixtureでも衝突しない。
 - [ ] terminal stateは `succeeded|completed -> success`、`failed|timed_out -> failed`、`blocked -> blocked`、`waiting_human|action_required -> waiting_human`、`cancelled -> cancelled` と決定的に変換する。既知runのrunning/unknown/nullはoutboxでpendingのまま再観測し、run identity自体を得られない場合だけconnector observationを作る。
 - [ ] production Lambdaとself-hosted runnerの双方からBrainbase S2S endpointへ認証接続できる。secretはInfisical/既存正規経路で供給し、ログへ出さない。
 - [ ] 同一run再送は同じidempotency keyとなり、delivery attemptだけが増える。
 - [ ] source API/Brainbase到達不能は永続outboxへ残り、次回再送される。source run identityを得られない場合だけconnector observationを送る。
 - [ ] raw Slack本文、議事録本文、customer content、CloudWatch log本文をreceiptへ含めない。
 - [ ] production canary runがBrainbase Inboxに表示され、Mana側run/evidenceと双方向に照合できる。
+
+## Status / Evidence Mapping
+
+| Native state | Receipt status | Evidence state | Action / blocker |
+|---|---|---|---|
+| `succeeded|completed` | `success` | source ref確認済みなら`confirmed`、参照取得不能なら`unconfirmed`、権威的に証跡なしなら`no_data` | `none` |
+| `failed|timed_out` | `failed` | 上記と同じ | `check_error`とredacted blocker |
+| `blocked` | `blocked` | 上記と同じ | `resolve_blocker`とredacted blocker |
+| `waiting_human|action_required` | `waiting_human` | 上記と同じ | `review_run` |
+| `cancelled` | `cancelled` | 上記と同じ | `none` |
+| identity既知、status不明/非terminal | receiptなし | connector pending | 再観測 |
+| identity不明 | `connector_observation`の`blocked` | `unconfirmed|no_data` | `check_error`または`reauthorize`とblocker |
+
+`no_data` は処理件数0を意味せず、成功色・空結果へ変換しない。
 
 ## Failure Modes
 
@@ -44,5 +58,5 @@ Mana operatorとして、Lambda・self-hosted runner上で実際に完了したM
 
 ## Verification
 
-- `tests/connectors/mana-run-receipt.test.js` は同じnative executionのattempt 1/2が別 `external_run_id` とidempotency keyで共存し、同じattemptのdelivery再送だけがduplicateになるpre-fix失敗fixtureを持つ。
+- `tests/connectors/mana-run-receipt.test.js` は同じworkflow/native executionのattempt 1/2が別 `external_run_id` とidempotency keyで共存し、同じattemptのdelivery再送だけがduplicateになるpre-fix失敗fixtureを持つ。同じnative execution idを返す2 workflowも共存する。
 - 同fixtureは全terminal mapping、既知runのunknown/null pending、identity取得不能のsynthetic observation、delivery outbox replay、CloudWatch/GitHub evidence ref、raw content排除を検証する。
