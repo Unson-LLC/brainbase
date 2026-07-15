@@ -1,4 +1,4 @@
-import { expect, request as playwrightRequest, test, type APIRequestContext } from '@playwright/test';
+import { expect, request as playwrightRequest, test } from '@playwright/test';
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -54,7 +54,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await liveApiHarness.close();
+  await liveApiHarness?.close();
 });
 
 const scenarioContracts: Record<number, VitestContract> = {
@@ -325,7 +325,7 @@ async function verifyUnauthenticatedMutation() {
   }
 }
 
-async function verifyEvidenceContract(evidenceId: string, request: APIRequestContext) {
+async function verifyEvidenceContract(evidenceId: string) {
   if (evidenceId === 'scenario.SC-014') {
     await verifyUnauthenticatedMutation();
     return;
@@ -353,14 +353,8 @@ async function verifyEvidenceContract(evidenceId: string, request: APIRequestCon
   runVitest(contract);
 }
 
-test('canonical Task API rejects an unauthenticated mutation', async ({ request }) => {
-  const response = await request.post('/api/companion/tasks', {
-    data: { title: 'must-not-be-created' },
-    headers: { 'Idempotency-Key': 'e2e-explicit-unauthenticated-mutation' },
-  });
-  expect([401, 403]).toContain(response.status());
-  const body = await response.json();
-  expect(body.code || body.error).toBeTruthy();
+test('canonical Task API rejects an unauthenticated mutation', async () => {
+  await verifyUnauthenticatedMutation();
 });
 
 test('canonical Task API completes an authenticated lifecycle through HTTP', async () => {
@@ -403,9 +397,9 @@ test('story-companion-canonical-task-provider S-005 fails closed on stalled Noco
 });
 
 for (const entry of registry.entries) {
-  test(entry.id, async ({ request }, testInfo) => {
+  test(entry.id, async ({}, testInfo) => {
     await withCanonicalTaskEvidence(entry.id, async () => {
-      await verifyEvidenceContract(entry.id, request);
+      await verifyEvidenceContract(entry.id);
     }, testInfo);
   });
 }
