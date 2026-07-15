@@ -6,6 +6,10 @@ import { describe, expect, it } from 'vitest';
 
 import { requireAuth } from '../../../server/middleware/auth.js';
 import { createRunReceiptRouter } from '../../../server/routes/run-receipts.js';
+import {
+    createWorkflowRouter,
+    createWorkflowRunRouter
+} from '../../../server/routes/workflows.js';
 import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
 import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
@@ -62,6 +66,8 @@ function createApp({
         next();
     });
     app.use('/api/run-receipts', createRunReceiptRouter({ ingestService, workflowService }));
+    app.use('/api/workflows', createWorkflowRouter(workflowService));
+    app.use('/api/workflow-runs', createWorkflowRunRouter(workflowService));
     app.use(errorHandler);
     return { app, repository, ingestService };
 }
@@ -246,5 +252,35 @@ describe('run receipt routes', () => {
             .expect(400);
 
         expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('run receiptはlegacy Workflow APIの一覧・詳細・更新・実行・再実行へ露出しない', async () => {
+        const { app, repository } = createApp();
+        await request(app).post('/api/run-receipts/ingest').send(makeReceipt()).expect(201);
+        const [receiptRun] = repository.listRuns({ limit: null });
+        const receiptWorkflow = repository.getWorkflow(receiptRun.workflow_id);
+
+        const list = await request(app).get('/api/workflows').expect(200);
+        expect(list.body.workflows).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: receiptWorkflow.id })
+        ]));
+
+        await request(app).get(`/api/workflows/${receiptWorkflow.id}`).expect(404);
+        await request(app)
+            .patch(`/api/workflows/${receiptWorkflow.id}`)
+            .send({ name: 'legacy mutation must not apply' })
+            .expect(404);
+        await request(app)
+            .post(`/api/workflows/${receiptWorkflow.id}/run`)
+            .send({})
+            .expect(404);
+        await request(app).get(`/api/workflow-runs/${receiptRun.id}`).expect(404);
+        await request(app)
+            .post(`/api/workflow-runs/${receiptRun.id}/rerun`)
+            .send({})
+            .expect(404);
+
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+        expect(repository.getWorkflow(receiptWorkflow.id).name).toBe(receiptWorkflow.name);
     });
 });

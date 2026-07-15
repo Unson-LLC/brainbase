@@ -21,7 +21,7 @@ flowchart LR;
 
 | Component | Responsibility |
 |---|---|
-| `RunReceiptAdapter` | `run_receipt.v1` validation resultをWMC workflow/run/audit shapeへ決定的に変換する。 |
+| `normalizeRunReceipt` | `run_receipt.v1` validation resultをWMC workflow/run/audit shapeへ決定的に変換する。 |
 | `RunReceiptIngestService` | receipt lock、idempotency、conflict検知、project整合性、transactional writeを所有する。 |
 | `WorkflowRepository` shared-ledger transaction | AsyncLocalStorage owner context、in-process queue、JsonFile file-wide lease、reload、single commit、rollback-only、transaction-required mutation guardを所有する。 |
 | `createRunReceiptRouter` | POSTのserver-to-server auth、GETのoperator auth、project access、ingest/list query boundaryを所有する。 |
@@ -75,7 +75,7 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 
 ## Surface Isolation
 
-- Receipt workflow/runは共有WMC repositoryに保存するが、`WorkflowService.listWorkflows` が返す既存 `GET /api/workflows` のOperational Inbox projectionから `metadata.run_receipt` を持つworkflowを除外する。receiptは `WorkflowService.listRunReceiptInbox` と `GET /api/run-receipts/inbox` だけが一覧化し、同じrunを二つのpriority規則で重複表示しない。
+- Receipt workflow/runは共有WMC repositoryに保存するが、`metadata.run_receipt` を持つworkflow/runは既存の汎用Workflow APIから除外する。`GET /api/workflows` の一覧だけでなく、汎用workflow詳細・更新・実行およびrun詳細・再実行も404にし、receiptの参照面と操作面を `WorkflowService.listRunReceiptInbox`、`GET /api/run-receipts/inbox`、将来のreceipt専用操作へ限定する。同じrunを二つのpriority規則や汎用実行経路へ重複露出しない。
 - 除外はreceipt分類だけに適用し、非receipt workflowの集合、既存priority、既存render順を変更しない。receipt＋非receipt混在fixtureでAPIとUIの非重複を固定する。
 - Workflow Mission Controlの既存config/projects/workflows取得を必須surface、receipt Inbox取得を独立したoptional surfaceとして扱う。receipt APIのtimeout、network error、または5xxはreceipt sectionの `unavailable` warningへ変換し、既存Operational Inboxのstate/renderを維持する。
 - receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、UIは「receiptなし」と「receipt取得不能」を別stateで表示する。

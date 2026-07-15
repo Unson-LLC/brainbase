@@ -640,7 +640,8 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             return writeLock();
         } catch (error) {
             if (error?.code !== 'EEXIST') throw error;
-            if (!this._acquireWorkflowLockMutation(lockPath)) return null;
+            const mutationGuard = this._acquireWorkflowLockMutation(lockPath);
+            if (!mutationGuard) return null;
             let quarantinePath = null;
             try {
                 const existing = this._readWorkflowLock(lockPath);
@@ -658,7 +659,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
                 throw reclaimError;
             } finally {
                 if (quarantinePath) fs.rmSync(quarantinePath, { force: true });
-                this._releaseWorkflowLockMutation(lockPath);
+                this._releaseWorkflowLockMutation(lockPath, mutationGuard);
             }
         }
     }
@@ -667,7 +668,8 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         if (!this.filePath) return super.releaseWorkflowLock({ workspace_id, workflow_id, locked_by });
         const lockPath = this._workflowLockPath({ workspace_id, workflow_id });
         if (!fs.existsSync(lockPath)) return false;
-        if (!this._acquireWorkflowLockMutation(lockPath)) return false;
+        const mutationGuard = this._acquireWorkflowLockMutation(lockPath);
+        if (!mutationGuard) return false;
         let quarantinePath = null;
         try {
             const existing = this._readWorkflowLock(lockPath);
@@ -679,7 +681,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             throw error;
         } finally {
             if (quarantinePath) fs.rmSync(quarantinePath, { force: true });
-            this._releaseWorkflowLockMutation(lockPath);
+            this._releaseWorkflowLockMutation(lockPath, mutationGuard);
         }
     }
 
@@ -705,13 +707,16 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             fs.mkdirSync(mutationPath);
             try {
                 const now = Date.now();
-                fs.writeFileSync(path.join(mutationPath, 'owner.json'), `${JSON.stringify({
-                    owner_id: crypto.randomUUID(),
+                const ownerId = crypto.randomUUID();
+                const ownerPath = path.join(mutationPath, `owner-${ownerId}.json`);
+                const owner = {
+                    owner_id: ownerId,
                     pid: process.pid,
                     acquired_at: new Date(now).toISOString(),
                     expires_at: new Date(now + this.workflowLockMutationTtlMs).toISOString()
-                }, null, 2)}\n`);
-                return true;
+                };
+                fs.writeFileSync(ownerPath, `${JSON.stringify(owner, null, 2)}\n`, { flag: 'wx' });
+                return { ...owner, owner_path: ownerPath };
             } catch (error) {
                 fs.rmSync(mutationPath, { recursive: true, force: true });
                 throw error;
@@ -725,7 +730,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         }
 
         let stat;
-        let owner = null;
+        let ownerRecord = null;
         try {
             stat = fs.statSync(mutationPath);
         } catch (error) {
@@ -739,12 +744,8 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             }
             throw error;
         }
-        try {
-            owner = JSON.parse(fs.readFileSync(path.join(mutationPath, 'owner.json'), 'utf8'));
-        } catch {
-            // Legacy/crashed guards may have no readable metadata. Their
-            // directory mtime remains the deterministic recovery clock.
-        }
+        ownerRecord = this._readWorkflowLockMutationOwner(mutationPath);
+        const owner = ownerRecord?.owner || null;
 
         const expiresAt = new Date(owner?.expires_at).getTime();
         const expiredByMetadata = Number.isFinite(expiresAt) && expiresAt <= Date.now();
@@ -752,14 +753,29 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         if (owner && isLocalProcessAlive(owner.pid)) return false;
         if (!expiredByMetadata && !expiredByAge) return false;
 
-        const quarantinePath = `${mutationPath}.stale-${crypto.randomUUID()}`;
+        const currentStat = (() => {
+            try {
+                return fs.statSync(mutationPath);
+            } catch (error) {
+                if (error?.code === 'ENOENT') return null;
+                throw error;
+            }
+        })();
+        if (!currentStat || currentStat.dev !== stat.dev || currentStat.ino !== stat.ino) return false;
+        const currentOwnerRecord = this._readWorkflowLockMutationOwner(mutationPath);
+        const observedOwnerId = ownerRecord?.owner?.owner_id || null;
+        const currentOwnerId = currentOwnerRecord?.owner?.owner_id || null;
+        const observedOwnerPath = ownerRecord?.owner_path || null;
+        const currentOwnerPath = currentOwnerRecord?.owner_path || null;
+        if (observedOwnerId !== currentOwnerId || observedOwnerPath !== currentOwnerPath) return false;
+
         try {
-            fs.renameSync(mutationPath, quarantinePath);
+            if (observedOwnerPath) fs.rmSync(observedOwnerPath);
+            fs.rmdirSync(mutationPath);
         } catch (error) {
-            if (error?.code === 'ENOENT') return false;
+            if (['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(error?.code)) return false;
             throw error;
         }
-        fs.rmSync(quarantinePath, { recursive: true, force: true });
         try {
             return createMutation();
         } catch (error) {
@@ -768,8 +784,42 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         }
     }
 
-    _releaseWorkflowLockMutation(lockPath) {
-        fs.rmSync(`${lockPath}.mutation`, { recursive: true, force: true });
+    _readWorkflowLockMutationOwner(mutationPath) {
+        let ownerFiles;
+        try {
+            ownerFiles = fs.readdirSync(mutationPath)
+                .filter((name) => name === 'owner.json' || /^owner-[^.]+\.json$/.test(name))
+                .sort();
+        } catch (error) {
+            if (error?.code === 'ENOENT') return null;
+            throw error;
+        }
+        if (ownerFiles.length !== 1) return null;
+        const ownerPath = path.join(mutationPath, ownerFiles[0]);
+        try {
+            return {
+                owner: JSON.parse(fs.readFileSync(ownerPath, 'utf8')),
+                owner_path: ownerPath
+            };
+        } catch {
+            return { owner: null, owner_path: ownerPath };
+        }
+    }
+
+    _releaseWorkflowLockMutation(lockPath, mutationGuard) {
+        const mutationPath = `${lockPath}.mutation`;
+        if (!mutationGuard?.owner_id || !mutationGuard?.owner_path) return false;
+        const current = this._readWorkflowLockMutationOwner(mutationPath);
+        if (current?.owner?.owner_id !== mutationGuard.owner_id
+            || current.owner_path !== mutationGuard.owner_path) return false;
+        try {
+            fs.rmSync(mutationGuard.owner_path);
+            fs.rmdirSync(mutationPath);
+            return true;
+        } catch (error) {
+            if (['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(error?.code)) return false;
+            throw error;
+        }
     }
 
     _quarantineWorkflowLock(lockPath) {

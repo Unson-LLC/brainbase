@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     InMemoryWorkflowRepository,
@@ -378,6 +378,76 @@ describe('WorkflowRepository transaction boundary', () => {
 
         expect(lock?.locked_by).toBe('recovered-owner');
         expect(fs.existsSync(mutationPath)).toBe(false);
+    });
+
+    it('stale mutation observer cannot replace a fresh mutation guard won by another repository', () => {
+        const { filePath } = createTempLedger();
+        const firstRepository = new JsonFileWorkflowRepository({
+            filePath,
+            workflowLockMutationTtlMs: 1000
+        });
+        const secondRepository = new JsonFileWorkflowRepository({
+            filePath,
+            workflowLockMutationTtlMs: 1000
+        });
+        const lockPath = firstRepository._workflowLockPath({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1'
+        });
+        const mutationPath = `${lockPath}.mutation`;
+        const ownerPath = path.join(mutationPath, 'owner.json');
+        fs.mkdirSync(mutationPath, { recursive: true });
+        fs.writeFileSync(ownerPath, `${JSON.stringify({
+            owner_id: 'stale-owner',
+            pid: 99999999,
+            expires_at: new Date(Date.now() - 5000).toISOString()
+        })}\n`);
+        const staleAt = new Date(Date.now() - 5000);
+        fs.utimesSync(mutationPath, staleAt, staleAt);
+
+        const originalReadFileSync = fs.readFileSync.bind(fs);
+        let interleaved = false;
+        let secondGuard = null;
+        const readSpy = vi.spyOn(fs, 'readFileSync').mockImplementation((target, ...args) => {
+            if (!interleaved && String(target) === ownerPath) {
+                interleaved = true;
+                secondGuard = secondRepository._acquireWorkflowLockMutation(lockPath);
+                const error = new Error('observed owner disappeared');
+                error.code = 'ENOENT';
+                throw error;
+            }
+            return originalReadFileSync(target, ...args);
+        });
+
+        try {
+            const firstGuard = firstRepository._acquireWorkflowLockMutation(lockPath);
+
+            expect([firstGuard, secondGuard].filter(Boolean)).toHaveLength(1);
+            expect(fs.existsSync(mutationPath)).toBe(true);
+        } finally {
+            readSpy.mockRestore();
+        }
+    });
+
+    it('mutation guard release removes only the matching owner token', () => {
+        const { filePath } = createTempLedger();
+        const repository = new JsonFileWorkflowRepository({ filePath });
+        const lockPath = repository._workflowLockPath({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1'
+        });
+        fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+        const mutationGuard = repository._acquireWorkflowLockMutation(lockPath);
+
+        expect(mutationGuard).toBeTruthy();
+        expect(repository._releaseWorkflowLockMutation(lockPath, {
+            ...mutationGuard,
+            owner_id: 'different-owner'
+        })).toBe(false);
+        expect(fs.existsSync(`${lockPath}.mutation`)).toBe(true);
+
+        expect(repository._releaseWorkflowLockMutation(lockPath, mutationGuard)).toBe(true);
+        expect(fs.existsSync(`${lockPath}.mutation`)).toBe(false);
     });
 
     it('reclaims a malformed identity lock left by a partial legacy write', () => {

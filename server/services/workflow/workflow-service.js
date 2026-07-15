@@ -1897,6 +1897,14 @@ function isApprovalOnlyIngestWorkflow(workflow) {
     return isMeetingReviewPackageWorkflow(workflow) || isAgentReportWorkflow(workflow);
 }
 
+function isRunReceiptWorkflow(workflow) {
+    return Boolean(workflow?.metadata?.run_receipt || workflow?.metadata?.surface === 'run_receipt');
+}
+
+function isRunReceiptRun(run) {
+    return Boolean(run?.metadata?.run_receipt);
+}
+
 function isApprovedHumanResolution(status) {
     return ['approved', 'approve'].includes(String(status || '').toLowerCase());
 }
@@ -1963,7 +1971,7 @@ export class WorkflowService {
         const workflows = this.repository.listWorkflows()
             .filter((workflow) => !projectId || workflow.project_id === projectId)
             .filter((workflow) => this._actorCanAccessProject(workflow.project_id, actor))
-            .filter((workflow) => !workflow.metadata?.run_receipt && workflow.metadata?.surface !== 'run_receipt')
+            .filter((workflow) => !isRunReceiptWorkflow(workflow))
             .map((workflow) => ({
                 ...workflow,
                 latest_run: this.repository.listRuns({ workflowId: workflow.id, limit: 1 })[0] || null
@@ -2053,6 +2061,7 @@ export class WorkflowService {
         await this._loadProjectConfigCache();
         const workflow = this.repository.getWorkflow(workflowId);
         if (!workflow) throw AppError.notFound('workflow', workflowId);
+        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
         this._assertActorCanAccessProject(workflow.project_id, actor);
         return {
             workflow,
@@ -4402,6 +4411,7 @@ export class WorkflowService {
         await this.ensureDefaultWorkflows();
         const current = this.repository.getWorkflow(workflowId);
         if (!current) throw AppError.notFound('workflow', workflowId);
+        if (isRunReceiptWorkflow(current)) throw AppError.notFound('workflow', workflowId);
         this._assertActorCanAccessProject(current.project_id, actor);
         const nextProjectId = patch.project_id || patch.projectId || current.project_id;
         await this._assertProjectSelectable(nextProjectId);
@@ -4439,6 +4449,7 @@ export class WorkflowService {
         await this._loadProjectConfigCache();
         const workflow = this.repository.getWorkflow(workflowId);
         if (!workflow) throw AppError.notFound('workflow', workflowId);
+        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
         await this._assertProjectSelectable(workflow.project_id);
         this._assertActorCanAccessProject(workflow.project_id, {
             sub: options.actorId,
@@ -4458,6 +4469,7 @@ export class WorkflowService {
         await this._loadProjectConfigCache();
         const previous = this.repository.getRun(runId);
         if (!previous) throw AppError.notFound('workflow_run', runId);
+        if (isRunReceiptRun(previous)) throw AppError.notFound('workflow_run', runId);
         this._assertActorCanAccessProject(previous.project_id, actor);
         const workflow = this.repository.getWorkflow(previous.workflow_id);
         assertWorkflowRunAllowed(workflow);
@@ -4476,6 +4488,7 @@ export class WorkflowService {
         await this._loadProjectConfigCache();
         const run = this.repository.getRun(runId);
         if (!run) throw AppError.notFound('workflow_run', runId);
+        if (isRunReceiptRun(run)) throw AppError.notFound('workflow_run', runId);
         this._assertActorCanAccessProject(run.project_id, actor);
         return {
             run,
