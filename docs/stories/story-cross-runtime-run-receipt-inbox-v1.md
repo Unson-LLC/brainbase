@@ -56,7 +56,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 ## Verification Evidence
 
 - Unit / integration: run receipt contract、ingest、shared ledger transaction、Inbox API、UI client/service/viewを含むfocused regressionが全件pass。
-- Browser E2E: tracked Playwrightで実server-to-server ingest、実Inbox API、latest-run collapse、priority、filter、failure boundary、Operational Inboxの維持を確認。desktop/mobile visual evidenceもcurrent HEADで確認。
+- Browser E2E: tracked Playwrightで実server-to-server ingest、実Inbox API、latest-run collapse、priority、filter、failure boundary、既存の非receipt Operational Inbox itemの維持をcurrent HEADで確認。
 - Failure semantics: API 503時も既存receipt snapshotを保持し、取得不能を0件へ丸めないことを確認。
 
 ## Workflow State Scenarios

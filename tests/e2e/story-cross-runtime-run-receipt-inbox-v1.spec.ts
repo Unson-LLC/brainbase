@@ -70,6 +70,7 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
   const suffix = `${Date.now()}-${test.info().workerIndex}`;
   const workflowA = `Tracked common E2E A ${suffix}`;
   const workflowB = `Tracked common E2E B ${suffix}`;
+  const operationalWorkflowName = `Operational fixture ${suffix}`;
   const receipts = [
     makeReceipt({
       suffix,
@@ -152,8 +153,40 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
   expect(trackedItems.map((item: { summary: string }) => item.summary)).not.toContain(`old success must collapse ${suffix}`);
 
   await page.setExtraHTTPHeaders(AUTH_HEADERS);
+  await page.route('**/api/workflows', async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== 'GET' || url.pathname !== '/api/workflows') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        workflows: [{
+          id: `operational-${suffix}`,
+          name: operationalWorkflowName,
+          project_id: 'brainbase',
+          owner_id: 'sato',
+          context_sources: [],
+          latest_run: {
+            id: `operational-run-${suffix}`,
+            status: 'waiting_human',
+            action_required: 'approve',
+            human_waiting: true,
+            finished_at: '2026-07-15T10:30:00.000Z'
+          },
+          latest_context_snapshots: []
+        }]
+      })
+    });
+  });
   await page.goto('/workflows.html');
   await expect(page.getByRole('heading', { name: 'Operational Inbox' })).toBeVisible();
+  const operationalItem = page.getByRole('button', {
+    name: new RegExp(`${operationalWorkflowName} Project: brainbase`)
+  });
+  await expect(operationalItem).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Agent Run Inbox' })).toBeVisible();
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
@@ -181,4 +214,5 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
   await expect(page.locator('#agent-run-inbox-status')).toContainText('前回確認済み');
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Operational Inbox' })).toBeVisible();
+  await expect(operationalItem).toBeVisible();
 });
