@@ -46,8 +46,8 @@ export async function checkCanonicalTaskOperationSchema(pool) {
     if (missingColumns.length) throw new Error(`Canonical Task operation schema has missing columns: ${missingColumns.join(', ')}`);
 
     const constraintResult = await pool.query(
-        `SELECT constraint_type AS contype,
-                array_agg(att.attname ORDER BY key_col.ordinality) AS columns
+        `SELECT constraint_def.contype AS contype,
+                array_agg(att.attname::text ORDER BY key_col.ordinality) AS columns
          FROM pg_constraint constraint_def
          JOIN pg_class table_def ON table_def.oid = constraint_def.conrelid
          LEFT JOIN LATERAL unnest(constraint_def.conkey) WITH ORDINALITY AS key_col(attnum, ordinality) ON TRUE

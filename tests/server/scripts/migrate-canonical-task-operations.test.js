@@ -7,6 +7,10 @@ const tables = ['canonical_task_writer', 'canonical_task_readiness', 'canonical_
 function completePool(overrides = {}) {
   return {
     query: vi.fn(async (sql) => {
+      if (sql.includes('constraint_type')) throw new Error('invalid pg_constraint column');
+      if (sql.includes('pg_constraint') && !sql.includes('att.attname::text')) {
+        throw new Error('constraint columns must be returned as text[]');
+      }
       if (sql.includes('information_schema.tables')) return { rows: tables.map((table_name) => ({ table_name })) };
       if (sql.includes('information_schema.columns')) {
         return { rows: [

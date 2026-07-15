@@ -22,6 +22,10 @@ export const REQUIRED_CANONICAL_TASK_COLUMNS = Object.freeze([
     { title: '最終操作Fingerprint', uidt: 'LongText' }
 ]);
 
+const SAFE_TYPE_MIGRATIONS = Object.freeze({
+    '期限': Object.freeze({ from: 'Date', to: 'DateTime' })
+});
+
 export function parseCanonicalTaskColumnMigrationArgs(argv) {
     const apply = argv.includes('--apply');
     const check = argv.includes('--check');
@@ -79,7 +83,25 @@ export async function migrateCanonicalTaskColumns({
             const existing = byTitle.get(required.title);
             if (!existing) {
                 await nocoRequest({ fetchImpl, baseUrl, apiToken, path: `/api/v2/meta/tables/${tableId}/columns`, method: 'POST', body: required });
-            } else if (required.unique && !isUnique(existing)) {
+                continue;
+            }
+            const safeTypeMigration = SAFE_TYPE_MIGRATIONS[required.title];
+            if (
+                existing.uidt !== required.uidt
+                && safeTypeMigration?.from === existing.uidt
+                && safeTypeMigration.to === required.uidt
+            ) {
+                if (!existing.id) throw new Error(`Cannot migrate ${required.title} to ${required.uidt} without a column id`);
+                await nocoRequest({
+                    fetchImpl,
+                    baseUrl,
+                    apiToken,
+                    path: `/api/v2/meta/columns/${existing.id}`,
+                    method: 'PATCH',
+                    body: { title: required.title, uidt: required.uidt }
+                });
+            }
+            if (required.unique && !isUnique(existing)) {
                 if (!existing.id) throw new Error('Cannot create DB unique constraint for 冪等キー without a column id');
                 await nocoRequest({ fetchImpl, baseUrl, apiToken, path: `/api/v2/meta/columns/${existing.id}`, method: 'PATCH', body: { unique: true } });
             }
