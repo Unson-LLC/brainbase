@@ -9,6 +9,8 @@ view: business
 period: 2026Q3
 depends_on:
   - story-cross-runtime-run-receipt-inbox-v1
+related_stories:
+  - story-cross-runtime-run-receipt-inbox-v1
 implementation_repo: /Users/ksato/workspace/code/brainbase
 runtime_owner: local_codex
 ---
@@ -38,4 +40,3 @@ Codex Automations operatorとして、実際のautomation実行結果をBrainbas
 
 - schema/version driftはblocked observationと診断ログを残し、未知状態をsuccessへfallbackしない。
 - Brainbase timeout/5xxはローカルoutboxで再送し、4xxは要修正として隔離する。
-

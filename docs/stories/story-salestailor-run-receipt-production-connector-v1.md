@@ -9,6 +9,8 @@ view: business
 period: 2026Q3
 depends_on:
   - story-cross-runtime-run-receipt-inbox-v1
+related_stories:
+  - story-cross-runtime-run-receipt-inbox-v1
 implementation_repo: /Users/ksato/workspace/code/salestailor
 runtime_owner: salestailor
 ---

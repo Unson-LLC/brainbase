@@ -30,7 +30,7 @@ Brainbase owns the canonical operational receipt contract and Agent Run Inbox. E
 
 Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
 
-The deterministic receipt identity is also the repository lock scope. Brainbase serializes duplicate lookup and atomic projection under that lock, stores a digest of the immutable contract/source/run projection, and excludes delivery retry metadata from duplicate equality.
+The deterministic receipt identity is the idempotency lock scope. Brainbase acquires it before duplicate lookup, then enters a repository-wide write transaction before inspecting or mutating the shared ledger. The repository-wide transaction serializes distinct receipt identities and existing transaction writers; the JSON repository reloads under its file-wide lease, defers persistence, and commits the complete transaction once. Rollback restores process memory only and never writes a stale snapshot over another commit. Lock ordering is always receipt identity first and shared-ledger transaction second; shared-ledger transactions never acquire receipt identity locks. Brainbase stores a digest of the immutable contract/source/run projection and excludes delivery retry metadata from duplicate equality.
 
 The tuple is canonically encoded and hashed before use as a delivery key or WMC identifier, so separators inside source values cannot collide. WMC internal workflow identity is separately derived from `project_id + source.type + source.workflow_id`; original source identities remain metadata.
 
@@ -44,6 +44,7 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Source run result and receipt delivery result remain separate facts.
 - Source unavailability is represented explicitly and cannot become an empty success metric.
 - Existing Workflow Mission Control authorization, project boundary, persistence, and audit surfaces are reused.
+- Shared JSON persistence gains one repository-wide transaction boundary so receipt, external runner, and other transaction writers cannot overwrite each other.
 - Connector Stories can evolve independently while sharing one versioned receipt contract.
 
 ## Rejected Alternatives

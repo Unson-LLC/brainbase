@@ -9,6 +9,8 @@ view: business
 period: 2026Q3
 depends_on:
   - story-cross-runtime-run-receipt-inbox-v1
+related_stories:
+  - story-cross-runtime-run-receipt-inbox-v1
 implementation_repo: /Users/ksato/workspace/projects/mana
 ---
 
@@ -38,4 +40,3 @@ Mana operatorとして、Lambda・self-hosted runner上で実際に完了したM
 - 認証不備、timeout、5xxはdelivery failureとして再送対象にする。
 - 4xx contract errorは自動無限再送せずblocked outboxとして可視化する。
 - no_dataを処理件数0のsuccessへ変換しない。
-

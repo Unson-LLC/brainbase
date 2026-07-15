@@ -9,6 +9,8 @@ view: business
 period: 2026Q3
 depends_on:
   - story-cross-runtime-run-receipt-inbox-v1
+related_stories:
+  - story-cross-runtime-run-receipt-inbox-v1
 implementation_repo: /Users/ksato/workspace/code/brainbase
 runtime_owner: github_actions
 ---
@@ -38,4 +40,3 @@ GitHub Actions operatorとして、対象repositoryの実workflow run conclusion
 
 - GitHub API/rate limitでevidenceを取得できない場合はunconfirmed/no_dataを保持する。
 - Brainbase 4xxはworkflowを偽成功にせず、connector delivery failureとして明示する。
-

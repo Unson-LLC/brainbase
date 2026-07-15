@@ -12,6 +12,11 @@ architecture_docs:
   - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
 spec_docs:
   - docs/specs/cross-runtime-run-receipt-inbox-v1.md
+related_stories:
+  - story-mana-run-receipt-production-connector-v1
+  - story-codex-automations-run-receipt-production-connector-v1
+  - story-github-actions-run-receipt-production-connector-v1
+  - story-salestailor-run-receipt-production-connector-v1
 ---
 
 # Cross-runtime run receipt inbox v1
@@ -51,6 +56,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
 - [ ] ac:13 Agent Run Inboxは `(project_id, source.type, source.workflow_id)` ごとに最新receipt runだけを表示する。古いblocked/failed履歴は台帳に保持するが、後続の新しいrunがある場合はInboxへ残さない。最新run選択後にfilter、priority、count、limitを適用する。
 - [ ] ac:14 Inboxの全件順序はpriority、UTC instantへ正規化したeffective timestamp、persisted `created_at`、決定的run idでtotal orderにし、同値時もlimit/pagination結果を安定させる。UI取得・状態更新・通知はRun Receipt専用client/service、Reactive Store、EventBusへ分離し、`public/workflows.html` は購読と描画だけを担う。
+- [ ] ac:15 JSON台帳への異なるreceipt identityの同時ingest、receiptと既存transaction writerの競合、失敗transactionのrollbackをrepository-wide write transactionで直列化し、どのwriterのworkflow/run/auditも失わない。receipt identity lockを先に、shared-ledger transaction lockを後に取得する順序を固定する。
 
 ## Workflow State Scenarios
 
@@ -72,6 +78,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `delivery_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。
 - `receipt_inbox_failure`: receipt一覧APIの取得失敗はAgent Run Inboxだけにwarningを表示し、既存workflow一覧の取得・描画を巻き込まない。取得不能を0件と表示しない。
 - `stale_receipt_history`: 同一source workflowの古いblocked/failed runは履歴として台帳に残すが、新しいrunより上位のInbox itemとして再表示しない。
+- `shared_ledger_race`: receipt identityが異なっても共有JSON台帳は同じため、repository-wide transaction lockなしで全体ファイルをrenameしない。失敗transactionはdiskへrollback snapshotを書き戻さず、lock取得時点のdisk stateを維持する。
 
 ## 非目標
 
