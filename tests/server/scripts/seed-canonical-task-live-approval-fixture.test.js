@@ -17,6 +17,11 @@ describe('seedCanonicalTaskLiveApprovalFixture', () => {
     expect(second).toEqual(first);
     expect(repository.listRuns({ workflowId: first.workflowId, limit: null })).toHaveLength(1);
     expect(repository.listOutputs(first.runId)).toHaveLength(1);
+    expect(repository.getOutput(first.outputId).payload[0].evidence_refs).toEqual([{
+      type: 'meeting_note',
+      id: first.meetingNoteId,
+      url: `https://brainbase.local/meeting-notes/${first.meetingNoteId}`,
+    }]);
     expect(repository.listHumanSteps(first.runId)).toHaveLength(1);
     expect(repository.getHumanStep(first.stepId)).toMatchObject({
       status: 'pending',

@@ -85,6 +85,11 @@ describe('Companion canonical Task live HTTP contract', () => {
         const task = await taskResponse.json();
         expect(taskResponse.status).toBe(200);
         expect(task.source_refs).toEqual(expect.arrayContaining([
+            {
+                type: 'meeting_note',
+                id: harness.approvalFixture.meetingNoteID,
+                url: `https://brainbase.local/meeting-notes/${harness.approvalFixture.meetingNoteID}`
+            },
             { type: 'workflow_output', id: harness.approvalFixture.outputID, url: null },
             { type: 'workflow_human_step', id: harness.approvalFixture.stepID, url: null }
         ]));

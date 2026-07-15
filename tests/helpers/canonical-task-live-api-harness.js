@@ -185,7 +185,12 @@ export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
         payload: [{
             id: 'candidate-live-task-review',
             title: '承認から作る正本Task',
-            selected_owner_id: 'sato_keigo'
+            selected_owner_id: 'sato_keigo',
+            evidence_refs: [{
+                type: 'meeting_note',
+                id: 'meeting-note-live-task-review',
+                url: 'https://brainbase.local/meeting-notes/meeting-note-live-task-review'
+            }]
         }]
     });
     workflowRepository.createHumanStep({
@@ -242,7 +247,8 @@ export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
         approvalFixture: {
             runID: 'run-live-task-review',
             stepID: 'human-live-task-review',
-            outputID: 'out-live-task-review'
+            outputID: 'out-live-task-review',
+            meetingNoteID: 'meeting-note-live-task-review'
         },
         close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
     };

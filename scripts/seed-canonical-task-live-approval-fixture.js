@@ -13,6 +13,7 @@ export const CANONICAL_TASK_LIVE_APPROVAL_FIXTURE = Object.freeze({
   runId: 'run-live-task-review',
   outputId: 'out-live-task-review',
   stepId: 'human-live-task-review',
+  meetingNoteId: 'meeting-note-live-task-review',
 });
 
 export function seedCanonicalTaskLiveApprovalFixture({
@@ -67,6 +68,11 @@ export function seedCanonicalTaskLiveApprovalFixture({
       id: 'candidate-live-task-review',
       title: '承認から作る正本Task',
       selected_owner_id: ownerPersonId,
+      evidence_refs: [{
+        type: 'meeting_note',
+        id: fixture.meetingNoteId,
+        url: `https://brainbase.local/meeting-notes/${fixture.meetingNoteId}`,
+      }],
     }],
   };
   if (repository.getOutput(fixture.outputId)) {
