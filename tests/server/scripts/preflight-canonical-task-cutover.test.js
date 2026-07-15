@@ -505,14 +505,21 @@ describe('before-enable evidence preflight', () => {
 
 describe('before-migration and rollback writer-policy preflight', () => {
   const safeScript = "import './lib/canonical-task-api-client.js';\n";
+  const safeWriterPolicySource = async (filePath) => {
+    const relativePath = filePath.replace('/repo/', '');
+    if (relativePath === 'server/controllers/nocodb-controller.js') return '_assertLegacyTaskMutationAllowed';
+    if (relativePath === 'mcp/nocodb/src/nocodb-client.ts') return 'assertRecordMutationAllowed';
+    return safeScript;
+  };
 
   it.each(['before-migration', 'rollback'])('runs the built-in %s policy from the public CLI path', async (phase) => {
     const result = await runCanonicalTaskCutoverPreflight({
       phase,
       rootDir: '/repo',
       sourceHead: 'current-head',
-      readFileImpl: async () => safeScript,
+      readFileImpl: safeWriterPolicySource,
       listProcesses: () => ['101 node server.js'],
+      trackedFiles: () => [],
     });
 
     expect(result).toMatchObject({
@@ -534,6 +541,7 @@ describe('before-migration and rollback writer-policy preflight', () => {
       sourceHead: 'current-head',
       readFileImpl: async () => "import './lib/canonical-task-api-client.js'; fetch('/api/v2/tables/task');\n",
       listProcesses: () => ['202 node scripts/update-task-status.js'],
+      trackedFiles: () => [],
     });
 
     expect(result.pass).toBe(false);
@@ -541,5 +549,28 @@ describe('before-migration and rollback writer-policy preflight', () => {
     expect(result.checks.active_direct_writer_processes.processes).toEqual([
       '202 node scripts/update-task-status.js',
     ]);
+  });
+
+  it('fails closed when a tracked runtime file introduces an unregistered canonical table reference', async () => {
+    const result = await checkCanonicalTaskWriterPolicy({
+      phase: 'before-migration',
+      rootDir: '/repo',
+      sourceHead: 'current-head',
+      readFileImpl: async (filePath) => {
+        const relativePath = filePath.replace('/repo/', '');
+        if (relativePath === 'server/controllers/nocodb-controller.js') return '_assertLegacyTaskMutationAllowed';
+        if (relativePath === 'mcp/nocodb/src/nocodb-client.ts') return 'assertRecordMutationAllowed';
+        if (relativePath === 'scripts/unregistered-writer.js') return 'const TABLE_ID = "m7iys8m7o1abr3f";';
+        return safeScript;
+      },
+      listProcesses: () => [],
+      trackedFiles: () => ['scripts/unregistered-writer.js'],
+    });
+
+    expect(result.pass).toBe(false);
+    expect(result.checks.repository_writer_inventory.violations).toContainEqual({
+      path: 'scripts/unregistered-writer.js',
+      reason: 'unregistered_canonical_table_reference',
+    });
   });
 });

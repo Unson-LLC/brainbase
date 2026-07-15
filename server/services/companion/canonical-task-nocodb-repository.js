@@ -100,7 +100,10 @@ export class CanonicalTaskNocoDBRepository {
         this.fetch = fetchImpl;
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.apiToken = apiToken;
-        this.idSecret = idSecret || process.env.CANONICAL_TASK_ID_SECRET || process.env.AUTH_SESSION_SECRET || storeConfig.identityHash;
+        this.idSecret = idSecret || process.env.CANONICAL_TASK_ID_SECRET || process.env.AUTH_SESSION_SECRET;
+        if (!this.idSecret) {
+            throw new Error('Canonical Task opaque ID secret is not configured');
+        }
         this.readAfterWriteDelaysMs = readAfterWriteDelaysMs;
     }
 

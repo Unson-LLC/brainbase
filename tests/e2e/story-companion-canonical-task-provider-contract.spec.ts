@@ -13,46 +13,36 @@ type EvidenceEntry = {
 };
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const verifiedMacSourceHead = '8b1c95fe7c8bf76e7dadd56aa912ae417227aba8';
 const registry = JSON.parse(
   readFileSync(path.join(rootDir, 'config/canonical-task-evidence-registry.json'), 'utf8'),
 ) as { entries: EvidenceEntry[] };
 
-const coreApiSuites = [
-  'tests/server/routes/companion-canonical-tasks.test.js',
-  'tests/server/routes/companion-canonical-task-live-http.test.js',
-  'tests/server/services/canonical-task-service.test.js',
-  'tests/server/services/canonical-task-operation-repository.test.js',
-  'tests/server/services/canonical-task-nocodb-repository.test.js',
-  'tests/server/services/canonical-task-principal.test.js',
-];
-const workflowSuites = [
-  'tests/server/services/workflow-canonical-task-materialization.test.js',
-  'tests/server/services/workflow-org-agent-control.test.js',
-  'tests/server/routes/companion-approval-inbox.test.js',
-  'tests/server/routes/workflows.test.js',
-];
-const cutoverSuites = [
-  'tests/server/bootstrap/cors-options.test.js',
-  'tests/server/services/canonical-task-readiness.test.js',
-  'tests/server/services/canonical-task-store-config.test.js',
-  'tests/server/scripts/canonical-task-api-client.test.js',
-  'tests/server/scripts/canonical-task-writer-policy.test.js',
-  'tests/server/scripts/migrate-canonical-task-columns.test.js',
-  'tests/server/scripts/preflight-canonical-task-cutover.test.js',
-  'tests/server/scripts/recover-canonical-task-writer.test.js',
-];
-const legacyBrowserSuites = [
-  'tests/server/routes/nocodb-canonical-task-write-guard.test.js',
-  'tests/domain/nocodb-task/nocodb-task-adapter.test.js',
-  'tests/domain/nocodb-task/nocodb-task-repository.test.js',
-  'tests/domain/nocodb-task/nocodb-task-service.test.js',
-  'tests/browser/nocodb-browser.test.js',
-];
-const browserMutationSuites = [
-  'tests/server/bootstrap/cors-options.test.js',
-  ...legacyBrowserSuites,
-];
-const manaSuites = ['tests/server/routes/mana-capture-routes.test.js'];
+type VitestContract = {
+  files: string[];
+  testNamePattern: string;
+};
+
+const file = (path: string, testNamePattern: string): VitestContract => ({
+  files: [path],
+  testNamePattern,
+});
+const files = (paths: string[], testNamePattern: string): VitestContract => ({
+  files: paths,
+  testNamePattern,
+});
+
+const taskService = 'tests/server/services/canonical-task-service.test.js';
+const taskRepository = 'tests/server/services/canonical-task-nocodb-repository.test.js';
+const operationRepository = 'tests/server/services/canonical-task-operation-repository.test.js';
+const taskRoutes = 'tests/server/routes/companion-canonical-tasks.test.js';
+const workflowMaterialization = 'tests/server/services/workflow-canonical-task-materialization.test.js';
+const workflowRoutes = 'tests/server/routes/workflows.test.js';
+const manaRoutes = 'tests/server/routes/mana-capture-routes.test.js';
+const browserService = 'tests/domain/nocodb-task/nocodb-task-service.test.js';
+const browserRepository = 'tests/domain/nocodb-task/nocodb-task-repository.test.js';
+const legacyRouteGuard = 'tests/server/routes/nocodb-canonical-task-write-guard.test.js';
+const legacyAdapter = 'tests/domain/nocodb-task/nocodb-task-adapter.test.js';
 const liveApiScenarioIds = new Set([
   1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15, 18, 19, 21, 32, 39, 45,
 ]);
@@ -67,51 +57,108 @@ test.afterAll(async () => {
   await liveApiHarness.close();
 });
 
-const scenarioSuites: Record<number, string[]> = {
-  1: coreApiSuites, 2: coreApiSuites, 3: coreApiSuites, 4: coreApiSuites,
-  5: coreApiSuites, 6: coreApiSuites, 7: coreApiSuites, 8: coreApiSuites,
-  9: coreApiSuites, 10: workflowSuites, 11: workflowSuites, 12: workflowSuites,
-  13: workflowSuites, 14: coreApiSuites, 15: coreApiSuites, 16: workflowSuites,
-  17: cutoverSuites, 18: coreApiSuites, 19: coreApiSuites, 20: cutoverSuites,
-  21: coreApiSuites, 22: workflowSuites, 23: workflowSuites,
-  25: workflowSuites, 26: workflowSuites, 27: workflowSuites, 28: cutoverSuites,
-  29: workflowSuites, 30: legacyBrowserSuites, 31: cutoverSuites, 32: coreApiSuites,
-  33: workflowSuites, 34: workflowSuites, 35: legacyBrowserSuites,
-  36: manaSuites, 37: manaSuites, 38: legacyBrowserSuites, 39: coreApiSuites,
-  41: [...coreApiSuites, ...cutoverSuites], 42: manaSuites,
-  43: legacyBrowserSuites, 44: legacyBrowserSuites, 45: coreApiSuites,
-  46: cutoverSuites,
-  47: [...manaSuites, 'tests/server/services/canonical-task-service.test.js'],
+const scenarioContracts: Record<number, VitestContract> = {
+  1: file(taskRoutes, 'passes repeated filters and returns Mac list metadata'),
+  2: file(taskService, 'creates once with a server-side actor namespace'),
+  3: file(taskService, 'returns 409 instead of replaying another PATCH for the same Task version'),
+  4: file(taskService, 'returns current task on version conflict'),
+  5: file(taskService, 'requires waiting_on and seals completed tasks'),
+  6: file(taskService, 'requires waiting_on and seals completed tasks'),
+  7: file(taskRepository, 'does not guess a legacy free-text assignee'),
+  8: file(taskService, 'rejects unresolved assignees before writing any workflow Task'),
+  9: file(taskService, 'keeps Task store failures explicit'),
+  10: file(workflowMaterialization, 'returns materialized Task IDs and only then approves the human step'),
+  11: file(workflowMaterialization, 'replays the materialization result after an approved response was lost'),
+  12: file(workflowMaterialization, 'keeps the human step pending when Canonical Task materialization fails'),
+  13: file(workflowRoutes, 'does not resume a human-gated workflow when the human step is rejected'),
+  15: file(operationRepository, 'replays the completed result for a matching concurrent operation'),
+  16: file('tests/server/routes/companion-canonical-task-live-http.test.js', 'materializes one Task with origin references when approval is retried over TCP'),
+  17: file(operationRepository, 'reclaims a failed operation|matching concurrent operation does not settle|left running by a previous writer'),
+  18: file(taskRoutes, 'does not allow another authenticated person to act as the canonical owner'),
+  19: file(taskRepository, 'rejects opaque ids from another store or with a forged signature'),
+  20: file(operationRepository, 'binds a recovered matching writer token|does not rebind readiness when verified release authorities differ'),
+  21: file(taskService, 'recovers an already-applied PATCH after restart without writing NocoDB again'),
+  22: file(workflowMaterialization, 'surface.workflow.retry-reconcile'),
+  23: file(workflowRoutes, 'denies human step resolution by another project member'),
+  25: file(workflowRoutes, 'keeps the review run visible after resolving one generated human approval'),
+  26: file(taskService, 'materializes approved workflow candidates and applies only declared edits'),
+  27: file(workflowMaterialization, 'AC-20 fails closed'),
+  28: files([
+    operationRepository,
+    'tests/server/scripts/recover-canonical-task-writer.test.js',
+  ], 'writer claimed after restart|surface.writer.release-recover'),
+  29: file(workflowMaterialization, 'surface.workflow.audit-idempotency'),
+  30: file(legacyRouteGuard, 'Given canonical base, when (POST|PUT|DELETE) mutates legacy Task route'),
+  31: files([
+    'tests/server/scripts/canonical-task-writer-policy.test.js',
+    'tests/server/scripts/preflight-canonical-task-cutover.test.js',
+  ], 'keeps operational scripts behind|tracked runtime file introduces an unregistered canonical table reference'),
+  32: files([
+    taskService,
+    'tests/server/services/canonical-task-principal.test.js',
+  ], 'creates once with a server-side actor namespace|keeps type and delimiter-bearing ids disjoint'),
+  33: file(workflowMaterialization, 'SC-033 normalizes legacy string candidates'),
+  34: file(workflowMaterialization, 'AC-25 keeps generated candidate IDs and downstream operation keys stable across reorder'),
+  35: file(legacyAdapter, 'preserves waiting and urgent|keeps unknown legacy values visible'),
+  36: files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture requires a valid CSRF token'),
+  37: file(manaRoutes, 'GET /captures follows canonical Task cursors before filtering Mana captures'),
+  38: file(browserService, 'merges the required canonical list|loads every canonical task page|canonical task cursor repeats'),
+  39: file(operationRepository, 'finishes a prepared delete|persists the version claim and delete intent|rejects changed input for an existing actor-scoped delete key|rejects another delete key from the same actor'),
+  41: files([
+    taskRoutes,
+    'tests/server/services/canonical-task-store-config.test.js',
+  ], 'rejects cookie before Task store access|rejects insecure-header before Task store access|loads, hashes, and deeply freezes the committed manifest'),
+  42: files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture rejects missing capture_id|does not return a local id when the canonical store is unavailable'),
+  43: file(browserService, 'creates a canonical task with a People SSOT person id|rejects canonical creation when no People SSOT person id is available'),
+  44: file(browserRepository, 'uses the versioned Companion API and idempotency headers'),
+  45: file(operationRepository, 'finishes a prepared delete after the Task has already disappeared|does not disclose another actor delete result'),
+  46: files([
+    'tests/server/services/canonical-task-readiness.test.js',
+    'tests/server/scripts/preflight-canonical-task-cutover.test.js',
+  ], 'starts closed and opens only when all persisted authorities match|runs the built-in rollback policy'),
+  47: files([
+    taskService,
+    'tests/server/services/canonical-task-principal.test.js',
+  ], 'does not let another session actor replay the owner Mana capture namespace|normalizes equivalent person credentials|keeps type and delimiter-bearing ids disjoint'),
 };
 
-const surfaceSuites: Record<string, string[]> = {
-  'surface.auth.matrix': coreApiSuites,
-  'surface.approval.inbox': workflowSuites,
-  'surface.approval.resolve-run': workflowSuites,
-  'surface.approval.resolve-step': workflowSuites,
-  'surface.approval.non-task': workflowSuites,
-  'surface.workflow.get-run-reconcile': workflowSuites,
-  'surface.workflow.retry-reconcile': workflowSuites,
-  'surface.workflow.audit-idempotency': workflowSuites,
-  'surface.writer.claim-reconcile': cutoverSuites,
-  'surface.writer.release-recover': cutoverSuites,
-  'surface.readiness.closed-start': cutoverSuites,
-  'surface.readiness.atomic-enable': cutoverSuites,
-  'surface.readiness.explicit-disable': cutoverSuites,
-  'surface.legacy.route': legacyBrowserSuites,
-  'surface.legacy.ui': legacyBrowserSuites,
-  'surface.mana.auth-retry-read': manaSuites,
-  'surface.browser.mutations': browserMutationSuites,
-  'surface.delete.recovery': coreApiSuites,
-  'surface.operational-scripts': cutoverSuites,
-  'surface.migrations.postgres': cutoverSuites,
-  'surface.migrations.nocodb': cutoverSuites,
+const surfaceContracts: Record<string, VitestContract> = {
+  'surface.auth.matrix': files([
+    taskRoutes,
+    'tests/server/services/canonical-task-principal.test.js',
+  ], 'rejects cookie before Task store access|rejects insecure-header before Task store access|rejects untrusted or invalid principals'),
+  'surface.approval.inbox': file('tests/server/routes/companion-approval-inbox.test.js', 'returns pending workflow approvals with outputs and audit refs'),
+  'surface.approval.resolve-run': file(workflowRoutes, 'resolves a pending human step through the run-scoped human-step API'),
+  'surface.approval.resolve-step': file(workflowRoutes, 'keeps the legacy human-step resolve alias behind the same approval and resume semantics'),
+  'surface.approval.non-task': file(workflowRoutes, 'does not resume a human-gated workflow when the human step is rejected'),
+  'surface.workflow.get-run-reconcile': file(workflowMaterialization, 'surface.workflow.get-run-reconcile'),
+  'surface.workflow.retry-reconcile': file(workflowMaterialization, 'surface.workflow.retry-reconcile'),
+  'surface.workflow.audit-idempotency': file(workflowMaterialization, 'surface.workflow.audit-idempotency'),
+  'surface.writer.claim-reconcile': file(operationRepository, 'rebinds matching verified readiness to the writer claimed after restart'),
+  'surface.writer.release-recover': file('tests/server/scripts/recover-canonical-task-writer.test.js', 'surface.writer.release-recover'),
+  'surface.readiness.closed-start': file('tests/server/services/canonical-task-readiness.test.js', 'starts closed and opens only when all persisted authorities match'),
+  'surface.readiness.atomic-enable': file('tests/server/services/canonical-task-readiness.test.js', 'opens a running process after an external enable writes matching evidence'),
+  'surface.readiness.explicit-disable': file('tests/server/services/canonical-task-readiness.test.js', 'keeps the verified release open across a clean writer restart and observes disable'),
+  'surface.legacy.route': file(legacyRouteGuard, 'Given canonical base, when (POST|PUT|DELETE) mutates legacy Task route'),
+  'surface.legacy.ui': file(legacyAdapter, 'preserves waiting and urgent|keeps unknown legacy values visible'),
+  'surface.mana.auth-retry-read': files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture requires a valid CSRF token|GET /captures follows canonical Task cursors'),
+  'surface.browser.mutations': file(browserRepository, 'uses the versioned Companion API and idempotency headers'),
+  'surface.delete.recovery': file(operationRepository, 'finishes a prepared delete|persists the version claim and delete intent|does not disclose another actor delete result'),
+  'surface.operational-scripts': files([
+    'tests/server/scripts/canonical-task-writer-policy.test.js',
+    'tests/server/scripts/preflight-canonical-task-cutover.test.js',
+  ], 'keeps operational scripts behind|tracked runtime file introduces an unregistered canonical table reference'),
+  'surface.migrations.postgres': file('tests/server/scripts/migrate-canonical-task-operations.test.js', 'verifies required tables, columns, constraints, and index'),
+  'surface.migrations.nocodb': file('tests/server/scripts/migrate-canonical-task-columns.test.js', 'creates missing columns and verifies the unique idempotency key'),
 };
 
 function childEnvironment() {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !name.startsWith('VIBEPRO_EVIDENCE_')),
-  );
+  return {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([name]) => !name.startsWith('VIBEPRO_EVIDENCE_')),
+    ),
+    NO_COLOR: '1',
+  };
 }
 
 function run(command: string, args: string[], cwd = rootDir) {
@@ -125,10 +172,19 @@ function run(command: string, args: string[], cwd = rootDir) {
   expect(result.error, output).toBeUndefined();
   expect(result.signal, output).toBeNull();
   expect(result.status, output).toBe(0);
+  return output;
 }
 
-function runVitest(files: string[]) {
-  run('npx', ['vitest', 'run', ...files]);
+function runVitest(contract: VitestContract) {
+  const output = run('npx', [
+    'vitest',
+    'run',
+    ...contract.files,
+    '--testNamePattern',
+    contract.testNamePattern,
+  ]);
+  expect(output, `No passing Vitest assertion matched ${contract.testNamePattern}`)
+    .toMatch(/Tests\s+[1-9]\d* passed/);
 }
 
 function assertMacWireFixture() {
@@ -138,7 +194,7 @@ function assertMacWireFixture() {
   ));
   const page = fixture.sample_list_response;
   const task = page.items[0];
-  expect(fixture.mac_source_head).toMatch(/^[a-f0-9]{40}$/);
+  expect(fixture.mac_source_head).toBe(verifiedMacSourceHead);
   expect(Object.keys(fixture.routes).sort()).toEqual(['create', 'list', 'read', 'transition', 'update']);
   expect(page).toEqual(expect.objectContaining({
     total_count: expect.any(Number),
@@ -292,9 +348,9 @@ async function verifyEvidenceContract(evidenceId: string, request: APIRequestCon
   if (scenario && liveApiScenarioIds.has(Number(scenario[1]))) {
     await verifyAuthenticatedTaskLifecycle();
   }
-  const suites = scenario ? scenarioSuites[Number(scenario[1])] : surfaceSuites[evidenceId];
-  expect(suites, `No real test suite mapped for ${evidenceId}`).toBeDefined();
-  runVitest(suites);
+  const contract = scenario ? scenarioContracts[Number(scenario[1])] : surfaceContracts[evidenceId];
+  expect(contract, `No scenario-specific test contract mapped for ${evidenceId}`).toBeDefined();
+  runVitest(contract);
 }
 
 test('canonical Task API rejects an unauthenticated mutation', async ({ request }) => {
@@ -313,35 +369,35 @@ test('canonical Task API completes an authenticated lifecycle through HTTP', asy
 
 test('story-companion-canonical-task-provider S-001 advances allowed lifecycle transitions exactly once', () => {
   expect(
-    () => runVitest(['tests/server/services/canonical-task-service.test.js']),
+    () => runVitest(file(taskService, 'requires waiting_on and seals completed tasks')),
     'Given a canonical Task is pending, in_progress, or waiting, when an allowed lifecycle transition is requested with the current expected version, then the Task moves to the requested state and its version advances exactly once.',
   ).not.toThrow();
 });
 
 test('story-companion-canonical-task-provider S-002 rejects transitions from completed', () => {
   expect(
-    () => runVitest(['tests/server/services/canonical-task-service.test.js']),
+    () => runVitest(file(taskService, 'requires waiting_on and seals completed tasks')),
     'Given a canonical Task is completed, when any further lifecycle transition is requested, then the API rejects it as invalid_transition and leaves the persisted Task unchanged.',
   ).not.toThrow();
 });
 
 test('story-companion-canonical-task-provider S-003 replays approval materialization without duplicates', () => {
   expect(
-    () => runVitest(workflowSuites),
+    () => runVitest(file(workflowMaterialization, 'replays the materialization result after an approved response was lost')),
     'Given an approved workflow output targets task_store, when materialization is retried concurrently or after a response loss, then all Tasks are created before approval is committed and every retry returns the same materialized Task IDs without duplication.',
   ).not.toThrow();
 });
 
 test('story-companion-canonical-task-provider S-004 keeps mutation fail-closed unless release evidence matches', () => {
   expect(
-    () => runVitest(cutoverSuites),
+    () => runVitest(file('tests/server/services/canonical-task-readiness.test.js', 'stays closed when writer, evidence, manifest, schema, or HEAD do not match')),
     'Given a process starts with canonical Task mutation closed, when persisted readiness, manifest, schema, evidence, and the claimed single-writer token all match the current release, then readiness is rebound to the current process; otherwise every mutation remains fail-closed.',
   ).not.toThrow();
 });
 
 test('story-companion-canonical-task-provider S-005 fails closed on stalled NocoDB pagination', () => {
   expect(
-    () => runVitest(['tests/server/services/canonical-task-nocodb-repository.test.js']),
+    () => runVitest(file(taskRepository, 'fails closed when NocoDB repeats a full page instead of advancing pagination')),
     'Given NocoDB returns the same full Task page for a later offset, when the canonical repository reads the complete Task set, then it stops after detecting the repeated page and returns task_store_unavailable instead of looping or reporting an incomplete success.',
   ).not.toThrow();
 });

@@ -12,6 +12,25 @@ function response(body, status = 200) {
 }
 
 describe('CanonicalTaskNocoDBRepository', () => {
+    it('fails closed instead of deriving the opaque ID secret from public store identity', () => {
+        const previousCanonicalSecret = process.env.CANONICAL_TASK_ID_SECRET;
+        const previousSessionSecret = process.env.AUTH_SESSION_SECRET;
+        delete process.env.CANONICAL_TASK_ID_SECRET;
+        delete process.env.AUTH_SESSION_SECRET;
+        try {
+            expect(() => new CanonicalTaskNocoDBRepository({
+                storeConfig,
+                fetchImpl: vi.fn(),
+                apiToken: 'token'
+            })).toThrow('Canonical Task opaque ID secret is not configured');
+        } finally {
+            if (previousCanonicalSecret === undefined) delete process.env.CANONICAL_TASK_ID_SECRET;
+            else process.env.CANONICAL_TASK_ID_SECRET = previousCanonicalSecret;
+            if (previousSessionSecret === undefined) delete process.env.AUTH_SESSION_SECRET;
+            else process.env.AUTH_SESSION_SECRET = previousSessionSecret;
+        }
+    });
+
     it.each([
         ['invalid JSON', '{not-json', 'invalid_source_refs_json'],
         ['non-array JSON', '{"type":"meeting_note"}', 'invalid_source_refs_shape']

@@ -61,6 +61,7 @@
     "migrate:canonical-task-columns": "node scripts/migrate-canonical-task-columns.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
+    "canonical-task:check-postgres-concurrency": "node scripts/check-canonical-task-postgres-concurrency.js",
     "preflight:canonical-task-cutover": "node scripts/preflight-canonical-task-cutover.js",
     "capture:canonical-task-cutover": "node scripts/capture-canonical-task-cutover-evidence.js",
     "canonical-task:seed-live-fixture": "node scripts/seed-canonical-task-live-approval-fixture.js",

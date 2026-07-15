@@ -29,6 +29,17 @@ const FORBIDDEN_DIRECT_WRITER_PATTERNS = [
   /m7iys8m7o1abr3f/,
   /xc-(?:auth|token)/,
 ];
+const CANONICAL_TASK_TABLE_ID = 'm7iys8m7o1abr3f';
+const CANONICAL_IDENTITY_REFERENCE_ALLOWLIST = new Set([
+  'config/canonical-task-store.json',
+  'server/services/companion/canonical-task-store-config.js',
+  'scripts/preflight-canonical-task-cutover.js',
+  'mcp/nocodb/src/canonical-task-write-guard.ts',
+]);
+const GUARDED_GENERIC_WRITE_BOUNDARIES = Object.freeze({
+  'server/controllers/nocodb-controller.js': '_assertLegacyTaskMutationAllowed',
+  'mcp/nocodb/src/nocodb-client.ts': 'assertRecordMutationAllowed',
+});
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -176,12 +187,66 @@ function listSystemProcesses() {
     .filter(Boolean);
 }
 
+function listTrackedRuntimeFiles(rootDir) {
+  return execFileSync('git', ['ls-files', '-z'], { cwd: rootDir })
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .map(normalizeRelative)
+    .filter((relativePath) => !relativePath.split('/').includes('tests'))
+    .filter((relativePath) => !relativePath.split('/').includes('docs'))
+    .filter((relativePath) => !relativePath.startsWith('.claude/'))
+    .filter((relativePath) => !relativePath.startsWith('.vibepro/'))
+    .filter((relativePath) => !relativePath.includes('/dist/'))
+    .filter((relativePath) => !relativePath.endsWith('.map'));
+}
+
+async function inspectRepositoryWriterInventory({ rootDir, readFileImpl, trackedFiles }) {
+  const identityReferences = [];
+  const violations = [];
+  const files = await Promise.resolve(trackedFiles());
+  invariant(Array.isArray(files), 'tracked writer inventory must be an array');
+
+  for (const relativePath of files) {
+    let source;
+    try {
+      source = await readFileImpl(resolveInsideRoot(rootDir, relativePath, 'tracked source path'), 'utf8');
+    } catch (error) {
+      if (error?.code === 'EISDIR') continue;
+      throw error;
+    }
+    if (!source.includes(CANONICAL_TASK_TABLE_ID)) continue;
+    identityReferences.push(relativePath);
+    if (!CANONICAL_IDENTITY_REFERENCE_ALLOWLIST.has(relativePath)) {
+      violations.push({ path: relativePath, reason: 'unregistered_canonical_table_reference' });
+    }
+  }
+
+  const guardedBoundaries = [];
+  for (const [relativePath, requiredMarker] of Object.entries(GUARDED_GENERIC_WRITE_BOUNDARIES)) {
+    const source = await readFileImpl(resolveInsideRoot(rootDir, relativePath, 'guarded writer boundary'), 'utf8');
+    const guarded = source.includes(requiredMarker);
+    guardedBoundaries.push({ path: relativePath, required_marker: requiredMarker, guarded });
+    if (!guarded) violations.push({ path: relativePath, reason: 'canonical_write_guard_missing', marker: requiredMarker });
+  }
+
+  return {
+    pass: violations.length === 0,
+    canonical_table_id: CANONICAL_TASK_TABLE_ID,
+    tracked_file_count: files.length,
+    identity_references: identityReferences.sort(),
+    guarded_generic_write_boundaries: guardedBoundaries,
+    violations,
+  };
+}
+
 export async function checkCanonicalTaskWriterPolicy({
   rootDir = process.cwd(),
   phase,
   sourceHead = currentGitHead(rootDir),
   readFileImpl = readFile,
   listProcesses = listSystemProcesses,
+  trackedFiles = () => listTrackedRuntimeFiles(rootDir),
 } = {}) {
   invariant(phase === 'before-migration' || phase === 'rollback', 'writer-policy check requires before-migration or rollback');
 
@@ -203,7 +268,8 @@ export async function checkCanonicalTaskWriterPolicy({
   const activeWriterProcesses = processLines.filter((line) =>
     OPERATIONAL_TASK_SCRIPTS.some((relativePath) => line.includes(relativePath)),
   );
-  const pass = staticViolations.length === 0 && activeWriterProcesses.length === 0;
+  const repositoryInventory = await inspectRepositoryWriterInventory({ rootDir, readFileImpl, trackedFiles });
+  const pass = staticViolations.length === 0 && activeWriterProcesses.length === 0 && repositoryInventory.pass;
   return {
     artifact_schema: 'canonical-task-writer-policy-v1',
     phase,
@@ -221,6 +287,7 @@ export async function checkCanonicalTaskWriterPolicy({
         count: activeWriterProcesses.length,
         processes: activeWriterProcesses,
       },
+      repository_writer_inventory: repositoryInventory,
     },
   };
 }

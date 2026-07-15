@@ -8,6 +8,7 @@
 - 自動テスト: `tests/server/scripts/preflight-canonical-task-cutover.test.js`
 - 実行: `npm run preflight:canonical-task-cutover -- --phase <phase>`
 - 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> --out-dir <directory>`
+- 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
 - readiness操作: `scripts/set-canonical-task-readiness.js`
 - enable: `npm run canonical-task:readiness -- --enable --evidence <artifact>`
 - disable: `npm run canonical-task:readiness -- --disable --reason <reason>`
@@ -22,7 +23,7 @@
 
 ## before-enable
 
-1. Postgres調停schemaとNocoDB Task列・冪等key unique migrationをapplyし、checkを通す。
+1. Postgres調停schemaとNocoDB Task列・冪等key unique migrationをapplyし、checkを通す。active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
 3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。
 4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --mac-result <Mac read-only result> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase process、Mac read-only consumerの4 artifactを生成する。
@@ -129,6 +130,7 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - deleteのprepared停止回復、actor type/ID/区切り文字namespace分離
 - 4本の運用scriptに直接writerがない静的検査
 - Postgres/NocoDB migration apply/check結果と再起動readiness回帰
+- 実Postgresでの同一operation key並行実行結果（caller 2、run 1、completed、cleanup completed）
 - Mac consumer固定wire fixtureと実route schema結果
 
 preflight artifactは上記71件の安定したevidence ID、pass状態、file hash、producer command hash、

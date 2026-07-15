@@ -292,6 +292,37 @@ describe('WorkflowService Canonical Task materialization', () => {
         expect(second.materialization.replayed).toBe(true);
     });
 
+    it('SC-033 normalizes legacy string candidates before approval materialization', async () => {
+        const materializeWorkflowApproval = vi.fn().mockResolvedValue({
+            status: 'completed',
+            task_ids: ['ct1.legacy-string'],
+            excluded_candidates: [],
+            warnings: [],
+            replayed: false
+        });
+        const { service, actor } = makeHarness(materializeWorkflowApproval, {
+            payload: ['旧形式の議事録Task']
+        });
+
+        await service.resolveHumanStep('human-task-review', {
+            run_id: 'run-task-review',
+            resolution: 'approved'
+        }, actor);
+
+        const candidate = materializeWorkflowApproval.mock.calls[0][0].output.payload[0];
+        expect(candidate).toMatchObject({
+            title: '旧形式の議事録Task',
+            owner_resolution: {
+                status: 'unresolved',
+                reason: 'owner_selection_required'
+            }
+        });
+        expect(candidate).not.toHaveProperty('selected_owner_id');
+        expect(candidate.candidate_id).toMatch(
+            /^workflow-output:out-task-review:candidate:[a-f0-9]{64}:1$/
+        );
+    });
+
     it('replays the materialization result after an approved response was lost', async () => {
         const materializeWorkflowApproval = vi.fn().mockResolvedValue({
             status: 'completed',

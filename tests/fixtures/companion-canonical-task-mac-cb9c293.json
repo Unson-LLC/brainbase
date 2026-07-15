@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "mac_source_head": "cb9c29380a0574ee95ec53c84712ad3c04f9c70e",
+  "mac_source_head": "8b1c95fe7c8bf76e7dadd56aa912ae417227aba8",
   "base_path": "/api/companion/tasks",
   "routes": {
     "list": { "method": "GET", "path": "/api/companion/tasks" },
