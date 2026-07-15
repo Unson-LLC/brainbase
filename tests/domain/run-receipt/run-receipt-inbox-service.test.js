@@ -85,10 +85,32 @@ describe('RunReceiptInboxService', () => {
             has_more: false,
             omitted_count: 0,
             error: 'source unavailable',
-            filters: { source_type: 'salestailor' }
+            filters: {}
         });
         expect(failed).toHaveBeenCalledTimes(1);
         expect(failed.mock.calls[0][0].detail).toMatchObject({ message: 'source unavailable' });
+    });
+
+    it('filter変更のload失敗時_確認済みsnapshotのfiltersを保持する', async () => {
+        const error = new Error('source unavailable');
+        const { service, store } = makeService({
+            client: { list: vi.fn().mockRejectedValue(error) },
+            inbox: initialInbox({
+                items: [{ id: 'mana-confirmed' }],
+                count: 1,
+                filters: { project_id: 'brainbase', source_type: 'mana' }
+            })
+        });
+
+        await expect(service.setFilters({ source_type: 'github_actions' }))
+            .rejects.toThrow('source unavailable');
+
+        expect(store.getState().runReceiptInbox).toMatchObject({
+            status: 'unavailable',
+            items: [{ id: 'mana-confirmed' }],
+            count: 1,
+            filters: { project_id: 'brainbase', source_type: 'mana' }
+        });
     });
 
     it('setFilters呼び出し時_既存filterへmergeして再取得する', async () => {

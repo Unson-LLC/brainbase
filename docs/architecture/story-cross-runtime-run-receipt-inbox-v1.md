@@ -138,3 +138,7 @@ The source connector is authoritative for that observation attempt identity. Inb
 - Connector-owned labels, summary, and blocker text are single-line and bounded; action is an enum. Metrics accept finite number, boolean, or null only. Source connectors must redact customer prose, secrets, logs, and transcripts before delivery; Brainbase validation is defense in depth.
 - API credentials and source payload bodies remain in source connectors.
 - Graph SSOT and Candidate Store are not written by this adapter.
+
+## Release Operations
+
+The production rollout, canary evidence, connector-disable behavior, version-skew handling, and non-destructive rollback are defined in `docs/runbooks/run-receipt-inbox-v1.md`. Rollback disables connector delivery before removing the dedicated surface, preserves receipt ledger rows, and keeps them isolated from legacy workflow/run APIs and Operational Inbox.

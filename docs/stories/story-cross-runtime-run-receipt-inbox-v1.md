@@ -10,6 +10,7 @@ period: 2026Q3
 architecture_docs:
   - docs/architecture/ADR-016-run-receipt-control-plane-boundary.md
   - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
+  - docs/runbooks/run-receipt-inbox-v1.md
 spec_docs:
   - docs/specs/cross-runtime-run-receipt-inbox-v1.md
 ---
@@ -59,16 +60,28 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - Browser E2E: tracked Playwrightで実server-to-server ingest、実Inbox API、latest-run collapse、priority、filter、failure boundary、既存の非receipt Operational Inbox itemの維持をcurrent HEADで確認。
 - Failure semantics: API 503時も既存receipt snapshotを保持し、取得不能を0件へ丸めないことを確認。
 
-## Workflow State Scenarios
+## Scenarios
 
-- `workflow state transition`: source `success` はBrainbase `success / closed / none` へ写る。ただし `evidence_state=unconfirmed|no_data` はInboxで確認対象として残る。
-- `workflow state transition`: source `failed` は `failed / needs_action / check_error` へ写る。
-- `workflow state transition`: source `blocked` は `needs_action / needs_action / resolve_blocker` へ写る。
-- `workflow state transition`: source `waiting_human` は `waiting_human / open / review_run` へ写る。
-- `workflow state transition`: source `cancelled` は `cancelled / closed / none` へ写り、successに含めない。
-- `workflow retry matrix`: 同じproject/source/external run idで同一payloadの再送はduplicate、内容が異なる再送はconflictとして拒否する。
-- `workflow retry matrix`: `delivery.attempt` と `delivery.sent_at` だけが変わった再送は同一payloadとしてduplicateになる。同一identityの同時送信も1件だけcreateされる。
-- `workflow rollback guard`: contract、auth、project、idempotency conflictの検証が失敗した場合、workflow runやauditを部分保存しない。
+- S-001: Given a source reports `success`, when Brainbase projects the receipt, then it maps to `success / closed / none`; `unconfirmed|no_data` still remains visible for operator review. (AC-3, AC-4)
+- S-002: Given a source reports `failed`, when Brainbase projects the receipt, then it maps to `failed / needs_action / check_error` without losing the evidence state. (AC-3, AC-4)
+- S-003: Given a source reports `blocked`, when Brainbase projects the receipt, then it maps to `needs_action / needs_action / resolve_blocker` and ranks above failed runs. (AC-4, AC-5)
+- S-004: Given a source reports `waiting_human`, when Brainbase projects the receipt, then it maps to `waiting_human / open / review_run`. (AC-4)
+- S-005: Given a source reports `cancelled`, when Brainbase projects the receipt, then it remains `cancelled / closed / none` and is never counted as success. (AC-4)
+- S-006: Given the same project/source/external run identity is delivered again, when normalized content is identical or only delivery metadata changes, then Brainbase returns duplicate; concurrent delivery creates exactly one run. (AC-2, AC-8, AC-9)
+- S-007: Given the same identity is delivered with different normalized content, when ingest validates idempotency, then it rejects the conflict without ledger mutation. (AC-1, AC-2)
+- S-008: Given schema, auth, project access, raw-content, or evidence validation fails, when ingest is attempted, then no workflow, run, step, or audit is partially saved. (AC-1, AC-6, AC-7, AC-10, AC-15)
+- S-009: Given a confirmed filtered Inbox snapshot is visible, when the next filter request times out or returns 5xx, then Agent Run Inbox preserves both the confirmed items and their confirmed filters, shows unavailable, and leaves Operational Inbox usable. (AC-5, AC-11, AC-12, AC-14)
+- S-010: Given source, project, run-status, and evidence-state filters, when they are composed, then only matching latest receipts are shown and an unavailable response is never interpreted as zero results. (AC-5, AC-11, AC-12)
+- S-011: Given ingest or listing access, when authentication, CSRF, or project authorization is invalid, then the request is rejected without broadening the existing exemptions or revealing another project. (AC-1, AC-6, AC-10)
+- S-012: Given an interrupted pending external_runner.v0 candidate delivery, when it is replayed, then exact stored candidates resume idempotently, mismatches remain actionable conflicts, and legacy post-convergence duplicate audit behavior is preserved. (AC-13, AC-15)
+- S-013: Given the connector cannot obtain a source run identity, when it reports the attempt, then Brainbase records a visible connector observation rather than inventing a failed source run or an empty success. (AC-3, AC-4)
+- S-014: Given an operator uses Workflow Mission Control, when receipts are loaded or filtered, then source status, uncertainty, action, evidence refs, labels, keyboard focus, and status-region warnings remain accessible and match API order. (AC-5, AC-11, AC-14)
+- S-015: Given receipt and non-receipt workflows share the ledger, when legacy workflow, run, rerun, and Operational Inbox routes are used, then receipts stay isolated in Agent Run Inbox while existing non-receipt membership and priority remain unchanged. (AC-12, AC-13)
+- S-016: Given the receipt Inbox request times out, fails at the network, or returns 5xx, when the failure is projected, then only Agent Run Inbox becomes unavailable and the confirmed snapshot, Workflow page, and Operational Inbox remain usable. (AC-11, AC-12, AC-14)
+- S-017: Given multiple receipt runs for the same source workflow identity, when the Inbox is projected, then the latest run is selected before filters, count, priority, and limit so old failures are not resurrected. (AC-5)
+- S-018: Given collapsed receipts have equal priority or equivalent instants with different offsets, when ordering and limiting are repeated, then epoch-based tie-breakers and deterministic run id yield the same items. (AC-5)
+- S-019: Given the browser loads Agent Run Inbox, when data succeeds or fails, then a dedicated client and DI-composed service update the Reactive Store and EventBus without page-local HTTP access or mutation of legacy workflow state. (AC-11, AC-12)
+- S-020: Given concurrent receipt and legacy writers share the JSON ledger, when commits, failures, startup seeding, nested transactions, or candidate-outbox recovery overlap, then guarded transactions preserve all committed workflow, run, step, and audit data without deadlock or rollback overwrite. (AC-8, AC-9, AC-13, AC-15)
 
 ## Failure Modes
 

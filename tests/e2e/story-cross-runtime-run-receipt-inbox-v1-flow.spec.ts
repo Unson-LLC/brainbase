@@ -95,7 +95,7 @@ function makeConnectorObservation(suffix: string) {
   };
 }
 
-test('common receipt path uses real ingest and inbox APIs before preserving the snapshot on 503', async ({ page, request }) => {
+test('AC-1..AC-15 S-001..S-019 common receipt production flow preserves the confirmed snapshot on 503', async ({ page, request }) => {
   const suffix = `${Date.now()}-${test.info().workerIndex}`;
   const workflowA = `Tracked common E2E A ${suffix}`;
   const workflowB = `Tracked common E2E B ${suffix}`;
@@ -239,11 +239,31 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
   await expect(trackedCards.nth(0)).toContainText('status: blocked');
   await expect(trackedCards.nth(1)).toContainText('status: failed');
 
+  await page.locator('#run-receipt-project').focus();
+  await expect(page.locator('#run-receipt-project')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#run-receipt-source')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#run-receipt-status')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#run-receipt-evidence')).toBeFocused();
+
   await page.locator('#run-receipt-evidence').selectOption('unconfirmed');
   await page.getByRole('button', { name: 'Apply' }).click();
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(connectorObservationCard).toBeVisible();
   await expect(page.getByText(`failed without evidence ${suffix}`)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await expect(page.locator('#run-receipt-evidence')).toHaveValue('');
+  await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
+
+  await page.locator('#run-receipt-source').selectOption('mana');
+  await page.locator('#run-receipt-evidence').selectOption('unconfirmed');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.locator('#run-receipt-source')).toHaveValue('mana');
+  await expect(page.locator('#run-receipt-evidence')).toHaveValue('unconfirmed');
+  await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
 
   await page.route('**/api/run-receipts/inbox**', async (route) => {
     await route.fulfill({
@@ -252,9 +272,12 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
       body: JSON.stringify({ error: 'tracked source unavailable' })
     });
   });
-  await page.getByRole('button', { name: 'Refresh' }).click();
+  await page.locator('#run-receipt-source').selectOption('github_actions');
+  await page.getByRole('button', { name: 'Apply' }).click();
   await expect(page.locator('#agent-run-inbox-status')).toContainText('取得不能');
   await expect(page.locator('#agent-run-inbox-status')).toContainText('前回確認済み');
+  await expect(page.locator('#run-receipt-source')).toHaveValue('mana');
+  await expect(page.locator('#run-receipt-evidence')).toHaveValue('unconfirmed');
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Operational Inbox' })).toBeVisible();
   await expect(operationalItem).toBeVisible();

@@ -54,7 +54,7 @@ export class RunReceiptInboxService {
                     ...previous,
                     status: 'unavailable',
                     error: message,
-                    filters: nextFilters
+                    filters: { ...previous.filters }
                 }
             });
             await this.eventBus.emit(EVENTS.RUN_RECEIPT_INBOX_FAILED, { message });
