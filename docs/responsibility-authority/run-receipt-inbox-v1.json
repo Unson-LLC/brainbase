@@ -12,7 +12,7 @@
       "supporting_authority": [
         {
           "kind": "spec",
-          "ref": "docs/specs/story-cross-runtime-run-receipt-inbox-v1-spec.md#invariants"
+          "ref": "docs/specs/cross-runtime-run-receipt-inbox-v1.md#invariants"
         },
         {
           "kind": "spec",
@@ -29,7 +29,11 @@
           "server/routes/run-receipts.js",
           "server/bootstrap/core-services.js",
           "server/bootstrap/register-api-routes.js",
-          "server/services/workflow/workflow-service.js"
+          "server/services/workflow/workflow-service.js",
+          "public/workflows.html",
+          "tests/server/services/run-receipt-*.test.js",
+          "tests/server/routes/run-receipt-routes.test.js",
+          "tests/ui/run-receipt-inbox.test.js"
         ],
         "symbols": [
           "RunReceiptAdapter",

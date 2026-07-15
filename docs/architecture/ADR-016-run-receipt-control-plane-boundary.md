@@ -30,6 +30,10 @@ Brainbase owns the canonical operational receipt contract and Agent Run Inbox. E
 
 Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
 
+The tuple is canonically encoded and hashed before use as a delivery key or WMC identifier, so separators inside source values cannot collide. WMC internal workflow identity is separately derived from `project_id + source.type + source.workflow_id`; original source identities remain metadata.
+
+Source unavailability without a source run identity is represented as a connector-owned observation attempt, not as a fabricated source run failure. POST ingest remains server-to-server only; GET Inbox is an authenticated operator read constrained by the actor's project scope.
+
 Graph SSOT is outside the receipt write path. A later, explicit human-reviewed learning flow may promote decisions derived from receipts.
 
 ## Consequences
@@ -52,4 +56,5 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Contract and adapter unit tests prove validation, mapping, idempotency, and conflict behavior.
 - Route tests prove server-to-server auth and project boundaries.
 - Inbox tests prove priority/filter semantics and explicit evidence states.
+- Workflow Mission Control UI tests prove uncertainty is visible and API/UI ordering agrees without changing non-receipt workflow priority.
 - Existing `external_runner.v0` tests remain green.

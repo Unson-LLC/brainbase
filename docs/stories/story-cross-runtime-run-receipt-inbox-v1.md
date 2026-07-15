@@ -41,7 +41,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:2 同じ `project_id + source.type + external_run_id` の再送は既存runを返すduplicateとなり、別projectまたは別sourceの同じexternal run idは別runとして保存される。
 - [ ] ac:3 receiptはWorkflow Mission Controlのworkflow runへ投影され、sourceの `run_status` と `evidence_state` を失わない。
 - [ ] ac:4 `success`、`failed`、`blocked`、`waiting_human`、`cancelled` を区別し、`unconfirmed` と `no_data` を成功または0件へ潰さない。
-- [ ] ac:5 Agent Run Inboxはaction required、failure、blocked、unconfirmed/no_dataを決定的な優先順位で返し、source/project/status/evidence stateで絞り込める。
+- [ ] ac:5 Workflow Mission ControlのAgent Run Inbox画面はreceiptのsource status、evidence state、action、blocker、evidence referenceを表示し、source/project/status/evidence stateで絞り込める。APIと画面は同じ決定的な優先順位を使う。
 - [ ] ac:6 raw logや顧客本文は複製せず、証跡はsource-owned URLまたはartifact referenceとして保存する。
 - [ ] ac:7 ingest認証はserver-to-server credentialを要求し、認証主体がアクセスできないprojectへのreceiptを拒否する。
 - [ ] ac:8 receipt deliveryの成否とsource runの成否を別フィールドとして扱い、delivery成功をrun成功と解釈しない。
@@ -60,7 +60,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 - `schema_failure`: 未定義status/evidence state、空のidentity、壊れたevidence refは400で拒否する。
 - `auth_denied`: cookieだけのbrowser requestやproject非許可credentialは403で拒否する。
-- `source_unavailable`: connectorがsourceへ接続できない場合は0件ではなくblockedまたはno_data/unconfirmedのreceiptとして表現する。
+- `source_unavailable`: connectorがsourceへ接続できずsource run identityも得られない場合は、connector自身の観測試行を `observation_kind=connector_observation`、synthetic external run identity、`blocked + no_data|unconfirmed` として表現する。source runを失敗扱いに偽装しない。
 - `delivery_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。
 
 ## 非目標
@@ -69,3 +69,10 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - Eve向け `external_runner.v0` を置き換えない。
 - raw logs、顧客返信、transcriptをBrainbaseへ複製しない。
 - receiptからGraph SSOTへ自動学習・自動昇格しない。
+
+## Operator Surface
+
+- 正本の利用面はWorkflow Mission Control内のAgent Run Inboxと `GET /api/run-receipts/inbox` とする。
+- `no_data` と `unconfirmed` は成功色や0件表示へ混ぜず、warning badgeと根拠不足の説明を必ず表示する。
+- `omitted_count` は現在のfilterには一致するが `limit` により返却されなかったreceipt数であり、source未確認数ではない。
+- 既存の非receipt workflow一覧・承認Inboxのpriorityは変更しない。receiptのpriorityはreceipt専用APIとUI sectionで一元化する。
