@@ -39,12 +39,17 @@ function makeReceipt({ projectId = 'brainbase', externalRunId = 'mana-run-1' } =
     };
 }
 
-function createApp({ authSource = 'internal', projectCodes = ['brainbase'], role = 'member' } = {}) {
+function createApp({
+    authSource = 'internal',
+    projectCodes = ['brainbase'],
+    role = 'member',
+    repository = new InMemoryWorkflowRepository(),
+    lockAcquireTimeoutMs = 100
+} = {}) {
     const app = express();
-    const repository = new InMemoryWorkflowRepository();
     const ingestService = new RunReceiptIngestService({
         workflowRepository: repository,
-        lockAcquireTimeoutMs: 100,
+        lockAcquireTimeoutMs,
         lockRetryMs: 1
     });
     const workflowService = new WorkflowService({ repository, runner: {}, configParser: null });
@@ -57,7 +62,7 @@ function createApp({ authSource = 'internal', projectCodes = ['brainbase'], role
     });
     app.use('/api/run-receipts', createRunReceiptRouter({ ingestService, workflowService }));
     app.use(errorHandler);
-    return { app, repository };
+    return { app, repository, ingestService };
 }
 
 describe('run receipt routes', () => {
@@ -115,6 +120,30 @@ describe('run receipt routes', () => {
 
         expect(response.body.code).toBe('run_receipt_conflict');
         expect(repository.listRuns({ limit: null })).toHaveLength(1);
+    });
+
+    it('POST ingest_identity lock timeoutはretryable 503で返し書き込まない', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const { app, ingestService } = createApp({
+            repository,
+            lockAcquireTimeoutMs: 5
+        });
+        const normalized = ingestService.normalize(makeReceipt());
+        repository.acquireWorkflowLock({
+            ...normalized.lock,
+            locked_by: 'other-owner',
+            ttl_ms: 60000
+        });
+
+        const response = await request(app)
+            .post('/api/run-receipts/ingest')
+            .send(makeReceipt())
+            .expect(503);
+
+        expect(response.headers['retry-after']).toBe('1');
+        expect(response.body.code).toBe('run_receipt_lock_timeout');
+        expect(repository.listRuns({ limit: null })).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
     });
 
     it('GET inboxはqueryをserviceへ渡しoperatorのproject境界を保つ', async () => {

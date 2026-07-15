@@ -38,6 +38,7 @@
           "server/middleware/csrf.js",
           "public/modules/domain/run-receipt/run-receipt-inbox-client.js",
           "public/modules/domain/run-receipt/run-receipt-inbox-service.js",
+          "public/modules/domain/run-receipt/run-receipt-inbox-view.js",
           "public/modules/core/store.js",
           "public/modules/core/event-bus.js",
           "public/workflows.html",
@@ -51,7 +52,10 @@
           "tests/candidate-store/invariants/inv-10-unique-source-event.test.js",
           "tests/server/routes/run-receipt-routes.test.js",
           "tests/unit/csrf-run-receipt-ingest-exempt.test.js",
-          "tests/ui/run-receipt-inbox.test.js"
+          "tests/domain/run-receipt/run-receipt-inbox-client.test.js",
+          "tests/domain/run-receipt/run-receipt-inbox-service.test.js",
+          "tests/domain/run-receipt/run-receipt-inbox-view.test.js",
+          "tests/unit/workflows-run-receipt-inbox-ui.test.js"
         ],
         "symbols": [
           "RunReceiptAdapter",

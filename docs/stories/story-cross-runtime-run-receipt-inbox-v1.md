@@ -80,6 +80,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `receipt_inbox_failure`: receipt一覧APIの取得失敗はAgent Run Inboxだけにwarningを表示し、既存workflow一覧の取得・描画を巻き込まない。取得不能を0件と表示しない。
 - `stale_receipt_history`: 同一source workflowの古いblocked/failed runは履歴として台帳に残すが、新しいrunより上位のInbox itemとして再表示しない。
 - `shared_ledger_race`: receipt identityが異なっても共有JSON台帳は同じため、repository-wide transaction lockなしで全体ファイルをrenameしない。失敗transactionはdiskへrollback snapshotを書き戻さず、lock取得時点のdisk stateを維持する。
+- `receipt_identity_lock_timeout`: `workspace_id=run_receipt:<project_id>` と決定的run idのlockをbounded retryで取得できない場合は、書込前に停止し、`Retry-After` 付きHTTP 503として再試行可能性を明示する。payload不正やidentity conflictの400とは分離する。
 - `nested_transaction_deadlock`: 同一async contextのnested transactionをin-process queueの後ろへ再投入しない。inner callbackは外側transactionへjoinし、inner failureはtransactionをrollback-onlyにして、呼び出し側が例外をcatchしても外側commitを拒否する。
 - `unserialized_writer`: JsonFile repositoryのshared-ledger collection mutation primitiveはactive transaction contextなしでは `workflow_repository_transaction_required` としてwrite前に拒否する。identity lock/lease metadataは台帳外で同期し、lock操作で台帳をreloadしない。runtime serviceはremote handler、network、Candidate Store、長時間sleepをfile lease内でawaitせず、各永続化まとまりだけを短いtransactionへ入れる。
 - `bootstrap_seed_race`: seed workflowはrepository公開前に同じfile leaseとtransaction ownerで初期化し、既存台帳をreload後に不足分だけ追加する。constructorから通常mutatorをguard外呼び出ししない。

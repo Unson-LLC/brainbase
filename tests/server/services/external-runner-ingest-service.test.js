@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     DuplicateCandidateError,
@@ -8,7 +11,10 @@ import {
 } from '../../../server/services/candidate-store/candidate-repository.js';
 import { ExternalRunnerContractError } from '../../../server/services/external-runner/contract-schema.js';
 import { ExternalRunnerIngestService } from '../../../server/services/external-runner/ingest-service.js';
-import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
+import {
+    InMemoryWorkflowRepository,
+    JsonFileWorkflowRepository
+} from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
     WorkflowService,
@@ -92,6 +98,14 @@ function makeService() {
     const service = new ExternalRunnerIngestService({ workflowRepository: repository });
     return { repository, service };
 }
+
+const tempDirs = [];
+
+afterEach(() => {
+    while (tempDirs.length > 0) {
+        fs.rmSync(tempDirs.pop(), { recursive: true, force: true });
+    }
+});
 
 function hashParts(parts) {
     return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
@@ -1163,6 +1177,32 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listAuditLogs({ targetId: first.run.id })).toEqual(expect.arrayContaining([
             expect.objectContaining({ action: 'external_runner.duplicate_replay_ignored' })
         ]));
+    });
+
+    it('serializes concurrent identical ingests across JsonFile repository instances', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-external-runner-race-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'workflow-ledger.json');
+        const firstRepository = new JsonFileWorkflowRepository({ filePath });
+        const secondRepository = new JsonFileWorkflowRepository({ filePath });
+        const firstService = new ExternalRunnerIngestService({ workflowRepository: firstRepository });
+        const secondService = new ExternalRunnerIngestService({ workflowRepository: secondRepository });
+        const payload = makePayload({ learning_candidates: [] });
+
+        const results = await Promise.all([
+            firstService.ingest(payload),
+            secondService.ingest(payload)
+        ]);
+        const persisted = new JsonFileWorkflowRepository({ filePath });
+        const runId = results[0].run.id;
+
+        expect(results.map((result) => result.status).sort()).toEqual(['created', 'duplicate']);
+        expect(persisted.listRuns({ limit: null })).toHaveLength(1);
+        expect(persisted.listContextSnapshots(runId)).toHaveLength(1);
+        expect(persisted.listHumanSteps(runId)).toHaveLength(0);
+        expect(persisted.listOutputs(runId)).toHaveLength(1);
+        expect(persisted.listAuditLogs({ targetId: runId })
+            .filter((entry) => entry.action === 'external_runner.ingested')).toHaveLength(1);
     });
 
     it('accepts the legacy explicit external_runner trigger type for external_runner.v0 payloads', async () => {

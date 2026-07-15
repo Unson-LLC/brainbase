@@ -56,36 +56,31 @@ export class ExternalRunnerIngestService {
         this._validateLoopControlRefs(normalized);
         this._validateOrgReferenceBoundary(normalized);
         this._requireTransactionBoundary();
-        const existingRun = this.workflowRepository.getRun(normalized.run.id);
-        if (existingRun) {
-            this._assertCompleteDuplicate(existingRun, normalized);
-            const states = this._listPersistedLearningCandidates(existingRun.id);
-            const conflicts = states.filter((candidate) => candidate.persistence_status === 'pending'
-                && candidate.action_required === 'resolve_candidate_conflict');
-            if (conflicts.length > 0) {
-                throw this._candidateConflictError(conflicts[0], existingRun.id);
-            }
-            const pending = states.filter((candidate) => candidate.persistence_status === 'pending');
-            if (pending.length > 0) {
-                await this._storeLearningCandidates(normalized, pending.map((candidate) => candidate.candidate_id));
-            } else {
-                await this._transaction(() => this._writeDuplicateReplayAudit(existingRun, normalized));
-            }
-            return {
-                status: 'duplicate',
-                run: existingRun,
-                workflow: this.workflowRepository.getWorkflow(existingRun.workflow_id),
-                context_snapshots: this.workflowRepository.listContextSnapshots(existingRun.id),
-                human_steps: this.workflowRepository.listHumanSteps(existingRun.id),
-                outputs: this.workflowRepository.listOutputs(existingRun.id),
-                audit_logs: this.workflowRepository.listAuditLogs({ targetId: existingRun.id }),
-                learning_candidates: this._listPersistedLearningCandidates(existingRun.id)
-            };
-        }
-
-        const existingWorkflow = this.workflowRepository.getWorkflow(normalized.workflow.id);
-        this._assertExistingWorkflowCompatible(existingWorkflow, normalized.run);
         const core = await this._transaction(() => {
+            const existingRun = this.workflowRepository.getRun(normalized.run.id);
+            if (existingRun) {
+                this._assertCompleteDuplicate(existingRun, normalized);
+                const states = this._listPersistedLearningCandidates(existingRun.id);
+                const conflicts = states.filter((candidate) => candidate.persistence_status === 'pending'
+                    && candidate.action_required === 'resolve_candidate_conflict');
+                if (conflicts.length > 0) {
+                    throw this._candidateConflictError(conflicts[0], existingRun.id);
+                }
+                const pendingCandidateIds = states
+                    .filter((candidate) => candidate.persistence_status === 'pending')
+                    .map((candidate) => candidate.candidate_id);
+                if (pendingCandidateIds.length === 0) {
+                    this._writeDuplicateReplayAudit(existingRun, normalized);
+                }
+                return {
+                    status: 'duplicate',
+                    run: existingRun,
+                    pendingCandidateIds
+                };
+            }
+
+            const existingWorkflow = this.workflowRepository.getWorkflow(normalized.workflow.id);
+            this._assertExistingWorkflowCompatible(existingWorkflow, normalized.run);
             const workflow = existingWorkflow || this.workflowRepository.upsertWorkflow(normalized.workflow);
             const run = this.workflowRepository.createRun(normalized.run);
             const contextSnapshots = normalized.contextSnapshots.map((snapshot) => (
@@ -105,6 +100,7 @@ export class ExternalRunnerIngestService {
             ));
 
             return {
+                status: 'created',
                 workflow,
                 run,
                 context_snapshots: contextSnapshots,
@@ -112,9 +108,25 @@ export class ExternalRunnerIngestService {
                 outputs
             };
         });
+
+        if (core.status === 'duplicate') {
+            if (core.pendingCandidateIds.length > 0) {
+                await this._storeLearningCandidates(normalized, core.pendingCandidateIds);
+            }
+            return {
+                status: 'duplicate',
+                run: core.run,
+                workflow: this.workflowRepository.getWorkflow(core.run.workflow_id),
+                context_snapshots: this.workflowRepository.listContextSnapshots(core.run.id),
+                human_steps: this.workflowRepository.listHumanSteps(core.run.id),
+                outputs: this.workflowRepository.listOutputs(core.run.id),
+                audit_logs: this.workflowRepository.listAuditLogs({ targetId: core.run.id }),
+                learning_candidates: this._listPersistedLearningCandidates(core.run.id)
+            };
+        }
+
         const learningCandidates = await this._storeLearningCandidates(normalized);
         return {
-            status: 'created',
             ...core,
             audit_logs: this.workflowRepository.listAuditLogs({ targetId: core.run.id }),
             learning_candidates: learningCandidates

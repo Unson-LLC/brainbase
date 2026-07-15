@@ -58,10 +58,13 @@ export function createRunReceiptRouter({ ingestService, workflowService }) {
             res.status(result.status === 'duplicate' ? 200 : 201).json(result);
         } catch (error) {
             if (error instanceof RunReceiptContractError) {
-                res.status(400).json({
+                const retryable = error.code === 'run_receipt_lock_timeout';
+                if (retryable) res.set('Retry-After', '1');
+                res.status(retryable ? 503 : 400).json({
                     error: error.message,
                     code: error.code,
-                    details: error.details
+                    details: error.details,
+                    retryable
                 });
                 return;
             }

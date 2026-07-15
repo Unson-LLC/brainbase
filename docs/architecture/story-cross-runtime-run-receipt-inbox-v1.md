@@ -34,13 +34,15 @@ flowchart LR;
 
 | Source `run_status` | WMC `status` | `closure_state` | `action_required` |
 |---|---|---|---|
-| `success` | `success` | `closed` | `none` |
-| `failed` | `failed` | `needs_action` | `check_error` |
-| `blocked` | `needs_action` | `needs_action` | `resolve_blocker` |
-| `waiting_human` | `waiting_human` | `open` | supplied action or `review_run` |
-| `cancelled` | `cancelled` | `closed` | `none` |
+| `success` | `success` | `closed` | source non-`none` action or `none` |
+| `failed` | `failed` | `needs_action` | source non-`none` action or `check_error` |
+| `blocked` | `needs_action` | `needs_action` | source non-`none` action or `resolve_blocker` |
+| `waiting_human` | `waiting_human` | `open` | source non-`none` action or `review_run` |
+| `cancelled` | `cancelled` | `closed` | source non-`none` action or `none` |
 
 元のsource statusは必ず `workflow_runs.metadata.run_receipt.source_status` に保存し、filter、duplicate比較、UI表示はこの値を使う。WMC `status` は既存台帳との互換投影でありsource statusの代替正本ではない。
+
+表のactionはadapter defaultである。sourceが許可enumの非`none` actionを明示した場合はstatusにかかわらずそのactionを優先し、`metadata.run_receipt.source_action_required=true` として保持する。これにより、例えば完了runの事後レビュー依頼もpriority 1へ上げられる。source actionがない場合だけ表のdefaultを使う。
 
 `evidence_state` is orthogonal to `run_status`:
 
@@ -90,7 +92,7 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 1. Validate the full contract before repository writes.
 2. Canonical tuple encoding is UTF-8 JSON of `[project_id, source.type, external_run_id]` with no whitespace. The canonical delivery key is `rr1_` plus the lowercase SHA-256 hex digest of that byte sequence. The WMC run id is `run_receipt_run_` plus the first 32 digest characters.
 3. Internal workflow id is `run_receipt_wf_` plus the first 32 characters of SHA-256 over UTF-8 JSON `[project_id, source.type, source.workflow_id]`. Original source workflow id is retained in metadata. Existing workflow project/source metadata must match or ingest fails without mutation.
-4. Acquire a repository receipt identity lock using `workspace_id=run.project_id`, `workflow_id=<deterministic run id>`, and a unique ingest owner. Acquisition retries for a bounded interval. While that lock is held, enter the repository-wide write transaction before duplicate lookup, conflict comparison, workflow/run/audit persistence, or returning the committed duplicate. Missing lock/transaction capability or either lock timeout fails without writes.
+4. Acquire a repository receipt identity lock using `workspace_id=run_receipt:<run.project_id>`, `workflow_id=<deterministic run id>`, and a unique ingest owner. The `run_receipt:` namespace prevents collision with other workflow-lock users while preserving project scope. Acquisition retries for a bounded interval. While that lock is held, enter the repository-wide write transaction before duplicate lookup, conflict comparison, workflow/run/audit persistence, or returning the committed duplicate. Missing lock/transaction capability fails without writes. Identity-lock timeout returns retryable HTTP `503` with `Retry-After`; contract/conflict failures remain `400`. Either timeout path leaves the ledger unchanged.
 5. Repository-wide transactions are serialized by an in-process queue for every repository implementation. The transaction owner is carried by `AsyncLocalStorage`. A nested `transaction()` from the same async owner joins the outer unit without reacquiring the queue/file lease or taking a second snapshot; only the outermost call reloads, commits, or restores. Any nested failure marks the owner rollback-only, and the outermost call rejects even if an intermediate caller caught the error. Unrelated owners remain queued.
 6. `JsonFileWorkflowRepository` additionally acquires one file-wide transaction lease with bounded retry. It never steals a live lease; stale recovery requires the lease age to exceed the configured threshold and the recorded local PID to be absent. It reloads the ledger only after acquiring the lease, suppresses intermediate `_persist()` calls, and atomically persists exactly once on commit. Failure restores only the transaction's process-local snapshot and leaves the on-disk committed ledger unchanged. Lease release is in `finally`.
 7. Every JsonFile shared-ledger collection mutation primitive asserts an active transaction owner before modifying process memory. Receipt/workflow identity lock files and transaction lease metadata are separate control-plane state, are not stored in `workflow-ledger.json`, and are exempt from that collection guard; acquire/release never calls ledger reload or replaces pending memory. The InMemory repository also holds identity locks outside its rollback snapshot. WorkflowService, WorkflowRunner, external_runner duplicate/create paths, reconciler, and every other production writer enter short repository transactions for each atomic persistence group. Remote execution handlers, network I/O, long sleeps, and user waits run outside the file lease. This makes direct nontransaction ledger writes fail before mutation without creating a lock-order cycle.

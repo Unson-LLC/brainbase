@@ -158,6 +158,26 @@ describe('RunReceiptIngestService', () => {
         expect(repository.listRuns({ limit: null })).toHaveLength(0);
     });
 
+    it('identity lockはreceipt namespaceとprojectを含む正規tupleを使う', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const acquired = [];
+        const originalAcquire = repository.acquireWorkflowLock.bind(repository);
+        repository.acquireWorkflowLock = (input) => {
+            acquired.push(input);
+            return originalAcquire(input);
+        };
+        const { service } = makeService({ repository });
+        const normalized = service.normalize(makeReceipt());
+
+        await service.ingest(makeReceipt());
+
+        expect(acquired).toHaveLength(1);
+        expect(acquired[0]).toMatchObject({
+            workspace_id: 'run_receipt:brainbase',
+            workflow_id: normalized.identity.run_id
+        });
+    });
+
     it('deterministic workflow idに別identityが存在_衝突として拒否する', async () => {
         const { repository, service } = makeService();
         const normalized = await service.normalize(makeReceipt());
