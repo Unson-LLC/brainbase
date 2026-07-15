@@ -25,7 +25,8 @@ flowchart LR;
 | `RunReceiptIngestService` | receipt lock、idempotency、conflict検知、project整合性、transactional writeを所有する。 |
 | `createRunReceiptRouter` | POSTのserver-to-server auth、GETのoperator auth、project access、ingest/list query boundaryを所有する。 |
 | `WorkflowService.listRunReceiptInbox` | WMC runからreceiptだけを抽出し、source workflowごとの最新runへ畳み込んだ後にfilter、priority、paginationを適用する。 |
-| Workflow Mission Control UI | receipt専用Inbox sectionを表示し、APIと同じfilter・priority・uncertainty semanticsを使う。 |
+| `RunReceiptInboxService` browser module | DIされたAPI client、`appStore`、`eventBus`を使い、receipt専用Inboxのload/filter/failure stateを更新する。 |
+| Workflow Mission Control UI | receipt storeを購読して専用Inbox sectionを描画する。API取得やreceipt状態の正本をpage-local stateへ持たない。 |
 | Source connector | source API/scheduler、outbox、retry、raw evidenceの保管を所有する。 |
 
 ## Status Mapping
@@ -57,7 +58,7 @@ Priority is deterministic and lower numeric values are more urgent:
 5. `evidence_state=no_data`
 6. confirmed terminal runs
 
-Within the same priority, newest `finished_at || started_at || created_at` comes first.
+Within the same priority, newest `finished_at || started_at || created_at` comes first. Every validated RFC 3339 value is converted to a UTC epoch millisecond before comparison; offset-bearing timestamp strings are never ordered lexicographically. Remaining ties use greatest persisted `created_at` epoch, then lexicographically greatest deterministic `workflow_runs.id`. This is the total order used before `limit`, so pagination is stable.
 
 Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are stored separately from `source_action_required`; they do not by themselves promote an item to priority 1. This keeps every priority bucket reachable. Existing non-receipt WMC priority remains unchanged.
 
@@ -65,6 +66,7 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 
 - Inbox history is collapsed by the canonical workflow identity `(project_id, source.type, source.workflow_id)`. The ledger keeps every receipt run, but `GET /api/run-receipts/inbox` exposes exactly one latest run per identity.
 - The selected run is the greatest by effective timestamp `finished_at || started_at || created_at`. Equal effective timestamps are resolved by greatest persisted `created_at`, then lexicographically greatest deterministic `workflow_runs.id`, so selection is stable.
+- Both latest selection and the final cross-identity sort compare validated RFC 3339 timestamps as UTC epoch milliseconds. The final total order is priority ascending, effective epoch descending, persisted-created epoch descending, deterministic run id descending.
 - Collapse happens before every query filter, urgency priority, `count`, and `limit`. Therefore an older blocked/failed run cannot survive a newer success, and filtering for `blocked` does not resurrect stale history.
 - After collapse and filters, `count` is the full matching identity count before `limit`; `items` contains the first `limit` rows; `has_more = count > items.length`; `omitted_count = count - items.length`.
 
@@ -74,6 +76,13 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 - 除外はreceipt分類だけに適用し、非receipt workflowの集合、既存priority、既存render順を変更しない。receipt＋非receipt混在fixtureでAPIとUIの非重複を固定する。
 - Workflow Mission Controlの既存config/projects/workflows取得を必須surface、receipt Inbox取得を独立したoptional surfaceとして扱う。receipt APIのtimeout、network error、または5xxはreceipt sectionの `unavailable` warningへ変換し、既存Operational Inboxのstate/renderを維持する。
 - receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、UIは「receiptなし」と「receipt取得不能」を別stateで表示する。
+
+## Browser Architecture Boundary
+
+- `public/modules/domain/run-receipt/run-receipt-inbox-client.js` owns the HTTP request and response-shape validation. It receives the authenticated `apiFetch` function by constructor injection and does not read DOM state.
+- `public/modules/domain/run-receipt/run-receipt-inbox-service.js` receives the client, `appStore`, and `eventBus` by constructor injection. It updates `appStore.runReceiptInbox={status,items,count,has_more,omitted_count,error,filters}` and emits `EVENTS.RUN_RECEIPT_INBOX_LOADED` or `EVENTS.RUN_RECEIPT_INBOX_FAILED` after each state change.
+- `public/modules/core/store.js` defines the initial receipt slice and `public/modules/core/event-bus.js` defines the two receipt events. `public/workflows.html` composes the service, subscribes to the receipt slice/event, and renders only; it does not join receipt loading into the existing required workflow `Promise.all`.
+- This extraction is the migration-safe application of EventBus, Reactive Store, and DI to the new surface. Existing page-local Workflow state remains unchanged in this Story, avoiding an unrelated full-page refactor while preventing new receipt logic from increasing the monolith.
 
 ## Transaction and Idempotency
 

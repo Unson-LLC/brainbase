@@ -31,6 +31,10 @@
           "server/bootstrap/register-api-routes.js",
           "server/services/workflow/workflow-service.js",
           "server/middleware/csrf.js",
+          "public/modules/domain/run-receipt/run-receipt-inbox-client.js",
+          "public/modules/domain/run-receipt/run-receipt-inbox-service.js",
+          "public/modules/core/store.js",
+          "public/modules/core/event-bus.js",
           "public/workflows.html",
           "tests/server/services/run-receipt-*.test.js",
           "tests/server/routes/run-receipt-routes.test.js",
@@ -40,8 +44,13 @@
         "symbols": [
           "RunReceiptAdapter",
           "RunReceiptIngestService",
+          "RunReceiptInboxClient",
+          "RunReceiptInboxService",
           "createRunReceiptRouter",
-          "listRunReceiptInbox"
+          "listRunReceiptInbox",
+          "EVENTS.RUN_RECEIPT_INBOX_LOADED",
+          "EVENTS.RUN_RECEIPT_INBOX_FAILED",
+          "appStore.runReceiptInbox"
         ],
         "risk_surfaces": [
           "core_workflow_state",

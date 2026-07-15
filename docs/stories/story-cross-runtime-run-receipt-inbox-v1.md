@@ -50,6 +50,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:11 receipt workflowは共有WMC台帳へ保存しても既存Operational Inboxと `GET /api/workflows` から除外し、Agent Run Inboxだけに1回表示する。receipt＋非receipt混在時も非receiptの既存priorityは変えない。
 - [ ] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
 - [ ] ac:13 Agent Run Inboxは `(project_id, source.type, source.workflow_id)` ごとに最新receipt runだけを表示する。古いblocked/failed履歴は台帳に保持するが、後続の新しいrunがある場合はInboxへ残さない。最新run選択後にfilter、priority、count、limitを適用する。
+- [ ] ac:14 Inboxの全件順序はpriority、UTC instantへ正規化したeffective timestamp、persisted `created_at`、決定的run idでtotal orderにし、同値時もlimit/pagination結果を安定させる。UI取得・状態更新・通知はRun Receipt専用client/service、Reactive Store、EventBusへ分離し、`public/workflows.html` は購読と描画だけを担う。
 
 ## Workflow State Scenarios
 
@@ -85,4 +86,6 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `no_data` と `unconfirmed` は成功色や0件表示へ混ぜず、warning badgeと根拠不足の説明を必ず表示する。
 - `omitted_count` は現在のfilterには一致するが `limit` により返却されなかったreceipt数であり、source未確認数ではない。
 - Agent Run Inboxはworkflow identityごとに最新runへ畳み込んだ後でfilterとpriorityを適用する。`count` は畳み込み後かつfilter一致後、limit適用前の件数であり、`has_more = count > items.length`、`omitted_count = count - items.length` とする。
+- APIの並びはpriority昇順、effective timestampのUTC instant降順、persisted `created_at` のUTC instant降順、決定的run id辞書順降順とする。RFC 3339 offset表記を文字列比較せずepoch millisecondへ変換し、同じ集合とlimitに対して常に同じitemsを返す。
 - 既存の非receipt workflow一覧・承認Inboxのpriorityは変更しない。receipt workflowは `GET /api/workflows` と既存Operational Inboxへ混入させず、receiptのpriorityはreceipt専用APIとUI sectionで一元化する。
+- receipt UIは `public/modules/domain/run-receipt/` 配下のclient/serviceでAPI取得とfailure normalizationを行い、`appStore.runReceiptInbox` を更新して `EVENTS.RUN_RECEIPT_INBOX_LOADED|FAILED` を発火する。既存page-local workflow stateとはfailure boundaryを共有しない。
