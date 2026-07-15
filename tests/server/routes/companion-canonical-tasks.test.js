@@ -93,10 +93,21 @@ function bootstrapAppFor({ personId = 'legacy_owner' } = {}) {
 describe('Companion canonical Task routes', () => {
     it('passes repeated filters and returns Mac list metadata', async () => {
         const { app, taskService } = appFor();
-        const response = await request(app).get('/api/companion/tasks?status=pending&status=waiting&priority=urgent');
+        const response = await request(app).get(
+            '/api/companion/tasks?status=pending&status=waiting&priority=urgent&priority=high'
+            + '&due_after=2026-07-15T00%3A00%3A00.000Z&due_before=2026-07-20T00%3A00%3A00.000Z'
+            + '&cursor=opaque-next-page&limit=25'
+        );
         expect(response.status).toBe(200);
         expect(response.body).toMatchObject({ total_count: 0, count_status: 'exact', read_status: 'complete' });
-        expect(taskService.listTasks).toHaveBeenCalledWith(expect.objectContaining({ status: ['pending', 'waiting'], priority: 'urgent' }), expect.any(Object));
+        expect(taskService.listTasks).toHaveBeenCalledWith(expect.objectContaining({
+            status: ['pending', 'waiting'],
+            priority: ['urgent', 'high'],
+            due_after: '2026-07-15T00:00:00.000Z',
+            due_before: '2026-07-20T00:00:00.000Z',
+            cursor: 'opaque-next-page',
+            limit: '25'
+        }), expect.any(Object));
     });
 
     it('uses Idempotency-Key and typed owner principal on create', async () => {

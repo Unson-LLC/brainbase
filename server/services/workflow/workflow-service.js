@@ -1827,6 +1827,122 @@ function isRejectedHumanStepStatus(status) {
     return ['rejected', 'reject', 'cancelled', 'canceled', 'declined'].includes(String(status || '').toLowerCase());
 }
 
+const CANONICAL_TASK_DECISION_RESOLUTIONS = Object.freeze({
+    approve: 'approved',
+    approveWithEdits: 'approved',
+    requestChanges: 'needs_changes',
+    reject: 'rejected'
+});
+const CANONICAL_TASK_RESOLUTION_ALIASES = Object.freeze({
+    approve: 'approved',
+    approved: 'approved',
+    needs_changes: 'needs_changes',
+    reject: 'rejected',
+    rejected: 'rejected'
+});
+
+function canonicalTaskApprovalError(message, details = {}) {
+    const error = AppError.validation(message, details);
+    error.code = 'inconsistent_approval_decision';
+    error.status = 422;
+    error.statusCode = 422;
+    return error;
+}
+
+function canonicalTaskCanonicalJson(value) {
+    if (Array.isArray(value)) return value.map(canonicalTaskCanonicalJson);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalTaskCanonicalJson(value[key])]));
+    }
+    return value;
+}
+
+function canonicalTaskStableJson(value) {
+    return JSON.stringify(canonicalTaskCanonicalJson(value));
+}
+
+function canonicalTaskContentHash(value) {
+    return crypto.createHash('sha256').update(canonicalTaskStableJson(value)).digest('hex');
+}
+
+function canonicalTaskSortedRefs(value) {
+    return Array.isArray(value)
+        ? value.map((entry) => canonicalTaskCanonicalJson(entry)).sort((left, right) => (
+            canonicalTaskStableJson(left).localeCompare(canonicalTaskStableJson(right))
+        ))
+        : [];
+}
+
+function normalizeCanonicalTaskCandidateSet(output) {
+    if (!output || !Array.isArray(output.payload)) return output;
+    const candidates = output.payload.map((rawCandidate) => {
+        const source = rawCandidate && typeof rawCandidate === 'object' && !Array.isArray(rawCandidate)
+            ? { ...rawCandidate }
+            : { title: typeof rawCandidate === 'string' ? rawCandidate : '' };
+        const title = typeof source.title === 'string' ? source.title.trim() : '';
+        const description = typeof source.description === 'string' ? source.description.trim() : (source.description ?? null);
+        const selectedOwnerId = source.assignee_person_id || source.selected_owner_id || null;
+        const evidenceRefs = canonicalTaskSortedRefs(source.evidence_refs);
+        const sourceRefs = canonicalTaskSortedRefs(source.source_refs);
+        const contentHash = canonicalTaskContentHash({
+            title,
+            description,
+            assignee_person_id: selectedOwnerId,
+            owner_state: selectedOwnerId ? 'resolved' : (source.owner_resolution?.status || 'unresolved'),
+            priority: source.priority || 'medium',
+            due_at: source.due_at || null,
+            source_refs: [...sourceRefs, ...evidenceRefs].sort((left, right) => (
+                canonicalTaskStableJson(left).localeCompare(canonicalTaskStableJson(right))
+            ))
+        });
+        return {
+            ...source,
+            title,
+            description,
+            ...(evidenceRefs.length > 0 ? { evidence_refs: evidenceRefs } : {}),
+            ...(sourceRefs.length > 0 ? { source_refs: sourceRefs } : {}),
+            ...(!selectedOwnerId && !source.owner_resolution
+                ? { owner_resolution: { status: 'unresolved', reason: 'owner_selection_required' } }
+                : {}),
+            __canonical_task_content_hash: contentHash
+        };
+    });
+    const contentOrdinals = new Map();
+    const normalized = candidates.map((candidate) => {
+        const contentHash = candidate.__canonical_task_content_hash;
+        const ordinal = (contentOrdinals.get(contentHash) || 0) + 1;
+        contentOrdinals.set(contentHash, ordinal);
+        const explicitId = typeof candidate.candidate_id === 'string' && candidate.candidate_id.trim()
+            ? candidate.candidate_id.trim()
+            : (typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : null);
+        const { __canonical_task_content_hash: _contentHash, ...projected } = candidate;
+        return {
+            ...projected,
+            candidate_id: explicitId
+                || `workflow-output:${output.id}:candidate:${contentHash}:${ordinal}`
+        };
+    }).sort((left, right) => left.candidate_id.localeCompare(right.candidate_id));
+    const ids = normalized.map((candidate) => candidate.candidate_id);
+    if (new Set(ids).size !== ids.length) {
+        throw canonicalTaskApprovalError('Canonical Task candidate IDs must be unique', {
+            field: 'output.payload.candidate_id'
+        });
+    }
+    return { ...output, payload: normalized };
+}
+
+function canonicalTaskDecisionResolution({ decisionMode, resolution, field }) {
+    const normalizedMode = decisionMode == null ? null : CANONICAL_TASK_DECISION_RESOLUTIONS[decisionMode];
+    const normalizedResolution = resolution == null ? null : CANONICAL_TASK_RESOLUTION_ALIASES[String(resolution)];
+    if ((decisionMode != null && !normalizedMode) || (resolution != null && !normalizedResolution)) {
+        throw canonicalTaskApprovalError(`Unsupported Canonical Task approval decision at '${field}'`, { field });
+    }
+    if (normalizedMode && normalizedResolution && normalizedMode !== normalizedResolution) {
+        throw canonicalTaskApprovalError(`Canonical Task approval decision is inconsistent at '${field}'`, { field });
+    }
+    return normalizedMode || normalizedResolution;
+}
+
 function normalizeWorkflowInput(input, { projectId, ownerId, assigneeId, approverId } = {}) {
     const id = input.id || `wf_${crypto.randomUUID()}`;
     const effectiveOwnerId = ownerId || input.owner_id || DEFAULT_OWNER_ID;
@@ -4428,9 +4544,97 @@ export class WorkflowService {
     _canonicalTaskOutput(step) {
         const outputs = this.repository.listOutputs(step.workflow_run_id);
         const outputId = step?.metadata?.output_id || null;
-        return outputs.find((output) => output.id === outputId)
+        const output = outputs.find((candidate) => candidate.id === outputId)
             || outputs.find((output) => output?.metadata?.write_back_target === 'task_store')
             || null;
+        return normalizeCanonicalTaskCandidateSet(output);
+    }
+
+    _canonicalTaskApprovalInput(step, input = {}) {
+        const output = this._canonicalTaskOutput(step);
+        if (!output) return input;
+        const rawResponseRef = input.response_ref || input.responseRef || null;
+        if (rawResponseRef != null && (typeof rawResponseRef !== 'object' || Array.isArray(rawResponseRef))) {
+            throw canonicalTaskApprovalError('Canonical Task approval response_ref must be an object', {
+                field: 'response_ref'
+            });
+        }
+        const responseRef = rawResponseRef ? { ...rawResponseRef } : null;
+        const inputResolution = input.resolution == null && input.status == null
+            ? null
+            : canonicalTaskDecisionResolution({
+                resolution: input.resolution || input.status,
+                field: 'resolution'
+            });
+        const responseResolution = responseRef
+            ? canonicalTaskDecisionResolution({
+                decisionMode: responseRef.decision_mode,
+                resolution: responseRef.resolution,
+                field: 'response_ref'
+            })
+            : null;
+        const hasReviewItems = responseRef && Object.prototype.hasOwnProperty.call(responseRef, 'review_items');
+        let aggregateResolution = null;
+        if (hasReviewItems) {
+            if (!Array.isArray(responseRef.review_items)) {
+                throw canonicalTaskApprovalError('Canonical Task review_items must be an array', {
+                    field: 'response_ref.review_items'
+                });
+            }
+            const candidateIds = new Set(output.payload.map((candidate) => candidate.candidate_id));
+            const seen = new Set();
+            responseRef.review_items = responseRef.review_items.map((reviewItem, index) => {
+                const candidateId = typeof reviewItem?.candidate_id === 'string' && reviewItem.candidate_id.trim()
+                    ? reviewItem.candidate_id.trim()
+                    : (typeof reviewItem?.id === 'string' && reviewItem.id.trim() ? reviewItem.id.trim() : null);
+                if (!candidateId || !candidateIds.has(candidateId) || seen.has(candidateId)) {
+                    throw canonicalTaskApprovalError('Canonical Task review item does not map one-to-one to a candidate', {
+                        field: `response_ref.review_items[${index}].candidate_id`
+                    });
+                }
+                seen.add(candidateId);
+                const itemResolution = canonicalTaskDecisionResolution({
+                    decisionMode: reviewItem.decision_mode,
+                    resolution: reviewItem.resolution,
+                    field: `response_ref.review_items[${index}]`
+                });
+                if (!itemResolution) {
+                    throw canonicalTaskApprovalError('Canonical Task review item decision is required', {
+                        field: `response_ref.review_items[${index}]`
+                    });
+                }
+                return { ...reviewItem, candidate_id: candidateId, resolution: itemResolution };
+            }).sort((left, right) => left.candidate_id.localeCompare(right.candidate_id));
+            if (seen.size !== candidateIds.size) {
+                throw canonicalTaskApprovalError('Canonical Task review items must cover every candidate', {
+                    field: 'response_ref.review_items'
+                });
+            }
+            aggregateResolution = responseRef.review_items.some((item) => item.resolution === 'needs_changes')
+                ? 'needs_changes'
+                : 'approved';
+        }
+        const declared = [inputResolution, responseResolution].filter(Boolean);
+        if (new Set(declared).size > 1) {
+            throw canonicalTaskApprovalError('Top-level Canonical Task approval decisions are inconsistent', {
+                field: 'resolution'
+            });
+        }
+        const declaredResolution = responseResolution || inputResolution;
+        if (aggregateResolution && declaredResolution !== 'rejected' && declaredResolution && declaredResolution !== aggregateResolution) {
+            throw canonicalTaskApprovalError('Candidate decisions do not match the top-level Canonical Task decision', {
+                field: 'response_ref.review_items'
+            });
+        }
+        const effectiveResolution = declaredResolution || aggregateResolution || 'approved';
+        const normalizedResponseRef = responseRef
+            ? { ...responseRef, resolution: effectiveResolution }
+            : responseRef;
+        return {
+            ...input,
+            resolution: effectiveResolution,
+            ...(normalizedResponseRef ? { response_ref: normalizedResponseRef } : {})
+        };
     }
 
     async waitForCanonicalTaskCheckpointReconciliation() {
@@ -4472,7 +4676,7 @@ export class WorkflowService {
         }
         return this.canonicalTaskService.materializeWorkflowApproval({
             step,
-            output,
+            output: normalizeCanonicalTaskCandidateSet(output),
             responseRef,
             actor
         });
@@ -4791,6 +4995,9 @@ export class WorkflowService {
         }
         this._assertActorCanAccessProject(step.project_id, actor);
         this._assertActorCanResolveHumanStep(step, actor);
+        if (this._isCanonicalTaskHumanStep(step)) {
+            input = this._canonicalTaskApprovalInput(step, input);
+        }
         await this._reconcileCanonicalTaskCheckpoints({ humanStepId: stepId });
         step = this.repository.getHumanStep(stepId);
         const resolution = input.resolution || input.status || 'approved';
@@ -4812,6 +5019,15 @@ export class WorkflowService {
         }
         if (step.status !== 'pending') {
             throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
+        }
+        if (
+            resolution === 'needs_changes'
+            && this._isCanonicalTaskHumanStep(step)
+        ) {
+            throw AppError.conflict('Canonical Task candidates require changes before approval', {
+                human_step_id: step.id,
+                resolution
+            });
         }
         if (
             approvedResolution

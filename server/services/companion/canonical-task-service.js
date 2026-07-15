@@ -94,6 +94,10 @@ function workflowActorContext(actor = {}) {
     return {
         principal: { type: 'service', id: 'workflow-task-materializer' },
         authSource: 'service-internal',
+        auditPrincipal: actor.person_id
+            ? { type: 'person', id: actor.person_id }
+            : { type: 'service', id: actor.sub || 'workflow' },
+        auditAuthSource: actor.authSource || 'workflow-human-step',
         access: {
             role: actor.role || 'member',
             projectCodes: Array.isArray(actor.projectCodes) ? actor.projectCodes : [],
@@ -109,6 +113,7 @@ export class CanonicalTaskService {
         infoSSOTService,
         readiness,
         operationRepository,
+        auditRepository = null,
         ownerPersonId,
         ownerAliasIds = splitCsv(process.env.BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS),
         webBaseUrl = process.env.BRAINBASE_PUBLIC_URL || process.env.BRAINBASE_BASE_URL || 'http://localhost:31013',
@@ -119,10 +124,45 @@ export class CanonicalTaskService {
         this.infoSSOTService = infoSSOTService;
         this.readiness = readiness;
         this.operationRepository = operationRepository;
+        this.auditRepository = auditRepository;
         this.ownerPersonId = ownerPersonId;
         this.ownerPersonIds = new Set([ownerPersonId, ...splitCsv(ownerAliasIds)].filter(Boolean));
         this.webBaseUrl = webBaseUrl;
         this.clock = clock;
+    }
+
+    async upsertMutationAudit({ action, task, taskId, context, operationKey, operationFingerprint, changes, sourceRefs = [] }) {
+        if (!this.auditRepository || typeof this.auditRepository.upsertAuditLog !== 'function') {
+            throw new CanonicalTaskError('task_audit_unavailable', 'Canonical Task audit log is unavailable', 503);
+        }
+        const actor = context.auditPrincipal || context.principal;
+        const authSource = context.auditAuthSource || context.authSource || null;
+        const id = `canonical-task:${fingerprint({ action, operationKey, operationFingerprint })}`;
+        try {
+            return await this.auditRepository.upsertAuditLog({
+                id,
+                workspace_id: 'personal',
+                project_id: 'brainbase',
+                actor_id: actor.id,
+                actor_type: actor.type,
+                actor_principal: actor,
+                actor_namespace: principalNamespace(actor),
+                auth_source: authSource,
+                action,
+                target_type: 'canonical_task',
+                target_id: taskId || task?.id,
+                changes,
+                source_refs: sourceRefs
+            });
+        } catch (error) {
+            if (error instanceof CanonicalTaskError) throw error;
+            throw new CanonicalTaskError(
+                'task_audit_unavailable',
+                'Canonical Task audit log is unavailable',
+                503,
+                { cause: error?.message }
+            );
+        }
     }
 
     isOwner(context) {
@@ -305,7 +345,17 @@ export class CanonicalTaskService {
                 }));
             }
         });
-        return this.normalizeTaskResponse(result);
+        const normalized = this.normalizeTaskResponse(result);
+        await this.upsertMutationAudit({
+            action: 'canonical_task.created',
+            task: normalized,
+            context,
+            operationKey,
+            operationFingerprint: payloadFingerprint,
+            changes: { before: null, after: normalized },
+            sourceRefs: payload.source_refs
+        });
+        return normalized;
     }
 
     async createManaCapture(input = {}, context) {
@@ -359,7 +409,17 @@ export class CanonicalTaskService {
                 }));
             }
         });
-        return this.normalizeTaskResponse(result);
+        const normalized = this.normalizeTaskResponse(result);
+        await this.upsertMutationAudit({
+            action: 'canonical_task.created',
+            task: normalized,
+            context,
+            operationKey,
+            operationFingerprint: payloadFingerprint,
+            changes: { before: null, after: normalized },
+            sourceRefs: payload.source_refs
+        });
+        return normalized;
     }
 
     async materializeWorkflowApproval({ step, output, responseRef = null, actor = {} } = {}) {
@@ -484,6 +544,16 @@ export class CanonicalTaskService {
                     }));
                 }
             });
+            const normalized = this.normalizeTaskResponse(created);
+            await this.upsertMutationAudit({
+                action: 'canonical_task.created',
+                task: normalized,
+                context,
+                operationKey,
+                operationFingerprint: payloadFingerprint,
+                changes: { before: null, after: normalized },
+                sourceRefs: candidate.payload.source_refs
+            });
             taskIds.push(created.id);
         }
 
@@ -549,7 +619,32 @@ export class CanonicalTaskService {
                 return apply(latest, marker);
             }
         });
-        return this.normalizeTaskResponse(result);
+        const normalized = this.normalizeTaskResponse(result);
+        await this.upsertMutationAudit({
+            action: mutation.kind === 'transition' ? 'canonical_task.transitioned' : 'canonical_task.updated',
+            task: normalized,
+            context,
+            operationKey,
+            operationFingerprint: opFingerprint,
+            changes: {
+                before: { version: expectedVersion },
+                after: {
+                    version: normalized.version,
+                    ...(mutation.kind === 'transition'
+                        ? {
+                            status: normalized.status,
+                            waiting_on: normalized.waiting_on,
+                            review_at: normalized.review_at,
+                            completed_at: normalized.completed_at
+                        }
+                        : {})
+                },
+                ...(mutation.payload ? { fields: mutation.payload } : {}),
+                ...(mutation.transition ? { transition: mutation.transition } : {})
+            },
+            sourceRefs: normalized.source_refs || []
+        });
+        return normalized;
     }
 
     async updateTask(taskId, input = {}, context) {
@@ -632,7 +727,7 @@ export class CanonicalTaskService {
             principalNamespace: namespace
         });
         const versionFingerprint = fingerprint({ kind: 'delete', taskId, expectedVersion: input.expected_version });
-        return this.operationRepository.executePreparedDelete({
+        const result = await this.operationRepository.executePreparedDelete({
             operationKey,
             versionClaimKey,
             fingerprint: operationFingerprint,
@@ -656,5 +751,14 @@ export class CanonicalTaskService {
             findTask: () => this.read(() => this.repository.get(taskId)),
             removeTask: () => this.read(() => this.repository.delete(taskId))
         });
+        await this.upsertMutationAudit({
+            action: 'canonical_task.deleted',
+            taskId,
+            context,
+            operationKey,
+            operationFingerprint,
+            changes: { before: { task_id: taskId, version: input.expected_version }, after: null }
+        });
+        return result;
     }
 }

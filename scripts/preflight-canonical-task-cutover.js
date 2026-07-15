@@ -17,6 +17,18 @@ import {
 } from './evidence-reporters/canonical-task-evidence-protocol.js';
 
 const VALID_PHASES = new Set(['before-migration', 'before-enable', 'rollback']);
+const OPERATIONAL_TASK_SCRIPTS = [
+  'scripts/list-high-priority-tasks.js',
+  'scripts/add-frame-story-tasks.js',
+  'scripts/add-framework-operation-tasks.js',
+  'scripts/complete-doc-tasks.js',
+  'scripts/update-task-status.js',
+];
+const FORBIDDEN_DIRECT_WRITER_PATTERNS = [
+  /api\/v2\/tables/,
+  /m7iys8m7o1abr3f/,
+  /xc-(?:auth|token)/,
+];
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -76,6 +88,62 @@ async function readJsonWithBytes(filePath, label) {
 
 export function currentGitHead(rootDir = process.cwd()) {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim();
+}
+
+function listSystemProcesses() {
+  return execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export async function checkCanonicalTaskWriterPolicy({
+  rootDir = process.cwd(),
+  phase,
+  sourceHead = currentGitHead(rootDir),
+  readFileImpl = readFile,
+  listProcesses = listSystemProcesses,
+} = {}) {
+  invariant(phase === 'before-migration' || phase === 'rollback', 'writer-policy check requires before-migration or rollback');
+
+  const staticViolations = [];
+  for (const relativePath of OPERATIONAL_TASK_SCRIPTS) {
+    const source = await readFileImpl(resolveInsideRoot(rootDir, relativePath, 'writer path'), 'utf8');
+    if (!source.includes('./lib/canonical-task-api-client.js')) {
+      staticViolations.push({ path: relativePath, reason: 'canonical_task_api_client_missing' });
+    }
+    for (const pattern of FORBIDDEN_DIRECT_WRITER_PATTERNS) {
+      if (pattern.test(source)) {
+        staticViolations.push({ path: relativePath, reason: 'direct_nocodb_writer_marker', marker: pattern.source });
+      }
+    }
+  }
+
+  const processLines = await Promise.resolve(listProcesses());
+  invariant(Array.isArray(processLines), 'process evidence must be an array');
+  const activeWriterProcesses = processLines.filter((line) =>
+    OPERATIONAL_TASK_SCRIPTS.some((relativePath) => line.includes(relativePath)),
+  );
+  const pass = staticViolations.length === 0 && activeWriterProcesses.length === 0;
+  return {
+    artifact_schema: 'canonical-task-writer-policy-v1',
+    phase,
+    pass,
+    source_head: sourceHead,
+    required_zero_direct_writers: true,
+    checks: {
+      static_direct_writers: {
+        pass: staticViolations.length === 0,
+        count: staticViolations.length,
+        violations: staticViolations,
+      },
+      active_direct_writer_processes: {
+        pass: activeWriterProcesses.length === 0,
+        count: activeWriterProcesses.length,
+        processes: activeWriterProcesses,
+      },
+    },
+  };
 }
 
 export async function verifyEvidenceArtifact({
@@ -288,10 +356,8 @@ export async function runCanonicalTaskCutoverPreflight(options) {
       writerToken: options.writerToken ?? process.env.CANONICAL_TASK_WRITER_TOKEN,
     });
   }
-  if (typeof options.phaseCheck !== 'function') {
-    throw new Error(`${options.phase} requires an explicit writer-policy phaseCheck`);
-  }
-  return options.phaseCheck(options);
+  if (typeof options.phaseCheck === 'function') return options.phaseCheck(options);
+  return checkCanonicalTaskWriterPolicy(options);
 }
 
 async function main() {

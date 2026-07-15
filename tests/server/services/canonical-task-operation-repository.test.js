@@ -127,7 +127,7 @@ describe('CanonicalTaskOperationRepository', () => {
         expect(queries.some((sql) => sql.includes("SET state = 'completed'"))).toBe(true);
     });
 
-    it('does not reclaim an operation that is still running', async () => {
+    it('fails closed when a matching concurrent operation does not settle in time', async () => {
         const client = {
             query: async (sql) => {
                 if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [] };
@@ -141,12 +141,54 @@ describe('CanonicalTaskOperationRepository', () => {
         };
         const repository = new CanonicalTaskOperationRepository({
             pool: { connect: async () => client, query: client.query },
-            writerToken: 'writer-1'
+            writerToken: 'writer-1',
+            operationWaitTimeoutMs: 0,
+            operationPollIntervalMs: 0
         });
 
         await expect(repository.execute({
             scope: 'task-create', operationKey: 'api:test', fingerprint: 'fingerprint', run: async () => null
-        })).rejects.toMatchObject({ code: 'canonical_task_operation_in_progress', status: 409 });
+        })).rejects.toMatchObject({ code: 'canonical_task_operation_timeout', status: 503 });
+    });
+
+    it('replays the completed result for a matching concurrent operation', async () => {
+        let polls = 0;
+        const client = {
+            query: async (sql) => {
+                if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [{}] };
+                if (sql.includes('INSERT INTO canonical_task_operations')) return { rowCount: 0, rows: [] };
+                if (sql.includes('SELECT fingerprint, state') && sql.includes('FOR UPDATE')) {
+                    return { rowCount: 1, rows: [{
+                        fingerprint: 'fingerprint', state: 'running', result_json: null, writer_token: 'writer-1'
+                    }] };
+                }
+                if (sql.includes('SELECT fingerprint, state')) {
+                    polls += 1;
+                    return { rowCount: 1, rows: [{
+                        fingerprint: 'fingerprint',
+                        state: polls === 1 ? 'running' : 'completed',
+                        result_json: polls === 1 ? null : { id: 'task-1' },
+                        writer_token: 'writer-1'
+                    }] };
+                }
+                return { rowCount: 1, rows: [] };
+            },
+            release: () => {}
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client, query: client.query },
+            writerToken: 'writer-1',
+            operationWaitTimeoutMs: 100,
+            operationPollIntervalMs: 0
+        });
+        const run = vi.fn();
+
+        await expect(repository.execute({
+            scope: 'task-create', operationKey: 'api:test', fingerprint: 'fingerprint', run
+        })).resolves.toEqual({ id: 'task-1' });
+
+        expect(run).not.toHaveBeenCalled();
+        expect(polls).toBe(2);
     });
 
     it('reclaims a matching operation left running by a previous writer and persists the recovered result', async () => {

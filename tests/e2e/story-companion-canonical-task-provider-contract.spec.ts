@@ -1,5 +1,5 @@
 import { expect, request as playwrightRequest, test, type APIRequestContext } from '@playwright/test';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -153,6 +153,50 @@ function assertMacWireFixture() {
   expect(task.source_refs[0]).toEqual({ type: 'workflow_output', id: 'output-1', url: null });
 }
 
+async function verifyRuntimeProcessPath() {
+  const child = spawn(process.execPath, ['scripts/run-canonical-task-live-api-harness.js'], {
+    cwd: rootDir,
+    env: childEnvironment(),
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  const stderr: string[] = [];
+  child.stderr?.on('data', chunk => stderr.push(String(chunk)));
+  try {
+    const runtime = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`runtime harness did not start: ${stderr.join('')}`)), 15_000);
+      child.once('error', error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once('exit', code => {
+        clearTimeout(timer);
+        reject(new Error(`runtime harness exited with ${code}: ${stderr.join('')}`));
+      });
+      child.once('message', message => {
+        clearTimeout(timer);
+        resolve(message as Record<string, unknown>);
+      });
+    });
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' });
+    expect(head.status).toBe(0);
+    expect(runtime).toMatchObject({
+      status: 'ready',
+      pid: child.pid,
+      cwd: rootDir,
+      source_head: head.stdout.trim(),
+      command: expect.stringContaining('scripts/run-canonical-task-live-api-harness.js'),
+      base_url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+$/),
+    });
+  } finally {
+    if (child.exitCode === null) child.kill('SIGTERM');
+    await new Promise<void>(resolve => {
+      if (child.exitCode !== null) return resolve();
+      child.once('exit', () => resolve());
+      setTimeout(resolve, 5_000);
+    });
+  }
+}
+
 async function verifyAuthenticatedTaskLifecycle() {
   const client = await playwrightRequest.newContext({
     baseURL: liveApiHarness.baseURL,
@@ -238,12 +282,7 @@ async function verifyEvidenceContract(evidenceId: string, request: APIRequestCon
     return;
   }
   if (evidenceId === 'surface.runtime-path') {
-    const root = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: rootDir, encoding: 'utf8' });
-    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' });
-    expect(root.status).toBe(0);
-    expect(path.resolve(root.stdout.trim())).toBe(rootDir);
-    expect(head.status).toBe(0);
-    expect(head.stdout.trim()).toMatch(/^[a-f0-9]{40}$/);
+    await verifyRuntimeProcessPath();
     return;
   }
 

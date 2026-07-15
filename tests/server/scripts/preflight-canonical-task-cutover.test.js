@@ -11,6 +11,8 @@ import {
 } from '../../../scripts/collect-canonical-task-evidence.js';
 import {
   buildBeforeEnableEvidence,
+  checkCanonicalTaskWriterPolicy,
+  runCanonicalTaskCutoverPreflight,
   verifyEvidenceArtifact,
 } from '../../../scripts/preflight-canonical-task-cutover.js';
 
@@ -415,5 +417,46 @@ describe('before-enable evidence preflight', () => {
       schemaVersion: 'schema-v1',
       writerToken: 'writer-token-1',
     })).rejects.toThrow(/unregistered evidence artifact/i);
+  });
+});
+
+describe('before-migration and rollback writer-policy preflight', () => {
+  const safeScript = "import './lib/canonical-task-api-client.js';\n";
+
+  it.each(['before-migration', 'rollback'])('runs the built-in %s policy from the public CLI path', async (phase) => {
+    const result = await runCanonicalTaskCutoverPreflight({
+      phase,
+      rootDir: '/repo',
+      sourceHead: 'current-head',
+      readFileImpl: async () => safeScript,
+      listProcesses: () => ['101 node server.js'],
+    });
+
+    expect(result).toMatchObject({
+      artifact_schema: 'canonical-task-writer-policy-v1',
+      phase,
+      pass: true,
+      source_head: 'current-head',
+      checks: {
+        static_direct_writers: { count: 0 },
+        active_direct_writer_processes: { count: 0 },
+      },
+    });
+  });
+
+  it('fails closed when a direct writer marker or active legacy writer is present', async () => {
+    const result = await checkCanonicalTaskWriterPolicy({
+      phase: 'rollback',
+      rootDir: '/repo',
+      sourceHead: 'current-head',
+      readFileImpl: async () => "import './lib/canonical-task-api-client.js'; fetch('/api/v2/tables/task');\n",
+      listProcesses: () => ['202 node scripts/update-task-status.js'],
+    });
+
+    expect(result.pass).toBe(false);
+    expect(result.checks.static_direct_writers.count).toBeGreaterThan(0);
+    expect(result.checks.active_direct_writer_processes.processes).toEqual([
+      '202 node scripts/update-task-status.js',
+    ]);
   });
 });

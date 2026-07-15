@@ -16,11 +16,12 @@ function task(overrides = {}) {
 }
 
 function setup({ ownerAliasIds = [] } = {}) {
+    const auditEntries = new Map();
     const repository = {
         list: vi.fn(async () => ({ items: [task()], nextCursor: null })),
         get: vi.fn(async () => task()),
         findByIdempotencyKey: vi.fn(async () => null),
-        create: vi.fn(async () => task()),
+        create: vi.fn(async (fields) => task(fields)),
         update: vi.fn(async (_id, fields) => task({ ...fields, version: 2 })),
         delete: vi.fn(async () => undefined)
     };
@@ -30,6 +31,18 @@ function setup({ ownerAliasIds = [] } = {}) {
             : [])
     };
     const readiness = { assertMutationReady: vi.fn() };
+    const auditRepository = {
+        upsertAuditLog: vi.fn(async (entry) => {
+            const existing = auditEntries.get(entry.id);
+            const persisted = {
+                created_at: existing?.created_at || '2026-07-14T01:00:00.000Z',
+                ...existing,
+                ...entry
+            };
+            auditEntries.set(entry.id, persisted);
+            return persisted;
+        })
+    };
     const operations = {
         execute: vi.fn(async ({ run }) => run()),
         executePreparedDelete: vi.fn(async ({ prepare, findTask, removeTask }) => {
@@ -40,12 +53,13 @@ function setup({ ownerAliasIds = [] } = {}) {
         })
     };
     return {
-        repository, people, readiness, operations,
+        repository, people, readiness, operations, auditRepository, auditEntries,
         service: new CanonicalTaskService({
             repository,
             infoSSOTService: people,
             readiness,
             operationRepository: operations,
+            auditRepository,
             ownerPersonId: OWNER,
             ownerAliasIds
         })
@@ -112,6 +126,89 @@ describe('CanonicalTaskService', () => {
             assignee_person_id: OWNER,
             idempotency_key: expect.stringMatching(/^api:v1\..+:request-1$/)
         }));
+    });
+
+    it('audits create, update, transition, and delete with actor and changes', async () => {
+        await fixture.service.createTask(
+            { title: '監査対象', priority: 'high', source_refs: [{ type: 'manual', id: 'source-1' }] },
+            { ...ownerContext(), idempotencyKey: 'audit-create' }
+        );
+        await fixture.service.updateTask(
+            'task_1',
+            { expected_version: 1, title: '変更後', due_at: '2026-07-20T09:00:00+09:00' },
+            ownerContext()
+        );
+        await fixture.service.transitionTask(
+            'task_1',
+            { expected_version: 1, to_status: 'waiting', waiting_on: '先方回答', review_at: '2026-07-21T09:00:00+09:00' },
+            ownerContext()
+        );
+        await fixture.service.deleteTask(
+            'task_1',
+            { expected_version: 1 },
+            { ...ownerContext(), idempotencyKey: 'audit-delete' }
+        );
+
+        expect([...fixture.auditEntries.values()]).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'canonical_task.created',
+                target_id: 'task_1',
+                actor_id: OWNER,
+                actor_type: 'person',
+                auth_source: 'bearer',
+                created_at: '2026-07-14T01:00:00.000Z',
+                changes: expect.objectContaining({
+                    before: null,
+                    after: expect.objectContaining({ title: '監査対象', version: 1 })
+                }),
+                source_refs: [{ type: 'manual', id: 'source-1' }]
+            }),
+            expect.objectContaining({
+                action: 'canonical_task.updated',
+                actor_id: OWNER,
+                changes: expect.objectContaining({
+                    before: { version: 1 },
+                    after: expect.objectContaining({ version: 2 }),
+                    fields: expect.objectContaining({ title: '変更後', due_at: '2026-07-20T00:00:00.000Z' })
+                })
+            }),
+            expect.objectContaining({
+                action: 'canonical_task.transitioned',
+                actor_id: OWNER,
+                changes: expect.objectContaining({
+                    before: { version: 1 },
+                    after: expect.objectContaining({ status: 'waiting', version: 2 }),
+                    transition: expect.objectContaining({ to_status: 'waiting', waiting_on: '先方回答' })
+                })
+            }),
+            expect.objectContaining({
+                action: 'canonical_task.deleted',
+                actor_id: OWNER,
+                auth_source: 'bearer',
+                changes: { before: { task_id: 'task_1', version: 1 }, after: null }
+            })
+        ]));
+    });
+
+    it('upserts the same create audit id when an idempotent request is retried', async () => {
+        const completed = new Map();
+        fixture.operations.execute.mockImplementation(async (input) => {
+            const existing = completed.get(`${input.scope}:${input.operationKey}`);
+            if (existing) return existing;
+            const result = await input.run();
+            completed.set(`${input.scope}:${input.operationKey}`, result);
+            return result;
+        });
+        const context = { ...ownerContext(), idempotencyKey: 'audit-retry' };
+
+        await fixture.service.createTask({ title: '再送監査' }, context);
+        await fixture.service.createTask({ title: '再送監査' }, context);
+
+        expect(fixture.repository.create).toHaveBeenCalledTimes(1);
+        expect(fixture.auditRepository.upsertAuditLog).toHaveBeenCalledTimes(2);
+        const auditIds = fixture.auditRepository.upsertAuditLog.mock.calls.map(([entry]) => entry.id);
+        expect(new Set(auditIds)).toHaveLength(1);
+        expect(fixture.auditEntries).toHaveLength(1);
     });
 
     it('materializes a Mana capture with an actor-scoped stable command key', async () => {
@@ -308,6 +405,18 @@ describe('CanonicalTaskService', () => {
             excluded_candidates: [expect.objectContaining({ candidate_id: 'candidate-b', resolution: 'rejected' })],
             replayed: false
         });
+        expect([...fixture.auditEntries.values()]).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'canonical_task.created',
+                actor_id: OWNER,
+                actor_type: 'person',
+                auth_source: 'test',
+                source_refs: expect.arrayContaining([
+                    expect.objectContaining({ type: 'workflow_output', output_id: 'out_1' }),
+                    expect.objectContaining({ type: 'workflow_human_step', step_id: 'human_1' })
+                ])
+            })
+        ]));
     });
 
     it('rejects unresolved assignees before writing any workflow Task', async () => {

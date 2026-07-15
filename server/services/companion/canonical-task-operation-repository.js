@@ -8,11 +8,55 @@ function canonicalTaskOperationError(code, message, status = 503, details = {}) 
 }
 
 export class CanonicalTaskOperationRepository {
-    constructor({ pool = null, writerToken = null, processIdentity = null } = {}) {
+    constructor({
+        pool = null,
+        writerToken = null,
+        processIdentity = null,
+        operationWaitTimeoutMs = 5000,
+        operationPollIntervalMs = 10
+    } = {}) {
         this.pool = pool;
         this.writerToken = writerToken;
         this.processIdentity = processIdentity;
+        this.operationWaitTimeoutMs = operationWaitTimeoutMs;
+        this.operationPollIntervalMs = operationPollIntervalMs;
         this.writerClaimed = false;
+    }
+
+    async waitForCompletedOperation({ scope, operationKey, fingerprint }) {
+        const deadline = Date.now() + this.operationWaitTimeoutMs;
+        while (Date.now() <= deadline) {
+            await this.assertWriter();
+            const existing = await this.pool.query(
+                `SELECT fingerprint, state, result_json, error_json, writer_token
+                 FROM canonical_task_operations
+                 WHERE scope = $1 AND operation_key = $2`,
+                [scope, operationKey]
+            );
+            const row = existing.rows[0];
+            if (!row || row.fingerprint !== fingerprint) {
+                throw canonicalTaskOperationError(
+                    'idempotency_conflict',
+                    'Idempotency key was reused with different input',
+                    409
+                );
+            }
+            if (row.state === 'completed') return row.result_json;
+            if (row.state === 'failed') {
+                throw canonicalTaskOperationError(
+                    'canonical_task_operation_failed',
+                    'Concurrent Canonical Task operation failed',
+                    503,
+                    { cause: row.error_json || null }
+                );
+            }
+            await new Promise(resolve => setTimeout(resolve, this.operationPollIntervalMs));
+        }
+        throw canonicalTaskOperationError(
+            'canonical_task_operation_timeout',
+            'Timed out waiting for the concurrent Canonical Task operation',
+            503
+        );
     }
 
     assertConfigured() {
@@ -156,6 +200,7 @@ export class CanonicalTaskOperationRepository {
         this.assertConfigured();
         await this.assertWriter();
         let shouldRecover = false;
+        let waitForExisting = false;
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -217,11 +262,8 @@ export class CanonicalTaskOperationRepository {
                     shouldRecover = true;
                     await client.query('COMMIT');
                 } else {
-                    throw canonicalTaskOperationError(
-                        'canonical_task_operation_in_progress',
-                        'Canonical Task operation is already in progress',
-                        409
-                    );
+                    waitForExisting = true;
+                    await client.query('COMMIT');
                 }
             } else {
                 await client.query('COMMIT');
@@ -231,6 +273,10 @@ export class CanonicalTaskOperationRepository {
             throw error;
         } finally {
             client.release();
+        }
+
+        if (waitForExisting) {
+            return this.waitForCompletedOperation({ scope, operationKey, fingerprint });
         }
 
         try {

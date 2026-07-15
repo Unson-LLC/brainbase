@@ -91,12 +91,17 @@ export function createCoreServices({
         schemaVersion: canonicalTaskStoreConfig.schemaVersion,
         sourceHead
     });
+    const workflowRepository = new JsonFileWorkflowRepository({
+        filePath: path.join(varDir, 'workflow-ledger.json'),
+        seedWorkflows: [createBrainbaseAliveWorkflow()]
+    });
     const canonicalTaskRepository = new CanonicalTaskNocoDBRepository({ storeConfig: canonicalTaskStoreConfig });
     const canonicalTaskService = new CanonicalTaskService({
         repository: canonicalTaskRepository,
         infoSSOTService,
         readiness: canonicalTaskReadiness,
         operationRepository: canonicalTaskOperationRepository,
+        auditRepository: workflowRepository,
         ownerPersonId: canonicalTaskStoreConfig.ownerPersonId
     });
     const authService = new AuthService();
@@ -108,10 +113,6 @@ export function createCoreServices({
     });
     const learningHealthService = new LearningHealthService({
         stateDir: path.join(varDir, 'learning')
-    });
-    const workflowRepository = new JsonFileWorkflowRepository({
-        filePath: path.join(varDir, 'workflow-ledger.json'),
-        seedWorkflows: [createBrainbaseAliveWorkflow()]
     });
     const workflowRunner = new WorkflowRunner({
         repository: workflowRepository,

@@ -14,6 +14,8 @@ execFileSync('npm', ['run', 'build'], {
 });
 
 const { NocoDBClient } = await import('../build/nocodb-client.js');
+const { CanonicalTaskWriteGuard } = await import('../build/canonical-task-write-guard.js');
+const { createCanonicalTaskStoreConfig } = await import('../../../server/services/companion/canonical-task-store-config.js');
 
 const CANONICAL_BASE_ID = 'pva7l2qlu6fdfip';
 const CANONICAL_TABLE_ID = 'm7iys8m7o1abr3f';
@@ -117,6 +119,17 @@ async function expectGuardCode(promise, code) {
     return true;
   });
 }
+
+test('Brainbase, migration, and MCP resolve the committed manifest to the same identity hash', () => {
+  const brainbaseConfig = createCanonicalTaskStoreConfig();
+  const mcpGuard = new CanonicalTaskWriteGuard({
+    listTables: async () => [],
+    getColumn: async () => null,
+  });
+
+  assert.equal(mcpGuard.identityHash, brainbaseConfig.identityHash);
+  assert.match(mcpGuard.identityHash, /^[a-f0-9]{64}$/);
+});
 
 test('SC-040 Given canonical metadata, direct canonical record mutations are rejected before NocoDB mutation', async () => {
   const stub = createNocoDBStub();

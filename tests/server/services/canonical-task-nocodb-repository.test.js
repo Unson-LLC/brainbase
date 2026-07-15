@@ -12,6 +12,27 @@ function response(body, status = 200) {
 }
 
 describe('CanonicalTaskNocoDBRepository', () => {
+    it.each([
+        ['invalid JSON', '{not-json', 'invalid_source_refs_json'],
+        ['non-array JSON', '{"type":"meeting_note"}', 'invalid_source_refs_shape']
+    ])('reports %s instead of silently discarding source references', (_label, sourceRefs, warningCode) => {
+        const repository = new CanonicalTaskNocoDBRepository({
+            storeConfig,
+            fetchImpl: vi.fn(),
+            apiToken: 'token',
+            idSecret: 'secret'
+        });
+        const normalized = repository.normalize({
+            Id: 99,
+            タイトル: '出典を確認する',
+            ステータス: '未着手',
+            優先度: '中',
+            ソース参照: sourceRefs
+        });
+
+        expect(normalized.source_refs).toEqual([]);
+        expect(normalized.normalization_warnings).toContainEqual(expect.objectContaining({ code: warningCode }));
+    });
     it('maps waiting and urgent without lifecycle loss', async () => {
         const fetchImpl = vi.fn(async () => response({ list: [{
             Id: 7, 'タイトル': '返事待ち', 'ステータス': '待ち', '優先度': '緊急',

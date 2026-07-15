@@ -11,6 +11,7 @@ const OPERATIONAL_TASK_SCRIPTS = [
     'scripts/add-frame-story-tasks.js',
     'scripts/add-framework-operation-tasks.js',
     'scripts/complete-doc-tasks.js',
+    'scripts/list-high-priority-tasks.js',
     'scripts/update-task-status.js'
 ];
 

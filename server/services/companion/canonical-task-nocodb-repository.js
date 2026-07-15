@@ -5,12 +5,6 @@ const NOCO_TO_STATUS = Object.freeze(Object.fromEntries(Object.entries(STATUS_TO
 const PRIORITY_TO_NOCO = Object.freeze({ low: '低', medium: '中', high: '高', urgent: '緊急' });
 const NOCO_TO_PRIORITY = Object.freeze(Object.fromEntries(Object.entries(PRIORITY_TO_NOCO).map(([key, value]) => [value, key])));
 
-function parseJson(value, fallback) {
-    if (value == null || value === '') return fallback;
-    if (typeof value === 'object') return value;
-    try { return JSON.parse(value); } catch { return fallback; }
-}
-
 function recordId(record) {
     return record?.Id ?? record?.ID ?? record?.id ?? record?.RecordId ?? record?.recordId;
 }
@@ -43,8 +37,31 @@ function normalizeSourceReference(reference) {
 }
 
 function normalizeSourceReferences(value) {
-    const references = parseJson(value, []);
-    return Array.isArray(references) ? references.map(normalizeSourceReference) : [];
+    if (value == null || value === '') return { references: [], warnings: [] };
+    let parsed = value;
+    if (typeof value !== 'object') {
+        try {
+            parsed = JSON.parse(value);
+        } catch {
+            return {
+                references: [],
+                warnings: [{
+                    code: 'invalid_source_refs_json',
+                    message: 'Task source references contain invalid JSON'
+                }]
+            };
+        }
+    }
+    if (!Array.isArray(parsed)) {
+        return {
+            references: [],
+            warnings: [{
+                code: 'invalid_source_refs_shape',
+                message: 'Task source references must be an array'
+            }]
+        };
+    }
+    return { references: parsed.map(normalizeSourceReference), warnings: [] };
 }
 
 function encodeCursor(offset) {
@@ -149,6 +166,8 @@ export class CanonicalTaskNocoDBRepository {
         if (!assigneePersonId && (fields['担当者'] || fields.assignee_display_name)) {
             warnings.push({ code: 'assignee_unresolved', message: 'Legacy assignee has no Graph person ID' });
         }
+        const sourceReferences = normalizeSourceReferences(fields['ソース参照'] ?? fields.source_refs);
+        warnings.push(...sourceReferences.warnings);
         const task = {
             id: this.encodeId(id),
             version: Number(fields['バージョン'] ?? fields.version ?? 1),
@@ -162,7 +181,7 @@ export class CanonicalTaskNocoDBRepository {
             waiting_on: fields['待ち理由'] ?? fields.waiting_on ?? null,
             review_at: isoOrNull(fields['レビュー日時'] ?? fields.review_at),
             completed_at: isoOrNull(fields['完了日時'] ?? fields.completed_at),
-            source_refs: normalizeSourceReferences(fields['ソース参照'] ?? fields.source_refs),
+            source_refs: sourceReferences.references,
             created_at: isoOrNull(fields['CreatedAt'] ?? fields['作成日時'] ?? fields.created_at) || new Date(0).toISOString(),
             updated_at: isoOrNull(fields['UpdatedAt'] ?? fields['更新日時'] ?? fields.updated_at) || new Date(0).toISOString(),
             web_url: `${this.baseUrl}/dashboard/#/nc/${this.storeConfig.baseId}/${this.storeConfig.tableId}`,

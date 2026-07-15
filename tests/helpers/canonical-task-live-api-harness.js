@@ -2,7 +2,23 @@ import express from 'express';
 import { createServer } from 'node:http';
 
 import { createCompanionRouter } from '../../server/routes/companion.js';
+import { createWorkflowRunRouter } from '../../server/routes/workflows.js';
 import { CanonicalTaskService } from '../../server/services/companion/canonical-task-service.js';
+import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
+import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
+import {
+    WorkflowService,
+    createDefaultWorkflowHandlers
+} from '../../server/services/workflow/workflow-service.js';
+
+function normalizeSourceReference(reference) {
+    const source = reference && typeof reference === 'object' ? reference : {};
+    return {
+        type: String(source.type || 'unknown'),
+        id: String(source.id || source.output_id || source.step_id || source.candidate_id || 'unknown'),
+        url: typeof source.url === 'string' && source.url ? source.url : null
+    };
+}
 
 function createRepository() {
     const tasks = new Map();
@@ -35,7 +51,7 @@ function createRepository() {
                 _payload_fingerprint: input.payload_fingerprint,
                 created_at: now,
                 updated_at: now,
-                source_refs: input.source_refs || [],
+                source_refs: (input.source_refs || []).map(normalizeSourceReference),
                 normalization_warnings: []
             };
             tasks.set(task.id, task);
@@ -69,9 +85,11 @@ function createOperationRepository() {
 
 export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
     const repository = createRepository();
+    const workflowRepository = new InMemoryWorkflowRepository();
     const canonicalTaskService = new CanonicalTaskService({
         repository,
         operationRepository: createOperationRepository(),
+        auditRepository: workflowRepository,
         readiness: { assertMutationReady: async () => {} },
         ownerPersonId: 'sato_keigo',
         infoSSOTService: {
@@ -96,6 +114,65 @@ export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
         };
         next();
     };
+    const workflowService = new WorkflowService({
+        repository: workflowRepository,
+        runner: new WorkflowRunner({
+            repository: workflowRepository,
+            handlers: createDefaultWorkflowHandlers()
+        }),
+        configParser: {
+            async getProjects() {
+                return { root: '/workspace', projects: [{ id: 'brainbase', session_select: true }] };
+            }
+        },
+        canonicalTaskService
+    });
+    workflowRepository.upsertWorkflow({
+        id: 'wf-live-task-review',
+        workspace_id: 'default',
+        project_id: 'brainbase',
+        name: 'Live Task Review',
+        owner_id: 'sato_keigo',
+        implementation_key: 'manual-placeholder'
+    });
+    workflowRepository.createRun({
+        id: 'run-live-task-review',
+        workspace_id: 'default',
+        project_id: 'brainbase',
+        workflow_id: 'wf-live-task-review',
+        status: 'waiting_human',
+        closure_state: 'open',
+        human_waiting: true,
+        action_required: 'approve'
+    });
+    workflowRepository.createOutput({
+        id: 'out-live-task-review',
+        workspace_id: 'default',
+        project_id: 'brainbase',
+        workflow_id: 'wf-live-task-review',
+        workflow_run_id: 'run-live-task-review',
+        type: 'task_candidates',
+        metadata: { write_back_target: 'task_store' },
+        payload: [{
+            id: 'candidate-live-task-review',
+            title: '承認から作る正本Task',
+            selected_owner_id: 'sato_keigo'
+        }]
+    });
+    workflowRepository.createHumanStep({
+        id: 'human-live-task-review',
+        workspace_id: 'default',
+        project_id: 'brainbase',
+        workflow_id: 'wf-live-task-review',
+        workflow_run_id: 'run-live-task-review',
+        requested_by: 'system',
+        requested_to: 'sato_keigo',
+        status: 'pending',
+        metadata: {
+            write_back_target: 'task_store',
+            output_id: 'out-live-task-review'
+        }
+    });
     const app = express();
     app.use(express.json());
     app.get('/api/csrf-token', authGuard, (_req, res) => {
@@ -107,6 +184,21 @@ export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
         authGuard,
         accessGuardOptions: { ownerPersonId: 'sato_keigo' }
     }));
+    app.use('/api/workflow-runs', authGuard, (req, res, next) => {
+        if (
+            req.get('x-csrf-token') !== 'canonical-task-e2e-csrf'
+            || !req.get('x-session-id')
+        ) {
+            return res.status(403).json({ code: 'csrf_invalid', error: 'CSRF token required' });
+        }
+        next();
+    }, createWorkflowRunRouter(workflowService));
+    app.use((error, _req, res, _next) => {
+        res.status(error.statusCode || error.status || 500).json({
+            code: error.code || 'internal_error',
+            error: error.message
+        });
+    });
 
     const server = createServer(app);
     await new Promise((resolve, reject) => {
@@ -118,6 +210,11 @@ export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
 
     return {
         baseURL: `http://127.0.0.1:${address.port}`,
+        approvalFixture: {
+            runID: 'run-live-task-review',
+            stepID: 'human-live-task-review',
+            outputID: 'out-live-task-review'
+        },
         close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
     };
 }
