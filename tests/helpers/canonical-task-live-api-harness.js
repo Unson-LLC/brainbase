@@ -82,7 +82,10 @@ export async function startCanonicalTaskLiveApiHarness() {
             }]
         }
     });
-    const authGuard = (req, _res, next) => {
+    const authGuard = (req, res, next) => {
+        if (req.get('authorization') !== 'Bearer canonical-task-e2e') {
+            return res.status(401).json({ code: 'unauthorized', error: 'Bearer authentication required' });
+        }
         req.authSource = 'bearer';
         req.auth = { person_id: 'sato_keigo', sub: 'sato_keigo' };
         req.access = {

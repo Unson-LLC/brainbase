@@ -154,7 +154,10 @@ function assertMacWireFixture() {
 }
 
 async function verifyAuthenticatedTaskLifecycle() {
-  const client = await playwrightRequest.newContext({ baseURL: liveApiHarness.baseURL });
+  const client = await playwrightRequest.newContext({
+    baseURL: liveApiHarness.baseURL,
+    extraHTTPHeaders: { Authorization: 'Bearer canonical-task-e2e' },
+  });
   const key = `e2e-live-${crypto.randomUUID()}`;
   try {
     const createdResponse = await client.post('/api/companion/tasks', {
@@ -205,15 +208,24 @@ async function verifyAuthenticatedTaskLifecycle() {
   }
 }
 
-async function verifyEvidenceContract(evidenceId: string, request: APIRequestContext) {
-  if (evidenceId === 'scenario.SC-014') {
-    const response = await request.post('/api/companion/tasks', {
+async function verifyUnauthenticatedMutation() {
+  const client = await playwrightRequest.newContext({ baseURL: liveApiHarness.baseURL });
+  try {
+    const response = await client.post('/api/companion/tasks', {
       data: { title: 'must-not-be-created' },
       headers: { 'Idempotency-Key': 'e2e-unauthenticated-mutation' },
     });
     expect([401, 403]).toContain(response.status());
     const body = await response.json();
     expect(body.code || body.error).toBeTruthy();
+  } finally {
+    await client.dispose();
+  }
+}
+
+async function verifyEvidenceContract(evidenceId: string, request: APIRequestContext) {
+  if (evidenceId === 'scenario.SC-014') {
+    await verifyUnauthenticatedMutation();
     return;
   }
   if (evidenceId === 'scenario.SC-024' || evidenceId === 'surface.mac.wire-contract') {
