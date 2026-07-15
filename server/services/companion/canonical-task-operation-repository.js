@@ -95,9 +95,16 @@ export class CanonicalTaskOperationRepository {
                     { active_writer: row?.process_identity || null, source_head: row?.source_head || null }
                 );
             }
+            const claimed = await client.query(
+                `UPDATE canonical_task_writer
+                 SET process_identity = $2::jsonb, source_head = $3, updated_at = NOW()
+                 WHERE singleton_id = TRUE AND writer_token = $1
+                 RETURNING writer_token, process_identity, source_head`,
+                [this.writerToken, JSON.stringify(this.processIdentity || {}), sourceHead || null]
+            );
             await client.query('COMMIT');
             this.writerClaimed = true;
-            return row;
+            return claimed.rows[0] || row;
         } catch (error) {
             await client.query('ROLLBACK');
             throw error;

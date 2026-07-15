@@ -3,6 +3,47 @@ import { describe, expect, it, vi } from 'vitest';
 import { CanonicalTaskOperationRepository } from '../../../server/services/companion/canonical-task-operation-repository.js';
 
 describe('CanonicalTaskOperationRepository', () => {
+    it('binds a recovered matching writer token to the current process and source HEAD', async () => {
+        const queries = [];
+        const client = {
+            query: vi.fn(async (sql, params) => {
+                queries.push({ sql, params });
+                if (sql.includes('SELECT writer_token, process_identity, source_head')) {
+                    return { rowCount: 1, rows: [{ writer_token: 'writer-recovered', process_identity: {}, source_head: null }] };
+                }
+                if (sql.includes('UPDATE canonical_task_writer')) {
+                    return {
+                        rowCount: 1,
+                        rows: [{
+                            writer_token: 'writer-recovered',
+                            process_identity: { pid: 42, port: 31982 },
+                            source_head: 'head-current'
+                        }]
+                    };
+                }
+                return { rowCount: 1, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client },
+            writerToken: 'writer-recovered',
+            processIdentity: { pid: 42, port: 31982 }
+        });
+
+        await expect(repository.claimWriter({ sourceHead: 'head-current' })).resolves.toMatchObject({
+            writer_token: 'writer-recovered',
+            process_identity: { pid: 42, port: 31982 },
+            source_head: 'head-current'
+        });
+
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('UPDATE canonical_task_writer'),
+            ['writer-recovered', JSON.stringify({ pid: 42, port: 31982 }), 'head-current']
+        );
+        expect(queries.some(({ sql }) => sql === 'COMMIT')).toBe(true);
+    });
+
     it('rebinds matching verified readiness to the writer claimed after restart', async () => {
         const queries = [];
         const client = {
