@@ -75,7 +75,9 @@
         ]
       },
       "required_evidence": [
-        "current_head_verification"
+        "current_head_verification",
+        "inmemory_candidate_primary_id_collision_contract",
+        "postgres_candidate_primary_id_collision_contract"
       ],
       "unknown_policy": "Brainbase is authoritative for run_receipt.v1 validation, project-scoped idempotency, Workflow Mission Control projection, and inbox ordering. Source systems remain authoritative for source execution, connector delivery retry/outbox, credentials, and raw logs. Unknown, unavailable, unconfirmed, and no_data states must remain explicit and may never be converted to zero or success. Receipt delivery success may never overwrite the source run result. Graph SSOT promotion is outside this responsibility."
     }
