@@ -1,0 +1,53 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-cross-runtime-run-receipt-inbox-v1",
+  "title": "Cross-runtime Run Receipt Inbox Authority",
+  "responsibilities": [
+    {
+      "id": "run_receipt_control_plane",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/ADR-016-run-receipt-control-plane-boundary.md#decision"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": "docs/specs/story-cross-runtime-run-receipt-inbox-v1-spec.md#invariants"
+        },
+        {
+          "kind": "spec",
+          "ref": "docs/stories/story-cross-runtime-run-receipt-inbox-v1.md#acceptance-criteria"
+        },
+        {
+          "kind": "contract",
+          "ref": "docs/contracts/run-receipt-v1.md"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "server/services/run-receipt/",
+          "server/routes/run-receipts.js",
+          "server/bootstrap/core-services.js",
+          "server/bootstrap/register-api-routes.js",
+          "server/services/workflow/workflow-service.js"
+        ],
+        "symbols": [
+          "RunReceiptAdapter",
+          "RunReceiptIngestService",
+          "createRunReceiptRouter",
+          "listRunReceiptInbox"
+        ],
+        "risk_surfaces": [
+          "core_workflow_state",
+          "server_api",
+          "auth_boundary",
+          "cross_runtime_integration"
+        ]
+      },
+      "required_evidence": [
+        "current_head_verification"
+      ],
+      "unknown_policy": "Brainbase is authoritative for run_receipt.v1 validation, project-scoped idempotency, Workflow Mission Control projection, and inbox ordering. Source systems remain authoritative for source execution, connector delivery retry/outbox, credentials, and raw logs. Unknown, unavailable, unconfirmed, and no_data states must remain explicit and may never be converted to zero or success. Receipt delivery success may never overwrite the source run result. Graph SSOT promotion is outside this responsibility."
+    }
+  ]
+}

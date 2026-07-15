@@ -1,0 +1,55 @@
+---
+adr_id: ADR-016
+title: Cross-runtime run receipt control-plane boundary
+status: accepted
+date: 2026-07-15
+related_stories:
+  - story-cross-runtime-run-receipt-inbox-v1
+related_docs:
+  - docs/stories/story-cross-runtime-run-receipt-inbox-v1.md
+  - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
+  - docs/specs/cross-runtime-run-receipt-inbox-v1.md
+  - docs/stories/story-external-runner-adapter-contract-v0.md
+supersedes: []
+superseded_by: []
+---
+
+# ADR-016: Cross-runtime run receipt control-plane boundary
+
+## Context
+
+Brainbase must observe operational runs owned by Mana, Codex Automations, GitHub Actions, and SalesTailor. Existing `external_runner.v0` is a rich Eve/Role Agent contract that owns context snapshots, human steps, outputs, rounds, Judgment DAG trace, and learning candidates. Generic jobs do not all have those concepts.
+
+Routing every source through Mana would turn Mana into an accidental integration control plane. Copying source logs into Brainbase would create competing log stores and expand the privacy boundary.
+
+## Decision
+
+Brainbase owns the canonical operational receipt contract and Agent Run Inbox. Each source owns its connector, retry/outbox behavior, source API credentials, and raw evidence.
+
+`run_receipt.v1` is a separate, thin contract. It maps into the existing Workflow Mission Control workflow/run/audit ledger; it does not create a second run SSOT. `external_runner.v0` remains the rich Eve contract. Both adapters converge only after contract-specific validation.
+
+Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
+
+Graph SSOT is outside the receipt write path. A later, explicit human-reviewed learning flow may promote decisions derived from receipts.
+
+## Consequences
+
+- Mana is one connector, not the hub for Codex, GitHub Actions, or SalesTailor.
+- Source run result and receipt delivery result remain separate facts.
+- Source unavailability is represented explicitly and cannot become an empty success metric.
+- Existing Workflow Mission Control authorization, project boundary, persistence, and audit surfaces are reused.
+- Connector Stories can evolve independently while sharing one versioned receipt contract.
+
+## Rejected Alternatives
+
+- Reuse `external_runner.v0`: rejected because it forces Eve-specific role/round/learning semantics on generic jobs.
+- Create a standalone receipt database: rejected because Workflow Mission Control already owns operational run facts.
+- Route all receipts through Mana: rejected because it couples independent runtime availability and credentials.
+- Copy raw source logs: rejected because source systems remain evidence authorities.
+
+## Verification
+
+- Contract and adapter unit tests prove validation, mapping, idempotency, and conflict behavior.
+- Route tests prove server-to-server auth and project boundaries.
+- Inbox tests prove priority/filter semantics and explicit evidence states.
+- Existing `external_runner.v0` tests remain green.
