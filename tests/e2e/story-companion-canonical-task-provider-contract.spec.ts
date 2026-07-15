@@ -339,6 +339,13 @@ test('story-companion-canonical-task-provider S-004 keeps mutation fail-closed u
   ).not.toThrow();
 });
 
+test('story-companion-canonical-task-provider S-005 fails closed on stalled NocoDB pagination', () => {
+  expect(
+    () => runVitest(['tests/server/services/canonical-task-nocodb-repository.test.js']),
+    'Given NocoDB returns the same full Task page for a later offset, when the canonical repository reads the complete Task set, then it stops after detecting the repeated page and returns task_store_unavailable instead of looping or reporting an incomplete success.',
+  ).not.toThrow();
+});
+
 for (const entry of registry.entries) {
   test(entry.id, async ({ request }, testInfo) => {
     await withCanonicalTaskEvidence(entry.id, async () => {
