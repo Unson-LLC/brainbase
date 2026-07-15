@@ -56,7 +56,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
 - [ ] ac:13 Agent Run Inboxは `(project_id, source.type, source.workflow_id)` ごとに最新receipt runだけを表示する。古いblocked/failed履歴は台帳に保持するが、後続の新しいrunがある場合はInboxへ残さない。最新run選択後にfilter、priority、count、limitを適用する。
 - [ ] ac:14 Inboxの全件順序はpriority、UTC instantへ正規化したeffective timestamp、persisted `created_at`、決定的run idでtotal orderにし、同値時もlimit/pagination結果を安定させる。UI取得・状態更新・通知はRun Receipt専用client/service、Reactive Store、EventBusへ分離し、`public/workflows.html` は購読と描画だけを担う。
-- [ ] ac:15 JSON台帳への異なるreceipt identityの同時ingest、receiptと既存writerの競合、失敗transactionのrollbackをrepository-wide write transactionで直列化し、どのwriterのworkflow/run/step/auditも失わない。receipt identity lockを先に、shared-ledger transaction lockを後に取得する順序を固定する。同じasync transaction ownerによるnested transactionは外側へjoinしてqueue/file leaseを再取得せず、外側だけがcommit/rollbackする。JsonFile本番のshared-ledger collection mutatorはtransaction外writeを拒否する。identity lock/lease metadataは台帳外の別control-plane stateとして同期し、lock操作は台帳reloadを行わない。startup seedは同じlease/ownerの初期化transaction、WorkflowService、WorkflowRunner、external_runnerを含む全production writerは短いtransaction境界、Candidate Store等の外部I/Oは決定的outboxによるlease外実行へ移行する。
+- [ ] ac:15 JSON台帳への異なるreceipt identityの同時ingest、receiptと既存writerの競合、失敗transactionのrollbackをrepository-wide write transactionで直列化し、どのwriterのworkflow/run/step/auditも失わない。receipt identity lockを先に、shared-ledger transaction lockを後に取得する順序を固定する。同じasync transaction ownerによるnested transactionは外側へjoinしてqueue/file leaseを再取得せず、外側だけがcommit/rollbackする。JsonFile本番のshared-ledger collection mutatorはtransaction外writeを拒否する。identity lock/lease metadataは台帳外の別control-plane stateとして同期し、lock操作は台帳reloadを行わない。startup seedは同じlease/ownerの初期化transaction、WorkflowService、WorkflowRunner、external_runnerを含む全production writerは短いtransaction境界、Candidate Store等の外部I/Oはlease外へ移す。external_runner candidateはcontract/workspace/org/project/runner/run/source candidateからglobal idを派生し、store済み未確定の再試行はfindById同値時だけ採用、相違時はactionable conflict、pending再開ではduplicate auditなし、全収束後だけ既存duplicate auditを維持する。
 
 ## Workflow State Scenarios
 
@@ -82,7 +82,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `nested_transaction_deadlock`: 同一async contextのnested transactionをin-process queueの後ろへ再投入しない。inner callbackは外側transactionへjoinし、inner failureはtransactionをrollback-onlyにして、呼び出し側が例外をcatchしても外側commitを拒否する。
 - `unserialized_writer`: JsonFile repositoryのshared-ledger collection mutation primitiveはactive transaction contextなしでは `workflow_repository_transaction_required` としてwrite前に拒否する。identity lock/lease metadataは台帳外で同期し、lock操作で台帳をreloadしない。runtime serviceはremote handler、network、Candidate Store、長時間sleepをfile lease内でawaitせず、各永続化まとまりだけを短いtransactionへ入れる。
 - `bootstrap_seed_race`: seed workflowはrepository公開前に同じfile leaseとtransaction ownerで初期化し、既存台帳をreload後に不足分だけ追加する。constructorから通常mutatorをguard外呼び出ししない。
-- `candidate_outbox_interruption`: external_runnerのcandidate intentを台帳へ先にcommitし、決定的candidate idでlease外保存後に結果を短いtransactionで確定する。各境界の中断はexact replayが再開し、収束後duplicateはwrite-freeとする。
+- `candidate_outbox_interruption`: external_runnerのcandidate intentを台帳へ先にcommitし、実行スコープから派生したglobal candidate idでlease外保存後に結果を短いtransactionで確定する。store済み未確定のexact replayはfindByIdでimmutable projectionが一致する場合だけ採用し、相違はpending/actionable conflictとして拒否する。pending再開はduplicate auditを書かず、全intent収束後の次回duplicateだけ既存 `external_runner.duplicate_replay_ignored` auditを短いtransactionで書く。
 
 ## 非目標
 

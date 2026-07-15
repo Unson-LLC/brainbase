@@ -102,9 +102,9 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 ## Existing External Runner Candidate Outbox
 
 - Core `external_runner.v0` run/context/human/output state and deterministic `candidate_pending` audit intents commit in one short shared-ledger transaction.
-- Candidate Store calls run after that commit and outside the file lease. Each uses the deterministic candidate id as an idempotency key.
-- Each result is finalized in a second short transaction as `stored` or `deferred`. An exact duplicate with pending intents resumes only those intents; it does not write a duplicate-replay audit. A converged exact duplicate remains a write-free no-op.
-- A crash before Candidate Store call, after Candidate Store success, or before final audit is recovered by the same replay path. Idempotent candidate creation prevents an orphan or duplicate candidate.
+- Candidate Store calls run after that commit and outside the file lease. Each uses `extcand_${sha256(compactJson(["external_runner.v0", workspace_id, org_id || "", project_id, runner.type, external_run_id, source_candidate_id]))}` as the global idempotency id; the source candidate id remains in `source_event_ids` and audit metadata.
+- Each result is finalized in a second short transaction as `stored` or `deferred`. An exact duplicate with pending intents resumes only those intents and writes no duplicate-replay audit. If create reports a duplicate after Candidate Store success but before finalization, `findById(derived_id)` is canonicalized over immutable ingest-controlled fields; an exact record is adopted, while a missing or mismatched record records `external_runner.candidate_conflict`, leaves the intent pending/actionable, and rejects rather than becoming deferred.
+- After every intent has converged, a later exact duplicate preserves the legacy `external_runner.duplicate_replay_ignored` audit inside a short shared-ledger transaction. A crash before Candidate Store call, after Candidate Store success, or before final audit is recovered by the same replay path without an orphan or duplicate candidate.
 
 ## Connector Observation Fallback
 
