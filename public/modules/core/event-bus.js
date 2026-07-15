@@ -231,6 +231,8 @@ export const EVENTS = {
 
     // Inbox関連
     INBOX_LOADED: 'inbox:loaded',
+    RUN_RECEIPT_INBOX_LOADED: 'run-receipt-inbox:loaded',
+    RUN_RECEIPT_INBOX_FAILED: 'run-receipt-inbox:failed',
 
     // NocoDB Task関連
     NOCODB_TASKS_LOADED: 'nocodb:tasks-loaded',

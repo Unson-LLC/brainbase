@@ -404,12 +404,50 @@
             padding: 18px;
         }
         .error { color: var(--bad); }
+        .agent-run-inbox { margin-top: 34px; }
+        .run-receipt-filters {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 12px;
+        }
+        .run-receipt-filter-actions { display: flex; gap: 8px; }
+        .run-receipt-notice {
+            border: 1px solid var(--soft-line);
+            border-radius: 6px;
+            background: #fff;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+        .run-receipt-notice.bad { color: var(--bad); border-color: #fecdca; background: #fff7f6; }
+        .run-receipt-list { display: grid; gap: 12px; }
+        .run-receipt-card {
+            border: 2px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            padding: 16px;
+        }
+        .run-receipt-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+        .run-receipt-summary { margin: 10px 0; line-height: 1.5; }
+        .run-receipt-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+        .run-receipt-facts div { border: 1px solid var(--soft-line); border-radius: 6px; padding: 8px; min-width: 0; }
+        .run-receipt-facts dt { color: var(--muted); font-size: 11px; }
+        .run-receipt-facts dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 13px; }
+        .run-receipt-detail { margin-top: 8px; font-size: 12px; overflow-wrap: anywhere; }
+        .run-receipt-detail ul { margin: 5px 0 0; padding-left: 20px; }
+        .run-receipt-detail code { white-space: normal; }
+        button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+            outline: 3px solid var(--accent);
+            outline-offset: 2px;
+        }
         .view { display: none; }
         .view.active { display: block; }
         @media (max-width: 980px) {
             .shell { grid-template-columns: 1fr; padding: 12px; }
             .assistant { display: none; }
-            .project-grid, .layout-two, .meeting-lifecycle { grid-template-columns: 1fr; }
+            .project-grid, .layout-two, .meeting-lifecycle, .run-receipt-filters, .run-receipt-facts { grid-template-columns: 1fr; }
             .content { padding: 22px; }
             .row, .row-button { grid-template-columns: 1fr; }
         }
@@ -471,6 +509,12 @@
     </div>
 
     <script type="module">
+        import { eventBus } from '/modules/core/event-bus.js';
+        import { appStore } from '/modules/core/store.js';
+        import { RunReceiptInboxClient } from '/modules/domain/run-receipt/run-receipt-inbox-client.js';
+        import { RunReceiptInboxService } from '/modules/domain/run-receipt/run-receipt-inbox-service.js';
+        import { renderRunReceiptInbox } from '/modules/domain/run-receipt/run-receipt-inbox-view.js';
+
         const embeddedMode = new URLSearchParams(window.location.search).get('embedded') === '1';
         if (embeddedMode) document.body.classList.add('embedded');
 
@@ -498,6 +542,11 @@
         const breadcrumbs = document.getElementById('breadcrumbs');
         const filterEl = document.getElementById('project-filter');
         const refreshBtn = document.getElementById('refresh-btn');
+        const runReceiptInboxService = new RunReceiptInboxService({
+            client: new RunReceiptInboxClient({ apiFetch }),
+            appStore,
+            eventBus
+        });
         const AUTH_TOKEN_KEY = 'brainbase.auth.token';
         const initialRunId = new URLSearchParams(window.location.search).get('run_id') || '';
         let csrfToken = '';
@@ -1274,6 +1323,7 @@
                 </div>
                 <div class="section-title"><h2>Operational Inbox</h2><span class="sub">Human waiting / action required / failed を横断表示</span></div>
                 <div class="stack">${orderedWorkflows().map(renderWorkflowCard).join('') || '<div class="empty">No workflow activity</div>'}</div>
+                ${renderRunReceiptInbox(appStore.getState().runReceiptInbox, { projects: projectIds })}
             `;
             setView('workspace');
         }
@@ -1898,6 +1948,20 @@
                 setView('workspace');
             }
         }
+        async function loadRunReceiptInbox(filters) {
+            try {
+                await runReceiptInboxService.load(filters);
+            } catch {
+                // Dedicated store keeps the last confirmed snapshot and exposes unavailable state.
+            }
+        }
+        appStore.subscribeToSelector(
+            (current) => current.runReceiptInbox,
+            ({ value }) => {
+                const current = document.getElementById('agent-run-inbox');
+                if (current) current.outerHTML = renderRunReceiptInbox(value, { projects: allProjectIds() });
+            }
+        );
         document.addEventListener('click', async (event) => {
             const target = event.target.closest('button, a');
             if (!target) return;
@@ -1941,8 +2005,19 @@
                     forceNewSession: target.dataset.forceNewSession === '1'
                 });
             }
+            if (target.dataset.action === 'reset-run-receipt-filters') {
+                await loadRunReceiptInbox({});
+            }
         });
         document.addEventListener('submit', async (event) => {
+            if (event.target.id === 'agent-run-inbox-filters') {
+                event.preventDefault();
+                const formData = new FormData(event.target);
+                await loadRunReceiptInbox(Object.fromEntries(
+                    Array.from(formData.entries()).filter(([, value]) => String(value).trim())
+                ));
+                return;
+            }
             if (event.target.dataset.workflowControlResource) {
                 event.preventDefault();
                 await createWorkflowControlItem(event.target);
@@ -1956,8 +2031,12 @@
             if (filterEl.value) renderProject(filterEl.value);
             else renderWorkspace();
         });
-        refreshBtn.addEventListener('click', () => load());
+        refreshBtn.addEventListener('click', () => {
+            load();
+            loadRunReceiptInbox();
+        });
         load();
+        loadRunReceiptInbox();
     </script>
 </body>
 </html>
