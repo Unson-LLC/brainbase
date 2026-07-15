@@ -1866,9 +1866,11 @@ export class WorkflowService {
     }
 
     async ensureDefaultWorkflows() {
-        if (!this.repository.getWorkflow('brainbase-alive')) {
-            this.repository.upsertWorkflow(createBrainbaseAliveWorkflow());
-        }
+        await this._transaction(() => {
+            if (!this.repository.getWorkflow('brainbase-alive')) {
+                this.repository.upsertWorkflow(createBrainbaseAliveWorkflow());
+            }
+        });
     }
 
     async listWorkflows({ projectId = null } = {}, actor = {}) {
@@ -1928,15 +1930,18 @@ export class WorkflowService {
             assigneeId: actor.person_id || actor.sub || DEFAULT_OWNER_ID,
             approverId: actor.person_id || actor.sub || DEFAULT_OWNER_ID
         });
-        const created = this.repository.upsertWorkflow(workflow);
-        this.repository.writeAuditLog({
-            workspace_id: created.workspace_id,
-            project_id: created.project_id,
-            actor_id: actor.person_id || actor.sub || 'system',
-            action: 'workflow.created',
-            target_type: 'workflow',
-            target_id: created.id,
-            after: created
+        const created = await this._transaction(() => {
+            const item = this.repository.upsertWorkflow(workflow);
+            this.repository.writeAuditLog({
+                workspace_id: item.workspace_id,
+                project_id: item.project_id,
+                actor_id: actor.person_id || actor.sub || 'system',
+                action: 'workflow.created',
+                target_type: 'workflow',
+                target_id: item.id,
+                after: item
+            });
+            return item;
         });
         return { workflow: created };
     }
@@ -1959,7 +1964,8 @@ export class WorkflowService {
         this._assertActorCanAccessProject(projectId, actor);
         const roleArchetypeId = requireInputString(input, 'role_archetype_id', 'roleArchetypeId');
         const id = readOptionalString(input, 'id') || createStableId('rai', orgId, projectId, roleArchetypeId);
-        const agent = this.repository.upsertRoleAgentInstance({
+        const agent = await this._transaction(() => {
+            const item = this.repository.upsertRoleAgentInstance({
             id,
             workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
             org_id: orgId,
@@ -1974,12 +1980,14 @@ export class WorkflowService {
             workflow_constraints: input.workflow_constraints || input.workflowConstraints || {},
             tags: normalizeTags(input.tags),
             enabled: input.enabled !== false
-        });
-        this._writeWorkflowControlAudit({
-            item: agent,
-            actor,
-            action: 'workflow.role_agent_instance.upserted',
-            targetType: 'role_agent_instance'
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.role_agent_instance.upserted',
+                targetType: 'role_agent_instance'
+            });
+            return item;
         });
         return { role_agent_instance: agent };
     }
@@ -2005,7 +2013,8 @@ export class WorkflowService {
         }
         if (orgId) this._assertOrgReferenceAllowed(orgId);
         const id = readOptionalString(input, 'id') || createStableId('wft', orgId, projectId, readString(input, 'name'));
-        const template = this.repository.upsertWorkflowTemplate({
+        const template = await this._transaction(() => {
+            const item = this.repository.upsertWorkflowTemplate({
             id,
             workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
             org_id: orgId,
@@ -2019,12 +2028,14 @@ export class WorkflowService {
             output_schema: input.output_schema || input.outputSchema || {},
             tags: normalizeTags(input.tags),
             enabled: input.enabled !== false
-        });
-        this._writeWorkflowControlAudit({
-            item: template,
-            actor,
-            action: 'workflow.template.upserted',
-            targetType: 'workflow_template'
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.template.upserted',
+                targetType: 'workflow_template'
+            });
+            return item;
         });
         return { workflow_template: template };
     }
@@ -2068,7 +2079,8 @@ export class WorkflowService {
         const autonomyLevel = readOptionalString(input, 'autonomy_level', 'autonomyLevel') || 'approval_required';
         ensureAllowed(autonomyLevel, ALLOWED_AUTONOMY_LEVELS, 'autonomy_level');
         const id = readOptionalString(input, 'id') || createStableId('wfb', orgId, roleAgentInstanceId, workflowTemplateId);
-        const binding = this.repository.upsertWorkflowBinding({
+        const binding = await this._transaction(() => {
+            const item = this.repository.upsertWorkflowBinding({
             id,
             workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
             org_id: orgId,
@@ -2084,12 +2096,14 @@ export class WorkflowService {
             approval_owner_id: readOptionalString(input, 'approval_owner_id', 'approvalOwnerId') || roleAgent.default_approver_id,
             cost_owner_id: readOptionalString(input, 'cost_owner_id', 'costOwnerId') || roleAgent.owner_id,
             enabled: input.enabled !== false
-        });
-        this._writeWorkflowControlAudit({
-            item: binding,
-            actor,
-            action: 'workflow.binding.upserted',
-            targetType: 'workflow_binding'
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.binding.upserted',
+                targetType: 'workflow_binding'
+            });
+            return item;
         });
         return { workflow_binding: binding };
     }
@@ -2123,7 +2137,8 @@ export class WorkflowService {
         const triggerType = readOptionalString(input, 'trigger_type', 'triggerType') || 'human';
         ensureAllowed(triggerType, ALLOWED_TRIGGER_TYPES, 'trigger_type');
         const id = readOptionalString(input, 'id') || createStableId('wftg', orgId, workflowBindingId, triggerType, readString(input, 'name'));
-        const trigger = this.repository.upsertWorkflowTrigger({
+        const trigger = await this._transaction(() => {
+            const item = this.repository.upsertWorkflowTrigger({
             id,
             workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
             org_id: orgId,
@@ -2135,12 +2150,14 @@ export class WorkflowService {
             schedule: input.schedule || null,
             human_prompt_ref: readOptionalString(input, 'human_prompt_ref', 'humanPromptRef'),
             enabled: input.enabled !== false
-        });
-        this._writeWorkflowControlAudit({
-            item: trigger,
-            actor,
-            action: 'workflow.trigger.upserted',
-            targetType: 'workflow_trigger'
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.trigger.upserted',
+                targetType: 'workflow_trigger'
+            });
+            return item;
         });
         return { workflow_trigger: trigger };
     }
@@ -2188,7 +2205,8 @@ export class WorkflowService {
         ensureAllowed(triggerType, ALLOWED_TRIGGER_TYPES, 'trigger_type');
         const eligibility = eligibilityFrom({ binding, trigger, input });
         const id = readOptionalString(input, 'id') || createStableId('loop', orgId, workflowBindingId, triggerId || 'manual', crypto.randomUUID());
-        const intent = this.repository.upsertLoopIntent({
+        const intent = await this._transaction(() => {
+            const item = this.repository.upsertLoopIntent({
             id,
             workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
             org_id: orgId,
@@ -2207,12 +2225,14 @@ export class WorkflowService {
             selected_workflow_reason: binding.workflow_selection_reason || readOptionalString(input, 'selected_workflow_reason', 'selectedWorkflowReason'),
             judgment_dag_id: binding.judgment_dag_id || null,
             status: eligibility.status === 'blocked' || eligibility.status === 'human_only' ? eligibility.status : 'ready'
-        });
-        this._writeWorkflowControlAudit({
-            item: intent,
-            actor,
-            action: 'workflow.loop_intent.created',
-            targetType: 'loop_intent'
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.loop_intent.created',
+                targetType: 'loop_intent'
+            });
+            return item;
         });
         return { loop_intent: intent };
     }
@@ -3263,24 +3283,26 @@ export class WorkflowService {
                 };
             }
         }
-        this.repository.writeAuditLog({
-            workspace_id: DEFAULT_WORKSPACE_ID,
-            org_id: orgId,
-            project_id: projectId,
-            actor_id: actorId,
-            action: result.status === 'requested'
-                ? 'workflow.meeting_pack.note_generation.dispatch_requested'
-                : 'workflow.meeting_pack.note_generation.dispatch_skipped',
-            target_type: 'workflow_run',
-            target_id: runId,
-            after: {
-                package_id: packageId,
-                ...result,
-                ...(result.status === 'requested' ? {
-                    runner_type: 'eve',
-                    external_run_id: result.eve_session_run_id || null
-                } : {})
-            }
+        await this._transaction(() => {
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                actor_id: actorId,
+                action: result.status === 'requested'
+                    ? 'workflow.meeting_pack.note_generation.dispatch_requested'
+                    : 'workflow.meeting_pack.note_generation.dispatch_skipped',
+                target_type: 'workflow_run',
+                target_id: runId,
+                after: {
+                    package_id: packageId,
+                    ...result,
+                    ...(result.status === 'requested' ? {
+                        runner_type: 'eve',
+                        external_run_id: result.eve_session_run_id || null
+                    } : {})
+                }
+            });
         });
         return result;
     }
@@ -3369,34 +3391,37 @@ export class WorkflowService {
                 actor_id: actorId
             }
         };
-        const updatedOutput = this.repository.updateOutput(noteOutput.id, {
-            payload: nextPayload,
-            preview: previewPayload(nextPayload),
-            updated_at: now
-        });
-        // Target the run (not the output) so the entry reaches the Run Trace
-        // audit panel, which lists audit logs by run id.
-        this.repository.writeAuditLog({
-            workspace_id: DEFAULT_WORKSPACE_ID,
-            org_id: orgId,
-            project_id: projectId,
-            actor_id: actorId,
-            action: 'workflow.meeting_pack.note_generation.recorded',
-            target_type: 'workflow_run',
-            target_id: runId,
-            after: {
-                run_id: runId,
-                output_id: noteOutput.id,
-                package_id: noteOutput.metadata?.package_id || packageId || null,
-                source_text_hash: sourceTextHash,
-                generation_status: nextPayload.generation_status,
-                state_transition: 'note_generation_recorded',
-                runner_type: nextPayload.generated_by?.type || null,
-                external_run_id: nextPayload.generated_by?.session_id || null,
-                generated_by: nextPayload.generated_by,
-                body_length: noteBody.length,
-                regenerated: currentPayload.generation_status === 'brainbase_generated'
-            }
+        const updatedOutput = await this._transaction(() => {
+            const item = this.repository.updateOutput(noteOutput.id, {
+                payload: nextPayload,
+                preview: previewPayload(nextPayload),
+                updated_at: now
+            });
+            // Target the run (not the output) so the entry reaches the Run Trace
+            // audit panel, which lists audit logs by run id.
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                actor_id: actorId,
+                action: 'workflow.meeting_pack.note_generation.recorded',
+                target_type: 'workflow_run',
+                target_id: runId,
+                after: {
+                    run_id: runId,
+                    output_id: noteOutput.id,
+                    package_id: noteOutput.metadata?.package_id || packageId || null,
+                    source_text_hash: sourceTextHash,
+                    generation_status: nextPayload.generation_status,
+                    state_transition: 'note_generation_recorded',
+                    runner_type: nextPayload.generated_by?.type || null,
+                    external_run_id: nextPayload.generated_by?.session_id || null,
+                    generated_by: nextPayload.generated_by,
+                    body_length: noteBody.length,
+                    regenerated: currentPayload.generation_status === 'brainbase_generated'
+                }
+            });
+            return item;
         });
         return {
             meeting_note_generation: {
@@ -3730,7 +3755,7 @@ export class WorkflowService {
             });
         } catch (error) {
             if (isEveSessionTimeoutError(error)) {
-                const recovery = this._recordEveSessionTimeoutRecovery({
+                const recovery = await this._recordEveSessionTimeoutRecovery({
                     loopIntent,
                     roleAgent,
                     template,
@@ -3928,12 +3953,9 @@ export class WorkflowService {
         };
 
         try {
-            if (typeof this.repository.transaction === 'function') {
-                return await this.repository.transaction(persistDispatch);
-            }
-            return await persistDispatch();
+            return await this._transaction(persistDispatch);
         } catch (error) {
-            const recovery = this._recordEveDispatchPersistenceFailure({
+            const recovery = await this._recordEveDispatchPersistenceFailure({
                 loopIntent,
                 roleAgent,
                 template,
@@ -3976,9 +3998,10 @@ export class WorkflowService {
         }
     }
 
-    _recordEveSessionTimeoutRecovery({ loopIntent, roleAgent, template, binding, handoff, workflowId, actorId, now, error }) {
+    async _recordEveSessionTimeoutRecovery({ loopIntent, roleAgent, template, binding, handoff, workflowId, actorId, now, error }) {
         try {
-            const workflow = this.repository.upsertWorkflow({
+            return await this._transaction(() => {
+                const workflow = this.repository.upsertWorkflow({
                 id: workflowId,
                 workspace_id: loopIntent.workspace_id || DEFAULT_WORKSPACE_ID,
                 org_id: loopIntent.org_id,
@@ -4084,7 +4107,8 @@ export class WorkflowService {
                     eve_error_code: error?.code || null
                 }
             });
-            return { workflow, run };
+                return { workflow, run };
+            });
         } catch (recoveryError) {
             return {
                 error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
@@ -4092,9 +4116,10 @@ export class WorkflowService {
         }
     }
 
-    _recordEveDispatchPersistenceFailure({ loopIntent, roleAgent, template, binding, eveSession, handoff, workflowId, runId, actorId, now, error }) {
+    async _recordEveDispatchPersistenceFailure({ loopIntent, roleAgent, template, binding, eveSession, handoff, workflowId, runId, actorId, now, error }) {
         try {
-            const workflow = this.repository.upsertWorkflow({
+            return await this._transaction(() => {
+                const workflow = this.repository.upsertWorkflow({
                 id: workflowId,
                 workspace_id: loopIntent.workspace_id || DEFAULT_WORKSPACE_ID,
                 org_id: loopIntent.org_id,
@@ -4201,7 +4226,8 @@ export class WorkflowService {
                     persistence_error: error instanceof Error ? error.message : String(error)
                 }
             });
-            return { workflow, run };
+                return { workflow, run };
+            });
         } catch (recoveryError) {
             return {
                 error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
@@ -4235,7 +4261,7 @@ export class WorkflowService {
         const nextProjectId = patch.project_id || patch.projectId || current.project_id;
         await this._assertProjectSelectable(nextProjectId);
         this._assertActorCanAccessProject(nextProjectId, actor);
-        const updated = this.repository.updateWorkflow(workflowId, normalizeWorkflowInput({
+        const nextWorkflow = normalizeWorkflowInput({
             ...current,
             ...patch,
             id: workflowId,
@@ -4245,16 +4271,20 @@ export class WorkflowService {
             ownerId: current.owner_id,
             assigneeId: current.default_assignee_id,
             approverId: current.default_approver_id
-        }));
-        this.repository.writeAuditLog({
-            workspace_id: updated.workspace_id,
-            project_id: updated.project_id,
-            actor_id: actor.person_id || actor.sub || 'system',
-            action: 'workflow.updated',
-            target_type: 'workflow',
-            target_id: updated.id,
-            before: current,
-            after: updated
+        });
+        const updated = await this._transaction(() => {
+            const item = this.repository.updateWorkflow(workflowId, nextWorkflow);
+            this.repository.writeAuditLog({
+                workspace_id: item.workspace_id,
+                project_id: item.project_id,
+                actor_id: actor.person_id || actor.sub || 'system',
+                action: 'workflow.updated',
+                target_type: 'workflow',
+                target_id: item.id,
+                before: current,
+                after: item
+            });
+            return item;
         });
         return { workflow: updated };
     }
@@ -4395,136 +4425,143 @@ export class WorkflowService {
 
     async resolveHumanStep(stepId, input = {}, actor = {}) {
         await this._loadProjectConfigCache();
-        const step = this.repository.getHumanStep(stepId);
-        if (!step) throw AppError.notFound('workflow_human_step', stepId);
-        if (input.run_id && input.run_id !== step.workflow_run_id) {
+        const initialStep = this.repository.getHumanStep(stepId);
+        if (!initialStep) throw AppError.notFound('workflow_human_step', stepId);
+        if (input.run_id && input.run_id !== initialStep.workflow_run_id) {
             throw AppError.validation(`human step '${stepId}' does not belong to run '${input.run_id}'`);
         }
-        this._assertActorCanAccessProject(step.project_id, actor);
-        this._assertActorCanResolveHumanStep(step, actor);
-        if (step.status !== 'pending') {
-            throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
-        }
+        this._assertActorCanAccessProject(initialStep.project_id, actor);
+        this._assertActorCanResolveHumanStep(initialStep, actor);
         const resolution = input.resolution || input.status || 'approved';
         const approvedResolution = isApprovedHumanResolution(resolution);
         const resolvedStatus = approvedResolution ? 'approved' : resolution;
-        const resolved = this.repository.updateHumanStep(stepId, {
-            status: resolvedStatus,
-            response_ref: input.response_ref || input.responseRef || null,
-            reason: input.reason || step.reason || null,
-            resolved_at: new Date().toISOString(),
-            resolved_by: actor.person_id || actor.sub || 'system'
-        });
-        this.repository.writeAuditLog({
-            workspace_id: step.workspace_id,
-            project_id: step.project_id,
-            actor_id: actor.person_id || actor.sub || 'system',
-            action: 'workflow.human_step.resolved',
-            target_type: 'workflow_human_step',
-            target_id: stepId,
-            after: resolved
-        });
-        const previousRun = this.repository.getRun(step.workflow_run_id);
-        const workflow = this.repository.getWorkflow(step.workflow_id);
-        if (!approvedResolution) {
-            const cancelledHumanStepIds = [];
-            if (isApprovalOnlyIngestWorkflow(workflow)) {
-                for (const humanStep of this.repository.listHumanSteps(step.workflow_run_id)) {
-                    if (humanStep.id !== stepId && isPendingHumanStepStatus(humanStep.status)) {
-                        const cancelled = this.repository.updateHumanStep(humanStep.id, {
-                            status: 'cancelled',
-                            reason: `cancelled_after_${resolvedStatus}`,
-                            resolved_at: new Date().toISOString(),
-                            resolved_by: actor.person_id || actor.sub || 'system'
-                        });
-                        if (cancelled) cancelledHumanStepIds.push(cancelled.id);
+        const mutation = await this._transaction(() => {
+            const step = this.repository.getHumanStep(stepId);
+            if (!step) throw AppError.notFound('workflow_human_step', stepId);
+            if (step.status !== 'pending') {
+                throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
+            }
+            const resolved = this.repository.updateHumanStep(stepId, {
+                status: resolvedStatus,
+                response_ref: input.response_ref || input.responseRef || null,
+                reason: input.reason || step.reason || null,
+                resolved_at: new Date().toISOString(),
+                resolved_by: actor.person_id || actor.sub || 'system'
+            });
+            this.repository.writeAuditLog({
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actor.person_id || actor.sub || 'system',
+                action: 'workflow.human_step.resolved',
+                target_type: 'workflow_human_step',
+                target_id: stepId,
+                after: resolved
+            });
+            const previousRun = this.repository.getRun(step.workflow_run_id);
+            const workflow = this.repository.getWorkflow(step.workflow_id);
+            if (!approvedResolution) {
+                const cancelledHumanStepIds = [];
+                if (isApprovalOnlyIngestWorkflow(workflow)) {
+                    for (const humanStep of this.repository.listHumanSteps(step.workflow_run_id)) {
+                        if (humanStep.id !== stepId && isPendingHumanStepStatus(humanStep.status)) {
+                            const cancelled = this.repository.updateHumanStep(humanStep.id, {
+                                status: 'cancelled',
+                                reason: `cancelled_after_${resolvedStatus}`,
+                                resolved_at: new Date().toISOString(),
+                                resolved_by: actor.person_id || actor.sub || 'system'
+                            });
+                            if (cancelled) cancelledHumanStepIds.push(cancelled.id);
+                        }
                     }
                 }
-            }
-            const closedRun = previousRun
-                ? this.repository.updateRun(previousRun.id, {
-                    status: 'cancelled',
-                    closure_state: 'closed',
-                    human_waiting: false,
-                    action_required: 'none',
-                    message: isMeetingReviewPackageWorkflow(workflow)
-                        ? `Meeting Review Package stopped after human step ${resolvedStatus}`
-                        : isAgentReportWorkflow(workflow)
-                        ? `Agent report stopped after human step ${resolvedStatus}`
-                        : `Human step ${resolvedStatus}`,
-                    finished_at: new Date().toISOString()
-                })
-                : null;
-            this.repository.writeAuditLog({
-                workspace_id: step.workspace_id,
-                project_id: step.project_id,
-                actor_id: actor.person_id || actor.sub || 'system',
-                action: 'workflow.run.human_step.cancelled',
-                target_type: 'workflow_run',
-                target_id: step.workflow_run_id,
-                after: {
-                    human_step_id: stepId,
-                    resolution: resolvedStatus,
-                    cancelled_human_step_ids: cancelledHumanStepIds,
-                    status: closedRun?.status || 'cancelled'
-                }
-            });
-            return { human_step: resolved, resumed_run: closedRun };
-        }
-        if (isApprovalOnlyIngestWorkflow(workflow) && previousRun) {
-            const approvalLabel = isMeetingReviewPackageWorkflow(workflow)
-                ? 'Meeting Review Package'
-                : 'Agent report';
-            const auditPrefix = isMeetingReviewPackageWorkflow(workflow)
-                ? 'workflow.run.meeting_review_approvals'
-                : 'workflow.run.agent_report_approvals';
-            const allHumanSteps = this.repository.listHumanSteps(step.workflow_run_id);
-            const pendingHumanSteps = allHumanSteps.filter((humanStep) => isPendingHumanStepStatus(humanStep.status));
-            const approvedHumanSteps = allHumanSteps.filter((humanStep) => isApprovedHumanResolution(humanStep.status));
-            const rejectedHumanSteps = allHumanSteps.filter((humanStep) => isRejectedHumanStepStatus(humanStep.status));
-            const allApproved = allHumanSteps.length > 0 && approvedHumanSteps.length === allHumanSteps.length;
-            const hasRejectedStep = rejectedHumanSteps.length > 0 || previousRun.status === 'cancelled';
-            const updatedRun = hasRejectedStep
-                ? this.repository.updateRun(previousRun.id, {
-                    status: 'cancelled',
-                    closure_state: 'closed',
-                    human_waiting: false,
-                    action_required: 'none',
-                    message: `${approvalLabel} human approvals stopped after rejected gate`,
-                    finished_at: new Date().toISOString()
-                })
-                : this.repository.updateRun(previousRun.id, {
-                    status: allApproved ? 'success' : 'waiting_human',
-                    closure_state: allApproved ? 'closed' : 'open',
-                    human_waiting: !allApproved,
-                    action_required: allApproved ? 'none' : 'approve',
-                    message: allApproved
-                        ? `${approvalLabel} human approvals completed`
-                        : `${approvalLabel} is waiting for ${pendingHumanSteps.length} human approval(s)`,
-                    finished_at: new Date().toISOString()
+                const closedRun = previousRun
+                    ? this.repository.updateRun(previousRun.id, {
+                        status: 'cancelled',
+                        closure_state: 'closed',
+                        human_waiting: false,
+                        action_required: 'none',
+                        message: isMeetingReviewPackageWorkflow(workflow)
+                            ? `Meeting Review Package stopped after human step ${resolvedStatus}`
+                            : isAgentReportWorkflow(workflow)
+                            ? `Agent report stopped after human step ${resolvedStatus}`
+                            : `Human step ${resolvedStatus}`,
+                        finished_at: new Date().toISOString()
+                    })
+                    : null;
+                this.repository.writeAuditLog({
+                    workspace_id: step.workspace_id,
+                    project_id: step.project_id,
+                    actor_id: actor.person_id || actor.sub || 'system',
+                    action: 'workflow.run.human_step.cancelled',
+                    target_type: 'workflow_run',
+                    target_id: step.workflow_run_id,
+                    after: {
+                        human_step_id: stepId,
+                        resolution: resolvedStatus,
+                        cancelled_human_step_ids: cancelledHumanStepIds,
+                        status: closedRun?.status || 'cancelled'
+                    }
                 });
-            this.repository.writeAuditLog({
-                workspace_id: step.workspace_id,
-                project_id: step.project_id,
-                actor_id: actor.person_id || actor.sub || 'system',
-                action: hasRejectedStep
-                    ? `${auditPrefix}.cancelled`
-                    : allApproved
-                    ? `${auditPrefix}.completed`
-                    : `${auditPrefix}.progressed`,
-                target_type: 'workflow_run',
-                target_id: previousRun.id,
-                after: {
-                    human_step_id: stepId,
-                    approved_human_step_ids: approvedHumanSteps.map((humanStep) => humanStep.id),
-                    pending_human_step_ids: pendingHumanSteps.map((humanStep) => humanStep.id),
-                    rejected_human_step_ids: rejectedHumanSteps.map((humanStep) => humanStep.id),
-                    status: updatedRun?.status || previousRun.status,
-                    closure_state: updatedRun?.closure_state || previousRun.closure_state
-                }
-            });
-            return { human_step: resolved, resumed_run: updatedRun };
-        }
+                return { terminal: { human_step: resolved, resumed_run: closedRun } };
+            }
+            if (isApprovalOnlyIngestWorkflow(workflow) && previousRun) {
+                const approvalLabel = isMeetingReviewPackageWorkflow(workflow)
+                    ? 'Meeting Review Package'
+                    : 'Agent report';
+                const auditPrefix = isMeetingReviewPackageWorkflow(workflow)
+                    ? 'workflow.run.meeting_review_approvals'
+                    : 'workflow.run.agent_report_approvals';
+                const allHumanSteps = this.repository.listHumanSteps(step.workflow_run_id);
+                const pendingHumanSteps = allHumanSteps.filter((humanStep) => isPendingHumanStepStatus(humanStep.status));
+                const approvedHumanSteps = allHumanSteps.filter((humanStep) => isApprovedHumanResolution(humanStep.status));
+                const rejectedHumanSteps = allHumanSteps.filter((humanStep) => isRejectedHumanStepStatus(humanStep.status));
+                const allApproved = allHumanSteps.length > 0 && approvedHumanSteps.length === allHumanSteps.length;
+                const hasRejectedStep = rejectedHumanSteps.length > 0 || previousRun.status === 'cancelled';
+                const updatedRun = hasRejectedStep
+                    ? this.repository.updateRun(previousRun.id, {
+                        status: 'cancelled',
+                        closure_state: 'closed',
+                        human_waiting: false,
+                        action_required: 'none',
+                        message: `${approvalLabel} human approvals stopped after rejected gate`,
+                        finished_at: new Date().toISOString()
+                    })
+                    : this.repository.updateRun(previousRun.id, {
+                        status: allApproved ? 'success' : 'waiting_human',
+                        closure_state: allApproved ? 'closed' : 'open',
+                        human_waiting: !allApproved,
+                        action_required: allApproved ? 'none' : 'approve',
+                        message: allApproved
+                            ? `${approvalLabel} human approvals completed`
+                            : `${approvalLabel} is waiting for ${pendingHumanSteps.length} human approval(s)`,
+                        finished_at: new Date().toISOString()
+                    });
+                this.repository.writeAuditLog({
+                    workspace_id: step.workspace_id,
+                    project_id: step.project_id,
+                    actor_id: actor.person_id || actor.sub || 'system',
+                    action: hasRejectedStep
+                        ? `${auditPrefix}.cancelled`
+                        : allApproved
+                        ? `${auditPrefix}.completed`
+                        : `${auditPrefix}.progressed`,
+                    target_type: 'workflow_run',
+                    target_id: previousRun.id,
+                    after: {
+                        human_step_id: stepId,
+                        approved_human_step_ids: approvedHumanSteps.map((humanStep) => humanStep.id),
+                        pending_human_step_ids: pendingHumanSteps.map((humanStep) => humanStep.id),
+                        rejected_human_step_ids: rejectedHumanSteps.map((humanStep) => humanStep.id),
+                        status: updatedRun?.status || previousRun.status,
+                        closure_state: updatedRun?.closure_state || previousRun.closure_state
+                    }
+                });
+                return { terminal: { human_step: resolved, resumed_run: updatedRun } };
+            }
+            return { step, resolved, previousRun };
+        });
+        if (mutation.terminal) return mutation.terminal;
+        const { step, resolved, previousRun } = mutation;
         const resume = await this.runWorkflow(step.workflow_id, {
             actorId: actor.person_id || actor.sub || 'system',
             projectCodes: actor.projectCodes || [],
@@ -4540,18 +4577,20 @@ export class WorkflowService {
                 reason: resolved.reason
             }
         });
-        this.repository.writeAuditLog({
-            workspace_id: step.workspace_id,
-            project_id: step.project_id,
-            actor_id: actor.person_id || actor.sub || 'system',
-            action: 'workflow.run.human_step.resumed',
-            target_type: 'workflow_run',
-            target_id: resume.run.id,
-            after: {
-                human_step_id: stepId,
-                previous_run_id: step.workflow_run_id,
-                status: resume.run.status
-            }
+        await this._transaction(() => {
+            this.repository.writeAuditLog({
+                workspace_id: step.workspace_id,
+                project_id: step.project_id,
+                actor_id: actor.person_id || actor.sub || 'system',
+                action: 'workflow.run.human_step.resumed',
+                target_type: 'workflow_run',
+                target_id: resume.run.id,
+                after: {
+                    human_step_id: stepId,
+                    previous_run_id: step.workflow_run_id,
+                    status: resume.run.status
+                }
+            });
         });
         return { human_step: resolved, resumed_run: resume.run };
     }
@@ -4775,6 +4814,13 @@ export class WorkflowService {
             fail('workflow_run.workflow_id', workflowId, existingRun.workflow_id || null);
         }
         this._assertDispatchWorkflowRef(existingRun.workflow_id, loopIntent);
+    }
+
+    async _transaction(callback) {
+        if (typeof this.repository?.transaction !== 'function') {
+            throw new Error('WorkflowService requires a transactional workflow repository');
+        }
+        return this.repository.transaction(callback);
     }
 
     _writeWorkflowControlAudit({ item, actor, action, targetType }) {
