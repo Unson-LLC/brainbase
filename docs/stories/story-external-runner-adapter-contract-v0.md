@@ -45,9 +45,7 @@ Brainbase operatorとして、営業・マーケ・バックオフィス・開�
 - `workflow rollback guard`: `run.workflow_id` 未指定時にBrainbaseが生成するfallback Workflow IDはprojectごとに分離し、同じEve agent / external_run_idでも別projectのrunを既存Workflowへ混入させない。
 - `workflow ownership guard`: service/internal credential以外の外部runner requestでは、`loop_control.owner_id`、`cost_owner_id`、`approval_owner_id` が認証主体本人と一致しないpayloadを保存前に拒否する。
 - `workflow ownership guard`: service/internal credential以外の外部runner requestでは、Learning Candidateの暗黙 `actor_person_id` を認証済みpersonへ固定し、runner agentを人間本人の代理actorとして保存しない。
-- `workflow rollback guard`: Learning CandidateはGraph SSOTへ直接昇格せず、Candidate Store保存または監査可能なpending/deferred/conflict状態へ遷移する。retryableなCandidate Store write失敗はdeferred auditとして残し、duplicate replayで再試行できる状態を保つ。
-- `workflow rollback guard`: 派生済みのglobal candidate idが既存Candidateと衝突した場合は、既存Candidateのimmutable projectionが完全一致する時だけstoredとして収束させる。不一致またはduplicate後に既存Candidateを取得できない場合は `external_runner.candidate_conflict` と `resolve_candidate_conflict` を記録して明示的に失敗させ、identity conflictをdeferredへ丸めない。
-- `workflow retry matrix`: Candidate Store I/Oの前にpending auditを共有Workflow台帳へ保存し、外部I/Oは台帳transactionの外で実行する。stored/deferred/conflictへの遷移は短い共有transactionで確定し、duplicate replayはpending Candidateだけを再開して監査行を重複させない。
+- `workflow rollback guard`: Learning CandidateはGraph SSOTへ直接昇格せず、Candidate Store保存またはdeferred auditへ遷移する。Candidate Store write失敗時もdeferred auditとして残し、duplicate replayで見える状態を保つ。
 
 ## Failure Modes
 

@@ -10,6 +10,7 @@ related_docs:
   - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
   - docs/specs/cross-runtime-run-receipt-inbox-v1.md
   - docs/stories/story-external-runner-adapter-contract-v0.md
+  - docs/specs/story-external-runner-adapter-contract-v0-spec.md
 supersedes: []
 superseded_by: []
 ---
