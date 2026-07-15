@@ -60,44 +60,189 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - Browser E2E: tracked Playwrightで実server-to-server ingest、実Inbox API、latest-run collapse、priority、filter、failure boundary、既存の非receipt Operational Inbox itemの維持をcurrent HEADで確認。
 - Failure semantics: API 503時も既存receipt snapshotを保持し、取得不能を0件へ丸めないことを確認。
 
-## Scenarios
+## 受け入れシナリオ
 
-- S-001: Given a source reports `success`, when Brainbase projects the receipt, then it maps to `success / closed / none`; `unconfirmed|no_data` still remains visible for operator review. (AC-3, AC-4)
-- S-002: Given a source reports `failed`, when Brainbase projects the receipt, then it maps to `failed / needs_action / check_error` without losing the evidence state. (AC-3, AC-4)
-- S-003: Given a source reports `blocked`, when Brainbase projects the receipt, then it maps to `needs_action / needs_action / resolve_blocker` and ranks above failed runs. (AC-4, AC-5)
-- S-004: Given a source reports `waiting_human`, when Brainbase projects the receipt, then it maps to `waiting_human / open / review_run`. (AC-4)
-- S-005: Given a source reports `cancelled`, when Brainbase projects the receipt, then it remains `cancelled / closed / none` and is never counted as success. (AC-4)
-- S-006: Given the same project/source/external run identity is delivered again, when normalized content is identical or only delivery metadata changes, then Brainbase returns duplicate; concurrent delivery creates exactly one run. (AC-2, AC-8, AC-9)
-- S-007: Given the same identity is delivered with different normalized content, when ingest validates idempotency, then it rejects the conflict without ledger mutation. (AC-1, AC-2)
-- S-008: Given schema, auth, project access, raw-content, or evidence validation fails, when ingest is attempted, then no workflow, run, step, or audit is partially saved. (AC-1, AC-6, AC-7, AC-10, AC-15)
-- S-009: Given a confirmed filtered Inbox snapshot is visible, when the next filter request times out or returns 5xx, then Agent Run Inbox preserves both the confirmed items and their confirmed filters, shows unavailable, and leaves Operational Inbox usable. (AC-5, AC-11, AC-12, AC-14)
-- S-010: Given source, project, run-status, and evidence-state filters, when they are composed, then only matching latest receipts are shown and an unavailable response is never interpreted as zero results. (AC-5, AC-11, AC-12)
-- S-011: Given ingest or listing access, when authentication, CSRF, or project authorization is invalid, then the request is rejected without broadening the existing exemptions or revealing another project. (AC-1, AC-6, AC-10)
-- S-012: Given an interrupted pending external_runner.v0 candidate delivery, when it is replayed, then exact stored candidates resume idempotently, mismatches remain actionable conflicts, and legacy post-convergence duplicate audit behavior is preserved. (AC-13, AC-15)
-- S-013: Given the connector cannot obtain a source run identity, when it reports the attempt, then Brainbase records a visible connector observation rather than inventing a failed source run or an empty success. (AC-3, AC-4)
-- S-014: Given an operator uses Workflow Mission Control, when receipts are loaded or filtered, then source status, uncertainty, action, evidence refs, labels, keyboard focus, and status-region warnings remain accessible and match API order. (AC-5, AC-11, AC-14)
-- S-015: Given receipt and non-receipt workflows share the ledger, when legacy workflow, run, rerun, and Operational Inbox routes are used, then receipts stay isolated in Agent Run Inbox while existing non-receipt membership and priority remain unchanged. (AC-12, AC-13)
-- S-016: Given the receipt Inbox request times out, fails at the network, or returns 5xx, when the failure is projected, then only Agent Run Inbox becomes unavailable and the confirmed snapshot, Workflow page, and Operational Inbox remain usable. (AC-11, AC-12, AC-14)
-- S-017: Given multiple receipt runs for the same source workflow identity, when the Inbox is projected, then the latest run is selected before filters, count, priority, and limit so old failures are not resurrected. (AC-5)
-- S-018: Given collapsed receipts have equal priority or equivalent instants with different offsets, when ordering and limiting are repeated, then epoch-based tie-breakers and deterministic run id yield the same items. (AC-5)
-- S-019: Given the browser loads Agent Run Inbox, when data succeeds or fails, then a dedicated client and DI-composed service update the Reactive Store and EventBus without page-local HTTP access or mutation of legacy workflow state. (AC-11, AC-12)
-- S-020: Given concurrent receipt and legacy writers share the JSON ledger, when commits, failures, startup seeding, nested transactions, or candidate-outbox recovery overlap, then guarded transactions preserve all committed workflow, run, step, and audit data without deadlock or rollback overwrite. (AC-8, AC-9, AC-13, AC-15)
+### S-001: success receiptを投影する
+
+- Given: sourceがsuccessとconfirmed、unconfirmed、またはno_dataを報告する
+- When: BrainbaseがreceiptをWorkflow Mission Controlへ投影する
+- Then: runをsuccessとして保持し、unconfirmedまたはno_dataならoperator review対象として可視化する
+
+### S-002: failed receiptを投影する
+
+- Given: sourceがfailedと根拠状態を報告する
+- When: Brainbaseがreceiptを投影する
+- Then: failed、needs_action、check_errorへ写像し、根拠状態を失わない
+
+### S-003: blocked receiptを最優先する
+
+- Given: sourceがblockedとblockerまたはactionを報告する
+- When: Agent Run Inboxがpriorityを計算する
+- Then: needs_actionとresolve_blockerへ写像し、通常のfailed runより上位に置く
+
+### S-004: waiting_human receiptを投影する
+
+- Given: sourceがwaiting_humanを報告する
+- When: Brainbaseがreceiptを投影する
+- Then: waiting_human、open、review_runとして人間判断待ちを保持する
+
+### S-005: cancelledをsuccessへ変換しない
+
+- Given: sourceがcancelledを報告する
+- When: Brainbaseがreceiptを投影する
+- Then: cancelled、closed、noneとして保持し、success件数へ含めない
+
+### S-006: 同一identityを冪等再送する
+
+- Given: 同じproject、source、external run identityのreceiptが再送または同時送信される
+- When: normalized contentが同一またはdelivery metadataだけが異なる
+- Then: 1件だけをcreateし、残りをduplicateとして返す
+
+### S-007: 同一identityの内容衝突を拒否する
+
+- Given: 同じidentityでnormalized contentが異なるreceiptが届く
+- When: ingestがidempotencyを検証する
+- Then: ledgerを変更せずidentity conflictとして拒否する
+
+### S-008: 検証失敗をatomicに拒否する
+
+- Given: schema、auth、project access、raw-content、またはevidence validationが失敗する
+- When: ingestを試行する
+- Then: workflow、run、step、auditを部分保存せず拒否する
+
+### S-009: filter変更失敗時に確認済みsnapshotを守る
+
+- Given: 確認済みfilterとAgent Run Inbox snapshotが表示されている
+- When: 次のfilter requestがtimeoutまたは5xxになる
+- Then: 確認済みitemとfilterを保持し、取得不能を表示し、Operational Inboxを利用可能に保つ
+
+### S-010: filterをlatest receiptへ合成する
+
+- Given: source、project、run status、evidence stateのfilterが指定される
+- When: Inboxを投影する
+- Then: workflow identityごとの最新receiptだけへfilterを合成し、取得不能を0件として扱わない
+
+### S-011: 認証境界を狭く保つ
+
+- Given: ingestまたはlistingへの認証、CSRF、project authorizationが不正である
+- When: APIへアクセスする
+- Then: 既存exemptionを広げず、他projectを開示せず、書込前に拒否する
+
+### S-012: external runner candidate outboxを回復する
+
+- Given: external_runner.v0 candidate deliveryがpendingで中断している
+- When: 同じrunをreplayする
+- Then: exact stored candidateは冪等再開し、mismatchはactionable conflict、収束後のduplicate audit互換を維持する
+
+### S-013: source identity不明をconnector observationにする
+
+- Given: connectorがsource-owned run identityを取得できない
+- When: connector自身の観測試行を報告する
+- Then: connector observationとして可視化し、source failureや空successを捏造しない
+
+### S-014: operator surfaceをaccessibility込みで表示する
+
+- Given: operatorがWorkflow Mission Controlを利用する
+- When: receiptを読み込みまたはfilterする
+- Then: status、uncertainty、action、evidence ref、label、keyboard focus、status warningをAPI順序と一致させる
+
+### S-015: legacy workflow surfaceからreceiptを隔離する
+
+- Given: receiptとnon-receipt workflowが共有ledgerに存在する
+- When: legacy workflow、run、rerun、Operational Inbox routeを使う
+- Then: receiptはAgent Run Inboxだけに現れ、non-receiptのmembershipとpriorityを変えない
+
+### S-016: Inbox取得不能を局所化する
+
+- Given: receipt Inbox requestがtimeout、network error、または5xxになる
+- When: failureをUIへ投影する
+- Then: Agent Run Inboxだけをunavailableにし、確認済みsnapshot、Workflow page、Operational Inboxを維持する
+
+### S-017: 最新runをfilterより先に選ぶ
+
+- Given: 同じsource workflow identityに複数receipt runがある
+- When: Inboxを投影する
+- Then: filter、count、priority、limitより先に最新runを選び、古いfailureを復活させない
+
+### S-018: total orderを決定的にする
+
+- Given: receiptのpriorityまたはoffset違いのUTC instantが同値である
+- When: orderingとlimitを繰り返す
+- Then: epoch、persisted created_at、deterministic run idのtie-breakで同じitemsを返す
+
+### S-019: UI stateを専用serviceから更新する
+
+- Given: browserがAgent Run Inboxを読み込む
+- When: API取得が成功または失敗する
+- Then: 専用clientとDI serviceがReactive StoreとEventBusを更新し、legacy workflow stateを直接変更しない
+
+### S-020: shared ledger writerを直列化する
+
+- Given: receiptとlegacy writerが同じJSON ledgerへ同時に書き込む
+- When: commit、failure、seed、nested transaction、candidate outbox recoveryが重なる
+- Then: deadlockやrollback overwriteを起こさず、全commit済みworkflow、run、step、auditを保持する
+
+## Workflow State Scenarios
+
+- S-001 `workflow state transition`: validated success receiptをsource statusを変えずclosedへ投影し、不確実なevidenceはreview対象に残す。
+- S-002 `workflow state transition`: failed receiptをneeds_actionへ投影し、evidence lifecycleを維持する。
+- S-003 `workflow state transition`: blocked receiptをresolve_blocker付き最優先itemへ投影する。
+- S-004 `workflow state transition`: waiting_human receiptをopenかつreview_runへ投影する。
+- S-005 `workflow state transition`: cancelled receiptをclosedへ投影しsuccessへ変換しない。
+- S-006 `workflow retry transition`: 同一receiptの再送はcreate済みrunをduplicateとして返す。
+- S-007 `workflow rollback transition`: 同一identityの内容衝突はledger mutation前に拒否する。
+- S-008 `workflow rollback transition`: schemaまたはauthorization failureは全collectionをwrite-freeに保つ。
+- S-009 `workflow retry transition`: filter request失敗時は最後のconfirmed snapshotとfiltersへ戻す。
+- S-010 `workflow state transition`: latest selection後にfilter、priority、count、limitを適用する。
+- S-011 `workflow auth boundary transition`: server-to-server credentialとproject scopeを通過したrequestだけを処理する。
+- S-012 `workflow retry transition`: pending candidate intentをexact match時だけ再開し、conflictはpendingで止める。
+- S-013 `workflow state transition`: source identity不明の試行をconnector observationへ投影する。
+- S-014 `workflow state transition`: APIのorderとuncertaintyをaccessible UIへ損失なく投影する。
+- S-015 `workflow compatibility transition`: receiptをlegacy workflow surfaceから除外しAgent Run Inboxだけへ載せる。
+- S-016 `workflow rollback transition`: Inbox failureをreceipt sectionへ局所化しconfirmed stateへ戻す。
+- S-017 `workflow state transition`: workflow identity単位でlatest runへcollapseしてからfilterする。
+- S-018 `workflow state transition`: UTC epochと永続化tie-breakによるtotal orderを返す。
+- S-019 `workflow state transition`: receipt専用serviceがStore更新とloadedまたはfailed eventを発火する。
+- S-020 `workflow rollback transition`: shared-ledger transactionはouter ownerだけがcommitまたはrollbackする。
+
+## Scenario Clauses
+
+- SCN-001: S-001のsuccess projectionでevidence uncertaintyをreview対象として保持する。
+- SCN-002: S-002のfailed projectionでerrorとevidence stateを保持する。
+- SCN-003: S-003のblocked projectionをfailedより高いpriorityにする。
+- SCN-004: S-004のwaiting_human projectionを人間判断待ちとして保持する。
+- SCN-005: S-005のcancelled projectionをsuccessへ数えない。
+- SCN-006: S-006のidempotent replayとconcurrent deliveryでexactly one createを保証する。
+- SCN-007: S-007のidentity conflictでwrite-free rejectionを保証する。
+- SCN-008: S-008のschema、auth、evidence failureでatomic rollbackを保証する。
+- SCN-009: S-009のfailed filter transitionでconfirmed snapshotとfiltersを保持する。
+- SCN-010: S-010のcomposed filterをlatest collapse後に適用する。
+- SCN-011: S-011のauth、CSRF、project access boundaryを狭く保つ。
+- SCN-012: S-012のcandidate outbox replayでexact adoptionとconflictを区別する。
+- SCN-013: S-013のsource identity unavailableをconnector observationとして保持する。
+- SCN-014: S-014のAPI order、keyboard focus、status regionをUIへ保持する。
+- SCN-015: S-015のlegacy isolationでreceiptをexactly once表示する。
+- SCN-016: S-016のtimeout、network、5xx failureをreceipt sectionへ局所化する。
+- SCN-017: S-017のlatest selectionをfilter、count、limitより先に行う。
+- SCN-018: S-018のepochとdeterministic idで安定したpaginationを保証する。
+- SCN-019: S-019のclient、service、Store、EventBus境界を維持する。
+- SCN-020: S-020のconcurrent writer、nested rollback、seed recoveryで全commit済みdataを保持する。
 
 ## Failure Modes
 
-- `schema_failure`: 未定義status/evidence state、空のidentity、壊れたevidence refは400で拒否する。
-- `schema_failure`: source label、summary、blocker、action、metric、evidence label/refに改行・制御文字・上限超過・禁止keyがある場合は400で拒否する。connectorは送信前に顧客本文・secret・raw logを除去する。
-- `auth_denied`: cookieだけのbrowser requestやproject非許可credentialは403で拒否する。
-- `source_unavailable`: connectorがsourceへ接続できずsource run identityも得られない場合は、connector自身の観測試行を `observation_kind=connector_observation`、synthetic external run identity、`blocked + no_data|unconfirmed` として表現する。source runを失敗扱いに偽装しない。
-- `delivery_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。
-- `receipt_inbox_failure`: receipt一覧APIの取得失敗はAgent Run Inboxだけにwarningを表示し、既存workflow一覧の取得・描画を巻き込まない。取得不能を0件と表示しない。
-- `stale_receipt_history`: 同一source workflowの古いblocked/failed runは履歴として台帳に残すが、新しいrunより上位のInbox itemとして再表示しない。
-- `shared_ledger_race`: receipt identityが異なっても共有JSON台帳は同じため、repository-wide transaction lockなしで全体ファイルをrenameしない。失敗transactionはdiskへrollback snapshotを書き戻さず、lock取得時点のdisk stateを維持する。
-- `receipt_identity_lock_timeout`: `workspace_id=run_receipt:<project_id>` と決定的run idのlockをbounded retryで取得できない場合は、書込前に停止し、`Retry-After` 付きHTTP 503として再試行可能性を明示する。payload不正やidentity conflictの400とは分離する。
-- `nested_transaction_deadlock`: 同一async contextのnested transactionをin-process queueの後ろへ再投入しない。inner callbackは外側transactionへjoinし、inner failureはtransactionをrollback-onlyにして、呼び出し側が例外をcatchしても外側commitを拒否する。
-- `unserialized_writer`: JsonFile repositoryのshared-ledger collection mutation primitiveはactive transaction contextなしでは `workflow_repository_transaction_required` としてwrite前に拒否する。identity lock/lease metadataは台帳外で同期し、lock操作で台帳をreloadしない。runtime serviceはremote handler、network、Candidate Store、長時間sleepをfile lease内でawaitせず、各永続化まとまりだけを短いtransactionへ入れる。
-- `bootstrap_seed_race`: seed workflowはrepository公開前に同じfile leaseとtransaction ownerで初期化し、既存台帳をreload後に不足分だけ追加する。constructorから通常mutatorをguard外呼び出ししない。
-- `candidate_outbox_interruption`: external_runnerのcandidate intentを台帳へ先にcommitし、実行スコープから派生したglobal candidate idでlease外保存後に結果を短いtransactionで確定する。store済み未確定のexact replayはfindByIdでimmutable projectionが一致する場合だけ採用し、相違はpending/actionable conflictとして拒否する。pending再開はduplicate auditを書かず、全intent収束後の次回duplicateだけ既存 `external_runner.duplicate_replay_ignored` auditを短いtransactionで書く。
+- FM-001 `schema_failure`: 未定義status/evidence state、空のidentity、壊れたevidence refは400で拒否する。
+- FM-002 `parse_failure`: source label、summary、blocker、action、metric、evidence label/refに改行・制御文字・上限超過・禁止keyがある場合は400で拒否する。connectorは送信前に顧客本文・secret・raw logを除去する。
+- FM-003 `auth_denied`: cookieだけのbrowser requestやproject非許可credentialは403で拒否する。
+- FM-004 `source_unavailable`: connectorがsourceへ接続できずsource run identityも得られない場合は、connector自身の観測試行を `observation_kind=connector_observation`、synthetic external run identity、`blocked + no_data|unconfirmed` として表現する。source runを失敗扱いに偽装しない。
+- FM-005 `delivery_failure retry_or_async_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。
+- FM-006 `receipt_inbox_failure evidence_lifecycle_regression`: receipt一覧APIの取得失敗はAgent Run Inboxだけにwarningを表示し、既存workflow一覧の取得・描画を巻き込まない。取得不能を0件と表示しない。
+- FM-007 `stale_receipt_history`: 同一source workflowの古いblocked/failed runは履歴として台帳に残すが、新しいrunより上位のInbox itemとして再表示しない。
+- FM-008 `shared_ledger_race`: receipt identityが異なっても共有JSON台帳は同じため、repository-wide transaction lockなしで全体ファイルをrenameしない。失敗transactionはdiskへrollback snapshotを書き戻さず、lock取得時点のdisk stateを維持する。
+- FM-009 `receipt_identity_lock_timeout retry_or_async_failure`: `workspace_id=run_receipt:<project_id>` と決定的run idのlockをbounded retryで取得できない場合は、書込前に停止し、`Retry-After` 付きHTTP 503として再試行可能性を明示する。payload不正やidentity conflictの400とは分離する。
+- FM-010 `nested_transaction_deadlock`: 同一async contextのnested transactionをin-process queueの後ろへ再投入しない。inner callbackは外側transactionへjoinし、inner failureはtransactionをrollback-onlyにして、呼び出し側が例外をcatchしても外側commitを拒否する。
+- FM-011 `unserialized_writer`: JsonFile repositoryのshared-ledger collection mutation primitiveはactive transaction contextなしでは `workflow_repository_transaction_required` としてwrite前に拒否する。identity lock/lease metadataは台帳外で同期し、lock操作で台帳をreloadしない。runtime serviceはremote handler、network、Candidate Store、長時間sleepをfile lease内でawaitせず、各永続化まとまりだけを短いtransactionへ入れる。
+- FM-012 `bootstrap_seed_race`: seed workflowはrepository公開前に同じfile leaseとtransaction ownerで初期化し、既存台帳をreload後に不足分だけ追加する。constructorから通常mutatorをguard外呼び出ししない。
+- FM-013 `candidate_outbox_interruption retry_or_async_failure`: external_runnerのcandidate intentを台帳へ先にcommitし、実行スコープから派生したglobal candidate idでlease外保存後に結果を短いtransactionで確定する。store済み未確定のexact replayはfindByIdでimmutable projectionが一致する場合だけ採用し、相違はpending/actionable conflictとして拒否する。pending再開はduplicate auditを書かず、全intent収束後の次回duplicateだけ既存 `external_runner.duplicate_replay_ignored` auditを短いtransactionで書く。
 
 ## 非目標
 

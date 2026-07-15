@@ -42,6 +42,8 @@
           "public/modules/core/store.js",
           "public/modules/core/event-bus.js",
           "public/workflows.html",
+          "playwright.config.js",
+          "tests/e2e/story-cross-runtime-run-receipt-inbox-v1-flow.spec.ts",
           "tests/server/services/run-receipt-*.test.js",
           "tests/server/services/workflow-repository-transaction.test.js",
           "tests/server/services/workflow-org-agent-control.test.js",

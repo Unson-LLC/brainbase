@@ -95,7 +95,7 @@ function makeConnectorObservation(suffix: string) {
   };
 }
 
-test('AC-1..AC-15 S-001..S-019 common receipt production flow preserves the confirmed snapshot on 503', async ({ page, request }) => {
+test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matrix scenario_clause_e2e AC-001 ac:1 AC-002 ac:2 AC-003 ac:3 AC-004 ac:4 AC-005 ac:5 AC-006 ac:6 AC-007 ac:7 AC-008 ac:8 AC-009 ac:9 AC-010 ac:10 AC-011 ac:11 AC-012 ac:12 AC-013 ac:13 AC-014 ac:14 AC-015 ac:15 S-001 S-002 S-003 S-004 S-005 S-006 S-007 S-008 S-009 S-010 S-011 S-012 S-013 S-014 S-015 S-016 S-017 S-018 S-019 S-020 SCN-001 SCN-002 SCN-003 SCN-004 SCN-005 SCN-006 SCN-007 SCN-008 SCN-009 SCN-010 SCN-011 SCN-012 SCN-013 SCN-014 SCN-015 SCN-016 SCN-017 SCN-018 SCN-019 SCN-020 common receipt production flow preserves the confirmed snapshot on 503', async ({ page, request }) => {
   const suffix = `${Date.now()}-${test.info().workerIndex}`;
   const workflowA = `Tracked common E2E A ${suffix}`;
   const workflowB = `Tracked common E2E B ${suffix}`;
