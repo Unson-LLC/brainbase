@@ -6,6 +6,7 @@ import {
   InMemoryWorkflowRepository,
   JsonFileWorkflowRepository,
 } from '../server/services/workflow/workflow-repository.js';
+import { createCanonicalTaskStoreConfig } from '../server/services/companion/canonical-task-store-config.js';
 
 export const CANONICAL_TASK_LIVE_APPROVAL_FIXTURE = Object.freeze({
   workflowId: 'wf-live-task-review',
@@ -101,11 +102,9 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--ledger') parsed.ledgerPath = argv[++index];
-    else if (argument === '--owner-person-id') parsed.ownerPersonId = argv[++index];
     else throw new Error(`Unknown argument: ${argument}`);
   }
   if (!parsed.ledgerPath) throw new Error('--ledger is required');
-  if (!parsed.ownerPersonId) throw new Error('--owner-person-id is required');
   return parsed;
 }
 
@@ -121,9 +120,10 @@ async function main() {
     const repository = new JsonFileWorkflowRepository({
       filePath: path.resolve(args.ledgerPath),
     });
+    const { ownerPersonId } = createCanonicalTaskStoreConfig();
     const fixture = seedCanonicalTaskLiveApprovalFixture({
       repository,
-      ownerPersonId: args.ownerPersonId,
+      ownerPersonId,
     });
     process.stdout.write(`${JSON.stringify({ pass: true, fixture })}\n`);
   } catch (error) {
