@@ -302,20 +302,30 @@ export class CanonicalTaskNocoDBRepository {
             method: 'POST', body: JSON.stringify(this.toFields(input))
         });
         const record = Array.isArray(data?.list) ? data.list[0] : (Array.isArray(data) ? data[0] : data);
-        if (recordId(fieldsOf(record)) == null) {
-            const replay = await this.findByIdempotencyKey(input.idempotency_key);
-            if (replay) return replay;
+        const id = recordId(fieldsOf(record));
+        if (id != null) {
+            const persisted = await this.get(this.encodeId(String(id)));
+            if (persisted) return persisted;
         }
-        return this.normalize(record);
+        const replay = await this.findByIdempotencyKey(input.idempotency_key);
+        if (replay) return replay;
+        const error = new Error('Created NocoDB Task could not be read back');
+        error.code = 'task_store_unavailable';
+        error.status = 503;
+        throw error;
     }
 
     async update(taskId, input) {
         const id = this.decodeId(taskId);
-        const data = await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records`, {
+        await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records`, {
             method: 'PATCH', body: JSON.stringify({ Id: /^\d+$/.test(id) ? Number(id) : id, ...this.toFields(input) })
         });
-        const record = Array.isArray(data?.list) ? data.list[0] : (Array.isArray(data) ? data[0] : data);
-        return this.normalize(record) || this.get(taskId);
+        const persisted = await this.get(taskId);
+        if (persisted) return persisted;
+        const error = new Error('Updated NocoDB Task could not be read back');
+        error.code = 'task_store_unavailable';
+        error.status = 503;
+        throw error;
     }
 
     async delete(taskId) {

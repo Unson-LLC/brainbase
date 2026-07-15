@@ -111,6 +111,61 @@ describe('CanonicalTaskNocoDBRepository', () => {
         expect(fetchImpl.mock.calls.some(([url]) => new URL(url).searchParams.get('offset') === '1000')).toBe(true);
     });
 
+    it('reads the authoritative row after NocoDB returns only the created record id', async () => {
+        const persisted = {
+            Id: 10,
+            'タイトル': '作成後に読み直す',
+            'ステータス': '未着手',
+            '優先度': '高',
+            '担当者PersonID': 'owner',
+            'バージョン': 1,
+            'ソース参照': '[]'
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            if (options.method === 'POST') return response({ Id: 10 });
+            return response({ list: [persisted], pageInfo: { totalRows: 1, isLastPage: true } });
+        });
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl, apiToken: 'token', idSecret: 'secret' });
+
+        await expect(repository.create({
+            title: persisted['タイトル'],
+            status: 'pending',
+            priority: 'high',
+            assignee_person_id: 'owner',
+            version: 1,
+            source_refs: [],
+            idempotency_key: 'api:owner:create-readback'
+        })).resolves.toMatchObject({
+            title: persisted['タイトル'],
+            status: 'pending',
+            priority: 'high',
+            assignee_person_id: 'owner'
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('reads the authoritative row after NocoDB returns only the updated record id', async () => {
+        const persisted = {
+            Id: 11,
+            'タイトル': '更新後に読み直す',
+            'ステータス': '進行中',
+            '優先度': '中',
+            '担当者PersonID': 'owner',
+            'バージョン': 2,
+            'ソース参照': '[]'
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            if (options.method === 'PATCH') return response({ Id: 11 });
+            return response({ list: [persisted], pageInfo: { totalRows: 1, isLastPage: true } });
+        });
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl, apiToken: 'token', idSecret: 'secret' });
+        const taskId = repository.encodeId('11');
+
+        await expect(repository.update(taskId, { status: 'in_progress', version: 2 }))
+            .resolves.toMatchObject({ title: persisted['タイトル'], status: 'in_progress', version: 2 });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
     it('rejects opaque ids from another store or with a forged signature', () => {
         const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl: vi.fn(), apiToken: 'token', idSecret: 'secret' });
         const id = repository.encodeId('7');
