@@ -347,6 +347,60 @@ describe('WorkflowRepository transaction boundary', () => {
         })).toBe(true);
     });
 
+    it('reclaims a stale ownerless identity-lock mutation artifact after a crashed writer', () => {
+        const { filePath } = createTempLedger();
+        const repository = new JsonFileWorkflowRepository({
+            filePath,
+            workflowLockMutationTtlMs: 1000
+        });
+        const lockPath = repository._workflowLockPath({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1'
+        });
+        const mutationPath = `${lockPath}.mutation`;
+        fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+        fs.writeFileSync(lockPath, `${JSON.stringify({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'crashed-owner',
+            expires_at: new Date(Date.now() - 5000).toISOString()
+        })}\n`);
+        fs.mkdirSync(mutationPath);
+        const staleAt = new Date(Date.now() - 5000);
+        fs.utimesSync(mutationPath, staleAt, staleAt);
+
+        const lock = repository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'recovered-owner',
+            ttl_ms: 60000
+        });
+
+        expect(lock?.locked_by).toBe('recovered-owner');
+        expect(fs.existsSync(mutationPath)).toBe(false);
+    });
+
+    it('reclaims a malformed identity lock left by a partial legacy write', () => {
+        const { filePath } = createTempLedger();
+        const repository = new JsonFileWorkflowRepository({ filePath });
+        const lockPath = repository._workflowLockPath({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1'
+        });
+        fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+        fs.writeFileSync(lockPath, '{"locked_by":"partial');
+
+        const lock = repository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'recovered-owner',
+            ttl_ms: 60000
+        });
+
+        expect(lock?.locked_by).toBe('recovered-owner');
+        expect(JSON.parse(fs.readFileSync(lockPath, 'utf8')).locked_by).toBe('recovered-owner');
+    });
+
     it('never steals an expired lease from a live local owner but reclaims one from a dead pid', async () => {
         const { filePath } = createTempLedger();
         const leasePath = `${filePath}.transaction-lock.json`;

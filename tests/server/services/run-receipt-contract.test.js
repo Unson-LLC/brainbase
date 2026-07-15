@@ -173,6 +173,29 @@ describe('normalizeRunReceipt', () => {
     });
 
     it.each([
+        'none',
+        'check_error',
+        'resolve_blocker',
+        'review_run',
+        'retry_run',
+        'reauthorize',
+        'contact_owner'
+    ])('action_required=%s_契約値として保持される', (actionRequired) => {
+        const normalized = normalizeRunReceipt(makeReceipt({
+            run: { action_required: actionRequired }
+        }));
+
+        expect(normalized.immutable.run.action_required).toBe(actionRequired);
+        expect(normalized.projection.action_required).toBe(actionRequired === 'none' ? 'none' : actionRequired);
+    });
+
+    it('未知のaction_required_専用契約エラーになる', () => {
+        expect(() => normalizeRunReceipt(makeReceipt({
+            run: { action_required: 'restart_everything' }
+        }))).toThrowError(expect.objectContaining({ code: 'unsupported_action_required' }));
+    });
+
+    it.each([
         ['failed', 'failed', 'needs_action', 'check_error'],
         ['blocked', 'needs_action', 'needs_action', 'resolve_blocker'],
         ['waiting_human', 'waiting_human', 'open', 'review_run'],

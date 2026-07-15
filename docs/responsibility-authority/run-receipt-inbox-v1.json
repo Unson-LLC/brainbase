@@ -59,7 +59,7 @@
           "tests/unit/workflows-run-receipt-inbox-ui.test.js"
         ],
         "symbols": [
-          "RunReceiptAdapter",
+          "normalizeRunReceipt",
           "RunReceiptIngestService",
           "RunReceiptInboxClient",
           "RunReceiptInboxService",

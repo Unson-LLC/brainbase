@@ -552,13 +552,15 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         seedWorkflows = [],
         leaseAcquireTimeoutMs = 5000,
         leaseRetryMs = 20,
-        leaseTtlMs = 30000
+        leaseTtlMs = 30000,
+        workflowLockMutationTtlMs = 30000
     }) {
         super();
         this.filePath = filePath;
         this.leaseAcquireTimeoutMs = leaseAcquireTimeoutMs;
         this.leaseRetryMs = leaseRetryMs;
         this.leaseTtlMs = leaseTtlMs;
+        this.workflowLockMutationTtlMs = workflowLockMutationTtlMs;
         this.transactionLeasePath = filePath ? `${filePath}.transaction-lock.json` : null;
         this.transactionLeaseReclaimPath = this.transactionLeasePath
             ? `${this.transactionLeasePath}.reclaim`
@@ -617,13 +619,21 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
         };
 
         const writeLock = () => {
-            const fd = fs.openSync(lockPath, 'wx');
+            const pendingPath = `${lockPath}.pending-${crypto.randomUUID()}`;
+            const fd = fs.openSync(pendingPath, 'wx');
             try {
                 fs.writeFileSync(fd, `${JSON.stringify(lock, null, 2)}\n`);
+                fs.fsyncSync(fd);
             } finally {
                 fs.closeSync(fd);
             }
-            return clone(lock);
+            try {
+                // Publish only a complete file and never replace a competing owner.
+                fs.linkSync(pendingPath, lockPath);
+                return clone(lock);
+            } finally {
+                fs.rmSync(pendingPath, { force: true });
+            }
         };
 
         try {
@@ -635,7 +645,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             try {
                 const existing = this._readWorkflowLock(lockPath);
                 const expiresAt = new Date(existing?.expires_at).getTime();
-                if (!existing || !Number.isFinite(expiresAt) || expiresAt > Date.now()) return null;
+                if (existing && Number.isFinite(expiresAt) && expiresAt > Date.now()) return null;
                 quarantinePath = this._quarantineWorkflowLock(lockPath);
                 try {
                     return writeLock();
@@ -690,9 +700,68 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
     }
 
     _acquireWorkflowLockMutation(lockPath) {
+        const mutationPath = `${lockPath}.mutation`;
+        const createMutation = () => {
+            fs.mkdirSync(mutationPath);
+            try {
+                const now = Date.now();
+                fs.writeFileSync(path.join(mutationPath, 'owner.json'), `${JSON.stringify({
+                    owner_id: crypto.randomUUID(),
+                    pid: process.pid,
+                    acquired_at: new Date(now).toISOString(),
+                    expires_at: new Date(now + this.workflowLockMutationTtlMs).toISOString()
+                }, null, 2)}\n`);
+                return true;
+            } catch (error) {
+                fs.rmSync(mutationPath, { recursive: true, force: true });
+                throw error;
+            }
+        };
+
         try {
-            fs.mkdirSync(`${lockPath}.mutation`);
-            return true;
+            return createMutation();
+        } catch (error) {
+            if (error?.code !== 'EEXIST') throw error;
+        }
+
+        let stat;
+        let owner = null;
+        try {
+            stat = fs.statSync(mutationPath);
+        } catch (error) {
+            if (error?.code === 'ENOENT') {
+                try {
+                    return createMutation();
+                } catch (retryError) {
+                    if (retryError?.code === 'EEXIST') return false;
+                    throw retryError;
+                }
+            }
+            throw error;
+        }
+        try {
+            owner = JSON.parse(fs.readFileSync(path.join(mutationPath, 'owner.json'), 'utf8'));
+        } catch {
+            // Legacy/crashed guards may have no readable metadata. Their
+            // directory mtime remains the deterministic recovery clock.
+        }
+
+        const expiresAt = new Date(owner?.expires_at).getTime();
+        const expiredByMetadata = Number.isFinite(expiresAt) && expiresAt <= Date.now();
+        const expiredByAge = stat && Date.now() - stat.mtimeMs >= this.workflowLockMutationTtlMs;
+        if (owner && isLocalProcessAlive(owner.pid)) return false;
+        if (!expiredByMetadata && !expiredByAge) return false;
+
+        const quarantinePath = `${mutationPath}.stale-${crypto.randomUUID()}`;
+        try {
+            fs.renameSync(mutationPath, quarantinePath);
+        } catch (error) {
+            if (error?.code === 'ENOENT') return false;
+            throw error;
+        }
+        fs.rmSync(quarantinePath, { recursive: true, force: true });
+        try {
+            return createMutation();
         } catch (error) {
             if (error?.code === 'EEXIST') return false;
             throw error;
