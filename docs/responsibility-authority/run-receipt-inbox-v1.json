@@ -29,7 +29,11 @@
           "server/routes/run-receipts.js",
           "server/bootstrap/core-services.js",
           "server/bootstrap/register-api-routes.js",
+          "server/services/workflow/workflow-repository.js",
           "server/services/workflow/workflow-service.js",
+          "server/services/workflow/workflow-runner.js",
+          "server/services/external-runner/ingest-service.js",
+          "server/services/external-runner/eve-meeting-note-reconciler.js",
           "server/middleware/csrf.js",
           "public/modules/domain/run-receipt/run-receipt-inbox-client.js",
           "public/modules/domain/run-receipt/run-receipt-inbox-service.js",
@@ -37,6 +41,9 @@
           "public/modules/core/event-bus.js",
           "public/workflows.html",
           "tests/server/services/run-receipt-*.test.js",
+          "tests/server/services/workflow-repository-transaction.test.js",
+          "tests/server/services/workflow-org-agent-control.test.js",
+          "tests/server/services/external-runner-ingest-service.test.js",
           "tests/server/routes/run-receipt-routes.test.js",
           "tests/unit/csrf-run-receipt-ingest-exempt.test.js",
           "tests/ui/run-receipt-inbox.test.js"
@@ -46,6 +53,8 @@
           "RunReceiptIngestService",
           "RunReceiptInboxClient",
           "RunReceiptInboxService",
+          "InMemoryWorkflowRepository.transaction",
+          "JsonFileWorkflowRepository.transaction",
           "createRunReceiptRouter",
           "listRunReceiptInbox",
           "EVENTS.RUN_RECEIPT_INBOX_LOADED",
@@ -56,7 +65,8 @@
           "core_workflow_state",
           "server_api",
           "auth_boundary",
-          "cross_runtime_integration"
+          "cross_runtime_integration",
+          "shared_core_persistence"
         ]
       },
       "required_evidence": [

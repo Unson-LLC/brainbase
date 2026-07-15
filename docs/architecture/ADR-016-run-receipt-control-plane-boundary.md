@@ -30,7 +30,9 @@ Brainbase owns the canonical operational receipt contract and Agent Run Inbox. E
 
 Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
 
-The deterministic receipt identity is the idempotency lock scope. Brainbase acquires it before duplicate lookup, then enters a repository-wide write transaction before inspecting or mutating the shared ledger. The repository-wide transaction serializes distinct receipt identities and existing transaction writers; the JSON repository reloads under its file-wide lease, defers persistence, and commits the complete transaction once. Rollback restores process memory only and never writes a stale snapshot over another commit. Lock ordering is always receipt identity first and shared-ledger transaction second; shared-ledger transactions never acquire receipt identity locks. Brainbase stores a digest of the immutable contract/source/run projection and excludes delivery retry metadata from duplicate equality.
+The deterministic receipt identity is the idempotency lock scope. Brainbase acquires it before duplicate lookup, then enters a repository-wide write transaction before inspecting or mutating the shared ledger. The repository-wide transaction serializes distinct receipt identities and every production shared-ledger writer; the JSON repository reloads under its file-wide lease, defers persistence, and commits the complete transaction once. Rollback restores process memory only and never writes a stale snapshot over another commit. Lock ordering is always receipt identity first and shared-ledger transaction second; shared-ledger transactions never acquire receipt identity locks. Brainbase stores a digest of the immutable contract/source/run projection and excludes delivery retry metadata from duplicate equality.
+
+Repository transactions are context-aware and reentrant. A nested transaction invoked by the same async owner joins the outer transaction without reacquiring the queue or file lease; only the outermost owner snapshots, reloads, persists, or restores. Any nested failure marks the owner rollback-only, so catching the inner error cannot accidentally commit partial state. Unrelated async owners remain serialized. File-lease acquisition is bounded, a live owner is never stolen, and stale recovery requires both an expired lease and proof that the recorded local process no longer exists. Production JsonFile mutators reject calls outside an active transaction before changing memory. WorkflowService, WorkflowRunner, external_runner, and other production writers use short transaction callbacks around persistence only; remote handlers, network I/O, and long waits run outside the file lease.
 
 The tuple is canonically encoded and hashed before use as a delivery key or WMC identifier, so separators inside source values cannot collide. WMC internal workflow identity is separately derived from `project_id + source.type + source.workflow_id`; original source identities remain metadata.
 
@@ -44,7 +46,8 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Source run result and receipt delivery result remain separate facts.
 - Source unavailability is represented explicitly and cannot become an empty success metric.
 - Existing Workflow Mission Control authorization, project boundary, persistence, and audit surfaces are reused.
-- Shared JSON persistence gains one repository-wide transaction boundary so receipt, external runner, and other transaction writers cannot overwrite each other.
+- Shared JSON persistence gains one repository-wide transaction boundary so receipt, external runner, WorkflowService, WorkflowRunner, and other production writers cannot overwrite each other.
+- Existing nested WorkflowService transaction paths remain live through same-owner reentrancy instead of deadlocking on the queue.
 - Connector Stories can evolve independently while sharing one versioned receipt contract.
 
 ## Rejected Alternatives
@@ -61,3 +64,4 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Inbox tests prove priority/filter semantics and explicit evidence states.
 - Workflow Mission Control UI tests prove uncertainty is visible and API/UI ordering agrees without changing non-receipt workflow priority.
 - Existing `external_runner.v0` tests remain green.
+- Repository tests prove same-owner nested transaction completion, rollback-only propagation, bounded lease timeout/stale recovery, transaction-outside-write rejection, and preservation across receipt, external-runner duplicate replay, WorkflowService, and WorkflowRunner races.
