@@ -72,6 +72,23 @@ describe('RunReceiptIngestService', () => {
         expect(repository.listAuditLogs()).toHaveLength(0);
     });
 
+    it.each([
+        ['log_ref', 'https://user:password@example.invalid/log'],
+        ['artifact_ref', 'cloudwatch:user:password@example.invalid/log']
+    ])('credential-bearing %s_workflow/run/step/auditを一切変更せず拒否する', async (kind, ref) => {
+        const { repository, service } = makeService();
+        const snapshot = JSON.stringify(repository.ledger);
+
+        await expect(service.ingest(makeReceipt({
+            run: { evidence_refs: [{ kind, ref }] }
+        }))).rejects.toMatchObject({ code: 'invalid_evidence_ref' });
+
+        expect(JSON.stringify(repository.ledger)).toBe(snapshot);
+        expect(repository.listWorkflows()).toHaveLength(0);
+        expect(repository.listRuns({ limit: null })).toHaveLength(0);
+        expect(repository.listAuditLogs()).toHaveLength(0);
+    });
+
     it('valid receipt_共有台帳へworkflow/run/auditを原子的に投影する', async () => {
         const { repository, service } = makeService();
         const result = await service.ingest(makeReceipt());

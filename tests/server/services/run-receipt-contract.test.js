@@ -115,10 +115,28 @@ describe('normalizeRunReceipt', () => {
         ['non finite metrics', { run: { metrics: { processed: Number.POSITIVE_INFINITY } } }],
         ['finished before started', { run: { finished_at: '2026-07-15T08:59:00+09:00' } }],
         ['http evidence', { run: { evidence_refs: [{ kind: 'url', ref: 'http://example.com/log' }] } }],
+        ['credentialed opaque HTTPS ref', { run: { evidence_refs: [{ kind: 'log_ref', ref: 'https://user:password@example.invalid/log' }] } }],
+        ['credentialed opaque source ref', { run: { evidence_refs: [{ kind: 'artifact_ref', ref: 'cloudwatch:user:password@example.invalid/log' }] } }],
         ['oversized summary', { run: { summary: 'x'.repeat(501) } }],
         ['multiline blocker', { run: { blocker_reason: 'line1\nline2' } }]
     ])('%s_契約エラーになる', (_name, overrides) => {
         expect(() => normalizeRunReceipt(makeReceipt(overrides))).toThrow(RunReceiptContractError);
+    });
+
+    it('opaque evidence refのsource-owned colonはcredentialでなければ保持する', () => {
+        const normalized = normalizeRunReceipt(makeReceipt({
+            run: {
+                evidence_refs: [
+                    { kind: 'log_ref', ref: 'cloudwatch:log-group:log-stream/example' },
+                    { kind: 'artifact_ref', ref: 's3:bucket/path:with:colon' }
+                ]
+            }
+        }));
+
+        expect(normalized.immutable.run.evidence_refs).toEqual([
+            { kind: 'artifact_ref', ref: 's3:bucket/path:with:colon' },
+            { kind: 'log_ref', ref: 'cloudwatch:log-group:log-stream/example' }
+        ]);
     });
 
     it.each([

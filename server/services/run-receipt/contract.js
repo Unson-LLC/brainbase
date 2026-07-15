@@ -49,6 +49,7 @@ const RUN_KEYS = new Set([
 const DELIVERY_KEYS = new Set(['idempotency_key', 'attempt', 'sent_at']);
 const EVIDENCE_KEYS = new Set(['kind', 'ref', 'label']);
 const OPAQUE_REF_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:[^\s]{1,2000}$/;
+const EMBEDDED_CREDENTIAL_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:(?:\/\/)?[^/?#\s@]+(?::[^/?#\s@]*)?@/i;
 const RFC3339_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const CONTROL_OR_NEWLINE_PATTERN = /[\u0000-\u001f\u007f]/;
 const METRIC_CONTENT_PATTERN = /(?:^|[_-])(content|body|raw|log|transcript|customer)(?:$|[_-])/i;
@@ -189,6 +190,9 @@ function validateEvidenceRefs(value) {
         const kind = requireEnum(ref.kind, `${path}.kind`, EVIDENCE_KINDS, 'unsupported_evidence_kind');
         const reference = requireString(ref.ref, `${path}.ref`, 2048);
         const label = optionalString(ref.label, `${path}.label`, 120);
+        if (EMBEDDED_CREDENTIAL_PATTERN.test(reference)) {
+            fail('invalid_evidence_ref', `${path}.ref must not contain embedded credentials`, { path: `${path}.ref` });
+        }
         if (kind === 'url') {
             let parsed;
             try {
