@@ -7,11 +7,12 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { evaluatePersonaAffect } from '../server/services/sns/personal-kg-sns-weekly-planner.js';
+import { resolveSnsRoot } from './workspace-paths.js';
 
 const ROOT = process.cwd();
 const X_SEARCH_DIR = path.join(ROOT, '.claude/skills/x-research-skill');
-const SHARED_SNS_ROOT = '/Users/ksato/workspace/shared/_codex/sns';
-const DEFAULT_OUT_DIR = path.join(SHARED_SNS_ROOT, 'x/ops/daily-briefs');
+const SNS_ROOT = resolveSnsRoot();
+const DEFAULT_OUT_DIR = path.join(SNS_ROOT, 'x/ops/daily-briefs');
 const COST_PER_TWEET_READ_USD = 0.005;
 
 const SEARCH_SPECS = {
@@ -109,7 +110,7 @@ function runXSearch(query, { since, maxResults, limit }) {
 }
 
 function loadWeeklyPlan(date) {
-    const opsDir = path.join(SHARED_SNS_ROOT, 'x/ops');
+    const opsDir = path.join(SNS_ROOT, 'x/ops');
     if (!fs.existsSync(opsDir)) return '';
     const files = fs.readdirSync(opsDir)
         .filter((file) => /^weekly_content_calendar_\d{4}-\d{2}-\d{2}\.md$/u.test(file))
@@ -387,7 +388,7 @@ function graphCheckFor(topic, generationContext = null) {
     return {
         scope: 'growth',
         entities: ['さとけい', 'Unson', 'AI駆動経営', topic],
-        source_of_truth: 'brainbase Graph + shared/_codex/sns',
+        source_of_truth: 'brainbase Graph + workspace/sns',
         decision: 'checked_for_review',
         constraints: [
             '投稿実行は人間レビュー後',
@@ -798,7 +799,7 @@ function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, to
         '',
         '## Weekly Plan For Today',
         '',
-        weeklyPlan || '週次カレンダーが見つからないため、`/Users/ksato/workspace/shared/_codex/sns/x/ops/weekly_content_calendar_*.md` を確認する。',
+        weeklyPlan || `週次カレンダーが見つからないため、\`${path.join(SNS_ROOT, 'x/ops/weekly_content_calendar_*.md')}\` を確認する。`,
         '',
         '## 今日のレビュー用投稿パック',
         '',
@@ -807,7 +808,7 @@ function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, to
         '## Graph Check',
         '',
         '- scope: growth',
-        '- source: brainbase Graph + shared/_codex/sns',
+        '- source: brainbase Graph + workspace/sns',
         '- rule: No Graph Check, no post',
         '',
         renderGenerationContext(generationContext),

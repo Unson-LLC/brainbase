@@ -15,8 +15,8 @@ related_stories:
   - str.brainbase.sns-x-algorithm-quality
   - str.brainbase.sns-ledger-live-refresh
 source_context:
-  - /Users/ksato/workspace/shared/_codex/sns/sns_strategy_os.md
-  - /Users/ksato/workspace/shared/_codex/sns/content_pillars.md
+  - /Users/ksato/workspace/sns/sns_strategy_os.md
+  - /Users/ksato/workspace/sns/content_pillars.md
   - server/sql/sns-posting-ledger-schema.sql
   - server/sql/candidate-store-schema.sql
 ---

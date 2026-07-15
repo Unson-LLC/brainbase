@@ -50,7 +50,7 @@ mkdir -p /tmp/ops-daily
 
 **Step 2: update-all-repos.sh 実行**
 ```bash
-cd /Users/ksato/workspace && ./shared/_codex/common/ops/scripts/nocodb/update-all-repos.sh
+cd /Users/ksato/workspace && ./common/ops/scripts/nocodb/update-all-repos.sh
 ```
 
 **Step 3: 結果解析**
@@ -235,26 +235,30 @@ Write({
 ## W3: バックアップ確認
 
 ### Purpose
-NocoDB・_codex・configバックアップ状態を確認し、最終更新日時を記録。
+NocoDB・workspace config repo・config.ymlのバックアップ状態を確認し、最終更新日時を記録。
 
 ### Process
 
 **Step 1: NocoDBバックアップ確認**
 ```bash
-ls -lt /Users/ksato/workspace/shared/backups/nocodb/ | head -5
+if [[ -n "${BRAINBASE_NOCODB_BACKUP_DIR:-}" && -d "$BRAINBASE_NOCODB_BACKUP_DIR" ]]; then
+  ls -lt "$BRAINBASE_NOCODB_BACKUP_DIR" | head -5
+else
+  echo "未確認: BRAINBASE_NOCODB_BACKUP_DIR が未設定または存在しない"
+fi
 ```
 - 最新バックアップファイルの日時を確認
 - ファイルサイズを記録
 
-**Step 2: _codexバックアップ確認**
+**Step 2: workspace config repo確認**
 ```bash
-cd /Users/ksato/workspace/shared/_codex && git log -1 --format="%ci"
+git -C /Users/ksato/workspace log -1 --format="%ci"
 ```
-- 最終コミット日時を確認（_codexはGit管理されているため）
+- 最終コミット日時を確認（旧共有ツリーは廃止済みのため参照しない）
 
 **Step 3: config.ymlバックアップ確認**
 ```bash
-ls -lt /Users/ksato/workspace/shared/config.yml
+ls -lt /Users/ksato/workspace/config.yml
 ```
 - 最終更新日時を確認
 

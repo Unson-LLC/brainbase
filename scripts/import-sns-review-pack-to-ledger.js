@@ -3,9 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveSnsRoot } from './workspace-paths.js';
 
-const SHARED_SNS_ROOT = '/Users/ksato/workspace/shared/_codex/sns';
-const DEFAULT_DAILY_BRIEFS_DIR = path.join(SHARED_SNS_ROOT, 'x/ops/daily-briefs');
+const SNS_ROOT = resolveSnsRoot();
+const DEFAULT_DAILY_BRIEFS_DIR = path.join(SNS_ROOT, 'x/ops/daily-briefs');
 
 function todayJst() {
     const parts = new Intl.DateTimeFormat('en-CA', {

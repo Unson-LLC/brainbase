@@ -14,11 +14,11 @@ description: brainbaseのSSOT（_codex）と工場出荷ライン前提で、SNS
 
 ## 参照するSSOT（最小）
 必ず以下を読む（ある前提）:
-- `_codex/sns/x_account_profile.md`
-- `_codex/sns/sns_strategy_os.md`
-- `_codex/sns/x/00_line_charter.md`
-- `_codex/sns/x/ops/variety_gate.md`
-- `_codex/sns/x/ops/runbook.md`
+- `/Users/ksato/workspace/sns/x_account_profile.md`
+- `/Users/ksato/workspace/sns/sns_strategy_os.md`
+- `/Users/ksato/workspace/sns/x/00_line_charter.md`
+- `/Users/ksato/workspace/sns/x/ops/variety_gate.md`
+- `/Users/ksato/workspace/sns/x/ops/runbook.md`
 
 ## ワークフロー（逆算設計）
 
@@ -64,10 +64,10 @@ description: brainbaseのSSOT（_codex）と工場出荷ライン前提で、SNS
 
 ### 6) SSOTに反映する（必須）
 以下を更新:
-- `_codex/sns/x/00_line_charter.md`（レーン/必須要素）
-- `_codex/sns/x/ops/variety_gate.md`（レーン条件）
-- `_codex/sns/x/ops/runbook.md`（日次運用）
-- `_codex/sns/x_account_profile.md`（Promise/Proof/Path）
+- `/Users/ksato/workspace/sns/x/00_line_charter.md`（レーン/必須要素）
+- `/Users/ksato/workspace/sns/x/ops/variety_gate.md`（レーン条件）
+- `/Users/ksato/workspace/sns/x/ops/runbook.md`（日次運用）
+- `/Users/ksato/workspace/sns/x_account_profile.md`（Promise/Proof/Path）
 
 ## 出力フォーマット（最小）
 - アカウントのPromise/Proof/Path案
@@ -76,4 +76,4 @@ description: brainbaseのSSOT（_codex）と工場出荷ライン前提で、SNS
 
 ## 注意
 - **画一ルール禁止**。必ずレーン運用で揺れを残す
-- **SSOTは_codex**。NocoDBは運用DB
+- **SSOTは用途別の正本**。NocoDBは運用DB

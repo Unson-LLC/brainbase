@@ -1,50 +1,43 @@
 ---
 name: brainbase-content-ssot
-description: brainbaseでnote/X Article/X投稿の原稿・ドラフト・最終稿を_codexに集約し、管理場所・命名規則・運用フロー・NocoDB同期の最小ルールを統一するためのSkill。コンテンツのSSOTを決めたい、管理場所を整備したい、noteとX Articleの共通運用を作りたいときに使用する。
+description: brainbaseのコンテンツをDistribution Modelに沿って配置し、個人原稿・チーム文書・Graph facts・配信状態を混在させないためのSkill。
 ---
 
 # brainbase-content-ssot
 
-## 基本原則（SSOT）
-- **コンテンツの正本は_codex**。NocoDBは「状態/配信/計測」の運用DBとして扱う。
-- **noteとX Articleは同一本文**。原稿は1セットだけ管理する。
-- **draft量ではなく出荷量**をKPIに置き、公開完了がゴール。
+## 境界
 
-## 管理場所（正本パス）
-- **SSOTルート**: `/Users/ksato/workspace/shared/_codex`
-- **SNS/記事管理**: `_codex/sns/`
+コンテンツの正本は一箇所に集約するのではなく、所有者と配布範囲で決める。
 
-### note / X Article（長文）
-- すべて `_codex/sns/drafts/` に保存
-- 命名規則: `{topic}_structure.md`, `{topic}_draft.md`, `{topic}_reviewed.md`, `{topic}_final.md`, `{topic}_x_article.html`
-- `topic` は `snake_case` を使う（例: `ai_human_skills`）
-- X Articleは **noteと同じ本文**。`_final.md` を正として使い回す
-- X Articleへ貼り付けるときは、Markdown直貼りではなく **HTML rich paste版**（`{topic}_x_article.html`）を作る
-- HTML rich paste版は `h1` / `h2` / `p` / `strong` / `ul` / `li` を中心にし、ブラウザで開いて本文をコピーしてX Articleエディタへ貼る
-- プレーンテキスト確認用が必要な場合のみ `{topic}_x_article.txt` を補助的に作る
+| 内容 | 正本 |
+|---|---|
+| 佐藤個人のSNS原稿・運用資料 | `/Users/ksato/workspace/sns/` |
+| 事業・案件のチーム文書 | 対応する `{project}-project.git` |
+| 組織横断文書 | brainbase Wiki |
+| ブランド定義 | Graph SSOT（`entity_type: brand`） |
+| ブランド画像・配布アセット | Google Drive（GraphはURLを保持） |
+| 人・組織・意思決定・RACI等の事実 | Graph SSOT |
+| 配信状態・計測値 | NocoDB等の運用DB |
 
-### X短文（量産バッチ）
-- `_codex/sns/drafts/batch_YYYY-MM-DD/all_drafts.md`
-- 画像が必要なら: `batch_YYYY-MM-DD/images/`
+`shared/`、`_codex/`、submoduleによる共有方式は廃止済み。新規作成・参照・復活をしない。
 
-### 戦略・ガードレール
-- `sns_strategy_os.md` / `style_guide.md` / `rules.md` / `x_account_profile.md`
-- `note_strategy.md`
+## 佐藤個人のSNS運用
 
-## 運用フロー（最短）
-1. **Pillar決定**（議事録・活動ログから抽出）
-2. **note-smartで長文を作成** → `{topic}_final.md` まで作る
-3. **X Articleは同じ本文からHTML rich paste版を作成** → `{topic}_x_article.html` をブラウザで開き、本文をコピーして出稿
-4. **sns-smartでX短文を30本/日バッチ生成**
-5. **NocoDBにContentレコード作成/更新**（状態管理）
+- ルート: `/Users/ksato/workspace/sns/`
+- 長文: `sns/drafts/{topic}_{structure|draft|reviewed|final}.md`
+- X Article: `sns/drafts/{topic}_x_article.html`
+- 短文バッチ: `sns/drafts/batch_YYYY-MM-DD/all_drafts.md`
+- 戦略・ガードレール: `sns/sns_strategy_os.md`、`sns/style_guide.md`、`sns/rules.md`、`sns/x_account_profile.md`
 
-## NocoDBの最小同期ルール
-- Contentレコードは **1レコード=1チャンネル=1出荷物**
-- `primary_channel` を正として運用（`channel`は使わない）
-- `status` は **編集パイプライン専用**: `draft → review → scheduled → published → archived`
-- note/X Articleは **同じsource** を参照（`{topic}_final.md`）
+noteとX Articleは同じ `{topic}_final.md` を本文正本として使う。NocoDBは原稿本文の正本にせず、状態・配信・計測の運用DBとして扱う。
 
-## 迷ったら
-- 長文は **note-smart**
-- 短文は **sns-smart**
-- SSOTは **_codex**、運用は **NocoDB** で分離する
+## 昇格ルール
+
+個人領域の内容を他メンバーへ配る必要が生じた時点で、コピーを増やさず正本を移す。
+
+- 事業固有 → 対応するproject repo
+- 組織横断 → Wiki
+- 事実 → Graph
+- 大容量アセット → Drive
+
+移行後の旧ファイルはリンクまたは移行記録だけにし、二重正本を作らない。

@@ -13,15 +13,15 @@ tools: Read, Write, Bash, Skill
 ## Workflows（4つ）
 
 ### W1: 投稿スケジュール確認
-- Read: `_codex/sns/schedule.md`
+- Read: `/Users/ksato/workspace/sns/schedule.md`
 - 今日の投稿候補を抽出
 
 ### W2: 投稿実行
-- 承認済みドラフト確認: `_codex/sns/drafts/{topic}_reviewed.md`
+- 承認済みドラフト確認: `/Users/ksato/workspace/sns/drafts/{topic}_reviewed.md`
 - Bash: `python sns_post.py --draft {path}`
 
 ### W3: 投稿ログ更新
-- Read: `_codex/sns/post_log.md`
+- Read: `/Users/ksato/workspace/sns/post_log.md`
 - Write: 新規投稿を追記
 
 ### W4: カレンダー最適化
@@ -35,7 +35,7 @@ tools: Read, Write, Bash, Skill
 ### Step 1: schedule.md を読み込み
 
 ```javascript
-const scheduleContent = Read({ file_path: "_codex/sns/schedule.md" })
+const scheduleContent = Read({ file_path: "/Users/ksato/workspace/sns/schedule.md" })
 ```
 
 ### Step 2: 今日の投稿候補を抽出
@@ -59,7 +59,7 @@ const scheduledPosts = scheduleContent
 const draftsToPost = []
 
 for (const topic of scheduledPosts) {
-  const reviewedPath = `_codex/sns/drafts/${topic}_reviewed.md`
+  const reviewedPath = `/Users/ksato/workspace/sns/drafts/${topic}_reviewed.md`
 
   try {
     const draftContent = Read({ file_path: reviewedPath })
@@ -103,7 +103,7 @@ for (const draft of draftsToPost) {
 ### Step 5: post_log.md を更新
 
 ```javascript
-const currentLog = Read({ file_path: "_codex/sns/post_log.md" })
+const currentLog = Read({ file_path: "/Users/ksato/workspace/sns/post_log.md" })
 
 const newEntries = postedResults
   .filter(r => r.status === "success")
@@ -113,7 +113,7 @@ const newEntries = postedResults
 const updatedLog = currentLog + "\n" + newEntries
 
 Write({
-  file_path: "_codex/sns/post_log.md",
+  file_path: "/Users/ksato/workspace/sns/post_log.md",
   content: updatedLog
 })
 ```

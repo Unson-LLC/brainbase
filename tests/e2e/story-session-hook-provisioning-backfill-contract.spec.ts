@@ -20,7 +20,12 @@ const repoRoot = path.resolve(fileURLToPath(import.meta.url), '../../..');
 const HOOK = path.join(repoRoot, '.claude/hooks/session-start-copy-plugins.sh');
 
 function runHookIn(dir: string) {
-    return spawnSync('bash', [HOOK], { cwd: dir, encoding: 'utf-8', timeout: 60000 });
+    return spawnSync('bash', [HOOK], {
+        cwd: dir,
+        encoding: 'utf-8',
+        timeout: 60000,
+        env: { ...process.env, BRAINBASE_DISTRIBUTION_ROOT: repoRoot }
+    });
 }
 
 function mkTempWorktree(): string {
@@ -78,6 +83,30 @@ test.describe('story-session-hook-provisioning-backfill e2e contract', () => {
             expect(fs.existsSync(mjs), 'activity-bridge .mjs バンドルが補完される(run-hook.sh の node 高速経路)').toBe(true);
             const runHook = fs.readFileSync(path.join(dir, '.claude/scripts/run-hook.sh'), 'utf-8');
             expect(runHook, '補完された run-hook.sh は .mjs を node で実行する分岐を持つ').toMatch(/exec node "\$HOOK_BUNDLE"/);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    test('distribution-model guard: repo固有の CLAUDE.md / AGENTS.md / Skills を上書きしない', () => {
+        const dir = mkTempWorktree();
+        try {
+            const files = {
+                'CLAUDE.md': '# project-specific Claude rules\n',
+                'AGENTS.md': '# project-specific Codex rules\n',
+                '.claude/skills/project-only/SKILL.md': '# project-only skill\n'
+            };
+            for (const [relativePath, content] of Object.entries(files)) {
+                const absolutePath = path.join(dir, relativePath);
+                fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+                fs.writeFileSync(absolutePath, content);
+            }
+
+            const res = runHookIn(dir);
+            expect(res.status, 'SessionStart hook が正常終了する').toBe(0);
+            for (const [relativePath, content] of Object.entries(files)) {
+                expect(fs.readFileSync(path.join(dir, relativePath), 'utf-8'), `${relativePath} を上書きしない`).toBe(content);
+            }
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
         }

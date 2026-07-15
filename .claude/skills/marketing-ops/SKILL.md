@@ -93,23 +93,23 @@ SNS投稿（X/note）の企画・作成・公開を担当。
 ### W1: X投稿作成
 - トピック: [ユーザー指定またはデフォルト]
 - Skill呼び出し: sns-smart
-- 成果物: _codex/sns/drafts/{topic}_draft.md
+- 成果物: /Users/ksato/workspace/sns/drafts/{topic}_draft.md
 
 ### W2: note記事作成
 - Skill呼び出し: note-smart
-- 成果物: _codex/sns/drafts/{topic}_note.md
+- 成果物: /Users/ksato/workspace/sns/drafts/{topic}_note.md
 
 ### W3: キュレーション投稿
 - Skill呼び出し: x-curate-smart
-- 成果物: _codex/sns/drafts/{topic}_curate.md
+- 成果物: /Users/ksato/workspace/sns/drafts/{topic}_curate.md
 
 ### W4: 引用リポスト
 - Skill呼び出し: x-quote-smart
-- 成果物: _codex/sns/drafts/{topic}_quote.md
+- 成果物: /Users/ksato/workspace/sns/drafts/{topic}_quote.md
 
 ### W5: リプライ戦略実行
 - Skill呼び出し: x-reply-smart
-- 成果物: _codex/sns/drafts/{topic}_reply.md
+- 成果物: /Users/ksato/workspace/sns/drafts/{topic}_reply.md
 
 ## 実行手順
 
@@ -123,7 +123,7 @@ SNS投稿（X/note）の企画・作成・公開を担当。
   "teammate": "content-creator",
   "workflows_executed": ["x_post_creation"],
   "results": {
-    "draft_path": "_codex/sns/drafts/topic_draft.md",
+    "draft_path": "/Users/ksato/workspace/sns/drafts/topic_draft.md",
     "quality_score": 95,
     "status": "success"
   },
@@ -137,7 +137,7 @@ SNS投稿（X/note）の企画・作成・公開を担当。
 ## Success Criteria
 
 - [ ] 指定されたSkillが実行されている
-- [ ] 成果物が _codex/sns/ に保存されている
+- [ ] 成果物が /Users/ksato/workspace/sns/ に保存されている
 - [ ] JSON形式で結果を報告している
 - [ ] 品質基準（80点以上等）を満たしている
 
@@ -169,15 +169,15 @@ Task({
 ## Workflows（4つ）
 
 ### W1: 投稿スケジュール確認
-- Read: _codex/sns/schedule.md
+- Read: /Users/ksato/workspace/sns/schedule.md
 - 今日の投稿候補を抽出
 
 ### W2: 投稿実行
-- 承認済みドラフト確認: _codex/sns/drafts/{topic}_reviewed.md
+- 承認済みドラフト確認: /Users/ksato/workspace/sns/drafts/{topic}_reviewed.md
 - Bash: python sns_post.py --draft {path}
 
 ### W3: 投稿ログ更新
-- Read: _codex/sns/post_log.md
+- Read: /Users/ksato/workspace/sns/post_log.md
 - Write: 新規投稿を追記
 
 ### W4: カレンダー最適化
@@ -186,7 +186,7 @@ Task({
 
 ## 実行手順
 
-1. Read tool で _codex/sns/schedule.md を読み込み
+1. Read tool で /Users/ksato/workspace/sns/schedule.md を読み込み
 2. 今日の日付と一致する投稿候補を抽出
 3. 承認済みドラフトがあれば投稿実行
 4. post_log.md を更新
@@ -253,9 +253,9 @@ Task({
 - 自分のブックマーク投稿を分析
 
 ### W3: パフォーマンスレポート生成
-- Read: _codex/sns/post_log.md
+- Read: /Users/ksato/workspace/sns/post_log.md
 - トップ3・ワースト3を抽出
-- Write: _codex/sns/analytics/{date}_report.md
+- Write: /Users/ksato/workspace/sns/analytics/{date}_report.md
 
 ### W4: 改善提案
 - Skill呼び出し: marketing-failure-patterns
@@ -288,7 +288,7 @@ Task({
       "投稿時間を午前9時に変更",
       "画像を使った投稿を増やす"
     ],
-    "report_path": "_codex/sns/analytics/2026-02-07_report.md",
+    "report_path": "/Users/ksato/workspace/sns/analytics/2026-02-07_report.md",
     "status": "success"
   },
   "errors": []

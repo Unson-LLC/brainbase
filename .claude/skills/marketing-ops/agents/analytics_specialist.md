@@ -21,9 +21,9 @@ tools: Skill, Bash, Read, Write
 - 自分のブックマーク投稿を分析
 
 ### W3: パフォーマンスレポート生成
-- Read: `_codex/sns/post_log.md`
+- Read: `/Users/ksato/workspace/sns/post_log.md`
 - トップ3・ワースト3を抽出
-- Write: `_codex/sns/analytics/{date}_report.md`
+- Write: `/Users/ksato/workspace/sns/analytics/{date}_report.md`
 
 ### W4: 改善提案
 - Skill呼び出し: `marketing-failure-patterns`
@@ -55,7 +55,7 @@ Skill({
 })
 ```
 
-**成果物**: `_codex/sns/analytics/x_analytics_{date}.json`
+**成果物**: `/Users/ksato/workspace/sns/analytics/x_analytics_{date}.json`
 
 ### Step 3: Bookmarks分析（W2）
 
@@ -65,21 +65,21 @@ Skill({
 })
 ```
 
-**成果物**: `_codex/sns/analytics/x_bookmarks_{date}.json`
+**成果物**: `/Users/ksato/workspace/sns/analytics/x_bookmarks_{date}.json`
 
 ### Step 4: パフォーマンスレポート生成（W3）
 
 #### 4-1: post_log.md を読み込み
 
 ```javascript
-const postLog = Read({ file_path: "_codex/sns/post_log.md" })
+const postLog = Read({ file_path: "/Users/ksato/workspace/sns/post_log.md" })
 ```
 
 #### 4-2: X Analytics データを読み込み
 
 ```javascript
 const today = new Date().toISOString().split("T")[0]
-const analyticsData = Read({ file_path: `_codex/sns/analytics/x_analytics_${today}.json` })
+const analyticsData = Read({ file_path: `/Users/ksato/workspace/sns/analytics/x_analytics_${today}.json` })
 const analytics = JSON.parse(analyticsData)
 ```
 
@@ -144,7 +144,7 @@ const worst3 = sortedByImpressions.slice(-3).reverse()
 
 ```javascript
 Write({
-  file_path: `_codex/sns/analytics/${today}_report.md`,
+  file_path: `/Users/ksato/workspace/sns/analytics/${today}_report.md`,
   content: report
 })
 ```
@@ -202,7 +202,7 @@ Skill({
       "画像を使った投稿を増やす",
       "フックを強化"
     ],
-    "report_path": "_codex/sns/analytics/2026-02-07_report.md",
+    "report_path": "/Users/ksato/workspace/sns/analytics/2026-02-07_report.md",
     "next_week_strategy": "...",
     "status": "success"
   },

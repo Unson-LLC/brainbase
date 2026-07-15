@@ -10,13 +10,14 @@ import { InMemoryCandidateRepository, PgCandidateRepository } from '../server/se
 import { SnsGenerationContextService } from '../server/services/sns/sns-generation-context-service.js';
 import { PgSnsPostingLedgerRepository } from '../server/services/sns/posting-ledger-repository.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
+import { resolveSnsRoot } from './workspace-paths.js';
 
 const { Pool } = pg;
 
-const SHARED_SNS_ROOT = '/Users/ksato/workspace/shared/_codex/sns';
-const DEFAULT_OUT_DIR = path.join(SHARED_SNS_ROOT, 'x/ops/generation-contexts');
-const DEFAULT_STRATEGY_FILE = path.join(SHARED_SNS_ROOT, 'sns_strategy_os.md');
-const DEFAULT_CONTENT_PILLARS_FILE = path.join(SHARED_SNS_ROOT, 'content_pillars.md');
+const SNS_ROOT = resolveSnsRoot();
+const DEFAULT_OUT_DIR = path.join(SNS_ROOT, 'x/ops/generation-contexts');
+const DEFAULT_STRATEGY_FILE = path.join(SNS_ROOT, 'sns_strategy_os.md');
+const DEFAULT_CONTENT_PILLARS_FILE = path.join(SNS_ROOT, 'content_pillars.md');
 
 function todayJst() {
     const parts = new Intl.DateTimeFormat('en-CA', {

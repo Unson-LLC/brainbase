@@ -25,7 +25,8 @@ set -e
 # brainbaseプロジェクトかどうかをチェック
 # NOTE: 旧L3（~/workspace/brainbase-config/.claude）は2026-07-11に廃止。
 # ディレクトリ不在で長期間no-opだったため、L3上書き処理ごと撤去した。
-L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
+L2_ROOT="${BRAINBASE_DISTRIBUTION_ROOT:-/Users/ksato/workspace/code/brainbase}"
+L2_CLAUDE="$L2_ROOT/.claude"
 
 # L2が存在しない場合は何もしない（brainbase以外のプロジェクト）
 if [ ! -d "$L2_CLAUDE" ]; then
@@ -44,7 +45,7 @@ if [ -d "$L2_CLAUDE/plugins" ]; then
 fi
 
 # node_modules を L2 から symlink（hook 実行基盤: npx tsx が解決できるように）
-L2_NODE_MODULES="/Users/ksato/workspace/code/brainbase/node_modules"
+L2_NODE_MODULES="$L2_ROOT/node_modules"
 if [ -d "$L2_NODE_MODULES" ]; then
   if [ ! -e "./node_modules" ] || [ -L "./node_modules" ]; then
     ln -sfn "$L2_NODE_MODULES" ./node_modules

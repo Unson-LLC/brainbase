@@ -14,6 +14,22 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 - Do not use `@path` imports here for large documents; imports still consume startup context.
 - If a rule must be enforced, prefer a hook/wrapper/check over a reminder.
 
+## 0.5. Distribution Model（北極星・2026-07-11確定）
+
+チームに配布されるものは2つだけ。それ以外はすべて佐藤インスタンスのホーム。
+
+| 器 | 配るもの | 取得方法 |
+|---|---|---|
+| **brainbase-unson** (`code/brainbase`) | 組織の「動作」: server / Skills / Commands / Agents / hooks | メンバーが pull |
+| **Graph SSOT** (PostgreSQL) | 組織の「事実」: エンティティ・関係・意思決定・RACI。正本ドキュメントへのポインタは **repo相対パスかURL**（個人の絶対パス禁止） | メンバーが query |
+| **チームrepo群 + Drive** | 組織の「コンテンツ」: 事業ドキュメント = `{project}-project.git`（projects/はそのclone）、ブランド定義 = **Graph SSOT（entity_type: brand）**・ブランドアセット = **Google Drive**（GraphからURLポインタ）、組織横断ドキュメント = wiki | メンバーが pull / query / Drive |
+| `~/workspace` ルート | 個人インスタンスのデータ: config.yml（repo→ローカル番地の個人番地録）・memory・個人の作業場（sns/ knowledge/ docs/ は佐藤専用運用と宣言、チーム資産に昇格した時点でrepo化）・var（runtime）・common/等のGraphミラー | 配布しない |
+
+**判定**: 「これは他メンバーのマシンにもあるべきか？」→ YES+動作なら unson へ / YES+事実なら Graph へ / YES+コンテンツならチームrepo（事業→project repo、横断→wiki）へ / NO ならホームに残す。
+個人のローカルパス・個人文脈をチームGraphに入れない（個人KG・config.ymlに entity_id/repo で紐付ける）。
+ファイル共有（shared/・submodule方式）は廃止済みの敗れた仮説。復活させない。
+**移設キュー（残存違反）**: root `.claude/` の組織的Skills/Commands（unson側と二重）、`settings/nocodb`（mana/Actionsが依存）、`common/frameworks/` 等の横断ドキュメント（→wiki）。
+
 ## 1. Behavioral Kernel
 
 1. **Think Before Coding**: State assumptions and ambiguity. Ask only when a wrong guess is expensive.

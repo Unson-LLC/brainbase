@@ -97,7 +97,7 @@ X ArticleはMarkdownをそのまま貼っても見出し・太字・箇条書き
 - Nano Banana生成時はプロンプトに `Aspect ratio 5:2, resolution 1600x640` を明記する
 - Nano Bananaが16:9など別サイズで返す場合があるため、生成後に必ず `sips -g pixelWidth -g pixelHeight <image>` で確認する
 - サイズが違う場合は、最終入稿ファイルを `{topic}_header_1600x640.png` として5:2に整形してから使う
-- ヘッダー画像は `_codex/sns/images/` に保存する
+- ヘッダー画像は `/Users/ksato/workspace/sns/images/` に保存する
 
 ### Anthropic / Claude 系記事のヘッダー
 
@@ -124,15 +124,15 @@ Nano Banana生成時:
   /Users/ksato/workspace/common/ops/scripts/nano_banana.py \
   -t character \
   -r /path/to/clawd_reference.png \
-  -o /Users/ksato/workspace/shared/_codex/sns/images/{topic}_header_nano.jpg \
+  -o /Users/ksato/workspace/sns/images/{topic}_header_nano.jpg \
   -p "Use the reference image as the source for the Clawd mascot shape and style. Create a 5:2 X Article header image, resolution 1600x640, in Anthropic / Claude Code editorial style: warm off-white paper background, black typography, orange accent color, minimal premium layout. Preserve the reference mascot identity: orange pixel-art sticker character, simple square body, tiny black square eyes, short legs, white sticker outline, cute flat paper-sticker feel. Include one or more Clawd stickers from the reference style, not a robot, not realistic animal, not 3D. Main Japanese title text must be clear and large: {topic}. Keep composition clean and professional, suitable as X Article header. No logos, no watermark." \
   "{topic}" "point1" "point2" "point3"
 ```
 
 ### 正本
-- 本文正本: `_codex/sns/drafts/{topic}_final.md`
-- X Article貼り付け用: `_codex/sns/drafts/{topic}_x_article.html`
-- 確認用プレーンテキスト: `_codex/sns/drafts/{topic}_x_article.txt`（必要な場合のみ）
+- 本文正本: `/Users/ksato/workspace/sns/drafts/{topic}_final.md`
+- X Article貼り付け用: `/Users/ksato/workspace/sns/drafts/{topic}_x_article.html`
+- 確認用プレーンテキスト: `/Users/ksato/workspace/sns/drafts/{topic}_x_article.txt`（必要な場合のみ）
 
 ### HTML rich paste方式
 1. Markdown本文からHTML版を作る
