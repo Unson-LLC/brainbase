@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
+import {
+    DuplicateCandidateError,
+    InMemoryCandidateRepository
+} from '../../../server/services/candidate-store/candidate-repository.js';
 import { ExternalRunnerContractError } from '../../../server/services/external-runner/contract-schema.js';
 import { ExternalRunnerIngestService } from '../../../server/services/external-runner/ingest-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
@@ -85,6 +91,39 @@ function makeService() {
     const repository = new InMemoryWorkflowRepository();
     const service = new ExternalRunnerIngestService({ workflowRepository: repository });
     return { repository, service };
+}
+
+function hashParts(parts) {
+    return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+}
+
+function expectedCandidateIdentity({
+    workspaceId = 'default',
+    orgId = 'brainbase',
+    projectId = 'brainbase',
+    runnerType = 'eve',
+    externalRunId = 'eve-run-001',
+    sourceCandidateId = 'lc-1'
+} = {}) {
+    return {
+        id: `extcand_${hashParts([
+            'external_runner.v0',
+            workspaceId,
+            orgId,
+            projectId,
+            runnerType,
+            externalRunId,
+            sourceCandidateId
+        ])}`,
+        scopeEventId: `external_runner_scope:${hashParts([
+            'external_runner.v0',
+            workspaceId,
+            orgId,
+            projectId,
+            runnerType,
+            externalRunId
+        ])}`
+    };
 }
 
 function seedLoopControlRefs(repository, {
@@ -1950,10 +1989,21 @@ describe('ExternalRunnerIngestService', () => {
     it('stores learning candidates through the connected Candidate Store create contract', async () => {
         const repository = new InMemoryWorkflowRepository();
         const created = [];
+        let activeLedgerTransactions = 0;
+        const originalTransaction = repository.transaction.bind(repository);
+        repository.transaction = (callback) => originalTransaction(async () => {
+            activeLedgerTransactions += 1;
+            try {
+                return await callback();
+            } finally {
+                activeLedgerTransactions -= 1;
+            }
+        });
         const service = new ExternalRunnerIngestService({
             workflowRepository: repository,
             candidateRepository: {
                 async create(input) {
+                    expect(activeLedgerTransactions).toBe(0);
                     created.push(input);
                     return { id: input.id, ...input };
                 }
@@ -1961,15 +2011,16 @@ describe('ExternalRunnerIngestService', () => {
         });
 
         const result = await service.ingest(makePayload());
+        const identity = expectedCandidateIdentity();
 
         expect(created).toHaveLength(1);
         expect(created[0]).toMatchObject({
-            id: 'lc-1',
+            id: identity.id,
             cognitive_type: 'insight',
             owner_person_id: 'keigo',
             actor_person_id: 'sales-agent',
             source_system: 'external_runner',
-            source_event_ids: ['eve-run-001', 'lc-1'],
+            source_event_ids: [identity.scopeEventId, 'lc-1'],
             visibility: 'owner',
             sensitivity: 'internal',
             body: '営業フォローでは期限と顧客温度感を同時に見る'
@@ -1980,14 +2031,14 @@ describe('ExternalRunnerIngestService', () => {
             org_id: 'brainbase'
         });
         expect(result.learning_candidates).toEqual([
-            expect.objectContaining({ id: 'lc-1' })
+            expect.objectContaining({ id: identity.id })
         ]);
         expect(result.audit_logs).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 action: 'external_runner.learning_candidate.stored',
                 after: expect.objectContaining({
                     candidate_id: 'lc-1',
-                    stored_candidate_id: 'lc-1',
+                    stored_candidate_id: identity.id,
                     persistence_status: 'stored',
                     cognitive_type: 'insight',
                     promotion_policy: 'manual_review',
@@ -2005,10 +2056,105 @@ describe('ExternalRunnerIngestService', () => {
         expect(replay.learning_candidates).toEqual([
             expect.objectContaining({
                 candidate_id: 'lc-1',
-                stored_candidate_id: 'lc-1',
+                stored_candidate_id: identity.id,
                 persistence_status: 'stored'
             })
         ]);
+    });
+
+    it('rejects repositories without a transaction boundary before writing any surface', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        repository.transaction = undefined;
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository });
+        const normalized = service.adapter.normalize(makePayload());
+
+        await expect(service.ingest(makePayload())).rejects.toMatchObject({
+            code: 'workflow_transaction_required'
+        });
+        expect(repository.getRun(normalized.run.id)).toBeNull();
+        expect(repository.listAuditLogs({ targetId: normalized.run.id })).toEqual([]);
+    });
+
+    it('resumes a pending candidate after Candidate Store committed before ledger finalization', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const candidateRepository = new InMemoryCandidateRepository();
+        const identity = expectedCandidateIdentity();
+        let transactionCount = 0;
+        let interruptSecondTransaction = true;
+        const originalTransaction = repository.transaction.bind(repository);
+        repository.transaction = async (callback) => {
+            transactionCount += 1;
+            if (interruptSecondTransaction && transactionCount === 2) {
+                throw new Error('simulated finalize interruption');
+            }
+            return originalTransaction(callback);
+        };
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository, candidateRepository });
+        const runId = service.adapter.normalize(makePayload()).run.id;
+
+        await expect(service.ingest(makePayload())).rejects.toThrow('simulated finalize interruption');
+        expect(candidateRepository.findById(identity.id)).toMatchObject({ id: identity.id });
+        expect(repository.listAuditLogs({ targetId: runId })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'external_runner.learning_candidate.pending',
+                after: expect.objectContaining({ stored_candidate_id: identity.id })
+            })
+        ]));
+
+        interruptSecondTransaction = false;
+        const resumed = await service.ingest(makePayload());
+
+        expect(resumed).toMatchObject({ status: 'duplicate' });
+        expect(resumed.learning_candidates).toEqual([
+            expect.objectContaining({
+                candidate_id: 'lc-1',
+                stored_candidate_id: identity.id,
+                persistence_status: 'stored'
+            })
+        ]);
+        expect(repository.listAuditLogs({ targetId: resumed.run.id })).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'external_runner.duplicate_replay_ignored' })
+        ]));
+
+        await service.ingest(makePayload());
+        expect(repository.listAuditLogs({ targetId: resumed.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'external_runner.duplicate_replay_ignored' })
+        ]));
+    });
+
+    it('keeps a mismatched Candidate Store duplicate actionable instead of deferring it', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const identity = expectedCandidateIdentity();
+        const expected = [];
+        const candidateRepository = {
+            async create(input) {
+                expected.push(input);
+                throw new DuplicateCandidateError(input.id);
+            },
+            async findById() {
+                return { ...expected[0], body: 'different immutable body' };
+            }
+        };
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository, candidateRepository });
+        const runId = service.adapter.normalize(makePayload()).run.id;
+
+        await expect(service.ingest(makePayload())).rejects.toMatchObject({
+            code: 'external_runner_candidate_conflict'
+        });
+        expect(repository.listAuditLogs({ targetId: runId })).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: 'external_runner.candidate_conflict',
+                after: expect.objectContaining({
+                    candidate_id: 'lc-1',
+                    stored_candidate_id: identity.id,
+                    persistence_status: 'pending',
+                    action_required: 'resolve_candidate_conflict'
+                })
+            })
+        ]));
+        expect(repository.listAuditLogs({ targetId: runId })).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'external_runner.learning_candidate.deferred' })
+        ]));
     });
 
     it('defers learning candidates visibly when connected Candidate Store writes fail', async () => {
@@ -2100,7 +2246,7 @@ describe('ExternalRunnerIngestService', () => {
 
         expect(created).toHaveLength(1);
         expect(created[0]).toMatchObject({
-            id: 'lc-injected',
+            id: expectedCandidateIdentity({ sourceCandidateId: 'lc-injected' }).id,
             promotion_status: 'candidate',
             requires_approval: true,
             source_system: 'external_runner'
