@@ -186,6 +186,20 @@ describe('PgCandidateRepository contract', () => {
         await expect(repo.create(baseDraft())).rejects.toBeInstanceOf(DuplicateCandidateError);
     });
 
+    it('rejects an existing primary id before insert even when the source key differs', async () => {
+        const pg = new ScriptedPg([{ rows: [{ id: 'candidate-stable-id' }] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await expect(repo.create(baseDraft({
+            id: 'candidate-stable-id',
+            source_event_ids: ['session:different-source-key']
+        }))).rejects.toBeInstanceOf(DuplicateCandidateError);
+
+        expect(pg.calls).toHaveLength(1);
+        expect(pg.calls[0].sql).toContain('id = $1');
+        expect(pg.calls[0].params[0]).toBe('candidate-stable-id');
+    });
+
     it('transitions status in one transaction and appends audit', async () => {
         const pg = new ScriptedPg([
             {},
