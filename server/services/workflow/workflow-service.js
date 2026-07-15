@@ -18,6 +18,11 @@ const DEFAULT_OWNER_ID = 'local-user';
 const MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY = 'meeting-review-package-ingest';
 const ALLOWED_TRIGGER_TYPES = new Set(['human', 'event', 'schedule']);
 const ALLOWED_AUTONOMY_LEVELS = new Set(['human_only', 'draft_only', 'approval_required', 'auto_execute']);
+const RUN_RECEIPT_SOURCE_TYPES = new Set(['mana', 'codex_automations', 'github_actions', 'salestailor']);
+const RUN_RECEIPT_STATUSES = new Set(['success', 'failed', 'blocked', 'waiting_human', 'cancelled']);
+const RUN_RECEIPT_EVIDENCE_STATES = new Set(['confirmed', 'unconfirmed', 'no_data']);
+const DEFAULT_RUN_RECEIPT_INBOX_LIMIT = 100;
+const MAX_RUN_RECEIPT_INBOX_LIMIT = 200;
 const MEETING_CALENDAR_SUCCESS_STATE_TRANSITIONS = [
     'requested',
     'calendar_fetching',
@@ -268,6 +273,84 @@ function workflowPriority(workflow) {
     if (run.status === 'needs_action') return 3;
     if (!run.id) return 5;
     return 4;
+}
+
+function runReceiptEpoch(value) {
+    const epoch = Date.parse(String(value || ''));
+    return Number.isFinite(epoch) ? epoch : 0;
+}
+
+function runReceiptOrder(left, right) {
+    const effectiveDifference = right.effective_epoch - left.effective_epoch;
+    if (effectiveDifference !== 0) return effectiveDifference;
+    const createdDifference = right.created_epoch - left.created_epoch;
+    if (createdDifference !== 0) return createdDifference;
+    return String(right.id).localeCompare(String(left.id));
+}
+
+function runReceiptPriority(item) {
+    if (item.source_status === 'blocked' || item.source_action_required) return 1;
+    if (item.source_status === 'failed') return 2;
+    if (item.source_status === 'waiting_human') return 3;
+    if (item.evidence_state === 'unconfirmed') return 4;
+    if (item.evidence_state === 'no_data') return 5;
+    return 6;
+}
+
+function normalizeRunReceiptInboxLimit(value) {
+    const limit = value === undefined || value === null || value === ''
+        ? DEFAULT_RUN_RECEIPT_INBOX_LIMIT
+        : Number(value);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_RUN_RECEIPT_INBOX_LIMIT) {
+        throw AppError.validation(
+            `limit must be an integer between 1 and ${MAX_RUN_RECEIPT_INBOX_LIMIT}`,
+            { field: 'limit' }
+        );
+    }
+    return limit;
+}
+
+function assertRunReceiptInboxEnum(value, field, allowed) {
+    if (value === undefined || value === null || value === '') return null;
+    if (!allowed.has(value)) {
+        throw AppError.validation(`${field} is not supported`, { field, value });
+    }
+    return value;
+}
+
+function projectRunReceiptInboxItem(run) {
+    const receipt = run?.metadata?.run_receipt;
+    const source = receipt?.source;
+    if (!receipt || !source?.type || !source?.workflow_id || !receipt.source_status || !receipt.evidence_state) {
+        return null;
+    }
+    const effectiveAt = run.finished_at || run.started_at || run.created_at || null;
+    return {
+        id: run.id,
+        run_id: run.id,
+        workflow_id: run.workflow_id,
+        project_id: run.project_id,
+        org_id: run.org_id || receipt.org_id || null,
+        source: source,
+        source_status: receipt.source_status,
+        evidence_state: receipt.evidence_state,
+        observation_kind: receipt.observation_kind || 'source_run',
+        action_required: run.action_required || 'none',
+        source_action: receipt.source_action || null,
+        source_action_required: receipt.source_action_required === true,
+        summary: receipt.summary || run.message || null,
+        blocker_reason: receipt.blocker_reason || null,
+        evidence_refs: Array.isArray(receipt.evidence_refs) ? receipt.evidence_refs : [],
+        metrics: receipt.metrics && typeof receipt.metrics === 'object' ? receipt.metrics : {},
+        external_run_id: receipt.source_external_run_id || null,
+        parent_external_run_id: receipt.parent_external_run_id || null,
+        started_at: run.started_at || null,
+        finished_at: run.finished_at || null,
+        created_at: run.created_at || null,
+        effective_at: effectiveAt,
+        effective_epoch: runReceiptEpoch(effectiveAt),
+        created_epoch: runReceiptEpoch(run.created_at)
+    };
 }
 
 function companionApprovalPriority({ pendingHumanSteps = [], outputs = [], run = {} } = {}) {
@@ -1880,6 +1963,7 @@ export class WorkflowService {
         const workflows = this.repository.listWorkflows()
             .filter((workflow) => !projectId || workflow.project_id === projectId)
             .filter((workflow) => this._actorCanAccessProject(workflow.project_id, actor))
+            .filter((workflow) => !workflow.metadata?.run_receipt && workflow.metadata?.surface !== 'run_receipt')
             .map((workflow) => ({
                 ...workflow,
                 latest_run: this.repository.listRuns({ workflowId: workflow.id, limit: 1 })[0] || null
@@ -1901,6 +1985,67 @@ export class WorkflowService {
                 return String(bTime).localeCompare(String(aTime));
             });
         return { workflows };
+    }
+
+    async listRunReceiptInbox({
+        projectId = null,
+        sourceType = null,
+        runStatus = null,
+        evidenceState = null,
+        limit = DEFAULT_RUN_RECEIPT_INBOX_LIMIT
+    } = {}, actor = {}) {
+        await this._loadProjectConfigCache();
+        const normalizedSourceType = assertRunReceiptInboxEnum(
+            sourceType,
+            'source_type',
+            RUN_RECEIPT_SOURCE_TYPES
+        );
+        const normalizedRunStatus = assertRunReceiptInboxEnum(
+            runStatus,
+            'run_status',
+            RUN_RECEIPT_STATUSES
+        );
+        const normalizedEvidenceState = assertRunReceiptInboxEnum(
+            evidenceState,
+            'evidence_state',
+            RUN_RECEIPT_EVIDENCE_STATES
+        );
+        const normalizedLimit = normalizeRunReceiptInboxLimit(limit);
+        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+
+        const latestByIdentity = new Map();
+        for (const run of this.repository.listRuns({ limit: null })) {
+            const item = projectRunReceiptInboxItem(run);
+            if (!item || !this._actorCanAccessProject(item.project_id, actor)) continue;
+            const identity = JSON.stringify([
+                item.project_id,
+                item.source.type,
+                item.source.workflow_id
+            ]);
+            const existing = latestByIdentity.get(identity);
+            if (!existing || runReceiptOrder(item, existing) < 0) {
+                latestByIdentity.set(identity, item);
+            }
+        }
+
+        const matching = Array.from(latestByIdentity.values())
+            .filter((item) => !projectId || item.project_id === projectId)
+            .filter((item) => !normalizedSourceType || item.source.type === normalizedSourceType)
+            .filter((item) => !normalizedRunStatus || item.source_status === normalizedRunStatus)
+            .filter((item) => !normalizedEvidenceState || item.evidence_state === normalizedEvidenceState)
+            .map((item) => ({ ...item, priority: runReceiptPriority(item) }))
+            .sort((left, right) => {
+                const priorityDifference = left.priority - right.priority;
+                return priorityDifference !== 0 ? priorityDifference : runReceiptOrder(left, right);
+            });
+        const count = matching.length;
+        const items = matching.slice(0, normalizedLimit).map(({ effective_epoch, created_epoch, ...item }) => item);
+        return {
+            items,
+            count,
+            has_more: count > items.length,
+            omitted_count: count - items.length
+        };
     }
 
     async getWorkflow(workflowId, actor = {}) {

@@ -14,6 +14,7 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
+import { createRunReceiptRouter } from '../routes/run-receipts.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
@@ -119,6 +120,7 @@ export function registerApiRoutes(app, {
     workflowService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler = null,
     uploadMiddleware,
     appVersion,
@@ -210,6 +212,10 @@ export function registerApiRoutes(app, {
     app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
     app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
+    app.use('/api/run-receipts', workflowAuthGuard, createRunReceiptRouter({
+        ingestService: runReceiptIngestService,
+        workflowService
+    }));
     if (meetingSourceMcpSyncService) {
         app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));
     }

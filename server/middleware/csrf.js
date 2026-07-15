@@ -143,6 +143,12 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Run receipt ingest is the sole server-to-server endpoint in this route
+        // family. The route itself rejects cookie/session-only authentication.
+        if (req.method === 'POST' && req.path === '/api/run-receipts/ingest') {
+            return next();
+        }
+
         // Brainbase Mac Companion is a native/server client API guarded by bearer,
         // service-token, or internal header auth. It cannot rely on browser CSRF tokens.
         if (req.path?.startsWith('/api/companion/')) {

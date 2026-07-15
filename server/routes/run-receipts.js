@@ -1,0 +1,83 @@
+// @ts-check
+
+import { Router } from 'express';
+
+import { asyncHandler } from '../lib/async-handler.js';
+import { RunReceiptContractError } from '../services/run-receipt/contract.js';
+
+function normalizeProjectCode(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isServerToServerAuth(req) {
+    return ['internal', 'service-token', 'bearer', 'insecure-header'].includes(String(req.authSource || ''));
+}
+
+function canAccessProject(req, projectId) {
+    if (!projectId) return true;
+    if (req.authSource === 'internal' || req.auth?.sub === 'internal_api' || req.access?.personId === 'internal_api') {
+        return true;
+    }
+    if (['admin', 'ceo'].includes(String(req.access?.role || req.auth?.role || '').toLowerCase())) return true;
+    const requested = normalizeProjectCode(projectId);
+    const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
+    return projectCodes.some((code) => normalizeProjectCode(code) === requested);
+}
+
+function actorFromRequest(req) {
+    return {
+        ...(req.auth || {}),
+        person_id: req.access?.personId || req.auth?.person_id || req.auth?.sub || null,
+        projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
+        role: req.access?.role || req.auth?.role || null,
+        authSource: req.authSource || null
+    };
+}
+
+export function createRunReceiptRouter({ ingestService, workflowService }) {
+    const router = Router();
+
+    router.post('/ingest', asyncHandler(async (req, res) => {
+        if (!isServerToServerAuth(req)) {
+            res.status(403).json({
+                error: 'server_to_server_auth_required',
+                message: 'run receipt ingest requires bearer, service token, or internal API authentication'
+            });
+            return;
+        }
+        const projectId = req.body?.run?.project_id;
+        if (!canAccessProject(req, projectId)) {
+            res.status(403).json({
+                error: 'project_not_accessible',
+                message: `project '${projectId}' is not accessible`
+            });
+            return;
+        }
+        try {
+            const result = await ingestService.ingest(req.body);
+            res.status(result.status === 'duplicate' ? 200 : 201).json(result);
+        } catch (error) {
+            if (error instanceof RunReceiptContractError) {
+                res.status(400).json({
+                    error: error.message,
+                    code: error.code,
+                    details: error.details
+                });
+                return;
+            }
+            throw error;
+        }
+    }));
+
+    router.get('/inbox', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listRunReceiptInbox({
+            projectId: req.query.project_id || req.query.projectId || null,
+            sourceType: req.query.source_type || req.query.sourceType || null,
+            runStatus: req.query.run_status || req.query.runStatus || null,
+            evidenceState: req.query.evidence_state || req.query.evidenceState || null,
+            limit: req.query.limit
+        }, actorFromRequest(req)));
+    }));
+
+    return router;
+}

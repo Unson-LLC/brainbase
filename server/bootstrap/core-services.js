@@ -26,6 +26,7 @@ import { PgCandidateRepository } from '../services/candidate-store/candidate-rep
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
+import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
 import { createEveSessionClientFromEnv } from '../services/external-runner/eve-session-client.js';
 import {
     EveMeetingNoteReconciler,
@@ -125,6 +126,7 @@ export function createCoreServices({
         workflowRepository,
         candidateRepository
     });
+    const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
 
     const worktreeService = new WorktreeService(
         worktreesDir,
@@ -239,6 +241,7 @@ export function createCoreServices({
         workflowService,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
+        runReceiptIngestService,
         eveMeetingNoteReconciler,
         uploadMiddleware: upload.single('file')
     };
