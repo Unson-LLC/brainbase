@@ -247,6 +247,33 @@ describe('CanonicalTaskService', () => {
         expect(fixture.repository.create).not.toHaveBeenCalled();
     });
 
+    it('resolves an exact Graph payload person_id when the entity id differs', async () => {
+        fixture.people.listGraphEntities.mockImplementation(async (_access, query) => {
+            if (query.id) return [];
+            return [{
+                entity_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+                entity_type: 'person',
+                payload: { person_id: OWNER, display_name: '佐藤 圭吾' }
+            }];
+        });
+
+        await fixture.service.createTask(
+            { title: 'Graph payload person_idで担当者を確定する' },
+            { ...ownerContext(), idempotencyKey: 'payload-person-id' }
+        );
+
+        expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(1, ownerContext().access, {
+            id: OWNER, entityType: 'person', projectCode: 'brainbase', limit: 1
+        });
+        expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(2, ownerContext().access, {
+            query: OWNER, entityType: 'person', projectCode: 'brainbase', limit: 10
+        });
+        expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
+            assignee_person_id: OWNER,
+            assignee_display_name: '佐藤 圭吾'
+        }));
+    });
+
     it('returns current task on version conflict', async () => {
         fixture.repository.get.mockResolvedValue(task({ version: 3 }));
         await expect(fixture.service.updateTask('task_1', { expected_version: 2, title: '変更' }, ownerContext()))

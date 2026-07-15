@@ -281,14 +281,26 @@ export class CanonicalTaskService {
         let rows;
         try {
             rows = await this.infoSSOTService.listGraphEntities(context.access, { id: personId, entityType: 'person', projectCode: 'brainbase', limit: 1 });
+            if (!rows.some((item) => item.entity_id === personId || item.payload?.person_id === personId)) {
+                rows = await this.infoSSOTService.listGraphEntities(context.access, {
+                    query: personId,
+                    entityType: 'person',
+                    projectCode: 'brainbase',
+                    limit: 10
+                });
+            }
         } catch (error) {
             throw new CanonicalTaskError('assignee_directory_unavailable', 'Graph People directory is unavailable', 503, { cause: error?.message });
         }
-        const row = rows.find((item) => {
+        const matches = rows.filter((item) => {
             const payload = item.payload || {};
             return (item.entity_id === personId || payload.person_id === personId) && item.entity_type === 'person';
         });
-        if (!row) throw new CanonicalTaskError('invalid_assignee_person_id', 'assignee_person_id does not exist in Graph People', 422, { fieldErrors: { assignee_person_id: ['not_found'] } });
+        if (matches.length !== 1) {
+            const reason = matches.length > 1 ? 'ambiguous' : 'not_found';
+            throw new CanonicalTaskError('invalid_assignee_person_id', 'assignee_person_id does not uniquely identify a Graph person', 422, { fieldErrors: { assignee_person_id: [reason] } });
+        }
+        const [row] = matches;
         return row.payload?.display_name || row.payload?.name || row.display_name || row.name || personId;
     }
 
