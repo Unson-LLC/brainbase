@@ -47,6 +47,8 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - [ ] ac:8 receipt deliveryの成否とsource runの成否を別フィールドとして扱い、delivery成功をrun成功と解釈しない。
 - [ ] ac:9 同一identityの同時ingestはreceipt lockで直列化し、1件だけをcreate、残りをduplicateとして返す。lock取得不能時は部分保存せず明示的に失敗する。
 - [ ] ac:10 production CSRF middlewareは `POST /api/run-receipts/ingest` だけをbrowser CSRF対象外にし、route側でserver-to-server credentialを必須化する。cookie/session-only POSTは拒否し、既存exemptionは変えない。
+- [ ] ac:11 receipt workflowは共有WMC台帳へ保存しても既存Operational Inboxと `GET /api/workflows` から除外し、Agent Run Inboxだけに1回表示する。receipt＋非receipt混在時も非receiptの既存priorityは変えない。
+- [ ] ac:12 `GET /api/run-receipts/inbox` のtimeout、network error、または5xx時は既存Workflow画面とOperational Inboxを維持し、Agent Run Inbox sectionだけを明示的な取得不能warningへ落とす。障害を空配列や0件成功へ丸めない。
 
 ## Workflow State Scenarios
 
@@ -66,6 +68,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - `auth_denied`: cookieだけのbrowser requestやproject非許可credentialは403で拒否する。
 - `source_unavailable`: connectorがsourceへ接続できずsource run identityも得られない場合は、connector自身の観測試行を `observation_kind=connector_observation`、synthetic external run identity、`blocked + no_data|unconfirmed` として表現する。source runを失敗扱いに偽装しない。
 - `delivery_failure`: connector側outbox/retryで扱い、Brainbaseに届いたreceiptのsource run statusを書き換えない。
+- `receipt_inbox_failure`: receipt一覧APIの取得失敗はAgent Run Inboxだけにwarningを表示し、既存workflow一覧の取得・描画を巻き込まない。取得不能を0件と表示しない。
 
 ## 非目標
 
@@ -79,4 +82,4 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - 正本の利用面はWorkflow Mission Control内のAgent Run Inboxと `GET /api/run-receipts/inbox` とする。
 - `no_data` と `unconfirmed` は成功色や0件表示へ混ぜず、warning badgeと根拠不足の説明を必ず表示する。
 - `omitted_count` は現在のfilterには一致するが `limit` により返却されなかったreceipt数であり、source未確認数ではない。
-- 既存の非receipt workflow一覧・承認Inboxのpriorityは変更しない。receiptのpriorityはreceipt専用APIとUI sectionで一元化する。
+- 既存の非receipt workflow一覧・承認Inboxのpriorityは変更しない。receipt workflowは `GET /api/workflows` と既存Operational Inboxへ混入させず、receiptのpriorityはreceipt専用APIとUI sectionで一元化する。

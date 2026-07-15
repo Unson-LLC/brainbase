@@ -61,6 +61,13 @@ Within the same priority, newest `finished_at || started_at || created_at` comes
 
 Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are stored separately from `source_action_required`; they do not by themselves promote an item to priority 1. This keeps every priority bucket reachable. Existing non-receipt WMC priority remains unchanged.
 
+## Surface Isolation
+
+- Receipt workflow/runは共有WMC repositoryに保存するが、`WorkflowService.listWorkflows` が返す既存 `GET /api/workflows` のOperational Inbox projectionから `metadata.run_receipt` を持つworkflowを除外する。receiptは `WorkflowService.listRunReceiptInbox` と `GET /api/run-receipts/inbox` だけが一覧化し、同じrunを二つのpriority規則で重複表示しない。
+- 除外はreceipt分類だけに適用し、非receipt workflowの集合、既存priority、既存render順を変更しない。receipt＋非receipt混在fixtureでAPIとUIの非重複を固定する。
+- Workflow Mission Controlの既存config/projects/workflows取得を必須surface、receipt Inbox取得を独立したoptional surfaceとして扱う。receipt APIのtimeout、network error、または5xxはreceipt sectionの `unavailable` warningへ変換し、既存Operational Inboxのstate/renderを維持する。
+- receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、UIは「receiptなし」と「receipt取得不能」を別stateで表示する。
+
 ## Transaction and Idempotency
 
 1. Validate the full contract before repository writes.
@@ -88,7 +95,7 @@ The source connector is authoritative for that observation attempt identity. Inb
 
 - Both routes use existing `requireAuth`.
 - `POST /ingest` additionally requires internal, service-token, bearer, or insecure-header server-to-server credential and project access.
-- Global production CSRF middleware exempts only the exact `/api/run-receipts/ingest` path because non-browser clients cannot obtain a CSRF token. The route still runs `requireAuth` and a server-to-server credential guard, so cookie/session-only POST remains forbidden. GET receives no CSRF exemption because it is a safe method. Existing exemptions remain unchanged.
+- Global production CSRF middleware exempts only `req.method === 'POST' && req.path === '/api/run-receipts/ingest'` because non-browser clients cannot obtain a CSRF token. `PUT`, `PATCH`, and `DELETE` against that same path remain CSRF-protected and return `403` before route dispatch. The POST route still runs `requireAuth` and a server-to-server credential guard, so cookie/session-only POST remains forbidden. GET receives no CSRF exemption because it is a safe method. Existing exemptions remain unchanged.
 - `GET /inbox` accepts an authenticated Brainbase operator/session. With no `project_id`, it returns only projects visible to that actor; explicit inaccessible projects are rejected.
 - `project_id` must be visible to the authenticated actor.
 - Evidence references allow `url`, `artifact_ref`, or `log_ref`; HTTPS/opaque-ref syntax and length are validated, and forbidden raw keys are rejected recursively across the entire envelope.
