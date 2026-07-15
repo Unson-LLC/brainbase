@@ -10,6 +10,7 @@ function makeReceiptRun({
     sourceWorkflowId = 'daily-secretary',
     sourceStatus = 'success',
     evidenceState = 'confirmed',
+    observationKind = 'source_run',
     sourceAction = null,
     effectiveAt = '2026-07-15T00:00:00Z',
     createdAt = effectiveAt
@@ -36,7 +37,7 @@ function makeReceiptRun({
                 },
                 source_status: sourceStatus,
                 source_external_run_id: id,
-                observation_kind: 'source_run',
+                observation_kind: observationKind,
                 evidence_state: evidenceState,
                 evidence_refs: evidenceState === 'confirmed'
                     ? [{ kind: 'log_ref', ref: `${sourceType}:artifact/${id}` }]
@@ -88,6 +89,26 @@ describe('WorkflowService.listRunReceiptInbox', () => {
         expect(result.items.map((item) => [item.id, item.priority])).toEqual([
             ['action-success', 1], ['plain-failed', 2]
         ]);
+    });
+
+    it('connector_observationをInbox projectionへ保持し通常runと区別できる', async () => {
+        const service = await makeService([
+            makeReceiptRun({
+                id: 'connector-observation-1',
+                sourceWorkflowId: '__connector_observation__',
+                sourceStatus: 'blocked',
+                evidenceState: 'unconfirmed',
+                observationKind: 'connector_observation',
+                sourceAction: 'check_error'
+            })
+        ]);
+
+        const result = await service.listRunReceiptInbox({}, {});
+
+        expect(result.items[0]).toMatchObject({
+            id: 'connector-observation-1',
+            observation_kind: 'connector_observation'
+        });
     });
 
     it('identityごとの最新runへ先に畳み込み古いblockedをfilterで復活させない', async () => {

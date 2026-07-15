@@ -48,14 +48,20 @@ function renderReceipt(item) {
     const refs = Array.isArray(item.evidence_refs) ? item.evidence_refs : [];
     const metrics = formatMetrics(item.metrics);
     const action = item.source_action || item.action_required || 'none';
+    const observationKind = item.observation_kind || 'source_run';
+    const isConnectorObservation = observationKind === 'connector_observation';
+    const title = isConnectorObservation
+        ? 'Connector observation'
+        : source.name || source.workflow_id || item.id;
     return `
-        <article class="run-receipt-card" data-run-receipt-id="${escapeHtml(item.id)}">
+        <article class="run-receipt-card" data-run-receipt-id="${escapeHtml(item.id)}" data-observation-kind="${escapeHtml(observationKind)}">
             <div class="run-receipt-card-head">
                 <div>
-                    <strong>${escapeHtml(source.name || source.workflow_id || item.id)}</strong>
+                    <strong>${escapeHtml(title)}</strong>
                     <div class="sub">${escapeHtml(item.project_id || '-')} · ${escapeHtml(sourceLabel(source.type))} · ${escapeHtml(source.runtime_target || '-')}</div>
                 </div>
                 <div class="chips" aria-label="Run and evidence states">
+                    ${isConnectorObservation ? '<span class="badge warn">observation: Connector observation</span>' : ''}
                     <span class="badge ${statusClass(item.source_status)}">status: ${escapeHtml(item.source_status)}</span>
                     <span class="badge ${evidenceClass(item.evidence_state)}">evidence: ${escapeHtml(item.evidence_state)}</span>
                 </div>

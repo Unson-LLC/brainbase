@@ -146,6 +146,24 @@ describe('normalizeRunReceipt', () => {
         }))).toThrowError(expect.objectContaining({ code: 'invalid_connector_observation' }));
     });
 
+    it('有効なconnector_observation_通常source runと区別した正規化値を返す', () => {
+        const normalized = normalizeRunReceipt(makeReceipt({
+            source: {
+                workflow_id: '__connector_observation__'
+            },
+            run: {
+                observation_kind: 'connector_observation',
+                status: 'blocked',
+                evidence_state: 'unconfirmed',
+                evidence_refs: [],
+                blocker_reason: 'source run identity unavailable',
+                action_required: 'check_error'
+            }
+        }));
+
+        expect(normalized.immutable.run.observation_kind).toBe('connector_observation');
+    });
+
     it.each([
         ['failed', 'failed', 'needs_action', 'check_error'],
         ['blocked', 'needs_action', 'needs_action', 'resolve_blocker'],

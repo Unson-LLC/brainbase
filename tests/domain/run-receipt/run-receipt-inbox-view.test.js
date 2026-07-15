@@ -55,6 +55,28 @@ describe('renderRunReceiptInbox', () => {
         expect(html).toContain('attempts');
     });
 
+    it('connector_observationを通常runと区別する文字labelで表示する', () => {
+        const html = renderRunReceiptInbox(inbox({
+            items: [{
+                id: 'connector-observation-1',
+                project_id: 'brainbase',
+                source: { type: 'mana', workflow_id: '__connector_observation__' },
+                observation_kind: 'connector_observation',
+                source_status: 'blocked',
+                evidence_state: 'unconfirmed',
+                source_action: 'check_error',
+                blocker_reason: 'source run identity unavailable',
+                evidence_refs: [],
+                metrics: {}
+            }],
+            count: 1
+        }));
+
+        expect(html).toContain('data-observation-kind="connector_observation"');
+        expect(html).toContain('Connector observation');
+        expect(html).not.toContain('<strong>__connector_observation__</strong>');
+    });
+
     it('unavailable時_前回確認済みsnapshotを残して0件扱いしない', () => {
         const html = renderRunReceiptInbox(inbox({
             status: 'unavailable',

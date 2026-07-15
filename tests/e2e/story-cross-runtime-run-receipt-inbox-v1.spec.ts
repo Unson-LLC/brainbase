@@ -66,6 +66,35 @@ function makeReceipt({
   };
 }
 
+function makeConnectorObservation(suffix: string) {
+  const sourceType = 'mana';
+  const externalRunId = `tracked-e2e:${suffix}:connector-observation`;
+  return {
+    contract_version: 'run_receipt.v1',
+    source: {
+      type: sourceType,
+      workflow_id: '__connector_observation__',
+      runtime_target: 'test-server'
+    },
+    run: {
+      project_id: 'brainbase',
+      external_run_id: externalRunId,
+      observation_kind: 'connector_observation',
+      status: 'blocked',
+      evidence_state: 'unconfirmed',
+      finished_at: '2026-07-15T10:15:00Z',
+      summary: `connector identity unavailable ${suffix}`,
+      blocker_reason: 'tracked connector identity unavailable',
+      action_required: 'check_error',
+      evidence_refs: []
+    },
+    delivery: {
+      idempotency_key: idempotencyKey('brainbase', sourceType, externalRunId),
+      attempt: 1
+    }
+  };
+}
+
 test('common receipt path uses real ingest and inbox APIs before preserving the snapshot on 503', async ({ page, request }) => {
   const suffix = `${Date.now()}-${test.info().workerIndex}`;
   const workflowA = `Tracked common E2E A ${suffix}`;
@@ -101,7 +130,8 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
       evidenceState: 'no_data',
       finishedAt: '2026-07-15T10:00:00Z',
       summary: `failed without evidence ${suffix}`
-    })
+    }),
+    makeConnectorObservation(suffix)
   ];
 
   for (const receipt of receipts) {
@@ -151,6 +181,14 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
     }
   ]);
   expect(trackedItems.map((item: { summary: string }) => item.summary)).not.toContain(`old success must collapse ${suffix}`);
+  const observationItem = apiInbox.items.find((item: { summary?: string }) => (
+    item.summary === `connector identity unavailable ${suffix}`
+  ));
+  expect(observationItem).toMatchObject({
+    observation_kind: 'connector_observation',
+    source_status: 'blocked',
+    evidence_state: 'unconfirmed'
+  });
 
   await page.setExtraHTTPHeaders(AUTH_HEADERS);
   await page.route('**/api/workflows', async (route) => {
@@ -190,9 +228,13 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
   await expect(page.getByRole('heading', { name: 'Agent Run Inbox' })).toBeVisible();
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
+  const connectorObservationCard = page.locator('[data-observation-kind="connector_observation"]')
+    .filter({ hasText: `connector identity unavailable ${suffix}` });
+  await expect(connectorObservationCard).toContainText('Connector observation');
   await expect(page.getByText(`old success must collapse ${suffix}`)).toHaveCount(0);
 
-  const trackedCards = page.locator('.run-receipt-card').filter({ hasText: suffix });
+  const trackedCards = page.locator('.run-receipt-card[data-observation-kind="source_run"]')
+    .filter({ hasText: suffix });
   await expect(trackedCards).toHaveCount(2);
   await expect(trackedCards.nth(0)).toContainText('status: blocked');
   await expect(trackedCards.nth(1)).toContainText('status: failed');
@@ -200,6 +242,7 @@ test('common receipt path uses real ingest and inbox APIs before preserving the 
   await page.locator('#run-receipt-evidence').selectOption('unconfirmed');
   await page.getByRole('button', { name: 'Apply' }).click();
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
+  await expect(connectorObservationCard).toBeVisible();
   await expect(page.getByText(`failed without evidence ${suffix}`)).toHaveCount(0);
 
   await page.route('**/api/run-receipts/inbox**', async (route) => {
