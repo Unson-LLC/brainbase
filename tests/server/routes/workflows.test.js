@@ -54,8 +54,8 @@ function makeApp({
         next();
     });
     app.use('/api/workflows', createWorkflowRouter(service));
-    app.use('/api/workflow-runs', createWorkflowRunRouter(service));
-    app.use('/api/workflow-human-steps', createWorkflowHumanStepRouter(service));
+    app.use('/api/workflow-runs', createWorkflowRunRouter(service.automationRunService));
+    app.use('/api/workflow-human-steps', createWorkflowHumanStepRouter(service.automationRunService));
     app.use((err, req, res, next) => {
         if (err?.type === 'entity.parse.failed') {
             return errorHandler(err, req, res, next);

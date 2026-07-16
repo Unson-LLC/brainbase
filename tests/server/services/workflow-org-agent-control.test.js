@@ -293,8 +293,11 @@ async function createAgentStack(service, actor, {
 }
 
 describe('WorkflowService org agent loop control', () => {
-    it('does not expose the retired generic manual-run adapter', () => {
+    it('does not expose Automation Run adapters', () => {
         expect(WorkflowService.prototype.runWorkflow).toBeUndefined();
+        expect(WorkflowService.prototype.rerun).toBeUndefined();
+        expect(WorkflowService.prototype.getRun).toBeUndefined();
+        expect(WorkflowService.prototype.resolveHumanStep).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {
@@ -575,7 +578,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.outputs).toHaveLength(0);
         expect(repository.ledger.human_steps).toHaveLength(0);
 
-        const runDetail = await service.getRun(result.eve_session_dispatch.run.id, actor);
+        const runDetail = await service.automationRunService.getRun(result.eve_session_dispatch.run.id, actor);
         expect(runDetail.run.metadata.runner).toMatchObject({
             type: 'eve',
             session_id: 'eve-session-service-001',
@@ -633,7 +636,7 @@ describe('WorkflowService org agent loop control', () => {
             continuation_token: 'cont-service-002',
             workflow_run_id: forced.eve_session_dispatch.run.id
         });
-        const forcedRun = await service.getRun(forced.eve_session_dispatch.run.id, actor);
+        const forcedRun = await service.automationRunService.getRun(forced.eve_session_dispatch.run.id, actor);
         const loopIntentSnapshot = forcedRun.context_snapshots.find((snapshot) => snapshot.source_type === 'loop_intent');
         expect(loopIntentSnapshot).toMatchObject({
             redaction_status: 'redacted',
@@ -876,7 +879,7 @@ describe('WorkflowService org agent loop control', () => {
         })).rejects.toMatchObject({
             message: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
         });
-        await expect(service.rerun(first.eve_session_dispatch.run.id, {
+        await expect(service.automationRunService.rerun(first.eve_session_dispatch.run.id, {
             actorId: actor.person_id
         }, actor)).rejects.toMatchObject({
             message: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
@@ -2566,7 +2569,7 @@ describe('WorkflowService org agent loop control', () => {
         }, actor);
         const step = result.meeting_review_ingest.human_steps[0];
 
-        const resolved = await service.resolveHumanStep(step.id, {
+        const resolved = await service.automationRunService.resolveHumanStep(step.id, {
             run_id: result.meeting_review_ingest.run.id,
             resolution: 'approved'
         }, actor);
@@ -2608,7 +2611,7 @@ describe('WorkflowService org agent loop control', () => {
 
         let latestResolution = null;
         for (const step of result.meeting_review_ingest.human_steps) {
-            latestResolution = await service.resolveHumanStep(step.id, {
+            latestResolution = await service.automationRunService.resolveHumanStep(step.id, {
                 run_id: result.meeting_review_ingest.run.id,
                 resolution: 'approved'
             }, actor);
@@ -2645,7 +2648,7 @@ describe('WorkflowService org agent loop control', () => {
         }, actor);
         const [rejectedStep, staleApproveStep] = result.meeting_review_ingest.human_steps;
 
-        const rejected = await service.resolveHumanStep(rejectedStep.id, {
+        const rejected = await service.automationRunService.resolveHumanStep(rejectedStep.id, {
             run_id: result.meeting_review_ingest.run.id,
             resolution: 'rejected'
         }, actor);
@@ -2664,7 +2667,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(0);
         expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'cancelled')).toHaveLength(4);
 
-        await expect(service.resolveHumanStep(staleApproveStep.id, {
+        await expect(service.automationRunService.resolveHumanStep(staleApproveStep.id, {
             run_id: result.meeting_review_ingest.run.id,
             resolution: 'approved'
         }, actor)).rejects.toThrow(`human step '${staleApproveStep.id}' is already cancelled`);
@@ -2704,7 +2707,7 @@ describe('WorkflowService org agent loop control', () => {
             triggerType: 'manual'
         })).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
 
-        await expect(service.rerun(runId, {}, actor)).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
+        await expect(service.automationRunService.rerun(runId, {}, actor)).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
 
         expect(repository.listRuns({ workflowId })).toHaveLength(1);
         expect(repository.ledger.runs).toHaveLength(1);
@@ -2739,7 +2742,7 @@ describe('WorkflowService org agent loop control', () => {
             message: "project 'salestailor' is not accessible"
         });
 
-        await expect(service.rerun(runId, {}, noAccessActor)).rejects.toMatchObject({
+        await expect(service.automationRunService.rerun(runId, {}, noAccessActor)).rejects.toMatchObject({
             statusCode: 403,
             message: "project 'salestailor' is not accessible"
         });

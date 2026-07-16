@@ -2656,14 +2656,6 @@ export class WorkflowService {
         }
     }
 
-    async rerun(runId, options = {}, actor = {}) {
-        return this.automationRunService.rerun(runId, options, actor);
-    }
-
-    async getRun(runId, actor = {}) {
-        return this.automationRunService.getRun(runId, actor);
-    }
-
     async listCompanionApprovalInbox({ projectId = null, limit = 100 } = {}, actor = {}) {
         await this._loadProjectConfigCache();
         if (projectId) this._assertActorCanAccessProject(projectId, actor);
@@ -2737,10 +2729,6 @@ export class WorkflowService {
             has_more: allItems.length > limit,
             omitted_count: Math.max(allItems.length - items.length, 0)
         };
-    }
-
-    async resolveHumanStep(stepId, input = {}, actor = {}) {
-        return this.automationRunService.resolveHumanStep(stepId, input, actor);
     }
 
     async _assertProjectSelectable(projectId) {

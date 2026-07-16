@@ -1721,7 +1721,7 @@ describe('ExternalRunnerIngestService', () => {
             required_by: 'keigo'
         });
 
-        const resolved = await workflowService.resolveHumanStep(
+        const resolved = await workflowService.automationRunService.resolveHumanStep(
             'hs-external-resolvable',
             { resolution: 'approved' },
             {
@@ -1787,7 +1787,7 @@ describe('ExternalRunnerIngestService', () => {
 
         expect(result.run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
 
-        const resolved = await workflowService.resolveHumanStep(
+        const resolved = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-ceo',
             { resolution: 'approved' },
             { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
@@ -1847,14 +1847,14 @@ describe('ExternalRunnerIngestService', () => {
 
         expect(result.run).toMatchObject({ status: 'waiting_human' });
 
-        const first = await workflowService.resolveHumanStep(
+        const first = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-cso-1',
             { resolution: 'approved' },
             { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
         );
         expect(first.resumed_run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
 
-        const second = await workflowService.resolveHumanStep(
+        const second = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-cso-2',
             { resolution: 'approved' },
             { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
@@ -1895,7 +1895,7 @@ describe('ExternalRunnerIngestService', () => {
             human_steps: [{ id: 'hs-agent-report-retro', step_type: 'approval', prompt: 'レトロを承認する' }]
         }));
 
-        const rejected = await workflowService.resolveHumanStep(
+        const rejected = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-retro',
             { resolution: 'rejected' },
             { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }

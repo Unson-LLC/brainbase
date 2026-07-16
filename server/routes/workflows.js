@@ -211,23 +211,23 @@ export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler
     return router;
 }
 
-export function createWorkflowRunRouter(workflowService) {
+export function createWorkflowRunRouter(automationRunService) {
     const router = express.Router();
 
     router.get('/:runId', asyncHandler(async (req, res) => {
-        res.json(await workflowService.getRun(req.params.runId, actorFromRequest(req)));
+        res.json(await automationRunService.getRun(req.params.runId, actorFromRequest(req)));
     }));
 
     router.post('/:runId/rerun', asyncHandler(async (req, res) => {
         const body = req.body || {};
-        res.status(201).json(await workflowService.rerun(req.params.runId, {
+        res.status(201).json(await automationRunService.rerun(req.params.runId, {
             actorId: actorFromRequest(req).person_id || actorFromRequest(req).sub || 'system',
             dryRun: Boolean(body.dry_run || body.dryRun)
         }, actorFromRequest(req)));
     }));
 
     router.post('/:runId/human-steps/:stepId/resolve', asyncHandler(async (req, res) => {
-        res.json(await workflowService.resolveHumanStep(req.params.stepId, {
+        res.json(await automationRunService.resolveHumanStep(req.params.stepId, {
             ...(req.body || {}),
             run_id: req.params.runId
         }, actorFromRequest(req)));
@@ -236,11 +236,11 @@ export function createWorkflowRunRouter(workflowService) {
     return router;
 }
 
-export function createWorkflowHumanStepRouter(workflowService) {
+export function createWorkflowHumanStepRouter(automationRunService) {
     const router = express.Router();
 
     router.post('/:stepId/resolve', asyncHandler(async (req, res) => {
-        res.json(await workflowService.resolveHumanStep(req.params.stepId, req.body || {}, actorFromRequest(req)));
+        res.json(await automationRunService.resolveHumanStep(req.params.stepId, req.body || {}, actorFromRequest(req)));
     }));
 
     return router;

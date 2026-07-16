@@ -78,7 +78,7 @@ describe('C2 in-process E2E: agent report → approval inbox → approve → clo
             .listHumanSteps(runId)
             .find((step) => step.status === 'pending');
         expect(pendingStep).toBeTruthy();
-        const resolved = await workflowService.resolveHumanStep(
+        const resolved = await workflowService.automationRunService.resolveHumanStep(
             pendingStep.id,
             { resolution: 'approved' },
             ACTOR
@@ -130,7 +130,7 @@ describe('C2 in-process E2E: agent report → approval inbox → approve → clo
         expect(inboxBefore.items.find((item) => item.run_id === runId)).toBeTruthy();
 
         const pendingStep = repository.listHumanSteps(runId).find((step) => step.status === 'pending');
-        const resolved = await workflowService.resolveHumanStep(
+        const resolved = await workflowService.automationRunService.resolveHumanStep(
             pendingStep.id,
             { resolution: 'rejected' },
             ACTOR

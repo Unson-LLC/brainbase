@@ -81,7 +81,7 @@ function createApp({
     });
     app.use('/api/run-receipts', createRunReceiptRouter({ ingestService, workflowService }));
     app.use('/api/workflows', createWorkflowRouter(workflowService));
-    app.use('/api/workflow-runs', createWorkflowRunRouter(workflowService));
+    app.use('/api/workflow-runs', createWorkflowRunRouter(workflowService.automationRunService));
     app.use(errorHandler);
     return { app, repository, ingestService };
 }

@@ -210,8 +210,8 @@ export function registerApiRoutes(app, {
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);
     app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService, { eveMeetingNoteReconciler }));
-    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
-    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
+    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService.automationRunService));
+    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService.automationRunService));
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
     app.use('/api/run-receipts', workflowAuthGuard, createRunReceiptRouter({
         ingestService: runReceiptIngestService,

@@ -84,7 +84,7 @@ test('story-brainbase-agent-report-approval-inbox ac:2 S-002 全 human_step 承�
   });
 
   const pending = repository.listHumanSteps(runId).find((s) => s.status === 'pending');
-  const resolved = await workflowService.resolveHumanStep(pending.id, { resolution: 'approved' }, ACTOR);
+  const resolved = await workflowService.automationRunService.resolveHumanStep(pending.id, { resolution: 'approved' }, ACTOR);
   expect(resolved.resumed_run).toMatchObject({
     id: runId, status: 'success', closure_state: 'closed', human_waiting: false, action_required: 'none'
   });
@@ -101,7 +101,7 @@ test('story-brainbase-agent-report-approval-inbox ac:3 S-007 human_step 却下�
   }));
   const runId = ingested.run.id;
   const pending = repository.listHumanSteps(runId).find((s) => s.status === 'pending');
-  const resolved = await workflowService.resolveHumanStep(pending.id, { resolution: 'rejected' }, ACTOR);
+  const resolved = await workflowService.automationRunService.resolveHumanStep(pending.id, { resolution: 'rejected' }, ACTOR);
   expect(resolved.resumed_run).toMatchObject({ status: 'cancelled', closure_state: 'closed' });
   const inboxAfter = await workflowService.listCompanionApprovalInbox({ projectId: 'brainbase' }, ACTOR);
   expect(inboxAfter.items.find((item) => item.run_id === runId)).toBeUndefined();
@@ -121,9 +121,9 @@ test('story-brainbase-agent-report-approval-inbox ac:4 S-008 複数 human_step �
   const runId = ingested.run.id;
   const pendings = repository.listHumanSteps(runId).filter((s) => s.status === 'pending');
   expect(pendings.length).toBe(2);
-  const first = await workflowService.resolveHumanStep(pendings[0].id, { resolution: 'approved' }, ACTOR);
+  const first = await workflowService.automationRunService.resolveHumanStep(pendings[0].id, { resolution: 'approved' }, ACTOR);
   expect(first.resumed_run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
-  const second = await workflowService.resolveHumanStep(pendings[1].id, { resolution: 'approved' }, ACTOR);
+  const second = await workflowService.automationRunService.resolveHumanStep(pendings[1].id, { resolution: 'approved' }, ACTOR);
   expect(second.resumed_run).toMatchObject({ status: 'success', closure_state: 'closed' });
   expect(orphanRuns(repository)).toHaveLength(0);
 });
@@ -174,7 +174,7 @@ test('story-brainbase-agent-report-approval-inbox INV-001 eve (external-runner:e
     outputs: []
   });
   const pending = repository.listHumanSteps(ingested.run.id).find((s) => s.status === 'pending');
-  const resolved = await workflowService.resolveHumanStep(pending.id, { resolution: 'approved' }, ACTOR);
+  const resolved = await workflowService.automationRunService.resolveHumanStep(pending.id, { resolution: 'approved' }, ACTOR);
   // eve went through the generic runWorkflow resume path (registered handler), NOT the approval-only close.
   expect(resumeHandlerCalled).toBe(true);
   expect(resolved.resumed_run).toMatchObject({ trigger_type: 'human_resume', parent_run_id: ingested.run.id });
