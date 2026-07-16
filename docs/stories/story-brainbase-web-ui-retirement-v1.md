@@ -60,7 +60,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 | `public/admin.html` | 管理・可視化の混合面 | browser必須設定だけWebへ分離し、残りはMCP | `temporarily_keep` | admin能力を機能別分類し、auth/consent/recovery以外を移管 |
 | `public/setup.html` | 初期設定 | Web候補 | `keep_web_review` | 各設定についてブラウザ必須理由を確認し、不要項目をMCPへ移管 |
 | `public/device.html` | device接続・pairing | Web候補 | `keep_web_review` | pairing/本人確認に必要な最小面へ縮小 |
-| `public/test-infrastructure.html` | 開発・検証用UI | CLI/test artifact | `delete_candidate` | production導線と運用依存がないことを確認 |
+| `public/test-infrastructure.html` | 廃止済みの開発・検証用UI | CLI/test artifact | `deleted` | `TSK-WEBRET-001`で参照0件とstatic 404を確認済み |
 | `public/ttyd/custom_ttyd_index.html` | browser terminal shell | Codex/Claude Code native surface | `temporarily_keep` | session/runtime復旧用途を監査し、代替経路を確認 |
 | `public/ttyd/ttyd_index.html` | browser terminal shell | Codex/Claude Code native surface | `temporarily_keep` | session/runtime復旧用途を監査し、代替経路を確認 |
 
@@ -101,7 +101,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 
 詳細なdependency map、実装順、完了evidenceは`docs/architecture/brainbase-web-surface-retirement-inventory.md`を正本とする。
 
-1. `TSK-WEBRET-001`: 参照のない`test-infrastructure.html`を最初に削除する。
+1. `TSK-WEBRET-001`（完了）: 参照のない`test-infrastructure.html`を削除し、static 404をcontract testで固定した。
 2. `TSK-WEBRET-002`: 実APIへ接続していないMeeting Pack mock prototypeとdeep-linkを削除する。
 3. `TSK-WEBRET-003`から`006`: MCP control plane、Workflow/Run/Inbox、Companion projection、Admin/SNS/setup parityを後継面として出荷する。
 4. `TSK-WEBRET-007`から`008`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
