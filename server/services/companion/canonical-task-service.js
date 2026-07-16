@@ -170,6 +170,16 @@ export class CanonicalTaskService {
     }
 
     normalizeOwnerContext(context = {}) {
+        const isWorkflowInternal = context?.authSource === 'service-internal';
+        const projectCodes = Array.isArray(context?.access?.projectCodes) ? context.access.projectCodes : [];
+        const clearance = Array.isArray(context?.access?.clearance) ? context.access.clearance : [];
+        if (!isWorkflowInternal && (!projectCodes.includes('brainbase') || !clearance.includes('internal'))) {
+            throw new CanonicalTaskError(
+                'canonical_task_scope_required',
+                'Canonical Task API requires brainbase project scope and internal clearance',
+                403
+            );
+        }
         if (context?.principal?.type !== 'person') return context;
         if (!this.ownerPersonIds.has(context.principal.id)) {
             throw new CanonicalTaskError(
@@ -343,6 +353,13 @@ export class CanonicalTaskService {
         const payloadFingerprint = fingerprint(payload);
         const result = await this.operationRepository.execute({
             scope: 'task-create', operationKey, fingerprint: payloadFingerprint,
+             projectResult: (task) => ({ task_id: task.id, task_version: task.version }),
+             recover: () => this.recoverCreatedTask({
+                 operationKey,
+                 payloadFingerprint,
+                 context,
+                 conflictMessage: 'Idempotency key was reused with different input'
+             }),
             run: async () => {
                 const existing = await this.read(() => this.repository.findByIdempotencyKey(operationKey));
                 if (existing) {
@@ -404,6 +421,13 @@ export class CanonicalTaskService {
         const payloadFingerprint = fingerprint(payload);
         const result = await this.operationRepository.execute({
             scope: 'task-create', operationKey, fingerprint: payloadFingerprint,
+             projectResult: (task) => ({ task_id: task.id, task_version: task.version }),
+             recover: () => this.recoverCreatedTask({
+                 operationKey,
+                 payloadFingerprint,
+                 context,
+                 conflictMessage: 'capture_id was reused with different input'
+             }),
             run: async () => {
                 const existing = await this.read(() => this.repository.findByIdempotencyKey(operationKey));
                 if (existing) {
@@ -535,6 +559,13 @@ export class CanonicalTaskService {
                 scope: 'workflow-task-create',
                 operationKey,
                 fingerprint: payloadFingerprint,
+                 projectResult: (task) => ({ task_id: task.id, task_version: task.version }),
+                 recover: () => this.recoverCreatedTask({
+                     operationKey,
+                     payloadFingerprint,
+                     context,
+                     conflictMessage: 'Workflow Task candidate changed after materialization'
+                 }),
                 run: async () => {
                     const replay = await this.read(() => this.repository.findByIdempotencyKey(operationKey));
                     if (replay) {
@@ -618,6 +649,7 @@ export class CanonicalTaskService {
         const result = await this.operationRepository.execute({
             scope: 'task-version', operationKey,
             fingerprint: opFingerprint,
+            projectResult: (task) => ({ task_id: task.id, task_version: task.version }),
             recover: async () => {
                 const recovered = await this.getTask(taskId, context);
                 if (wasApplied(recovered)) return { recovered: true, result: recovered };

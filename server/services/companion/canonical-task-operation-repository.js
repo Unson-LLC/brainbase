@@ -7,6 +7,17 @@ function canonicalTaskOperationError(code, message, status = 503, details = {}) 
     return error;
 }
 
+function isUnboundProcessIdentity(value) {
+    return !value || typeof value !== 'object' || Object.keys(value).length === 0;
+}
+
+function sameProcessIdentity(left, right) {
+    const normalize = (value) => Object.fromEntries(
+        Object.entries(value || {}).sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    );
+    return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
 export class CanonicalTaskOperationRepository {
     constructor({
         pool = null,
@@ -21,6 +32,7 @@ export class CanonicalTaskOperationRepository {
         this.operationWaitTimeoutMs = operationWaitTimeoutMs;
         this.operationPollIntervalMs = operationPollIntervalMs;
         this.writerClaimed = false;
+        this.activeOperations = 0;
     }
 
     async waitForCompletedOperation({ scope, operationKey, fingerprint }) {
@@ -87,7 +99,11 @@ export class CanonicalTaskOperationRepository {
                  FOR UPDATE`
             );
             const row = current.rows[0];
-            if (!row || row.writer_token !== this.writerToken) {
+            const canBindProcess = row
+                && row.writer_token === this.writerToken
+                && (isUnboundProcessIdentity(row.process_identity)
+                    || sameProcessIdentity(row.process_identity, this.processIdentity));
+            if (!canBindProcess) {
                 throw canonicalTaskOperationError(
                     'canonical_task_writer_unavailable',
                     'Canonical Task writer is owned by another process',
@@ -99,9 +115,16 @@ export class CanonicalTaskOperationRepository {
                 `UPDATE canonical_task_writer
                  SET process_identity = $2::jsonb, source_head = $3, updated_at = NOW()
                  WHERE singleton_id = TRUE AND writer_token = $1
+                   AND (process_identity = '{}'::jsonb OR process_identity = $2::jsonb)
                  RETURNING writer_token, process_identity, source_head`,
                 [this.writerToken, JSON.stringify(this.processIdentity || {}), sourceHead || null]
             );
+            if (claimed.rowCount !== 1) {
+                throw canonicalTaskOperationError(
+                    'canonical_task_writer_unavailable',
+                    'Canonical Task writer process binding changed during claim'
+                );
+            }
             await client.query('COMMIT');
             this.writerClaimed = true;
             return claimed.rows[0] || row;
@@ -117,8 +140,9 @@ export class CanonicalTaskOperationRepository {
         this.assertConfigured();
         const result = await client.query(
             `SELECT 1 FROM canonical_task_writer
-             WHERE singleton_id = TRUE AND writer_token = $1`,
-            [this.writerToken]
+             WHERE singleton_id = TRUE AND writer_token = $1
+               AND process_identity = $2::jsonb`,
+            [this.writerToken, JSON.stringify(this.processIdentity || {})]
         );
         if (!result.rowCount) {
             this.writerClaimed = false;
@@ -146,10 +170,12 @@ export class CanonicalTaskOperationRepository {
         try {
             await client.query('BEGIN');
             const writer = await client.query(
-                `SELECT writer_token FROM canonical_task_writer
+                `SELECT writer_token, process_identity FROM canonical_task_writer
                  WHERE singleton_id = TRUE FOR UPDATE`
             );
-            if (!writer.rowCount || writer.rows[0].writer_token !== this.writerToken) {
+            if (!writer.rowCount
+                || writer.rows[0].writer_token !== this.writerToken
+                || !sameProcessIdentity(writer.rows[0].process_identity, this.processIdentity)) {
                 throw canonicalTaskOperationError(
                     'canonical_task_writer_unavailable',
                     'This process does not own the Canonical Task writer token'
@@ -193,20 +219,31 @@ export class CanonicalTaskOperationRepository {
     }
 
     async releaseWriter() {
-        if (!this.pool || !this.writerToken || !this.writerClaimed) return false;
+        if (!this.pool || !this.writerToken || !this.writerClaimed || this.activeOperations > 0) return false;
         const result = await this.pool.query(
             `DELETE FROM canonical_task_writer
-             WHERE singleton_id = TRUE AND writer_token = $1`,
-            [this.writerToken]
+             WHERE singleton_id = TRUE AND writer_token = $1
+               AND process_identity = $2::jsonb`,
+            [this.writerToken, JSON.stringify(this.processIdentity || {})]
         );
         this.writerClaimed = false;
         return result.rowCount === 1;
     }
 
-    async execute({ scope, operationKey, fingerprint, recover = null, run }) {
+    async execute(args) {
+        this.activeOperations += 1;
+        try {
+            return await this.executeCoordinated(args);
+        } finally {
+            this.activeOperations -= 1;
+        }
+    }
+
+    async executeCoordinated({ scope, operationKey, fingerprint, recover = null, projectResult = value => value, run }) {
         this.assertConfigured();
         await this.assertWriter();
         let shouldRecover = false;
+        let completedNeedsRehydrate = false;
         let waitForExisting = false;
         const client = await this.pool.connect();
         try {
@@ -235,9 +272,9 @@ export class CanonicalTaskOperationRepository {
                 }
                 if (row?.state === 'completed') {
                     await client.query('COMMIT');
-                    return row.result_json;
-                }
-                if (row?.state === 'failed') {
+                    if (typeof recover !== 'function') return row.result_json;
+                    completedNeedsRehydrate = true;
+                } else if (row?.state === 'failed') {
                     await client.query(
                         `UPDATE canonical_task_operations
                          SET state = 'running', writer_token = $3, error_json = NULL, updated_at = NOW()
@@ -282,8 +319,26 @@ export class CanonicalTaskOperationRepository {
             client.release();
         }
 
+        if (completedNeedsRehydrate) {
+            const recovery = await recover();
+            if (recovery?.recovered) return recovery.result;
+            throw canonicalTaskOperationError(
+                'canonical_task_operation_result_unavailable',
+                'Completed Canonical Task operation could not be rehydrated from the canonical store'
+            );
+        }
+
         if (waitForExisting) {
-            return this.waitForCompletedOperation({ scope, operationKey, fingerprint });
+            const persistedResult = await this.waitForCompletedOperation({ scope, operationKey, fingerprint });
+            if (typeof recover === 'function') {
+                const recovery = await recover();
+                if (recovery?.recovered) return recovery.result;
+                throw canonicalTaskOperationError(
+                    'canonical_task_operation_result_unavailable',
+                    'Completed Canonical Task operation could not be rehydrated from the canonical store'
+                );
+            }
+            return persistedResult;
         }
 
         try {
@@ -294,7 +349,7 @@ export class CanonicalTaskOperationRepository {
                 `UPDATE canonical_task_operations
                  SET state = 'completed', result_json = $3::jsonb, updated_at = NOW()
                  WHERE scope = $1 AND operation_key = $2 AND writer_token = $4`,
-                [scope, operationKey, JSON.stringify(result), this.writerToken]
+                [scope, operationKey, JSON.stringify(projectResult(result)), this.writerToken]
             );
             return result;
         } catch (error) {
@@ -308,7 +363,16 @@ export class CanonicalTaskOperationRepository {
         }
     }
 
-    async executePreparedDelete({
+    async executePreparedDelete(args) {
+        this.activeOperations += 1;
+        try {
+            return await this.executePreparedDeleteCoordinated(args);
+        } finally {
+            this.activeOperations -= 1;
+        }
+    }
+
+    async executePreparedDeleteCoordinated({
         operationKey,
         versionClaimKey,
         fingerprint,

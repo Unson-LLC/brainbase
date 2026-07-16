@@ -1,4 +1,5 @@
 import path from 'path';
+import crypto from 'crypto';
 import multer from 'multer';
 
 import { ScheduleParser } from '../../lib/schedule-parser.js';
@@ -85,6 +86,7 @@ export function createCoreServices({
         pool: infoSSOTService.pool,
         writerToken: process.env.BRAINBASE_SERVER_GENERATION || null,
         processIdentity: {
+            instance_id: crypto.randomUUID(),
             pid: process.pid,
             port,
             source_head: sourceHead,

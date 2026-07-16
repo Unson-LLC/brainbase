@@ -16,9 +16,14 @@ describe('recoverCanonicalTaskWriter', () => {
         const pool = { connect: async () => client };
 
         await expect(recoverCanonicalTaskWriter({
-            argv: ['--expected-token', 'old', '--new-token', 'new'],
-            pool
-        })).resolves.toEqual({ recovered: true, writer_token: 'new' });
+            argv: ['--expected-token', 'old', '--expected-pid', '4242', '--new-token', 'new'],
+            pool,
+            isProcessAlive: () => false
+        })).resolves.toEqual({
+            recovered: true,
+            writer_token: 'new',
+            required_restart_environment: { BRAINBASE_SERVER_GENERATION: 'new' }
+        });
 
         expect(queries[0]).toBe('BEGIN');
         expect(queries.some((sql) => sql.includes('UPDATE canonical_task_writer'))).toBe(true);

@@ -35,7 +35,13 @@ export async function recoverCanonicalTaskWriter({ argv = process.argv.slice(2),
              ON CONFLICT (singleton_id) DO UPDATE SET ready = FALSE, reason = EXCLUDED.reason, updated_at = NOW()`
         );
         await client.query('COMMIT');
-        return { recovered: true, writer_token: args.newToken };
+        return {
+            recovered: true,
+            writer_token: args.newToken,
+            required_restart_environment: {
+                BRAINBASE_SERVER_GENERATION: args.newToken
+            }
+        };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;

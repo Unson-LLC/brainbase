@@ -151,7 +151,8 @@ artifactと現在値をtransaction内で再検証し、全条件成立時だけr
 
 Postgres `canonical_task_operations` を実行調停台帳として使い、`(scope, operation_key)` のunique制約、
 writer token、fingerprint、result JSON、human step/run目標状態、監査checkpoint、後処理phaseを保存する。
-Task本文や状態は保存しないため、Taskの正本はNocoDBのままである。createの最終防衛はNocoDB正本表の
+Task本文や状態は保存しない。通常mutationの`result_json`は`task_id`と`task_version`だけを保持し、
+再送応答はNocoDB正本から再構成するため、Taskの正本はNocoDBのままである。createの最終防衛はNocoDB正本表の
 `冪等キー` DB一意制約が担う。
 
 単一writerは新APIだけの宣言では成立しないため、既存writerも境界へ含める。旧`/api/nocodb/tasks`は
