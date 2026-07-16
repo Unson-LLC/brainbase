@@ -9,6 +9,10 @@ import {
     buildMeetingWorkflowPackRecords,
     meetingPackIds
 } from '../workflow/meeting-workflow-pack.js';
+import {
+    assertMeetingCandidatesInput,
+    normalizeTaskCandidates
+} from './meeting-candidate-contract.js';
 import { verifyMeetingReviewPackage } from './meeting-review-contract.js';
 import { MeetingReviewContextResolver } from './meeting-review-context-resolver.js';
 import { MeetingReviewLedgerService } from './meeting-review-ledger-service.js';
@@ -113,6 +117,7 @@ export class MeetingAutomationService {
         this.assertProjectAccess = assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
         this.dispatchLoopIntentToEve = dispatchLoopIntentToEve;
+        this.resolveReviewTaskOwners = resolveReviewTaskOwners;
         this.reviewContextResolver = new MeetingReviewContextResolver({
             prepareProjectAccess,
             assertProjectSelectable,
@@ -500,6 +505,78 @@ export class MeetingAutomationService {
             note: { ...note, body: noteBody },
             runner,
             actorId: actor.person_id || actor.sub || DEFAULT_OWNER_ID
+        });
+    }
+
+    async recordCandidates(input = {}, actor = {}) {
+        await this.prepareProjectAccess();
+        const orgId = readOptionalString(input, 'org_id', 'orgId');
+        const projectId = readOptionalString(input, 'project_id', 'projectId');
+        const packageId = readOptionalString(input, 'package_id', 'packageId');
+        const runId = readOptionalString(input, 'run_id', 'runId');
+        const sourceTextHash = readOptionalString(input, 'source_text_hash', 'sourceTextHash');
+        const runner = input.runner && typeof input.runner === 'object' ? input.runner : {};
+
+        if (!orgId) {
+            throw AppError.validation('org_id is required', {
+                state_transition: 'blocked_invalid_candidates'
+            });
+        }
+        if (!projectId) {
+            throw AppError.validation('project_id is required', {
+                state_transition: 'blocked_invalid_candidates'
+            });
+        }
+        if (!runId && !packageId) {
+            throw AppError.validation('package_id or run_id is required', {
+                state_transition: 'blocked_invalid_candidates'
+            });
+        }
+        if (!sourceTextHash) {
+            throw AppError.validation('source_text_hash is required', {
+                state_transition: 'blocked_invalid_candidates'
+            });
+        }
+
+        await this.assertProjectSelectable(projectId);
+        await this.assertOrgReferenceAllowed(orgId);
+        await this.assertProjectAccess(projectId, actor);
+
+        const candidateContext = this.reviewLedgerService.resolveCandidateContext({
+            orgId,
+            projectId,
+            packageId,
+            runId,
+            sourceTextHash
+        });
+        assertMeetingCandidatesInput(input);
+        const taskOutput = candidateContext.outputs
+            .find((output) => output.metadata?.output_key === 'task_candidates');
+        const normalizedTaskCandidates = taskOutput
+            ? normalizeTaskCandidates(input.task_candidates, {
+                caseScope: taskOutput.metadata?.case_scope || null,
+                evidenceRefs: Array.isArray(taskOutput.metadata?.evidence_refs)
+                    ? taskOutput.metadata.evidence_refs
+                    : []
+            })
+            : [];
+        const resolvedTaskPackage = this.resolveReviewTaskOwners
+            ? await this.resolveReviewTaskOwners({ task_candidates: normalizedTaskCandidates }, {
+                actor,
+                projectId,
+                graphContext: candidateContext.run.metadata?.graph_context || null
+            })
+            : { task_candidates: normalizedTaskCandidates };
+
+        return this.reviewLedgerService.recordCandidates({
+            ...candidateContext,
+            packageId,
+            sourceTextHash,
+            runner,
+            actorId: actor.person_id || actor.sub || DEFAULT_OWNER_ID,
+            taskCandidates: resolvedTaskPackage.task_candidates,
+            decisionCandidates: input.decision_candidates,
+            followUpDraft: input.follow_up_draft
         });
     }
 

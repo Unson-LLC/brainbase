@@ -94,22 +94,22 @@ export function classifySessionStreamPhase(events) {
  */
 export class EveMeetingNoteReconciler {
     constructor({
-        workflowService,
-        meetingAutomationService = null,
+        meetingAutomationService,
         eveSessionClient,
         repository = null,
         config = {},
         clock = nowIso,
         logger = console
     }) {
-        if (!workflowService) throw new Error('workflowService is required');
-        this.workflowService = workflowService;
-        this.meetingAutomationService = meetingAutomationService || workflowService.meetingAutomationService;
+        this.meetingAutomationService = meetingAutomationService;
         if (!this.meetingAutomationService?.recordNoteGeneration) {
             throw new Error('meetingAutomationService.recordNoteGeneration is required');
         }
-        this.eveSessionClient = eveSessionClient || workflowService.eveSessionClient || null;
-        this.repository = repository || workflowService.repository;
+        if (!this.meetingAutomationService?.recordCandidates) {
+            throw new Error('meetingAutomationService.recordCandidates is required');
+        }
+        this.eveSessionClient = eveSessionClient || meetingAutomationService.eveSessionClient || null;
+        this.repository = repository || meetingAutomationService.repository;
         this.clock = clock;
         this.logger = logger;
         this.config = {
@@ -365,7 +365,7 @@ export class EveMeetingNoteReconciler {
             return { status: 'no_candidate_call', mismatched_candidate_calls: mismatchedCandidateCalls };
         }
         try {
-            const result = await this.workflowService.recordMeetingCandidates({
+            const result = await this.meetingAutomationService.recordCandidates({
                 org_id: dispatchRun.org_id,
                 project_id: dispatchRun.project_id,
                 run_id: ingestRunId,

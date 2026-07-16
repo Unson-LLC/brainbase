@@ -308,6 +308,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(WorkflowService.prototype._dispatchMeetingNoteGeneration).toBeUndefined();
         expect(WorkflowService.prototype.ingestMeetingReviewPackage).toBeUndefined();
         expect(WorkflowService.prototype.recordMeetingNoteGeneration).toBeUndefined();
+        expect(WorkflowService.prototype.recordMeetingCandidates).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {

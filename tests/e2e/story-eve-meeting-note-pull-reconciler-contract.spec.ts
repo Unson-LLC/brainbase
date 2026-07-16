@@ -177,7 +177,7 @@ test.describe(`${storyId} contract`, () => {
     const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, actor });
     eveSessionClient.state.stream = [noteToolCallEvent({ runId: ingestRunId }), ...PARKED_TAIL];
 
-    const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+    const reconciler = new EveMeetingNoteReconciler({ meetingAutomationService: service.meetingAutomationService, eveSessionClient });
     const summary = await reconciler.runOnce();
 
     expect(summary).toMatchObject({ checked: 1, recorded: 1, errors: [] });
@@ -201,7 +201,7 @@ test.describe(`${storyId} contract`, () => {
       ...PARKED_TAIL
     ];
 
-    const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+    const reconciler = new EveMeetingNoteReconciler({ meetingAutomationService: service.meetingAutomationService, eveSessionClient });
     const summary = await reconciler.runOnce();
 
     expect(summary).toMatchObject({ checked: 1, recorded: 0, blocked: 1 });
@@ -218,7 +218,7 @@ test.describe(`${storyId} contract`, () => {
       { type: 'message.appended', data: { messageDelta: '生成中' } }
     ];
 
-    const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+    const reconciler = new EveMeetingNoteReconciler({ meetingAutomationService: service.meetingAutomationService, eveSessionClient });
     expect(await reconciler.runOnce()).toMatchObject({ checked: 1, pending: 1 });
     expect(repository.getRun(dispatchRunId).status).toBe('running');
 
@@ -236,7 +236,7 @@ test.describe(`${storyId} contract`, () => {
       ...PARKED_TAIL
     ];
 
-    const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+    const reconciler = new EveMeetingNoteReconciler({ meetingAutomationService: service.meetingAutomationService, eveSessionClient });
     expect(await reconciler.runOnce()).toMatchObject({ checked: 1, blocked: 1 });
     expect(repository.getRun(dispatchRunId)).toMatchObject({
       status: 'blocked',
@@ -266,7 +266,7 @@ test.describe(`${storyId} contract`, () => {
     };
 
     const reconciler = new EveMeetingNoteReconciler({
-      workflowService: service,
+      meetingAutomationService: service.meetingAutomationService,
       eveSessionClient,
       logger: { warn() {} }
     });
@@ -289,7 +289,7 @@ test.describe(`${storyId} contract`, () => {
     const { repository, service, actor } = makeService({ eveSessionClient });
     const { ingestRunId } = await dispatchMeetingNoteRun({ service, actor });
     eveSessionClient.state.stream = [noteToolCallEvent({ runId: ingestRunId }), ...PARKED_TAIL];
-    const reconciler = new EveMeetingNoteReconciler({ workflowService: service, eveSessionClient });
+    const reconciler = new EveMeetingNoteReconciler({ meetingAutomationService: service.meetingAutomationService, eveSessionClient });
 
     const makeRouteApp = (wiredReconciler: any) => {
       const app = express();
@@ -327,20 +327,20 @@ test.describe(`${storyId} contract`, () => {
     const { service } = makeService({ eveSessionClient });
 
     const disabled = new EveMeetingNoteReconciler({
-      workflowService: service,
+      meetingAutomationService: service.meetingAutomationService,
       eveSessionClient,
       config: { enabled: false }
     });
     expect(disabled.startScheduledReconcile()).toEqual({ started: false, reason: 'disabled' });
 
     const unconfigured = new EveMeetingNoteReconciler({
-      workflowService: service,
+      meetingAutomationService: service.meetingAutomationService,
       eveSessionClient: { isConfigured: () => false }
     });
     expect(unconfigured.startScheduledReconcile()).toEqual({ started: false, reason: 'eve_not_configured' });
 
     const running = new EveMeetingNoteReconciler({
-      workflowService: service,
+      meetingAutomationService: service.meetingAutomationService,
       eveSessionClient,
       config: { interval_ms: 60000 }
     });

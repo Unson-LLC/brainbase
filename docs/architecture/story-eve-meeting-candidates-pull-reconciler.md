@@ -6,13 +6,13 @@ Brainbase creates five sibling outputs for one meeting ingest run. The meeting n
 
 ## Decision
 
-Extend the existing Eve session pull protocol with `record_meeting_candidates`. The existing reconciler requires the candidate call's `org_id`, `project_id`, `run_id`, and `source_text_hash` to exactly match the dispatch scope, delegates deterministic normalization to `WorkflowService.recordMeetingCandidates`, and writes the three sibling candidate outputs. `package_id` remains available to direct WorkflowService APIs but is not an Eve candidate pull fallback. Candidate generation belongs to Eve; identifiers, approval state, evidence references, owner safety, and write authority remain in Brainbase.
+Extend the existing Eve session pull protocol with `record_meeting_candidates`. The existing reconciler requires the candidate call's `org_id`, `project_id`, `run_id`, and `source_text_hash` to exactly match the dispatch scope, delegates deterministic normalization to `MeetingAutomationService.recordCandidates`, and writes the three sibling candidate outputs. `package_id` remains available to direct MeetingAutomationService APIs but is not an Eve candidate pull fallback. Candidate generation belongs to Eve; identifiers, approval state, evidence references, owner safety, and write authority remain in Brainbase.
 
-No ADR is required. This change does not introduce a new bounded context, store, authority, network boundary, or deployment topology. It extends the existing WorkflowService and Eve pull reconciler contracts. People Graph remains the sole owner-resolution authority, and the existing human approval steps remain the authority for task creation and external send.
+No ADR is required. This change does not introduce a new bounded context, store, authority, network boundary, or deployment topology. It extends the existing Meeting Automation and Eve pull reconciler contracts. People Graph remains the sole owner-resolution authority, and the existing human approval steps remain the authority for task creation and external send.
 
 ## Scope judgment
 
-The consumer implementation, tests, Story and architecture records, responsibility authority, and runbook form one atomic protocol change: ingest must stop producing deterministic candidates, Eve must emit a candidate tool call, the pull reconciler must consume it, WorkflowService must normalize and resolve owners, and tests must cover the worker, route, state machine, and Story contract. Splitting these changes would create a deploy state with either no producer or no consumer for candidate outputs. The unit is therefore kept bundled and merged after the Eve producer PR.
+The consumer implementation, tests, Story and architecture records, responsibility authority, and runbook form one atomic protocol change: ingest must stop producing deterministic candidates, Eve must emit a candidate tool call, the pull reconciler must consume it, MeetingAutomationService must normalize and resolve owners, and tests must cover the worker, route, state machine, and Story contract. Splitting these changes would create a deploy state with either no producer or no consumer for candidate outputs. The unit is therefore kept bundled and merged after the Eve producer PR.
 
 ## State model
 
@@ -63,8 +63,8 @@ Both snake_case and accepted camelCase aliases use the same limits. Any count, t
 | Responsibility | Authority | Implementation |
 | --- | --- | --- |
 | Candidate generation | Eve meeting agent | `record_meeting_candidates` tool call provides content and `owner_hint` only |
-| Dispatch/run scope and source integrity | Brainbase WorkflowService | Validates organization, project, run, and `source_text_hash` before mutation |
-| Candidate normalization and storage | Brainbase WorkflowService | Assigns ids, statuses, evidence, approval flags, and writes sibling outputs |
+| Dispatch/run scope and source integrity | Brainbase Meeting Automation | `MeetingAutomationService` and `MeetingReviewLedgerService` validate organization, project, run, and `source_text_hash` before mutation |
+| Candidate normalization and storage | Brainbase Meeting Automation | Assigns ids, statuses, evidence, approval flags, and writes sibling outputs transactionally |
 | Canonical person identity | Brainbase Graph People SSOT | Resolves `owner_hint`; Eve cannot assign a person id directly |
 | Task creation and external send | Existing human approval gates | `approve_task_candidates` and follow-up approval remain mandatory |
 | Runtime recovery decision | Brainbase operator | Reviews blocked dispatches and `operator_review_eve_candidates` evidence |

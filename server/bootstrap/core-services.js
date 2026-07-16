@@ -97,7 +97,6 @@ export function createCoreServices({
         infoSSOTService
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
-        workflowService,
         meetingAutomationService: workflowService.meetingAutomationService,
         eveSessionClient,
         config: createEveMeetingNoteReconcilerConfigFromEnv()

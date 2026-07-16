@@ -7,6 +7,10 @@ import {
     MEETING_REVIEW_HUMAN_STEP_DEFINITIONS,
     MEETING_REVIEW_OUTPUT_DEFINITIONS
 } from './meeting-review-contract.js';
+import {
+    normalizeDecisionCandidates,
+    normalizeFollowUpDraft
+} from './meeting-candidate-contract.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -259,6 +263,121 @@ export class MeetingReviewLedgerService {
                 output: updatedOutput
             }
         };
+    }
+
+    resolveCandidateContext({
+        orgId,
+        projectId,
+        packageId = null,
+        runId = null,
+        sourceTextHash
+    }) {
+        const resolvedRunId = runId
+            || stableId('run', orgId, projectId, packageId, 'meeting_review_package_ingest');
+        const run = this.repository.getRun(resolvedRunId);
+        if (!run) throw AppError.notFound('workflow_run', resolvedRunId);
+        if (run.org_id !== orgId || run.project_id !== projectId) {
+            throw AppError.validation(`workflow_run '${resolvedRunId}' belongs to '${run.org_id}/${run.project_id}'`, {
+                state_transition: 'blocked_invalid_scope'
+            });
+        }
+        const outputs = this.repository.listOutputs(resolvedRunId);
+        const noteOutput = outputs.find((output) => output.metadata?.output_key === 'meeting_note_draft');
+        if (!noteOutput) {
+            throw AppError.validation(`workflow_run '${resolvedRunId}' has no meeting_note_draft output`, {
+                state_transition: 'blocked_note_output_missing'
+            });
+        }
+        const noteHash = noteOutput.payload && typeof noteOutput.payload === 'object'
+            ? noteOutput.payload.source_text_hash
+            : null;
+        if (noteHash !== sourceTextHash) {
+            throw AppError.validation('source_text_hash does not match the meeting_note_draft output', {
+                state_transition: 'blocked_source_hash_mismatch',
+                expected: noteHash || null
+            });
+        }
+        return { orgId, projectId, runId: resolvedRunId, run, outputs, noteOutput };
+    }
+
+    async recordCandidates({
+        orgId,
+        projectId,
+        runId,
+        outputs,
+        noteOutput,
+        packageId = null,
+        sourceTextHash,
+        runner,
+        actorId,
+        taskCandidates,
+        decisionCandidates,
+        followUpDraft
+    }) {
+        const now = new Date().toISOString();
+        const generatedBy = {
+            type: typeof runner.type === 'string' && runner.type ? runner.type : 'eve',
+            session_id: typeof runner.session_id === 'string' ? runner.session_id : null,
+            actor_id: actorId
+        };
+        const candidatePayloadBuilders = {
+            task_candidates: () => taskCandidates,
+            decision_candidates: (output) => normalizeDecisionCandidates(decisionCandidates, {
+                caseScope: output.metadata?.case_scope || null,
+                evidenceRefs: Array.isArray(output.metadata?.evidence_refs) ? output.metadata.evidence_refs : []
+            }),
+            follow_up_draft: () => normalizeFollowUpDraft(followUpDraft)
+        };
+
+        return this.repository.transaction(async () => {
+            const updated = {};
+            for (const [outputKey, buildPayload] of Object.entries(candidatePayloadBuilders)) {
+                const output = outputs.find((candidate) => candidate.metadata?.output_key === outputKey);
+                if (!output) continue;
+                const payload = buildPayload(output);
+                const updatedOutput = this.repository.updateOutput(output.id, {
+                    payload,
+                    preview: previewPayload(payload),
+                    updated_at: now
+                });
+                updated[outputKey] = {
+                    output_id: output.id,
+                    count: Array.isArray(payload) ? payload.length : 1,
+                    output: updatedOutput
+                };
+            }
+
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                actor_id: actorId,
+                action: 'workflow.meeting_pack.candidates.recorded',
+                target_type: 'workflow_run',
+                target_id: runId,
+                after: {
+                    run_id: runId,
+                    package_id: noteOutput.metadata?.package_id || packageId || null,
+                    source_text_hash: sourceTextHash,
+                    state_transition: 'meeting_candidates_recorded',
+                    runner_type: generatedBy.type,
+                    external_run_id: generatedBy.session_id,
+                    generated_by: generatedBy,
+                    task_candidate_count: updated.task_candidates?.count ?? 0,
+                    decision_candidate_count: updated.decision_candidates?.count ?? 0,
+                    follow_up_recorded: Boolean(updated.follow_up_draft)
+                }
+            });
+
+            return {
+                meeting_candidates: {
+                    org_id: orgId,
+                    project_id: projectId,
+                    run_id: runId,
+                    updated
+                }
+            };
+        });
     }
 
     async persist(context, actor = {}) {
