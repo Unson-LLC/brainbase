@@ -103,7 +103,8 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 
 1. `TSK-WEBRET-001`（完了）: 参照のない`test-infrastructure.html`を削除し、static 404をcontract testで固定した。
 2. `TSK-WEBRET-002`（完了）: 実APIへ接続していないMeeting Pack mock prototype、専用runtime、deep-link、専用E2E、CSP例外を削除した。
-3. `TSK-WEBRET-003`から`006`: MCP control plane、Workflow/Run/Inbox、Companion projection、Admin/SNS/setup parityを後継面として出荷する。
-4. `TSK-WEBRET-007`から`008`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
+3. `TSK-WEBRET-003`（完了）: 認証済みproject catalogを最初のMCP control-plane toolとして出荷し、project grant、failure state、audit evidenceの共通契約を固定した。
+4. `TSK-WEBRET-004`から`006`: Workflow/Run/Inbox、Companion projection、Admin/SNS/setup parityを後継面として出荷する。
+5. `TSK-WEBRET-007`から`008`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
 
-`TSK-WEBRET-001`と`TSK-WEBRET-002`以外は、後継能力のcurrent HEAD evidenceなしに削除へ進めない。
+`TSK-WEBRET-001`から`TSK-WEBRET-003`まで完了。`TSK-WEBRET-004`以降は、後継能力のcurrent HEAD evidenceなしに削除へ進めない。

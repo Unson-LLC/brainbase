@@ -30,7 +30,8 @@ export function createBrainbaseRouter(options = {}) {
         configParser,
         projectsRoot,
         infoSSOTService,
-        wikiService
+        wikiService,
+        projectCatalogAuthGuard
     } = options;
     const resolvedProjectsRoot = projectsRoot || process.env.PROJECTS_ROOT || null;
     const manaRepoPath = process.env.MANA_REPO_PATH
@@ -46,7 +47,8 @@ export function createBrainbaseRouter(options = {}) {
         storageService,
         nocodbService,
         worktreeService,
-        configParser
+        configParser,
+        projectCatalogAuthGuard
     }));
 
     router.use(createBrainbaseTrendsRouter({

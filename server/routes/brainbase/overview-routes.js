@@ -11,7 +11,10 @@ export function createBrainbaseOverviewRouter(options = {}) {
         storageService,
         nocodbService,
         worktreeService,
-        configParser
+        configParser,
+        projectCatalogAuthGuard = (_req, res) => res.status(503).json({
+            error: 'Project catalog authentication is not configured'
+        })
     } = options;
 
     /**
@@ -52,8 +55,9 @@ export function createBrainbaseOverviewRouter(options = {}) {
         res.json(await getWorktreesInfo());
     }));
 
-    router.get('/projects', asyncHandler(async (req, res) => {
-        res.json(await getProjectsWithHealth());
+    router.get('/projects', projectCatalogAuthGuard, asyncHandler(async (req, res) => {
+        const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
+        res.json(await getProjectsWithHealth(projectCodes));
     }));
 
     /**
@@ -213,16 +217,21 @@ export function createBrainbaseOverviewRouter(options = {}) {
         }
     }
 
-    async function getProjectsWithHealth() {
+    async function getProjectsWithHealth(allowedProjectCodes = null) {
         try {
             const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
+            let projects = (config.projects?.projects || [])
                 .filter((p) => !p.archived)
                 .map((p) => ({
                     id: p.id,
                     name: p.name || p.id,
                     project_id: p.nocodb?.project_id || null
                 }));
+
+            if (Array.isArray(allowedProjectCodes)) {
+                const allowed = new Set(allowedProjectCodes.map(normalizeProjectCode).filter(Boolean));
+                projects = projects.filter((project) => allowed.has(normalizeProjectCode(project.id)));
+            }
 
             const mappedProjects = projects.filter((p) => p.project_id);
 
@@ -299,8 +308,14 @@ export function createBrainbaseOverviewRouter(options = {}) {
                 });
         } catch (error) {
             logger.error('Error getting projects health', { error });
-            return [];
+            throw error;
         }
+    }
+
+    function normalizeProjectCode(value) {
+        if (typeof value !== 'string') return null;
+        const normalized = value.trim().toLowerCase().replace(/_/g, '-');
+        return normalized || null;
     }
 
     return router;

@@ -13,7 +13,7 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 ## Evidence boundary
 
 - `server/bootstrap/static-routes.js`は`/admin`、`/`、`/device`、`/setup`、`/workflows`を明示配信し、`express.static(publicDir)`が残りのHTMLを直接配信する。
-- `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索を中心とし、`mcp/brainbase/src/tools/mesh-tools.ts`は`mesh_query`と`mesh_peers`だけを追加する。
+- `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、`TSK-WEBRET-003`で認証済みproject catalogのcontrol-plane tool `brainbase_projects`を提供する。Workflow、Run、Inbox等は後続taskである。
 - Workflow、Run、Session、SNS Growth、Admin visualization、setup、device authorizationのREST APIは存在するが、現在のBrainbase MCPには同等toolがない。
 - `docs/brainbase-capabilities/capabilities/codex.app-server.yml`はClaude CodeとApp Server metadataのないCodex sessionについてxterm fallbackを維持すると定義する。
 - 廃止前の`public/test-infrastructure.html`はproduction code、test、scriptから参照されず、外部`jsonplaceholder.typicode.com`を使う手動デモだった。`TSK-WEBRET-001`で削除し、static 404をcontract testで固定した。
@@ -37,7 +37,7 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 
 Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを直接呼べることだけではAgent-first parityとしない。
 
-1. `project` / `auth scope`: project catalog、actor grant、stale credentialの明示。
+1. `project` / `auth scope`（`TSK-WEBRET-003`完了）: `brainbase_projects`が署名検証済みgrantとMCP設定の積集合だけを返し、ok/unavailable/error、actor、role、scope、request_id、sourceを保持する。
 2. `session` / `runtime`: create、list、state、resume、stop、diagnose。途中状態を成功へ丸めない。
 3. `workflow` / `run`: list/get/create/update、draft/test/publish、run/rerun、human-step resolve、audit参照。
 4. `run receipt inbox`: filter、latest collapse、history、blocked/unconfirmed/no_data/unavailableの保持。
@@ -63,11 +63,11 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 |---|---|---|
 | `TSK-WEBRET-001` | `test-infrastructure.html`を削除 | 完了。参照0件、static 404、static route tests green |
 | `TSK-WEBRET-002` | Meeting Pack mock prototypeとdeep-linkを削除 | 完了。static 404、`/workflows`にdead linkなし、Workflow Core/API testsと残存panel E2E green、設計docは`retired`で保持 |
-| `TSK-WEBRET-003` | Brainbase MCP control-plane foundationを追加 | tool contract tests、auth/project scope、unavailable/error/audit evidence |
+| `TSK-WEBRET-003` | Brainbase MCP control-plane foundationを追加 | 完了。`brainbase_projects`をMCP registryへ追加。RESTでtoken検証とgrant scopeを強制し、MCPでtoken/config scopeの積集合、`ok`/`unavailable`/`error`、audit evidenceを返す。MCP 51 tests、REST 13 tests、MCP build green |
 | `TSK-WEBRET-004` | Workflow/Run/Run Receipt Inbox MCP parityを追加 | CRUD/draft/run/resolve/filter/historyとfailure statesのcontract tests |
 | `TSK-WEBRET-005` | Agent Run InboxをMac Companionへ投影 | 要介入だけ表示、取得不能を0件化しない、feedback loop evidence |
 | `TSK-WEBRET-006` | Admin/SNS/setupの残能力をMCPへ移管 | 各surfaceのretirement gateをcurrent HEADで満たす |
 | `TSK-WEBRET-007` | 最小Web auth/pairing/recovery surfaceを抽出 | browser必須能力だけがWebに残り、日常一覧・設定UIがない |
 | `TSK-WEBRET-008` | index shellとttyd fallbackを廃止 | Codex/Claude Code sessionの作成・復旧・診断代替とrollback evidence |
 
-`TSK-WEBRET-001`と`TSK-WEBRET-002`はMCP parityを待たずに実装できる。`TSK-WEBRET-003`以降は後継能力を先に出荷し、同じ変更で旧画面を削除しない。
+`TSK-WEBRET-001`と`TSK-WEBRET-002`はMCP parityを待たずに実装できる。`TSK-WEBRET-003`は後継基盤だけを出荷し、旧画面は削除していない。`TSK-WEBRET-004`以降も後継能力を先に出荷し、同じ変更で旧画面を削除しない。

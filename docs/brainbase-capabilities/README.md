@@ -39,7 +39,7 @@ troubleshooting: []
 | Capability | Why it exists |
 |---|---|
 | `runtime.launchd` | Canonical port `31013` is managed by launchd and syncs selected paths from `origin/develop` before startup. |
-| `project.catalog` | Defines the complete configured project list from `/api/config`. |
+| `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
 | `project.selector` | Defines which projects appear in the session creation dropdown. |
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
 | `session.create` | Defines how sessions are created, including project selection, engine, worktree handling, and verification. |

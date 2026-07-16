@@ -11,6 +11,7 @@ Graph SSOT APIからプロジェクト・人物・組織・RACI等のエンテ�
 - **Graph API 専用**: Graph SSOT APIのみをデータソースとして使用
 - **JWT認証対応**: Graph SSOT APIのBearer Token認証をサポート
 - **自動トークンリフレッシュ**: Refresh Tokenを使った自動更新
+- **Control plane契約**: 認証済みproject scopeとfailure/audit evidenceを機械可読で返却
 - **エイリアス解決**: 人物名・組織名の別名からID解決
 - **RACI統合**: 立ち位置（Position-based）フォーマット対応
 
@@ -75,6 +76,17 @@ node dist/index.js
 Graph系ツール（`get_context` / `list_entities` / `get_entity` / `search`）は、デフォルトでBrainbase Philosophy Contextを先頭に付与する。これはUI表示ではなく、Graph操作前に `CLAUDE.md` 的な判断前提を注入するためのもの。
 
 無効化が必要な場合のみ `includePhilosophy: false` を渡す。scopeを指定する場合は `scope: "crm"` のように渡す。
+
+### `brainbase_projects`
+
+認証済みactorが参照できるactive project catalogを取得する。caller側のscope引数は受け付けず、JWTの`projectCodes`と`BRAINBASE_PROJECT_CODES`の積集合だけを返す。
+
+返却値は`status: ok | unavailable | error`、`scope`、`audit`を常に含む。確認済み0件は`status: ok`かつ`count: 0`であり、認証・通信・上流・schema障害を空配列へ変換しない。token自体は返さない。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_projects({})
+```
 
 ### `get_context`
 
@@ -213,4 +225,4 @@ Private（UNSON社内用）
 
 ---
 
-最終更新: 2026-02-07
+最終更新: 2026-07-16

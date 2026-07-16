@@ -156,7 +156,8 @@ export function registerApiRoutes(app, {
         configParser,
         projectsRoot,
         infoSSOTService,
-        wikiService
+        wikiService,
+        projectCatalogAuthGuard: requireAuth(authService)
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser));
     app.use('/api/health', createHealthRouter({
