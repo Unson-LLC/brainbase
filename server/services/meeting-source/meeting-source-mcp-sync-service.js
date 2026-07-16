@@ -854,6 +854,82 @@ export class MeetingSourceMcpSyncService {
         };
     }
 
+    async diagnose({ project_id: requestedProjectId, projectId } = {}) {
+        const state = await this._loadState();
+        const requestedProject = readString({ requestedProjectId, projectId }, 'requestedProjectId', 'projectId');
+        if (!requestedProject) {
+            const error = new Error('project_id is required');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const providers = SUPPORTED_MEETING_SOURCE_PROVIDERS.map((provider) => publicProvider(state.providers[provider]));
+        const connectedProviders = providers.filter((provider) => (
+            provider.enabled && provider.auth_status === 'connected'
+        ));
+        const providerErrors = connectedProviders.filter((provider) => provider.last_error);
+        const configuredProject = readString(state.sync_config, 'project_id', 'projectId')
+            || readString(this.syncConfig, 'project_id', 'projectId');
+        const lastScheduledRun = state.last_scheduled_run || null;
+        let diagnosticState = 'healthy';
+        const issueCodes = [];
+        const recommendedActions = [];
+
+        if (connectedProviders.length === 0) {
+            diagnosticState = 'blocked';
+            issueCodes.push('no_connected_providers');
+            recommendedActions.push('connect_meeting_source');
+        } else if (!configuredProject) {
+            diagnosticState = 'blocked';
+            issueCodes.push('scope_not_configured');
+            recommendedActions.push('configure_meeting_automation_scope');
+        } else if (configuredProject !== requestedProject) {
+            diagnosticState = 'unconfirmed';
+            issueCodes.push('project_scope_not_configured');
+            recommendedActions.push('confirm_meeting_automation_project_scope');
+        } else if (providerErrors.length > 0) {
+            diagnosticState = 'failed';
+            issueCodes.push(...providerErrors.map((provider) => `provider_error:${provider.provider}`));
+            recommendedActions.push('test_or_reconnect_meeting_source');
+        } else if (!lastScheduledRun) {
+            diagnosticState = 'unconfirmed';
+            issueCodes.push('sync_never_observed');
+            recommendedActions.push('observe_next_scheduled_sync');
+        } else if (lastScheduledRun.ok === true && [
+            'no_source_artifacts',
+            'no_transcript_artifacts_for_meeting_pack'
+        ].includes(lastScheduledRun.reason)) {
+            diagnosticState = 'no_data';
+            issueCodes.push(lastScheduledRun.reason);
+            recommendedActions.push('verify_source_has_new_transcript');
+        } else if (lastScheduledRun.ok !== true) {
+            const reason = lastScheduledRun.reason || 'scheduled_sync_failed';
+            diagnosticState = ['no_connected_providers', 'scope_not_configured', 'submit_disabled'].includes(reason)
+                ? 'blocked'
+                : 'failed';
+            issueCodes.push(reason);
+            recommendedActions.push(
+                reason === 'no_connected_providers'
+                    ? 'connect_meeting_source'
+                    : reason === 'scope_not_configured'
+                        ? 'configure_meeting_automation_scope'
+                        : 'inspect_and_retry_meeting_source_sync'
+            );
+        }
+
+        return {
+            project_id: requestedProject,
+            configured_project_id: configuredProject,
+            state: diagnosticState,
+            issue_codes: issueCodes,
+            recommended_actions: [...new Set(recommendedActions)],
+            providers,
+            sync_policy: this._publicSyncPolicy(state),
+            last_scheduled_run: lastScheduledRun,
+            updated_at: this.clock()
+        };
+    }
+
     async connectProvider(providerInput, payload = {}) {
         const provider = safeProvider(providerInput);
         const state = await this._loadState();

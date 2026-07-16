@@ -163,6 +163,34 @@ describe('meeting source settings routes', () => {
         });
     });
 
+    it('TSK-WFRET-003 AC-5 diagnoses an unconfigured Meeting Automation as blocked without leaking credentials', async () => {
+        const { app } = await makeApp();
+
+        const res = await request(app)
+            .get('/api/settings/meeting-sources/diagnosis?project_id=brainbase')
+            .expect(200);
+
+        expect(res.body).toMatchObject({
+            project_id: 'brainbase',
+            configured_project_id: null,
+            state: 'blocked',
+            issue_codes: ['no_connected_providers'],
+            recommended_actions: ['connect_meeting_source'],
+            last_scheduled_run: null
+        });
+        expect(res.body.providers.every((provider) => !Object.hasOwn(provider, 'credential_ref'))).toBe(true);
+    });
+
+    it('TSK-WFRET-003 AC-6 rejects Meeting Automation diagnosis outside the authenticated project scope', async () => {
+        const { app } = await makeApp();
+
+        const res = await request(app)
+            .get('/api/settings/meeting-sources/diagnosis?project_id=salestailor')
+            .expect(403);
+
+        expect(res.body.error).toContain('not accessible');
+    });
+
     it('connects and tests a provider through POST endpoints', async () => {
         const { app } = await makeApp({
             adapters: {

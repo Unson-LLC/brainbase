@@ -14,6 +14,11 @@ function actorFromRequest(req) {
     };
 }
 
+function normalizeProjectCode(value) {
+    if (typeof value !== 'string') return null;
+    return value.trim().toLowerCase().replace(/_/g, '-') || null;
+}
+
 export function createMeetingSourceSettingsRouter(meetingSourceMcpSyncService, options = {}) {
     if (!meetingSourceMcpSyncService) {
         throw new Error('meetingSourceMcpSyncService is required');
@@ -27,6 +32,19 @@ export function createMeetingSourceSettingsRouter(meetingSourceMcpSyncService, o
 
     router.get('/mcp-providers', asyncHandler(async (_req, res) => {
         res.json(await meetingSourceMcpSyncService.listProviderStatuses());
+    }));
+
+    router.get('/diagnosis', asyncHandler(async (req, res) => {
+        const projectId = normalizeProjectCode(req.query.project_id);
+        if (!projectId) {
+            return res.status(400).json({ error: 'project_id is required' });
+        }
+        const actor = actorFromRequest(req);
+        const projectCodes = new Set((actor.projectCodes || []).map(normalizeProjectCode).filter(Boolean));
+        if (!projectCodes.has(projectId)) {
+            return res.status(403).json({ error: `project '${projectId}' is not accessible` });
+        }
+        return res.json(await meetingSourceMcpSyncService.diagnose({ project_id: projectId }));
     }));
 
     router.get('/integration-catalog', asyncHandler(async (_req, res) => {

@@ -302,4 +302,97 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.equal(outsideScope?.error?.code, 'brainbase_project_not_accessible');
     assert.equal(fetched, false);
   });
+
+  it('TSK-WFRET-003 AC-1: dedicated Automation and Meeting tools replace generic Workflow tools', () => {
+    const expected = [
+      'brainbase_automation_run_detail',
+      'brainbase_automation_human_step_resolve',
+      'brainbase_meeting_automation_diagnosis',
+    ];
+
+    for (const name of expected) {
+      assert.ok(controlPlaneTools.some((candidate) => candidate.name === name));
+      assert.ok(serverTesting.tools.some((candidate) => candidate.name === name));
+    }
+    assert.equal(controlPlaneTools.some((candidate) => /workflow/i.test(candidate.name)), false);
+  });
+
+  it('TSK-WFRET-003 AC-2: Automation Run detail is fetched with scoped read audit evidence', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const result = await handleControlPlaneToolCall('brainbase_automation_run_detail', {
+      project_id: 'brainbase',
+      run_id: 'run/meeting-001',
+    }, dependencies({
+      fetch: async (url: string | URL | Request, init?: RequestInit) => {
+        calls.push({ url: String(url), init });
+        return new Response(JSON.stringify({
+          run: { id: 'run/meeting-001', project_id: 'brainbase', status: 'waiting_human' },
+          run_steps: [{ id: 'step-001', status: 'waiting_human' }],
+          human_steps: [{ id: 'human-001', status: 'pending' }],
+          outputs: [],
+          audit_logs: [],
+        }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.equal(result?.data?.run?.project_id, 'brainbase');
+    assert.equal(calls[0].url, 'http://brainbase.test/api/workflow-runs/run%2Fmeeting-001');
+    assert.equal(calls[0].init?.method, 'GET');
+    assert.equal(result?.audit.operation, 'read');
+  });
+
+  it('TSK-WFRET-003 AC-3: a human approval uses an explicit scoped write contract', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const result = await handleControlPlaneToolCall('brainbase_automation_human_step_resolve', {
+      project_id: 'brainbase',
+      run_id: 'run-001',
+      step_id: 'human-001',
+      resolution: 'approved',
+      reason: '内容を確認済み',
+    }, dependencies({
+      fetch: async (url: string | URL | Request, init?: RequestInit) => {
+        calls.push({ url: String(url), init });
+        return new Response(JSON.stringify({
+          human_step: { id: 'human-001', status: 'approved' },
+          resumed_run: { id: 'run-001', project_id: 'brainbase', status: 'running' },
+        }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.equal(calls[0].url, 'http://brainbase.test/api/workflow-runs/run-001/human-steps/human-001/resolve');
+    assert.equal(calls[0].init?.method, 'POST');
+    assert.equal(new Headers(calls[0].init?.headers).get('content-type'), 'application/json');
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      resolution: 'approved',
+      reason: '内容を確認済み',
+    });
+    assert.equal(result?.audit.operation, 'write');
+  });
+
+  it('TSK-WFRET-003 AC-4: Meeting diagnosis preserves a blocked state and recovery actions', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_meeting_automation_diagnosis', {
+      project_id: 'brainbase',
+    }, dependencies({
+      fetch: async (url: string | URL | Request) => {
+        assert.equal(
+          String(url),
+          'http://brainbase.test/api/settings/meeting-sources/diagnosis?project_id=brainbase',
+        );
+        return new Response(JSON.stringify({
+          project_id: 'brainbase',
+          state: 'blocked',
+          issue_codes: ['no_connected_providers'],
+          recommended_actions: ['connect_meeting_source'],
+          providers: [],
+          last_scheduled_run: null,
+        }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.equal(result?.data?.meeting_automation?.state, 'blocked');
+    assert.deepEqual(result?.data?.meeting_automation?.issue_codes, ['no_connected_providers']);
+  });
 });

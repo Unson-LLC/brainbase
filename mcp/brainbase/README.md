@@ -130,6 +130,18 @@ mcp__brainbase__brainbase_run_receipt_diagnosis({
 })
 ```
 
+### `brainbase_automation_run_detail`
+
+1件のAutomation Runについて、Run Step、Human Approval、Output、Audit Logを認証済みproject scope内で取得する。汎用Workflow定義の作成・編集・公開・手動実行は提供しない。
+
+### `brainbase_automation_human_step_resolve`
+
+保留中のHuman Approvalを`approved`または`rejected`へ解決する。これは明示的なwrite操作であり、project scopeとactorを監査証跡へ残す。
+
+### `brainbase_meeting_automation_diagnosis`
+
+Meeting Sourceの接続状態と直近scheduled syncを診断する。`blocked`、`unconfirmed`、`no_data`、`failed`、`healthy`を区別し、issue codeと復旧actionを返す。Meeting Packの実行基盤はBrainbase Coreに残り、汎用Workflow製品には戻さない。
+
 ### `get_context`
 
 トピック/エンティティに関連するコンテキストを取得。
