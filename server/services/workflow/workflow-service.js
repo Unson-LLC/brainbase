@@ -1666,27 +1666,7 @@ export class WorkflowService {
     }
 
     async ingestMeetingReviewPackage(input = {}, actor = {}) {
-        const reviewScope = await this.meetingAutomationService.resolveReviewPackageScope(input, actor);
-        const earlyReplay = this.meetingAutomationService.findReviewPackageReplay(reviewScope);
-        if (earlyReplay) return earlyReplay;
-
-        const resolvedContext = await this.meetingAutomationService.resolveReviewPackageGraphContext(reviewScope, actor);
-        const ingestResult = await this.meetingAutomationService.persistReviewPackage(resolvedContext, actor);
-        if (ingestResult.meeting_review_ingest.idempotent) return ingestResult;
-
-        const { orgId, projectId, packageId, loopIntentByKey } = reviewScope;
-        const runId = ingestResult.meeting_review_ingest.run.id;
-        const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
-        ingestResult.meeting_review_ingest.note_generation_dispatch = await this.meetingAutomationService.dispatchNoteGeneration({
-            loopIntent: loopIntentByKey.get('transcript_to_meeting_note') || null,
-            orgId,
-            projectId,
-            packageId,
-            runId,
-            actorId,
-            actor
-        });
-        return ingestResult;
+        return this.meetingAutomationService.ingestReviewPackage(input, actor);
     }
 
     async recordMeetingNoteGeneration(input = {}, actor = {}) {

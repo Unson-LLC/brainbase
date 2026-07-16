@@ -60,7 +60,7 @@ server/routes/workflows.js
   -> generic list/create/detail/update/draft/draft-test/manual-run: retired (404)
 ```
 
-Run Receiptのread modelは専用serviceへ分離済みである。Meeting Automationのroute、Meeting Source sync worker、内部callerは`MeetingAutomationService`へ直接接続し、`WorkflowService`のMeeting Automation互換adapterは削除済みである。Review Package ingestは`WorkflowService`へ残す。Meeting AutomationとAutomation Runのproduction callerが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
+Run Receiptのread modelは専用serviceへ分離済みである。Meeting Automationのrouteと内部callerは`MeetingAutomationService`へ直接接続し、`WorkflowService`のdesign review、bootstrap、calendar input互換adapterは削除済みである。Review Package ingestのオーケストレーションも`MeetingAutomationService.ingestReviewPackage`へ移し、HTTP routeは直接接続した。Meeting Source sync workerはbootstrapを直接呼ぶ一方、Review Package ingestだけは移行中の互換入口として`WorkflowService.ingestMeetingReviewPackage`を利用する。Meeting AutomationとAutomation Runのproduction callerが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
 
 ## Target components
 

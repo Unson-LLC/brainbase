@@ -473,4 +473,51 @@ describe('MeetingAutomationService', () => {
         });
         expect(repository.listRuns()).toHaveLength(1);
     });
+
+    it('Review Package取り込みをscope解決からnote生成handoffまで統括する', async () => {
+        const { service } = makeMeetingService();
+        const reviewScope = {
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            packageId: 'package-orchestration-1',
+            loopIntentByKey: new Map([['transcript_to_meeting_note', { id: 'loop-note-1' }]])
+        };
+        const resolvedContext = { ...reviewScope, graphPlaybookContext: { item_count: 1 } };
+        const ingestResult = {
+            meeting_review_ingest: {
+                idempotent: false,
+                run: { id: 'review-run-1' }
+            }
+        };
+        vi.spyOn(service, 'resolveReviewPackageScope').mockResolvedValue(reviewScope);
+        vi.spyOn(service, 'findReviewPackageReplay').mockReturnValue(null);
+        vi.spyOn(service, 'resolveReviewPackageGraphContext').mockResolvedValue(resolvedContext);
+        vi.spyOn(service, 'persistReviewPackage').mockResolvedValue(ingestResult);
+        vi.spyOn(service, 'dispatchNoteGeneration').mockResolvedValue({
+            status: 'requested',
+            loop_intent_id: 'loop-note-1'
+        });
+
+        const result = await service.ingestReviewPackage({ review_package: { package_id: 'package-orchestration-1' } }, actor);
+
+        expect(service.resolveReviewPackageScope).toHaveBeenCalledWith(
+            { review_package: { package_id: 'package-orchestration-1' } },
+            actor
+        );
+        expect(service.resolveReviewPackageGraphContext).toHaveBeenCalledWith(reviewScope, actor);
+        expect(service.persistReviewPackage).toHaveBeenCalledWith(resolvedContext, actor);
+        expect(service.dispatchNoteGeneration).toHaveBeenCalledWith({
+            loopIntent: { id: 'loop-note-1' },
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            packageId: 'package-orchestration-1',
+            runId: 'review-run-1',
+            actorId: 'keigo',
+            actor
+        });
+        expect(result.meeting_review_ingest.note_generation_dispatch).toEqual({
+            status: 'requested',
+            loop_intent_id: 'loop-note-1'
+        });
+    });
 });

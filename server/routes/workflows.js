@@ -142,7 +142,7 @@ export function createWorkflowRouter(workflowService, {
 
     router.post('/control/meeting-pack/review-ingest', asyncHandler(async (req, res) => {
         try {
-            res.status(201).json(await workflowService.ingestMeetingReviewPackage(req.body || {}, actorFromRequest(req)));
+            res.status(201).json(await meetingAutomationService.ingestReviewPackage(req.body || {}, actorFromRequest(req)));
         } catch (error) {
             if (error?.statusCode === 400 && error?.details?.state_transition) {
                 res.status(400).json({

@@ -198,6 +198,10 @@ describe('workflow routes', () => {
             async createCalendarLoopIntents(input, actor) {
                 calls.push(['calendar', input, actor]);
                 return { meeting_calendar_inputs: { loop_intents: [] } };
+            },
+            async ingestReviewPackage(input, actor) {
+                calls.push(['review-ingest', input, actor]);
+                return { meeting_review_ingest: { package_id: 'direct-review-ingest' } };
             }
         };
         const app = express();
@@ -220,8 +224,12 @@ describe('workflow routes', () => {
             .post('/api/workflows/control/meeting-pack/calendar-inputs')
             .send({ org_id: 'sample-project', project_id: 'sample-project' })
             .expect(201);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: { package_id: 'direct-review-ingest' } })
+            .expect(201);
 
-        expect(calls.map(([operation]) => operation)).toEqual(['bootstrap', 'review', 'calendar']);
+        expect(calls.map(([operation]) => operation)).toEqual(['bootstrap', 'review', 'calendar', 'review-ingest']);
         expect(calls.every(([, , actor]) => actor.person_id === 'route-test')).toBe(true);
     });
 

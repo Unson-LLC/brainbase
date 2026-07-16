@@ -377,6 +377,30 @@ export class MeetingAutomationService {
         });
     }
 
+    async ingestReviewPackage(input = {}, actor = {}) {
+        const reviewScope = await this.resolveReviewPackageScope(input, actor);
+        const earlyReplay = this.findReviewPackageReplay(reviewScope);
+        if (earlyReplay) return earlyReplay;
+
+        const resolvedContext = await this.resolveReviewPackageGraphContext(reviewScope, actor);
+        const ingestResult = await this.persistReviewPackage(resolvedContext, actor);
+        if (ingestResult.meeting_review_ingest.idempotent) return ingestResult;
+
+        const { orgId, projectId, packageId, loopIntentByKey } = reviewScope;
+        const runId = ingestResult.meeting_review_ingest.run.id;
+        const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
+        ingestResult.meeting_review_ingest.note_generation_dispatch = await this.dispatchNoteGeneration({
+            loopIntent: loopIntentByKey.get('transcript_to_meeting_note') || null,
+            orgId,
+            projectId,
+            packageId,
+            runId,
+            actorId,
+            actor
+        });
+        return ingestResult;
+    }
+
     async dispatchNoteGeneration({ loopIntent, orgId, projectId, packageId, runId, actorId, actor }) {
         let result;
         if (!loopIntent) {
