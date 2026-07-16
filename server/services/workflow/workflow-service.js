@@ -2656,10 +2656,6 @@ export class WorkflowService {
         }
     }
 
-    async runWorkflow(workflowId, options = {}) {
-        return this.automationRunService.runWorkflow(workflowId, options);
-    }
-
     async rerun(runId, options = {}, actor = {}) {
         return this.automationRunService.rerun(runId, options, actor);
     }

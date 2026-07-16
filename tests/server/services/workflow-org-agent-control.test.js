@@ -293,6 +293,10 @@ async function createAgentStack(service, actor, {
 }
 
 describe('WorkflowService org agent loop control', () => {
+    it('does not expose the retired generic manual-run adapter', () => {
+        expect(WorkflowService.prototype.runWorkflow).toBeUndefined();
+    });
+
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {
         const { repository, service, actor } = makeService();
 
@@ -849,7 +853,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.runs).toHaveLength(0);
     });
 
-    it('story-eve-runtime-session-connection-v0 S-004 blocks generic workflow run path for Eve dispatch workflow', async () => {
+    it('story-eve-runtime-session-connection-v0 S-004 blocks Automation Run core for Eve dispatch workflow', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { service, actor } = makeService({ eveSessionClient });
         await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
@@ -864,7 +868,7 @@ describe('WorkflowService org agent loop control', () => {
             actor
         );
 
-        await expect(service.runWorkflow(first.eve_session_dispatch.workflow.id, {
+        await expect(service.automationRunService.runWorkflow(first.eve_session_dispatch.workflow.id, {
             actorId: actor.person_id,
             projectCodes: actor.projectCodes,
             role: actor.role,
@@ -2681,7 +2685,7 @@ describe('WorkflowService org agent loop control', () => {
         ]));
     });
 
-    it('story-meeting-review-package-ingest-v1 blocks manual run and rerun for review-ingest workflow before extra run writes', async () => {
+    it('story-meeting-review-package-ingest-v1 blocks Automation Run core and rerun before extra run writes', async () => {
         const { repository, service, actor } = makeService();
         await service.bootstrapMeetingWorkflowPack({
             org_id: 'salestailor',
@@ -2693,7 +2697,7 @@ describe('WorkflowService org agent loop control', () => {
         const workflowId = result.meeting_review_ingest.run.workflow_id;
         const runId = result.meeting_review_ingest.run.id;
 
-        await expect(service.runWorkflow(workflowId, {
+        await expect(service.automationRunService.runWorkflow(workflowId, {
             actorId: actor.person_id,
             projectCodes: actor.projectCodes,
             role: actor.role,
@@ -2708,7 +2712,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.human_steps).toHaveLength(5);
     });
 
-    it('story-meeting-review-package-ingest-v1 preserves project access denial before manual run guard', async () => {
+    it('story-meeting-review-package-ingest-v1 preserves project access denial before Automation Run guard', async () => {
         const { repository, service, actor } = makeService();
         await service.bootstrapMeetingWorkflowPack({
             org_id: 'salestailor',
@@ -2725,7 +2729,7 @@ describe('WorkflowService org agent loop control', () => {
             projectCodes: []
         };
 
-        await expect(service.runWorkflow(workflowId, {
+        await expect(service.automationRunService.runWorkflow(workflowId, {
             actorId: noAccessActor.person_id,
             projectCodes: noAccessActor.projectCodes,
             role: noAccessActor.role,
