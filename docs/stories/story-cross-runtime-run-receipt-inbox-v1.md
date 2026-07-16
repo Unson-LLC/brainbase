@@ -184,11 +184,11 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 ## Workflow State Scenarios
 
-- S-001 `workflow state transition`: validated success receiptをsource statusを変えずclosedへ投影し、不確実なevidenceはreview対象に残す。
-- S-002 `workflow state transition`: failed receiptをneeds_actionへ投影し、evidence lifecycleを維持する。
-- S-003 `workflow state transition`: blocked receiptをresolve_blocker付き最優先itemへ投影する。
-- S-004 `workflow state transition`: waiting_human receiptをopenかつreview_runへ投影する。
-- S-005 `workflow state transition`: cancelled receiptをclosedへ投影しsuccessへ変換しない。
+- S-001 `workflow state transition`: validated success receiptをsource statusを変えずclosedへ投影し、明示source actionを優先し、不確実なevidenceはreview対象に残す。
+- S-002 `workflow state transition`: failed receiptをneeds_actionへ投影し、明示source actionを優先し、なければ`check_error`を使い、evidence lifecycleを維持する。
+- S-003 `workflow state transition`: blocked receiptの明示source actionを優先し、なければ`resolve_blocker`を使って最優先itemへ投影する。
+- S-004 `workflow state transition`: waiting_human receiptの明示source actionを優先し、なければ`review_run`を使ってopenへ投影する。
+- S-005 `workflow state transition`: cancelled receiptの明示source actionを優先し、なければ`none`を使ってclosedへ投影し、successへ変換しない。
 - S-006 `workflow retry transition`: 同一receiptの再送はcreate済みrunをduplicateとして返す。
 - S-007 `workflow rollback transition`: 同一identityの内容衝突はledger mutation前に拒否する。
 - S-008 `workflow rollback transition`: schemaまたはauthorization failureは全collectionをwrite-freeに保つ。

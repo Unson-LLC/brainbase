@@ -147,11 +147,11 @@ The trust boundary is intentionally asymmetric: source connectors may inspect ra
 
 ## Scenario Clauses
 
-- S-001 `workflow state transition`: confirmed success maps to `success / closed / none` and is present in receipt listing.
-- S-002 `workflow state transition`: failed maps to `failed / needs_action / check_error` without changing `evidence_state`.
-- S-003 `workflow state transition`: blocked maps to `needs_action / needs_action / resolve_blocker`.
-- S-004 `workflow state transition`: waiting human maps to `waiting_human / open / review_run` unless an explicit action is supplied.
-- S-005 `workflow state transition`: cancelled remains cancelled and is not counted as success.
+- S-001 `workflow state transition`: confirmed success maps to `success / closed`; an explicit non-`none` source action wins, otherwise `none` is the adapter default.
+- S-002 `workflow state transition`: failed maps to `failed / needs_action`; an explicit non-`none` source action wins, otherwise `check_error` is the adapter default, without changing `evidence_state`.
+- S-003 `workflow state transition`: blocked maps to `needs_action / needs_action`; an explicit non-`none` source action wins, otherwise `resolve_blocker` is the adapter default.
+- S-004 `workflow state transition`: waiting human maps to `waiting_human / open`; an explicit non-`none` source action wins, otherwise `review_run` is the adapter default.
+- S-005 `workflow state transition`: cancelled remains `cancelled / closed`; an explicit non-`none` source action wins, otherwise `none` is the adapter default, and it is not counted as success.
 - S-006 `workflow retry matrix`: exact duplicate returns the original run and writes no second run.
 - S-006a `workflow retry matrix`: a retry changing only `delivery.attempt` or `delivery.sent_at` is duplicate; reordered metric keys or evidence refs normalize to the same digest.
 - S-006b `workflow retry matrix`: simultaneous identical receipts serialize under one receipt lock and yield one created run plus duplicate responses, never multiple runs.
