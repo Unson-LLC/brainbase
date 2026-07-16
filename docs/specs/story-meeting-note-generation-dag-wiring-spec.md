@@ -44,7 +44,7 @@ Speaker 2: ...
 
 ## Ingest Auto-Dispatch
 
-After `ingestMeetingReviewPackage` records outputs and human steps (non-idempotent path only), the service attempts to dispatch the `transcript_to_meeting_note` loop intent:
+After `ingestReviewPackage` records outputs and human steps (non-idempotent path only), the service attempts to dispatch the `transcript_to_meeting_note` loop intent:
 
 - If `eveSessionClient.isConfigured()` is false → skip with `reason: 'eve_not_configured'`.
 - If `dispatchLoopIntentToEve` throws → skip with `reason: 'dispatch_failed'`; the error message is recorded in the audit log entry `workflow.meeting_pack.note_generation.dispatch_skipped`.
@@ -126,7 +126,7 @@ Scenario clauses for state transitions (spec.json canonical ids: ST-001→S-005,
 
 ```mermaid
 flowchart LR
-  sync["sync worker confirm"] --> ingest["ingestMeetingReviewPackage"]
+  sync["sync worker confirm"] --> ingest["ingestReviewPackage"]
   ingest --> output["meeting_note_draft (source_ready)"]
   ingest --> dispatch{"eve configured?"}
   dispatch -->|yes| eve["Eve session (await result)"]

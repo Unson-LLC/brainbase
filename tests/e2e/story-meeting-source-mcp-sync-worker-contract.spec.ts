@@ -103,16 +103,16 @@ async function stubSettingsMeetingSourceRoutes(page: Page, previewBody: any = de
 
 async function createSyncFixture({
   adapters = {},
-  workflowService = null
+  meetingAutomationService = null
 }: {
   adapters?: Record<string, any>;
-  workflowService?: any;
+  meetingAutomationService?: any;
 } = {}) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'meeting-source-e2e-'));
   const service = new MeetingSourceMcpSyncService({
     stateFile: path.join(dir, 'state.json'),
     adapters,
-    workflowService,
+    meetingAutomationService,
     clock: () => '2026-07-02T00:00:00.000Z'
   });
   const app = express();
@@ -129,7 +129,7 @@ async function createSyncFixture({
   return { app, service, dir };
 }
 
-function createRealWorkflowServiceFixture() {
+function createRealMeetingAutomationServiceFixture() {
   const repository = new InMemoryWorkflowRepository();
   const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
   const configParser = {
@@ -143,13 +143,14 @@ function createRealWorkflowServiceFixture() {
     }
   };
   const workflowService = new WorkflowService({ repository, runner, configParser });
+  const meetingAutomationService = workflowService.meetingAutomationService;
   const actor = {
     sub: 'per_keigo',
     personId: 'per_keigo',
     role: 'admin',
     projectCodes: ['brainbase']
   };
-  return { repository, workflowService, actor };
+  return { repository, meetingAutomationService, actor };
 }
 
 test.describe(storyId, () => {
@@ -178,7 +179,7 @@ test.describe(storyId, () => {
     expect(runtimePolicyStory + service, `${storyId} ac:5 AC-005 runtime policy preview`).toContain('providers` だけでも成功');
     expect(service, `${storyId} ac:5 AC-005 provider runtime window`).toContain('_runtimePolicySince');
     // story-meeting-source-mcp-sync-worker ac:6 AC-006: confirm時だけMeeting Pack ingestへ送る。
-    expect(story + service, `${storyId} ac:6 AC-006 confirm ingest`).toContain('workflowService.ingestMeetingReviewPackage');
+    expect(story + service, `${storyId} ac:6 AC-006 confirm ingest`).toContain('meetingAutomationService.ingestReviewPackage');
     expect(service + server, `${storyId} ac:6 AC-006 scheduled worker`).toContain('startScheduledSync');
     // story-meeting-source-mcp-sync-worker ac:7 AC-007: 片方のprovider障害はもう片方の同期を止めない。
     expect(story + service, `${storyId} ac:7 AC-007 provider isolation`).toContain('errors.push');
@@ -207,15 +208,15 @@ test.describe(storyId, () => {
   });
 
   test(`${storyId} ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:12 AC-001 AC-002 AC-003 AC-004 AC-005 AC-006 AC-012 Tactiq/PlaudをdedupeしMeeting Packへconfirmする`, async () => {
-    const workflowService = {
+    const meetingAutomationService = {
       calls: [] as any[],
-      async ingestMeetingReviewPackage(reviewPackage: any, options: any) {
+      async ingestReviewPackage(reviewPackage: any, options: any) {
         this.calls.push({ reviewPackage, options });
         return { ok: true };
       }
     };
     const { app, service } = await createSyncFixture({
-      workflowService,
+      meetingAutomationService,
       adapters: {
         tactiq: {
           async poll({ since }: any) {
@@ -301,8 +302,8 @@ test.describe(storyId, () => {
       external_send_required_approval: true,
       body: ''
     });
-    expect(workflowService.calls).toHaveLength(1);
-    expect(workflowService.calls[0].reviewPackage).toMatchObject({
+    expect(meetingAutomationService.calls).toHaveLength(1);
+    expect(meetingAutomationService.calls[0].reviewPackage).toMatchObject({
       org_id: 'brainbase',
       project_id: 'brainbase',
       review_package: {
@@ -379,13 +380,13 @@ test.describe(storyId, () => {
         }
       },
     });
-    const meetingNoteSummary = workflowService.calls[0].reviewPackage.review_package.meeting_note_summary;
+    const meetingNoteSummary = meetingAutomationService.calls[0].reviewPackage.review_package.meeting_note_summary;
     expect(meetingNoteSummary.body).toContain('Brainbase Meeting Pack');
     expect(meetingNoteSummary.body).toContain('same transcript from online meeting');
     expect(meetingNoteSummary.body).not.toContain('Tactiq provider minutes');
     expect(meetingNoteSummary.body).not.toContain('Plaud provider note');
     expect(meetingNoteSummary.source_text_hash).toBe(
-      workflowService.calls[0].reviewPackage.review_package.source_event.content_sha256
+      meetingAutomationService.calls[0].reviewPackage.review_package.source_event.content_sha256
     );
 
     const statuses = await request(app)
@@ -446,10 +447,10 @@ test.describe(storyId, () => {
     });
   });
 
-  test(`${storyId} ac:6 ac:12 AC-006 AC-012 confirmは実WorkflowServiceのMeeting Review Package ingest契約で通る`, async () => {
-    const { repository, workflowService, actor } = createRealWorkflowServiceFixture();
+  test(`${storyId} ac:6 ac:12 AC-006 AC-012 confirmは実MeetingAutomationServiceのReview Package ingest契約で通る`, async () => {
+    const { repository, meetingAutomationService, actor } = createRealMeetingAutomationServiceFixture();
     const { service } = await createSyncFixture({
-      workflowService,
+      meetingAutomationService,
       adapters: {
         tactiq: {
           async poll() {
@@ -476,7 +477,7 @@ test.describe(storyId, () => {
     });
     const confirmed = await service.confirmResync({ preview_id: preview.preview_id, actor });
 
-    // ac:6 ac:12 / AC-006 AC-012: 実WorkflowServiceにreview_package封筒で入り、run/output/human stepまで作成される。
+    // ac:6 ac:12 / AC-006 AC-012: 実MeetingAutomationServiceにreview_package封筒で入り、run/output/human stepまで作成される。
     expect(confirmed.submitted).toBe(true);
     expect(repository.ledger.runs).toHaveLength(1);
     expect(repository.ledger.outputs.map((output: any) => output.type)).toEqual(expect.arrayContaining([
@@ -501,15 +502,15 @@ test.describe(storyId, () => {
   });
 
   test(`${storyId} ac:6 ac:12 AC-006 AC-012 scheduled worker advances cursor for provider notes but does not submit them as Brainbase minutes`, async () => {
-    const workflowService = {
+    const meetingAutomationService = {
       calls: [] as any[],
-      async ingestMeetingReviewPackage(reviewPackage: any, options: any) {
+      async ingestReviewPackage(reviewPackage: any, options: any) {
         this.calls.push({ reviewPackage, options });
         return { ok: true };
       }
     };
     const { service } = await createSyncFixture({
-      workflowService,
+      meetingAutomationService,
       adapters: {
         tactiq: {
           async poll() {
@@ -545,7 +546,7 @@ test.describe(storyId, () => {
       meeting_pack_count: 0,
       cursor_advanced_for_excluded_artifacts: true
     });
-    expect(workflowService.calls).toHaveLength(0);
+    expect(meetingAutomationService.calls).toHaveLength(0);
     expect(statuses.providers.find((provider: any) => provider.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T06:00:00.000Z');
     expect(statuses.providers.find((provider: any) => provider.provider === 'tactiq').cursor.last_seen_external_id).toBe('tactiq-provider-note-only-1');
   });

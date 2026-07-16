@@ -306,6 +306,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(WorkflowService.prototype.bootstrapMeetingWorkflowPack).toBeUndefined();
         expect(WorkflowService.prototype.createMeetingPackCalendarLoopIntents).toBeUndefined();
         expect(WorkflowService.prototype._dispatchMeetingNoteGeneration).toBeUndefined();
+        expect(WorkflowService.prototype.ingestMeetingReviewPackage).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {
@@ -468,7 +469,7 @@ describe('WorkflowService org agent loop control', () => {
         const { service, actor } = makeService({ eveSessionClient });
         await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         await service.meetingAutomationService.bootstrapPack({ org_id: 'unson', project_id: 'unson' }, actor);
-        const ingest = await service.ingestMeetingReviewPackage({
+        const ingest = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const salestailorRunId = ingest.meeting_review_ingest.run.id;
@@ -1923,7 +1924,7 @@ describe('WorkflowService org agent loop control', () => {
             project_id: 'salestailor'
         }, actor);
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
 
@@ -1987,7 +1988,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2074,7 +2075,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2123,7 +2124,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2195,7 +2196,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2290,7 +2291,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2350,7 +2351,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2422,7 +2423,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2477,10 +2478,10 @@ describe('WorkflowService org agent loop control', () => {
         }, actor);
         const longPackageId = `meeting-review-package-united-hotel-dx-${'decision-evidence-context-'.repeat(5)}`;
 
-        const first = await service.ingestMeetingReviewPackage({
+        const first = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage({ packageId: longPackageId })
         }, actor);
-        const second = await service.ingestMeetingReviewPackage({
+        const second = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage({ packageId: longPackageId })
         }, actor);
         const runId = first.meeting_review_ingest.run.id;
@@ -2518,7 +2519,7 @@ describe('WorkflowService org agent loop control', () => {
             definitionId: 'meeting-note-to-tasks'
         }).loopIntentId;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor)).rejects.toThrow("loop_intent 'loop_unson_unson_meeting_note_to_tasks_bootstrap' belongs to 'unson/unson'");
 
@@ -2537,7 +2538,7 @@ describe('WorkflowService org agent loop control', () => {
         const reviewPackage = sampleMeetingReviewPackage();
         delete reviewPackage.loop_intent_ids.meeting_note_to_tasks;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor)).rejects.toThrow('review_package.loop_intent_ids is missing required meeting review key(s)');
 
@@ -2556,7 +2557,7 @@ describe('WorkflowService org agent loop control', () => {
         const reviewPackage = sampleMeetingReviewPackage();
         delete reviewPackage.decision_candidates;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor)).rejects.toThrow('review_package is missing required output payload key(s)');
 
@@ -2572,7 +2573,7 @@ describe('WorkflowService org agent loop control', () => {
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const step = result.meeting_review_ingest.human_steps[0];
@@ -2613,7 +2614,7 @@ describe('WorkflowService org agent loop control', () => {
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
 
@@ -2651,7 +2652,7 @@ describe('WorkflowService org agent loop control', () => {
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const [rejectedStep, staleApproveStep] = result.meeting_review_ingest.human_steps;
@@ -2702,7 +2703,7 @@ describe('WorkflowService org agent loop control', () => {
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const workflowId = result.meeting_review_ingest.run.workflow_id;
@@ -2729,7 +2730,7 @@ describe('WorkflowService org agent loop control', () => {
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const workflowId = result.meeting_review_ingest.run.workflow_id;
@@ -2771,7 +2772,7 @@ describe('WorkflowService org agent loop control', () => {
         const beforeWorkflowCount = repository.ledger.workflows.length;
         const beforeAuditCount = repository.ledger.audit_logs.length;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor)).rejects.toThrow('persistence_failure: workflow_outputs write failed');
 

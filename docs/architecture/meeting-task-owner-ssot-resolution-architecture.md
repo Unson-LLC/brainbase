@@ -80,7 +80,7 @@ flowchart LR
 | --- | --- | --- |
 | Canonical person identity | Brainbase Graph SSOT people | `InfoSSOTService.listGraphEntities` |
 | AI extracted hint | Meeting Review Package payload | `owner_hint` remains unchanged |
-| Task candidate storage | Workflow output payload | `WorkflowService.ingestMeetingReviewPackage` |
+| Task candidate storage | Workflow output payload | `MeetingAutomationService.ingestReviewPackage` |
 | Human approval | Existing Review Package human gate | `required_before_task_create` remains pending |
 | Task Store creation | Existing post-approval workflow | Not changed by this story |
 
@@ -92,12 +92,12 @@ flowchart LR
 
 ## Release Operations
 
-- Release path: 通常のBrainbase server deployまたは再起動で有効化する。`core-services` が `WorkflowService` へ `InfoSSOTService` を注入するため、追加のoperator設定は不要。
+- Release path: 通常のBrainbase server deployまたは再起動で有効化する。`core-services` が `MeetingAutomationService` へ `InfoSSOTService` を注入するため、追加のoperator設定は不要。
 - Rollback path: PR revertで `resolveMeetingReviewTaskOwnersFromSSOT` の呼び出しとservice injectionを外す。payloadの追加フィールドは後方互換の付加情報であり、既存Review Packageの承認状態を変更しない。
 - Observability path: operatorは `workflow_outputs` の `task_candidates` payloadで `owner_resolution.status`、`reason`、`selected_owner_id`、`owner_candidates` を確認する。人間承認が必要な状態は既存のhuman gateに残る。
 - Support path: `unresolved` / `ambiguous` / `ignored` はMac Companionの担当者選択UIで人間が補正する。Graph SSOT登録が必要な人物はpeople SSOTの登録導線で作成し、ingestは自動登録しない。
 
 ## Replay Evidence
 
-- `tests/server/services/workflow-org-agent-control.test.js` replays resolved, unresolved, and speaker-label candidates through `ingestMeetingReviewPackage` and asserts the stored `workflow_outputs.payload`.
+- `tests/server/services/workflow-org-agent-control.test.js` replays resolved, unresolved, and speaker-label candidates through `ingestReviewPackage` and asserts the stored `workflow_outputs.payload`.
 - `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts` replays the broader Meeting Review Package ingest contract, including output creation, human steps, idempotency, reject behavior, and Mission Control review visibility.

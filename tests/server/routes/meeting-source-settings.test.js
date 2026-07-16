@@ -9,12 +9,12 @@ import { createMeetingSourceSettingsRouter } from '../../../server/routes/meetin
 import { MeetingSourceMcpSyncService } from '../../../server/services/meeting-source/meeting-source-mcp-sync-service.js';
 import { MeetingSourceIntegrationCatalogService } from '../../../server/services/meeting-source/meeting-source-integration-catalog.js';
 
-async function makeApp({ adapters = {}, workflowService = null, integrationCatalogService = null } = {}) {
+async function makeApp({ adapters = {}, meetingAutomationService = null, integrationCatalogService = null } = {}) {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'meeting-source-route-'));
     const service = new MeetingSourceMcpSyncService({
         stateFile: path.join(dir, 'state.json'),
         adapters,
-        workflowService,
+        meetingAutomationService,
         clock: () => '2026-07-02T00:00:00.000Z'
     });
     const app = express();
@@ -252,8 +252,8 @@ describe('meeting source settings routes', () => {
     });
 
     it('C-4 resolves providers-only preview from cursor minus overlap clamped to initial backfill', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const tactiqPoll = vi
             .fn()
@@ -266,7 +266,7 @@ describe('meeting source settings routes', () => {
             }])
             .mockResolvedValueOnce([]);
         const { app, service } = await makeApp({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: tactiqPoll
@@ -305,8 +305,8 @@ describe('meeting source settings routes', () => {
     });
 
     it('C-3/C-4 resolves runtime windows per provider when cursor states differ', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const tactiqPoll = vi
             .fn()
@@ -320,7 +320,7 @@ describe('meeting source settings routes', () => {
             .mockResolvedValueOnce([]);
         const plaudPoll = vi.fn(async () => []);
         const { app, service } = await makeApp({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: { poll: tactiqPoll },
                 plaud: { poll: plaudPoll }
@@ -407,11 +407,11 @@ describe('meeting source settings routes', () => {
     });
 
     it('submits confirmed preview to review ingest through the UI-facing route', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { app, service } = await makeApp({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: vi.fn(async () => [{
@@ -444,8 +444,8 @@ describe('meeting source settings routes', () => {
             .expect(200);
 
         expect(confirmed.body.submitted).toBe(true);
-        expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
-        expect(workflowService.ingestMeetingReviewPackage.mock.calls[0][0]).toMatchObject({
+        expect(meetingAutomationService.ingestReviewPackage).toHaveBeenCalledTimes(1);
+        expect(meetingAutomationService.ingestReviewPackage.mock.calls[0][0]).toMatchObject({
             org_id: 'brainbase',
             project_id: 'brainbase',
             review_package: expect.objectContaining({

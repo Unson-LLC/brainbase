@@ -103,7 +103,6 @@ export function createCoreServices({
     });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
-        workflowService,
         meetingAutomationService: workflowService.meetingAutomationService,
         adapters: createMeetingSourceMcpAdaptersFromEnv(),
         syncConfig: {

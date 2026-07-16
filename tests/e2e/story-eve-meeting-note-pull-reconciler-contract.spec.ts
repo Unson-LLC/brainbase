@@ -124,7 +124,7 @@ function sampleMeetingReviewPackage() {
 
 async function dispatchMeetingNoteRun({ service, actor }: { service: any; actor: any }) {
   await service.meetingAutomationService.bootstrapPack({ org_id: 'sample-project', project_id: 'sample-project' }, actor);
-  const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+  const ingest = await service.meetingAutomationService.ingestReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
   const ingestRunId = ingest.meeting_review_ingest.run.id;
   const loopIntentId = meetingPackIds({
     orgId: 'sample-project',

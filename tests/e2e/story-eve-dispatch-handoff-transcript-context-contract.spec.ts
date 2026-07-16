@@ -123,7 +123,7 @@ async function bootstrapAndIngest({ eveSessionClient = null, reviewPackage = sam
     org_id: 'sample-project',
     project_id: 'sample-project'
   }, actor);
-  const result = await service.ingestMeetingReviewPackage({
+  const result = await service.meetingAutomationService.ingestReviewPackage({
     review_package: reviewPackage
   }, actor);
   return { repository, service, actor, ingest: result.meeting_review_ingest };

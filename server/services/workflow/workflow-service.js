@@ -1665,10 +1665,6 @@ export class WorkflowService {
         }
     }
 
-    async ingestMeetingReviewPackage(input = {}, actor = {}) {
-        return this.meetingAutomationService.ingestReviewPackage(input, actor);
-    }
-
     async recordMeetingNoteGeneration(input = {}, actor = {}) {
         await this._loadProjectConfigCache();
         const orgId = readOptionalString(input, 'org_id', 'orgId');

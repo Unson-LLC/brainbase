@@ -1553,8 +1553,8 @@ describe('workflow routes', () => {
             return pkg;
         };
         const [first, second] = await Promise.all([
-            service.ingestMeetingReviewPackage({ review_package: makePkg('meeting-review-package-race-a') }, actor),
-            service.ingestMeetingReviewPackage({ review_package: makePkg('meeting-review-package-race-b') }, actor)
+            service.meetingAutomationService.ingestReviewPackage({ review_package: makePkg('meeting-review-package-race-a') }, actor),
+            service.meetingAutomationService.ingestReviewPackage({ review_package: makePkg('meeting-review-package-race-b') }, actor)
         ]);
         const results = [first.meeting_review_ingest, second.meeting_review_ingest];
         expect(results.filter((r) => r.idempotent)).toHaveLength(1);
@@ -1768,7 +1768,7 @@ describe('workflow routes', () => {
             org_id: 'sample-project',
             project_id: 'sample-project'
         }, systemActor);
-        const ingestResult = await service.ingestMeetingReviewPackage({
+        const ingestResult = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, systemActor);
         const runId = ingestResult.meeting_review_ingest.run.id;

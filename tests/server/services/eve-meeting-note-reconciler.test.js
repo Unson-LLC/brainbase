@@ -255,7 +255,7 @@ const PARKED_TAIL = [
 
 async function dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient }) {
     await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-    const ingest = await service.ingestMeetingReviewPackage({
+    const ingest = await service.meetingAutomationService.ingestReviewPackage({
         review_package: sampleMeetingReviewPackage({
             taskCandidates: [],
             decisionCandidates: []
@@ -742,7 +742,7 @@ describe('WorkflowService.recordMeetingCandidates', () => {
         }]);
         const { repository, service, actor } = makeService({ infoSSOTService });
         await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingest = await service.meetingAutomationService.ingestReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
         const ingestRunId = ingest.meeting_review_ingest.run.id;
 
         const result = await service.recordMeetingCandidates({
@@ -812,7 +812,7 @@ describe('WorkflowService.recordMeetingCandidates', () => {
     it('rejects candidates whose source_text_hash does not match the meeting_note_draft output', async () => {
         const { repository, service, actor } = makeService();
         await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingest = await service.meetingAutomationService.ingestReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
         const ingestRunId = ingest.meeting_review_ingest.run.id;
 
         await expect(service.recordMeetingCandidates({
@@ -831,7 +831,7 @@ describe('WorkflowService.recordMeetingCandidates', () => {
     it('rejects malformed candidate payloads before changing any output or audit history', async () => {
         const { repository, service, actor } = makeService();
         await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingest = await service.meetingAutomationService.ingestReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
         const ingestRunId = ingest.meeting_review_ingest.run.id;
         const outputKeys = ['task_candidates', 'decision_candidates', 'follow_up_draft'];
         const beforeOutputs = Object.fromEntries(outputKeys.map((key) => [
@@ -908,7 +908,7 @@ describe('WorkflowService.recordMeetingCandidates', () => {
         const repository = new CandidateOutputFailureRepository();
         const { service, actor } = makeService({ repository });
         await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-        const ingest = await service.ingestMeetingReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
+        const ingest = await service.meetingAutomationService.ingestReviewPackage({ review_package: sampleMeetingReviewPackage() }, actor);
         const ingestRunId = ingest.meeting_review_ingest.run.id;
         const outputKeys = ['task_candidates', 'decision_candidates', 'follow_up_draft'];
         const beforeOutputs = Object.fromEntries(outputKeys.map((key) => [

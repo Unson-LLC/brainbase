@@ -658,7 +658,6 @@ export class MeetingSourceMcpSyncService {
     constructor({
         stateFile,
         adapters = {},
-        workflowService = null,
         meetingAutomationService = null,
         clock = nowIso,
         syncConfig = {}
@@ -666,7 +665,6 @@ export class MeetingSourceMcpSyncService {
         if (!stateFile) throw new Error('stateFile is required');
         this.stateFile = stateFile;
         this.adapters = adapters;
-        this.workflowService = workflowService;
         this.meetingAutomationService = meetingAutomationService;
         this.clock = clock;
         this.syncConfig = {
@@ -1305,8 +1303,8 @@ export class MeetingSourceMcpSyncService {
         const reviewPackages = clusters.map((cluster) => this._buildReviewPackageDraft(cluster, { actor, scope }));
 
         if (submit) {
-            if (!this.workflowService?.ingestMeetingReviewPackage) {
-                const error = new Error('workflowService.ingestMeetingReviewPackage is required before confirming meeting source sync');
+            if (!this.meetingAutomationService?.ingestReviewPackage) {
+                const error = new Error('meetingAutomationService.ingestReviewPackage is required before confirming meeting source sync');
                 error.statusCode = 503;
                 throw error;
             }
@@ -1322,7 +1320,7 @@ export class MeetingSourceMcpSyncService {
                 }, actor);
             }
             for (const reviewPackage of reviewPackages) {
-                await this.workflowService.ingestMeetingReviewPackage({
+                await this.meetingAutomationService.ingestReviewPackage({
                     org_id: scope.org_id,
                     project_id: scope.project_id,
                     review_package: reviewPackage

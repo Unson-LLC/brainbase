@@ -13,7 +13,6 @@ import {
 
 async function makeService({
     adapters = {},
-    workflowService = null,
     meetingAutomationService = null,
     clock = () => '2026-07-02T00:00:00.000Z',
     syncConfig = {}
@@ -23,7 +22,6 @@ async function makeService({
     const service = new MeetingSourceMcpSyncService({
         stateFile,
         adapters,
-        workflowService,
         meetingAutomationService,
         clock,
         syncConfig
@@ -216,11 +214,11 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('does not create Meeting Pack candidates from provider notes without transcripts', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { service } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: vi.fn(async () => [{
@@ -269,19 +267,16 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(confirmed.submitted).toBe(true);
         expect(confirmed.meeting_pack_count).toBe(0);
         expect(confirmed.review_packages).toEqual([]);
-        expect(workflowService.ingestMeetingReviewPackage).not.toHaveBeenCalled();
+        expect(meetingAutomationService.ingestReviewPackage).not.toHaveBeenCalled();
         expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T03:00:00.000Z');
     });
 
     it('confirms a preview into Meeting Pack drafts and advances only successful provider cursors', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
-        };
         const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true })),
             bootstrapPack: vi.fn(async () => ({ created: true }))
         };
         const { service } = await makeService({
-            workflowService,
             meetingAutomationService,
             adapters: {
                 tactiq: {
@@ -341,7 +336,7 @@ describe('MeetingSourceMcpSyncService', () => {
             org_id: 'brainbase',
             project_id: 'brainbase'
         }, null);
-        expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
+        expect(meetingAutomationService.ingestReviewPackage).toHaveBeenCalledTimes(1);
         expect(confirmed.submitted).toBe(true);
         expect(confirmed.meeting_pack_count).toBe(1);
         expect(confirmed.review_packages[0].source_event.provider).toBe('tactiq');
@@ -360,7 +355,7 @@ describe('MeetingSourceMcpSyncService', () => {
             external_send_required_approval: true,
             body: ''
         });
-        const submitted = workflowService.ingestMeetingReviewPackage.mock.calls[0][0];
+        const submitted = meetingAutomationService.ingestReviewPackage.mock.calls[0][0];
         expect(submitted).toMatchObject({
             org_id: 'brainbase',
             project_id: 'brainbase',
@@ -425,11 +420,11 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('persists one transcript copy during preview and compacts it after submit', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { service, stateFile } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: vi.fn(async () => [{
@@ -458,7 +453,7 @@ describe('MeetingSourceMcpSyncService', () => {
         const storedPreview = confirmedState.previews[preview.preview_id];
 
         expect(confirmed.meeting_pack_count).toBe(1);
-        expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
+        expect(meetingAutomationService.ingestReviewPackage).toHaveBeenCalledTimes(1);
         expect(storedPreview).toMatchObject({
             preview_id: preview.preview_id,
             submitted: true,
@@ -520,11 +515,11 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('keeps draft-only previews reusable until they are submitted', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { service, stateFile } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 plaud: {
                     poll: vi.fn(async () => [{
@@ -620,11 +615,11 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('keeps preview payload and cursor unchanged when submission fails', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => { throw new Error('downstream unavailable'); })
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => { throw new Error('downstream unavailable'); })
         };
         const { service, stateFile } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 plaud: {
                     poll: vi.fn(async () => [{
@@ -651,11 +646,11 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('treats repeated confirmation of a compacted preview as idempotent', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { service } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: vi.fn(async () => [{
@@ -682,7 +677,7 @@ describe('MeetingSourceMcpSyncService', () => {
             already_submitted: true,
             meeting_pack_count: 1
         });
-        expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
+        expect(meetingAutomationService.ingestReviewPackage).toHaveBeenCalledTimes(1);
     });
 
     it('saves state through a temporary file and atomic rename', async () => {
@@ -700,8 +695,8 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('keeps provider cursors monotonic when overlap polling returns older artifacts', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         let polledArtifacts = [
             {
@@ -720,7 +715,7 @@ describe('MeetingSourceMcpSyncService', () => {
             }
         ];
         const { service } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 plaud: {
                     poll: vi.fn(async () => polledArtifacts)
@@ -801,8 +796,8 @@ describe('MeetingSourceMcpSyncService', () => {
     });
 
     it('runs scheduled sync from lookback window and submits only after scope is configured', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const poll = vi.fn(async ({ since, until }) => {
             expect(since).toBe('2026-06-25T00:00:00.000Z');
@@ -816,7 +811,7 @@ describe('MeetingSourceMcpSyncService', () => {
             }];
         });
         const { service } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: { tactiq: { poll } }
         });
         await service.connectProvider('tactiq', { account_label: 'ksato tactiq', credential_ref: 'secret:tactiq' });
@@ -835,16 +830,16 @@ describe('MeetingSourceMcpSyncService', () => {
             meeting_pack_count: 1
         });
         expect(poll).toHaveBeenCalledTimes(1);
-        expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
+        expect(meetingAutomationService.ingestReviewPackage).toHaveBeenCalledTimes(1);
         expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T02:30:00.000Z');
     });
 
     it('advances scheduled sync cursors for provider notes without submitting Meeting Pack drafts', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { service } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: vi.fn(async () => [{
@@ -885,17 +880,17 @@ describe('MeetingSourceMcpSyncService', () => {
                 reason: 'no_transcript_artifacts_for_meeting_pack'
             })
         ]);
-        expect(workflowService.ingestMeetingReviewPackage).not.toHaveBeenCalled();
+        expect(meetingAutomationService.ingestReviewPackage).not.toHaveBeenCalled();
         expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.updated_since).toBe('2026-06-25T03:00:00.000Z');
         expect(statuses.providers.find(p => p.provider === 'tactiq').cursor.last_seen_external_id).toBe('tactiq-scheduled-note-only-1');
     });
 
     it('keeps scheduled sync as preview-only when project scope is not configured', async () => {
-        const workflowService = {
-            ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
+        const meetingAutomationService = {
+            ingestReviewPackage: vi.fn(async () => ({ ok: true }))
         };
         const { service } = await makeService({
-            workflowService,
+            meetingAutomationService,
             adapters: {
                 plaud: {
                     poll: vi.fn(async () => [{
@@ -919,7 +914,7 @@ describe('MeetingSourceMcpSyncService', () => {
             reason: 'scope_not_configured',
             expected_meeting_pack_count: 1
         });
-        expect(workflowService.ingestMeetingReviewPackage).not.toHaveBeenCalled();
+        expect(meetingAutomationService.ingestReviewPackage).not.toHaveBeenCalled();
         expect(statuses.providers.find(p => p.provider === 'plaud').cursor.updated_since).toBe(null);
     });
 });

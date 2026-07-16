@@ -127,7 +127,7 @@ diagrams:
 | Surface | Path | Evidence |
 | --- | --- | --- |
 | API ingress | `POST /api/workflows/control/meeting-pack/review-ingest` | `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts` |
-| Service resolution | `WorkflowService.ingestMeetingReviewPackage` -> `resolveMeetingReviewTaskOwnersFromSSOT` | `tests/server/services/workflow-org-agent-control.test.js` |
+| Service resolution | `MeetingAutomationService.ingestReviewPackage` -> `resolveMeetingReviewTaskOwnersFromSSOT` | `tests/server/services/workflow-org-agent-control.test.js` |
 | SSOT authority | `InfoSSOTService.listGraphEntities(entityType=person)` | `server/bootstrap/core-services.js` injection plus unit fake |
 | Persistence | `workflow_outputs.payload.task_candidates[]` | unit assertion on stored task candidate payload |
 | Review surface | Workflow Mission Control renders owner resolution before human approval | `tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts` UI replay |
@@ -136,7 +136,7 @@ diagrams:
 
 - Release note: Meeting Review Package ingestがGraph people SSOTを読み、Task候補payloadへ担当者解決結果を付加する。APIの入力契約とDB schemaは変更しない。
 - Operator action: 通常デプロイまたはサーバー再起動のみ。手動migration、既存workflow_outputの書き換え、people SSOTの一括補正は不要。
-- Rollback instruction: PR revertで `WorkflowService` のpeople SSOT参照とpayload付加を外せる。既存payload上の追加フィールドは後方互換の付加情報として残ってもReview Package承認フローを壊さない。
+- Rollback instruction: PR revertで `MeetingAutomationService` のpeople SSOT参照とpayload付加を外せる。既存payload上の追加フィールドは後方互換の付加情報として残ってもReview Package承認フローを壊さない。
 - Observability evidence: `workflow_outputs.type=task_candidates` のpayloadに `owner_resolution.source=graph_ssot`、`status=resolved|unresolved|ambiguous|ignored`、`reason`、`selected_owner_id` の有無が残る。
 - Support path: 未解決候補はMac Companionでpeople SSOT検索・登録・手動選択する。ingest時点では未登録者をGraphへ自動追加しない。
 
