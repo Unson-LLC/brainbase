@@ -1,0 +1,39 @@
+id: automation.run-core
+name: Automation Run Core
+purpose: Preserve project-scoped execution state, steps, outputs, human approval, retry/cancel transitions, and audit evidence without exposing a generic Workflow product.
+surfaces:
+  ui: []
+  mcp: []
+  api:
+    - GET /api/workflow-runs/:runId
+    - POST /api/workflow-runs/:runId/rerun
+    - POST /api/workflow-runs/:runId/human-steps/:stepId/resolve
+    - POST /api/workflow-human-steps/:stepId/resolve
+  code:
+    - server/services/workflow/workflow-runner.js
+    - server/services/workflow/workflow-repository.js
+    - server/services/workflow/workflow-service.js
+  data:
+    - var/workflow-ledger.json
+    - workflow_runs
+    - workflow_run_steps
+    - workflow_human_steps
+    - workflow_outputs
+    - workflow_audit_logs
+depends_on:
+  - auth.grants
+  - project.catalog
+visibility_rules:
+  - The current workflow-prefixed route and ledger names are compatibility names, not a commitment to keep the Workflow product.
+  - Run mutation is allowed only when the run advertises the matching state transition; generic manual execution is not a fallback.
+  - Human approval remains scoped to the assigned approver, admin, CEO, or internal service actor.
+verification:
+  commands:
+    - npm run test:run -- tests/server/services/workflow-runner.test.js tests/server/routes/workflows.test.js
+  expected:
+    - Run, step, output, human approval, and audit transitions pass without a Web UI.
+common_failures:
+  - A compatibility API name is mistaken for a user-facing Workflow product commitment.
+  - A domain-specific Meeting Automation run is sent through the generic rerun path.
+runbooks: []
+troubleshooting: []

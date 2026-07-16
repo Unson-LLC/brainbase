@@ -25,12 +25,14 @@ related_stories:
   - story-workflow-human-in-the-loop
   - story-workflow-routine-integration
   - story-workflow-ai-draft-builder
-status: draft
+status: superseded
 created_at: 2026-06-01
 updated_at: 2026-07-16
 ---
 
 # Brainbase Workflow Mission Control
+
+> Superseded as a product story by `story-workflow-product-retirement-v1` on 2026-07-16. Run、human approval、output、auditの要件はAutomation Run Coreへ継承する。Workflow Definition、汎用作成・編集・公開・manual run、Mission Control Webを製品として完成させる要件は廃止する。
 
 ## 背景
 

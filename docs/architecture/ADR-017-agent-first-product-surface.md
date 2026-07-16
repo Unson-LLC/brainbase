@@ -5,11 +5,13 @@ status: accepted
 date: 2026-07-16
 related_stories:
   - story-brainbase-web-ui-retirement-v1
+  - story-workflow-product-retirement-v1
   - story-brainbase-workflow-mission-control
   - story-cross-runtime-run-receipt-inbox-v1
   - story-companion-approval-inbox-v1
 related_docs:
   - docs/architecture/brainbase-surface-responsibility-matrix.md
+  - docs/architecture/workflow-product-retirement-architecture.md
   - docs/stories/story-brainbase-web-ui-retirement-v1.md
 supersedes:
   - ADR-015
@@ -37,6 +39,8 @@ BrainbaseをGUI-firstなWebアプリとして提供する方針を終了し、Ag
 - 人間の注意、即時確認、承認、修正が必要な項目はMac Companionへ投影する。
 - Webはログイン、OAuth/接続同意、初期設定、権限付与、端末ペアリング、MCP停止時の最小復旧など、ブラウザまたは対話的本人確認が不可欠な面だけを持つ。
 - 「設定」という名称だけではWeb残置の理由にならない。Codex/Claude CodeからMCPで安全に変更・検証できる設定はWebから廃止する。
+- `Workflow`を人間が作成・編集・公開する汎用製品として提供する方針を終了する。汎用Workflow CRUD、draft/test/publish、manual runをMCPへ移植しない。
+- Meeting Packの実行経路とRun/Run Receipt/Human Approval/Auditは`Meeting Automation`と`Automation Run Core`へ分離して維持する。移行中の内部class、route、ledger fieldに残る`workflow`名は互換実装であり、製品面の継続を意味しない。
 
 廃止するのはWeb上の重複した操作面であり、対応するドメイン能力、API、MCP tool、台帳、イベント、監査証跡ではない。
 
@@ -44,7 +48,7 @@ BrainbaseをGUI-firstなWebアプリとして提供する方針を終了し、Ag
 
 ```text
 Brainbase Core
-  = Graph / API / MCP / ledger / auth / connectors / audit / learning
+  = Graph / Automation Run / Run Receipt / API / MCP / ledger / auth / connectors / audit / learning
 
 Codex + Claude Code
   = search / mutate / execute / inspect / diagnose / administer

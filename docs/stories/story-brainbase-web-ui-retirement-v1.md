@@ -22,6 +22,7 @@ related_tasks:
       - TSK-WEBRET-006
       - TSK-WEBRET-007
       - TSK-WEBRET-008
+      - TSK-WEBRET-009
 status: draft
 created_at: 2026-07-16
 updated_at: 2026-07-16
@@ -41,7 +42,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 
 ## Target state
 
-- Brainbase CoreはUIに依存しないAPI/MCP/ledger/auditを正本とする。
+- Brainbase CoreはUIに依存しないAPI/MCP/Automation Run/Run Receipt/ledger/auditを正本とする。
 - Codex/Claude Codeは検索、更新、実行、診断、管理の標準操作面となる。
 - Mac Companionは通知、承認、修正、feedbackに限定する。
 - Brainbase Webはlogin、interactive consent、bootstrap、pairing、break-glass recoveryだけを提供する。
@@ -104,7 +105,9 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 1. `TSK-WEBRET-001`（完了）: 参照のない`test-infrastructure.html`を削除し、static 404をcontract testで固定した。
 2. `TSK-WEBRET-002`（完了）: 実APIへ接続していないMeeting Pack mock prototype、専用runtime、deep-link、専用E2E、CSP例外を削除した。
 3. `TSK-WEBRET-003`（完了）: 認証済みproject catalogを最初のMCP control-plane toolとして出荷し、project grant、failure state、audit evidenceの共通契約を固定した。
-4. `TSK-WEBRET-004`から`006`: Workflow/Run/Inbox、Companion projection、Admin/SNS/setup parityを後継面として出荷する。
-5. `TSK-WEBRET-007`から`008`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
+4. `TSK-WEBRET-004`: 汎用WorkflowをMCPへ移植せず、Automation Run/Run Receipt Inboxの全件・履歴・診断面を出荷する。
+5. `TSK-WEBRET-005`から`006`: Companion projectionを出荷し、Workflow Mission Control Webを廃止する。
+6. `TSK-WEBRET-007`: Admin/SNS/setupの残能力を後継面へ移管する。
+7. `TSK-WEBRET-008`から`009`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
 
 `TSK-WEBRET-001`から`TSK-WEBRET-003`まで完了。`TSK-WEBRET-004`以降は、後継能力のcurrent HEAD evidenceなしに削除へ進めない。

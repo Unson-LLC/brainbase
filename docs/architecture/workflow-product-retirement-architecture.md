@@ -1,0 +1,66 @@
+---
+architecture_id: workflow-product-retirement-architecture
+title: Workflow Product Retirement Architecture
+related_stories:
+  - docs/stories/story-workflow-product-retirement-v1.md
+status: accepted
+created_at: 2026-07-16
+updated_at: 2026-07-16
+---
+
+# Workflow Product Retirement Architecture
+
+## Decision boundary
+
+廃止対象は`Workflow`という人間向け製品、汎用定義編集、汎用実行入口、Web Mission Controlである。維持対象はMeeting Automationの実行経路と、runnerを横断して実行事実を保持するAutomation Run / Run Receipt / Auditである。
+
+## Current coupling
+
+```text
+MeetingSourceMcpSyncService
+  -> WorkflowService.bootstrapMeetingWorkflowPack
+  -> WorkflowService.ingestMeetingReviewPackage
+  -> Eve session dispatch / reconciler
+  -> WorkflowRepository
+
+RunReceiptIngestService
+  -> WorkflowRepository
+  -> WorkflowService.listRunReceiptInbox
+```
+
+このcouplingが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
+
+## Target components
+
+| Component | Responsibility | Public surface |
+|---|---|---|
+| `MeetingAutomationService` | source sync、meeting ingest、candidate/note dispatch、reconcile | domain-specific API/MCP only |
+| `AutomationRunService` | run、step、output、human approval、retry/cancel state transition | MCP + internal API |
+| `RunReceiptService` | ingest、latest collapse、filter、history、diagnosis | MCP + service ingest API |
+| `ExecutionLedgerRepository` | transaction、idempotency、run/output/audit persistence | internal only |
+
+## Compatibility strategy
+
+1. 新しいservice facadeとcontract testを既存実装の前に追加する。
+2. Meeting schedulerとrun receipt ingestを新facadeへ接続する。
+3. 旧`WorkflowService`は互換adapterとして残し、production callerが0になるまで削除しない。
+4. Web routeを削除する前にMCPとCompanionのcurrent-HEAD evidenceを固定する。
+5. `workflow_*` ledger fieldとAPI pathの改名は最後に行い、dual-readまたはadapterでrollback可能にする。
+
+## Public contract rule
+
+- 新規MCP tool名に`workflow`を使わない。
+- 汎用create/update/draft/test/publish/manual-run toolを追加しない。
+- Run Receipt readは`ok | unavailable | error`を区別し、依存先失敗を空配列へ変換しない。
+- retry、cancel、human resolveは対象runが許可する操作だけを返し、汎用実行へfallbackしない。
+- Meeting操作は`meeting_automation_*`としてdomainを明示する。
+
+## Retirement gates
+
+`/workflows`削除には次をすべて要求する。
+
+1. Run Receiptの全件・history・filter・failure stateがMCPで取得できる。
+2. waiting_human/blocked/failed/unconfirmed/no_dataがMac Companionへ投影される。
+3. Meeting schedulerとreconcilerのcontract testsが旧Webなしでgreenになる。
+4. generic Workflow UIへのproduction導線が0件になる。
+5. rollback時に旧pageを戻してもledger schemaを巻き戻す必要がない。

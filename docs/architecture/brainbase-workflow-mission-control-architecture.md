@@ -10,7 +10,7 @@ updated_at: 2026-07-16
 
 # Brainbase Workflow Mission Control Architecture
 
-> Surface lifecycle: Project、Workflow、Run、context、human step、auditのCore設計は有効。Web UI、Project-first navigation、`/workflows`を恒久面とする部分はADR-017でsupersedeされ、MCP/Companionへの移管対象となった。
+> Superseded as a product architecture by `workflow-product-retirement-architecture`. Run、context、human step、output、auditのCore設計だけをAutomation Runへ継承する。Workflow Definition、汎用runner、Web UIは廃止対象である。
 
 ## 1. Intent
 

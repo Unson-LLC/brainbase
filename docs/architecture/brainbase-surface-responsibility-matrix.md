@@ -12,7 +12,7 @@ Brainbaseの能力を「どの画面に置くか」ではなく、「どの提�
 
 | Surface | Primary responsibility | Must contain | Must not become |
 |---|---|---|---|
-| Brainbase Core | AI組織のControl PlaneとSSOT | Graph、API、MCP、Workflow/Task/Run台帳、認証・認可、connector、audit、learning | UI都合でドメイン契約が分岐する場所 |
+| Brainbase Core | AI組織のControl PlaneとSSOT | Graph、API、MCP、Automation Run/Task/Run Receipt台帳、認証・認可、connector、audit、learning | UI都合でドメイン契約が分岐する場所、汎用Workflow Builder |
 | Codex / Claude Code | Brainbaseの標準操作面 | 検索、登録、更新、実行、確認、診断、管理、復旧手順の実行 | 失敗を推測で補う非監査操作 |
 | Mac Companion | 人間の注意と判断の即応面 | 通知、承認、blocked/failed/waiting_human/unconfirmed/no_data、修正、feedback | 全台帳を閲覧・編集する汎用管理画面 |
 | Brainbase Web | ブラウザ必須の最小管理面 | login、OAuth/consent、bootstrap、権限付与、pairing、break-glass recovery | 日常業務、一覧巡回、MCPで可能な設定の重複UI |
@@ -49,6 +49,8 @@ Agent Run Inboxは1つのデータ能力を複数の責務へ分ける。
 | 全件・履歴・診断・filter・再確認 | Codex / Claude Code via MCP |
 | blocked、failed、waiting_human、unconfirmed、no_dataの要介入projection | Mac Companion |
 | current Workflow Mission Control Web section | transition-only。MCP/Companion移管後に廃止 |
+
+汎用Workflow definitionのcreate/update/draft/test/publish/manual runは後継面へ移管しない。Meeting Automation固有操作と、Run/Receipt/Human Approval/Auditだけを後継面へ出す。
 
 成功runの常時通知はMac Companionの責務にしない。取得不能時は最後に確認済みの状態を維持し、「0件」と表示しない。
 

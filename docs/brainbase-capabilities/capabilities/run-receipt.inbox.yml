@@ -1,0 +1,35 @@
+id: run-receipt.inbox
+name: Run Receipt Inbox
+purpose: Normalize cross-runtime run facts, preserve uncertainty, and provide latest, filtered, historical, and diagnostic views to Agent surfaces.
+surfaces:
+  ui:
+    - /workflows (transition-only)
+  mcp: []
+  api:
+    - POST /api/run-receipts/ingest
+    - GET /api/run-receipts/inbox
+  code:
+    - server/services/run-receipts/run-receipt-ingest-service.js
+    - server/routes/run-receipts.js
+    - server/services/workflow/workflow-service.js
+  data:
+    - var/workflow-ledger.json
+depends_on:
+  - automation.run-core
+  - project.catalog
+visibility_rules:
+  - blocked, unconfirmed, no_data, unavailable, and failed input remain distinct from a confirmed empty result.
+  - MCP is the target full-list, history, filter, and diagnosis surface.
+  - Mac Companion receives only items that require human attention.
+verification:
+  commands:
+    - npm run test:run -- tests/server/routes/run-receipt-routes.test.js tests/server/services/run-receipt-inbox-service.test.js tests/server/services/run-receipt-ingest-service.test.js
+  expected:
+    - Receipt ingest is idempotent and project-scoped.
+    - Inbox ordering, latest collapse, filtering, and uncertainty states remain explicit.
+common_failures:
+  - An upstream or authentication failure is rendered as count zero.
+  - The latest projection is mistaken for complete run history.
+runbooks:
+  - ../runbooks/run-receipt-inbox-v1.md
+troubleshooting: []

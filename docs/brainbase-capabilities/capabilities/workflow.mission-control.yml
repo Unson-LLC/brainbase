@@ -1,6 +1,11 @@
 id: workflow.mission-control
 name: Workflow Mission Control
-purpose: Track AI and human workflow execution as operational runs with project ownership, context snapshots, action-required state, human approval, outputs, and audit evidence.
+lifecycle: retiring_product_surface
+replacement:
+  - automation.run-core
+  - run-receipt.inbox
+  - meeting.automation
+purpose: Transitional compatibility capability. Preserve operational runs, human approval, outputs, and audit evidence while retiring generic Workflow creation and the Mission Control Web product.
 surfaces:
   ui:
     - /workflows
