@@ -21,4 +21,3 @@ Codex Automationのrun identity、terminal state、thread/task evidenceを`run_r
 - durable outbox、bounded retry、canonical idempotency key、redacted evidence refsを持つ。
 - pre-fix rerunとautomation間collision fixtureを持つ。
 - localhost fixtureで検証し、本番automationへの接続は別の明示承認を要する。
-

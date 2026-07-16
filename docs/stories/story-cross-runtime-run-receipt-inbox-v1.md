@@ -247,10 +247,10 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 ## 非目標
 
 - 4ソース固有のAPI接続・schedule・outbox実装と、本番runを使ったsource別canaryは後続の各connector Storyで扱う。本Storyのcompletedは共通control-plane基盤の完成を意味し、4ソース本接続の完了を意味しない。
-  - `story-mana-run-receipt-connector-v1`: `docs/stories/story-mana-run-receipt-connector-v1.md`（実装正本: `projects/mana/docs/specs/story-mana-run-receipt-connector-v1.md`）
-  - `story-codex-automations-run-receipt-connector-v1`: `docs/stories/story-codex-automations-run-receipt-connector-v1.md`（実装正本: 本repoの後続Story）
-  - `story-github-actions-run-receipt-connector-v1`: `docs/stories/story-github-actions-run-receipt-connector-v1.md`（実装正本: 本repoのreusable workflow/action後続Story）
-  - `story-salestailor-run-receipt-connector-v1`: `docs/stories/story-salestailor-run-receipt-connector-v1.md`（実装正本: `code/salestailor`の後続Story）
+  - `story-mana-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-mana-run-receipt-connector-v1.md`（実装正本: `projects/mana/docs/specs/story-mana-run-receipt-connector-v1.md`）
+  - `story-codex-automations-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-codex-automations-run-receipt-connector-v1.md`（実装正本: 本repoの後続Story）
+  - `story-github-actions-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-github-actions-run-receipt-connector-v1.md`（実装正本: 本repoのreusable workflow/action後続Story）
+  - `story-salestailor-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-salestailor-run-receipt-connector-v1.md`（実装正本: `code/salestailor`の後続Story）
 - Eve向け `external_runner.v0` を置き換えない。
 - raw logs、顧客返信、transcriptをBrainbaseへ複製しない。
 - receiptからGraph SSOTへ自動学習・自動昇格しない。

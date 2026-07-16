@@ -20,4 +20,3 @@ GitHub Actionsのworkflow run完了時に、reusable reporterが`run_receipt.v1`
 - repository間collisionとrerun attemptを別identityとして固定する。
 - secretless fork/PRではblockedまたはdelivery unavailableを明示し、成功/0件に丸めない。
 - reusable workflow fixtureとlocalhost fake endpointで検証し、org/repo secret配布は別の明示承認を要する。
-

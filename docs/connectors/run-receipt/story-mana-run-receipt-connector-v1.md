@@ -22,4 +22,3 @@ ManaのEventBridge scheduled jobがterminalになった時点で`run_receipt.v1`
 - explicit non-`none` source actionを保持し、根拠がなければ`no_data`を保持する。
 - SQS outboxのpartial batch failureで配送失敗だけを再試行し、source run statusを書き換えない。
 - localhost＋公開ダミー値のcontract/queue/HTTP testsを先に通す。本番canaryとsecret設定は別の明示承認を要する。
-
