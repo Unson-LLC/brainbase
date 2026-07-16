@@ -88,6 +88,22 @@ Graph系ツール（`get_context` / `list_entities` / `get_entity` / `search`）
 mcp__brainbase__brainbase_projects({})
 ```
 
+### `brainbase_run_receipt_inbox`
+
+Mana、Codex Automations、GitHub Actions、SalesTailorから集約したRun Receiptの最新Inboxを、認証済みproject scope内で取得する。`project_id`、`source_type`、`run_status`、`evidence_state`、`limit`で絞り込める。
+
+これは汎用Workflowの作成・編集・公開・手動実行を提供するツールではない。`blocked`、`unconfirmed`、`no_data`はそのまま返し、認証・通信・上流・schema障害は`unavailable`または`error`として返す。確認済み0件だけが`status: ok`かつ`count: 0`になる。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_run_receipt_inbox({
+  project_id: "brainbase",
+  run_status: "blocked",
+  evidence_state: "unconfirmed",
+  limit: 25,
+})
+```
+
 ### `get_context`
 
 トピック/エンティティに関連するコンテキストを取得。

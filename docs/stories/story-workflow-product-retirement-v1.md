@@ -74,6 +74,13 @@ Mac Companion
 | `TSK-WFRET-003` | 要介入RunをMac Companionへ投影後、Workflow Web surfaceを削除 | pending |
 | `TSK-WFRET-004` | `WorkflowService`をMeeting Automation、Automation Run、Run Receiptへ段階分割し、互換名を縮退 | pending |
 
+### TSK-WFRET-002 progress
+
+- `brainbase_run_receipt_inbox`をMCPへ追加済み。
+- project scopeはJWTと`BRAINBASE_PROJECT_CODES`の積集合で固定し、明示projectがscope外ならAPI通信前に拒否する。
+- confirmed emptyと、transport/auth/contract failureを別状態として返す。
+- history、diagnosis、Meeting Automationのdomain-specific操作は未実装のため、Task自体は`in_progress`を維持する。
+
 ## Non-goals
 
 - 汎用orchestration engineを別名で再実装しない。
