@@ -300,7 +300,10 @@ test.describe(`${storyId} contract`, () => {
         req.authSource = 'test';
         next();
       });
-      app.use('/api/workflows', createWorkflowRouter(service, { eveMeetingNoteReconciler: wiredReconciler }));
+      app.use('/api/workflows', createWorkflowRouter(service, {
+        eveMeetingNoteReconciler: wiredReconciler,
+        meetingAutomationService: service.meetingAutomationService
+      }));
       app.use((err: any, _req: any, res: any, _next: any) => {
         res.status(err.statusCode || 500).json({ error: err.message });
       });

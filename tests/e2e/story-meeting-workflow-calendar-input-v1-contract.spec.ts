@@ -44,7 +44,9 @@ function createWorkflowControlApp(googleCalendarService: any) {
     };
     next();
   });
-  app.use('/api/workflows', createWorkflowRouter(service));
+  app.use('/api/workflows', createWorkflowRouter(service, {
+    meetingAutomationService: service.meetingAutomationService
+  }));
   app.use((err: any, _req, res, _next) => {
     res.status(err.statusCode || 500).json({ error: err.message });
   });

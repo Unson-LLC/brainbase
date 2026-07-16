@@ -83,7 +83,9 @@ function createApp({
         ingestService,
         queryService: workflowService.runReceiptQueryService
     }));
-    app.use('/api/workflows', createWorkflowRouter(workflowService));
+    app.use('/api/workflows', createWorkflowRouter(workflowService, {
+        meetingAutomationService: workflowService.meetingAutomationService
+    }));
     app.use('/api/workflow-runs', createWorkflowRunRouter(workflowService.automationRunService));
     app.use(errorHandler);
     return { app, repository, ingestService };

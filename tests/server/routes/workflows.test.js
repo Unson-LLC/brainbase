@@ -53,7 +53,9 @@ function makeApp({
         req.authSource = 'test';
         next();
     });
-    app.use('/api/workflows', createWorkflowRouter(service));
+    app.use('/api/workflows', createWorkflowRouter(service, {
+        meetingAutomationService: service.meetingAutomationService
+    }));
     app.use('/api/workflow-runs', createWorkflowRunRouter(service.automationRunService));
     app.use('/api/workflow-human-steps', createWorkflowHumanStepRouter(service.automationRunService));
     app.use((err, req, res, next) => {
@@ -182,6 +184,47 @@ function sampleMeetingReviewPackage({
 }
 
 describe('workflow routes', () => {
+    it('Meeting Automation routeはWorkflowService adapterではなく専用serviceへ直接委譲する', async () => {
+        const calls = [];
+        const meetingAutomationService = {
+            async bootstrapPack(input, actor) {
+                calls.push(['bootstrap', input, actor]);
+                return { meeting_workflow_pack: { pack_id: 'direct-bootstrap' } };
+            },
+            async reviewPackDesign(input, actor) {
+                calls.push(['review', input, actor]);
+                return { meeting_workflow_pack_design: { pack_id: 'direct-review' } };
+            },
+            async createCalendarLoopIntents(input, actor) {
+                calls.push(['calendar', input, actor]);
+                return { meeting_calendar_inputs: { loop_intents: [] } };
+            }
+        };
+        const app = express();
+        app.use(express.json());
+        app.use((req, _res, next) => {
+            req.access = { personId: 'route-test', projectCodes: ['sample-project'], role: 'member' };
+            next();
+        });
+        app.use('/api/workflows', createWorkflowRouter({}, { meetingAutomationService }));
+
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/design-review')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(200);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/calendar-inputs')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+
+        expect(calls.map(([operation]) => operation)).toEqual(['bootstrap', 'review', 'calendar']);
+        expect(calls.every(([, , actor]) => actor.person_id === 'route-test')).toBe(true);
+    });
+
     it('story-mana-meeting-workflow-pack-data-v1 S-001 exposes meeting pack bootstrap under Workflow Control namespace', async () => {
         const { app, repository } = makeApp();
 

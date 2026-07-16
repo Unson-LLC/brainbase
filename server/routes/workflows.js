@@ -13,7 +13,10 @@ function actorFromRequest(req) {
     };
 }
 
-export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler = null } = {}) {
+export function createWorkflowRouter(workflowService, {
+    eveMeetingNoteReconciler = null,
+    meetingAutomationService = null
+} = {}) {
     const router = express.Router();
 
     function roleAgentQuery(req) {
@@ -112,16 +115,16 @@ export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler
     }));
 
     router.post('/control/meeting-pack/bootstrap', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.bootstrapMeetingWorkflowPack(req.body || {}, actorFromRequest(req)));
+        res.status(201).json(await meetingAutomationService.bootstrapPack(req.body || {}, actorFromRequest(req)));
     }));
 
     router.post('/control/meeting-pack/design-review', asyncHandler(async (req, res) => {
-        res.json(await workflowService.reviewMeetingWorkflowPackDesign(req.body || {}, actorFromRequest(req)));
+        res.json(await meetingAutomationService.reviewPackDesign(req.body || {}, actorFromRequest(req)));
     }));
 
     router.post('/control/meeting-pack/calendar-inputs', asyncHandler(async (req, res) => {
         try {
-            res.status(201).json(await workflowService.createMeetingPackCalendarLoopIntents(req.body || {}, actorFromRequest(req)));
+            res.status(201).json(await meetingAutomationService.createCalendarLoopIntents(req.body || {}, actorFromRequest(req)));
         } catch (error) {
             if (error?.statusCode === 400 && Array.isArray(error?.details?.skipped_events)) {
                 res.status(400).json({

@@ -1313,7 +1313,10 @@ describe('POST /api/workflows/control/meeting-pack/eve-note-reconcile', () => {
             req.authSource = 'test';
             next();
         });
-        app.use('/api/workflows', createWorkflowRouter(service, { eveMeetingNoteReconciler }));
+        app.use('/api/workflows', createWorkflowRouter(service, {
+            eveMeetingNoteReconciler,
+            meetingAutomationService: service.meetingAutomationService
+        }));
         app.use((err, _req, res, _next) => {
             res.status(err.statusCode || 500).json({ error: err.message });
         });
@@ -1351,7 +1354,10 @@ describe('POST /api/workflows/control/meeting-pack/eve-note-reconcile', () => {
             req.authSource = 'session';
             next();
         });
-        app.use('/api/workflows', createWorkflowRouter(service, { eveMeetingNoteReconciler: reconciler }));
+        app.use('/api/workflows', createWorkflowRouter(service, {
+            eveMeetingNoteReconciler: reconciler,
+            meetingAutomationService: service.meetingAutomationService
+        }));
 
         const res = await request(app)
             .post('/api/workflows/control/meeting-pack/eve-note-reconcile')

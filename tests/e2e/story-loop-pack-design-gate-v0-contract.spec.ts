@@ -45,7 +45,9 @@ function makeRuntimeApp() {
     req.authSource = 'test';
     next();
   });
-  app.use('/api/workflows', createWorkflowRouter(service));
+  app.use('/api/workflows', createWorkflowRouter(service, {
+    meetingAutomationService: service.meetingAutomationService
+  }));
   app.use((err, _req, res, _next) => {
     res.status(err.statusCode || 500).json({ error: err.message });
   });
