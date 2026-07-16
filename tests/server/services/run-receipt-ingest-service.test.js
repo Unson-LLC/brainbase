@@ -29,6 +29,20 @@ function idempotencyKey(projectId, sourceType, externalRunId) {
         .digest('hex')}`;
 }
 
+function createTempLedger(prefix = 'brainbase-run-receipt-ledger-') {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+    tempDirectories.push(directory);
+    return path.join(directory, 'workflow-ledger.json');
+}
+
+function createDeferred() {
+    let resolve;
+    const promise = new Promise((next) => {
+        resolve = next;
+    });
+    return { promise, resolve };
+}
+
 function makeReceipt(overrides = {}) {
     const source = {
         type: 'mana',
@@ -262,6 +276,109 @@ describe('RunReceiptIngestService', () => {
             ]));
         }
     );
+
+    it('別Json repositoryのReceiptとexternal_runnerが同時書込でも全surfaceを保持する', async () => {
+        const filePath = createTempLedger();
+        const receiptTransactionEntered = createDeferred();
+        const releaseReceiptTransaction = createDeferred();
+
+        class BarrierJsonRepository extends JsonFileWorkflowRepository {
+            barrierUsed = false;
+
+            async _beginTransaction(state) {
+                await super._beginTransaction(state);
+                if (this.barrierUsed) return;
+                this.barrierUsed = true;
+                receiptTransactionEntered.resolve();
+                await releaseReceiptTransaction.promise;
+            }
+        }
+
+        const receiptRepository = new BarrierJsonRepository({ filePath });
+        const externalRepository = new JsonFileWorkflowRepository({ filePath });
+        const receiptService = new RunReceiptIngestService({ workflowRepository: receiptRepository });
+        const externalService = new ExternalRunnerIngestService({ workflowRepository: externalRepository });
+
+        const receiptPromise = receiptService.ingest(makeReceipt());
+        await receiptTransactionEntered.promise;
+        let externalSettled = false;
+        const externalPromise = externalService.ingest(makeExternalRunnerPayload()).finally(() => {
+            externalSettled = true;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(externalSettled).toBe(false);
+        releaseReceiptTransaction.resolve();
+        const [receiptResult, externalResult] = await Promise.all([receiptPromise, externalPromise]);
+        const reloaded = new JsonFileWorkflowRepository({ filePath });
+
+        expect(reloaded.getWorkflow(receiptResult.workflow.id)).toBeTruthy();
+        expect(reloaded.getWorkflow(externalResult.workflow.id)).toBeTruthy();
+        expect(reloaded.getRun(receiptResult.run.id)).toBeTruthy();
+        expect(reloaded.getRun(externalResult.run.id)).toBeTruthy();
+        expect(reloaded.listContextSnapshots(externalResult.run.id)).toHaveLength(1);
+        expect(reloaded.listAuditLogs({ targetId: receiptResult.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'run_receipt.ingested' })
+        ]));
+        expect(reloaded.listAuditLogs({ targetId: externalResult.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'external_runner.ingested' })
+        ]));
+    });
+
+    it('別Json repositoryのReceiptがWorkflowRunner実行中に入ってもrun/step/auditを保持する', async () => {
+        const filePath = createTempLedger();
+        const seedRepository = new JsonFileWorkflowRepository({ filePath });
+        const workflow = {
+            id: 'shared-ledger-operational-workflow',
+            workspace_id: 'default',
+            project_id: 'brainbase',
+            name: 'Shared ledger operational workflow',
+            implementation_key: 'shared-ledger-handler',
+            execution_env: 'local',
+            hitl_policy: 'none',
+            context_sources: []
+        };
+        await seedRepository.transaction(() => seedRepository.upsertWorkflow(workflow));
+
+        const runnerRepository = new JsonFileWorkflowRepository({ filePath });
+        const receiptRepository = new JsonFileWorkflowRepository({ filePath });
+        const handlerEntered = createDeferred();
+        const releaseHandler = createDeferred();
+        const runner = new WorkflowRunner({
+            repository: runnerRepository,
+            handlers: {
+                'shared-ledger-handler': async () => {
+                    handlerEntered.resolve();
+                    await releaseHandler.promise;
+                    return {
+                        status: 'success',
+                        closureState: 'closed',
+                        message: 'shared ledger workflow complete'
+                    };
+                }
+            }
+        });
+        const receiptService = new RunReceiptIngestService({ workflowRepository: receiptRepository });
+
+        const workflowPromise = runner.runWorkflow(workflow, { runId: 'shared-ledger-operational-run' });
+        await handlerEntered.promise;
+        const receiptResult = await receiptService.ingest(makeReceipt());
+        releaseHandler.resolve();
+        const workflowResult = await workflowPromise;
+        const reloaded = new JsonFileWorkflowRepository({ filePath });
+
+        expect(reloaded.getRun(receiptResult.run.id)).toBeTruthy();
+        expect(reloaded.getRun(workflowResult.run.id)).toMatchObject({ status: 'success' });
+        expect(reloaded.listRunSteps(workflowResult.run.id)).toEqual([
+            expect.objectContaining({ status: 'success', step_key: 'run' })
+        ]);
+        expect(reloaded.listAuditLogs({ targetId: receiptResult.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'run_receipt.ingested' })
+        ]));
+        expect(reloaded.listAuditLogs({ targetId: workflowResult.run.id })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'workflow.run.finished' })
+        ]));
+    });
 
     it('4 sourceすべてをingest永続化しInbox source filterでround-tripする', async () => {
         const repository = new InMemoryWorkflowRepository();
