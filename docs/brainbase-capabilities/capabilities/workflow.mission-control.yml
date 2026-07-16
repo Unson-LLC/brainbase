@@ -9,7 +9,9 @@ purpose: Historical record of the retired generic Workflow Web product. Do not r
 surfaces:
   ui: []
   api:
-    - compatibility-only /api/workflows routes remain until Core service extraction completes
+    - compatibility-only /api/workflows/control routes for Meeting Automation and org-agent control
+    - compatibility-only POST /api/workflows/:workflowId/run for Automation Run
+    - generic list, create, detail, update, draft, and draft-test routes are retired and return 404
   code:
     - server/services/workflow/workflow-service.js
     - server/services/workflow/workflow-runner.js
@@ -31,6 +33,7 @@ visibility_rules:
   - /workflows and /workflows.html return 404.
   - The Brainbase activity bar has no Workflow entry or overlay.
   - Generic Workflow create, update, draft, test, publish, and manual-run are not exposed through MCP.
+  - Generic Workflow list, create, detail, update, draft, and draft-test HTTP APIs are removed.
   - Existing workflow-prefixed API and ledger names are compatibility details, not a product commitment.
   - Human approval, Run Receipt, and Meeting diagnosis use domain-specific MCP tools and preserve project scope and audit evidence.
 verification:
@@ -42,6 +45,7 @@ verification:
     - /workflows and /workflows.html return 404 and no production Web link remains.
     - Meeting Automation, Automation Run, Human Approval, Audit, and Run Receipt contracts pass without a Web UI.
     - MCP exposes no generic Workflow CRUD or manual-run tool.
+    - Generic Workflow HTTP read/edit/draft requests return 404 while Control and Automation Run contracts remain green.
 common_failures:
   - A compatibility API or ledger name is mistaken for permission to restore the Workflow product.
   - A retired UI E2E is reintroduced instead of testing the API, MCP, or Companion replacement.

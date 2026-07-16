@@ -45,7 +45,7 @@ troubleshooting: []
 | `session.create` | Defines how sessions are created, including project selection, engine, worktree handling, and verification. |
 | `terminal.transport` | Defines xterm transport behavior, Enter feedback, and terminal rendering constraints. |
 | `session.hibernation` | Defines runtime inventory and read-only hibernation eligibility before process-stopping lifecycle behavior. |
-| `workflow.mission-control` | Transitional compatibility record for the retiring generic Workflow product and `/workflows` surface. |
+| `workflow.mission-control` | Historical record of the retired generic Workflow product. Only domain-specific Control and Automation Run compatibility paths remain. |
 | `automation.run-core` | Defines project-scoped run, step, output, human approval, and audit semantics without a generic Workflow product. |
 | `run-receipt.inbox` | Defines cross-runtime receipt ingest, uncertainty-preserving projection, history, and Agent Inbox boundaries. |
 | `meeting.automation` | Defines the live meeting-source ingest, Eve dispatch/reconcile, approval, and evidence path retained during Workflow retirement. |

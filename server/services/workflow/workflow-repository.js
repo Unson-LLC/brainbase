@@ -204,13 +204,6 @@ export class InMemoryWorkflowRepository {
         return clone(next);
     }
 
-    updateWorkflow(workflowId, patch) {
-        this._assertMutationAllowed();
-        const current = this.getWorkflow(workflowId);
-        if (!current) return null;
-        return this.upsertWorkflow({ ...current, ...patch, id: workflowId });
-    }
-
     createRun(run) {
         this._assertMutationAllowed();
         const next = {

@@ -77,17 +77,17 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 
 ## Surface Isolation
 
-- Receipt workflow/runは共有ledger repositoryに保存するが、`metadata.run_receipt` を持つworkflow/runは既存の汎用Workflow APIから除外する。`GET /api/workflows` の一覧だけでなく、汎用workflow詳細・更新・実行およびrun詳細・再実行も404にし、receiptの参照面と操作面を `RunReceiptQueryService`、`GET /api/run-receipts/inbox`、receipt専用操作へ限定する。旧`WorkflowService` methodは互換adapterであり、priority規則は専用serviceだけが所有する。
-- 除外はreceipt分類だけに適用し、非receipt workflowの集合、既存priority、既存render順を変更しない。receipt＋非receipt混在fixtureでAPIとUIの非重複を固定する。
+- Receipt workflow/runは共有ledger repositoryに保存するが、汎用Workflowのlist/create/detail/update/draft/draft-test API自体を廃止している。残存するAutomation Run互換routeでも`metadata.run_receipt`を持つworkflow/runは404にし、receiptの参照面と操作面を`RunReceiptQueryService`、`GET /api/run-receipts/inbox`、receipt専用操作へ限定する。旧`WorkflowService` receipt query methodは互換adapterであり、priority規則は専用serviceだけが所有する。
+- Receipt分類は共有ledger上のRun/Receipt分離にだけ使う。廃止済みの汎用Workflow一覧やbrowser renderingを再導入して非receipt workflowを製品化しない。
 - MCPとMac Companionはreceipt取得を独立surfaceとして扱う。receipt APIのtimeout、network error、または5xxは`unavailable`へ変換し、Mac Companionは前回成功snapshotを維持する。
 - receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、MCP/Companionは「receiptなし」と「receipt取得不能」を別stateで表示する。
 
-## Browser Architecture Boundary
+## Surface Ownership
 
-- `public/modules/domain/run-receipt/run-receipt-inbox-client.js` owns the HTTP request and response-shape validation. It receives the authenticated `apiFetch` function by constructor injection and does not read DOM state.
-- `public/modules/domain/run-receipt/run-receipt-inbox-service.js` receives the client, `appStore`, and `eventBus` by constructor injection. It updates `appStore.runReceiptInbox={status,items,count,has_more,omitted_count,error,filters}` and emits `EVENTS.RUN_RECEIPT_INBOX_LOADED` or `EVENTS.RUN_RECEIPT_INBOX_FAILED` after each state change.
-- `public/modules/core/store.js` defines the initial receipt slice and `public/modules/core/event-bus.js` defines the two receipt events. `public/workflows.html` composes the service, subscribes to the receipt slice/event, and renders only; it does not join receipt loading into the existing required workflow `Promise.all`.
-- This extraction is the migration-safe application of EventBus, Reactive Store, and DI to the new surface. Existing page-local Workflow state remains unchanged in this Story, avoiding an unrelated full-page refactor while preventing new receipt logic from increasing the monolith.
+- Browser用Run Receipt moduleと`public/workflows.html`はWorkflow Web productと共に廃止した。
+- `RunReceiptQueryService`がread model、filter、history、diagnosis、priorityを所有する。
+- Codex / Claude CodeはMCP、Mac Companionはapproval/inbox projectionを通じて同じReceipt契約を利用する。
+- Web UIの都合で別のReceipt stateやpriority規則を再実装しない。
 
 ## Transaction and Idempotency
 

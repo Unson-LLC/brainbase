@@ -56,18 +56,11 @@ function makeService(repository) {
 }
 
 describe('production workflow shared-ledger writers', () => {
-    it('persists WorkflowService CRUD groups atomically through the JSON repository', async () => {
+    it('persists Workflow Control groups atomically through the JSON repository', async () => {
         const { filePath, repository } = makeRepository();
         const { service, actor } = makeService(repository);
 
         await service.ensureDefaultWorkflows();
-        await service.createWorkflow({
-            id: 'wf-production-writer',
-            project_id: 'salestailor',
-            name: 'Production writer smoke test',
-            implementation_key: 'brainbase_alive'
-        }, actor);
-        await service.updateWorkflow('wf-production-writer', { description: 'updated' }, actor);
         await service.createRoleAgentInstance({
             id: 'rai-production-writer',
             org_id: 'salestailor',
@@ -101,15 +94,12 @@ describe('production workflow shared-ledger writers', () => {
 
         const reloaded = new JsonFileWorkflowRepository({ filePath });
         expect(reloaded.getWorkflow('brainbase-alive')).toBeTruthy();
-        expect(reloaded.getWorkflow('wf-production-writer')).toMatchObject({ description: 'updated' });
         expect(reloaded.getRoleAgentInstance('rai-production-writer')).toBeTruthy();
         expect(reloaded.getWorkflowTemplate('wft-production-writer')).toBeTruthy();
         expect(reloaded.getWorkflowBinding('wfb-production-writer')).toBeTruthy();
         expect(reloaded.getWorkflowTrigger('wftg-production-writer')).toBeTruthy();
         expect(reloaded.getLoopIntent('loop-production-writer')).toBeTruthy();
         expect(reloaded.listAuditLogs({ limit: 100 }).map((entry) => entry.action)).toEqual(expect.arrayContaining([
-            'workflow.created',
-            'workflow.updated',
             'workflow.role_agent_instance.upserted',
             'workflow.template.upserted',
             'workflow.binding.upserted',

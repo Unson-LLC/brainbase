@@ -15,7 +15,7 @@ spec_docs:
 
 Mac Companionは佐藤が日常的に見る即応面である。Brainbaseの管理・診断はCodex/Claude CodeからMCPで行い、Brainbase Webはlogin、interactive consent、bootstrap、pairing、break-glass recoveryへ縮小する。Meeting Workflow Packで`workflow_runs`が`waiting_human`になっても、Mac側がそれを見られなければ「会議 -> 判断 -> タスク -> Decision -> Graph -> 学習 -> 次回会議」の一周は日常業務として閉じない。
 
-既存の `GET /api/workflows` は workflow ごとの latest run を返すため、古い pending run が隠れる可能性がある。Mac Companion には、Workflow Mission Control の正本から「いま人間が止めている承認」を決定的に引ける API が必要である。
+当初の`GET /api/workflows` latest-run projectionでは古いpending runが隠れる可能性があったため、Mac Companionには「いま人間が止めている承認」を決定的に引ける専用APIを追加した。汎用Workflow一覧APIの廃止後も、この専用projectionを正本として維持する。
 
 ## ユーザーストーリー
 

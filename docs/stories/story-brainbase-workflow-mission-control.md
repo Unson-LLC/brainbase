@@ -6,17 +6,17 @@ source_requirement:
   description: Brainbase はセッションと個別コマンドを扱えるが、仕事や定期業務を小規模チームで運用として閉じるための workflow / run / owner / context / approval / closure の正本を持っていない。
 architecture_docs:
   - path: docs/architecture/brainbase-workflow-mission-control-architecture.md
-    status: proposed
+    status: superseded
   - path: docs/architecture/ADR-015-workflow-mission-control-project-first-ui.md
     status: superseded
   - path: docs/architecture/ADR-017-agent-first-product-surface.md
     status: accepted
 spec_docs:
   - path: docs/specs/story-brainbase-workflow-mission-control-spec.md
-    status: proposed
+    status: superseded
 design_docs:
   - path: docs/design/brainbase-workflow-project-first-ux.md
-    status: proposed
+    status: superseded
 related_stories:
   - story-workflow-mission-control-foundation
   - story-workflow-project-context-binding
@@ -24,7 +24,6 @@ related_stories:
   - story-workflow-dashboard-v0
   - story-workflow-human-in-the-loop
   - story-workflow-routine-integration
-  - story-workflow-ai-draft-builder
 status: superseded
 created_at: 2026-06-01
 updated_at: 2026-07-16
@@ -186,4 +185,3 @@ Then scheduler は直接 business logic を呼ばず、`runWorkflow()` に接続
 4. `story-workflow-dashboard-v0`: 既存`/workflows`の互換性を維持する移行Story。新規投資先にはせず、MCP/Companion移管後にretireする。
 5. `story-workflow-human-in-the-loop`: approval / review / input request を workflow step として扱う。
 6. `story-workflow-routine-integration`: `brainbase-alive` と `/ohayo` を最初の routine workflow として ledger に接続する。
-7. `story-workflow-ai-draft-builder`: チャット入力から workflow draft を生成し、Builder preview、dry-run test、publish の作成ループを接続する。

@@ -13,47 +13,8 @@ function actorFromRequest(req) {
     };
 }
 
-function workflowControlRequested(req) {
-    const prefer = String(req.get('prefer') || req.get('x-brainbase-api-mode') || '').toLowerCase();
-    return req.query.control === '1'
-        || req.query.mode === 'control'
-        || prefer.includes('workflow-control-v0')
-        || prefer.includes('workflow-control');
-}
-
-async function respondWorkflowOrControl({ req, res, workflowService, workflowId, controlResponse }) {
-    const actor = actorFromRequest(req);
-    if (!workflowControlRequested(req)) {
-        try {
-            res.json(await workflowService.getWorkflow(workflowId, actor));
-            return;
-        } catch (error) {
-            if (error?.statusCode !== 404) throw error;
-        }
-    }
-    res.json(await controlResponse(actor));
-}
-
 export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler = null } = {}) {
     const router = express.Router();
-
-    router.get('/', asyncHandler(async (req, res) => {
-        const projectId = req.query.project_id || req.query.projectId || null;
-        res.json(await workflowService.listWorkflows({ projectId }, actorFromRequest(req)));
-    }));
-
-    router.post('/', asyncHandler(async (req, res) => {
-        const result = await workflowService.createWorkflow(req.body || {}, actorFromRequest(req));
-        res.status(201).json(result);
-    }));
-
-    router.post('/draft', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.generateDraft(req.body || {}, actorFromRequest(req)));
-    }));
-
-    router.post('/draft/test', asyncHandler(async (req, res) => {
-        res.json(await workflowService.testDraft(req.body || {}, actorFromRequest(req)));
-    }));
 
     function roleAgentQuery(req) {
         return {
@@ -228,61 +189,23 @@ export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler
     }));
 
     router.get('/role-agents', asyncHandler(async (req, res) => {
-        await respondWorkflowOrControl({
-            req,
-            res,
-            workflowService,
-            workflowId: 'role-agents',
-            controlResponse: (actor) => workflowService.listRoleAgentInstances(roleAgentQuery(req), actor)
-        });
+        res.json(await workflowService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/templates', asyncHandler(async (req, res) => {
-        await respondWorkflowOrControl({
-            req,
-            res,
-            workflowService,
-            workflowId: 'templates',
-            controlResponse: (actor) => workflowService.listWorkflowTemplates(templateQuery(req), actor)
-        });
+        res.json(await workflowService.listWorkflowTemplates(templateQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/bindings', asyncHandler(async (req, res) => {
-        await respondWorkflowOrControl({
-            req,
-            res,
-            workflowService,
-            workflowId: 'bindings',
-            controlResponse: (actor) => workflowService.listWorkflowBindings(bindingQuery(req), actor)
-        });
+        res.json(await workflowService.listWorkflowBindings(bindingQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/triggers', asyncHandler(async (req, res) => {
-        await respondWorkflowOrControl({
-            req,
-            res,
-            workflowService,
-            workflowId: 'triggers',
-            controlResponse: (actor) => workflowService.listWorkflowTriggers(triggerQuery(req), actor)
-        });
+        res.json(await workflowService.listWorkflowTriggers(triggerQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/loop-intents', asyncHandler(async (req, res) => {
-        await respondWorkflowOrControl({
-            req,
-            res,
-            workflowService,
-            workflowId: 'loop-intents',
-            controlResponse: (actor) => workflowService.listLoopIntents(loopIntentQuery(req), actor)
-        });
-    }));
-
-    router.get('/:workflowId', asyncHandler(async (req, res) => {
-        res.json(await workflowService.getWorkflow(req.params.workflowId, actorFromRequest(req)));
-    }));
-
-    router.patch('/:workflowId', asyncHandler(async (req, res) => {
-        res.json(await workflowService.updateWorkflow(req.params.workflowId, req.body || {}, actorFromRequest(req)));
+        res.json(await workflowService.listLoopIntents(loopIntentQuery(req), actorFromRequest(req)));
     }));
 
     router.post('/:workflowId/run', asyncHandler(async (req, res) => {

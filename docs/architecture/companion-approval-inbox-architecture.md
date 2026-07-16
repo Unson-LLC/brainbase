@@ -29,7 +29,7 @@ story_id: story-companion-approval-inbox-v1
 
 ## 設計判断
 
-- `GET /api/workflows` を流用しない。latest run projection のため、古い pending run が隠れる。
+- 廃止前の`GET /api/workflows` latest-run projectionを流用しない。専用approval projectionを正本とし、古いpending runを隠さない。
 - Brainbase approval を Gmail/Slack の `SourceEvent` に変換しない。承認対象は外部メッセージではなく Workflow 正本である。
 - API は承認対象の raw output payload を含める。Mac 側で「承認前に本文を読める」ことが UX 上の必須条件である。
 - Resolve は既存の `POST /api/workflow-runs/:runId/human-steps/:stepId/resolve` を正とする。Companion 専用 resolve は v1 では追加しない。

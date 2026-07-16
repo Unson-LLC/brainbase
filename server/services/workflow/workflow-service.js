@@ -2,10 +2,6 @@
 
 import crypto from 'node:crypto';
 import { AppError } from '../../lib/errors.js';
-import {
-    generateWorkflowDraft,
-    testWorkflowDraft
-} from './workflow-draft-generator.js';
 import { AutomationRunService } from '../automation-run/automation-run-service.js';
 import { MeetingAutomationService } from '../meeting-automation/meeting-automation-service.js';
 import { RunReceiptQueryService } from '../run-receipt/query-service.js';
@@ -60,16 +56,6 @@ function projectAccessKeys(projectId, projectConfig = null) {
         keys.add(parentId.replace(/-/g, ''));
     }
     return keys;
-}
-
-function workflowPriority(workflow) {
-    const run = workflow.latest_run || {};
-    if (run.human_waiting || run.status === 'waiting_human') return 0;
-    if (run.action_required && run.action_required !== 'none') return 1;
-    if (run.status === 'failed') return 2;
-    if (run.status === 'needs_action') return 3;
-    if (!run.id) return 5;
-    return 4;
 }
 
 function companionApprovalPriority({ pendingHumanSteps = [], outputs = [], run = {} } = {}) {
@@ -1078,10 +1064,6 @@ export function createDefaultWorkflowHandlers({ clock = () => new Date() } = {})
     };
 }
 
-function isRunReceiptWorkflow(workflow) {
-    return Boolean(workflow?.metadata?.run_receipt || workflow?.metadata?.surface === 'run_receipt');
-}
-
 function isPendingHumanStepStatus(status) {
     return String(status || '').toLowerCase() === 'pending';
 }
@@ -1171,37 +1153,6 @@ export class WorkflowService {
         });
     }
 
-    async listWorkflows({ projectId = null } = {}, actor = {}) {
-        await this.ensureDefaultWorkflows();
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
-        const workflows = this.repository.listWorkflows()
-            .filter((workflow) => !projectId || workflow.project_id === projectId)
-            .filter((workflow) => this._actorCanAccessProject(workflow.project_id, actor))
-            .filter((workflow) => !isRunReceiptWorkflow(workflow))
-            .map((workflow) => ({
-                ...workflow,
-                latest_run: this.repository.listRuns({ workflowId: workflow.id, limit: 1 })[0] || null
-            }))
-            .map((workflow) => ({
-                ...workflow,
-                latest_context_snapshots: workflow.latest_run
-                    ? this.repository.listContextSnapshots(workflow.latest_run.id)
-                    : [],
-                latest_human_steps: workflow.latest_run
-                    ? this.repository.listHumanSteps(workflow.latest_run.id)
-                    : []
-            }))
-            .sort((a, b) => {
-                const priority = workflowPriority(a) - workflowPriority(b);
-                if (priority !== 0) return priority;
-                const aTime = a.latest_run?.finished_at || a.latest_run?.started_at || a.latest_run?.created_at || a.updated_at || '';
-                const bTime = b.latest_run?.finished_at || b.latest_run?.started_at || b.latest_run?.created_at || b.updated_at || '';
-                return String(bTime).localeCompare(String(aTime));
-            });
-        return { workflows };
-    }
-
     async listRunReceiptInbox(options = {}, actor = {}) {
         return this.runReceiptQueryService.listInbox(options, actor);
     }
@@ -1212,50 +1163,6 @@ export class WorkflowService {
 
     async diagnoseRunReceipt(options = {}, actor = {}) {
         return this.runReceiptQueryService.diagnose(options, actor);
-    }
-
-    async getWorkflow(workflowId, actor = {}) {
-        await this.ensureDefaultWorkflows();
-        await this._loadProjectConfigCache();
-        const workflow = this.repository.getWorkflow(workflowId);
-        if (!workflow) throw AppError.notFound('workflow', workflowId);
-        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
-        this._assertActorCanAccessProject(workflow.project_id, actor);
-        return {
-            workflow,
-            context_sources: this.repository.listWorkflowContextSources(workflowId),
-            runs: this.repository.listRuns({ workflowId, limit: 20 })
-        };
-    }
-
-    async createWorkflow(input, actor = {}) {
-        const projectId = input.project_id || input.projectId;
-        if (!projectId) throw AppError.validation('project_id is required');
-        await this._assertProjectSelectable(projectId);
-        this._assertActorCanAccessProject(projectId, actor);
-        if (input.id && this.repository.getWorkflow(input.id)) {
-            throw AppError.conflict(`workflow '${input.id}' already exists`);
-        }
-        const workflow = normalizeWorkflowInput(input, {
-            projectId,
-            ownerId: actor.person_id || actor.sub || DEFAULT_OWNER_ID,
-            assigneeId: actor.person_id || actor.sub || DEFAULT_OWNER_ID,
-            approverId: actor.person_id || actor.sub || DEFAULT_OWNER_ID
-        });
-        const created = await this._transaction(() => {
-            const item = this.repository.upsertWorkflow(workflow);
-            this.repository.writeAuditLog({
-                workspace_id: item.workspace_id,
-                project_id: item.project_id,
-                actor_id: actor.person_id || actor.sub || 'system',
-                action: 'workflow.created',
-                target_type: 'workflow',
-                target_id: item.id,
-                after: item
-            });
-            return item;
-        });
-        return { workflow: created };
     }
 
     async listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}, actor = {}) {
@@ -2747,61 +2654,6 @@ export class WorkflowService {
                 error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
             };
         }
-    }
-
-    async generateDraft(input, actor = {}) {
-        const projectId = input.project_id || input.projectId;
-        if (!projectId) throw AppError.validation('project_id is required');
-        await this._assertProjectSelectable(projectId);
-        this._assertActorCanAccessProject(projectId, actor);
-        const draft = generateWorkflowDraft(input);
-        return { draft };
-    }
-
-    async testDraft(input, actor = {}) {
-        const draft = input.draft || input;
-        const projectId = draft.workflow?.project_id || draft.workflow?.projectId || draft.project_id || draft.projectId;
-        if (!projectId) throw AppError.validation('project_id is required');
-        await this._assertProjectSelectable(projectId);
-        this._assertActorCanAccessProject(projectId, actor);
-        return { test_result: testWorkflowDraft(draft) };
-    }
-
-    async updateWorkflow(workflowId, patch, actor = {}) {
-        await this.ensureDefaultWorkflows();
-        const current = this.repository.getWorkflow(workflowId);
-        if (!current) throw AppError.notFound('workflow', workflowId);
-        if (isRunReceiptWorkflow(current)) throw AppError.notFound('workflow', workflowId);
-        this._assertActorCanAccessProject(current.project_id, actor);
-        const nextProjectId = patch.project_id || patch.projectId || current.project_id;
-        await this._assertProjectSelectable(nextProjectId);
-        this._assertActorCanAccessProject(nextProjectId, actor);
-        const nextWorkflow = normalizeWorkflowInput({
-            ...current,
-            ...patch,
-            id: workflowId,
-            project_id: nextProjectId
-        }, {
-            projectId: nextProjectId,
-            ownerId: current.owner_id,
-            assigneeId: current.default_assignee_id,
-            approverId: current.default_approver_id
-        });
-        const updated = await this._transaction(() => {
-            const item = this.repository.updateWorkflow(workflowId, nextWorkflow);
-            this.repository.writeAuditLog({
-                workspace_id: item.workspace_id,
-                project_id: item.project_id,
-                actor_id: actor.person_id || actor.sub || 'system',
-                action: 'workflow.updated',
-                target_type: 'workflow',
-                target_id: item.id,
-                before: current,
-                after: item
-            });
-            return item;
-        });
-        return { workflow: updated };
     }
 
     async runWorkflow(workflowId, options = {}) {

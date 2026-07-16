@@ -352,17 +352,13 @@ describe('run receipt routes', () => {
             .expect(403);
     });
 
-    it('run receiptはlegacy Workflow APIの一覧・詳細・更新・実行・再実行へ露出しない', async () => {
+    it('run receiptは廃止済みWorkflow製品APIと互換実行APIへ露出しない', async () => {
         const { app, repository } = createApp();
         await request(app).post('/api/run-receipts/ingest').send(makeReceipt()).expect(201);
         const [receiptRun] = repository.listRuns({ limit: null });
         const receiptWorkflow = repository.getWorkflow(receiptRun.workflow_id);
 
-        const list = await request(app).get('/api/workflows').expect(200);
-        expect(list.body.workflows).not.toEqual(expect.arrayContaining([
-            expect.objectContaining({ id: receiptWorkflow.id })
-        ]));
-
+        await request(app).get('/api/workflows').expect(404);
         await request(app).get(`/api/workflows/${receiptWorkflow.id}`).expect(404);
         await request(app)
             .patch(`/api/workflows/${receiptWorkflow.id}`)

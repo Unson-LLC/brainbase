@@ -643,15 +643,6 @@ describe('WorkflowService org agent loop control', () => {
             }
         });
         expect(loopIntentSnapshot.data.metadata.eve_session_ref.continuation_token).toBeUndefined();
-        repository.updateRun(forced.eve_session_dispatch.run.id, {
-            started_at: '2999-01-01T00:00:00.000Z'
-        });
-        const workflows = await service.listWorkflows({ projectId: 'salestailor' }, actor);
-        const workflowListSnapshot = workflows.workflows
-            .flatMap((workflow) => workflow.latest_context_snapshots || [])
-            .find((snapshot) => snapshot.workflow_run_id === forced.eve_session_dispatch.run.id && snapshot.source_type === 'loop_intent');
-        expect(workflowListSnapshot).toBeDefined();
-        expect(workflowListSnapshot.data.metadata.eve_session_ref.continuation_token).toBeUndefined();
         const listedLoopIntent = (await service.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' }, actor))
             .loop_intents
             .find((item) => item.id === loopIntent.id);

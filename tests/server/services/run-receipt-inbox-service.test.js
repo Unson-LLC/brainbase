@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
+import { RunReceiptQueryService } from '../../../server/services/run-receipt/query-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 
 function makeReceiptRun({
@@ -57,10 +57,17 @@ async function makeService(runs) {
     await repository.transaction(() => {
         for (const run of runs) repository.createRun(run);
     });
-    return new WorkflowService({ repository, runner: {}, configParser: null });
+    return new RunReceiptQueryService({
+        repository,
+        canAccessProject: (projectId, actor = {}) => {
+            if (!actor || Object.keys(actor).length === 0) return true;
+            if (['admin', 'ceo'].includes(String(actor.role || '').toLowerCase())) return true;
+            return Array.isArray(actor.projectCodes) && actor.projectCodes.includes(projectId);
+        }
+    });
 }
 
-describe('WorkflowService.listRunReceiptInbox', () => {
+describe('RunReceiptQueryService.listInbox', () => {
     it('latest receipt projectionだけを取得し全run履歴を走査しない', async () => {
         const repository = new InMemoryWorkflowRepository();
         repository.listRuns = () => { throw new Error('historical runs must not be scanned'); };
@@ -70,9 +77,9 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             latestReceiptCalls.push(options);
             return listLatestRunReceipts(options);
         };
-        const service = new WorkflowService({ repository, runner: {}, configParser: null });
+        const service = new RunReceiptQueryService({ repository });
 
-        await service.listRunReceiptInbox({}, {});
+        await service.listInbox({}, {});
 
         expect(latestReceiptCalls).toEqual([{ projectId: null }]);
     });
@@ -105,7 +112,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'run-1', sourceWorkflowId: 'blocked', sourceStatus: 'blocked', evidenceState: 'no_data', effectiveAt: '2026-07-15T01:00:00Z' })
         ]);
 
-        const result = await service.listRunReceiptInbox({}, {});
+        const result = await service.listInbox({}, {});
 
         expect(result.items.map((item) => [item.id, item.priority])).toEqual([
             ['run-1', 1], ['run-2', 2], ['run-3', 3], ['run-4', 4], ['run-5', 5],
@@ -123,7 +130,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'plain-failed', sourceWorkflowId: 'failed', sourceStatus: 'failed' })
         ]);
 
-        const result = await service.listRunReceiptInbox({}, {});
+        const result = await service.listInbox({}, {});
 
         expect(result.items.map((item) => [item.id, item.priority])).toEqual([
             ['action-success', 1], ['plain-failed', 2]
@@ -142,7 +149,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             })
         ]);
 
-        const result = await service.listRunReceiptInbox({}, {});
+        const result = await service.listInbox({}, {});
 
         expect(result.items[0]).toMatchObject({
             id: 'connector-observation-1',
@@ -156,8 +163,8 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'new-success', sourceWorkflowId: 'same', effectiveAt: '2026-07-15T02:00:00Z' })
         ]);
 
-        const all = await service.listRunReceiptInbox({}, {});
-        const blocked = await service.listRunReceiptInbox({ runStatus: 'blocked' }, {});
+        const all = await service.listInbox({}, {});
+        const blocked = await service.listInbox({ runStatus: 'blocked' }, {});
 
         expect(all.items.map((item) => item.id)).toEqual(['new-success']);
         expect(blocked).toMatchObject({ items: [], count: 0, has_more: false, omitted_count: 0 });
@@ -170,7 +177,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'other', sourceWorkflowId: 'other', effectiveAt: '2026-07-15T00:15:00Z' })
         ]);
 
-        const result = await service.listRunReceiptInbox({}, {});
+        const result = await service.listInbox({}, {});
 
         expect(result.items.map((item) => item.id)).toEqual(['same-new', 'other']);
     });
@@ -183,7 +190,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'run-c', sourceWorkflowId: 'c', effectiveAt, createdAt: '2026-07-15T00:00:02Z' })
         ]);
 
-        const result = await service.listRunReceiptInbox({}, {});
+        const result = await service.listInbox({}, {});
 
         expect(result.items.map((item) => item.id)).toEqual(['run-c', 'run-b', 'run-a']);
     });
@@ -196,7 +203,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'other-project', projectId: 'mana', sourceWorkflowId: 'm3', evidenceState: 'unconfirmed' })
         ]);
 
-        const result = await service.listRunReceiptInbox({
+        const result = await service.listInbox({
             projectId: 'brainbase',
             sourceType: 'mana',
             evidenceState: 'unconfirmed',
@@ -213,55 +220,12 @@ describe('WorkflowService.listRunReceiptInbox', () => {
             makeReceiptRun({ id: 'mana-run', projectId: 'mana', sourceWorkflowId: 'mana' })
         ]);
 
-        const result = await service.listRunReceiptInbox({}, {
+        const result = await service.listInbox({}, {
             role: 'member',
             projectCodes: ['brainbase']
         });
 
         expect(result.items.map((item) => item.id)).toEqual(['brainbase-run']);
-    });
-
-    it('receipt workflowを既存GET workflows projectionから除外し非receipt順序を維持する', async () => {
-        const repository = new InMemoryWorkflowRepository();
-        await repository.transaction(() => {
-            repository.upsertWorkflow({
-                id: 'normal-a',
-                workspace_id: 'default',
-                project_id: 'brainbase',
-                name: 'normal a',
-                metadata: {}
-            });
-            repository.upsertWorkflow({
-                id: 'receipt-only',
-                workspace_id: 'default',
-                project_id: 'brainbase',
-                name: 'receipt',
-                metadata: {
-                    surface: 'run_receipt',
-                    run_receipt: { project_id: 'brainbase', source_type: 'mana' }
-                }
-            });
-            repository.upsertWorkflow({
-                id: 'normal-b',
-                workspace_id: 'default',
-                project_id: 'brainbase',
-                name: 'normal b',
-                metadata: {}
-            });
-            repository.createRun({
-                id: 'normal-a-run', project_id: 'brainbase', workflow_id: 'normal-a',
-                status: 'failed', started_at: '2026-07-15T01:00:00Z'
-            });
-            repository.createRun({
-                id: 'normal-b-run', project_id: 'brainbase', workflow_id: 'normal-b',
-                status: 'success', started_at: '2026-07-15T02:00:00Z'
-            });
-        });
-        const service = new WorkflowService({ repository, runner: {}, configParser: null });
-
-        const result = await service.listWorkflows({ projectId: 'brainbase' }, {});
-
-        expect(result.workflows.map((workflow) => workflow.id)).toEqual(['normal-a', 'normal-b']);
     });
 
     it.each([
@@ -273,7 +237,7 @@ describe('WorkflowService.listRunReceiptInbox', () => {
     ])('invalid query %j_400 validation errorにする', async (query, field) => {
         const service = await makeService([]);
 
-        await expect(service.listRunReceiptInbox(query, {})).rejects.toMatchObject({
+        await expect(service.listInbox(query, {})).rejects.toMatchObject({
             statusCode: 400,
             details: expect.objectContaining({ field })
         });
