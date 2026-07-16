@@ -13,8 +13,8 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 ## Evidence boundary
 
 - `server/bootstrap/static-routes.js`は`/admin`、`/`、`/device`、`/setup`、`/workflows`を明示配信し、`express.static(publicDir)`が残りのHTMLを直接配信する。
-- `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、`TSK-WEBRET-003`で認証済みproject catalogのcontrol-plane tool `brainbase_projects`を提供する。Workflow、Run、Inbox等は後続taskである。
-- Workflow、Run、Session、SNS Growth、Admin visualization、setup、device authorizationのREST APIは存在するが、現在のBrainbase MCPには同等toolがない。
+- `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、`TSK-WEBRET-003`で認証済みproject catalogのcontrol-plane tool `brainbase_projects`、`TSK-WEBRET-004`の最初のsliceでproject-scoped `brainbase_run_receipt_inbox`を提供する。Run history、diagnosis、Meeting Automation操作は後続sliceである。
+- Workflow、Run、Session、SNS Growth、Admin visualization、setup、device authorizationのREST APIは存在するが、Run Receipt Inbox以外は現在のBrainbase MCPに同等toolがない。
 - `docs/brainbase-capabilities/capabilities/codex.app-server.yml`はClaude CodeとApp Server metadataのないCodex sessionについてxterm fallbackを維持すると定義する。
 - 廃止前の`public/test-infrastructure.html`はproduction code、test、scriptから参照されず、外部`jsonplaceholder.typicode.com`を使う手動デモだった。`TSK-WEBRET-001`で削除し、static 404をcontract testで固定した。
 
@@ -40,7 +40,7 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 1. `project` / `auth scope`（`TSK-WEBRET-003`完了）: `brainbase_projects`が署名検証済みgrantとMCP設定の積集合だけを返し、ok/unavailable/error、actor、role、scope、request_id、sourceを保持する。
 2. `session` / `runtime`: create、list、state、resume、stop、diagnose。途中状態を成功へ丸めない。
 3. `automation run`: run detail、許可されたretry/cancel、human-step resolve、audit参照。汎用Workflow create/update/draft/test/publish/manual runは移植しない。
-4. `run receipt inbox`: filter、latest collapse、history、blocked/unconfirmed/no_data/unavailableの保持。
+4. `run receipt inbox`: project filter、latest collapse、blocked/unconfirmed/no_data/unavailableの保持は実装済み。historyとdiagnosisは未実装。
 5. `meeting automation`: source sync状態、ingest/reconcile診断、明示的に許可された再実行。汎用Workflow実行へfallbackしない。
 6. `admin read`: candidate、context preview、data flow、healthをactor/project scope付きで参照。
 7. `sns growth`: review、schedule、publish dry-run、feedback、account health。実投稿は明示確認を維持。
@@ -66,10 +66,10 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 | `TSK-WEBRET-002` | Meeting Pack mock prototypeとdeep-linkを削除 | 完了。static 404、`/workflows`にdead linkなし、Workflow Core/API testsと残存panel E2E green、設計docは`retired`で保持 |
 | `TSK-WEBRET-003` | Brainbase MCP control-plane foundationを追加 | 完了。`brainbase_projects`をMCP registryへ追加。RESTでtoken検証とgrant scopeを強制し、MCPでtoken/config scopeの積集合、`ok`/`unavailable`/`error`、audit evidenceを返す。MCP 51 tests、REST 13 tests、MCP build green |
 | `TSK-WEBRET-004` | Automation Run/Run Receipt Inbox MCP parityを追加 | detail/resolve/filter/history/diagnosisとfailure statesのcontract tests。汎用Workflow CRUD/draft/publish/manual runは対象外 |
-| `TSK-WEBRET-005` | Agent Run InboxをMac Companionへ投影 | 要介入だけ表示、取得不能を0件化しない、feedback loop evidence |
+| `TSK-WEBRET-005` | Agent Run InboxをMac Companionへ投影 | 完了。要介入だけを既存Inboxへ表示し、取得不能時は前回成功snapshotを保持。source identity単位のstable IDでfeedbackを次Runへ継承。companion commits `3982070`、`a3964b3`、full suite 373 tests green |
 | `TSK-WEBRET-006` | Workflow Mission Control Webと汎用Workflow製品面を廃止 | `/workflows`と専用UI/test/導線を削除し、Meeting AutomationとRun Core testsを維持 |
 | `TSK-WEBRET-007` | Admin/SNS/setupの残能力をMCPへ移管 | 各surfaceのretirement gateをcurrent HEADで満たす |
 | `TSK-WEBRET-008` | 最小Web auth/pairing/recovery surfaceを抽出 | browser必須能力だけがWebに残り、日常一覧・設定UIがない |
 | `TSK-WEBRET-009` | index shellとttyd fallbackを廃止 | Codex/Claude Code sessionの作成・復旧・診断代替とrollback evidence |
 
-`TSK-WEBRET-001`と`TSK-WEBRET-002`はMCP parityを待たずに実装できる。`TSK-WEBRET-003`は後継基盤だけを出荷し、旧画面は削除していない。`TSK-WEBRET-004`以降も後継能力を先に出荷し、同じ変更で旧画面を削除しない。
+`TSK-WEBRET-001`と`TSK-WEBRET-002`はMCP parityを待たずに実装できる。`TSK-WEBRET-003`は後継基盤だけを出荷し、旧画面は削除していない。`TSK-WEBRET-005`のCompanion projectionは完了したが、`TSK-WEBRET-004`のhistory/diagnosis gateが残るためWorkflow Webはまだ削除しない。後継能力を先に出荷し、旧画面の削除は別commitで行う。
