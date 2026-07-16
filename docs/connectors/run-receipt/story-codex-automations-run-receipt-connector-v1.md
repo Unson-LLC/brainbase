@@ -1,10 +1,10 @@
 # story-codex-automations-run-receipt-connector-v1
 
-Status: planned  
+Status: implemented_locally
 Control-plane dependency: `story-cross-runtime-run-receipt-inbox-v1`  
 Implementation owner repo: `code/brainbase`
 
-Planned implementation artifact: `scripts/run-receipt/codex-automations-reporter.mjs`
+Implementation artifact: `scripts/run-receipt/codex-automations-reporter.mjs`
 
 ## Outcome
 
@@ -23,3 +23,10 @@ Codex Automationのrun identity、terminal state、thread/task evidenceを`run_r
 - durable outbox、bounded retry、canonical idempotency key、redacted evidence refsを持つ。
 - pre-fix rerunとautomation間collision fixtureを持つ。
 - localhost fixtureで検証し、本番automationへの接続は別の明示承認を要する。
+
+## Local implementation evidence
+
+- terminal runとconnector observationを共通contract validatorへ通す。
+- `var/run-receipt-outbox/codex-automations`へidempotency key単位でatomic enqueueし、既定5回でdead-letterへ移す。
+- reporterはstdinの公開メタデータだけを受け、automation本文・transcript・secretをreceiptへ含めない。
+- 本番automation scheduleへの組込み、service token設定、本番canaryは未実施。

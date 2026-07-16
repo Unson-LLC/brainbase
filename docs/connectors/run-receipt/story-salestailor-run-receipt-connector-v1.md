@@ -1,10 +1,17 @@
 # story-salestailor-run-receipt-connector-v1
 
-Status: planned  
+Status: blocked_local_environment
 Control-plane dependency: `story-cross-runtime-run-receipt-inbox-v1`  
 Implementation owner repo: `code/salestailor`
 
 Planned implementation artifact: `src/services/run-receipt/run-receipt-outbox.ts`
+
+## Current blocker
+
+- owner repoの既存worktreeは未コミット変更を含むため、安全境界として分離worktreeが必要。
+- `codex/salestailor-run-receipt-connector`の分離worktree作成は実行環境ポリシーに拒否された。
+- 既存変更への上書き、patchの迂回適用、本番DB migration、worker enable、secret設定は行っていない。
+- よって本connectorは`0件`や`完了`ではなく、実装・検証ともに未確認のまま保持する。
 
 ## Outcome
 
