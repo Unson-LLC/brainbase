@@ -72,7 +72,7 @@ Mac Companion
 | `TSK-WFRET-001` | 製品境界を固定し、汎用Workflowへの新機能追加とMCP移植を停止 | complete |
 | `TSK-WFRET-002` | Run Receipt Inbox/history/diagnosisとMeeting Automationの必要操作をMCPへ追加 | complete |
 | `TSK-WFRET-003` | 要介入RunをMac Companionへ投影後、Workflow Web surfaceを削除 | complete |
-| `TSK-WFRET-004` | `WorkflowService`をMeeting Automation、Automation Run、Run Receiptへ段階分割し、互換名を縮退 | pending |
+| `TSK-WFRET-004` | `WorkflowService`をMeeting Automation、Automation Run、Run Receiptへ段階分割し、互換名を縮退 | in_progress |
 
 ### TSK-WFRET-002 progress
 
@@ -93,6 +93,13 @@ Mac Companion
 - `/workflows`と`/workflows.html`の配信、activity bar導線、overlay、専用CSS、browser client/service/view、旧UI E2Eを削除した。
 - Companion approval itemは廃止済みWeb URLを返さず、Run API参照を`api_path`として返す。
 - Meeting Automation、Automation Run、Run Receiptのserver/API contract testsは維持する。
+
+### TSK-WFRET-004 progress
+
+- Run Receiptのlatest collapse、filter、priority、history、diagnosisを`RunReceiptQueryService`へ分離した。
+- project accessの準備・判定は既存の正本をcallback injectionし、分割中に認可ルールを複製していない。
+- `WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`は互換adapterとして残し、既存API/MCP callerを壊さず専用serviceへ委譲する。
+- Run Receipt queryの直接contract testと互換adapter testを追加した。次sliceはMeeting Automation、続いてAutomation Runを分離する。
 
 ## Non-goals
 

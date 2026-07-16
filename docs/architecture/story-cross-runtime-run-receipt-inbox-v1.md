@@ -27,9 +27,9 @@ flowchart LR;
 | `RunReceiptIngestService` | receipt lock、idempotency、conflict検知、project整合性、transactional writeを所有する。 |
 | `WorkflowRepository` shared-ledger transaction | AsyncLocalStorage owner context、in-process queue、JsonFile file-wide lease、reload、single commit、rollback-only、transaction-required mutation guardを所有する。 |
 | `createRunReceiptRouter` | POSTのserver-to-server auth、GETのoperator auth、project access、ingest/list query boundaryを所有する。 |
-| `WorkflowService.listRunReceiptInbox` | WMC runからreceiptだけを抽出し、source workflowごとの最新runへ畳み込んだ後にfilter、priority、paginationを適用する。 |
-| `RunReceiptInboxService` browser module | DIされたAPI client、`appStore`、`eventBus`を使い、receipt専用Inboxのload/filter/failure stateを更新する。 |
-| Workflow Mission Control UI | receipt storeを購読して専用Inbox sectionを描画する。API取得やreceipt状態の正本をpage-local stateへ持たない。 |
+| `RunReceiptQueryService.listInbox` | ledger runからreceiptだけを抽出し、source workflowごとの最新runへ畳み込んだ後にfilter、priority、paginationを適用する。`WorkflowService.listRunReceiptInbox`は移行中の互換adapterとして残す。 |
+| Brainbase MCP Run Receipt tools | Inbox、history、diagnosisをCodex / Claude Codeへ公開し、confirmed emptyとtransport/auth/contract failureを分離する。 |
+| Mac Companion Inbox | 要介入状態だけをstable identityで投影し、取得不能時は前回snapshotを保持する。 |
 | Source connector | source API/scheduler、outbox、retry、raw evidenceの保管を所有する。 |
 
 ## Status Mapping
@@ -77,10 +77,10 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 
 ## Surface Isolation
 
-- Receipt workflow/runは共有WMC repositoryに保存するが、`metadata.run_receipt` を持つworkflow/runは既存の汎用Workflow APIから除外する。`GET /api/workflows` の一覧だけでなく、汎用workflow詳細・更新・実行およびrun詳細・再実行も404にし、receiptの参照面と操作面を `WorkflowService.listRunReceiptInbox`、`GET /api/run-receipts/inbox`、将来のreceipt専用操作へ限定する。同じrunを二つのpriority規則や汎用実行経路へ重複露出しない。
+- Receipt workflow/runは共有ledger repositoryに保存するが、`metadata.run_receipt` を持つworkflow/runは既存の汎用Workflow APIから除外する。`GET /api/workflows` の一覧だけでなく、汎用workflow詳細・更新・実行およびrun詳細・再実行も404にし、receiptの参照面と操作面を `RunReceiptQueryService`、`GET /api/run-receipts/inbox`、receipt専用操作へ限定する。旧`WorkflowService` methodは互換adapterであり、priority規則は専用serviceだけが所有する。
 - 除外はreceipt分類だけに適用し、非receipt workflowの集合、既存priority、既存render順を変更しない。receipt＋非receipt混在fixtureでAPIとUIの非重複を固定する。
-- Workflow Mission Controlの既存config/projects/workflows取得を必須surface、receipt Inbox取得を独立したoptional surfaceとして扱う。receipt APIのtimeout、network error、または5xxはreceipt sectionの `unavailable` warningへ変換し、既存Operational Inboxのstate/renderを維持する。
-- receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、UIは「receiptなし」と「receipt取得不能」を別stateで表示する。
+- MCPとMac Companionはreceipt取得を独立surfaceとして扱う。receipt APIのtimeout、network error、または5xxは`unavailable`へ変換し、Mac Companionは前回成功snapshotを維持する。
+- receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、MCP/Companionは「receiptなし」と「receipt取得不能」を別stateで表示する。
 
 ## Browser Architecture Boundary
 

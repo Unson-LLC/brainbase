@@ -25,10 +25,14 @@ MeetingSourceMcpSyncService
 
 RunReceiptIngestService
   -> WorkflowRepository
-  -> WorkflowService.listRunReceiptInbox
+RunReceiptQueryService
+  -> WorkflowRepository
+  -> project access callbacks
+WorkflowService.listRunReceiptInbox/history/diagnosis
+  -> RunReceiptQueryService (compatibility adapter)
 ```
 
-このcouplingが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
+Run Receiptのread modelは専用serviceへ分離済みである。Meeting AutomationとAutomation Runのproduction callerが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
 
 ## Target components
 
@@ -46,6 +50,8 @@ RunReceiptIngestService
 3. 旧`WorkflowService`は互換adapterとして残し、production callerが0になるまで削除しない。
 4. Web routeを削除する前にMCPとCompanionのcurrent-HEAD evidenceを固定する。
 5. `workflow_*` ledger fieldとAPI pathの改名は最後に行い、dual-readまたはadapterでrollback可能にする。
+
+最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。repositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。
 
 ## Public contract rule
 
