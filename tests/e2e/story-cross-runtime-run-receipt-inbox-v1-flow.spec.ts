@@ -50,6 +50,7 @@ function makeReceipt({
       started_at: finishedAt,
       finished_at: finishedAt,
       summary,
+      metrics: { attempts: 1, processed: 1 },
       ...(status === 'blocked' ? {
         blocker_reason: 'tracked approval required',
         action_required: 'resolve_blocker'
@@ -297,15 +298,53 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
   await expect(trackedCards.nth(2)).toContainText('status: waiting_human');
   await expect(trackedCards.nth(3)).toContainText('status: success');
   await expect(trackedCards.nth(4)).toContainText('status: cancelled');
+  const blockedCard = trackedCards.nth(0);
+  await expect(blockedCard.getByText('Action', { exact: true }).locator('..'))
+    .toContainText('resolve_blocker');
+  await expect(blockedCard.getByText('Blocker', { exact: true }).locator('..'))
+    .toContainText('tracked approval required');
+  await expect(blockedCard.getByText('Run ID', { exact: true }).locator('..'))
+    .toContainText(trackedItems[0].id);
+  await expect(blockedCard.getByText('Observed', { exact: true }).locator('..'))
+    .toContainText(trackedItems[0].effective_at);
+  await expect(blockedCard.locator('.run-receipt-detail').filter({ hasText: 'Evidence refs' }))
+    .toContainText(`tracked-e2e:run/${suffix}/latest-blocked`);
+  await expect(blockedCard.locator('.run-receipt-detail').filter({ hasText: 'Metrics' }))
+    .toContainText('attempts: 1 · processed: 1');
 
   await page.locator('#run-receipt-project').focus();
   await expect(page.locator('#run-receipt-project')).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.locator('#run-receipt-source')).toBeFocused();
+  const sourceFocusStyle = await page.locator('#run-receipt-source').evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };
+  });
+  expect(sourceFocusStyle.outlineStyle).not.toBe('none');
+  expect(Number.parseFloat(sourceFocusStyle.outlineWidth)).toBeGreaterThanOrEqual(3);
   await page.keyboard.press('Tab');
   await expect(page.locator('#run-receipt-status')).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.locator('#run-receipt-evidence')).toBeFocused();
+
+  await page.locator('#run-receipt-project').selectOption('brainbase');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.locator('#run-receipt-project')).toHaveValue('brainbase');
+  await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await expect(page.locator('#run-receipt-project')).toHaveValue('');
+  await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
+  await page.locator('#run-receipt-status').selectOption('blocked');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.locator('#run-receipt-status')).toHaveValue('blocked');
+  await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
+  await expect(page.getByText(`failed without evidence ${suffix}`)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await expect(page.locator('#run-receipt-status')).toHaveValue('');
+  await expect(page.locator('#run-receipt-evidence')).toHaveValue('');
+  await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
 
   await page.locator('#run-receipt-evidence').selectOption('unconfirmed');
   await page.getByRole('button', { name: 'Apply' }).click();

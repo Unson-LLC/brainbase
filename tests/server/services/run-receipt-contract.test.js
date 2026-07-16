@@ -50,6 +50,22 @@ function makeReceipt(overrides = {}) {
 }
 
 describe('normalizeRunReceipt', () => {
+    it.each([
+        ['contract_version', ['contract_version']],
+        ['source.type', ['source', 'type']],
+        ['source.workflow_id', ['source', 'workflow_id']],
+        ['run.project_id', ['run', 'project_id']],
+        ['run.external_run_id', ['run', 'external_run_id']],
+        ['run.status', ['run', 'status']],
+        ['run.evidence_state', ['run', 'evidence_state']]
+    ])('必須項目%s欠落_永続化可能な契約として受理しない', (_name, path) => {
+        const receipt = makeReceipt();
+        const parent = path.slice(0, -1).reduce((value, key) => value[key], receipt);
+        delete parent[path.at(-1)];
+
+        expect(() => normalizeRunReceipt(receipt)).toThrow(RunReceiptContractError);
+    });
+
     it('有効なreceipt_決定的identityとWMC投影を返す', () => {
         const normalized = normalizeRunReceipt(makeReceipt());
 

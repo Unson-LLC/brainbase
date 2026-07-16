@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const html = fs.readFileSync(path.resolve(process.cwd(), 'public/workflows.html'), 'utf8');
+const moduleScript = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1] || '';
 
 describe('Workflow Mission Control Agent Run Inbox integration', () => {
     it('専用client service viewとReactive Storeを接続する', () => {
@@ -18,5 +19,21 @@ describe('Workflow Mission Control Agent Run Inbox integration', () => {
     it('既存workflow loadと独立してreceipt loadを起動する', () => {
         expect(html).toContain('async function loadRunReceiptInbox');
         expect(html).toMatch(/load\(\);\s*loadRunReceiptInbox\(\);/);
+    });
+
+    it('HTML境界は専用serviceを呼びStoreを購読描画するだけで直接fetchや並行stateを持たない', () => {
+        expect(moduleScript).not.toContain('/api/run-receipts');
+        expect(moduleScript).not.toMatch(/runReceiptInbox\s*=/);
+        expect(moduleScript).not.toMatch(/appStore\.(?:setState|update|dispatch)/);
+        expect(moduleScript).toMatch(
+            /async function loadRunReceiptInbox\(filters\)\s*\{\s*try\s*\{\s*await runReceiptInboxService\.load\(filters\);/
+        );
+        expect(moduleScript.match(/runReceiptInboxService\.load\(/g)).toHaveLength(1);
+        expect(moduleScript).toMatch(
+            /subscribeToSelector\(\s*\(current\) => current\.runReceiptInbox,[\s\S]*?renderRunReceiptInbox\(value, \{ projects: allProjectIds\(\) \}\)/
+        );
+        expect(moduleScript).toContain(
+            'renderRunReceiptInbox(appStore.getState().runReceiptInbox, { projects: projectIds })'
+        );
     });
 });

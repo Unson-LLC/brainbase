@@ -1,10 +1,24 @@
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { RunReceiptContractError } from '../../../server/services/run-receipt/contract.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
-import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
+import {
+    InMemoryWorkflowRepository,
+    JsonFileWorkflowRepository
+} from '../../../server/services/workflow/workflow-repository.js';
+
+const tempDirectories = [];
+
+afterEach(() => {
+    while (tempDirectories.length) {
+        fs.rmSync(tempDirectories.pop(), { recursive: true, force: true });
+    }
+});
 
 function idempotencyKey(projectId, sourceType, externalRunId) {
     return `rr1_${createHash('sha256')
@@ -115,6 +129,61 @@ describe('RunReceiptIngestService', () => {
         expect(JSON.stringify(result.audit_logs)).not.toMatch(/raw_log|customer_text|transcript/);
     });
 
+    it('同じexternal_run_idでもprojectまたはsourceが違う_別runとして永続化する', async () => {
+        const { repository, service } = makeService();
+        const receipts = [
+            makeReceipt(),
+            makeReceipt({ run: { project_id: 'salestailor' } }),
+            makeReceipt({ source: { type: 'github_actions' } })
+        ];
+
+        const results = [];
+        for (const receipt of receipts) results.push(await service.ingest(receipt));
+
+        expect(results.map((result) => result.status)).toEqual(['created', 'created', 'created']);
+        expect(new Set(results.map((result) => result.run.id))).toHaveLength(3);
+        expect(repository.listRuns({ limit: null })).toHaveLength(3);
+        expect(repository.listRuns({ limit: null }).map((run) => ({
+            projectId: run.project_id,
+            sourceType: run.metadata.run_receipt.source.type,
+            externalRunId: run.metadata.run_receipt.source_external_run_id
+        }))).toEqual(expect.arrayContaining([
+            {
+                projectId: 'brainbase',
+                sourceType: 'mana',
+                externalRunId: 'mana:lambda:daily-secretary:run:1'
+            },
+            {
+                projectId: 'salestailor',
+                sourceType: 'mana',
+                externalRunId: 'mana:lambda:daily-secretary:run:1'
+            },
+            {
+                projectId: 'brainbase',
+                sourceType: 'github_actions',
+                externalRunId: 'mana:lambda:daily-secretary:run:1'
+            }
+        ]));
+    });
+
+    it('許可されたsource-owned evidence参照_JSON台帳の再読込後も保持する', async () => {
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-run-receipt-evidence-'));
+        tempDirectories.push(directory);
+        const filePath = path.join(directory, 'workflow-ledger.json');
+        const repository = new JsonFileWorkflowRepository({ filePath });
+        const { service } = makeService({ repository });
+        const evidenceRefs = [
+            { kind: 'artifact_ref', ref: 's3:bucket/result.json' },
+            { kind: 'log_ref', ref: 'cloudwatch:log-group:log-stream/example' }
+        ];
+
+        const result = await service.ingest(makeReceipt({ run: { evidence_refs: evidenceRefs } }));
+        const reloaded = new JsonFileWorkflowRepository({ filePath });
+
+        expect(reloaded.getRun(result.run.id).metadata.run_receipt.evidence_refs).toEqual(evidenceRefs);
+        expect(reloaded.listAuditLogs({ targetId: result.run.id })[0].after.evidence_refs).toEqual(evidenceRefs);
+    });
+
     it('deliveryだけ違う再送_duplicateかつ台帳を変更しない', async () => {
         const { repository, service } = makeService();
         const created = await service.ingest(makeReceipt());
@@ -207,6 +276,38 @@ describe('RunReceiptIngestService', () => {
             workspace_id: 'run_receipt:brainbase',
             workflow_id: normalized.identity.run_id
         });
+    });
+
+    it('identity lock取得後にだけ台帳transactionへ入り_commit後にlockを解放する', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const events = [];
+        const originalAcquire = repository.acquireWorkflowLock.bind(repository);
+        const originalTransaction = repository.transaction.bind(repository);
+        const originalRelease = repository.releaseWorkflowLock.bind(repository);
+        repository.acquireWorkflowLock = (input) => {
+            events.push('identity-lock-acquired');
+            return originalAcquire(input);
+        };
+        repository.transaction = async (callback) => {
+            events.push('transaction-entered');
+            const result = await originalTransaction(callback);
+            events.push('transaction-committed');
+            return result;
+        };
+        repository.releaseWorkflowLock = (input) => {
+            events.push('identity-lock-released');
+            return originalRelease(input);
+        };
+        const { service } = makeService({ repository });
+
+        await service.ingest(makeReceipt());
+
+        expect(events).toEqual([
+            'identity-lock-acquired',
+            'transaction-entered',
+            'transaction-committed',
+            'identity-lock-released'
+        ]);
     });
 
     it('deterministic workflow idに別identityが存在_衝突として拒否する', async () => {
