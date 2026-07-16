@@ -719,6 +719,7 @@ export class JsonFileWorkflowRepository extends InMemoryWorkflowRepository {
             try {
                 const existing = this._readWorkflowLock(lockPath);
                 const expiresAt = new Date(existing?.expires_at).getTime();
+                if (existing && isLocalProcessAlive(existing.pid)) return null;
                 if (existing && Number.isFinite(expiresAt) && expiresAt > Date.now()) return null;
                 quarantinePath = this._quarantineWorkflowLock(lockPath);
                 try {

@@ -252,7 +252,32 @@ describe('WorkflowRepository transaction boundary', () => {
         expect(new JsonFileWorkflowRepository({ filePath }).getRun('run-before-identity-lock')).not.toBeNull();
     });
 
-    it('stale identity lock reclaim never deletes a fresh lock won by another repository', () => {
+    it('expired identity lock owned by a live local process cannot be stolen', () => {
+        const { filePath } = createTempLedger();
+        const ownerRepository = new JsonFileWorkflowRepository({ filePath });
+        const competingRepository = new JsonFileWorkflowRepository({ filePath });
+
+        expect(ownerRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'live-owner',
+            ttl_ms: -1
+        })).not.toBeNull();
+
+        expect(competingRepository.acquireWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'competing-owner',
+            ttl_ms: 60000
+        })).toBeNull();
+        expect(ownerRepository.releaseWorkflowLock({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1',
+            locked_by: 'live-owner'
+        })).toBe(true);
+    });
+
+    it('stale dead-owner identity lock reclaim never deletes a fresh lock won by another repository', () => {
         const { filePath } = createTempLedger();
         const seedRepository = new JsonFileWorkflowRepository({ filePath });
         const competingRepository = new JsonFileWorkflowRepository({ filePath });
@@ -277,6 +302,15 @@ describe('WorkflowRepository transaction boundary', () => {
             locked_by: 'expired-owner',
             ttl_ms: -1
         })).not.toBeNull();
+        const expiredLockPath = seedRepository._workflowLockPath({
+            workspace_id: 'default',
+            workflow_id: 'workflow-1'
+        });
+        const expiredLock = JSON.parse(fs.readFileSync(expiredLockPath, 'utf8'));
+        fs.writeFileSync(expiredLockPath, `${JSON.stringify({
+            ...expiredLock,
+            pid: 2147483647
+        }, null, 2)}\n`);
 
         const reclaimingRepository = new InterleavingRepository({ filePath });
         const reclaimed = reclaimingRepository.acquireWorkflowLock({
