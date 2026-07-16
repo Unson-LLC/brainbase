@@ -58,8 +58,8 @@ WorkflowService.runWorkflow/rerun/getRun/resolveHumanStep
 
 server/routes/workflows.js
   -> /control/*: Meeting Automation / org-agent control compatibility
-  -> POST /:workflowId/run: Automation Run compatibility
-  -> generic list/create/detail/update/draft/draft-test: retired (404)
+  -> /api/workflow-runs/*: Automation Run detail / retry / human resolve compatibility
+  -> generic list/create/detail/update/draft/draft-test/manual-run: retired (404)
 ```
 
 Run Receiptのread modelは専用serviceへ分離済みである。Meeting AutomationとAutomation Runのproduction callerが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
@@ -104,4 +104,4 @@ Run Receiptのread modelは専用serviceへ分離済みである。Meeting Autom
 
 ## Gate result
 
-2026-07-16に5 gateを満たし、`/workflows`、shell overlay、専用browser modules、旧UI E2Eを削除した。2026-07-17には汎用Workflowのlist/create/detail/update/draft/draft-test HTTP APIとservice実装も削除した。Meeting Control、scheduler/reconciler、Automation Run、Human Approval、Audit、Run ReceiptのAPIとledgerは維持している。旧pageを戻す場合もschema rollbackは不要である。
+2026-07-16に5 gateを満たし、`/workflows`、shell overlay、専用browser modules、旧UI E2Eを削除した。2026-07-17には汎用Workflowのlist/create/detail/update/draft/draft-test/manual-run HTTP APIと、対応するCRUD/draft service実装も削除した。Meeting Control、scheduler/reconciler、Automation Runのdetail/retry/human resolve、Human Approval、Audit、Run ReceiptのAPIとledgerは維持している。旧pageを戻す場合もschema rollbackは不要である。

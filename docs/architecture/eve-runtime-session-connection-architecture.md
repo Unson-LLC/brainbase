@@ -112,7 +112,7 @@ Loop Intent自体が `enabled=false`、`status=blocked/human_only/cancelled/canc
 
 ## Runtime Boundary
 
-Eve dispatchで作られるWorkflowは `implementation_key=eve-session-dispatch` を持つが、これは通常の `manual-placeholder` workflowではない。汎用 `/api/workflows/:workflowId/run` やrerunから実行すると、Eve sessionも `external_runner.v0` ingestも通らないhuman stepだけが作られるため、この経路は明示的に拒否する。実行入口は常に `/api/workflows/control/loop-intents/:loopIntentId/eve-session` に固定する。
+Eve dispatchで作られるWorkflowは `implementation_key=eve-session-dispatch` を持つが、これは通常の `manual-placeholder` workflowではない。汎用 `/api/workflows/:workflowId/run` は製品廃止に伴い404へ落とし、rerunも明示的に拒否する。Eve sessionや `external_runner.v0` ingestを迂回させず、実行入口は常に `/api/workflows/control/loop-intents/:loopIntentId/eve-session` に固定する。
 
 Bindingが既存 `workflow_id` を指す場合、そのWorkflowは既に `implementation_key=eve-session-dispatch` でなければならない。Bindingに `workflow_id` がない場合にBrainbaseが生成するfallback IDも同じ検査に通す。同じorg/project内であっても、`manual-placeholder` などの汎用WorkflowをEve dispatch用Workflowとして上書きしない。これは、既存の汎用run/rerun経路を後から壊すことを防ぐためのControl Plane境界である。
 

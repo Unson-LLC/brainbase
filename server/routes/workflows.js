@@ -208,20 +208,6 @@ export function createWorkflowRouter(workflowService, { eveMeetingNoteReconciler
         res.json(await workflowService.listLoopIntents(loopIntentQuery(req), actorFromRequest(req)));
     }));
 
-    router.post('/:workflowId/run', asyncHandler(async (req, res) => {
-        const body = req.body || {};
-        const actor = actorFromRequest(req);
-        res.status(201).json(await workflowService.runWorkflow(req.params.workflowId, {
-            triggerType: body.trigger_type || body.triggerType || 'manual',
-            env: body.env || 'local',
-            dryRun: Boolean(body.dry_run || body.dryRun),
-            actorId: actor.person_id || actor.sub || 'system',
-            projectCodes: actor.projectCodes || [],
-            role: actor.role,
-            authSource: actor.authSource
-        }));
-    }));
-
     return router;
 }
 

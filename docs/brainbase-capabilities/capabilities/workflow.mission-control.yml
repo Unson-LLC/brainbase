@@ -10,8 +10,8 @@ surfaces:
   ui: []
   api:
     - compatibility-only /api/workflows/control routes for Meeting Automation and org-agent control
-    - compatibility-only POST /api/workflows/:workflowId/run for Automation Run
-    - generic list, create, detail, update, draft, and draft-test routes are retired and return 404
+    - Automation Run retry, detail, and human-step resolution remain under /api/workflow-runs
+    - generic list, create, detail, update, draft, draft-test, and manual-run routes are retired and return 404
   code:
     - server/services/workflow/workflow-service.js
     - server/services/workflow/workflow-runner.js

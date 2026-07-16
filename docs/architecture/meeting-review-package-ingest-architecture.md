@@ -43,7 +43,7 @@ Review Package は API の JSON body として渡す。API は任意の local fi
 
 したがって v1 の scheduling owner は Brainbase operator で、job infrastructure は既存のBrainbase API processである。新しいworker、queue、lambda、cron、containerは追加しない。review packageを時間・イベントトリガーで自動投入する場合も、同じAPI contractへJSON bodyを渡すだけにする。
 
-`meeting-review-package-ingest` workflow は既存の `POST /api/workflows/:workflowId/run` と `POST /api/workflow-runs/:runId/rerun` からは実行できない。これらの汎用run/rerun導線はReview Package JSON、Loop Intent照合、5 outputs、5 Human Gatesを持たないため、このworkflowではvalidation errorとして拒否する。承認後の進行は `resolveHumanStep` の専用処理で元runを更新し、汎用run再実行には戻さない。
+汎用 `POST /api/workflows/:workflowId/run` は製品廃止に伴い404へ落とす。`meeting-review-package-ingest` workflow は残る `POST /api/workflow-runs/:runId/rerun` からも実行できない。rerun導線はReview Package JSON、Loop Intent照合、5 outputs、5 Human Gatesを持たないため、このworkflowではvalidation errorとして拒否する。承認後の進行は `resolveHumanStep` の専用処理で元runを更新し、汎用run再実行には戻さない。
 
 ## Runモデル
 
