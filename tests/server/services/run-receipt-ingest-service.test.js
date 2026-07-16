@@ -325,6 +325,64 @@ describe('RunReceiptIngestService', () => {
         ]));
     });
 
+    it('別Json repositoryのReceiptとexternal_runner duplicate replayが競合しても監査証跡を保持する', async () => {
+        const filePath = createTempLedger();
+        const seedRepository = new JsonFileWorkflowRepository({ filePath });
+        const seedExternalService = new ExternalRunnerIngestService({ workflowRepository: seedRepository });
+        const externalResult = await seedExternalService.ingest(makeExternalRunnerPayload());
+        const receiptTransactionEntered = createDeferred();
+        const releaseReceiptTransaction = createDeferred();
+        const duplicateLeaseAttempted = createDeferred();
+        let duplicateLeaseAcquired = false;
+
+        class ReceiptBarrierJsonRepository extends JsonFileWorkflowRepository {
+            barrierUsed = false;
+
+            async _beginTransaction(state) {
+                await super._beginTransaction(state);
+                if (this.barrierUsed) return;
+                this.barrierUsed = true;
+                receiptTransactionEntered.resolve();
+                await releaseReceiptTransaction.promise;
+            }
+        }
+
+        class DuplicateProbeJsonRepository extends JsonFileWorkflowRepository {
+            async _acquireTransactionLease(ownerId) {
+                duplicateLeaseAttempted.resolve();
+                const lease = await super._acquireTransactionLease(ownerId);
+                duplicateLeaseAcquired = true;
+                return lease;
+            }
+        }
+
+        const receiptRepository = new ReceiptBarrierJsonRepository({ filePath });
+        const duplicateRepository = new DuplicateProbeJsonRepository({ filePath });
+        const receiptService = new RunReceiptIngestService({ workflowRepository: receiptRepository });
+        const duplicateService = new ExternalRunnerIngestService({ workflowRepository: duplicateRepository });
+
+        const receiptPromise = receiptService.ingest(makeReceipt());
+        await receiptTransactionEntered.promise;
+        const duplicatePromise = duplicateService.ingest(makeExternalRunnerPayload());
+        await duplicateLeaseAttempted.promise;
+
+        expect(duplicateLeaseAcquired).toBe(false);
+        releaseReceiptTransaction.resolve();
+        const [receiptResult, duplicateResult] = await Promise.all([receiptPromise, duplicatePromise]);
+        const reloaded = new JsonFileWorkflowRepository({ filePath });
+
+        expect(duplicateResult).toMatchObject({ status: 'duplicate', run: { id: externalResult.run.id } });
+        expect(reloaded.getRun(receiptResult.run.id)).toBeTruthy();
+        expect(reloaded.getRun(externalResult.run.id)).toBeTruthy();
+        expect(reloaded.listAuditLogs({ targetId: receiptResult.run.id, limit: 1000 })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'run_receipt.ingested' })
+        ]));
+        expect(reloaded.listAuditLogs({ targetId: externalResult.run.id, limit: 1000 })).toEqual(expect.arrayContaining([
+            expect.objectContaining({ action: 'external_runner.ingested' }),
+            expect.objectContaining({ action: 'external_runner.duplicate_replay_ignored' })
+        ]));
+    });
+
     it('別Json repositoryのReceiptがWorkflowRunner実行中に入ってもrun/step/auditを保持する', async () => {
         const filePath = createTempLedger();
         const seedRepository = new JsonFileWorkflowRepository({ filePath });
