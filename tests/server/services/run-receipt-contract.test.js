@@ -154,6 +154,53 @@ describe('normalizeRunReceipt', () => {
         expect(() => normalizeRunReceipt(makeReceipt(overrides))).toThrow(RunReceiptContractError);
     });
 
+    it.each([
+        [
+            'started_atとfinished_atの両方がない',
+            (receipt) => {
+                delete receipt.run.started_at;
+                delete receipt.run.finished_at;
+            },
+            'missing_timestamp'
+        ],
+        [
+            'delivery.idempotency_keyがない',
+            (receipt) => {
+                delete receipt.delivery.idempotency_key;
+            },
+            'missing_string'
+        ],
+        [
+            'started_atがRFC3339でない',
+            (receipt) => {
+                receipt.run.started_at = '2026-07-15 09:00:00';
+            },
+            'invalid_timestamp'
+        ],
+        [
+            'finished_atがRFC3339でない',
+            (receipt) => {
+                receipt.run.finished_at = 'not-a-timestamp';
+            },
+            'invalid_timestamp'
+        ],
+        [
+            'blockedなのにblocker_reasonも非none action_requiredもない',
+            (receipt) => {
+                receipt.run.status = 'blocked';
+                receipt.run.evidence_state = 'no_data';
+                receipt.run.evidence_refs = [];
+            },
+            'missing_failure_action'
+        ]
+    ])('%s_専用契約エラーになる', (_name, mutate, code) => {
+        const receipt = makeReceipt();
+        mutate(receipt);
+
+        expect(() => normalizeRunReceipt(receipt))
+            .toThrowError(expect.objectContaining({ code }));
+    });
+
     it('opaque evidence refのsource-owned colonはcredentialでなければ保持する', () => {
         const normalized = normalizeRunReceipt(makeReceipt({
             run: {
