@@ -1,5 +1,7 @@
 # Cross-runtime Run Receipt Inbox v1 Spec
 
+> Surface lifecycle: contract/API/ledger semanticsは有効。browser architectureとWorkflow Mission Control UIの要件は既存互換面の回帰仕様であり、ADR-017およびWeb UI retirement Storyの移管完了後に削除対象となる。
+
 ## Contract
 
 `run_receipt.v1` is the generic operational result envelope for source-owned jobs observed by Brainbase.

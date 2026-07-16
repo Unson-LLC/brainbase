@@ -1,5 +1,7 @@
 # Run Receipt Inbox v1 Architecture
 
+> Surface lifecycle: contract、ingest、ledger、priority、auditはBrainbase Coreとして維持する。図中のAgent Run Inbox Web UIは移行中の互換面であり、MCPの全件・診断面とMac Companionの要介入projectionへ移管後にretireする。
+
 ## Boundary
 
 ```mermaid

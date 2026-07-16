@@ -1,5 +1,7 @@
 # Run Receipt Inbox v1 Release and Rollback Runbook
 
+> Surface lifecycle: このrunbookのWeb verificationは現在の互換面を安全に運用するためのもの。MCP/Companion移管後はWeb UIをpromoteせず、Core APIと後継面のcanaryへ置き換える。
+
 ## Owner and Authority
 
 - Release owner: Brainbase operator.

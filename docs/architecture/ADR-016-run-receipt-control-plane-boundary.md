@@ -7,6 +7,8 @@ related_stories:
   - story-cross-runtime-run-receipt-inbox-v1
 related_docs:
   - docs/stories/story-cross-runtime-run-receipt-inbox-v1.md
+  - docs/architecture/ADR-017-agent-first-product-surface.md
+  - docs/architecture/brainbase-surface-responsibility-matrix.md
   - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
   - docs/specs/cross-runtime-run-receipt-inbox-v1.md
   - docs/stories/story-external-runner-adapter-contract-v0.md
@@ -54,6 +56,7 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Shared JSON persistence gains one repository-wide transaction boundary so receipt, external runner, WorkflowService, WorkflowRunner, and other production writers cannot overwrite each other.
 - Existing nested WorkflowService transaction paths remain live through same-owner reentrancy instead of deadlocking on the queue.
 - Connector Stories can evolve independently while sharing one versioned receipt contract.
+- Agent Run InboxのCore契約と台帳は維持し、標準操作面はADR-017に従ってMCPとMac Companionへ移管する。Workflow Mission Control Web UIは移行中の互換面である。
 
 ## Rejected Alternatives
 

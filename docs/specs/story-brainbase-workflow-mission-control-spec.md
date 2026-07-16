@@ -6,10 +6,12 @@ related_story: docs/stories/story-brainbase-workflow-mission-control.md
 related_architecture: docs/architecture/brainbase-workflow-mission-control-architecture.md
 status: proposed
 created_at: 2026-06-01
-updated_at: 2026-06-01
+updated_at: 2026-07-16
 ---
 
 # Brainbase Workflow Mission Control Spec
+
+> Surface lifecycle: API、runner、ledger、context、human step、auditの仕様は有効。Web UI要件は既存互換面の仕様としてのみ維持し、新しい標準操作面はADR-017に従ってMCPとMac Companionへ移管する。
 
 ## 1. Scope
 

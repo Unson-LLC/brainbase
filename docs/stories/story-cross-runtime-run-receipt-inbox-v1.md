@@ -3,12 +3,14 @@ story_id: story-cross-runtime-run-receipt-inbox-v1
 title: Cross-runtime run receipt common control plane v1
 status: completed
 created_at: 2026-07-15
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 horizon: quarter
 view: business
 period: 2026Q3
 architecture_docs:
   - docs/architecture/ADR-016-run-receipt-control-plane-boundary.md
+  - docs/architecture/ADR-017-agent-first-product-surface.md
+  - docs/architecture/brainbase-surface-responsibility-matrix.md
   - docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md
   - docs/runbooks/run-receipt-inbox-v1.md
 spec_docs:
@@ -257,10 +259,12 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 ## Operator Surface
 
-- 正本の利用面はWorkflow Mission Control内のAgent Run Inboxと `GET /api/run-receipts/inbox` とする。
+- 正本はreceipt contract、共有run台帳、priority projection、`GET /api/run-receipts/inbox`とする。Workflow Mission Control内のAgent Run InboxはMCP/Companion移管中の互換面であり、恒久的な完成形としない。
+- 全件・履歴・filter・診断・管理はCodex/Claude CodeからMCPで扱う。MCP parityが未実装または未確認の間はWebを`temporarily_keep`とし、移管済みと偽装しない。
+- Mac Companionには`blocked`、`failed`、`waiting_human`、`unconfirmed`、`no_data`を中心とする要介入projectionを出す。通常のconfirmed successは既定の注意面へ常時表示しない。
 - `no_data` と `unconfirmed` は成功色や0件表示へ混ぜず、warning badgeと根拠不足の説明を必ず表示する。
 - `omitted_count` は現在のfilterには一致するが `limit` により返却されなかったreceipt数であり、source未確認数ではない。
 - Agent Run Inboxはworkflow identityごとに最新runへ畳み込んだ後でfilterとpriorityを適用する。`count` は畳み込み後かつfilter一致後、limit適用前の件数であり、`has_more = count > items.length`、`omitted_count = count - items.length` とする。
 - APIの並びはpriority昇順、effective timestampのUTC instant降順、persisted `created_at` のUTC instant降順、決定的run id辞書順降順とする。RFC 3339 offset表記を文字列比較せずepoch millisecondへ変換し、同じ集合とlimitに対して常に同じitemsを返す。
 - 既存の非receipt workflow一覧・承認Inboxのpriorityは変更しない。receipt workflow/runは汎用workflow/run APIの一覧・詳細・更新・実行・再実行と既存Operational Inboxへ混入させず、receiptのpriorityと将来の操作はreceipt専用APIとUI sectionで一元化する。
-- receipt UIは `public/modules/domain/run-receipt/` 配下のclient/serviceでAPI取得とfailure normalizationを行い、`appStore.runReceiptInbox` を更新して `EVENTS.RUN_RECEIPT_INBOX_LOADED|FAILED` を発火する。既存page-local workflow stateとはfailure boundaryを共有しない。
+- 移行中のreceipt Web UIは`public/modules/domain/run-receipt/`配下のclient/serviceでAPI取得とfailure normalizationを行う。MCP/Companion移管のcurrent-HEAD evidenceが揃うまで互換性を維持し、その後はWeb専用client/service/view/state/eventをretirement対象とする。

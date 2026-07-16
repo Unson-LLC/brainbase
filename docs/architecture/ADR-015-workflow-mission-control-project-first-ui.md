@@ -1,7 +1,7 @@
 ---
 adr_id: ADR-015
 title: Workflow Mission Control Project-first UI
-status: accepted
+status: superseded
 date: 2026-06-01
 related_stories:
   - story-brainbase-workflow-mission-control
@@ -11,10 +11,13 @@ related_docs:
   - docs/specs/story-brainbase-workflow-mission-control-spec.md
   - docs/design/brainbase-workflow-project-first-ux.md
 supersedes: []
-superseded_by: []
+superseded_by:
+  - ADR-017
 ---
 
 # ADR-015: Workflow Mission Control Project-first UI
+
+> Superseded on 2026-07-16 by `ADR-017-agent-first-product-surface`. WorkflowのProject帰属、run台帳、human step、auditというドメイン判断は維持する。Project-first Web UIと`/workflows`を恒久的な標準操作面とする判断は廃止する。
 
 ## Context
 

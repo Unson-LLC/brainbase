@@ -5,10 +5,12 @@ related_stories:
   - docs/stories/story-brainbase-workflow-mission-control.md
 status: proposed
 created_at: 2026-06-01
-updated_at: 2026-06-01
+updated_at: 2026-07-16
 ---
 
 # Brainbase Workflow Mission Control Architecture
+
+> Surface lifecycle: Project、Workflow、Run、context、human step、auditのCore設計は有効。Web UI、Project-first navigation、`/workflows`を恒久面とする部分はADR-017でsupersedeされ、MCP/Companionへの移管対象となった。
 
 ## 1. Intent
 
