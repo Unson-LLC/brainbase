@@ -453,7 +453,7 @@ describe('RunReceiptIngestService', () => {
 
         expect(repository.listRuns({ limit: null })).toHaveLength(4);
         for (const sourceType of sourceTypes) {
-            const inbox = await workflowService.listRunReceiptInbox({ sourceType }, {});
+            const inbox = await workflowService.runReceiptQueryService.listInbox({ sourceType }, {});
             expect(inbox.items).toHaveLength(1);
             expect(inbox.items[0]).toMatchObject({
                 source: { type: sourceType },

@@ -36,7 +36,7 @@ function actorFromRequest(req) {
     };
 }
 
-export function createRunReceiptRouter({ ingestService, workflowService }) {
+export function createRunReceiptRouter({ ingestService, queryService }) {
     const router = Router();
 
     router.post('/ingest', asyncHandler(async (req, res) => {
@@ -75,7 +75,7 @@ export function createRunReceiptRouter({ ingestService, workflowService }) {
     }));
 
     router.get('/inbox', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listRunReceiptInbox({
+        res.json(await queryService.listInbox({
             projectId: req.query.project_id || req.query.projectId || null,
             sourceType: req.query.source_type || req.query.sourceType || null,
             runStatus: req.query.run_status || req.query.runStatus || null,
@@ -85,7 +85,7 @@ export function createRunReceiptRouter({ ingestService, workflowService }) {
     }));
 
     router.get('/history', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listRunReceiptHistory({
+        res.json(await queryService.listHistory({
             projectId: req.query.project_id || req.query.projectId,
             sourceType: req.query.source_type || req.query.sourceType,
             sourceIdentity: req.query.source_identity || req.query.sourceIdentity,
@@ -94,7 +94,7 @@ export function createRunReceiptRouter({ ingestService, workflowService }) {
     }));
 
     router.get('/:runId/diagnosis', asyncHandler(async (req, res) => {
-        res.json(await workflowService.diagnoseRunReceipt({
+        res.json(await queryService.diagnose({
             projectId: req.query.project_id || req.query.projectId,
             runId: req.params.runId
         }, actorFromRequest(req)));

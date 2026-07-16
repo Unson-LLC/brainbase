@@ -215,7 +215,7 @@ export function registerApiRoutes(app, {
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
     app.use('/api/run-receipts', workflowAuthGuard, createRunReceiptRouter({
         ingestService: runReceiptIngestService,
-        workflowService
+        queryService: workflowService.runReceiptQueryService
     }));
     if (meetingSourceMcpSyncService) {
         app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));

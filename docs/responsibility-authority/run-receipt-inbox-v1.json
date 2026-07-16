@@ -60,7 +60,7 @@
           "InMemoryWorkflowRepository.transaction",
           "JsonFileWorkflowRepository.transaction",
           "createRunReceiptRouter",
-          "listRunReceiptInbox"
+          "RunReceiptQueryService.listInbox"
         ],
         "risk_surfaces": [
           "core_workflow_state",

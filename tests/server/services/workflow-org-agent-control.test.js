@@ -298,6 +298,9 @@ describe('WorkflowService org agent loop control', () => {
         expect(WorkflowService.prototype.rerun).toBeUndefined();
         expect(WorkflowService.prototype.getRun).toBeUndefined();
         expect(WorkflowService.prototype.resolveHumanStep).toBeUndefined();
+        expect(WorkflowService.prototype.listRunReceiptInbox).toBeUndefined();
+        expect(WorkflowService.prototype.listRunReceiptHistory).toBeUndefined();
+        expect(WorkflowService.prototype.diagnoseRunReceipt).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {

@@ -98,12 +98,12 @@ Mac Companion
 
 - Run Receiptのlatest collapse、filter、priority、history、diagnosisを`RunReceiptQueryService`へ分離した。
 - project accessの準備・判定は既存の正本をcallback injectionし、分割中に認可ルールを複製していない。
-- `WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`は互換adapterとして残し、既存API/MCP callerを壊さず専用serviceへ委譲する。
+- Run Receipt read routeへ`RunReceiptQueryService`を直接注入し、`WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`を削除した。
 - Meeting Packの設計レビュー、design gate付きbootstrap、Google Calendar入力正規化を`MeetingAutomationService`へ分離した。
 - `WorkflowService.reviewMeetingWorkflowPackDesign`、`bootstrapMeetingWorkflowPack`、`createMeetingPackCalendarLoopIntents`は互換adapterとして残し、既存route、MCP、sync workerを壊さず専用serviceへ委譲する。
 - Review Package取り込み後のEve note生成handoffとrequested/skipped監査を`MeetingAutomationService.dispatchNoteGeneration`へ分離した。Eve完了検知とwrite-back reconcileは既存の`EveMeetingNoteReconciler`を継続利用する。
 - Review Packageのoutput/human gate定義と必須loop intent、project scope整合性検証を`meeting-review-contract`と`MeetingAutomationService.verifyReviewPackage`へ分離した。既存ingest routeのerror/state transitionは維持する。
-- Run Receipt queryとMeeting Automationの直接contract test、互換adapter testを追加した。次sliceはMeeting review packageのscope/Graph解決とrun/output/human-step永続化、task owner解決、note/candidate write-backを分離し、その後Automation Runを分離する。
+- Run Receipt queryとMeeting Automationの直接contract testを追加した。Run Receiptの互換adapterはproduction caller 0件を確認して削除済みである。
 
 ## Non-goals
 

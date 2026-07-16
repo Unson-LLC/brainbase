@@ -1153,18 +1153,6 @@ export class WorkflowService {
         });
     }
 
-    async listRunReceiptInbox(options = {}, actor = {}) {
-        return this.runReceiptQueryService.listInbox(options, actor);
-    }
-
-    async listRunReceiptHistory(options = {}, actor = {}) {
-        return this.runReceiptQueryService.listHistory(options, actor);
-    }
-
-    async diagnoseRunReceipt(options = {}, actor = {}) {
-        return this.runReceiptQueryService.diagnose(options, actor);
-    }
-
     async listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}, actor = {}) {
         await this._loadProjectConfigCache();
         if (projectId) this._assertActorCanAccessProject(projectId, actor);

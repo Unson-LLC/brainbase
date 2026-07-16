@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { RunReceiptQueryService } from '../../../server/services/run-receipt/query-service.js';
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
 
 function makeRun({
     id,
@@ -66,32 +65,6 @@ function makeService(runs) {
 }
 
 describe('RunReceiptQueryService', () => {
-    it('WorkflowServiceの互換APIは専用serviceへ委譲する', async () => {
-        const runReceiptQueryService = {
-            listInbox: vi.fn(async () => ({ items: [] })),
-            listHistory: vi.fn(async () => ({ items: [] })),
-            diagnose: vi.fn(async () => ({ diagnosis: { state: 'healthy' } }))
-        };
-        const workflowService = new WorkflowService({
-            repository: {},
-            runner: {},
-            configParser: null,
-            runReceiptQueryService
-        });
-        const actor = { role: 'member' };
-
-        await workflowService.listRunReceiptInbox({ projectId: 'brainbase' }, actor);
-        await workflowService.listRunReceiptHistory({ projectId: 'brainbase' }, actor);
-        await workflowService.diagnoseRunReceipt({ projectId: 'brainbase', runId: 'run-1' }, actor);
-
-        expect(runReceiptQueryService.listInbox).toHaveBeenCalledWith({ projectId: 'brainbase' }, actor);
-        expect(runReceiptQueryService.listHistory).toHaveBeenCalledWith({ projectId: 'brainbase' }, actor);
-        expect(runReceiptQueryService.diagnose).toHaveBeenCalledWith({
-            projectId: 'brainbase',
-            runId: 'run-1'
-        }, actor);
-    });
-
     it('Inboxでは権限内の最新状態を優先度順に投影する', async () => {
         const { service, repository, prepareProjectAccess, assertProjectAccess } = makeService([
             makeRun({

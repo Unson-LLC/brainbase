@@ -79,7 +79,10 @@ function createApp({
         req.access = { personId: 'route-test', role, projectCodes };
         next();
     });
-    app.use('/api/run-receipts', createRunReceiptRouter({ ingestService, workflowService }));
+    app.use('/api/run-receipts', createRunReceiptRouter({
+        ingestService,
+        queryService: workflowService.runReceiptQueryService
+    }));
     app.use('/api/workflows', createWorkflowRouter(workflowService));
     app.use('/api/workflow-runs', createWorkflowRunRouter(workflowService.automationRunService));
     app.use(errorHandler);
@@ -153,7 +156,10 @@ describe('run receipt routes', () => {
                 projectCodes: ['brainbase']
             })
         }));
-        app.use('/api/run-receipts', createRunReceiptRouter({ ingestService, workflowService }));
+        app.use('/api/run-receipts', createRunReceiptRouter({
+            ingestService,
+            queryService: workflowService.runReceiptQueryService
+        }));
         app.use(errorHandler);
 
         await request(app)

@@ -27,7 +27,7 @@ flowchart LR;
 | `RunReceiptIngestService` | receipt lock、idempotency、conflict検知、project整合性、transactional writeを所有する。 |
 | `WorkflowRepository` shared-ledger transaction | AsyncLocalStorage owner context、in-process queue、JsonFile file-wide lease、reload、single commit、rollback-only、transaction-required mutation guardを所有する。 |
 | `createRunReceiptRouter` | POSTのserver-to-server auth、GETのoperator auth、project access、ingest/list query boundaryを所有する。 |
-| `RunReceiptQueryService.listInbox` | ledger runからreceiptだけを抽出し、source workflowごとの最新runへ畳み込んだ後にfilter、priority、paginationを適用する。`WorkflowService.listRunReceiptInbox`は移行中の互換adapterとして残す。 |
+| `RunReceiptQueryService.listInbox` | ledger runからreceiptだけを抽出し、source workflowごとの最新runへ畳み込んだ後にfilter、priority、paginationを適用する。Run Receipt read routeは専用serviceを直接利用する。 |
 | Brainbase MCP Run Receipt tools | Inbox、history、diagnosisをCodex / Claude Codeへ公開し、confirmed emptyとtransport/auth/contract failureを分離する。 |
 | Mac Companion Inbox | 要介入状態だけをstable identityで投影し、取得不能時は前回snapshotを保持する。 |
 | Source connector | source API/scheduler、outbox、retry、raw evidenceの保管を所有する。 |
@@ -77,7 +77,7 @@ Adapter-derived defaults (`check_error`, `resolve_blocker`, `review_run`) are st
 
 ## Surface Isolation
 
-- Receipt workflow/runは共有ledger repositoryに保存するが、汎用Workflowのlist/create/detail/update/draft/draft-test API自体を廃止している。残存するAutomation Run互換routeでも`metadata.run_receipt`を持つworkflow/runは404にし、receiptの参照面と操作面を`RunReceiptQueryService`、`GET /api/run-receipts/inbox`、receipt専用操作へ限定する。旧`WorkflowService` receipt query methodは互換adapterであり、priority規則は専用serviceだけが所有する。
+- Receipt workflow/runは共有ledger repositoryに保存するが、汎用Workflowのlist/create/detail/update/draft/draft-test API自体を廃止している。残存するAutomation Run互換routeでも`metadata.run_receipt`を持つworkflow/runは404にし、receiptの参照面と操作面を`RunReceiptQueryService`、`GET /api/run-receipts/inbox`、receipt専用操作へ限定する。旧`WorkflowService` receipt query methodは削除済みであり、priority規則は専用serviceだけが所有する。
 - Receipt分類は共有ledger上のRun/Receipt分離にだけ使う。廃止済みの汎用Workflow一覧やbrowser renderingを再導入して非receipt workflowを製品化しない。
 - MCPとMac Companionはreceipt取得を独立surfaceとして扱う。receipt APIのtimeout、network error、または5xxは`unavailable`へ変換し、Mac Companionは前回成功snapshotを維持する。
 - receipt APIの障害は空 `items` や `count=0` に丸めない。routeは明示的な非2xx errorを返し、MCP/Companionは「receiptなし」と「receipt取得不能」を別stateで表示する。
