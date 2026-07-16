@@ -7,6 +7,8 @@ import { WorkflowService } from '../../../server/services/workflow/workflow-serv
 function makeMeetingService({
     repository = new InMemoryWorkflowRepository(),
     googleCalendarService = null,
+    eveSessionClient = null,
+    dispatchLoopIntentToEve = vi.fn(),
     createLoopIntent = vi.fn(async (input) => ({ loop_intent: input }))
 } = {}) {
     const prepareProjectAccess = vi.fn(async () => {});
@@ -16,6 +18,8 @@ function makeMeetingService({
     const service = new MeetingAutomationService({
         repository,
         googleCalendarService,
+        eveSessionClient,
+        dispatchLoopIntentToEve,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
@@ -26,6 +30,7 @@ function makeMeetingService({
         repository,
         service,
         createLoopIntent,
+        dispatchLoopIntentToEve,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
@@ -167,5 +172,68 @@ describe('MeetingAutomationService', () => {
         expect(result.meeting_calendar_inputs.skipped_events).toEqual([
             { event_id: 'holiday', title: '祝日', reason: 'all_day_event' }
         ]);
+    });
+
+    it('Eveが接続済みならMeeting note生成をhandoffして監査証跡を残す', async () => {
+        const eveSessionClient = { isConfigured: vi.fn(() => true) };
+        const dispatchLoopIntentToEve = vi.fn(async () => ({
+            eve_session_dispatch: { run: { id: 'eve-run-1' } }
+        }));
+        const { service, repository } = makeMeetingService({
+            eveSessionClient,
+            dispatchLoopIntentToEve
+        });
+
+        const result = await service.dispatchNoteGeneration({
+            loopIntent: { id: 'loop-note-1' },
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            packageId: 'package-1',
+            runId: 'review-run-1',
+            actorId: 'keigo',
+            actor
+        });
+
+        expect(dispatchLoopIntentToEve).toHaveBeenCalledWith('loop-note-1', {
+            meeting_note_generation: { run_id: 'review-run-1', package_id: 'package-1' }
+        }, actor);
+        expect(result).toEqual({
+            status: 'requested',
+            loop_intent_id: 'loop-note-1',
+            eve_session_run_id: 'eve-run-1'
+        });
+        expect(repository.listAuditLogs({ targetId: 'review-run-1' })[0]).toMatchObject({
+            action: 'workflow.meeting_pack.note_generation.dispatch_requested',
+            after: {
+                package_id: 'package-1',
+                runner_type: 'eve',
+                external_run_id: 'eve-run-1'
+            }
+        });
+    });
+
+    it('Eve未接続ならhandoffをskipとして監査しReview Package取り込みを失敗させない', async () => {
+        const { service, repository, dispatchLoopIntentToEve } = makeMeetingService({
+            eveSessionClient: { isConfigured: vi.fn(() => false) }
+        });
+
+        const result = await service.dispatchNoteGeneration({
+            loopIntent: { id: 'loop-note-1' },
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            packageId: 'package-1',
+            runId: 'review-run-1',
+            actorId: 'keigo',
+            actor
+        });
+
+        expect(dispatchLoopIntentToEve).not.toHaveBeenCalled();
+        expect(result).toEqual({
+            status: 'skipped',
+            reason: 'eve_not_configured',
+            loop_intent_id: 'loop-note-1'
+        });
+        expect(repository.listAuditLogs({ targetId: 'review-run-1' })[0].action)
+            .toBe('workflow.meeting_pack.note_generation.dispatch_skipped');
     });
 });

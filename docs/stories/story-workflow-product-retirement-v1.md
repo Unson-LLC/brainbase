@@ -101,7 +101,8 @@ Mac Companion
 - `WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`は互換adapterとして残し、既存API/MCP callerを壊さず専用serviceへ委譲する。
 - Meeting Packの設計レビュー、design gate付きbootstrap、Google Calendar入力正規化を`MeetingAutomationService`へ分離した。
 - `WorkflowService.reviewMeetingWorkflowPackDesign`、`bootstrapMeetingWorkflowPack`、`createMeetingPackCalendarLoopIntents`は互換adapterとして残し、既存route、MCP、sync workerを壊さず専用serviceへ委譲する。
-- Run Receipt queryとMeeting Automation第1段の直接contract test、互換adapter testを追加した。次sliceはMeeting review package ingestとEve handoffを分離し、その後Automation Runを分離する。
+- Review Package取り込み後のEve note生成handoffとrequested/skipped監査を`MeetingAutomationService.dispatchNoteGeneration`へ分離した。Eve完了検知とwrite-back reconcileは既存の`EveMeetingNoteReconciler`を継続利用する。
+- Run Receipt queryとMeeting Automationの直接contract test、互換adapter testを追加した。次sliceはMeeting review package ingest、task owner/Graph解決、note/candidate write-backを分離し、その後Automation Runを分離する。
 
 ## Non-goals
 

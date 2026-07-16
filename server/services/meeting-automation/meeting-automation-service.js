@@ -91,19 +91,23 @@ export class MeetingAutomationService {
     constructor({
         repository,
         googleCalendarService = null,
+        eveSessionClient = null,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
         assertProjectAccess,
-        createLoopIntent
+        createLoopIntent,
+        dispatchLoopIntentToEve = null
     }) {
         this.repository = repository;
         this.googleCalendarService = googleCalendarService;
+        this.eveSessionClient = eveSessionClient;
         this.prepareProjectAccess = prepareProjectAccess;
         this.assertProjectSelectable = assertProjectSelectable;
         this.assertOrgReferenceAllowed = assertOrgReferenceAllowed;
         this.assertProjectAccess = assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
+        this.dispatchLoopIntentToEve = dispatchLoopIntentToEve;
     }
 
     async _preparePackRecords(input = {}, actor = {}) {
@@ -356,5 +360,61 @@ export class MeetingAutomationService {
                 }
             };
         });
+    }
+
+    async dispatchNoteGeneration({ loopIntent, orgId, projectId, packageId, runId, actorId, actor }) {
+        let result;
+        if (!loopIntent) {
+            result = { status: 'skipped', reason: 'loop_intent_missing', loop_intent_id: null };
+        } else if (!this.eveSessionClient?.isConfigured?.()) {
+            result = { status: 'skipped', reason: 'eve_not_configured', loop_intent_id: loopIntent.id };
+        } else {
+            try {
+                const dispatched = await this.dispatchLoopIntentToEve(loopIntent.id, {
+                    meeting_note_generation: { run_id: runId, package_id: packageId }
+                }, actor);
+                result = {
+                    status: 'requested',
+                    loop_intent_id: loopIntent.id,
+                    eve_session_run_id: dispatched?.eve_session_dispatch?.run?.id || null
+                };
+            } catch (error) {
+                result = {
+                    status: 'skipped',
+                    reason: 'dispatch_failed',
+                    loop_intent_id: loopIntent.id,
+                    error: error?.message || String(error)
+                };
+            }
+        }
+        await this._transaction(() => {
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                actor_id: actorId,
+                action: result.status === 'requested'
+                    ? 'workflow.meeting_pack.note_generation.dispatch_requested'
+                    : 'workflow.meeting_pack.note_generation.dispatch_skipped',
+                target_type: 'workflow_run',
+                target_id: runId,
+                after: {
+                    package_id: packageId,
+                    ...result,
+                    ...(result.status === 'requested' ? {
+                        runner_type: 'eve',
+                        external_run_id: result.eve_session_run_id || null
+                    } : {})
+                }
+            });
+        });
+        return result;
+    }
+
+    async _transaction(callback) {
+        if (typeof this.repository.transaction === 'function') {
+            return this.repository.transaction(callback);
+        }
+        return callback();
     }
 }

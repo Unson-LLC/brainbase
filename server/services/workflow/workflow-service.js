@@ -1844,11 +1844,13 @@ export class WorkflowService {
         this.meetingAutomationService = meetingAutomationService || new MeetingAutomationService({
             repository,
             googleCalendarService,
+            eveSessionClient,
             prepareProjectAccess: () => this._loadProjectConfigCache(),
             assertProjectSelectable: (projectId) => this._assertProjectSelectable(projectId),
             assertOrgReferenceAllowed: (orgId) => this._assertOrgReferenceAllowed(orgId),
             assertProjectAccess: (projectId, actor) => this._assertActorCanAccessProject(projectId, actor),
-            createLoopIntent: (input, actor) => this.createLoopIntent(input, actor)
+            createLoopIntent: (input, actor) => this.createLoopIntent(input, actor),
+            dispatchLoopIntentToEve: (loopIntentId, input, actor) => this.dispatchLoopIntentToEve(loopIntentId, input, actor)
         });
     }
 
@@ -3020,52 +3022,15 @@ export class WorkflowService {
     }
 
     async _dispatchMeetingNoteGeneration({ loopIntent, orgId, projectId, packageId, runId, actorId, actor }) {
-        let result;
-        if (!loopIntent) {
-            result = { status: 'skipped', reason: 'loop_intent_missing', loop_intent_id: null };
-        } else if (!this.eveSessionClient?.isConfigured?.()) {
-            result = { status: 'skipped', reason: 'eve_not_configured', loop_intent_id: loopIntent.id };
-        } else {
-            try {
-                const dispatched = await this.dispatchLoopIntentToEve(loopIntent.id, {
-                    meeting_note_generation: { run_id: runId, package_id: packageId }
-                }, actor);
-                result = {
-                    status: 'requested',
-                    loop_intent_id: loopIntent.id,
-                    eve_session_run_id: dispatched?.eve_session_dispatch?.run?.id || null
-                };
-            } catch (error) {
-                result = {
-                    status: 'skipped',
-                    reason: 'dispatch_failed',
-                    loop_intent_id: loopIntent.id,
-                    error: error?.message || String(error)
-                };
-            }
-        }
-        await this._transaction(() => {
-            this.repository.writeAuditLog({
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                org_id: orgId,
-                project_id: projectId,
-                actor_id: actorId,
-                action: result.status === 'requested'
-                    ? 'workflow.meeting_pack.note_generation.dispatch_requested'
-                    : 'workflow.meeting_pack.note_generation.dispatch_skipped',
-                target_type: 'workflow_run',
-                target_id: runId,
-                after: {
-                    package_id: packageId,
-                    ...result,
-                    ...(result.status === 'requested' ? {
-                        runner_type: 'eve',
-                        external_run_id: result.eve_session_run_id || null
-                    } : {})
-                }
-            });
+        return this.meetingAutomationService.dispatchNoteGeneration({
+            loopIntent,
+            orgId,
+            projectId,
+            packageId,
+            runId,
+            actorId,
+            actor
         });
-        return result;
     }
 
     async recordMeetingNoteGeneration(input = {}, actor = {}) {

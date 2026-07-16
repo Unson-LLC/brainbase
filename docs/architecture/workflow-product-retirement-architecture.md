@@ -28,6 +28,10 @@ WorkflowService.reviewMeetingWorkflowPackDesign/bootstrapMeetingWorkflowPack/cre
   -> MeetingAutomationService (compatibility adapter)
   -> WorkflowRepository / GoogleCalendarService
 
+WorkflowService._dispatchMeetingNoteGeneration
+  -> MeetingAutomationService.dispatchNoteGeneration (compatibility adapter)
+  -> Eve session dispatch / WorkflowRepository audit
+
 RunReceiptIngestService
   -> WorkflowRepository
 RunReceiptQueryService
@@ -56,7 +60,7 @@ Run Receiptのread modelは専用serviceへ分離済みである。Meeting Autom
 4. Web routeを削除する前にMCPとCompanionのcurrent-HEAD evidenceを固定する。
 5. `workflow_*` ledger fieldとAPI pathの改名は最後に行い、dual-readまたはadapterでrollback可能にする。
 
-最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。いずれもrepositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。Meeting review package ingest、candidate/note dispatch、Eve handoff/reconcileは次のMeeting sliceまで`WorkflowService`に残す。
+最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。続くsliceでReview Package取り込み後のEve note生成handoffと監査も同Serviceへ移した。いずれもrepositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。Meeting review package ingest、task owner/Graph解決、note/candidate write-back、汎用Eve dispatchは次のMeeting sliceまで`WorkflowService`に残す。Eveの完了検知とreconcileは既存の`EveMeetingNoteReconciler`がすでに独立している。
 
 ## Public contract rule
 
