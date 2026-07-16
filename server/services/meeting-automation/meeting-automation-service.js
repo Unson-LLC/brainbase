@@ -9,6 +9,7 @@ import {
     buildMeetingWorkflowPackRecords,
     meetingPackIds
 } from '../workflow/meeting-workflow-pack.js';
+import { verifyMeetingReviewPackage } from './meeting-review-contract.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -409,6 +410,15 @@ export class MeetingAutomationService {
             });
         });
         return result;
+    }
+
+    verifyReviewPackage({ reviewPackage, orgId, projectId }) {
+        return verifyMeetingReviewPackage({
+            repository: this.repository,
+            reviewPackage,
+            orgId,
+            projectId
+        });
     }
 
     async _transaction(callback) {

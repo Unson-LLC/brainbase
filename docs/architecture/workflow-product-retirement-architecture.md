@@ -32,6 +32,11 @@ WorkflowService._dispatchMeetingNoteGeneration
   -> MeetingAutomationService.dispatchNoteGeneration (compatibility adapter)
   -> Eve session dispatch / WorkflowRepository audit
 
+WorkflowService.ingestMeetingReviewPackage
+  -> MeetingAutomationService.verifyReviewPackage
+  -> meeting-review-contract (output / human gate / loop intent contract)
+  -> WorkflowService persistence orchestration (temporary compatibility boundary)
+
 RunReceiptIngestService
   -> WorkflowRepository
 RunReceiptQueryService
@@ -60,7 +65,7 @@ Run Receiptのread modelは専用serviceへ分離済みである。Meeting Autom
 4. Web routeを削除する前にMCPとCompanionのcurrent-HEAD evidenceを固定する。
 5. `workflow_*` ledger fieldとAPI pathの改名は最後に行い、dual-readまたはadapterでrollback可能にする。
 
-最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。続くsliceでReview Package取り込み後のEve note生成handoffと監査も同Serviceへ移した。いずれもrepositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。Meeting review package ingest、task owner/Graph解決、note/candidate write-back、汎用Eve dispatchは次のMeeting sliceまで`WorkflowService`に残す。Eveの完了検知とreconcileは既存の`EveMeetingNoteReconciler`がすでに独立している。
+最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。続くsliceでReview Package取り込み後のEve note生成handoffと監査も同Serviceへ移した。さらにReview Packageのoutput/human gate定義とloop intent整合性検証を`meeting-review-contract`と`MeetingAutomationService.verifyReviewPackage`へ移し、Workflow側からMeeting固有contractを除去した。いずれもrepositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。Meeting review packageのscope/Graph解決とrun/output/human-step永続化、task owner解決、note/candidate write-back、汎用Eve dispatchは次のMeeting sliceまで`WorkflowService`に残す。Eveの完了検知とreconcileは既存の`EveMeetingNoteReconciler`がすでに独立している。
 
 ## Public contract rule
 

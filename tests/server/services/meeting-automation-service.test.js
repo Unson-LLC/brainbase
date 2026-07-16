@@ -236,4 +236,61 @@ describe('MeetingAutomationService', () => {
         expect(repository.listAuditLogs({ targetId: 'review-run-1' })[0].action)
             .toBe('workflow.meeting_pack.note_generation.dispatch_skipped');
     });
+
+    it('Review Package契約とproject scopeに対するloop intent整合性を検証する', () => {
+        const repository = {
+            getLoopIntent: vi.fn((id) => ({
+                id,
+                org_id: 'salestailor',
+                project_id: 'salestailor'
+            }))
+        };
+        const { service } = makeMeetingService({ repository });
+        const reviewPackage = {
+            meeting_note_summary: { agreements: [] },
+            task_candidates: [],
+            decision_candidates: [],
+            follow_up_draft: { body: '' },
+            promotion_candidates: { graph: [], learning: [] },
+            loop_intent_ids: {
+                transcript_to_meeting_note: 'loop-note',
+                meeting_note_to_tasks: 'loop-tasks',
+                meeting_note_to_decisions: 'loop-decisions',
+                post_meeting_follow_up_message: 'loop-follow-up'
+            }
+        };
+
+        const result = service.verifyReviewPackage({
+            reviewPackage,
+            orgId: 'salestailor',
+            projectId: 'salestailor'
+        });
+
+        expect(repository.getLoopIntent).toHaveBeenCalledTimes(4);
+        expect(result.loopIntents.map((entry) => entry.key)).toEqual([
+            'transcript_to_meeting_note',
+            'meeting_note_to_tasks',
+            'meeting_note_to_decisions',
+            'post_meeting_follow_up_message'
+        ]);
+        expect(result.loopIntentByKey.get('meeting_note_to_tasks')).toMatchObject({ id: 'loop-tasks' });
+    });
+
+    it('Review Packageの必須outputが欠けていればloop intent参照前に停止する', () => {
+        const repository = { getLoopIntent: vi.fn() };
+        const { service } = makeMeetingService({ repository });
+
+        expect(() => service.verifyReviewPackage({
+            reviewPackage: {
+                meeting_note_summary: {},
+                task_candidates: [],
+                decision_candidates: [],
+                follow_up_draft: {},
+                loop_intent_ids: {}
+            },
+            orgId: 'salestailor',
+            projectId: 'salestailor'
+        })).toThrow('review_package is missing required output payload key(s)');
+        expect(repository.getLoopIntent).not.toHaveBeenCalled();
+    });
 });
