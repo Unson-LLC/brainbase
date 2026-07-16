@@ -1677,7 +1677,7 @@ export class WorkflowService {
         const { orgId, projectId, packageId, loopIntentByKey } = reviewScope;
         const runId = ingestResult.meeting_review_ingest.run.id;
         const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
-        ingestResult.meeting_review_ingest.note_generation_dispatch = await this._dispatchMeetingNoteGeneration({
+        ingestResult.meeting_review_ingest.note_generation_dispatch = await this.meetingAutomationService.dispatchNoteGeneration({
             loopIntent: loopIntentByKey.get('transcript_to_meeting_note') || null,
             orgId,
             projectId,
@@ -1687,18 +1687,6 @@ export class WorkflowService {
             actor
         });
         return ingestResult;
-    }
-
-    async _dispatchMeetingNoteGeneration({ loopIntent, orgId, projectId, packageId, runId, actorId, actor }) {
-        return this.meetingAutomationService.dispatchNoteGeneration({
-            loopIntent,
-            orgId,
-            projectId,
-            packageId,
-            runId,
-            actorId,
-            actor
-        });
     }
 
     async recordMeetingNoteGeneration(input = {}, actor = {}) {
