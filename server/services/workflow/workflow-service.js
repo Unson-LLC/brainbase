@@ -6,14 +6,7 @@ import {
     generateWorkflowDraft,
     testWorkflowDraft
 } from './workflow-draft-generator.js';
-import {
-    MEETING_WORKFLOW_PACK_ID
-} from './meeting-workflow-pack.js';
 import { MeetingAutomationService } from '../meeting-automation/meeting-automation-service.js';
-import {
-    MEETING_REVIEW_HUMAN_STEP_DEFINITIONS,
-    MEETING_REVIEW_OUTPUT_DEFINITIONS
-} from '../meeting-automation/meeting-review-contract.js';
 import { RunReceiptQueryService } from '../run-receipt/query-service.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
@@ -35,16 +28,6 @@ const DEFAULT_EVE_STOP_CONDITIONS = [
     'privacy_scope_leak',
     'human_approval_required'
 ];
-const MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS = [
-    'package_received',
-    'scope_resolved',
-    'loop_intents_verified',
-    'run_recorded',
-    'outputs_recorded',
-    'human_steps_recorded',
-    'waiting_human'
-];
-
 function normalizeProjectKey(value) {
     if (!value || typeof value !== 'string') return '';
     return value.toLowerCase().replace(/_/g, '-');
@@ -587,57 +570,9 @@ function createMeetingReviewStableId(prefix, ...parts) {
     return `${prefix}_${stem}_${hash}`;
 }
 
-// Stable identity of the underlying source recording, independent of the
-// transcript-hash-derived package_id. Used as a secondary idempotency key so
-// hashing-scheme changes cannot re-ingest an already-reviewed meeting.
-function meetingReviewSourceReplayKey(sourceEvent = {}) {
-    if (!sourceEvent || typeof sourceEvent !== 'object') return null;
-    const uri = sourceEvent.mcp_resource_uri || sourceEvent.artifact_ref || null;
-    if (!uri) return null;
-    const provider = sourceEvent.provider || sourceEvent.source_system || '';
-    return `${provider}:${uri}`;
-}
-
 function jsonClone(value) {
     if (value === undefined) return null;
     return JSON.parse(JSON.stringify(value));
-}
-
-function sourceEventArtifactRef(sourceEvent = {}) {
-    return readFirstOptionalString(
-        sourceEvent,
-        'transcript_id',
-        'transcriptId',
-        'note_id',
-        'noteId',
-        'recording_id',
-        'recordingId',
-        'document_id',
-        'documentId',
-        'mcp_resource_uri',
-        'mcpResourceUri',
-        'permalink',
-        'url',
-        'file_id',
-        'fileId'
-    );
-}
-
-function sourceEventContentHash(sourceEvent = {}) {
-    return readFirstOptionalString(
-        sourceEvent,
-        'local_artifact_sha256',
-        'localArtifactSha256',
-        'transcript_sha256',
-        'transcriptSha256',
-        'content_hash',
-        'contentHash'
-    );
-}
-
-function normalizeMeetingSourceSystem(sourceEvent = {}) {
-    return readFirstOptionalString(sourceEvent, 'source_system', 'sourceSystem', 'provider', 'source_provider', 'sourceProvider')
-        .toLowerCase();
 }
 
 function eveDispatchBlockReasons(loopIntent) {
@@ -1036,45 +971,6 @@ function previewPayload(value) {
     }
     if (value == null) return '';
     return String(value).slice(0, 500);
-}
-
-function sourceRefForMeetingIdentity(meetingIdentity = {}) {
-    if (meetingIdentity.source === 'google_calendar') {
-        return [
-            'google-calendar',
-            meetingIdentity.account || 'default',
-            meetingIdentity.calendar_id || 'default',
-            meetingIdentity.event_id || meetingIdentity.event_uid || 'unknown'
-        ].join(':');
-    }
-    return meetingIdentity.source ? `${meetingIdentity.source}:${meetingIdentity.event_id || meetingIdentity.title || 'unknown'}` : 'meeting_identity:unknown';
-}
-
-function sourceRefForSourceEvent(sourceEvent = {}) {
-    const sourceSystem = normalizeMeetingSourceSystem(sourceEvent);
-    if (sourceSystem === 'tactiq') {
-        return [
-            'tactiq',
-            sourceEvent.workspace || sourceEvent.account || 'default',
-            sourceEvent.transcript_id || sourceEvent.transcriptId || sourceEvent.meeting_id || sourceEvent.meetingId || sourceEvent.mcp_resource_uri || sourceEvent.mcpResourceUri || sourceEvent.id || 'unknown'
-        ].join(':');
-    }
-    if (sourceSystem === 'plaud') {
-        return [
-            'plaud',
-            sourceEvent.account || sourceEvent.workspace || 'default',
-            sourceEvent.recording_id || sourceEvent.recordingId || sourceEvent.note_id || sourceEvent.noteId || sourceEvent.mcp_resource_uri || sourceEvent.mcpResourceUri || sourceEvent.id || 'unknown'
-        ].join(':');
-    }
-    if (sourceSystem === 'slack') {
-        return [
-            'slack',
-            sourceEvent.workspace || 'default',
-            sourceEvent.channel_id || sourceEvent.channel_name || 'unknown',
-            sourceEvent.message_ts || sourceEvent.file_id || 'unknown'
-        ].join(':');
-    }
-    return sourceSystem ? `${sourceSystem}:${sourceEvent.id || 'unknown'}` : 'source_event:unknown';
 }
 
 function eligibilityFrom({ binding, trigger, input }) {
@@ -1922,342 +1818,16 @@ export class WorkflowService {
 
     async ingestMeetingReviewPackage(input = {}, actor = {}) {
         const reviewScope = await this.meetingAutomationService.resolveReviewPackageScope(input, actor);
-        const {
-            reviewPackage,
-            packageId,
-            meetingIdentity,
-            sourceEvent,
-            evidenceRefs,
-            orgId,
-            projectId,
-            caseScope,
-            projectResolution,
-            loopIntents,
-            loopIntentByKey
-        } = reviewScope;
-        const workflowId = createMeetingReviewStableId('wf', orgId, projectId, 'meeting_review_package_ingest');
-        const runId = createMeetingReviewStableId('run', orgId, projectId, packageId, 'meeting_review_package_ingest');
-        // package_id is derived from the transcript hash, so a hashing-scheme
-        // change (e.g. transcript normalization) shifts the run identity for
-        // meetings that were already ingested. Fall back to the stable source
-        // artifact reference so the same recording never produces a second
-        // waiting-human run.
-        const sourceReplayKey = meetingReviewSourceReplayKey(sourceEvent);
-        const buildIdempotentReplayResult = (replayRun) => ({
-            meeting_review_ingest: {
-                org_id: orgId,
-                project_id: projectId,
-                case_scope: caseScope,
-                package_id: packageId,
-                idempotent: true,
-                ...(replayRun.id !== runId ? {
-                    idempotent_source: 'source_artifact_match',
-                    prior_package_id: replayRun.metadata?.package_id || null
-                } : {}),
-                note_generation_dispatch: {
-                    status: 'skipped',
-                    reason: 'idempotent_replay',
-                    loop_intent_id: loopIntentByKey.get('transcript_to_meeting_note')?.id || null
-                },
-                state_transitions: ['package_received', 'scope_resolved', 'loop_intents_verified', 'idempotent_replay'],
-                run: replayRun,
-                outputs: this.repository.listOutputs(replayRun.id),
-                human_steps: this.repository.listHumanSteps(replayRun.id),
-                context_snapshots: this.repository.listContextSnapshots(replayRun.id),
-                loop_intents: loopIntents.map((entry) => entry.loop_intent)
-            }
-        });
-        const findReplayRun = () => this.repository.getRun(runId)
-            || (sourceReplayKey
-                ? this.repository.findRun({
-                    workflowId,
-                    predicate: (run) => meetingReviewSourceReplayKey(run.metadata?.source_event) === sourceReplayKey
-                })
-                : null);
-        const earlyReplayRun = findReplayRun();
-        if (earlyReplayRun) {
-            return buildIdempotentReplayResult(earlyReplayRun);
-        }
+        const earlyReplay = this.meetingAutomationService.findReviewPackageReplay(reviewScope);
+        if (earlyReplay) return earlyReplay;
 
+        const resolvedContext = await this.meetingAutomationService.resolveReviewPackageGraphContext(reviewScope, actor);
+        const ingestResult = await this.meetingAutomationService.persistReviewPackage(resolvedContext, actor);
+        if (ingestResult.meeting_review_ingest.idempotent) return ingestResult;
+
+        const { orgId, projectId, packageId, loopIntentByKey } = reviewScope;
+        const runId = ingestResult.meeting_review_ingest.run.id;
         const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
-        const now = new Date().toISOString();
-        const stopConditions = normalizeTags(reviewPackage.stop_conditions || reviewPackage.stopConditions);
-        const {
-            graphPlaybookContext,
-            resolvedReviewPackage
-        } = await this.meetingAutomationService.resolveReviewPackageGraphContext(reviewScope, actor);
-
-        const ingestResult = await this.repository.transaction(async () => {
-            // Authoritative idempotency re-check: the awaits above (Graph SSOT
-            // playbook resolution) open a window where a concurrent ingest of
-            // the same recording could have committed. The ledger mutation
-            // below is synchronous, so re-checking here closes that window.
-            const replayRun = findReplayRun();
-            if (replayRun) {
-                return buildIdempotentReplayResult(replayRun);
-            }
-            const workflow = this.repository.upsertWorkflow({
-                id: workflowId,
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                org_id: orgId,
-                project_id: projectId,
-                name: 'Meeting Review Package Ingest',
-                description: 'Codex生成Review PackageをWorkflow Mission Controlの承認待ちrunへ取り込む',
-                owner_id: actorId,
-                default_assignee_id: actorId,
-                default_approver_id: actorId,
-                execution_env: 'local',
-                risk_level: 'medium',
-                hitl_policy: 'none',
-                timeout_ms: 300000,
-                implementation_key: MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY,
-                context_sources: [{
-                    id: `${workflowId}_package`,
-                    source_type: 'review_package',
-                    source_ref: packageId,
-                    scope: 'meeting',
-                    permission: 'read',
-                    required: true,
-                    preview: `${meetingIdentity.title || packageId} Review Package`
-                }]
-            });
-            const run = this.repository.createRun({
-                id: runId,
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                org_id: orgId,
-                project_id: projectId,
-                workflow_id: workflowId,
-                workflow_name: workflow.name,
-                status: 'waiting_human',
-                closure_state: 'open',
-                trigger_type: 'event',
-                env: 'local',
-                dry_run: false,
-                started_by: actorId,
-                owner_id: actorId,
-                assignee_id: actorId,
-                approver_id: actorId,
-                action_required: 'approve',
-                human_waiting: true,
-                output_count: MEETING_REVIEW_OUTPUT_DEFINITIONS.length,
-                message: 'Meeting Review Package is waiting for human approval',
-                started_at: now,
-                finished_at: now,
-                duration_ms: 0,
-                metadata: {
-                    package_id: packageId,
-                    seed_id: reviewPackage.seed_id || null,
-                    case_scope: caseScope,
-                    meeting_identity: jsonClone(meetingIdentity),
-                    source_event: jsonClone(sourceEvent),
-                    project_resolution: jsonClone(projectResolution),
-                    graph_context: jsonClone(graphPlaybookContext.snapshot_data),
-                    graph_ssot_playbook: jsonClone(graphPlaybookContext.graph_playbook),
-                    loop_intent_ids: jsonClone(reviewPackage.loop_intent_ids || {}),
-                    evidence_refs: evidenceRefs,
-                    stop_conditions: stopConditions,
-                    runner: {
-                        type: 'codex_generated_package',
-                        eve_connected: false
-                    }
-                }
-            });
-            this.repository.createRunStep({
-                id: createMeetingReviewStableId('step', runId, 'ingest_review_package'),
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                org_id: orgId,
-                project_id: projectId,
-                workflow_run_id: runId,
-                step_key: 'ingest_review_package',
-                step_name: 'Review Package Ingest',
-                status: 'waiting_human',
-                action_required: 'approve',
-                output_count: MEETING_REVIEW_OUTPUT_DEFINITIONS.length,
-                message: 'Review Package outputs recorded and waiting for Human Gate',
-                started_at: now,
-                finished_at: now
-            });
-            const contextSnapshots = [
-                {
-                    id: createMeetingReviewStableId('ctx', runId, 'meeting_identity'),
-                    workspace_id: DEFAULT_WORKSPACE_ID,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_run_id: runId,
-                    source_type: 'meeting_identity',
-                    source_ref: sourceRefForMeetingIdentity(meetingIdentity),
-                    source_version: meetingIdentity.start || null,
-                    content_hash: meetingIdentity.event_id || meetingIdentity.event_uid || null,
-                    item_count: Object.keys(meetingIdentity).length,
-                    permission: 'read',
-                    preview: meetingIdentity.title || packageId,
-                    data: jsonClone(meetingIdentity)
-                },
-                {
-                    id: createMeetingReviewStableId('ctx', runId, 'source_event'),
-                    workspace_id: DEFAULT_WORKSPACE_ID,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_run_id: runId,
-                    source_type: 'meeting_source',
-                    source_ref: sourceRefForSourceEvent(sourceEvent),
-                    source_version: sourceEventArtifactRef(sourceEvent) || sourceEvent.message_ts || sourceEvent.messageTs || null,
-                    content_hash: sourceEventContentHash(sourceEvent) || null,
-                    item_count: Object.keys(sourceEvent).length,
-                    permission: 'read',
-                    preview: sourceEvent.title || sourceEvent.channel_name || sourceEvent.transcript_id || sourceEvent.transcriptId || sourceEvent.recording_id || sourceEvent.recordingId || sourceEvent.note_id || sourceEvent.noteId || sourceEvent.file_id || packageId,
-                    data: jsonClone(sourceEvent)
-                },
-                {
-                    id: createMeetingReviewStableId('ctx', runId, 'graph_context'),
-                    workspace_id: DEFAULT_WORKSPACE_ID,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_run_id: runId,
-                    source_type: 'graph_ssot',
-                    source_ref: `graph-context:${orgId}:${projectId}:${caseScope || packageId}`,
-                    source_version: null,
-                    content_hash: null,
-                    item_count: graphPlaybookContext.item_count,
-                    permission: 'read',
-                    preview: graphPlaybookContext.graph_playbook.graph_context.status === 'resolved'
-                        ? `Graph SSOT context resolved (${graphPlaybookContext.item_count} entities)`
-                        : 'Graph SSOT context candidates with explicit fallback',
-                    data: jsonClone(graphPlaybookContext.snapshot_data)
-                },
-                {
-                    id: createMeetingReviewStableId('ctx', runId, 'review_package'),
-                    workspace_id: DEFAULT_WORKSPACE_ID,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_run_id: runId,
-                    source_type: 'review_package',
-                    source_ref: packageId,
-                    source_version: reviewPackage.schema_version || null,
-                    content_hash: null,
-                    item_count: MEETING_REVIEW_OUTPUT_DEFINITIONS.length,
-                    permission: 'read',
-                    preview: `${packageId} (${reviewPackage.status || 'unknown'})`,
-                    data: {
-                        schema_version: reviewPackage.schema_version || null,
-                        status: reviewPackage.status || null,
-                        seed_id: reviewPackage.seed_id || null
-                    }
-                }
-            ].map((snapshot) => this.repository.createContextSnapshot(snapshot));
-            const outputs = MEETING_REVIEW_OUTPUT_DEFINITIONS.map((definition) => {
-                const payload = resolvedReviewPackage[definition.package_key] ?? null;
-                const loopIntent = loopIntentByKey.get(definition.loop_intent_key);
-                return this.repository.createOutput({
-                    id: createMeetingReviewStableId('out', runId, definition.id),
-                    workspace_id: DEFAULT_WORKSPACE_ID,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_run_id: runId,
-                    workflow_id: workflowId,
-                    type: definition.type,
-                    title: definition.title,
-                    preview: previewPayload(payload),
-                    metadata: {
-                        package_id: packageId,
-                        case_scope: caseScope,
-                        output_key: definition.id,
-                        package_key: definition.package_key,
-                        loop_intent_id: loopIntent.id,
-                        workflow_template_id: loopIntent.workflow_template_id,
-                        workflow_binding_id: loopIntent.workflow_binding_id,
-                        write_back_target: definition.write_back_target,
-                        evidence_refs: evidenceRefs,
-                        requires_human_approval: true,
-                        runner_type: 'codex_generated_package'
-                    },
-                    payload: jsonClone(payload)
-                });
-            });
-            const outputByWriteBackTarget = new Map(outputs
-                .map((output) => [output.metadata?.write_back_target, output])
-                .filter(([writeBackTarget]) => Boolean(writeBackTarget)));
-            const humanSteps = MEETING_REVIEW_HUMAN_STEP_DEFINITIONS.map((definition) => {
-                const loopIntent = loopIntentByKey.get(definition.loop_intent_key);
-                const protectedOutput = outputByWriteBackTarget.get(definition.write_back_target) || null;
-                return this.repository.createHumanStep({
-                    id: createMeetingReviewStableId('human', runId, definition.id),
-                    workspace_id: DEFAULT_WORKSPACE_ID,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_run_id: runId,
-                    workflow_id: workflowId,
-                    step_type: definition.step_type,
-                    requested_by: actorId,
-                    requested_to: actorId,
-                    prompt: definition.prompt,
-                    reason: definition.reason,
-                    metadata: {
-                        package_id: packageId,
-                        case_scope: caseScope,
-                        protects: definition.protects,
-                        write_back_target: definition.write_back_target,
-                        output_id: protectedOutput?.id || null,
-                        output_key: protectedOutput?.metadata?.output_key || null,
-                        output_type: protectedOutput?.type || protectedOutput?.output_type || null,
-                        approval_kind: protectedOutput?.type || definition.write_back_target,
-                        loop_intent_id: loopIntent.id,
-                        requires_human_approval: true
-                    }
-                });
-            });
-            this.repository.writeAuditLog({
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                org_id: orgId,
-                project_id: projectId,
-                actor_id: actorId,
-                action: 'workflow.meeting_review_package.ingested',
-                target_type: 'workflow_run',
-                target_id: runId,
-                after: {
-                    pack_id: MEETING_WORKFLOW_PACK_ID,
-                    package_id: packageId,
-                    case_scope: caseScope,
-                    workflow_id: workflowId,
-                    run_id: runId,
-                    output_ids: outputs.map((output) => output.id),
-                    human_step_ids: humanSteps.map((step) => step.id),
-                    loop_intent_ids: loopIntents.map((entry) => entry.loop_intent.id),
-                    runner: {
-                        type: 'codex_generated_package',
-                        eve_connected: false
-                    },
-                    project_resolution: jsonClone(projectResolution),
-                    graph_ssot_playbook: jsonClone(graphPlaybookContext.graph_playbook),
-                    state_transitions: MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS,
-                    evidence_refs: evidenceRefs,
-                    stop_conditions: stopConditions
-                }
-            });
-            return {
-                meeting_review_ingest: {
-                    org_id: orgId,
-                    project_id: projectId,
-                    case_scope: caseScope,
-                    package_id: packageId,
-                    idempotent: false,
-                    state_transitions: MEETING_REVIEW_INGEST_SUCCESS_STATE_TRANSITIONS,
-                    run,
-                    outputs,
-                    human_steps: humanSteps,
-                    context_snapshots: contextSnapshots,
-                    loop_intents: loopIntents.map((entry) => entry.loop_intent)
-                }
-            };
-        });
-
-        if (ingestResult.meeting_review_ingest.idempotent) {
-            return ingestResult;
-        }
-
-        // Wire the generation DAG: kick transcript_to_meeting_note toward an
-        // Eve session after the ingest transaction commits. Best-effort only —
-        // ingest must never fail because generation could not be dispatched.
         ingestResult.meeting_review_ingest.note_generation_dispatch = await this._dispatchMeetingNoteGeneration({
             loopIntent: loopIntentByKey.get('transcript_to_meeting_note') || null,
             orgId,

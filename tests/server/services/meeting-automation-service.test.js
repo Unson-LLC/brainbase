@@ -424,4 +424,76 @@ describe('MeetingAutomationService', () => {
         expect(assertProjectSelectable).not.toHaveBeenCalled();
         expect(infoSSOTService.getContext).not.toHaveBeenCalled();
     });
+
+    it('解決済みReview Packageをrun/output/human-stepへ一度だけ記録する', async () => {
+        const { repository, service } = makeMeetingService();
+        const loopIntents = [
+            ['transcript_to_meeting_note', 'loop-note'],
+            ['meeting_note_to_tasks', 'loop-tasks'],
+            ['meeting_note_to_decisions', 'loop-decisions'],
+            ['post_meeting_follow_up_message', 'loop-follow-up']
+        ].map(([key, id]) => ({
+            key,
+            loop_intent: {
+                id,
+                org_id: 'salestailor',
+                project_id: 'salestailor',
+                workflow_template_id: `template-${key}`,
+                workflow_binding_id: `binding-${key}`
+            }
+        }));
+        const loopIntentByKey = new Map(loopIntents.map((entry) => [entry.key, entry.loop_intent]));
+        const reviewPackage = {
+            package_id: 'package-ledger-1',
+            schema_version: 'meeting_review_package.v1',
+            status: 'ready_for_review',
+            seed_id: 'seed-1',
+            stop_conditions: ['privacy_scope_leak'],
+            loop_intent_ids: Object.fromEntries(loopIntents.map((entry) => [entry.key, entry.loop_intent.id])),
+            meeting_note_summary: { title: '議事録' },
+            task_candidates: [{ title: '次アクション' }],
+            decision_candidates: [{ title: '方針決定' }],
+            follow_up_draft: { body: '共有します' },
+            promotion_candidates: { graph: [], learning: [] }
+        };
+        const context = {
+            reviewPackage,
+            resolvedReviewPackage: reviewPackage,
+            packageId: reviewPackage.package_id,
+            meetingIdentity: { title: '定例', event_id: 'event-1', start: '2026-07-17T10:00:00+09:00' },
+            sourceEvent: { source_system: 'tactiq', transcript_id: 'transcript-1', transcript_sha256: 'sha256-1' },
+            evidenceRefs: ['evidence-1'],
+            orgId: 'salestailor',
+            projectId: 'salestailor',
+            caseScope: 'case-1',
+            projectResolution: { status: 'single_high_confidence_project', project_id: 'salestailor' },
+            graphPlaybookContext: {
+                snapshot_data: { verification_status: 'verified_from_graph_ssot' },
+                graph_playbook: { graph_context: { status: 'resolved' } },
+                item_count: 2
+            },
+            loopIntents,
+            loopIntentByKey
+        };
+
+        const first = await service.persistReviewPackage(context, actor);
+        const second = await service.persistReviewPackage(context, actor);
+
+        expect(first.meeting_review_ingest).toMatchObject({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            package_id: 'package-ledger-1',
+            idempotent: false,
+            run: { status: 'waiting_human' }
+        });
+        expect(first.meeting_review_ingest.outputs).toHaveLength(5);
+        expect(first.meeting_review_ingest.human_steps).toHaveLength(5);
+        expect(first.meeting_review_ingest.context_snapshots).toHaveLength(4);
+        expect(second.meeting_review_ingest).toMatchObject({
+            package_id: 'package-ledger-1',
+            idempotent: true,
+            note_generation_dispatch: { status: 'skipped', reason: 'idempotent_replay' }
+        });
+        expect(repository.listRuns()).toHaveLength(1);
+    });
 });

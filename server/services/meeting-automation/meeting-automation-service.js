@@ -11,6 +11,7 @@ import {
 } from '../workflow/meeting-workflow-pack.js';
 import { verifyMeetingReviewPackage } from './meeting-review-contract.js';
 import { MeetingReviewContextResolver } from './meeting-review-context-resolver.js';
+import { MeetingReviewLedgerService } from './meeting-review-ledger-service.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -121,6 +122,7 @@ export class MeetingAutomationService {
             verifyReviewPackage: (input) => this.verifyReviewPackage(input),
             resolveReviewTaskOwners
         });
+        this.reviewLedgerService = new MeetingReviewLedgerService({ repository });
     }
 
     async _preparePackRecords(input = {}, actor = {}) {
@@ -443,6 +445,14 @@ export class MeetingAutomationService {
 
     async resolveReviewPackageGraphContext(scope, actor = {}) {
         return this.reviewContextResolver.resolveGraph(scope, actor);
+    }
+
+    findReviewPackageReplay(context) {
+        return this.reviewLedgerService.findReplay(context);
+    }
+
+    async persistReviewPackage(context, actor = {}) {
+        return this.reviewLedgerService.persist(context, actor);
     }
 
     async _transaction(callback) {
