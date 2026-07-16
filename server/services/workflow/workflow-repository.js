@@ -9,6 +9,7 @@ const EMPTY_LEDGER = {
     workflows: [],
     workflow_context_sources: [],
     runs: [],
+    latest_run_receipts: [],
     run_steps: [],
     context_snapshots: [],
     human_steps: [],
@@ -52,6 +53,63 @@ function lockKey({ workspace_id, workflow_id }) {
         .digest('hex');
 }
 
+function runReceiptIdentity(run) {
+    if (run?.metadata?.contract_version !== 'run_receipt.v1') return null;
+    const receipt = run.metadata.run_receipt;
+    const source = receipt?.source;
+    if (
+        !run.project_id
+        || !source?.type
+        || !source?.workflow_id
+        || !receipt?.source_status
+        || !receipt?.evidence_state
+    ) return null;
+    return JSON.stringify([run.project_id, source.type, source.workflow_id]);
+}
+
+function runReceiptEpoch(value) {
+    const epoch = Date.parse(String(value || ''));
+    return Number.isFinite(epoch) ? epoch : 0;
+}
+
+function compareRunReceiptRecency(left, right) {
+    const leftEffective = runReceiptEpoch(left.finished_at || left.started_at || left.created_at);
+    const rightEffective = runReceiptEpoch(right.finished_at || right.started_at || right.created_at);
+    if (leftEffective !== rightEffective) return rightEffective - leftEffective;
+    const leftCreated = runReceiptEpoch(left.created_at);
+    const rightCreated = runReceiptEpoch(right.created_at);
+    if (leftCreated !== rightCreated) return rightCreated - leftCreated;
+    return String(right.id).localeCompare(String(left.id));
+}
+
+function buildLatestRunReceiptProjection(runs) {
+    const latestByIdentity = new Map();
+    for (const run of runs) {
+        const identity = runReceiptIdentity(run);
+        if (!identity) continue;
+        const existing = latestByIdentity.get(identity);
+        if (!existing || compareRunReceiptRecency(run, existing) < 0) {
+            latestByIdentity.set(identity, run);
+        }
+    }
+    return clone(Array.from(latestByIdentity.values()));
+}
+
+function indexLatestRunReceipt(ledger, run) {
+    const identity = runReceiptIdentity(run);
+    if (!identity) return;
+    const index = ledger.latest_run_receipts.findIndex(
+        (candidate) => runReceiptIdentity(candidate) === identity
+    );
+    if (index === -1) {
+        ledger.latest_run_receipts.push(clone(run));
+        return;
+    }
+    if (compareRunReceiptRecency(run, ledger.latest_run_receipts[index]) < 0) {
+        ledger.latest_run_receipts[index] = clone(run);
+    }
+}
+
 function readLedgerFile(filePath) {
     if (!filePath || !fs.existsSync(filePath)) return clone(EMPTY_LEDGER);
     let parsed;
@@ -76,6 +134,11 @@ function readLedgerFile(filePath) {
         workflows: Array.isArray(parsed.workflows) ? parsed.workflows : [],
         workflow_context_sources: Array.isArray(parsed.workflow_context_sources) ? parsed.workflow_context_sources : [],
         runs: Array.isArray(parsed.runs) ? parsed.runs : [],
+        // Rebuild once at load time so ledgers written by an older process cannot
+        // leave a stale persisted projection that hides a newer receipt.
+        latest_run_receipts: buildLatestRunReceiptProjection(
+            Array.isArray(parsed.runs) ? parsed.runs : []
+        ),
         run_steps: Array.isArray(parsed.run_steps) ? parsed.run_steps : [],
         context_snapshots: Array.isArray(parsed.context_snapshots) ? parsed.context_snapshots : [],
         human_steps: Array.isArray(parsed.human_steps) ? parsed.human_steps : [],
@@ -159,6 +222,7 @@ export class InMemoryWorkflowRepository {
             ...run
         };
         this.ledger.runs.push(next);
+        indexLatestRunReceipt(this.ledger, next);
         this._persist();
         return clone(next);
     }
@@ -167,7 +231,11 @@ export class InMemoryWorkflowRepository {
         this._assertMutationAllowed();
         const index = this.ledger.runs.findIndex((item) => item.id === runId);
         if (index === -1) return null;
+        const previous = this.ledger.runs[index];
         this.ledger.runs[index] = { ...this.ledger.runs[index], ...patch };
+        if (runReceiptIdentity(previous) || runReceiptIdentity(this.ledger.runs[index])) {
+            this.ledger.latest_run_receipts = buildLatestRunReceiptProjection(this.ledger.runs);
+        }
         this._persist();
         return clone(this.ledger.runs[index]);
     }
@@ -191,6 +259,11 @@ export class InMemoryWorkflowRepository {
             .sort((a, b) => String(b.started_at || b.created_at).localeCompare(String(a.started_at || a.created_at)));
         if (limit === null) return clone(runs);
         return clone(runs.slice(0, limit));
+    }
+
+    listLatestRunReceipts({ projectId = null } = {}) {
+        return clone(this.ledger.latest_run_receipts
+            .filter((run) => !projectId || run.project_id === projectId));
     }
 
     createRunStep(step) {

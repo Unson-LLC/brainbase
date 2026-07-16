@@ -61,6 +61,39 @@ async function makeService(runs) {
 }
 
 describe('WorkflowService.listRunReceiptInbox', () => {
+    it('latest receipt projectionだけを取得し全run履歴を走査しない', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        repository.listRuns = () => { throw new Error('historical runs must not be scanned'); };
+        const listLatestRunReceipts = repository.listLatestRunReceipts.bind(repository);
+        const latestReceiptCalls = [];
+        repository.listLatestRunReceipts = (options) => {
+            latestReceiptCalls.push(options);
+            return listLatestRunReceipts(options);
+        };
+        const service = new WorkflowService({ repository, runner: {}, configParser: null });
+
+        await service.listRunReceiptInbox({}, {});
+
+        expect(latestReceiptCalls).toEqual([{ projectId: null }]);
+    });
+
+    it('同一identityの古いreceiptが遅延到着してもlatest projectionを後退させない', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        await repository.transaction(() => {
+            repository.createRun(makeReceiptRun({
+                id: 'new-receipt', sourceWorkflowId: 'same', effectiveAt: '2026-07-15T02:00:00Z'
+            }));
+            repository.createRun(makeReceiptRun({
+                id: 'late-old-receipt', sourceWorkflowId: 'same', effectiveAt: '2026-07-15T01:00:00Z'
+            }));
+            repository.createRun({
+                id: 'ordinary-run', project_id: 'brainbase', workflow_id: 'ordinary', created_at: '2026-07-15T03:00:00Z'
+            });
+        });
+
+        expect(repository.listLatestRunReceipts().map((run) => run.id)).toEqual(['new-receipt']);
+    });
+
     it('全6 priority bucketをsource actionとevidence stateを混同せず順序化する', async () => {
         const service = await makeService([
             makeReceiptRun({ id: 'run-6', sourceWorkflowId: 'confirmed', effectiveAt: '2026-07-15T06:00:00Z' }),

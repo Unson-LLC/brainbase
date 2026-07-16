@@ -2022,7 +2022,7 @@ export class WorkflowService {
         if (projectId) this._assertActorCanAccessProject(projectId, actor);
 
         const latestByIdentity = new Map();
-        for (const run of this.repository.listRuns({ limit: null })) {
+        for (const run of this.repository.listLatestRunReceipts({ projectId })) {
             const item = projectRunReceiptInboxItem(run);
             if (!item || !this._actorCanAccessProject(item.project_id, actor)) continue;
             const identity = JSON.stringify([
