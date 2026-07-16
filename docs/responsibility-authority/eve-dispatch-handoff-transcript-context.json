@@ -18,6 +18,7 @@
             "owned_surfaces": {
                 "paths": [
                     "server/services/workflow/workflow-service.js",
+                    "server/services/meeting-automation/meeting-automation-service.js",
                     "script/backfill-eve-meeting-note-dispatch.mjs"
                 ],
                 "symbols": [
@@ -25,7 +26,7 @@
                     "buildMeetingNoteGenerationHandoffContext",
                     "WorkflowService._resolveMeetingNoteGenerationHandoff",
                     "WorkflowService.dispatchLoopIntentToEve",
-                    "WorkflowService._dispatchMeetingNoteGeneration",
+                    "MeetingAutomationService.dispatchNoteGeneration",
                     "meeting_note_generation"
                 ],
                 "risk_surfaces": [
@@ -37,7 +38,7 @@
             "required_evidence": [
                 "current_head_verification"
             ],
-            "unknown_policy": "The meeting_note_generation handoff context may only be built from the referenced run's meeting_note_draft output within the loop intent's own org/project scope, and must never include server-owned secrets such as continuation_token. Referenced dispatches without a resolvable transcript source (missing output or source_text_hash) must be rejected before any Eve session is created. Ingest-triggered auto-dispatch stays best-effort: context resolution failures are recorded as skipped dispatches without failing Review Package ingest. The write-back contract description in the handoff is derived from recordMeetingNoteGeneration and must not introduce a new write path."
+            "unknown_policy": "The meeting_note_generation handoff context may only be built from the referenced run's meeting_note_draft output within the loop intent's own org/project scope, and must never include server-owned secrets such as continuation_token. Referenced dispatches without a resolvable transcript source (missing output or source_text_hash) must be rejected before any Eve session is created. Ingest-triggered auto-dispatch stays best-effort: context resolution failures are recorded as skipped dispatches without failing Review Package ingest. The write-back contract description in the handoff is derived from recordNoteGeneration and must not introduce a new write path."
         }
     ]
 }

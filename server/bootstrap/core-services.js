@@ -98,6 +98,7 @@ export function createCoreServices({
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
         workflowService,
+        meetingAutomationService: workflowService.meetingAutomationService,
         eveSessionClient,
         config: createEveMeetingNoteReconcilerConfigFromEnv()
     });

@@ -28,8 +28,8 @@ story-meeting-note-generation-dag-wiring（PR #1018/#1019）でReview Package in
 - INV-handoff-002: 対象runの解決は `run_id`（または `package_id` から導出した stable run id）で行い、runの `org_id` / `project_id` がloop intentと一致しない場合はdispatchを拒否する（別プロジェクトのtranscriptをhandoffに載せない）。
 - INV-handoff-003: 対象runに `meeting_note_draft` output が存在しない、または `payload.source_text_hash` が欠落している場合、`meeting_note_generation` 参照付きdispatchは明示的なvalidationエラーで失敗する（transcriptなしでEveへ投げない）。
 - INV-handoff-004: handoffへ含めるのは該当runのoutput payload由来のデータのみ。continuation_token等のserver-owned secretはこれまで通りhandoffに含めない。
-- INV-handoff-005: ingest経由の自動dispatch（`_dispatchMeetingNoteGeneration`）はbest-effortのまま。context構築失敗はingest失敗にせず `note_generation_dispatch.status: skipped` + reason としてauditに記録する。
-- INV-handoff-006: 書き戻し契約の記述はサーバー実装（`recordMeetingNoteGeneration`）の検証仕様（必須フィールド・`source_text_hash` 一致・`run_id`/`package_id` いずれか必須）と一致させる。契約に無い書き込み経路を新設しない。
+- INV-handoff-005: ingest経由の自動dispatch（`MeetingAutomationService.dispatchNoteGeneration`）はbest-effortのまま。context構築失敗はingest失敗にせず `note_generation_dispatch.status: skipped` + reason としてauditに記録する。
+- INV-handoff-006: 書き戻し契約の記述はサーバー実装（`recordNoteGeneration`）の検証仕様（必須フィールド・`source_text_hash` 一致・`run_id`/`package_id` いずれか必須）と一致させる。契約に無い書き込み経路を新設しない。
 - INV-handoff-007: `meeting_note_generation` 参照なしの従来dispatch（他のloop intent、手動dispatch）は後方互換で通る。
 - INV-handoff-008: handoff contextはeve channel APIの `clientContext` フィールドで送信する。eveの `parseCreateBody` は `context` フィールドをagentへ渡さないため、`clientContext` に載せない限りtranscript・run識別子・書き戻し契約はEve agentに到達しない（`context` はforward compatibilityのため併送する）。
 
@@ -38,7 +38,7 @@ story-meeting-note-generation-dag-wiring（PR #1018/#1019）でReview Package in
 ```mermaid
 flowchart TD
   ingest["meeting-pack review-ingest"] --> draft["meeting_note_draft output (brainbase_source_ready)"]
-  ingest --> dispatch["_dispatchMeetingNoteGeneration (run_id / package_id)"]
+  ingest --> dispatch["MeetingAutomationService.dispatchNoteGeneration (run_id / package_id)"]
   dispatch --> resolve["resolve run → meeting_note_draft output"]
   resolve --> handoff["handoff.context.meeting_note_generation\n(transcript + run refs + write-back contract)"]
   handoff --> eve["Eve session generates minutes"]

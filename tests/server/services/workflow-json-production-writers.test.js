@@ -129,6 +129,7 @@ describe('production workflow shared-ledger writers', () => {
         const reconciler = new EveMeetingNoteReconciler({
             repository,
             workflowService: { repository },
+            meetingAutomationService: { recordNoteGeneration: async () => {} },
             eveSessionClient: {
                 isConfigured: () => true,
                 readSessionStream: async () => [{ type: 'session.completed' }]

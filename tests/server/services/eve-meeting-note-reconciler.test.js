@@ -462,7 +462,7 @@ describe('EveMeetingNoteReconciler', () => {
         const { ingestRunId, dispatchRunId, sessionId } = await dispatchMeetingNoteRun({
             service, repository, actor, eveSessionClient
         });
-        await service.recordMeetingNoteGeneration({
+        await service.meetingAutomationService.recordNoteGeneration({
             org_id: 'salestailor',
             project_id: 'salestailor',
             run_id: ingestRunId,
@@ -621,14 +621,15 @@ describe('EveMeetingNoteReconciler', () => {
             noteToolCallEvent({ runId: ingestRunId }),
             ...PARKED_TAIL
         ];
-        const recordMeetingNoteGeneration = service.recordMeetingNoteGeneration.bind(service);
+        const recordNoteGeneration = service.meetingAutomationService.recordNoteGeneration
+            .bind(service.meetingAutomationService);
         let shouldFail = true;
-        service.recordMeetingNoteGeneration = async (...args) => {
+        service.meetingAutomationService.recordNoteGeneration = async (...args) => {
             if (shouldFail) {
                 shouldFail = false;
                 throw new Error('meeting note database unavailable');
             }
-            return recordMeetingNoteGeneration(...args);
+            return recordNoteGeneration(...args);
         };
 
         const reconciler = new EveMeetingNoteReconciler({
@@ -1171,7 +1172,7 @@ describe('EveMeetingNoteReconciler candidate write-back', () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
         const { ingestRunId, dispatchRunId } = await dispatchMeetingNoteRun({ service, repository, actor, eveSessionClient });
-        await service.recordMeetingNoteGeneration({
+        await service.meetingAutomationService.recordNoteGeneration({
             org_id: 'salestailor',
             project_id: 'salestailor',
             run_id: ingestRunId,

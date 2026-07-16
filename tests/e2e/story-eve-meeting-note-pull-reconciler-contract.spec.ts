@@ -244,7 +244,7 @@ test.describe(`${storyId} contract`, () => {
     });
 
     // story-eve-meeting-note-pull-reconciler ac:6 already-generated targets close idempotently without re-writing the note
-    await service.recordMeetingNoteGeneration({
+    await service.meetingAutomationService.recordNoteGeneration({
       org_id: 'sample-project',
       project_id: 'sample-project',
       run_id: ingestRunId,

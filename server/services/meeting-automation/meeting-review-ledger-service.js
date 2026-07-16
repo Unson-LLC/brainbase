@@ -1,6 +1,7 @@
 // @ts-check
 
 import crypto from 'node:crypto';
+import { AppError } from '../../lib/errors.js';
 import { MEETING_WORKFLOW_PACK_ID } from '../workflow/meeting-workflow-pack.js';
 import {
     MEETING_REVIEW_HUMAN_STEP_DEFINITIONS,
@@ -158,6 +159,106 @@ export class MeetingReviewLedgerService {
     findReplay(context) {
         const replayRun = this._findReplayRun(context);
         return replayRun ? this._replayResult(context, replayRun) : null;
+    }
+
+    async recordNoteGeneration({
+        orgId,
+        projectId,
+        packageId = null,
+        runId = null,
+        sourceTextHash,
+        note,
+        runner,
+        actorId
+    }) {
+        const resolvedRunId = runId
+            || stableId('run', orgId, projectId, packageId, 'meeting_review_package_ingest');
+        const run = this.repository.getRun(resolvedRunId);
+        if (!run) throw AppError.notFound('workflow_run', resolvedRunId);
+        if (run.org_id !== orgId || run.project_id !== projectId) {
+            throw AppError.validation(`workflow_run '${resolvedRunId}' belongs to '${run.org_id}/${run.project_id}'`, {
+                state_transition: 'blocked_invalid_scope'
+            });
+        }
+
+        const noteOutput = this.repository.listOutputs(resolvedRunId)
+            .find((output) => output.metadata?.output_key === 'meeting_note_draft');
+        if (!noteOutput) {
+            throw AppError.validation(`workflow_run '${resolvedRunId}' has no meeting_note_draft output`, {
+                state_transition: 'blocked_note_output_missing'
+            });
+        }
+
+        const currentPayload = noteOutput.payload && typeof noteOutput.payload === 'object'
+            ? noteOutput.payload
+            : {};
+        if (currentPayload.source_text_hash !== sourceTextHash) {
+            throw AppError.validation('source_text_hash does not match the meeting_note_draft output', {
+                state_transition: 'blocked_source_hash_mismatch',
+                expected: currentPayload.source_text_hash || null
+            });
+        }
+
+        const now = new Date().toISOString();
+        const noteBody = note.body;
+        const nextPayload = {
+            ...currentPayload,
+            title: typeof note.title === 'string' && note.title.trim()
+                ? note.title.trim()
+                : currentPayload.title,
+            body: noteBody,
+            generator: 'brainbase_meeting_pack',
+            generation_source: 'transcript_to_meeting_note',
+            generation_status: 'brainbase_generated',
+            provider_note_authoritative: false,
+            generated_at: now,
+            generated_by: {
+                type: typeof runner.type === 'string' && runner.type ? runner.type : 'unknown',
+                session_id: typeof runner.session_id === 'string' ? runner.session_id : null,
+                actor_id: actorId
+            }
+        };
+        const updatedOutput = await this.repository.transaction(() => {
+            const item = this.repository.updateOutput(noteOutput.id, {
+                payload: nextPayload,
+                preview: previewPayload(nextPayload),
+                updated_at: now
+            });
+            this.repository.writeAuditLog({
+                workspace_id: DEFAULT_WORKSPACE_ID,
+                org_id: orgId,
+                project_id: projectId,
+                actor_id: actorId,
+                action: 'workflow.meeting_pack.note_generation.recorded',
+                target_type: 'workflow_run',
+                target_id: resolvedRunId,
+                after: {
+                    run_id: resolvedRunId,
+                    output_id: noteOutput.id,
+                    package_id: noteOutput.metadata?.package_id || packageId || null,
+                    source_text_hash: sourceTextHash,
+                    generation_status: nextPayload.generation_status,
+                    state_transition: 'note_generation_recorded',
+                    runner_type: nextPayload.generated_by?.type || null,
+                    external_run_id: nextPayload.generated_by?.session_id || null,
+                    generated_by: nextPayload.generated_by,
+                    body_length: noteBody.length,
+                    regenerated: currentPayload.generation_status === 'brainbase_generated'
+                }
+            });
+            return item;
+        });
+
+        return {
+            meeting_note_generation: {
+                org_id: orgId,
+                project_id: projectId,
+                run_id: resolvedRunId,
+                output_id: noteOutput.id,
+                generation_status: nextPayload.generation_status,
+                output: updatedOutput
+            }
+        };
     }
 
     async persist(context, actor = {}) {

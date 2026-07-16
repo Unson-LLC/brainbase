@@ -177,7 +177,7 @@ export function createWorkflowRouter(workflowService, {
 
     router.post('/control/meeting-pack/note-generation', asyncHandler(async (req, res) => {
         try {
-            res.status(201).json(await workflowService.recordMeetingNoteGeneration(req.body || {}, actorFromRequest(req)));
+            res.status(201).json(await meetingAutomationService.recordNoteGeneration(req.body || {}, actorFromRequest(req)));
         } catch (error) {
             if (error?.statusCode === 400 && error?.details?.state_transition) {
                 res.status(400).json({

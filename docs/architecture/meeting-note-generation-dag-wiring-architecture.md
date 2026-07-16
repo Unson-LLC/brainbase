@@ -31,7 +31,7 @@ Source sync worker owns:
 
 - S-001 maps to `normalizeSourceArtifact`: JSON segment detection → speaker text expansion → hash/dedupe on normalized text.
 - S-002 maps to the ingest tail: loop intent resolution → `dispatchLoopIntentToEve` guarded by `eveSessionClient.isConfigured()` → `note_generation_dispatch` result recording.
-- S-003 maps to `recordMeetingNoteGeneration`: run/output resolution → hash validation → payload replacement → `brainbase_generated`.
+- S-003 maps to `MeetingAutomationService.recordNoteGeneration`: access validation → run/output resolution → hash validation → payload replacement → `brainbase_generated`.
 
 ## Data Flow
 

@@ -450,6 +450,59 @@ export class MeetingAutomationService {
         return result;
     }
 
+    async recordNoteGeneration(input = {}, actor = {}) {
+        await this.prepareProjectAccess();
+        const orgId = readOptionalString(input, 'org_id', 'orgId');
+        const projectId = readOptionalString(input, 'project_id', 'projectId');
+        const packageId = readOptionalString(input, 'package_id', 'packageId');
+        const runId = readOptionalString(input, 'run_id', 'runId');
+        const sourceTextHash = readOptionalString(input, 'source_text_hash', 'sourceTextHash');
+        const note = input.note && typeof input.note === 'object' ? input.note : {};
+        const noteBody = typeof note.body === 'string' ? note.body : '';
+        const runner = input.runner && typeof input.runner === 'object' ? input.runner : {};
+
+        if (!orgId) {
+            throw AppError.validation('org_id is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!projectId) {
+            throw AppError.validation('project_id is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!runId && !packageId) {
+            throw AppError.validation('package_id or run_id is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!sourceTextHash) {
+            throw AppError.validation('source_text_hash is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+        if (!noteBody.trim()) {
+            throw AppError.validation('note.body is required', {
+                state_transition: 'blocked_invalid_note_generation'
+            });
+        }
+
+        await this.assertProjectSelectable(projectId);
+        await this.assertOrgReferenceAllowed(orgId);
+        await this.assertProjectAccess(projectId, actor);
+
+        return this.reviewLedgerService.recordNoteGeneration({
+            orgId,
+            projectId,
+            packageId,
+            runId,
+            sourceTextHash,
+            note: { ...note, body: noteBody },
+            runner,
+            actorId: actor.person_id || actor.sub || DEFAULT_OWNER_ID
+        });
+    }
+
     verifyReviewPackage({ reviewPackage, orgId, projectId }) {
         return verifyMeetingReviewPackage({
             repository: this.repository,

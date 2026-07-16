@@ -90,11 +90,12 @@ export function classifySessionStreamPhase(events) {
  * `record_meeting_note_generation` tool-call input, verifies it against the
  * `run.metadata.meeting_note_generation` handoff (run_id + source_text_hash),
  * and records it through the local note-generation contract
- * (`workflowService.recordMeetingNoteGeneration`).
+ * (`meetingAutomationService.recordNoteGeneration`).
  */
 export class EveMeetingNoteReconciler {
     constructor({
         workflowService,
+        meetingAutomationService = null,
         eveSessionClient,
         repository = null,
         config = {},
@@ -103,6 +104,10 @@ export class EveMeetingNoteReconciler {
     }) {
         if (!workflowService) throw new Error('workflowService is required');
         this.workflowService = workflowService;
+        this.meetingAutomationService = meetingAutomationService || workflowService.meetingAutomationService;
+        if (!this.meetingAutomationService?.recordNoteGeneration) {
+            throw new Error('meetingAutomationService.recordNoteGeneration is required');
+        }
         this.eveSessionClient = eveSessionClient || workflowService.eveSessionClient || null;
         this.repository = repository || workflowService.repository;
         this.clock = clock;
@@ -249,7 +254,7 @@ export class EveMeetingNoteReconciler {
 
         if (noteCall) {
             try {
-                await this.workflowService.recordMeetingNoteGeneration({
+                await this.meetingAutomationService.recordNoteGeneration({
                     org_id: dispatchRun.org_id,
                     project_id: dispatchRun.project_id,
                     run_id: ingestRunId,
