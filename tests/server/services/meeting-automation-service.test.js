@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MeetingAutomationService } from '../../../server/services/meeting-automation/meeting-automation-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
 
 function makeMeetingService({
     repository = new InMemoryWorkflowRepository(),
@@ -51,28 +50,6 @@ const actor = {
 };
 
 describe('MeetingAutomationService', () => {
-    it('WorkflowServiceの既存Meeting APIを専用Serviceへ委譲する', async () => {
-        const meetingAutomationService = {
-            reviewPackDesign: vi.fn(async () => ({ reviewed: true })),
-            bootstrapPack: vi.fn(async () => ({ bootstrapped: true })),
-            createCalendarLoopIntents: vi.fn(async () => ({ ingested: true }))
-        };
-        const service = new WorkflowService({
-            repository: {},
-            runner: {},
-            configParser: {},
-            meetingAutomationService
-        });
-        const input = { org_id: 'salestailor', project_id: 'salestailor' };
-
-        await expect(service.reviewMeetingWorkflowPackDesign(input, actor)).resolves.toEqual({ reviewed: true });
-        await expect(service.bootstrapMeetingWorkflowPack(input, actor)).resolves.toEqual({ bootstrapped: true });
-        await expect(service.createMeetingPackCalendarLoopIntents(input, actor)).resolves.toEqual({ ingested: true });
-        expect(meetingAutomationService.reviewPackDesign).toHaveBeenCalledWith(input, actor);
-        expect(meetingAutomationService.bootstrapPack).toHaveBeenCalledWith(input, actor);
-        expect(meetingAutomationService.createCalendarLoopIntents).toHaveBeenCalledWith(input, actor);
-    });
-
     it('Pack設計レビュー前にprojectとorgのアクセス境界を検証する', async () => {
         const {
             service,

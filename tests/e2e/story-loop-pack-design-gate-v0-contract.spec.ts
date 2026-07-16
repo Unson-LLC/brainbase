@@ -92,7 +92,7 @@ test.describe(storyId, () => {
     const artifacts = readArtifacts();
     const meetingAutomationRuntime = artifacts.workflowService + artifacts.meetingAutomationService;
 
-    expect(meetingAutomationRuntime, 'ac3 passing pack compiles to Workflow Control records').toContain('bootstrapMeetingWorkflowPack');
+    expect(meetingAutomationRuntime, 'ac3 passing pack compiles to Workflow Control records').toContain('bootstrapPack');
     expect(meetingAutomationRuntime).toContain('upsertRoleAgentInstance');
     expect(meetingAutomationRuntime).toContain('upsertWorkflowTemplate');
     expect(artifacts.serviceTest).toContain('bootstraps meeting pack records into Workflow Control data');

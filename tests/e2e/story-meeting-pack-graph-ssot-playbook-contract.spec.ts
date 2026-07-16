@@ -208,7 +208,7 @@ function samplePackage({
 
 async function ingestPackage(packageInput, serviceOptions = {}) {
   const { service, actor } = makeService(serviceOptions);
-  await service.bootstrapMeetingWorkflowPack({
+  await service.meetingAutomationService.bootstrapPack({
     org_id: packageInput.meeting_identity.candidate_org_id,
     project_id: packageInput.meeting_identity.candidate_project_id
   }, actor);
@@ -220,7 +220,7 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
   const infoSSOTService = makeGraphContextService();
   const packageInput = samplePackage();
   const { service, actor } = makeService({ infoSSOTService });
-  await service.bootstrapMeetingWorkflowPack({
+  await service.meetingAutomationService.bootstrapPack({
     org_id: packageInput.meeting_identity.candidate_org_id,
     project_id: packageInput.meeting_identity.candidate_project_id
   }, actor);

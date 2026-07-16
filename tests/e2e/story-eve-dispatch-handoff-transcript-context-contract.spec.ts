@@ -119,7 +119,7 @@ function samplePackage({ packageId = 'meeting-handoff-package-e2e' } = {}) {
 
 async function bootstrapAndIngest({ eveSessionClient = null, reviewPackage = samplePackage() }: { eveSessionClient?: any, reviewPackage?: any } = {}) {
   const { repository, service, actor } = makeService({ eveSessionClient });
-  await service.bootstrapMeetingWorkflowPack({
+  await service.meetingAutomationService.bootstrapPack({
     org_id: 'sample-project',
     project_id: 'sample-project'
   }, actor);
@@ -254,7 +254,7 @@ test(`story-eve-dispatch-handoff-transcript-context ac:5 ac:7 AC-005 AC-007 S-00
 test(`story-eve-dispatch-handoff-transcript-context ac:6 AC-006 S-003 dispatches without a meeting_note_generation reference keep the existing handoff shape`, async () => {
   const eveSessionClient = makeEveSessionClient();
   const { service, actor } = makeService({ eveSessionClient });
-  await service.bootstrapMeetingWorkflowPack({ org_id: 'sample-project', project_id: 'sample-project' }, actor);
+  await service.meetingAutomationService.bootstrapPack({ org_id: 'sample-project', project_id: 'sample-project' }, actor);
   const briefingLoopIntentId = meetingPackIds({
     orgId: 'sample-project',
     projectId: 'sample-project',

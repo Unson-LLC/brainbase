@@ -23,10 +23,6 @@ MeetingSourceMcpSyncService
   -> Eve session dispatch / reconciler
   -> WorkflowRepository
 
-WorkflowService.reviewMeetingWorkflowPackDesign/bootstrapMeetingWorkflowPack/createMeetingPackCalendarLoopIntents
-  -> MeetingAutomationService (compatibility adapter)
-  -> WorkflowRepository / GoogleCalendarService
-
 Meeting Automation routes
   -> MeetingAutomationService (direct injection)
 
@@ -64,7 +60,7 @@ server/routes/workflows.js
   -> generic list/create/detail/update/draft/draft-test/manual-run: retired (404)
 ```
 
-Run Receiptのread modelは専用serviceへ分離済みである。Meeting Source sync workerはMeeting Pack bootstrapだけを`MeetingAutomationService`へ直接委譲し、Review Package ingestは`WorkflowService`へ残す。Meeting AutomationとAutomation Runのproduction callerが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
+Run Receiptのread modelは専用serviceへ分離済みである。Meeting Automationのroute、Meeting Source sync worker、内部callerは`MeetingAutomationService`へ直接接続し、`WorkflowService`のMeeting Automation互換adapterは削除済みである。Review Package ingestは`WorkflowService`へ残す。Meeting AutomationとAutomation Runのproduction callerが残る間は`WorkflowService`、workflow route、workflow ledgerを削除しない。Web surface廃止とCore分割を同じ操作にしない。
 
 ## Target components
 

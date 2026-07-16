@@ -1595,7 +1595,7 @@ describe('workflow routes', () => {
 
     it('story-meeting-review-package-ingest-v1 rejects unauthorized operator before ingest writes', async () => {
         const { app, repository, service } = makeApp({ accessProjectCodes: [] });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'sample-project',
             project_id: 'sample-project'
         }, { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] });
@@ -1756,7 +1756,7 @@ describe('workflow routes', () => {
     it('story-meeting-review-package-ingest-v1 returns project access denial before rerun guard', async () => {
         const { app, repository, service } = makeApp({ accessProjectCodes: [] });
         const systemActor = { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] };
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'sample-project',
             project_id: 'sample-project'
         }, systemActor);

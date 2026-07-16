@@ -1444,21 +1444,6 @@ export class WorkflowService {
         return { loop_intent: intent };
     }
 
-    async _prepareMeetingWorkflowPackRecords(input = {}, actor = {}) {
-        return this.meetingAutomationService._preparePackRecords(input, actor);
-    }
-
-    async reviewMeetingWorkflowPackDesign(input = {}, actor = {}) {
-        return this.meetingAutomationService.reviewPackDesign(input, actor);
-    }
-
-    async bootstrapMeetingWorkflowPack(input = {}, actor = {}) {
-        return this.meetingAutomationService.bootstrapPack(input, actor);
-    }
-
-    async createMeetingPackCalendarLoopIntents(input = {}, actor = {}) {
-        return this.meetingAutomationService.createCalendarLoopIntents(input, actor);
-    }
 
     async resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, { actor = {}, projectId = null, graphContext = null } = {}) {
         if (!this.infoSSOTService?.listGraphEntities || !Array.isArray(reviewPackage?.task_candidates)) {

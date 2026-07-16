@@ -103,7 +103,7 @@ v0は新しいscheduler、worker、queue、lambda、long-running job infrastruct
 - scheduling_owner: bootstrap後のscheduled trigger metadataはWorkflow Mission Controlが持つ。
 - job_infrastructure: このStoryでは新しいruntime job infrastructureを開始しない。
 - runner_start: Pack bootstrap中にEve、Mana、Codex、Claude Code、provider callsは起動しない。
-- transaction_owner: 単一のtransactional write boundaryは `bootstrapMeetingWorkflowPack` が持つ。
+- transaction_owner: 単一のtransactional write boundaryは `bootstrapPack` が持つ。
 
 ## Gate Behavior
 

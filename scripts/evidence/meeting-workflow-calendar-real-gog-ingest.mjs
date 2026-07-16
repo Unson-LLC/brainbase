@@ -58,7 +58,7 @@ const actor = {
     projectCodes: ['salestailor', 'unson']
 };
 
-const result = await service.createMeetingPackCalendarLoopIntents(input, actor);
+const result = await service.meetingAutomationService.createCalendarLoopIntents(input, actor);
 const meetingInputs = result.meeting_calendar_inputs;
 if (!meetingInputs.loop_intents.length) {
     throw new Error('real gog calendar ingest produced no Loop Intents');
