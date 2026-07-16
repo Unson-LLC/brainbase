@@ -84,5 +84,21 @@ export function createRunReceiptRouter({ ingestService, workflowService }) {
         }, actorFromRequest(req)));
     }));
 
+    router.get('/history', asyncHandler(async (req, res) => {
+        res.json(await workflowService.listRunReceiptHistory({
+            projectId: req.query.project_id || req.query.projectId,
+            sourceType: req.query.source_type || req.query.sourceType,
+            sourceIdentity: req.query.source_identity || req.query.sourceIdentity,
+            limit: req.query.limit
+        }, actorFromRequest(req)));
+    }));
+
+    router.get('/:runId/diagnosis', asyncHandler(async (req, res) => {
+        res.json(await workflowService.diagnoseRunReceipt({
+            projectId: req.query.project_id || req.query.projectId,
+            runId: req.params.runId
+        }, actorFromRequest(req)));
+    }));
+
     return router;
 }

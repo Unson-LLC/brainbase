@@ -212,4 +212,94 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.equal(fetched, false);
     assert.equal('data' in (result || {}), false);
   });
+
+  it('TSK-WFRET-002 AC-6: Run Receipt history and diagnosis are discoverable without generic Workflow tools', () => {
+    assert.ok(controlPlaneTools.some((candidate) => candidate.name === 'brainbase_run_receipt_history'));
+    assert.ok(controlPlaneTools.some((candidate) => candidate.name === 'brainbase_run_receipt_diagnosis'));
+    assert.ok(serverTesting.tools.some((candidate) => candidate.name === 'brainbase_run_receipt_history'));
+    assert.ok(serverTesting.tools.some((candidate) => candidate.name === 'brainbase_run_receipt_diagnosis'));
+    assert.equal(controlPlaneTools.some((candidate) => /workflow/i.test(candidate.name)), false);
+  });
+
+  it('TSK-WFRET-002 AC-7: source identity history is scoped and preserves confirmed empty separately from unavailable', async () => {
+    const calls: string[] = [];
+    const result = await handleControlPlaneToolCall('brainbase_run_receipt_history', {
+      project_id: 'brainbase',
+      source_type: 'mana',
+      source_identity: 'daily-secretary',
+      limit: 10,
+    }, dependencies({
+      fetch: async (url: string | URL | Request) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({
+          source: { type: 'mana', identity: 'daily-secretary' },
+          items: [],
+          count: 0,
+          has_more: false,
+          omitted_count: 0,
+        }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(result?.data?.source, { type: 'mana', identity: 'daily-secretary' });
+    assert.deepEqual(result?.data?.items, []);
+    assert.equal(result?.data?.count, 0);
+    assert.deepEqual(calls, [
+      'http://brainbase.test/api/run-receipts/history?project_id=brainbase&source_type=mana&source_identity=daily-secretary&limit=10',
+    ]);
+  });
+
+  it('TSK-WFRET-002 AC-8: diagnosis preserves blocked and missing evidence as structured action required', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_run_receipt_diagnosis', {
+      project_id: 'brainbase',
+      run_id: 'run/blocked 001',
+    }, dependencies({
+      fetch: async (url: string | URL | Request) => {
+        assert.equal(
+          String(url),
+          'http://brainbase.test/api/run-receipts/run%2Fblocked%20001/diagnosis?project_id=brainbase',
+        );
+        return new Response(JSON.stringify({
+          receipt: {
+            run_id: 'run/blocked 001',
+            project_id: 'brainbase',
+            source_status: 'blocked',
+            evidence_state: 'no_data',
+          },
+          diagnosis: {
+            state: 'action_required',
+            issue_codes: ['source_blocked', 'evidence_missing'],
+            recommended_action: 'reauthorize',
+          },
+        }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.equal(result?.data?.receipt?.project_id, 'brainbase');
+    assert.deepEqual(result?.data?.diagnosis, {
+      state: 'action_required',
+      issue_codes: ['source_blocked', 'evidence_missing'],
+      recommended_action: 'reauthorize',
+    });
+  });
+
+  it('TSK-WFRET-002 AC-9: history and diagnosis reject missing or inaccessible project scope before fetch', async () => {
+    let fetched = false;
+    const noProject = await handleControlPlaneToolCall('brainbase_run_receipt_history', {
+      source_type: 'mana',
+      source_identity: 'daily-secretary',
+    }, dependencies({ fetch: async () => { fetched = true; return new Response('{}'); } }));
+    const outsideScope = await handleControlPlaneToolCall('brainbase_run_receipt_diagnosis', {
+      project_id: 'salestailor',
+      run_id: 'run-001',
+    }, dependencies({ fetch: async () => { fetched = true; return new Response('{}'); } }));
+
+    assert.equal(noProject?.status, 'error');
+    assert.equal(noProject?.error?.code, 'brainbase_input_invalid');
+    assert.equal(outsideScope?.status, 'error');
+    assert.equal(outsideScope?.error?.code, 'brainbase_project_not_accessible');
+    assert.equal(fetched, false);
+  });
 });

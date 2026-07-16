@@ -318,6 +318,13 @@ function assertRunReceiptInboxEnum(value, field, allowed) {
     return value;
 }
 
+function requireRunReceiptString(value, field) {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw AppError.validation(`${field} is required`, { field });
+    }
+    return value.trim();
+}
+
 function projectRunReceiptInboxItem(run) {
     const receipt = run?.metadata?.run_receipt;
     const source = receipt?.source;
@@ -2053,6 +2060,83 @@ export class WorkflowService {
             count,
             has_more: count > items.length,
             omitted_count: count - items.length
+        };
+    }
+
+    async listRunReceiptHistory({
+        projectId,
+        sourceType,
+        sourceIdentity,
+        limit = DEFAULT_RUN_RECEIPT_INBOX_LIMIT
+    } = {}, actor = {}) {
+        await this._loadProjectConfigCache();
+        const normalizedProjectId = requireRunReceiptString(projectId, 'project_id');
+        const normalizedSourceType = assertRunReceiptInboxEnum(
+            requireRunReceiptString(sourceType, 'source_type'),
+            'source_type',
+            RUN_RECEIPT_SOURCE_TYPES
+        );
+        const normalizedSourceIdentity = requireRunReceiptString(sourceIdentity, 'source_identity');
+        const normalizedLimit = normalizeRunReceiptInboxLimit(limit);
+        this._assertActorCanAccessProject(normalizedProjectId, actor);
+
+        const matching = this.repository.listRuns({ projectId: normalizedProjectId, limit: null })
+            .map(projectRunReceiptInboxItem)
+            .filter(Boolean)
+            .filter((item) => this._actorCanAccessProject(item.project_id, actor))
+            .filter((item) => item.source.type === normalizedSourceType)
+            .filter((item) => item.source.workflow_id === normalizedSourceIdentity)
+            .sort(runReceiptOrder);
+        const count = matching.length;
+        const items = matching
+            .slice(0, normalizedLimit)
+            .map(({ effective_epoch, created_epoch, ...item }) => item);
+
+        return {
+            source: {
+                type: normalizedSourceType,
+                identity: normalizedSourceIdentity
+            },
+            items,
+            count,
+            has_more: count > items.length,
+            omitted_count: count - items.length
+        };
+    }
+
+    async diagnoseRunReceipt({ projectId, runId } = {}, actor = {}) {
+        await this._loadProjectConfigCache();
+        const normalizedProjectId = requireRunReceiptString(projectId, 'project_id');
+        const normalizedRunId = requireRunReceiptString(runId, 'run_id');
+        this._assertActorCanAccessProject(normalizedProjectId, actor);
+
+        const item = projectRunReceiptInboxItem(this.repository.getRun(normalizedRunId));
+        if (!item || item.project_id !== normalizedProjectId) {
+            throw AppError.notFound('run_receipt', normalizedRunId);
+        }
+        this._assertActorCanAccessProject(item.project_id, actor);
+
+        const issueCodes = [];
+        if (item.source_status === 'blocked') issueCodes.push('source_blocked');
+        if (item.source_status === 'failed') issueCodes.push('source_failed');
+        if (item.source_status === 'waiting_human') issueCodes.push('human_action_required');
+        if (item.evidence_state === 'no_data') issueCodes.push('evidence_missing');
+        if (item.evidence_state === 'unconfirmed') issueCodes.push('evidence_unconfirmed');
+        const { effective_epoch, created_epoch, ...receipt } = item;
+
+        return {
+            receipt,
+            diagnosis: {
+                state: issueCodes.length > 0 || item.source_action_required
+                    ? 'action_required'
+                    : 'healthy',
+                issue_codes: issueCodes,
+                recommended_action: item.source_action || (
+                    item.action_required && item.action_required !== 'none'
+                        ? item.action_required
+                        : null
+                )
+            }
         };
     }
 

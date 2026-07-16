@@ -27,10 +27,24 @@ interface RunReceiptInboxItem {
   [key: string]: unknown;
 }
 
+interface RunReceiptSourceIdentity {
+  type: string;
+  identity: string;
+}
+
+interface RunReceiptDiagnosis {
+  state: string;
+  issue_codes: string[];
+  recommended_action: string | null;
+}
+
 interface ControlPlaneData {
   projects?: ProjectCatalogItem[];
   items?: RunReceiptInboxItem[];
-  count: number;
+  source?: RunReceiptSourceIdentity;
+  receipt?: RunReceiptInboxItem;
+  diagnosis?: RunReceiptDiagnosis;
+  count?: number;
   has_more?: boolean;
   omitted_count?: number;
 }
@@ -105,6 +119,55 @@ export const controlPlaneTools: Tool[] = [
       },
     },
   },
+  {
+    name: 'brainbase_run_receipt_history',
+    description:
+      'Read the authenticated execution history for one Run Receipt source identity. Preserves blocked, unconfirmed, no_data, unavailable, and error states and does not expose generic Workflow CRUD.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project ID within the authenticated project scope.',
+        },
+        source_type: {
+          type: 'string',
+          enum: ['mana', 'codex_automations', 'github_actions', 'salestailor'],
+          description: 'Automation runtime type.',
+        },
+        source_identity: {
+          type: 'string',
+          description: 'Stable runtime-local workflow, automation, or job identity.',
+        },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 200,
+          description: 'Maximum number of receipts to return. Defaults to 100.',
+        },
+      },
+      required: ['project_id', 'source_type', 'source_identity'],
+    },
+  },
+  {
+    name: 'brainbase_run_receipt_diagnosis',
+    description:
+      'Diagnose one authenticated Run Receipt without flattening blocked, failed, waiting_human, unconfirmed, or no_data into success. Returns structured issue codes and a recommended action.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project ID within the authenticated project scope.',
+        },
+        run_id: {
+          type: 'string',
+          description: 'Brainbase Run Receipt ID.',
+        },
+      },
+      required: ['project_id', 'run_id'],
+    },
+  },
 ];
 
 const RUN_RECEIPT_SOURCE_TYPES = new Set(['mana', 'codex_automations', 'github_actions', 'salestailor']);
@@ -168,6 +231,12 @@ function optionalStringArgument(args: Record<string, unknown>, key: string): str
   return value.trim();
 }
 
+function requiredStringArgument(args: Record<string, unknown>, key: string): string {
+  const value = optionalStringArgument(args, key);
+  if (value === null) throw new Error(`${key} is required`);
+  return value;
+}
+
 function optionalEnumArgument(
   args: Record<string, unknown>,
   key: string,
@@ -209,6 +278,54 @@ function runReceiptInboxSource(
   if (limit !== null) url.searchParams.set('limit', String(limit));
 
   return { source: url.toString(), projectId: normalizedProject };
+}
+
+function normalizeRequiredProject(args: Record<string, unknown>): string {
+  const requestedProject = requiredStringArgument(args, 'project_id');
+  const normalizedProject = normalizeProjectCode(requestedProject);
+  if (!normalizedProject) throw new Error('project_id is invalid');
+  return normalizedProject;
+}
+
+function optionalRunReceiptLimit(args: Record<string, unknown>): number | null {
+  const rawLimit = args.limit;
+  if (rawLimit === undefined || rawLimit === null || rawLimit === '') return null;
+  if (typeof rawLimit !== 'number' || !Number.isSafeInteger(rawLimit) || rawLimit < 1 || rawLimit > 200) {
+    throw new Error('limit must be an integer between 1 and 200');
+  }
+  return rawLimit;
+}
+
+function runReceiptHistorySource(
+  apiUrl: string,
+  args: Record<string, unknown>,
+): { source: string; projectId: string } {
+  const url = new URL('/api/run-receipts/history', `${apiUrl.replace(/\/+$/, '')}/`);
+  const projectId = normalizeRequiredProject(args);
+  const sourceType = optionalEnumArgument(args, 'source_type', RUN_RECEIPT_SOURCE_TYPES);
+  if (!sourceType) throw new Error('source_type is required');
+  const sourceIdentity = requiredStringArgument(args, 'source_identity');
+  const limit = optionalRunReceiptLimit(args);
+
+  url.searchParams.set('project_id', projectId);
+  url.searchParams.set('source_type', sourceType);
+  url.searchParams.set('source_identity', sourceIdentity);
+  if (limit !== null) url.searchParams.set('limit', String(limit));
+  return { source: url.toString(), projectId };
+}
+
+function runReceiptDiagnosisSource(
+  apiUrl: string,
+  args: Record<string, unknown>,
+): { source: string; projectId: string } {
+  const projectId = normalizeRequiredProject(args);
+  const runId = requiredStringArgument(args, 'run_id');
+  const url = new URL(
+    `/api/run-receipts/${encodeURIComponent(runId)}/diagnosis`,
+    `${apiUrl.replace(/\/+$/, '')}/`,
+  );
+  url.searchParams.set('project_id', projectId);
+  return { source: url.toString(), projectId };
 }
 
 function parseRunReceiptInbox(payload: unknown, scope: string[]): ControlPlaneData {
@@ -258,6 +375,68 @@ function parseRunReceiptInbox(payload: unknown, scope: string[]): ControlPlaneDa
   };
 }
 
+function parseRunReceiptHistory(payload: unknown, scope: string[]): ControlPlaneData {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Expected a Run Receipt history object');
+  }
+  const record = payload as Record<string, unknown>;
+  const source = record.source;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    throw new Error('Run Receipt history source is invalid');
+  }
+  const sourceRecord = source as Record<string, unknown>;
+  if (typeof sourceRecord.type !== 'string' || typeof sourceRecord.identity !== 'string') {
+    throw new Error('Run Receipt history source identity is invalid');
+  }
+  const page = parseRunReceiptInbox(payload, scope);
+  return {
+    ...page,
+    source: {
+      type: sourceRecord.type,
+      identity: sourceRecord.identity,
+    },
+  };
+}
+
+function parseRunReceiptDiagnosis(payload: unknown, scope: string[]): ControlPlaneData {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Expected a Run Receipt diagnosis object');
+  }
+  const record = payload as Record<string, unknown>;
+  const receipt = record.receipt;
+  const diagnosis = record.diagnosis;
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    throw new Error('Run Receipt diagnosis receipt is invalid');
+  }
+  const receiptRecord = receipt as RunReceiptInboxItem;
+  const normalizedProject = normalizeProjectCode(receiptRecord.project_id);
+  if (!normalizedProject || !scope.includes(normalizedProject)) {
+    throw new Error('Run Receipt diagnosis is outside the authenticated project scope');
+  }
+  if (!diagnosis || typeof diagnosis !== 'object' || Array.isArray(diagnosis)) {
+    throw new Error('Run Receipt diagnosis result is invalid');
+  }
+  const diagnosisRecord = diagnosis as Record<string, unknown>;
+  if (
+    typeof diagnosisRecord.state !== 'string'
+    || !Array.isArray(diagnosisRecord.issue_codes)
+    || diagnosisRecord.issue_codes.some((code) => typeof code !== 'string')
+    || (diagnosisRecord.recommended_action !== null && typeof diagnosisRecord.recommended_action !== 'string')
+  ) {
+    throw new Error('Run Receipt diagnosis fields are invalid');
+  }
+
+  return {
+    receipt: receiptRecord,
+    diagnosis: {
+      state: diagnosisRecord.state,
+      issue_codes: diagnosisRecord.issue_codes as string[],
+      recommended_action: diagnosisRecord.recommended_action as string | null,
+    },
+    count: 1,
+  };
+}
+
 function createAudit(
   tool: string,
   source: string,
@@ -302,11 +481,22 @@ export async function handleControlPlaneToolCall(
   args: Record<string, unknown>,
   dependencies: ControlPlaneDependencies,
 ): Promise<ControlPlaneResult | null> {
-  if (!['brainbase_projects', 'brainbase_run_receipt_inbox'].includes(name)) return null;
+  const supportedTools = [
+    'brainbase_projects',
+    'brainbase_run_receipt_inbox',
+    'brainbase_run_receipt_history',
+    'brainbase_run_receipt_diagnosis',
+  ];
+  if (!supportedTools.includes(name)) return null;
 
+  const baseUrl = dependencies.apiUrl.replace(/\/+$/, '');
   let source = name === 'brainbase_projects'
-    ? `${dependencies.apiUrl.replace(/\/+$/, '')}/api/brainbase/projects`
-    : `${dependencies.apiUrl.replace(/\/+$/, '')}/api/run-receipts/inbox`;
+    ? `${baseUrl}/api/brainbase/projects`
+    : name === 'brainbase_run_receipt_history'
+      ? `${baseUrl}/api/run-receipts/history`
+      : name === 'brainbase_run_receipt_diagnosis'
+        ? `${baseUrl}/api/run-receipts/diagnosis`
+        : `${baseUrl}/api/run-receipts/inbox`;
   let token: string;
   try {
     token = await dependencies.tokenManager.getToken();
@@ -339,9 +529,13 @@ export async function handleControlPlaneToolCall(
 
   const scope = effectiveProjectCodes(claims.projectCodes, dependencies.configuredProjectCodes);
   let requestedProject: string | null = null;
-  if (name === 'brainbase_run_receipt_inbox') {
+  if (name !== 'brainbase_projects') {
     try {
-      const request = runReceiptInboxSource(dependencies.apiUrl, args);
+      const request = name === 'brainbase_run_receipt_history'
+        ? runReceiptHistorySource(dependencies.apiUrl, args)
+        : name === 'brainbase_run_receipt_diagnosis'
+          ? runReceiptDiagnosisSource(dependencies.apiUrl, args)
+          : runReceiptInboxSource(dependencies.apiUrl, args);
       source = request.source;
       requestedProject = request.projectId;
     } catch (error) {
@@ -411,6 +605,46 @@ export async function handleControlPlaneToolCall(
   if (name === 'brainbase_run_receipt_inbox') {
     try {
       const data = parseRunReceiptInbox(await response.json(), scope);
+      return {
+        status: 'ok',
+        scope: { project_codes: scope },
+        audit,
+        data,
+      };
+    } catch (error) {
+      return failure(
+        'error',
+        'brainbase_contract_error',
+        error instanceof Error ? error.message : String(error),
+        scope,
+        audit,
+      );
+    }
+  }
+
+  if (name === 'brainbase_run_receipt_history') {
+    try {
+      const data = parseRunReceiptHistory(await response.json(), scope);
+      return {
+        status: 'ok',
+        scope: { project_codes: scope },
+        audit,
+        data,
+      };
+    } catch (error) {
+      return failure(
+        'error',
+        'brainbase_contract_error',
+        error instanceof Error ? error.message : String(error),
+        scope,
+        audit,
+      );
+    }
+  }
+
+  if (name === 'brainbase_run_receipt_diagnosis') {
+    try {
+      const data = parseRunReceiptDiagnosis(await response.json(), scope);
       return {
         status: 'ok',
         scope: { project_codes: scope },

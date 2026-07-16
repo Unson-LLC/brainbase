@@ -77,9 +77,11 @@ Mac Companion
 ### TSK-WFRET-002 progress
 
 - `brainbase_run_receipt_inbox`をMCPへ追加済み。
+- `brainbase_run_receipt_history`を追加し、project、source type、source identity単位の履歴を新しい順で取得できる。
+- `brainbase_run_receipt_diagnosis`を追加し、blocked、failed、waiting_human、unconfirmed、no_dataをissue codeと推奨actionへ構造化する。
 - project scopeはJWTと`BRAINBASE_PROJECT_CODES`の積集合で固定し、明示projectがscope外ならAPI通信前に拒否する。
 - confirmed emptyと、transport/auth/contract failureを別状態として返す。
-- history、diagnosis、Meeting Automationのdomain-specific操作は未実装のため、Task自体は`in_progress`を維持する。
+- Run Receipt Inbox/history/diagnosisは実装済み。Meeting Automationのdomain-specific診断・再実行操作は未実装のため、Task自体は`in_progress`を維持する。
 
 ### TSK-WFRET-003 progress
 
@@ -87,7 +89,7 @@ Mac Companion
 - 取得不能時は前回成功snapshotを保持し、未確認を0件または解決済みへ丸めない。
 - stable identityをproject、source type、source identityから生成し、新しいRunが届いても既存の確認済み状態とfeedback loopを継承することをtestで固定済み（companion commit `a3964b3`）。
 - Mac Companion full suiteは373 tests、追加したfeedback continuity testは3 testsがgreen。
-- Workflow Web surfaceの削除は、Run Receipt history/diagnosisとMeeting Automation診断のMCP gateが未完了なため未着手。Task自体は`in_progress`を維持する。
+- Workflow Web surfaceの削除は、Automation Run detail/human-step resolveとMeeting Automation診断のMCP gateが未完了なため未着手。Task自体は`in_progress`を維持する。
 
 ## Non-goals
 

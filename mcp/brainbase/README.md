@@ -104,6 +104,32 @@ mcp__brainbase__brainbase_run_receipt_inbox({
 })
 ```
 
+### `brainbase_run_receipt_history`
+
+1つのsource identityについてRun Receiptの履歴を新しい順に取得する。`project_id`、`source_type`、`source_identity`は必須で、認証済みproject scope外の参照はAPI通信前に拒否する。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_run_receipt_history({
+  project_id: "brainbase",
+  source_type: "mana",
+  source_identity: "daily-secretary",
+  limit: 10,
+})
+```
+
+### `brainbase_run_receipt_diagnosis`
+
+1件のRun Receiptを診断し、`blocked`、`failed`、`waiting_human`、`unconfirmed`、`no_data`を`issue_codes`と`recommended_action`へ構造化する。確認できない状態を成功へ丸めず、通信不能と契約不整合も別のstatusで返す。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_run_receipt_diagnosis({
+  project_id: "brainbase",
+  run_id: "run_receipt_run_123",
+})
+```
+
 ### `get_context`
 
 トピック/エンティティに関連するコンテキストを取得。

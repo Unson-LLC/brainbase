@@ -21,21 +21,35 @@ function idempotencyKey(projectId, sourceType, externalRunId) {
         .digest('hex')}`;
 }
 
-function makeReceipt({ projectId = 'brainbase', externalRunId = 'mana-run-1' } = {}) {
+function makeReceipt({
+    projectId = 'brainbase',
+    externalRunId = 'mana-run-1',
+    sourceIdentity = 'daily-secretary',
+    status = 'success',
+    evidenceState = 'confirmed',
+    blockerReason = null,
+    actionRequired = null,
+    finishedAt = '2026-07-15T00:00:00Z'
+} = {}) {
+    const evidenceRefs = evidenceState === 'confirmed'
+        ? [{ kind: 'log_ref', ref: `cloudwatch:stream/${externalRunId}` }]
+        : [];
     return {
         contract_version: 'run_receipt.v1',
         source: {
             type: 'mana',
-            workflow_id: 'daily-secretary',
+            workflow_id: sourceIdentity,
             runtime_target: 'lambda'
         },
         run: {
             project_id: projectId,
             external_run_id: externalRunId,
-            status: 'success',
-            evidence_state: 'confirmed',
-            finished_at: '2026-07-15T00:00:00Z',
-            evidence_refs: [{ kind: 'log_ref', ref: `cloudwatch:stream/${externalRunId}` }]
+            status,
+            evidence_state: evidenceState,
+            finished_at: finishedAt,
+            evidence_refs: evidenceRefs,
+            ...(blockerReason ? { blocker_reason: blockerReason } : {}),
+            ...(actionRequired ? { action_required: actionRequired } : {})
         },
         delivery: {
             idempotency_key: idempotencyKey(projectId, 'mana', externalRunId),
@@ -252,6 +266,90 @@ describe('run receipt routes', () => {
             .expect(400);
 
         expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('GET historyはsource identity単位の全Runを新しい順で返す', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const { app } = createApp({ repository, authSource: 'internal' });
+        await request(app).post('/api/run-receipts/ingest').send(makeReceipt({
+            externalRunId: 'mana-run-old',
+            finishedAt: '2026-07-14T00:00:00Z'
+        })).expect(201);
+        await request(app).post('/api/run-receipts/ingest').send(makeReceipt({
+            externalRunId: 'mana-run-new',
+            status: 'blocked',
+            evidenceState: 'no_data',
+            blockerReason: 'authentication_failed',
+            actionRequired: 'reauthorize',
+            finishedAt: '2026-07-16T00:00:00Z'
+        })).expect(201);
+
+        const response = await request(app)
+            .get('/api/run-receipts/history')
+            .query({
+                project_id: 'brainbase',
+                source_type: 'mana',
+                source_identity: 'daily-secretary',
+                limit: 10
+            })
+            .expect(200);
+
+        expect(response.body).toMatchObject({
+            source: { type: 'mana', identity: 'daily-secretary' },
+            count: 2,
+            has_more: false,
+            omitted_count: 0
+        });
+        expect(response.body.items.map((item) => item.external_run_id)).toEqual([
+            'mana-run-new',
+            'mana-run-old'
+        ]);
+    });
+
+    it('GET diagnosisはfailureとevidence不足を成功扱いせず構造化する', async () => {
+        const { app } = createApp({ authSource: 'internal' });
+        const created = await request(app).post('/api/run-receipts/ingest').send(makeReceipt({
+            externalRunId: 'mana-run-blocked',
+            status: 'blocked',
+            evidenceState: 'no_data',
+            blockerReason: 'authentication_failed',
+            actionRequired: 'reauthorize'
+        })).expect(201);
+
+        const response = await request(app)
+            .get(`/api/run-receipts/${created.body.run.id}/diagnosis`)
+            .query({ project_id: 'brainbase' })
+            .expect(200);
+
+        expect(response.body.receipt).toMatchObject({
+            run_id: created.body.run.id,
+            project_id: 'brainbase',
+            source_status: 'blocked',
+            evidence_state: 'no_data',
+            blocker_reason: 'authentication_failed'
+        });
+        expect(response.body.diagnosis).toEqual({
+            state: 'action_required',
+            issue_codes: ['source_blocked', 'evidence_missing'],
+            recommended_action: 'reauthorize'
+        });
+    });
+
+    it('GET historyとdiagnosisはproject境界と必須identityを強制する', async () => {
+        const { app } = createApp({ authSource: 'bearer', projectCodes: ['brainbase'] });
+
+        await request(app)
+            .get('/api/run-receipts/history')
+            .query({ project_id: 'brainbase', source_type: 'mana' })
+            .expect(400);
+        await request(app)
+            .get('/api/run-receipts/history')
+            .query({ project_id: 'mana', source_type: 'mana', source_identity: 'daily-secretary' })
+            .expect(403);
+        await request(app)
+            .get('/api/run-receipts/missing-run/diagnosis')
+            .query({ project_id: 'mana' })
+            .expect(403);
     });
 
     it('run receiptはlegacy Workflow APIの一覧・詳細・更新・実行・再実行へ露出しない', async () => {
