@@ -280,12 +280,24 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
     });
   });
   await page.goto('/workflows.html');
+  const agentRunInboxHeading = page.getByRole('heading', { name: 'Agent Run Inbox' });
+  await expect(agentRunInboxHeading).toBeVisible();
+  const inboxHeadingBox = await agentRunInboxHeading.boundingBox();
+  const viewport = page.viewportSize();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(inboxHeadingBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(inboxHeadingBox!.y).toBeGreaterThanOrEqual(0);
+  expect(inboxHeadingBox!.y).toBeLessThan(viewport!.height);
+  expect(await agentRunInboxHeading.evaluate((heading) => (
+    heading.compareDocumentPosition(document.querySelector('.project-grid'))
+      & Node.DOCUMENT_POSITION_FOLLOWING
+  ))).toBeTruthy();
   await expect(page.getByRole('heading', { name: 'Operational Inbox' })).toBeVisible();
   const operationalItem = page.getByRole('button', {
     name: new RegExp(`${operationalWorkflowName} Project: brainbase`)
   });
   await expect(operationalItem).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Agent Run Inbox' })).toBeVisible();
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
   await expect(page.getByText(`waiting for human ${suffix}`)).toBeVisible();

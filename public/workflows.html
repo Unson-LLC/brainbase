@@ -1317,13 +1317,13 @@
                     </div>
                     <button class="btn primary" type="button" data-action="focus-first-project">＋ Add Workflow</button>
                 </div>
+                ${renderRunReceiptInbox(appStore.getState().runReceiptInbox, { projects: projectIds })}
                 <div class="section-title"><h2>プロジェクト</h2><div class="chips"><span class="badge">稼働中 (${projectIds.length})</span><span class="badge">アーカイブ (0)</span></div></div>
                 <div class="project-grid">
                     ${projectIds.map(renderProjectCard).join('')}
                 </div>
                 <div class="section-title"><h2>Operational Inbox</h2><span class="sub">Human waiting / action required / failed を横断表示</span></div>
                 <div class="stack">${orderedWorkflows().map(renderWorkflowCard).join('') || '<div class="empty">No workflow activity</div>'}</div>
-                ${renderRunReceiptInbox(appStore.getState().runReceiptInbox, { projects: projectIds })}
             `;
             setView('workspace');
         }

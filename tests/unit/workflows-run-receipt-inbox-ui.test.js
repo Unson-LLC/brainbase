@@ -21,6 +21,20 @@ describe('Workflow Mission Control Agent Run Inbox integration', () => {
         expect(html).toMatch(/load\(\);\s*loadRunReceiptInbox\(\);/);
     });
 
+    it('Agent Run Inboxをプロジェクト一覧より前の主要導線に置く', () => {
+        const renderWorkspace = moduleScript.match(
+            /function renderWorkspace\(\)\s*\{([\s\S]*?)\n        \}\n        function renderProjectCard/
+        )?.[1] || '';
+        const inboxPosition = renderWorkspace.indexOf(
+            'renderRunReceiptInbox(appStore.getState().runReceiptInbox, { projects: projectIds })'
+        );
+        const projectGridPosition = renderWorkspace.indexOf('<div class="project-grid">');
+
+        expect(inboxPosition).toBeGreaterThan(-1);
+        expect(projectGridPosition).toBeGreaterThan(-1);
+        expect(inboxPosition).toBeLessThan(projectGridPosition);
+    });
+
     it('HTML境界は専用serviceを呼びStoreを購読描画するだけで直接fetchや並行stateを持たない', () => {
         expect(moduleScript).not.toContain('/api/run-receipts');
         expect(moduleScript).not.toMatch(/runReceiptInbox\s*=/);
