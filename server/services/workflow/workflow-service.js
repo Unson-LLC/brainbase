@@ -4628,13 +4628,7 @@ export class WorkflowService {
                 workflow_id: run.workflow_id,
                 workflow_name: workflow?.name || run.workflow_id,
                 run_id: run.id,
-                web_url: `/workflows?run_id=${encodeURIComponent(run.id)}`,
-                web_route: {
-                    path: '/workflows',
-                    view: 'run',
-                    run_id: run.id,
-                    api_path: `/api/workflow-runs/${encodeURIComponent(run.id)}`
-                },
+                api_path: `/api/workflow-runs/${encodeURIComponent(run.id)}`,
                 project_id: run.project_id || workflow?.project_id || null,
                 org_id: run.org_id || run.metadata?.org_id || null,
                 case_scope: run.metadata?.case_scope || run.metadata?.meeting_identity?.case_scope || null,

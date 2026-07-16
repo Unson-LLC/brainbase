@@ -12,9 +12,9 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 
 ## Evidence boundary
 
-- `server/bootstrap/static-routes.js`は`/admin`、`/`、`/device`、`/setup`、`/workflows`を明示配信し、`express.static(publicDir)`が残りのHTMLを直接配信する。
-- `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、`TSK-WEBRET-003`で認証済みproject catalogのcontrol-plane tool `brainbase_projects`、`TSK-WEBRET-004`でproject-scoped `brainbase_run_receipt_inbox`、`brainbase_run_receipt_history`、`brainbase_run_receipt_diagnosis`を提供する。Automation Run detail/resolveとMeeting Automation操作は後続sliceである。
-- Workflow、Run、Session、SNS Growth、Admin visualization、setup、device authorizationのREST APIは存在するが、Run ReceiptのInbox/history/diagnosis以外は現在のBrainbase MCPに同等toolがない。
+- `server/bootstrap/static-routes.js`は`/admin`、`/`、`/device`、`/setup`を配信する。`/workflows`と`/workflows.html`は404で固定した。
+- `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、認証済みproject catalog、Run Receipt Inbox/history/diagnosis、Automation Run detail/human-step resolve、Meeting Automation diagnosisを提供する。
+- Session、SNS Growth、Admin visualization、setup、device authorizationのREST APIには、まだBrainbase MCPに同等toolがない能力が残る。
 - `docs/brainbase-capabilities/capabilities/codex.app-server.yml`はClaude CodeとApp Server metadataのないCodex sessionについてxterm fallbackを維持すると定義する。
 - 廃止前の`public/test-infrastructure.html`はproduction code、test、scriptから参照されず、外部`jsonplaceholder.typicode.com`を使う手動デモだった。`TSK-WEBRET-001`で削除し、static 404をcontract testで固定した。
 
@@ -28,7 +28,7 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 | `public/setup.html` | JWT取得後に`/api/setup/config`を読み、user/project情報と`config.yml`をdownload | MCP bootstrap/config export。必要ならauth完了結果だけWeb | 未提供 | `shrink_or_delete` | config生成・取得をMCP化し、ブラウザdownloadが必須か再判定 |
 | `public/device.html` | device code検証、Slack OAuth開始、approve/deny。sessionStorageとlocalStorageでcallbackを連結 | 最小Web | ブラウザ本人確認/OAuthのためWebが正規 | `keep_minimal_web` | verify、login、approve、deny以外の表示・依存を持たないこと |
 | `public/sns-growth.html` | review pack、post一覧/更新、publish、feedback、account default/health。index shellにもoverlay導線あり | automation + MCP、承認・失敗・feedbackはCompanion | REST APIのみ。MCP/Companion parityなし | `move_then_delete` | read/update/publish-dry-run/feedback tools、外部送信確認、Companion projectionを検証 |
-| `public/workflows.html` | 廃止対象のWorkflow CRUD、draft/test/publish、manual runと、移管対象のRun/Run Receipt/Human Approval/Meeting Automationが混在 | Automation Run Core + MCP + Companion | Run Receipt Inbox/history/diagnosisとCompanion要介入projectionは完了。Run detail/resolveとMeeting Automationは未完了 | `move_run_surfaces_then_delete` | 汎用Workflowを移植せず、Run/Receipt/Meeting Automationのauthorization/auditとCompanionの要介入projectionを検証 |
+| `public/workflows.html` | 廃止済み。Workflow CRUD、draft/test/publish、manual runとRun/Meeting運用が混在していた | Automation Run Core + MCP + Companion | Run Receipt、Run detail/resolve、Meeting診断、Companion要介入projectionへ分離済み | `deleted` | `TSK-WEBRET-006`完了。page、route、overlay、browser modules、旧UI tests、deep-linkを削除し、Core/API testsを維持 |
 | `public/index.html` | Project/session作成・復旧、terminal、Codex App Server transcript、Tasks、Wiki、Live Feed、Inbox、Workflow/SNS overlay等の統合shell | Codex/Claude Code + MCP。auth/bootstrap/recoveryだけ最小Web | 能力ごとに不均一。Session/terminalとbrowser-local authへの依存が大きい | `delete_last` | 全機能を分解してMCP/Companion/Webへ移管し、最小Web entrypointを独立させること |
 | `public/ttyd/custom_ttyd_index.html` | ttyd/xtermの実行時index。session runtimeが`--index`へ渡し、terminal bridge/testが直接依存 | native Codex/Claude Code。限定的runtime fallback | 未完。Claude Codeと旧Codex sessionはfallback依存 | `keep_transition` | Claude Codeを含むsession操作・復旧の代替とbreak-glass経路を実証 |
 | `public/ttyd/ttyd_index.html` | ttyd upstream bundleの保管artifact。runtimeはcustom版を優先 | build/vendor artifactまたは削除 | runtime primaryではないがfallback関係を要確認 | `review_vendor_artifact` | custom版生成元・fallback・再生成手順を確認して保管要否を決定 |
@@ -65,11 +65,11 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 | `TSK-WEBRET-001` | `test-infrastructure.html`を削除 | 完了。参照0件、static 404、static route tests green |
 | `TSK-WEBRET-002` | Meeting Pack mock prototypeとdeep-linkを削除 | 完了。static 404、`/workflows`にdead linkなし、Workflow Core/API testsと残存panel E2E green、設計docは`retired`で保持 |
 | `TSK-WEBRET-003` | Brainbase MCP control-plane foundationを追加 | 完了。`brainbase_projects`をMCP registryへ追加。RESTでtoken検証とgrant scopeを強制し、MCPでtoken/config scopeの積集合、`ok`/`unavailable`/`error`、audit evidenceを返す。MCP 51 tests、REST 13 tests、MCP build green |
-| `TSK-WEBRET-004` | Automation Run/Run Receipt Inbox MCP parityを追加 | Run Receipt filter/history/diagnosisは完了。Automation Run detail/human-step resolveを残し、汎用Workflow CRUD/draft/publish/manual runは対象外 |
+| `TSK-WEBRET-004` | Automation Run/Run Receipt Inbox MCP parityを追加 | 完了。Run Receipt filter/history/diagnosis、Automation Run detail/human-step resolve、Meeting diagnosisを追加。汎用Workflow CRUD/draft/publish/manual runは対象外 |
 | `TSK-WEBRET-005` | Agent Run InboxをMac Companionへ投影 | 完了。要介入だけを既存Inboxへ表示し、取得不能時は前回成功snapshotを保持。source identity単位のstable IDでfeedbackを次Runへ継承。companion commits `3982070`、`a3964b3`、full suite 373 tests green |
-| `TSK-WEBRET-006` | Workflow Mission Control Webと汎用Workflow製品面を廃止 | `/workflows`と専用UI/test/導線を削除し、Meeting AutomationとRun Core testsを維持 |
+| `TSK-WEBRET-006` | Workflow Mission Control Webと汎用Workflow製品面を廃止 | 完了。`/workflows`と専用UI/state/client/test/導線/deep-linkを削除し、Meeting AutomationとRun Core testsを維持 |
 | `TSK-WEBRET-007` | Admin/SNS/setupの残能力をMCPへ移管 | 各surfaceのretirement gateをcurrent HEADで満たす |
 | `TSK-WEBRET-008` | 最小Web auth/pairing/recovery surfaceを抽出 | browser必須能力だけがWebに残り、日常一覧・設定UIがない |
 | `TSK-WEBRET-009` | index shellとttyd fallbackを廃止 | Codex/Claude Code sessionの作成・復旧・診断代替とrollback evidence |
 
-`TSK-WEBRET-001`と`TSK-WEBRET-002`はMCP parityを待たずに実装できる。`TSK-WEBRET-003`は後継基盤だけを出荷し、旧画面は削除していない。Run Receipt Inbox/history/diagnosisと`TSK-WEBRET-005`のCompanion projectionは完了したが、`TSK-WEBRET-004`のAutomation Run detail/human-step resolveとMeeting Automation診断が残るためWorkflow Webはまだ削除しない。後継能力を先に出荷し、旧画面の削除は別commitで行う。
+`TSK-WEBRET-001`から`TSK-WEBRET-006`まで完了した。Workflow Webは後継MCPとCompanion projectionを先に出荷したうえで削除済みであり、Meeting AutomationとRun台帳はCoreとして残る。次はAdmin、SNS、setup、session shellを同じevidence単位で縮退する。

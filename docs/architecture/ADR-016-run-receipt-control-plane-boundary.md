@@ -29,7 +29,7 @@ Routing every source through Mana would turn Mana into an accidental integration
 
 Brainbase owns the canonical operational receipt contract and Agent Run Inbox. Each source owns its connector, retry/outbox behavior, source API credentials, and raw evidence.
 
-`run_receipt.v1` is a separate, thin contract. It maps into the existing Workflow Mission Control workflow/run/audit ledger; it does not create a second run SSOT. `external_runner.v0` remains the rich Eve contract. Both adapters converge only after contract-specific validation.
+`run_receipt.v1` is a separate, thin contract. It maps into the existing Automation Run/run/audit ledger; it does not create a second run SSOT. `external_runner.v0` remains the rich Eve contract. Both adapters converge only after contract-specific validation.
 
 Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
 
@@ -52,16 +52,16 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Mana is one connector, not the hub for Codex, GitHub Actions, or SalesTailor.
 - Source run result and receipt delivery result remain separate facts.
 - Source unavailability is represented explicitly and cannot become an empty success metric.
-- Existing Workflow Mission Control authorization, project boundary, persistence, and audit surfaces are reused.
+- Existing Automation Run authorization, project boundary, persistence, and audit surfaces are reused.
 - Shared JSON persistence gains one repository-wide transaction boundary so receipt, external runner, WorkflowService, WorkflowRunner, and other production writers cannot overwrite each other.
 - Existing nested WorkflowService transaction paths remain live through same-owner reentrancy instead of deadlocking on the queue.
 - Connector Stories can evolve independently while sharing one versioned receipt contract.
-- Agent Run InboxのCore契約と台帳は維持し、標準操作面はADR-017に従ってMCPとMac Companionへ移管する。Workflow Mission Control Web UIは移行中の互換面である。
+- Agent Run InboxのCore契約と台帳は維持し、標準操作面はADR-017に従ってMCPとMac Companionへ移管する。Workflow Mission Control Web UIは2026-07-16に退役した。
 
 ## Rejected Alternatives
 
 - Reuse `external_runner.v0`: rejected because it forces Eve-specific role/round/learning semantics on generic jobs.
-- Create a standalone receipt database: rejected because Workflow Mission Control already owns operational run facts.
+- Create a standalone receipt database: rejected because Automation Run Core already owns operational run facts.
 - Route all receipts through Mana: rejected because it couples independent runtime availability and credentials.
 - Copy raw source logs: rejected because source systems remain evidence authorities.
 
@@ -70,7 +70,7 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 - Contract and adapter unit tests prove validation, mapping, idempotency, and conflict behavior.
 - Route tests prove server-to-server auth and project boundaries.
 - Inbox tests prove priority/filter semantics and explicit evidence states.
-- Workflow Mission Control UI tests prove uncertainty is visible and API/UI ordering agrees without changing non-receipt workflow priority.
+- MCP contract tests and Mac Companion projection tests prove uncertainty is preserved, ordering is stable, and non-receipt automation priority is unchanged.
 - Existing `external_runner.v0` tests remain green.
 - Repository tests prove same-owner nested transaction completion, rollback-only propagation, bounded lease timeout/stale recovery, transaction-outside-write rejection, identity-lock isolation, lease-safe startup seeding, and preservation across receipt, external-runner duplicate replay, WorkflowService, and WorkflowRunner races.
 - WorkflowRunner tests use a transaction-guarded repository to prove the initial and terminal mutation groups are separate atomic transactions, hold a fake remote handler open with no active transaction, and prove an unrelated repository transaction commits before the handler is released. External-runner tests interrupt each candidate outbox phase and prove deterministic resume without pending-replay duplicate audit, exact existing-candidate adoption after a store-before-finalize crash, mismatched existing-candidate conflict, source candidate-id separation across run/project scope, no orphaned duplicate, and the legacy duplicate audit only after full convergence. A controlled two-repository seed fixture proves initialization waits for the shared lease, reloads under it, inserts only missing seeds, and preserves the other writer's commit. Reconciler branch tests prove each update/audit group remains atomic.

@@ -121,7 +121,7 @@ test('story-external-runner-adapter-contract-v0 ac:1 `external_runner.v0` は `r
   expect(repository.listRuns()).toHaveLength(0);
 });
 
-test('story-external-runner-adapter-contract-v0 ac:2 Eve実行結果はWorkflow Mission Controlのrun/context/human step/output/auditへ決定的に写る。 S-001 workflow state transition', async () => {
+test('story-external-runner-adapter-contract-v0 ac:2 Eve実行結果はAutomation Run Coreのrun/context/human step/output/auditへ決定的に写る。 S-001 workflow state transition', async () => {
   const { repository, service } = makeService();
 
   const result = await service.ingest(makePayload());
@@ -144,7 +144,7 @@ test('story-external-runner-adapter-contract-v0 ac:2 Eve実行結果はWorkflow 
     expect.objectContaining({ action: 'external_runner.round_recorded' }),
     expect.objectContaining({ action: 'external_runner.learning_candidate.deferred' })
   ]));
-  expect(`${storyId} ac:2 Eve実行結果 Workflow Mission Control run context human step output audit`).toContain('Workflow Mission Control');
+  expect(`${storyId} ac:2 Eve実行結果 Automation Run Core run context human step output audit`).toContain('Automation Run Core');
 });
 
 test('story-external-runner-adapter-contract-v0 ac:3 Role Agent、Workflow選択理由、Judgment DAG trace、停止条件、人間承認者が保存される。', async () => {
@@ -733,13 +733,11 @@ test('story-external-runner-adapter-contract-v0 ac:9 Mermaid図は既存ビュ�
 test('story-external-runner-adapter-contract-v0 S-006 auth_denied external runner API is registered behind workflowAuthGuard', async () => {
   const bootstrap = readFileSync('server/bootstrap/register-api-routes.js', 'utf8');
   const server = readFileSync('server.js', 'utf8');
-  const workflowsUi = readFileSync('public/workflows.html', 'utf8');
 
   expect(bootstrap).toMatch(/workflowAuthGuard\s*=\s*requireAuth\(authService\)/);
   expect(bootstrap).toMatch(/app\.use\('\/api\/external-runner',\s*workflowAuthGuard,\s*createExternalRunnerRouter\(externalRunnerIngestService\)\)/);
   expect(server).toMatch(/externalRunnerIngestService[\s\S]*=\s*createCoreServices\(/);
   expect(server).toMatch(/registerApiRoutes\(app,[\s\S]*externalRunnerIngestService,/);
-  expect(workflowsUi).toContain('output.preview || output.body || output.content || output.content_ref');
 });
 
 test('story-external-runner-adapter-contract-v0 S-007 compatibility guard keeps report_activity CSRF exemption separate from external runner ingest auth', async () => {

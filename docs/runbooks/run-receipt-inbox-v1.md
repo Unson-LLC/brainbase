@@ -17,7 +17,7 @@
 4. For each source, submit one confirmed terminal run, one terminal run with `unconfirmed|no_data`, one blocked/failed run, and one exact redelivery.
 5. Promote a connector only after exactly one Inbox item is visible per workflow identity, source/evidence/action fields match the source, and duplicate delivery creates no second run or audit.
 
-The common control plane has no destructive migration and no release-time backfill. Existing Workflow Mission Control data remains readable throughout version skew.
+The common control plane has no destructive migration and no release-time backfill. Existing Automation Run ledger data remains readable throughout version skew.
 
 ## Observability Evidence
 
@@ -55,14 +55,14 @@ Connector delivery is the rollout gate. When a connector is disabled, source exe
 
 ## Review Ownership Map
 
-このStoryは共有transaction基盤、receipt API、投影、UI、既存external runnerのoutbox整合性を同時に拘束するため、単一の通読レビューにはしない。以下の5責務を独立に判定し、全ownerのpass後だけコードPRをreadyとする。本番activationは別途Security Release Checkとsource canaryを要求する。
+このStoryは共有transaction基盤、receipt API、投影、Agent操作面、既存external runnerのoutbox整合性を同時に拘束するため、単一の通読レビューにはしない。以下の5責務を独立に判定し、全ownerのpass後だけコードPRをreadyとする。本番activationは別途Security Release Checkとsource canaryを要求する。
 
 | Review owner | 判定責務 | 主な変更surface | 必須証拠 |
 |---|---|---|---|
 | Contract / Security | `run_receipt.v1` validation、server-to-server auth、project scope、限定CSRF exemption、raw/credential-bearing evidence拒否 | `server/services/run-receipt/contract.js`, `server/routes/run-receipts.js`, `server.js` | contract negative matrix、route auth/project/near-match tests |
 | Ledger / Concurrency | identity lock → shared-ledger transaction → unlock順序、rollback-only、cross-process JSON lease、production writer、lease外I/O | `server/services/workflow/workflow-repository.js`, `server/services/workflow/workflow-runner.js`, `server/services/external-runner/ingest-service.js`, `server/services/run-receipt/ingest-service.js` | transaction/repository/runner tests、pending candidate resume/no-duplicate convergence |
 | Projection / Isolation | receiptの原子的workflow/run/audit投影、cross-scope identity、latest collapse、priority、legacy/Operational Inbox隔離 | `server/services/run-receipt/ingest-service.js`, `server/services/workflow/workflow-service.js`, `server/routes/run-receipts.js` | ingest/inbox/legacy isolation/integration tests、JSON再読込 |
-| Browser / UX | client/service/Store/EventBus境界、5 statusと3 evidence state、全filter、表示項目、可視focus、unavailable snapshot保持 | `public/modules/domain/run-receipt/`, `public/modules/core/store.js`, `public/modules/core/event-bus.js`, `public/workflows.html` | browser unit tests、tracked Playwright flow、visual evidence |
+| Agent surfaces | MCPの全件・履歴・診断・filter契約、Mac Companionの要介入projection、unavailable snapshot保持 | `mcp/brainbase/src/tools/control-plane-tools.ts`, `mcp/brainbase/tests/tools/control-plane-tools.test.ts`, `brainbase-mac-companion` | MCP contract tests、Companion projection/feedback continuity tests |
 | Release / Evidence | source-owned outbox・logs、canary順、monitoring、disabled behavior、version skew、non-destructive rollback | `docs/stories/`, `docs/specs/`, `docs/architecture/`, `docs/runbooks/`, `.vibepro/` evidence | VibePro adjudication/reviews、current-head verification ledger、source canary packet |
 
-Review順序は Contract / Security → Ledger / Concurrency → Projection / Isolation → Browser / UX → Release / Evidence とする。前段の契約やtransaction境界が変わった場合は、その変更に依存する後段判定をstaleとして取り直す。コードPRのpassはproduction credential処置やprovider canaryを代替しない。
+Review順序は Contract / Security → Ledger / Concurrency → Projection / Isolation → Agent surfaces → Release / Evidence とする。前段の契約やtransaction境界が変わった場合は、その変更に依存する後段判定をstaleとして取り直す。コードPRのpassはproduction credential処置やprovider canaryを代替しない。

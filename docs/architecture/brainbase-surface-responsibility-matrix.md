@@ -48,7 +48,7 @@ Agent Run Inboxは1つのデータ能力を複数の責務へ分ける。
 | receipt contract、ingest、冪等保存、priority、latest collapse、audit | Brainbase Core |
 | 全件・履歴・診断・filter・再確認 | Codex / Claude Code via MCP |
 | blocked、failed、waiting_human、unconfirmed、no_dataの要介入projection | Mac Companion |
-| current Workflow Mission Control Web section | transition-only。MCP/Companion移管後に廃止 |
+| Workflow Mission Control Web section | retired。MCP/Companion移管後、2026-07-16に削除済み |
 
 汎用Workflow definitionのcreate/update/draft/test/publish/manual runは後継面へ移管しない。Meeting Automation固有操作と、Run/Receipt/Human Approval/Auditだけを後継面へ出す。
 

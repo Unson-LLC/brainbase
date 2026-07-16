@@ -3,7 +3,9 @@ name: Automation Run Core
 purpose: Preserve project-scoped execution state, steps, outputs, human approval, retry/cancel transitions, and audit evidence without exposing a generic Workflow product.
 surfaces:
   ui: []
-  mcp: []
+  mcp:
+    - brainbase_automation_run_detail
+    - brainbase_automation_human_step_resolve
   api:
     - GET /api/workflow-runs/:runId
     - POST /api/workflow-runs/:runId/rerun

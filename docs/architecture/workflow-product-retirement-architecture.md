@@ -64,3 +64,7 @@ RunReceiptIngestService
 3. Meeting schedulerとreconcilerのcontract testsが旧Webなしでgreenになる。
 4. generic Workflow UIへのproduction導線が0件になる。
 5. rollback時に旧pageを戻してもledger schemaを巻き戻す必要がない。
+
+## Gate result
+
+2026-07-16に5 gateを満たし、`/workflows`、shell overlay、専用browser modules、旧UI E2Eを削除した。Meeting scheduler/reconciler、Automation Run、Human Approval、Audit、Run ReceiptのAPIとledgerは変更せず維持している。旧pageを戻す場合もschema rollbackは不要である。

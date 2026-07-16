@@ -56,22 +56,22 @@ Mac Companion
 
 ## Acceptance criteria
 
-- [ ] ac:1 Workflow Mission Control、Workflow Builder、汎用Workflow CRUD/draft/test/publish/manual runをretiring surfaceとして固定する。
-- [ ] ac:2 Meeting Source Sync、Meeting Pack ingest、Eve dispatch/reconcileのschedulerとstate transitionを維持する。
-- [ ] ac:3 Run、Run Step、Output、Human Approval、Audit、Run Receiptの正本とproject/auth境界を維持する。
-- [ ] ac:4 MCPへ汎用Workflow CRUDを移植せず、Run Receiptの全件・filter・history・failure stateと、必要なdomain-specific操作だけを提供する。
-- [ ] ac:5 blocked、unconfirmed、no_data、unavailableを成功または0件へ丸めない。
-- [ ] ac:6 Mac Companionの要介入projectionが成立した後に`/workflows`と専用client/state/view/testを削除する。
+- [x] ac:1 Workflow Mission Control、Workflow Builder、汎用Workflow CRUD/draft/test/publish/manual runをretiring surfaceとして固定する。
+- [x] ac:2 Meeting Source Sync、Meeting Pack ingest、Eve dispatch/reconcileのschedulerとstate transitionを維持する。
+- [x] ac:3 Run、Run Step、Output、Human Approval、Audit、Run Receiptの正本とproject/auth境界を維持する。
+- [x] ac:4 MCPへ汎用Workflow CRUDを移植せず、Run Receiptの全件・filter・history・failure stateと、必要なdomain-specific操作だけを提供する。
+- [x] ac:5 blocked、unconfirmed、no_data、unavailableを成功または0件へ丸めない。
+- [x] ac:6 Mac Companionの要介入projectionが成立した後に`/workflows`と専用client/state/view/testを削除する。
 - [ ] ac:7 repository schema/API pathの互換名変更は、読み書き互換とrollback evidenceを持つ別sliceで実施する。
-- [ ] ac:8 朝・昼のMeeting Prep PackはCodex Automationのまま維持し、Workflow engineへ移植しない。必要ならRun ReceiptだけをBrainbaseへ送る。
+- [x] ac:8 朝・昼のMeeting Prep PackはCodex Automationのまま維持し、Workflow engineへ移植しない。必要ならRun ReceiptだけをBrainbaseへ送る。
 
 ## Migration tasks
 
 | Task | Scope | State |
 |---|---|---|
 | `TSK-WFRET-001` | 製品境界を固定し、汎用Workflowへの新機能追加とMCP移植を停止 | complete |
-| `TSK-WFRET-002` | Run Receipt Inbox/history/diagnosisとMeeting Automationの必要操作をMCPへ追加 | in_progress |
-| `TSK-WFRET-003` | 要介入RunをMac Companionへ投影後、Workflow Web surfaceを削除 | in_progress |
+| `TSK-WFRET-002` | Run Receipt Inbox/history/diagnosisとMeeting Automationの必要操作をMCPへ追加 | complete |
+| `TSK-WFRET-003` | 要介入RunをMac Companionへ投影後、Workflow Web surfaceを削除 | complete |
 | `TSK-WFRET-004` | `WorkflowService`をMeeting Automation、Automation Run、Run Receiptへ段階分割し、互換名を縮退 | pending |
 
 ### TSK-WFRET-002 progress
@@ -81,7 +81,8 @@ Mac Companion
 - `brainbase_run_receipt_diagnosis`を追加し、blocked、failed、waiting_human、unconfirmed、no_dataをissue codeと推奨actionへ構造化する。
 - project scopeはJWTと`BRAINBASE_PROJECT_CODES`の積集合で固定し、明示projectがscope外ならAPI通信前に拒否する。
 - confirmed emptyと、transport/auth/contract failureを別状態として返す。
-- Run Receipt Inbox/history/diagnosisは実装済み。Meeting Automationのdomain-specific診断・再実行操作は未実装のため、Task自体は`in_progress`を維持する。
+- `brainbase_automation_run_detail`、`brainbase_automation_human_step_resolve`、`brainbase_meeting_automation_diagnosis`を追加した。汎用Workflow CRUDやmanual runは追加していない。
+- Meeting診断は`blocked`、`unconfirmed`、`no_data`、`failed`、`healthy`を区別し、承認操作だけを明示的なwriteとして監査する。
 
 ### TSK-WFRET-003 progress
 
@@ -89,7 +90,9 @@ Mac Companion
 - 取得不能時は前回成功snapshotを保持し、未確認を0件または解決済みへ丸めない。
 - stable identityをproject、source type、source identityから生成し、新しいRunが届いても既存の確認済み状態とfeedback loopを継承することをtestで固定済み（companion commit `a3964b3`）。
 - Mac Companion full suiteは373 tests、追加したfeedback continuity testは3 testsがgreen。
-- Workflow Web surfaceの削除は、Automation Run detail/human-step resolveとMeeting Automation診断のMCP gateが未完了なため未着手。Task自体は`in_progress`を維持する。
+- `/workflows`と`/workflows.html`の配信、activity bar導線、overlay、専用CSS、browser client/service/view、旧UI E2Eを削除した。
+- Companion approval itemは廃止済みWeb URLを返さず、Run API参照を`api_path`として返す。
+- Meeting Automation、Automation Run、Run Receiptのserver/API contract testsは維持する。
 
 ## Non-goals
 

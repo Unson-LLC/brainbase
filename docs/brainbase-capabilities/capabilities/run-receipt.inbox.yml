@@ -2,10 +2,11 @@ id: run-receipt.inbox
 name: Run Receipt Inbox
 purpose: Normalize cross-runtime run facts, preserve uncertainty, and provide latest, filtered, historical, and diagnostic views to Agent surfaces.
 surfaces:
-  ui:
-    - /workflows (transition-only)
+  ui: []
   mcp:
     - brainbase_run_receipt_inbox
+    - brainbase_run_receipt_history
+    - brainbase_run_receipt_diagnosis
   api:
     - POST /api/run-receipts/ingest
     - GET /api/run-receipts/inbox

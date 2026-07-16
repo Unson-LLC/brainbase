@@ -19,8 +19,7 @@
         "paths": [
           "server/bootstrap/core-services.js",
           "server/services/workflow/workflow-service.js",
-          "server/services/info-ssot-service.js",
-          "public/workflows.html"
+          "server/services/info-ssot-service.js"
         ],
         "symbols": [
           "WorkflowService.resolveMeetingReviewTaskOwnersFromSSOT",

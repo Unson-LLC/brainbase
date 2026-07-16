@@ -16,7 +16,7 @@ test_files:
 
 # Brainbase Companion Approval Inbox API v1 Spec
 
-> Surface lifecycle: `web_url` / `web_route`とWorkflow Mission Control deep-linkは既存互換面の契約であり、Mac Companionの必須判断経路ではない。安定したrun identity、self-contained context/evidence、MCP handoffを後継経路とし、Web retirement完了後に互換フィールドとdeep-link testを削除対象とする。
+> Surface lifecycle: Workflow Web retirement完了により`web_url` / `web_route`とdeep-link testは削除済み。安定したrun identity、`api_path`、self-contained context/evidence、MCP handoffを正規経路とする。
 
 ## 不変条件
 
@@ -30,7 +30,7 @@ test_files:
 
 ## 成功レスポンス契約
 
-`GET /api/companion/approval-inbox` は `items`, `count`, `has_more`, `omitted_count` を返す。各 item は `id`, `kind`, `title`, `summary`, `priority`, `owner_id`, `action_kind`, `workflow_id`, `workflow_name`, `run_id`, `web_url`, `web_route`, `project_id`, `status`, `action_required`, `pending_human_steps`, `outputs`, `context`, `audit_refs`, `evidence`, `source_url` を持つ。`owner_id` は pending human step の `requested_to` を最優先し、`action_kind` は real producer が作る output type からも決定できる。
+`GET /api/companion/approval-inbox` は `items`, `count`, `has_more`, `omitted_count` を返す。各 item は `id`, `kind`, `title`, `summary`, `priority`, `owner_id`, `action_kind`, `workflow_id`, `workflow_name`, `run_id`, `api_path`, `project_id`, `status`, `action_required`, `pending_human_steps`, `outputs`, `context`, `audit_refs`, `evidence`, `source_url` を持つ。`owner_id` は pending human step の `requested_to` を最優先し、`action_kind` は real producer が作る output type からも決定できる。
 
 ## シナリオ
 
@@ -40,7 +40,7 @@ test_files:
 - **S4 auth**: 未認証または owner ではない bearer は拒否される。`requested -> auth_rejected -> no_workflow_scan`
 - **S5 compatibility**: reply-context / reply-draft は従来通り利用できる。`requested -> existing_reply_route -> compatibility_preserved`
 - **S6 no mutation**: approval inbox は repository の読み取りだけを行い、human step resolve や output 書き換えを行わない。`requested -> read_only_projection -> no_resolve_no_writeback`
-- **S7 companion-ui boundary**: Brainbase側はMac Companionの一覧・承認UIを作らない。API projectionが返す`web_url` / `web_route`は移行中の互換情報であり、Macの判断やMCP handoffの必須条件にしない。`requested -> api_projection -> self_contained_item -> companion_ui_story`
+- **S7 companion-ui boundary**: Brainbase側はMac Companionの一覧・承認UIを作らない。API projectionは廃止済みWeb URLを返さず、`api_path`とself-containedな判断材料を返す。`requested -> api_projection -> self_contained_item -> companion_ui_story`
 - **S8 visible truncation**: pending approval が `limit` を超える場合、返却しない全件数を `has_more` と `omitted_count` で明示する。`requested -> pending_steps_projected -> response_limited_with_omitted_count`
 - **S9 self-contained judgment**: Mac Companion が Brainbase Web を開かずに判断できるよう、`context` と `evidence` は参照IDだけでなく表示可能な summary/payload を含む。`requested -> context_attached -> evidence_attached -> self_contained_item`
 
@@ -70,14 +70,14 @@ test_files:
 
 | Path | Input | Boundary | Evidence |
 |---|---|---|---|
-| native companion read | bearer/service/internal request | `/api/companion/approval-inbox` + companion guard | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
-| missing auth | no token | `requireAuth` before workflow scan | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
-| all-runs projection | older pending + newer success | repository `listRuns({ limit: null })` then response limit | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
+| native companion read | bearer/service/internal request | `/api/companion/approval-inbox` + companion guard | `tests/server/routes/companion-approval-inbox.test.js` |
+| missing auth | no token | `requireAuth` before workflow scan | `tests/server/routes/companion-approval-inbox.test.js` |
+| all-runs projection | older pending + newer success | repository `listRuns({ limit: null })` then response limit | `tests/server/routes/companion-approval-inbox.test.js` |
 | terminal run exclusion | success/cancelled/closed run with stale pending step | run state gate before pending projection | `tests/server/routes/companion-approval-inbox.test.js` |
-| self-contained judgment | context snapshots and audit evidence | `context[]` / `evidence[]` projection | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
-| visible truncation | pending approvals beyond response limit | `has_more` / `omitted_count` | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
-| workflow run deep link compatibility | `web_url: /workflows?run_id=<id>` | retirement期間中だけ既存Workflow Mission Control Run Traceとの互換性を維持 | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
-| existing reply context | Mac reply context POST | existing route compatibility | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
+| self-contained judgment | context snapshots and audit evidence | `context[]` / `evidence[]` projection | `tests/server/routes/companion-approval-inbox.test.js` |
+| visible truncation | pending approvals beyond response limit | `has_more` / `omitted_count` | `tests/server/routes/companion-approval-inbox.test.js` |
+| retired Web link | approval item | `web_url` / `web_route`を返さず`api_path`を返す | `tests/server/routes/companion-approval-inbox.test.js` |
+| existing reply context | Mac reply context POST | existing route compatibility | `tests/server/routes/companion-reply-draft.test.js` |
 
 ## Path / Surface Coverage
 
@@ -86,8 +86,8 @@ test_files:
 | `GET /api/companion/approval-inbox` | pending human step と outputs/context/evidence を返す | `tests/server/routes/companion-approval-inbox.test.js` |
 | 古い pending run | latest run でなくても返す | `tests/server/routes/companion-approval-inbox.test.js` |
 | pending なし | success/resolved run は返さない | `tests/server/routes/companion-approval-inbox.test.js` |
-| limit超過 | `has_more` と `omitted_count` で未表示の全件数を返す | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
-| Workflow Mission Control deep-link compatibility | retirement期間中は`web_url`を開くと既存Run Traceに対象`run_id`が表示される。後継MCP handoffのgateにはしない | `tests/e2e/story-companion-approval-inbox-v1-contract.spec.ts` |
+| limit超過 | `has_more` と `omitted_count` で未表示の全件数を返す | `tests/server/routes/companion-approval-inbox.test.js` |
+| Web retirement | `web_url` / `web_route`を返さず、Run参照は`api_path`で渡す | `tests/server/routes/companion-approval-inbox.test.js` |
 | 未認証 | `401` | `tests/server/routes/companion-approval-inbox.test.js` |
 | 既存 reply context/draft | route 互換を維持 | `tests/server/routes/companion-reply-draft.test.js` |
 | Mac Companion UI/preview | Brainbase repo では非該当。Mac Companion repo の approval focus queue story が担当 | `story-mac-companion-approval-focus-queue-v1` |

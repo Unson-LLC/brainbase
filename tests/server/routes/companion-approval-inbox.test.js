@@ -314,13 +314,7 @@ describe('companion approval inbox route', () => {
             action_kind: 'task_candidates',
             workflow_id: 'wf_meeting',
             run_id: 'run_pending_old',
-            web_url: '/workflows?run_id=run_pending_old',
-            web_route: {
-                path: '/workflows',
-                view: 'run',
-                run_id: 'run_pending_old',
-                api_path: '/api/workflow-runs/run_pending_old'
-            },
+            api_path: '/api/workflow-runs/run_pending_old',
             project_id: 'sample-project',
             status: 'waiting_human',
             action_required: 'approve',

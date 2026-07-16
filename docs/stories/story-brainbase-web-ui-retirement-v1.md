@@ -23,7 +23,7 @@ related_tasks:
       - TSK-WEBRET-007
       - TSK-WEBRET-008
       - TSK-WEBRET-009
-status: draft
+status: in_progress
 created_at: 2026-07-16
 updated_at: 2026-07-16
 ---
@@ -55,7 +55,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 | Current artifact | Current role | Target | Initial state | Retirement condition |
 |---|---|---|---|---|
 | `public/index.html` | Workspace、Project、Session等の主要shell | MCPへ移管。login/bootstrapだけ分離してWebに残す | `temporarily_keep` | shell内能力のMCP parity確認とauth/bootstrap分離 |
-| `public/workflows.html` | Workflow Mission Control、Run Detail、Agent Run Inbox | Core + MCP + Mac Companion | `temporarily_keep` | workflow/runのMCP操作、要介入runのCompanion投影、監査参照を検証 |
+| `public/workflows.html` | 廃止済みのWorkflow Mission Control、Run Detail、Agent Run Inbox | Core + MCP + Mac Companion | `deleted` | `TSK-WEBRET-006`完了。route/page/overlay/browser module/旧UI test/deep-linkを削除 |
 | `public/meeting-workflow-pack.html` | 廃止済みの固定データprototype | Workflow Core + MCP + Mac Companion | `deleted_prototype` | `TSK-WEBRET-002`で専用runtimeとdeep-linkを削除。Core/APIは維持 |
 | `public/sns-growth.html` | SNS運用cockpit | MCP/automation + Mac Companion approval | `temporarily_keep` | 生成・計測・投稿準備のMCP/automation化と承認境界を検証 |
 | `public/admin.html` | 管理・可視化の混合面 | browser必須設定だけWebへ分離し、残りはMCP | `temporarily_keep` | admin能力を機能別分類し、auth/consent/recovery以外を移管 |
@@ -92,7 +92,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 
 ## Scope exclusions
 
-- このStoryではWeb UIコードを直ちに削除しない。
+- evidenceを満たしたsurfaceはこのStory内で順次削除する。
 - Brainbase Coreのドメインモデル、API、MCP、ledger、auditを削除しない。
 - Mac Companionを汎用管理画面へ拡張しない。
 - MCP parity未確認の能力を「不要」と推定して削除しない。
@@ -105,9 +105,9 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 1. `TSK-WEBRET-001`（完了）: 参照のない`test-infrastructure.html`を削除し、static 404をcontract testで固定した。
 2. `TSK-WEBRET-002`（完了）: 実APIへ接続していないMeeting Pack mock prototype、専用runtime、deep-link、専用E2E、CSP例外を削除した。
 3. `TSK-WEBRET-003`（完了）: 認証済みproject catalogを最初のMCP control-plane toolとして出荷し、project grant、failure state、audit evidenceの共通契約を固定した。
-4. `TSK-WEBRET-004`: 汎用WorkflowをMCPへ移植せず、Automation Run/Run Receipt Inboxの全件・履歴・診断面を出荷する。
-5. `TSK-WEBRET-005`から`006`: Companion projectionを出荷し、Workflow Mission Control Webを廃止する。
+4. `TSK-WEBRET-004`（完了）: 汎用WorkflowをMCPへ移植せず、Automation Run/Run Receipt Inboxの全件・履歴・診断面を出荷した。
+5. `TSK-WEBRET-005`から`006`（完了）: Companion projectionを出荷し、Workflow Mission Control Webを廃止した。
 6. `TSK-WEBRET-007`: Admin/SNS/setupの残能力を後継面へ移管する。
 7. `TSK-WEBRET-008`から`009`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
 
-`TSK-WEBRET-001`から`TSK-WEBRET-003`まで完了。`TSK-WEBRET-004`以降は、後継能力のcurrent HEAD evidenceなしに削除へ進めない。
+`TSK-WEBRET-001`から`TSK-WEBRET-006`まで完了。次はAdmin、SNS、setup、session shellを、後継能力のcurrent HEAD evidenceを揃えたsurfaceから廃止する。

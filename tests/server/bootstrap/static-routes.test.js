@@ -61,10 +61,19 @@ describe('static routes', () => {
         await request(app).get('/meeting-workflow-pack.html').expect(404);
     });
 
-    it('does not link the workflow mission control to the retired meeting prototype', async () => {
-        const workflowsHtml = await fs.readFile(path.join(repoRoot, 'public', 'workflows.html'), 'utf-8');
+    it('TSK-WFRET-003 does not serve or link the retired Workflow product', async () => {
+        const app = express();
+        registerStaticRoutes(app, {
+            publicDir: path.join(repoRoot, 'public'),
+            log: { error: () => {} }
+        });
 
-        expect(workflowsHtml).not.toContain('meeting-workflow-pack.html');
-        expect(workflowsHtml).not.toContain('data-open-meeting-workflow-cockpit');
+        await request(app).get('/workflows').expect(404);
+        await request(app).get('/workflows.html').expect(404);
+
+        const indexHtml = await fs.readFile(path.join(repoRoot, 'public', 'index.html'), 'utf-8');
+        expect(indexHtml).not.toContain('ab-workflows-btn');
+        expect(indexHtml).not.toContain('workflows-overlay');
+        expect(indexHtml).not.toContain('href="/workflows"');
     });
 });
