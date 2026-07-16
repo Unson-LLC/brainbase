@@ -9,7 +9,19 @@ architecture_docs:
     status: accepted
   - path: docs/architecture/brainbase-surface-responsibility-matrix.md
     status: accepted
-related_tasks: []
+  - path: docs/architecture/brainbase-web-surface-retirement-inventory.md
+    status: accepted
+related_tasks:
+  - task_source: story
+    task_ids:
+      - TSK-WEBRET-001
+      - TSK-WEBRET-002
+      - TSK-WEBRET-003
+      - TSK-WEBRET-004
+      - TSK-WEBRET-005
+      - TSK-WEBRET-006
+      - TSK-WEBRET-007
+      - TSK-WEBRET-008
 status: draft
 created_at: 2026-07-16
 updated_at: 2026-07-16
@@ -85,10 +97,13 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 - MCP parity未確認の能力を「不要」と推定して削除しない。
 - login、OAuth/consent、pairing、break-glass recoveryの最終デザインを確定しない。
 
-## Immediate follow-up stories
+## Immediate follow-up tasks
 
-1. Web surface/code-path inventory and dependency map
-2. Workflow/Run/Agent Run Inbox MCP parity
-3. Agent Run Inbox Mac Companion focus projection
-4. Auth/settings/recovery Web core extraction
-5. Surface-by-surface retirement starting with isolated developer-only UI
+詳細なdependency map、実装順、完了evidenceは`docs/architecture/brainbase-web-surface-retirement-inventory.md`を正本とする。
+
+1. `TSK-WEBRET-001`: 参照のない`test-infrastructure.html`を最初に削除する。
+2. `TSK-WEBRET-002`: 実APIへ接続していないMeeting Pack mock prototypeとdeep-linkを削除する。
+3. `TSK-WEBRET-003`から`006`: MCP control plane、Workflow/Run/Inbox、Companion projection、Admin/SNS/setup parityを後継面として出荷する。
+4. `TSK-WEBRET-007`から`008`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
+
+`TSK-WEBRET-001`と`TSK-WEBRET-002`以外は、後継能力のcurrent HEAD evidenceなしに削除へ進めない。
