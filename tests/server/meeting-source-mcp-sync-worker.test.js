@@ -14,6 +14,7 @@ import {
 async function makeService({
     adapters = {},
     workflowService = null,
+    meetingAutomationService = null,
     clock = () => '2026-07-02T00:00:00.000Z',
     syncConfig = {}
 } = {}) {
@@ -23,6 +24,7 @@ async function makeService({
         stateFile,
         adapters,
         workflowService,
+        meetingAutomationService,
         clock,
         syncConfig
     });
@@ -275,8 +277,12 @@ describe('MeetingSourceMcpSyncService', () => {
         const workflowService = {
             ingestMeetingReviewPackage: vi.fn(async () => ({ ok: true }))
         };
+        const meetingAutomationService = {
+            bootstrapPack: vi.fn(async () => ({ created: true }))
+        };
         const { service } = await makeService({
             workflowService,
+            meetingAutomationService,
             adapters: {
                 tactiq: {
                     poll: vi.fn(async () => [{
@@ -331,6 +337,10 @@ describe('MeetingSourceMcpSyncService', () => {
         const confirmed = await service.confirmResync({ preview_id: preview.preview_id });
         const statuses = await service.listProviderStatuses();
 
+        expect(meetingAutomationService.bootstrapPack).toHaveBeenCalledWith({
+            org_id: 'brainbase',
+            project_id: 'brainbase'
+        }, null);
         expect(workflowService.ingestMeetingReviewPackage).toHaveBeenCalledTimes(1);
         expect(confirmed.submitted).toBe(true);
         expect(confirmed.meeting_pack_count).toBe(1);

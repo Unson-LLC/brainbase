@@ -659,6 +659,7 @@ export class MeetingSourceMcpSyncService {
         stateFile,
         adapters = {},
         workflowService = null,
+        meetingAutomationService = null,
         clock = nowIso,
         syncConfig = {}
     } = {}) {
@@ -666,6 +667,7 @@ export class MeetingSourceMcpSyncService {
         this.stateFile = stateFile;
         this.adapters = adapters;
         this.workflowService = workflowService;
+        this.meetingAutomationService = meetingAutomationService;
         this.clock = clock;
         this.syncConfig = {
             ...defaultState().sync_config,
@@ -1313,8 +1315,8 @@ export class MeetingSourceMcpSyncService {
                 error.statusCode = 400;
                 throw error;
             }
-            if (this.workflowService.bootstrapMeetingWorkflowPack) {
-                await this.workflowService.bootstrapMeetingWorkflowPack({
+            if (this.meetingAutomationService?.bootstrapPack) {
+                await this.meetingAutomationService.bootstrapPack({
                     org_id: scope.org_id,
                     project_id: scope.project_id
                 }, actor);

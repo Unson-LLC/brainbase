@@ -100,7 +100,7 @@ Mac Companion
 - project accessの準備・判定は既存の正本をcallback injectionし、分割中に認可ルールを複製していない。
 - Run Receipt read routeへ`RunReceiptQueryService`を直接注入し、`WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`を削除した。
 - Meeting Packの設計レビュー、design gate付きbootstrap、Google Calendar入力正規化を`MeetingAutomationService`へ分離した。
-- Meeting Automation routeへ`MeetingAutomationService`を直接注入した。`WorkflowService.reviewMeetingWorkflowPackDesign`、`bootstrapMeetingWorkflowPack`、`createMeetingPackCalendarLoopIntents`はMeeting Source sync workerと内部caller向けの互換adapterとして残す。
+- Meeting Automation routeとMeeting Source sync workerへ`MeetingAutomationService`を直接注入した。同期workerはReview Package ingestだけを`WorkflowService`へ委譲する。`WorkflowService.reviewMeetingWorkflowPackDesign`、`bootstrapMeetingWorkflowPack`、`createMeetingPackCalendarLoopIntents`は内部caller向けの互換adapterとして残す。
 - Review Package取り込み後のEve note生成handoffとrequested/skipped監査を`MeetingAutomationService.dispatchNoteGeneration`へ分離した。Eve完了検知とwrite-back reconcileは既存の`EveMeetingNoteReconciler`を継続利用する。
 - Review Packageのoutput/human gate定義と必須loop intent、project scope整合性検証を`meeting-review-contract`と`MeetingAutomationService.verifyReviewPackage`へ分離した。既存ingest routeのerror/state transitionは維持する。
 - Run Receipt queryとMeeting Automationの直接contract testを追加した。Run Receiptの互換adapterはproduction caller 0件を確認して削除済みである。
