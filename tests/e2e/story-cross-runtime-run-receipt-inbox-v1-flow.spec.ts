@@ -349,11 +349,17 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
   await expect(page.locator('#run-receipt-evidence')).toBeFocused();
 
   await page.locator('#run-receipt-project').selectOption('brainbase');
-  await page.getByRole('button', { name: 'Apply' }).click();
+  const applyButton = page.getByRole('button', { name: 'Apply' });
+  await applyButton.focus();
+  await expect(applyButton).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.locator('#run-receipt-project')).toHaveValue('brainbase');
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
 
-  await page.getByRole('button', { name: 'Reset' }).click();
+  const resetButton = page.getByRole('button', { name: 'Reset' });
+  await resetButton.focus();
+  await expect(resetButton).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.locator('#run-receipt-project')).toHaveValue('');
   await expect(page.getByText(`failed without evidence ${suffix}`)).toBeVisible();
   await page.locator('#run-receipt-status').selectOption('blocked');
@@ -400,4 +406,42 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
   await expect(page.getByText(`latest blocked remains ${suffix}`)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Operational Inbox' })).toBeVisible();
   await expect(operationalItem).toBeVisible();
+});
+
+test('story-cross-runtime-run-receipt-inbox-v1 visible loading settles to a confirmed ready-empty state', async ({ page }) => {
+  let releaseInboxRequest = () => {};
+  const holdInboxRequest = new Promise<void>((resolve) => {
+    releaseInboxRequest = resolve;
+  });
+
+  await page.setExtraHTTPHeaders(AUTH_HEADERS);
+  await page.route('**/api/workflows', async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== 'GET' || url.pathname !== '/api/workflows') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ workflows: [] })
+    });
+  });
+  await page.route('**/api/run-receipts/inbox**', async (route) => {
+    await holdInboxRequest;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], count: 0, has_more: false, omitted_count: 0 })
+    });
+  });
+
+  await page.goto('/workflows.html');
+  await expect(page.getByRole('heading', { name: 'Agent Run Inbox' })).toBeVisible();
+  await expect(page.locator('#agent-run-inbox-status')).toContainText('更新中');
+  await expect(page.getByText('該当するRun Receiptはありません')).toHaveCount(0);
+
+  releaseInboxRequest();
+  await expect(page.locator('#agent-run-inbox-status')).toContainText('0件を確認済み');
+  await expect(page.getByText('該当するRun Receiptはありません')).toBeVisible();
 });

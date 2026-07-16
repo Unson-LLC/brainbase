@@ -91,6 +91,8 @@ describe('renderRunReceiptInbox', () => {
     it('loading中_再描画で未送信filterを失わないようcontrolsを無効化する', () => {
         const html = renderRunReceiptInbox(inbox({ status: 'loading' }));
 
+        expect(html).toContain('更新中。取得完了まで件数は未確認です。');
+        expect(html).not.toContain('該当するRun Receiptはありません');
         for (const id of [
             'run-receipt-project',
             'run-receipt-source',
@@ -101,6 +103,14 @@ describe('renderRunReceiptInbox', () => {
         }
         expect(html).toContain('type="submit" disabled>Apply</button>');
         expect(html).toContain('data-action="reset-run-receipt-filters" disabled>Reset</button>');
+    });
+
+    it('readyかつ0件のときだけ_確認済みの空状態を表示する', () => {
+        const html = renderRunReceiptInbox(inbox({ status: 'ready', items: [], count: 0 }));
+
+        expect(html).toContain('0件を確認済み');
+        expect(html).toContain('該当するRun Receiptはありません');
+        expect(html).not.toContain('取得完了まで件数は未確認です');
     });
 
     it('source_actionがnoneのfailed receiptは正規化済みcheck_errorを表示する', () => {
