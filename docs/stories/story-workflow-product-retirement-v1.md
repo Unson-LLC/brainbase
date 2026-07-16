@@ -99,7 +99,9 @@ Mac Companion
 - Run Receiptのlatest collapse、filter、priority、history、diagnosisを`RunReceiptQueryService`へ分離した。
 - project accessの準備・判定は既存の正本をcallback injectionし、分割中に認可ルールを複製していない。
 - `WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`は互換adapterとして残し、既存API/MCP callerを壊さず専用serviceへ委譲する。
-- Run Receipt queryの直接contract testと互換adapter testを追加した。次sliceはMeeting Automation、続いてAutomation Runを分離する。
+- Meeting Packの設計レビュー、design gate付きbootstrap、Google Calendar入力正規化を`MeetingAutomationService`へ分離した。
+- `WorkflowService.reviewMeetingWorkflowPackDesign`、`bootstrapMeetingWorkflowPack`、`createMeetingPackCalendarLoopIntents`は互換adapterとして残し、既存route、MCP、sync workerを壊さず専用serviceへ委譲する。
+- Run Receipt queryとMeeting Automation第1段の直接contract test、互換adapter testを追加した。次sliceはMeeting review package ingestとEve handoffを分離し、その後Automation Runを分離する。
 
 ## Non-goals
 

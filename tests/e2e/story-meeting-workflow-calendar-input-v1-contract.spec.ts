@@ -57,27 +57,29 @@ test.describe('story-meeting-workflow-calendar-input-v1', () => {
     const spec = readFile('docs/specs/story-meeting-workflow-calendar-input-v1-spec.md');
     const architecture = readFile('docs/architecture/meeting-workflow-calendar-input-architecture.md');
     const workflowService = readFile('server/services/workflow/workflow-service.js');
+    const meetingAutomationService = readFile('server/services/meeting-automation/meeting-automation-service.js');
+    const meetingAutomationRuntime = workflowService + meetingAutomationService;
     const calendarService = readFile('server/services/google-calendar-service.js');
     const route = readFile('server/routes/workflows.js');
 
     // story-meeting-workflow-calendar-input-v1 ac:1 AC-001: `gog calendar events`由来のtimed予定を、Meeting Workflow Packの`meeting_identity`として正規化できる。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:1 AC-001: `gog calendar events`由来のtimed予定を、Meeting Workflow Packの`meeting_identity`として正規化できる。').toContain("source: 'google_calendar'");
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:1 AC-001: `gog calendar events`由来のtimed予定を、Meeting Workflow Packの`meeting_identity`として正規化できる。').toContain("source: 'google_calendar'");
     // story-meeting-workflow-calendar-input-v1 ac:2 AC-002: Calendar予定から`pre-meeting-briefing`のschedule trigger Loop Intentを作成できる。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:2 AC-002: Calendar予定から`pre-meeting-briefing`のschedule trigger Loop Intentを作成できる。').toContain("workflowDefinitionId = 'pre-meeting-briefing'");
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:2 AC-002: Calendar予定から`pre-meeting-briefing`のschedule trigger Loop Intentを作成できる。').toContain("workflowDefinitionId = 'pre-meeting-briefing'");
     // story-meeting-workflow-calendar-input-v1 ac:3 AC-003: Loop Intentにはorg/project、Role Agent、Workflow Template、Workflow Binding、Workflow Triggerの系譜が残る。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:3 AC-003: Loop Intentにはorg/project、Role Agent、Workflow Template、Workflow Binding、Workflow Triggerの系譜が残る。').toContain('role_agent_instance_id');
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:3 AC-003: Loop Intentにはorg/project、Role Agent、Workflow Template、Workflow Binding、Workflow Triggerの系譜が残る。').toContain('role_agent_instance_id');
     // story-meeting-workflow-calendar-input-v1 ac:4 AC-004: 予定のevent id、calendar id、account、開始終了、参加者、会議URL、場所、説明、HTMLリンクを入力payloadに保持できる。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:4 AC-004: 予定のevent id、calendar id、account、開始終了、参加者、会議URL、場所、説明、HTMLリンクを入力payloadに保持できる。').toContain('conference_url');
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:4 AC-004: 予定のevent id、calendar id、account、開始終了、参加者、会議URL、場所、説明、HTMLリンクを入力payloadに保持できる。').toContain('conference_url');
     // story-meeting-workflow-calendar-input-v1 ac:5 AC-005: all-day予定は会議Loop Intentとして作成せず、skip理由を返す。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:5 AC-005: all-day予定は会議Loop Intentとして作成せず、skip理由を返す。').toContain("reason: 'all_day_event'");
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:5 AC-005: all-day予定は会議Loop Intentとして作成せず、skip理由を返す。').toContain("reason: 'all_day_event'");
     // story-meeting-workflow-calendar-input-v1 ac:6 AC-006: 複数calendarの一部取得失敗は、成功分をLoop Intent化し、失敗calendarを`skipped_events`へ返す。
     expect(story + calendarService, 'story-meeting-workflow-calendar-input-v1 ac:6 AC-006: 複数calendarの一部取得失敗は、成功分をLoop Intent化し、失敗calendarを`skipped_events`へ返す。').toContain('skippedCalendars.push');
     // story-meeting-workflow-calendar-input-v1 ac:7 AC-007: Calendar未接続・認証失敗時はLoop Intentを作らず失敗する。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:7 AC-007: Calendar未接続・認証失敗時はLoop Intentを作らず失敗する。').toContain('google calendar is not connected');
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:7 AC-007: Calendar未接続・認証失敗時はLoop Intentを作らず失敗する。').toContain('google calendar is not connected');
     // story-meeting-workflow-calendar-input-v1 ac:8 AC-008: 取得対象calendarが全滅した場合は、Role Agent / Template / Binding / Triggerも含めてWorkflow Controlへ部分書き込みしない。
     expect(story + spec, 'story-meeting-workflow-calendar-input-v1 ac:8 AC-008: 取得対象calendarが全滅した場合は、Role Agent / Template / Binding / Triggerも含めてWorkflow Controlへ部分書き込みしない。').toContain('Workflow Controlへ部分書き込みしない');
     // story-meeting-workflow-calendar-input-v1 ac:9 AC-009: 同じCalendar予定を再取り込みしても安定IDで上書きされ、重複Loop Intentを作らない。
-    expect(story + workflowService, 'story-meeting-workflow-calendar-input-v1 ac:9 AC-009: 同じCalendar予定を再取り込みしても安定IDで上書きされ、重複Loop Intentを作らない。').toContain('eventStableRef');
+    expect(story + meetingAutomationRuntime, 'story-meeting-workflow-calendar-input-v1 ac:9 AC-009: 同じCalendar予定を再取り込みしても安定IDで上書きされ、重複Loop Intentを作らない。').toContain('eventStableRef');
     // story-meeting-workflow-calendar-input-v1 ac:10 AC-010: 既存のSchedule画面向け`listEventsForDate`の挙動を壊さない。
     expect(story + calendarService, 'story-meeting-workflow-calendar-input-v1 ac:10 AC-010: 既存のSchedule画面向け`listEventsForDate`の挙動を壊さない。').toContain('async listEventsForDate(date)');
     // story-meeting-workflow-calendar-input-v1 ac:11 AC-011: `account`指定時は複数Googleアカウント環境でも指定accountで取得できる。

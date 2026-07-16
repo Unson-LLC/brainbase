@@ -7,11 +7,9 @@ import {
     testWorkflowDraft
 } from './workflow-draft-generator.js';
 import {
-    MEETING_WORKFLOW_PACK_ID,
-    MEETING_WORKFLOW_DEFINITIONS,
-    buildMeetingWorkflowPackRecords,
-    meetingPackIds
+    MEETING_WORKFLOW_PACK_ID
 } from './meeting-workflow-pack.js';
+import { MeetingAutomationService } from '../meeting-automation/meeting-automation-service.js';
 import { RunReceiptQueryService } from '../run-receipt/query-service.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
@@ -19,19 +17,6 @@ const DEFAULT_OWNER_ID = 'local-user';
 const MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY = 'meeting-review-package-ingest';
 const ALLOWED_TRIGGER_TYPES = new Set(['human', 'event', 'schedule']);
 const ALLOWED_AUTONOMY_LEVELS = new Set(['human_only', 'draft_only', 'approval_required', 'auto_execute']);
-const MEETING_CALENDAR_SUCCESS_STATE_TRANSITIONS = [
-    'requested',
-    'calendar_fetching',
-    'meeting_pack_ensured',
-    'loop_intents_ready',
-    'skipped_inputs_reported'
-];
-const MEETING_CALENDAR_FAILED_ALL_STATE_TRANSITIONS = [
-    'requested',
-    'calendar_fetching',
-    'calendar_fetch_failed_all',
-    'failed_without_partial_write'
-];
 const EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY = 'eve-session-dispatch';
 const EVE_SESSION_DISPATCH_STATE_TRANSITIONS = [
     'loop_intent_loaded',
@@ -689,17 +674,6 @@ function normalizeTags(value) {
     return Array.isArray(value)
         ? value.map((item) => String(item).trim()).filter(Boolean)
         : [];
-}
-
-function readStringList(input, snakeKey, camelKey = snakeKey) {
-    const value = input?.[snakeKey] ?? input?.[camelKey];
-    if (Array.isArray(value)) {
-        return value.map((item) => String(item).trim()).filter(Boolean);
-    }
-    if (typeof value === 'string') {
-        return value.split(',').map((item) => item.trim()).filter(Boolean);
-    }
-    return [];
 }
 
 function readStrictStringList(input, snakeKey, camelKey = snakeKey) {
@@ -1699,26 +1673,6 @@ function eligibilityFrom({ binding, trigger, input }) {
     };
 }
 
-function createMeetingIdentityFromCalendarEvent(event, { account = null } = {}) {
-    return {
-        source: 'google_calendar',
-        account: event.account || account || null,
-        calendar_id: event.calendarId || null,
-        event_id: event.calendarEventId || event.id || null,
-        event_uid: event.iCalUID || null,
-        title: event.title || '(無題)',
-        start: event.startDateTime || null,
-        end: event.endDateTime || null,
-        all_day: Boolean(event.allDay),
-        attendees: Array.isArray(event.attendees) ? event.attendees : [],
-        organizer: event.organizer || null,
-        conference_url: event.conferenceUrl || null,
-        location: event.location || null,
-        html_link: event.htmlLink || null,
-        description: event.description || null
-    };
-}
-
 export function createBrainbaseAliveWorkflow({ projectId = 'general', ownerId = DEFAULT_OWNER_ID } = {}) {
     return {
         id: 'brainbase-alive',
@@ -1870,7 +1824,8 @@ export class WorkflowService {
         googleCalendarService = null,
         eveSessionClient = null,
         infoSSOTService = null,
-        runReceiptQueryService = null
+        runReceiptQueryService = null,
+        meetingAutomationService = null
     }) {
         this.repository = repository;
         this.runner = runner;
@@ -1885,6 +1840,15 @@ export class WorkflowService {
             prepareProjectAccess: () => this._loadProjectConfigCache(),
             assertProjectAccess: (projectId, actor) => this._assertActorCanAccessProject(projectId, actor),
             canAccessProject: (projectId, actor) => this._actorCanAccessProject(projectId, actor)
+        });
+        this.meetingAutomationService = meetingAutomationService || new MeetingAutomationService({
+            repository,
+            googleCalendarService,
+            prepareProjectAccess: () => this._loadProjectConfigCache(),
+            assertProjectSelectable: (projectId) => this._assertProjectSelectable(projectId),
+            assertOrgReferenceAllowed: (orgId) => this._assertOrgReferenceAllowed(orgId),
+            assertProjectAccess: (projectId, actor) => this._assertActorCanAccessProject(projectId, actor),
+            createLoopIntent: (input, actor) => this.createLoopIntent(input, actor)
         });
     }
 
@@ -2275,259 +2239,19 @@ export class WorkflowService {
     }
 
     async _prepareMeetingWorkflowPackRecords(input = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        const orgId = requireInputString(input, 'org_id', 'orgId');
-        const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this._assertProjectSelectable(projectId);
-        this._assertOrgReferenceAllowed(orgId);
-        this._assertActorCanAccessProject(projectId, actor);
-        const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
-        const records = buildMeetingWorkflowPackRecords({
-            orgId,
-            projectId,
-            actorId,
-            seedLoopIntents: input.seed_loop_intents !== false && input.seedLoopIntents !== false
-        });
-        return { orgId, projectId, actorId, records };
+        return this.meetingAutomationService._preparePackRecords(input, actor);
     }
 
     async reviewMeetingWorkflowPackDesign(input = {}, actor = {}) {
-        const { orgId, projectId, records } = await this._prepareMeetingWorkflowPackRecords(input, actor);
-        return {
-            meeting_workflow_pack_design: {
-                pack_id: records.pack_id,
-                org_id: orgId,
-                project_id: projectId,
-                loop_pack_manifest: records.loop_pack_manifest,
-                loop_pack_design_review: records.loop_pack_design_review
-            }
-        };
+        return this.meetingAutomationService.reviewPackDesign(input, actor);
     }
 
     async bootstrapMeetingWorkflowPack(input = {}, actor = {}) {
-        const { orgId, projectId, actorId, records } = await this._prepareMeetingWorkflowPackRecords(input, actor);
-        if (records.loop_pack_design_review.status !== 'pass') {
-            throw AppError.validation('loop pack design gate did not pass', {
-                loop_pack_design_review: records.loop_pack_design_review
-            });
-        }
-
-        const result = await this.repository.transaction(async () => {
-            const roleAgent = this.repository.upsertRoleAgentInstance(records.role_agent_instance);
-            const templates = records.workflow_templates.map((template) => this.repository.upsertWorkflowTemplate(template));
-            const bindings = records.workflow_bindings.map((binding) => this.repository.upsertWorkflowBinding(binding));
-            const triggers = records.workflow_triggers.map((trigger) => this.repository.upsertWorkflowTrigger(trigger));
-            const loopIntents = records.loop_intents.map((intent) => this.repository.upsertLoopIntent(intent));
-            this.repository.writeAuditLog({
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                project_id: projectId,
-                actor_id: actorId,
-                action: 'workflow.meeting_pack.bootstrapped',
-                target_type: 'meeting_workflow_pack',
-                target_id: records.pack_id,
-                after: {
-                    org_id: orgId,
-                    project_id: projectId,
-                    role_agent_instance_id: roleAgent.id,
-                    workflow_template_ids: templates.map((template) => template.id),
-                    workflow_binding_ids: bindings.map((binding) => binding.id),
-                    workflow_trigger_ids: triggers.map((trigger) => trigger.id),
-                    loop_intent_ids: loopIntents.map((intent) => intent.id),
-                    loop_pack_design_review: {
-                        gate_id: records.loop_pack_design_review.gate_id,
-                        status: records.loop_pack_design_review.status,
-                        manifest_digest: records.loop_pack_design_review.manifest_digest,
-                        issues: records.loop_pack_design_review.issues,
-                        rubric: records.loop_pack_design_review.rubric
-                    }
-                }
-            });
-            return {
-                loop_pack_design_review: records.loop_pack_design_review,
-                meeting_workflow_pack: {
-                    pack_id: records.pack_id,
-                    org_id: orgId,
-                    project_id: projectId,
-                    role_agent_instance: roleAgent,
-                    workflow_templates: templates,
-                    workflow_bindings: bindings,
-                    workflow_triggers: triggers,
-                    loop_intents: loopIntents
-                }
-            };
-        });
-        return result;
+        return this.meetingAutomationService.bootstrapPack(input, actor);
     }
 
     async createMeetingPackCalendarLoopIntents(input = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (!this.googleCalendarService) {
-            throw AppError.validation('google_calendar_service is not configured');
-        }
-        const orgId = requireInputString(input, 'org_id', 'orgId');
-        const projectId = requireInputString(input, 'project_id', 'projectId');
-        const from = requireInputString(input, 'from');
-        const to = requireInputString(input, 'to');
-        const account = readOptionalString(input, 'account');
-        const calendarIds = readStringList(input, 'calendar_ids', 'calendarIds');
-        await this._assertProjectSelectable(projectId);
-        this._assertOrgReferenceAllowed(orgId);
-        this._assertActorCanAccessProject(projectId, actor);
-
-        const authStatus = !account && typeof this.googleCalendarService.getAuthStatus === 'function'
-            ? await this.googleCalendarService.getAuthStatus()
-            : null;
-        if (authStatus && !authStatus.connected) {
-            throw AppError.validation(`google calendar is not connected: ${authStatus.reason || 'unknown'}`, {
-                skipped_events: [
-                    {
-                        calendar_id: null,
-                        reason: authStatus.reason || 'google_calendar_not_connected',
-                        message: authStatus.reason || null
-                    }
-                ],
-                state_transitions: MEETING_CALENDAR_FAILED_ALL_STATE_TRANSITIONS
-            });
-        }
-
-        const workflowDefinitionId = 'pre-meeting-briefing';
-        const definition = MEETING_WORKFLOW_DEFINITIONS.find((candidate) => candidate.id === workflowDefinitionId);
-        if (!definition) throw AppError.validation(`meeting workflow definition '${workflowDefinitionId}' is not configured`);
-
-        const diagnostics = typeof this.googleCalendarService.listEventsWithDiagnostics === 'function'
-            ? await this.googleCalendarService.listEventsWithDiagnostics({
-                from,
-                to,
-                account,
-                calendarIds: calendarIds.length > 0 ? calendarIds : null
-            })
-            : {
-                events: await this.googleCalendarService.listEvents({
-                    from,
-                    to,
-                    account,
-                    calendarIds: calendarIds.length > 0 ? calendarIds : null
-                }),
-                skippedCalendars: []
-            };
-        const events = Array.isArray(diagnostics.events) ? diagnostics.events : [];
-        const skippedEvents = Array.isArray(diagnostics.skippedCalendars)
-            ? diagnostics.skippedCalendars.map((calendar) => ({
-                calendar_id: calendar.calendar_id || null,
-                reason: calendar.reason || 'calendar_fetch_failed',
-                message: calendar.message || null
-            }))
-            : [];
-
-        if (events.length === 0 && skippedEvents.length > 0) {
-            throw AppError.validation(`google calendar is not connected: ${skippedEvents[0].reason || 'calendar_fetch_failed'}`, {
-                skipped_events: skippedEvents,
-                state_transitions: MEETING_CALENDAR_FAILED_ALL_STATE_TRANSITIONS
-            });
-        }
-
-        return this.repository.transaction(async () => {
-            await this.bootstrapMeetingWorkflowPack({
-                org_id: orgId,
-                project_id: projectId,
-                seed_loop_intents: false
-            }, actor);
-
-            const ids = meetingPackIds({
-                orgId,
-                projectId,
-                definitionId: workflowDefinitionId,
-                triggerType: 'schedule'
-            });
-            const loopIntents = [];
-            const effectiveAccount = account || authStatus?.defaultAccount || null;
-
-            const ingestionInput = {
-                from,
-                to,
-                account,
-                calendarIds: calendarIds.length > 0 ? calendarIds : null
-            };
-
-            for (const event of events) {
-                if (event?.allDay) {
-                    skippedEvents.push({
-                        event_id: event.calendarEventId || event.id || null,
-                        title: event.title || null,
-                        reason: 'all_day_event'
-                    });
-                    continue;
-                }
-
-                const meetingIdentity = createMeetingIdentityFromCalendarEvent(event, { account: effectiveAccount });
-                const eventStableRef = meetingIdentity.event_id || event.id || `${meetingIdentity.title}:${meetingIdentity.start}`;
-                const loopIntentId = createStableId(
-                    'loop',
-                    orgId,
-                    projectId,
-                    workflowDefinitionId,
-                    'gcal',
-                    meetingIdentity.calendar_id,
-                    eventStableRef,
-                    meetingIdentity.start
-                );
-                const result = await this.createLoopIntent({
-                    id: loopIntentId,
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_binding_id: ids.bindingId,
-                    trigger_id: ids.triggerId,
-                    input_ref: `google-calendar:${effectiveAccount || 'default'}:${meetingIdentity.calendar_id || 'default'}:${eventStableRef}`,
-                    input_summary: `${meetingIdentity.title} ${meetingIdentity.start || ''}`.trim(),
-                    input_payload: {
-                        meeting_identity: meetingIdentity,
-                        workflow_definition_id: workflowDefinitionId,
-                        requested_output: definition.output_contract,
-                        write_back_target: definition.write_back_target,
-                        source: 'google_calendar'
-                    }
-                }, actor);
-                loopIntents.push(result.loop_intent);
-            }
-
-            this.repository.writeAuditLog({
-                workspace_id: DEFAULT_WORKSPACE_ID,
-                project_id: projectId,
-                actor_id: actor.person_id || actor.sub || 'system',
-                action: 'workflow.meeting_pack.calendar_inputs.ingested',
-                target_type: 'meeting_workflow_pack',
-                target_id: 'mana-meeting-workflow-pack-v1',
-                after: {
-                    org_id: orgId,
-                    project_id: projectId,
-                    from,
-                    to,
-                    account: effectiveAccount,
-                    calendar_ids: calendarIds,
-                    ingestion_input: ingestionInput,
-                    events_considered: events.length,
-                    loop_intent_ids: loopIntents.map((intent) => intent.id),
-                    skipped_events: skippedEvents,
-                    state_transitions: MEETING_CALENDAR_SUCCESS_STATE_TRANSITIONS
-                }
-            });
-
-            return {
-                meeting_calendar_inputs: {
-                    org_id: orgId,
-                    project_id: projectId,
-                    workflow_definition_id: workflowDefinitionId,
-                    from,
-                    to,
-                    account: effectiveAccount,
-                    calendar_ids: calendarIds,
-                    events_considered: events.length,
-                    loop_intents: loopIntents,
-                    skipped_events: skippedEvents,
-                    state_transitions: MEETING_CALENDAR_SUCCESS_STATE_TRANSITIONS
-                }
-            };
-        });
+        return this.meetingAutomationService.createCalendarLoopIntents(input, actor);
     }
 
     async resolveMeetingReviewTaskOwnersFromSSOT(reviewPackage, { actor = {}, projectId = null, graphContext = null } = {}) {

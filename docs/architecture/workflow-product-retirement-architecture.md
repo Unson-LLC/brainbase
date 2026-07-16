@@ -19,9 +19,14 @@ updated_at: 2026-07-16
 ```text
 MeetingSourceMcpSyncService
   -> WorkflowService.bootstrapMeetingWorkflowPack
+  -> MeetingAutomationService.bootstrapPack (compatibility adapter)
   -> WorkflowService.ingestMeetingReviewPackage
   -> Eve session dispatch / reconciler
   -> WorkflowRepository
+
+WorkflowService.reviewMeetingWorkflowPackDesign/bootstrapMeetingWorkflowPack/createMeetingPackCalendarLoopIntents
+  -> MeetingAutomationService (compatibility adapter)
+  -> WorkflowRepository / GoogleCalendarService
 
 RunReceiptIngestService
   -> WorkflowRepository
@@ -51,7 +56,7 @@ Run Receiptのread modelは専用serviceへ分離済みである。Meeting Autom
 4. Web routeを削除する前にMCPとCompanionのcurrent-HEAD evidenceを固定する。
 5. `workflow_*` ledger fieldとAPI pathの改名は最後に行い、dual-readまたはadapterでrollback可能にする。
 
-最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。repositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。
+最初の分割sliceでは`RunReceiptQueryService`を追加し、旧3 methodを薄いadapterに縮退した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。いずれもrepositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。Meeting review package ingest、candidate/note dispatch、Eve handoff/reconcileは次のMeeting sliceまで`WorkflowService`に残す。
 
 ## Public contract rule
 

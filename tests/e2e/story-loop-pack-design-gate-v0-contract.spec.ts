@@ -60,6 +60,7 @@ function readArtifacts() {
     gate: readFileSync('server/services/workflow/loop-pack-design-gate.js', 'utf8'),
     meetingPack: readFileSync('server/services/workflow/meeting-workflow-pack.js', 'utf8'),
     workflowService: readFileSync('server/services/workflow/workflow-service.js', 'utf8'),
+    meetingAutomationService: readFileSync('server/services/meeting-automation/meeting-automation-service.js', 'utf8'),
     workflowRoutes: readFileSync('server/routes/workflows.js', 'utf8'),
     gateTest: readFileSync('tests/server/services/loop-pack-design-gate.test.js', 'utf8'),
     serviceTest: readFileSync('tests/server/services/workflow-org-agent-control.test.js', 'utf8'),
@@ -87,17 +88,18 @@ test.describe(storyId, () => {
 
   test(`${storyId} ac3 Passing Meeting Workflow Pack compiles to existing control records`, async () => {
     const artifacts = readArtifacts();
+    const meetingAutomationRuntime = artifacts.workflowService + artifacts.meetingAutomationService;
 
-    expect(artifacts.workflowService, 'ac3 passing pack compiles to Workflow Control records').toContain('bootstrapMeetingWorkflowPack');
-    expect(artifacts.workflowService).toContain('upsertRoleAgentInstance');
-    expect(artifacts.workflowService).toContain('upsertWorkflowTemplate');
+    expect(meetingAutomationRuntime, 'ac3 passing pack compiles to Workflow Control records').toContain('bootstrapMeetingWorkflowPack');
+    expect(meetingAutomationRuntime).toContain('upsertRoleAgentInstance');
+    expect(meetingAutomationRuntime).toContain('upsertWorkflowTemplate');
     expect(artifacts.serviceTest).toContain('bootstraps meeting pack records into Workflow Control data');
   });
 
   test(`${storyId} ac4 Bootstrap returns and audits loop_pack_design_review`, async () => {
     const artifacts = readArtifacts();
 
-    expect(artifacts.workflowService, 'ac4 bootstrap returns design review evidence').toContain('loop_pack_design_review');
+    expect(artifacts.workflowService + artifacts.meetingAutomationService, 'ac4 bootstrap returns design review evidence').toContain('loop_pack_design_review');
     expect(artifacts.routeTest).toContain('manifest_digest');
     expect(artifacts.serviceTest).toContain('workflow.meeting_pack.bootstrapped');
   });
@@ -105,7 +107,7 @@ test.describe(storyId, () => {
   test(`${storyId} ac5 needs_revision bootstrap writes no Workflow Control records`, async () => {
     const artifacts = readArtifacts();
 
-    expect(artifacts.workflowService, 'ac5 needs_revision blocks bootstrap before writes').toContain('loop pack design gate did not pass');
+    expect(artifacts.workflowService + artifacts.meetingAutomationService, 'ac5 needs_revision blocks bootstrap before writes').toContain('loop pack design gate did not pass');
     expect(artifacts.serviceTest).toContain('blocks meeting pack bootstrap before writes when design review needs revision');
     expect(artifacts.serviceTest).toContain('listAuditLogs({ targetId:');
   });

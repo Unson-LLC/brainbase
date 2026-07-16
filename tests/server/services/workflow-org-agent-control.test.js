@@ -1443,7 +1443,7 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-loop-pack-design-gate-v0 S-003 blocks meeting pack bootstrap before writes when design review needs revision', async () => {
         const { repository, service, actor } = makeService();
-        service._prepareMeetingWorkflowPackRecords = async () => ({
+        service.meetingAutomationService._preparePackRecords = async () => ({
             orgId: 'salestailor',
             projectId: 'salestailor',
             actorId: 'keigo',
