@@ -2,7 +2,9 @@
 
 Status: planned  
 Control-plane dependency: `story-cross-runtime-run-receipt-inbox-v1`  
-Implementation owner: Brainbase reusable GitHub Actions reporter
+Implementation owner repo: `code/brainbase`
+
+Planned implementation artifact: `.github/actions/run-receipt-reporter/action.yml`
 
 ## Outcome
 

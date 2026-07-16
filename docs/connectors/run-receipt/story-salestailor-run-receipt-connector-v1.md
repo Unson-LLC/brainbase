@@ -2,7 +2,9 @@
 
 Status: planned  
 Control-plane dependency: `story-cross-runtime-run-receipt-inbox-v1`  
-Implementation owner: `code/salestailor`
+Implementation owner repo: `code/salestailor`
+
+Planned implementation artifact: `src/services/run-receipt/run-receipt-outbox.ts`
 
 ## Outcome
 

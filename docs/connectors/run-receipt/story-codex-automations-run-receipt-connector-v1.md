@@ -2,7 +2,9 @@
 
 Status: planned  
 Control-plane dependency: `story-cross-runtime-run-receipt-inbox-v1`  
-Implementation owner: Brainbase local automation bridge
+Implementation owner repo: `code/brainbase`
+
+Planned implementation artifact: `scripts/run-receipt/codex-automations-reporter.mjs`
 
 ## Outcome
 
