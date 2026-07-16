@@ -66,31 +66,31 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 
 - Given: sourceがsuccessとconfirmed、unconfirmed、またはno_dataを報告する
 - When: BrainbaseがreceiptをWorkflow Mission Controlへ投影する
-- Then: runをsuccessとして保持し、unconfirmedまたはno_dataならoperator review対象として可視化する
+- Then: runをsuccessとして保持し、sourceが非`none` actionを明示した場合はそのactionを使い、明示しない場合だけ`none`をadapter defaultとして使う。unconfirmedまたはno_dataならoperator review対象として可視化する
 
 ### S-002: failed receiptを投影する
 
 - Given: sourceがfailedと根拠状態を報告する
 - When: Brainbaseがreceiptを投影する
-- Then: failed、needs_action、check_errorへ写像し、根拠状態を失わない
+- Then: failed、needs_actionへ写像し、sourceが非`none` actionを明示した場合はそのactionを使い、明示しない場合だけ`check_error`をadapter defaultとして使う。根拠状態を失わない
 
 ### S-003: blocked receiptを最優先する
 
 - Given: sourceがblockedとblockerまたはactionを報告する
 - When: Agent Run Inboxがpriorityを計算する
-- Then: needs_actionとresolve_blockerへ写像し、通常のfailed runより上位に置く
+- Then: needs_actionへ写像し、sourceが非`none` actionを明示した場合はそのactionを使い、明示しない場合だけ`resolve_blocker`をadapter defaultとして使う。通常のfailed runより上位に置く
 
 ### S-004: waiting_human receiptを投影する
 
 - Given: sourceがwaiting_humanを報告する
 - When: Brainbaseがreceiptを投影する
-- Then: waiting_human、open、review_runとして人間判断待ちを保持する
+- Then: waiting_human、openへ写像し、sourceが非`none` actionを明示した場合はそのactionを使い、明示しない場合だけ`review_run`をadapter defaultとして使う。人間判断待ちを保持する
 
 ### S-005: cancelledをsuccessへ変換しない
 
 - Given: sourceがcancelledを報告する
 - When: Brainbaseがreceiptを投影する
-- Then: cancelled、closed、noneとして保持し、success件数へ含めない
+- Then: cancelled、closedとして保持し、sourceが非`none` actionを明示した場合はそのactionを使い、明示しない場合だけ`none`をadapter defaultとして使う。success件数へ含めない
 
 ### S-006: 同一identityを冪等再送する
 
@@ -247,6 +247,10 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 ## 非目標
 
 - 4ソース固有のAPI接続・schedule・outbox実装と、本番runを使ったsource別canaryは後続の各connector Storyで扱う。本Storyのcompletedは共通control-plane基盤の完成を意味し、4ソース本接続の完了を意味しない。
+  - `story-mana-run-receipt-connector-v1`: `docs/stories/story-mana-run-receipt-connector-v1.md`（実装正本: `projects/mana/docs/specs/story-mana-run-receipt-connector-v1.md`）
+  - `story-codex-automations-run-receipt-connector-v1`: `docs/stories/story-codex-automations-run-receipt-connector-v1.md`（実装正本: 本repoの後続Story）
+  - `story-github-actions-run-receipt-connector-v1`: `docs/stories/story-github-actions-run-receipt-connector-v1.md`（実装正本: 本repoのreusable workflow/action後続Story）
+  - `story-salestailor-run-receipt-connector-v1`: `docs/stories/story-salestailor-run-receipt-connector-v1.md`（実装正本: `code/salestailor`の後続Story）
 - Eve向け `external_runner.v0` を置き換えない。
 - raw logs、顧客返信、transcriptをBrainbaseへ複製しない。
 - receiptからGraph SSOTへ自動学習・自動昇格しない。
