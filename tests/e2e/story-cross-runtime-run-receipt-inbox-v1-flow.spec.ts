@@ -21,7 +21,8 @@ function makeReceipt({
   status,
   evidenceState,
   finishedAt,
-  summary
+  summary,
+  evidenceUrl
 }: {
   suffix: string;
   workflowId: string;
@@ -31,6 +32,7 @@ function makeReceipt({
   evidenceState: 'confirmed' | 'unconfirmed' | 'no_data';
   finishedAt: string;
   summary: string;
+  evidenceUrl?: string;
 }) {
   const sourceType = 'mana';
   const canonicalExternalRunId = `tracked-e2e:${suffix}:${externalRunId}`;
@@ -58,7 +60,9 @@ function makeReceipt({
       ...(status === 'failed' ? { blocker_reason: 'tracked failure reported' } : {}),
       evidence_refs: evidenceState === 'no_data'
         ? []
-        : [{ kind: 'log_ref', ref: `tracked-e2e:run/${suffix}/${externalRunId}` }]
+        : evidenceUrl
+          ? [{ kind: 'url', ref: evidenceUrl }]
+          : [{ kind: 'log_ref', ref: `tracked-e2e:run/${suffix}/${externalRunId}` }]
     },
     delivery: {
       idempotency_key: idempotencyKey('brainbase', sourceType, canonicalExternalRunId),
@@ -101,6 +105,7 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
   const workflowA = `Tracked common E2E A ${suffix}`;
   const workflowB = `Tracked common E2E B ${suffix}`;
   const operationalWorkflowName = `Operational fixture ${suffix}`;
+  const evidenceUrl = `https://evidence.example.invalid/runs/${suffix}/success-confirmed`;
   const receipts = [
     makeReceipt({
       suffix,
@@ -160,7 +165,8 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
       status: 'success',
       evidenceState: 'confirmed',
       finishedAt: '2026-07-15T10:12:00Z',
-      summary: `success confirmed ${suffix}`
+      summary: `success confirmed ${suffix}`,
+      evidenceUrl
     }),
     makeConnectorObservation(suffix)
   ];
@@ -311,6 +317,21 @@ test('story-cross-runtime-run-receipt-inbox-v1 flow_replay production_path_matri
     .toContainText(`tracked-e2e:run/${suffix}/latest-blocked`);
   await expect(blockedCard.locator('.run-receipt-detail').filter({ hasText: 'Metrics' }))
     .toContainText('attempts: 1 · processed: 1');
+
+  const evidenceLink = page.getByRole('link', { name: `Open evidence URL: ${evidenceUrl}` });
+  await expect(evidenceLink).toHaveAttribute('href', evidenceUrl);
+  await expect(evidenceLink).toHaveAttribute('target', '_blank');
+  await expect(evidenceLink).toHaveAttribute('rel', 'noopener noreferrer');
+  await page.context().route(evidenceUrl, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'text/plain', body: 'tracked evidence target' });
+  });
+  await evidenceLink.focus();
+  await expect(evidenceLink).toBeFocused();
+  const popupPromise = page.waitForEvent('popup');
+  await page.keyboard.press('Enter');
+  const evidencePopup = await popupPromise;
+  await expect(evidencePopup).toHaveURL(evidenceUrl);
+  await evidencePopup.close();
 
   await page.locator('#run-receipt-project').focus();
   await expect(page.locator('#run-receipt-project')).toBeFocused();

@@ -43,6 +43,27 @@ function formatMetrics(metrics) {
         .join(' · ');
 }
 
+function safeEvidenceUrl(value) {
+    try {
+        const url = new URL(String(value || ''));
+        if (url.protocol !== 'https:' || url.username || url.password) return null;
+        return url.href;
+    } catch {
+        return null;
+    }
+}
+
+function renderEvidenceRef(ref) {
+    const kind = ref?.kind || 'ref';
+    const value = ref?.ref || '';
+    const safeUrl = kind === 'url' ? safeEvidenceUrl(value) : null;
+    if (!safeUrl) {
+        return `<code>${escapeHtml(kind)}: ${escapeHtml(value)}</code>`;
+    }
+    const label = `Open evidence URL: ${value}`;
+    return `<a class="run-receipt-evidence-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(label)}"><code>${escapeHtml(kind)}: ${escapeHtml(value)}</code></a>`;
+}
+
 function renderReceipt(item) {
     const source = item.source || {};
     const refs = Array.isArray(item.evidence_refs) ? item.evidence_refs : [];
@@ -77,7 +98,7 @@ function renderReceipt(item) {
                 <div><dt>Observed</dt><dd>${escapeHtml(item.effective_at || item.created_at || '-')}</dd></div>
             </dl>
             <div class="run-receipt-detail"><strong>Evidence refs</strong>${refs.length
-                ? `<ul>${refs.map((ref) => `<li><code>${escapeHtml(ref.kind || 'ref')}: ${escapeHtml(ref.ref || '')}</code></li>`).join('')}</ul>`
+                ? `<ul>${refs.map((ref) => `<li>${renderEvidenceRef(ref)}</li>`).join('')}</ul>`
                 : '<span class="sub"> none</span>'}</div>
             ${metrics ? `<div class="run-receipt-detail"><strong>Metrics</strong> <span>${escapeHtml(metrics)}</span></div>` : ''}
         </article>
@@ -101,6 +122,7 @@ export function renderRunReceiptInbox(inbox = {}, { projects = [] } = {}) {
     const projectOptions = Array.from(new Set([filters.project_id, ...projects].filter(Boolean)));
     const items = Array.isArray(inbox.items) ? inbox.items : [];
     const canDeclareEmpty = inbox.status === 'ready' && items.length === 0;
+    const controlsDisabled = inbox.status === 'loading' ? ' disabled' : '';
     return `
         <section id="agent-run-inbox" class="agent-run-inbox" aria-labelledby="agent-run-inbox-heading">
             <div class="section-title">
@@ -109,18 +131,18 @@ export function renderRunReceiptInbox(inbox = {}, { projects = [] } = {}) {
             </div>
             <form id="agent-run-inbox-filters" class="run-receipt-filters">
                 <label for="run-receipt-project">Project
-                    <select id="run-receipt-project" name="project_id"><option value="">All projects</option>${projectOptions.map((value) => `<option value="${escapeHtml(value)}"${selected(filters.project_id, value)}>${escapeHtml(value)}</option>`).join('')}</select>
+                    <select id="run-receipt-project"${controlsDisabled} name="project_id"><option value="">All projects</option>${projectOptions.map((value) => `<option value="${escapeHtml(value)}"${selected(filters.project_id, value)}>${escapeHtml(value)}</option>`).join('')}</select>
                 </label>
                 <label for="run-receipt-source">Source
-                    <select id="run-receipt-source" name="source_type"><option value="">All sources</option>${Object.entries(SOURCE_LABELS).map(([value, label]) => `<option value="${value}"${selected(filters.source_type, value)}>${label}</option>`).join('')}</select>
+                    <select id="run-receipt-source"${controlsDisabled} name="source_type"><option value="">All sources</option>${Object.entries(SOURCE_LABELS).map(([value, label]) => `<option value="${value}"${selected(filters.source_type, value)}>${label}</option>`).join('')}</select>
                 </label>
                 <label for="run-receipt-status">Status
-                    <select id="run-receipt-status" name="run_status"><option value="">All statuses</option>${['success', 'failed', 'blocked', 'waiting_human', 'cancelled'].map((value) => `<option value="${value}"${selected(filters.run_status, value)}>${value}</option>`).join('')}</select>
+                    <select id="run-receipt-status"${controlsDisabled} name="run_status"><option value="">All statuses</option>${['success', 'failed', 'blocked', 'waiting_human', 'cancelled'].map((value) => `<option value="${value}"${selected(filters.run_status, value)}>${value}</option>`).join('')}</select>
                 </label>
                 <label for="run-receipt-evidence">Evidence
-                    <select id="run-receipt-evidence" name="evidence_state"><option value="">All evidence</option>${['confirmed', 'unconfirmed', 'no_data'].map((value) => `<option value="${value}"${selected(filters.evidence_state, value)}>${value}</option>`).join('')}</select>
+                    <select id="run-receipt-evidence"${controlsDisabled} name="evidence_state"><option value="">All evidence</option>${['confirmed', 'unconfirmed', 'no_data'].map((value) => `<option value="${value}"${selected(filters.evidence_state, value)}>${value}</option>`).join('')}</select>
                 </label>
-                <div class="run-receipt-filter-actions"><button class="btn primary" type="submit">Apply</button><button class="btn soft" type="button" data-action="reset-run-receipt-filters">Reset</button></div>
+                <div class="run-receipt-filter-actions"><button class="btn primary" type="submit"${controlsDisabled}>Apply</button><button class="btn soft" type="button" data-action="reset-run-receipt-filters"${controlsDisabled}>Reset</button></div>
             </form>
             <div id="agent-run-inbox-status" role="status" aria-live="polite">${renderStatus({ ...inbox, items })}</div>
             <div class="run-receipt-list">${items.map(renderReceipt).join('') || (canDeclareEmpty ? '<div class="empty">該当するRun Receiptはありません</div>' : '')}</div>

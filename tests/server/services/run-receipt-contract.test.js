@@ -85,6 +85,21 @@ describe('normalizeRunReceipt', () => {
         expect(normalized.payload_digest).toMatch(/^[a-f0-9]{64}$/);
     });
 
+    it.each(['mana', 'codex_automations', 'github_actions', 'salestailor'])(
+        'source.type=%s_共通契約で正規化する',
+        (sourceType) => {
+            const externalRunId = `${sourceType}:run:1`;
+            const normalized = normalizeRunReceipt(makeReceipt({
+                source: { type: sourceType, workflow_id: `${sourceType}:workflow` },
+                run: { external_run_id: externalRunId }
+            }));
+
+            expect(normalized.immutable.source.type).toBe(sourceType);
+            expect(normalized.immutable.run.external_run_id).toBe(externalRunId);
+            expect(normalized.identity.run_id).toMatch(/^run_receipt_/);
+        }
+    );
+
     it('同じexternal_run_idでもprojectまたはsourceが違う_identityは分離される', () => {
         const baseline = normalizeRunReceipt(makeReceipt()).identity.run_id;
         const otherProject = normalizeRunReceipt(makeReceipt({

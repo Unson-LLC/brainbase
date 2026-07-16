@@ -7,10 +7,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { RunReceiptContractError } from '../../../server/services/run-receipt/contract.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
+import { ExternalRunnerIngestService } from '../../../server/services/external-runner/ingest-service.js';
 import {
     InMemoryWorkflowRepository,
     JsonFileWorkflowRepository
 } from '../../../server/services/workflow/workflow-repository.js';
+import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
+import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
 
 const tempDirectories = [];
 
@@ -71,6 +74,52 @@ function makeService(options = {}) {
     };
 }
 
+function makeExternalRunnerPayload() {
+    return {
+        contract_version: 'external_runner.v0',
+        runner: {
+            type: 'eve',
+            external_run_id: 'shared-ledger-eve-run-1',
+            agent_id: 'shared-ledger-agent',
+            eve: { trace_ref: 'https://evidence.example.invalid/eve/shared-ledger-eve-run-1' }
+        },
+        run: {
+            org_id: 'brainbase',
+            project_id: 'brainbase',
+            role_agent_id: 'operations',
+            workflow_id: 'shared-ledger-external-workflow',
+            workflow_name: 'Shared ledger external workflow',
+            status: 'completed'
+        },
+        loop_control: {
+            owner_id: 'system',
+            cost_owner_id: 'system',
+            approval_owner_id: 'system',
+            stop_conditions: ['external_send_requires_approval']
+        },
+        context_sources: [{
+            source_type: 'graph_ssot',
+            source_ref: 'project:brainbase',
+            digest: 'sha256:shared-ledger-context',
+            redaction_status: 'not_required',
+            evidence_refs: ['graph://project/brainbase']
+        }],
+        judgment_dag_trace: {
+            dag_id: 'shared-ledger-v1',
+            version: '1',
+            nodes: ['observe'],
+            evidence_refs: ['graph://project/brainbase']
+        },
+        rounds: [{
+            round_id: 'round-1',
+            status: 'completed',
+            evidence_refs: ['eve://shared-ledger-eve-run-1/round-1']
+        }],
+        outputs: [],
+        learning_candidates: []
+    };
+}
+
 describe('RunReceiptIngestService', () => {
     it('invalid receipt_workflow/run/step/auditを一切変更せず拒否する', async () => {
         const { repository, service } = makeService();
@@ -127,6 +176,115 @@ describe('RunReceiptIngestService', () => {
             metrics: { processed: 12 }
         });
         expect(JSON.stringify(result.audit_logs)).not.toMatch(/raw_log|customer_text|transcript/);
+    });
+
+    it.each(['receipt-first', 'external-runner-first'])(
+        '%s_Receiptとexternal_runner duplicate replayの共有台帳surfaceを相互に保持する',
+        async (order) => {
+            const repository = new InMemoryWorkflowRepository();
+            const receiptService = new RunReceiptIngestService({ workflowRepository: repository });
+            const externalService = new ExternalRunnerIngestService({ workflowRepository: repository });
+            let receiptResult;
+            let externalResult;
+
+            if (order === 'receipt-first') {
+                receiptResult = await receiptService.ingest(makeReceipt());
+                externalResult = await externalService.ingest(makeExternalRunnerPayload());
+            } else {
+                externalResult = await externalService.ingest(makeExternalRunnerPayload());
+                receiptResult = await receiptService.ingest(makeReceipt());
+            }
+            const duplicate = await externalService.ingest(makeExternalRunnerPayload());
+
+            expect(duplicate).toMatchObject({ status: 'duplicate', run: { id: externalResult.run.id } });
+            expect(repository.getWorkflow(receiptResult.workflow.id)).toBeTruthy();
+            expect(repository.getWorkflow(externalResult.workflow.id)).toBeTruthy();
+            expect(repository.getRun(receiptResult.run.id)).toBeTruthy();
+            expect(repository.getRun(externalResult.run.id)).toBeTruthy();
+            expect(repository.listContextSnapshots(externalResult.run.id)).toHaveLength(1);
+            expect(repository.listAuditLogs({ targetId: receiptResult.run.id })).toEqual(expect.arrayContaining([
+                expect.objectContaining({ action: 'run_receipt.ingested' })
+            ]));
+            expect(repository.listAuditLogs({ targetId: externalResult.run.id })).toEqual(expect.arrayContaining([
+                expect.objectContaining({ action: 'external_runner.ingested' }),
+                expect.objectContaining({ action: 'external_runner.duplicate_replay_ignored' })
+            ]));
+        }
+    );
+
+    it.each(['receipt-first', 'workflow-runner-first'])(
+        '%s_ReceiptとWorkflowRunner mutationのworkflow run step auditを相互に保持する',
+        async (order) => {
+            const repository = new InMemoryWorkflowRepository();
+            const receiptService = new RunReceiptIngestService({ workflowRepository: repository });
+            const workflow = {
+                id: 'shared-ledger-operational-workflow',
+                workspace_id: 'default',
+                project_id: 'brainbase',
+                name: 'Shared ledger operational workflow',
+                implementation_key: 'shared-ledger-handler',
+                execution_env: 'local',
+                hitl_policy: 'none',
+                context_sources: []
+            };
+            await repository.transaction(() => repository.upsertWorkflow(workflow));
+            const runner = new WorkflowRunner({
+                repository,
+                handlers: {
+                    'shared-ledger-handler': async () => ({
+                        status: 'success',
+                        closureState: 'closed',
+                        message: 'shared ledger workflow complete'
+                    })
+                }
+            });
+            let receiptResult;
+            let workflowResult;
+
+            if (order === 'receipt-first') {
+                receiptResult = await receiptService.ingest(makeReceipt());
+                workflowResult = await runner.runWorkflow(workflow, { runId: 'shared-ledger-operational-run' });
+            } else {
+                workflowResult = await runner.runWorkflow(workflow, { runId: 'shared-ledger-operational-run' });
+                receiptResult = await receiptService.ingest(makeReceipt());
+            }
+
+            expect(repository.getRun(receiptResult.run.id)).toBeTruthy();
+            expect(repository.getRun(workflowResult.run.id)).toMatchObject({ status: 'success' });
+            expect(repository.listRunSteps(workflowResult.run.id)).toEqual([
+                expect.objectContaining({ status: 'success', step_key: 'run' })
+            ]);
+            expect(repository.listAuditLogs({ targetId: receiptResult.run.id })).toEqual(expect.arrayContaining([
+                expect.objectContaining({ action: 'run_receipt.ingested' })
+            ]));
+            expect(repository.listAuditLogs({ targetId: workflowResult.run.id })).toEqual(expect.arrayContaining([
+                expect.objectContaining({ action: 'workflow.run.finished' })
+            ]));
+        }
+    );
+
+    it('4 sourceすべてをingest永続化しInbox source filterでround-tripする', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const receiptService = new RunReceiptIngestService({ workflowRepository: repository });
+        const sourceTypes = ['mana', 'codex_automations', 'github_actions', 'salestailor'];
+
+        for (const sourceType of sourceTypes) {
+            await receiptService.ingest(makeReceipt({
+                source: { type: sourceType, workflow_id: `${sourceType}:workflow` },
+                run: { external_run_id: `${sourceType}:run:1` }
+            }));
+        }
+        const workflowService = new WorkflowService({ repository, runner: {}, configParser: null });
+
+        expect(repository.listRuns({ limit: null })).toHaveLength(4);
+        for (const sourceType of sourceTypes) {
+            const inbox = await workflowService.listRunReceiptInbox({ sourceType }, {});
+            expect(inbox.items).toHaveLength(1);
+            expect(inbox.items[0]).toMatchObject({
+                source: { type: sourceType },
+                project_id: 'brainbase'
+            });
+        }
     });
 
     it('同じexternal_run_idでもprojectまたはsourceが違う_別runとして永続化する', async () => {

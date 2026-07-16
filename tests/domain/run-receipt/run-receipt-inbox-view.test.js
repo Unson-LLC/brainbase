@@ -55,6 +55,54 @@ describe('renderRunReceiptInbox', () => {
         expect(html).toContain('attempts');
     });
 
+    it('HTTPS URL evidenceを安全な別tab linkとして描画する', () => {
+        const evidenceUrl = 'https://evidence.example.invalid/runs/run-1';
+        const html = renderRunReceiptInbox(inbox({
+            items: [{
+                id: 'run-url', project_id: 'brainbase',
+                source: { type: 'github_actions', workflow_id: 'deploy' },
+                source_status: 'success', evidence_state: 'confirmed',
+                evidence_refs: [{ kind: 'url', ref: evidenceUrl }], metrics: {}
+            }],
+            count: 1
+        }));
+
+        expect(html).toContain(`href="${evidenceUrl}"`);
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain('rel="noopener noreferrer"');
+        expect(html).toContain(`aria-label="Open evidence URL: ${evidenceUrl}"`);
+    });
+
+    it('安全でないURL evidenceはlinkにせず文字として表示する', () => {
+        const html = renderRunReceiptInbox(inbox({
+            items: [{
+                id: 'run-unsafe-url', project_id: 'brainbase',
+                source: { type: 'mana', workflow_id: 'daily' },
+                source_status: 'success', evidence_state: 'confirmed',
+                evidence_refs: [{ kind: 'url', ref: 'javascript:alert(1)' }], metrics: {}
+            }],
+            count: 1
+        }));
+
+        expect(html).toContain('<code>url: javascript:alert(1)</code>');
+        expect(html).not.toContain('href="javascript:');
+    });
+
+    it('loading中_再描画で未送信filterを失わないようcontrolsを無効化する', () => {
+        const html = renderRunReceiptInbox(inbox({ status: 'loading' }));
+
+        for (const id of [
+            'run-receipt-project',
+            'run-receipt-source',
+            'run-receipt-status',
+            'run-receipt-evidence'
+        ]) {
+            expect(html).toContain(`id="${id}" disabled`);
+        }
+        expect(html).toContain('type="submit" disabled>Apply</button>');
+        expect(html).toContain('data-action="reset-run-receipt-filters" disabled>Reset</button>');
+    });
+
     it('source_actionがnoneのfailed receiptは正規化済みcheck_errorを表示する', () => {
         const html = renderRunReceiptInbox(inbox({
             items: [{
