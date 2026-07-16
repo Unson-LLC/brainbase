@@ -8,6 +8,8 @@ function makeMeetingService({
     repository = new InMemoryWorkflowRepository(),
     googleCalendarService = null,
     eveSessionClient = null,
+    infoSSOTService = null,
+    resolveReviewTaskOwners = vi.fn(async (reviewPackage) => reviewPackage),
     dispatchLoopIntentToEve = vi.fn(),
     createLoopIntent = vi.fn(async (input) => ({ loop_intent: input }))
 } = {}) {
@@ -19,6 +21,8 @@ function makeMeetingService({
         repository,
         googleCalendarService,
         eveSessionClient,
+        infoSSOTService,
+        resolveReviewTaskOwners,
         dispatchLoopIntentToEve,
         prepareProjectAccess,
         assertProjectSelectable,
@@ -34,7 +38,8 @@ function makeMeetingService({
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
-        assertProjectAccess
+        assertProjectAccess,
+        resolveReviewTaskOwners
     };
 }
 
@@ -292,5 +297,131 @@ describe('MeetingAutomationService', () => {
             projectId: 'salestailor'
         })).toThrow('review_package is missing required output payload key(s)');
         expect(repository.getLoopIntent).not.toHaveBeenCalled();
+    });
+
+    it('Review Packageのscopeを解決してproject scoped Graph contextを付与する', async () => {
+        const infoSSOTService = {
+            getContext: vi.fn(async () => ({
+                entities: {
+                    person: [{ id: 'person-keigo', entity_type: 'person' }],
+                    glossary_term: [{ id: 'term-loop-intent', entity_type: 'glossary_term' }]
+                }
+            }))
+        };
+        const resolveReviewTaskOwners = vi.fn(async (reviewPackage) => ({
+            ...reviewPackage,
+            task_candidates: [{ title: '次アクション', selected_owner_id: 'person-keigo' }]
+        }));
+        const {
+            repository,
+            service,
+            prepareProjectAccess,
+            assertProjectSelectable,
+            assertOrgReferenceAllowed,
+            assertProjectAccess
+        } = makeMeetingService({ infoSSOTService, resolveReviewTaskOwners });
+        const loopIntentIds = {
+            transcript_to_meeting_note: 'loop-note',
+            meeting_note_to_tasks: 'loop-tasks',
+            meeting_note_to_decisions: 'loop-decisions',
+            post_meeting_follow_up_message: 'loop-follow-up'
+        };
+        Object.values(loopIntentIds).forEach((id) => repository.upsertLoopIntent({
+            id,
+            org_id: 'input-org',
+            project_id: 'input-project'
+        }));
+
+        const result = await service.resolveReviewPackageContext({
+            org_id: 'input-org',
+            project_id: 'input-project',
+            case_scope: 'case-1',
+            review_package: {
+                package_id: 'package-1',
+                org_id: 'package-org',
+                project_id: 'package-project',
+                meeting_identity: {
+                    title: '定例',
+                    candidate_org_id: 'identity-org',
+                    candidate_project_id: 'identity-project'
+                },
+                source_event: { source_system: 'tactiq', transcript_id: 'transcript-1' },
+                evidence_refs: ['evidence-1'],
+                meeting_note_summary: {},
+                task_candidates: [{ title: '次アクション', owner_hint: '圭吾' }],
+                decision_candidates: [],
+                follow_up_draft: { body: '' },
+                promotion_candidates: { graph: [], learning: [] },
+                loop_intent_ids: loopIntentIds
+            }
+        }, actor);
+
+        expect(prepareProjectAccess).toHaveBeenCalledOnce();
+        expect(assertProjectSelectable).toHaveBeenCalledWith('input-project');
+        expect(assertOrgReferenceAllowed).toHaveBeenCalledWith('input-org');
+        expect(assertProjectAccess).toHaveBeenCalledWith('input-project', actor);
+        expect(infoSSOTService.getContext).toHaveBeenCalledWith(expect.objectContaining({
+            personId: 'keigo',
+            projectCodes: expect.arrayContaining(['input-project'])
+        }), expect.objectContaining({
+            projectCode: 'input-project',
+            scope: 'case-1',
+            includeEdges: true
+        }));
+        expect(resolveReviewTaskOwners).toHaveBeenCalledWith(
+            expect.objectContaining({
+                meeting_note_summary: expect.objectContaining({
+                    graph_context_status: expect.objectContaining({ status: 'resolved' })
+                })
+            }),
+            expect.objectContaining({ projectId: 'input-project', actor })
+        );
+        expect(result).toMatchObject({
+            packageId: 'package-1',
+            orgId: 'input-org',
+            projectId: 'input-project',
+            caseScope: 'case-1',
+            projectResolution: {
+                source: 'explicit_input',
+                status: 'single_high_confidence_project'
+            },
+            graphPlaybookContext: {
+                graph_playbook: {
+                    graph_context: { status: 'resolved', entity_count: 2 }
+                },
+                item_count: 2
+            },
+            resolvedReviewPackage: {
+                task_candidates: [{ selected_owner_id: 'person-keigo' }]
+            }
+        });
+    });
+
+    it('project候補が複数ならGraph lookup前にblocked scopeとして停止する', async () => {
+        const infoSSOTService = { getContext: vi.fn() };
+        const { service, assertProjectSelectable } = makeMeetingService({ infoSSOTService });
+
+        await expect(service.resolveReviewPackageContext({
+            org_id: 'salestailor',
+            review_package: {
+                package_id: 'package-1',
+                meeting_identity: {
+                    candidate_project_ids: ['project-a', 'project-b']
+                }
+            }
+        }, actor)).rejects.toMatchObject({
+            details: {
+                state_transition: 'blocked_invalid_scope',
+                field: 'project_id',
+                project_resolution: {
+                    status: 'multiple_project_candidates'
+                },
+                graph_ssot_playbook: {
+                    graph_context: { status: 'not_requested' }
+                }
+            }
+        });
+        expect(assertProjectSelectable).not.toHaveBeenCalled();
+        expect(infoSSOTService.getContext).not.toHaveBeenCalled();
     });
 });

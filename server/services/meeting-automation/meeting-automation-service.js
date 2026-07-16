@@ -10,6 +10,7 @@ import {
     meetingPackIds
 } from '../workflow/meeting-workflow-pack.js';
 import { verifyMeetingReviewPackage } from './meeting-review-contract.js';
+import { MeetingReviewContextResolver } from './meeting-review-context-resolver.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
@@ -93,11 +94,13 @@ export class MeetingAutomationService {
         repository,
         googleCalendarService = null,
         eveSessionClient = null,
+        infoSSOTService = null,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
         assertProjectAccess,
         createLoopIntent,
+        resolveReviewTaskOwners = null,
         dispatchLoopIntentToEve = null
     }) {
         this.repository = repository;
@@ -109,6 +112,15 @@ export class MeetingAutomationService {
         this.assertProjectAccess = assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
         this.dispatchLoopIntentToEve = dispatchLoopIntentToEve;
+        this.reviewContextResolver = new MeetingReviewContextResolver({
+            prepareProjectAccess,
+            assertProjectSelectable,
+            assertOrgReferenceAllowed,
+            assertProjectAccess,
+            infoSSOTService,
+            verifyReviewPackage: (input) => this.verifyReviewPackage(input),
+            resolveReviewTaskOwners
+        });
     }
 
     async _preparePackRecords(input = {}, actor = {}) {
@@ -419,6 +431,18 @@ export class MeetingAutomationService {
             orgId,
             projectId
         });
+    }
+
+    async resolveReviewPackageContext(input = {}, actor = {}) {
+        return this.reviewContextResolver.resolve(input, actor);
+    }
+
+    async resolveReviewPackageScope(input = {}, actor = {}) {
+        return this.reviewContextResolver.resolveScope(input, actor);
+    }
+
+    async resolveReviewPackageGraphContext(scope, actor = {}) {
+        return this.reviewContextResolver.resolveGraph(scope, actor);
     }
 
     async _transaction(callback) {
