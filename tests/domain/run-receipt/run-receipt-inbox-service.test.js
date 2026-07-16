@@ -28,6 +28,16 @@ function makeService({ client, inbox = initialInbox() }) {
     };
 }
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+}
+
 describe('RunReceiptInboxService', () => {
     it('load呼び出し時_loading中も直前のitemsとcountを保持する', async () => {
         let resolveList;
@@ -164,5 +174,80 @@ describe('RunReceiptInboxService', () => {
         expect(client.list).toHaveBeenCalledWith({
             project_id: 'brainbase', source_type: 'github_actions', evidence_state: 'no_data'
         });
+    });
+
+    it('後発request成功後に先発requestが成功してもStoreとeventを巻き戻さない', async () => {
+        const first = deferred();
+        const second = deferred();
+        const client = { list: vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise) };
+        const { service, store, bus } = makeService({ client });
+        const loaded = vi.fn();
+        bus.on(EVENTS.RUN_RECEIPT_INBOX_LOADED, loaded);
+
+        const firstLoad = service.load({ source_type: 'github_actions' });
+        const secondLoad = service.load({ source_type: 'salestailor' });
+        second.resolve({ items: [{ id: 'latest' }], count: 1, has_more: false, omitted_count: 0 });
+        await secondLoad;
+        first.resolve({ items: [{ id: 'stale' }], count: 1, has_more: false, omitted_count: 0 });
+        await firstLoad;
+
+        expect(store.getState().runReceiptInbox).toMatchObject({
+            status: 'ready', items: [{ id: 'latest' }], filters: { source_type: 'salestailor' }
+        });
+        expect(loaded).toHaveBeenCalledTimes(1);
+        expect(loaded.mock.calls[0][0].detail.items).toEqual([{ id: 'latest' }]);
+    });
+
+    it('後発request成功後に先発requestが失敗してもStoreとfailed eventを巻き戻さない', async () => {
+        const first = deferred();
+        const second = deferred();
+        const client = { list: vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise) };
+        const { service, store, bus } = makeService({ client });
+        const failed = vi.fn();
+        bus.on(EVENTS.RUN_RECEIPT_INBOX_FAILED, failed);
+
+        const firstLoad = service.load({ source_type: 'github_actions' });
+        const firstRejection = expect(firstLoad).rejects.toThrow('stale failure');
+        const secondLoad = service.load({ source_type: 'salestailor' });
+        second.resolve({ items: [{ id: 'latest' }], count: 1, has_more: false, omitted_count: 0 });
+        await secondLoad;
+        first.reject(new Error('stale failure'));
+        await firstRejection;
+
+        expect(store.getState().runReceiptInbox).toMatchObject({
+            status: 'ready', items: [{ id: 'latest' }], filters: { source_type: 'salestailor' }
+        });
+        expect(failed).not.toHaveBeenCalled();
+    });
+
+    it('重複loadの最新request失敗時_最後の確認済みsnapshotを復元する', async () => {
+        const first = deferred();
+        const second = deferred();
+        const client = { list: vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise) };
+        const { service, store, bus } = makeService({
+            client,
+            inbox: initialInbox({
+                status: 'ready', items: [{ id: 'confirmed' }], count: 1,
+                filters: { source_type: 'mana' }
+            })
+        });
+        const loaded = vi.fn();
+        const failed = vi.fn();
+        bus.on(EVENTS.RUN_RECEIPT_INBOX_LOADED, loaded);
+        bus.on(EVENTS.RUN_RECEIPT_INBOX_FAILED, failed);
+
+        const firstLoad = service.load({ source_type: 'github_actions' });
+        const secondLoad = service.load({ source_type: 'salestailor' });
+        second.reject(new Error('latest failure'));
+        await expect(secondLoad).rejects.toThrow('latest failure');
+        first.resolve({ items: [{ id: 'stale' }], count: 1, has_more: false, omitted_count: 0 });
+        await firstLoad;
+
+        expect(store.getState().runReceiptInbox).toMatchObject({
+            status: 'unavailable', items: [{ id: 'confirmed' }], count: 1,
+            filters: { source_type: 'mana' }, error: 'latest failure'
+        });
+        expect(loaded).not.toHaveBeenCalled();
+        expect(failed).toHaveBeenCalledTimes(1);
     });
 });

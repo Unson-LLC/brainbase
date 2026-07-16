@@ -22,10 +22,13 @@ export class RunReceiptInboxService {
         this.client = client;
         this.appStore = appStore;
         this.eventBus = eventBus;
+        this._requestSequence = 0;
+        this._confirmedSnapshot = currentSlice(appStore);
     }
 
     async load(filters = currentSlice(this.appStore).filters) {
-        const previous = currentSlice(this.appStore);
+        const requestSequence = ++this._requestSequence;
+        const previous = this._confirmedSnapshot;
         const nextFilters = { ...filters };
         this.appStore.setState({
             runReceiptInbox: {
@@ -37,17 +40,19 @@ export class RunReceiptInboxService {
         });
         try {
             const result = await this.client.list(nextFilters);
-            this.appStore.setState({
-                runReceiptInbox: {
-                    status: 'ready',
-                    ...result,
-                    error: null,
-                    filters: nextFilters
-                }
-            });
+            if (requestSequence !== this._requestSequence) return result;
+            const confirmedSnapshot = {
+                status: 'ready',
+                ...result,
+                error: null,
+                filters: nextFilters
+            };
+            this._confirmedSnapshot = confirmedSnapshot;
+            this.appStore.setState({ runReceiptInbox: confirmedSnapshot });
             await this.eventBus.emit(EVENTS.RUN_RECEIPT_INBOX_LOADED, result);
             return result;
         } catch (error) {
+            if (requestSequence !== this._requestSequence) throw error;
             const message = error instanceof Error ? error.message : String(error);
             this.appStore.setState({
                 runReceiptInbox: {
