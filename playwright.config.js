@@ -6,8 +6,6 @@ const PORT = process.env.BRAINBASE_E2E_PORT || (isWorktree ? DEFAULT_PORT : (pro
 const BASE_URL = process.env.BRAINBASE_BASE_URL
     || `http://localhost:${PORT}`;
 const REUSE_EXISTING_SERVER = process.env.BRAINBASE_E2E_REUSE_SERVER === 'true';
-const E2E_INTERNAL_API_SECRET = process.env.BRAINBASE_E2E_INTERNAL_API_SECRET
-    || 'brainbase-e2e-internal-api-secret';
 
 export default defineConfig({
     testDir: '.',
@@ -42,9 +40,5 @@ export default defineConfig({
         url: BASE_URL,
         reuseExistingServer: REUSE_EXISTING_SERVER,
         timeout: 120 * 1000,
-        env: {
-            ...process.env,
-            INTERNAL_API_SECRET: E2E_INTERNAL_API_SECRET,
-        },
     },
 });

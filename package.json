@@ -36,7 +36,7 @@
     "start": "node start.js",
     "auth-setup": "node scripts/auth-setup.mjs",
     "meeting-source:mcp-login": "node scripts/meeting-source-mcp-oauth-login.mjs",
-    "test:server": "BRAINBASE_TEST_MODE=true BRAINBASE_VAR_DIR=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime} BRAINBASE_STATE_PATH=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime}/state.json BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
+    "test:server": "INTERNAL_API_SECRET=${BRAINBASE_E2E_INTERNAL_API_SECRET:-brainbase-e2e-internal-api-secret} BRAINBASE_TEST_MODE=true BRAINBASE_VAR_DIR=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime} BRAINBASE_STATE_PATH=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime}/state.json BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
