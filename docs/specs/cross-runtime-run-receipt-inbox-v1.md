@@ -67,6 +67,83 @@
 | delivery metadata | `workflow_runs.metadata.run_receipt.delivery` |
 | source-supplied action presence | `workflow_runs.metadata.run_receipt.source_action_required` |
 
+## Diagrams
+
+- kind: state
+  purpose: connector observation, validation, serialization, duplicate/conflict, and retry transitions
+- kind: flow
+  purpose: source-owned execution through authenticated ingest to the dedicated operator surface
+- kind: threat_model
+  purpose: raw-material ownership, authentication/authorization, validation, and atomic persistence boundaries
+
+## State Diagram (`kind: state`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> ConnectorPending: source identity is known but terminal state is not authoritative
+    ConnectorPending --> ConnectorPending: retry source observation
+    ConnectorPending --> ReceiptValidation: authoritative terminal state observed
+    [*] --> ConnectorObservationValidation: source identity is unavailable
+    ConnectorObservationValidation --> ReceiptValidation: blocked no_data or unconfirmed observation
+    ReceiptValidation --> Rejected: contract auth project or identity invalid
+    ReceiptValidation --> IdentityLocked: validation succeeds
+    IdentityLocked --> Created: identity absent and transaction commits
+    IdentityLocked --> Duplicate: immutable projection matches
+    IdentityLocked --> Conflict: immutable projection differs
+    IdentityLocked --> Retryable: lock timeout or repository unavailable
+    Created --> AgentRunInbox
+    Duplicate --> AgentRunInbox
+    Conflict --> [*]
+    Rejected --> [*]
+    Retryable --> ConnectorPending: connector retries without changing source status
+    AgentRunInbox --> [*]
+```
+
+## Request and Projection Flow (`kind: flow`)
+
+```mermaid
+flowchart LR
+    SRC["Source-owned runtime"] --> CON["Source connector\nredaction + identity + outbox"]
+    CON -->|"POST run_receipt.v1"| AUTH["Exact-route CSRF predicate\nservice auth + project ACL"]
+    AUTH --> VAL["Contract validation\nstatus evidence action refs"]
+    VAL --> LOCK["Receipt identity lock"]
+    LOCK --> TX["Shared-ledger transaction"]
+    TX --> WMC["Deterministic workflow run audit projection"]
+    WMC --> API["GET Agent Run Inbox\nlatest collapse + filters + total order"]
+    API --> CLIENT["Dedicated browser client\ntimeout + shape validation"]
+    CLIENT --> STORE["Reactive Store + EventBus"]
+    STORE --> UI["Agent Run Inbox"]
+    API -. "timeout or 5xx" .-> SNAP["Preserve last confirmed snapshot\nshow unavailable"]
+    SNAP --> UI
+    WMC -. "excluded" .-> LEGACY["Legacy workflow run APIs\nand Operational Inbox"]
+```
+
+## Threat Model (`kind: threat_model`)
+
+```mermaid
+flowchart TB
+    subgraph SourceTrust["Source-owned trust boundary"]
+        RAW["Raw logs customer prose secrets"]
+        ADAPTER["Connector redaction and mapping"]
+        OUTBOX["Retryable pending outbox"]
+        RAW --> ADAPTER --> OUTBOX
+    end
+    subgraph BrainbaseTrust["Brainbase control-plane boundary"]
+        EDGE["Service-token authentication\nproject authorization\nexact POST CSRF exemption"]
+        CONTRACT["Recursive forbidden-key and\ncredential-bearing-ref rejection"]
+        MUTEX["Identity lock then ledger transaction"]
+        LEDGER["Metadata references status metrics only"]
+        VIEW["Operator-scoped Agent Run Inbox"]
+        EDGE --> CONTRACT --> MUTEX --> LEDGER --> VIEW
+    end
+    OUTBOX -->|"minimal run_receipt.v1"| EDGE
+    ATTACKER["Human JWT cross-project caller\nor malformed producer"] -->|"rejected before write"| EDGE
+    RAW -. "never copied" .-> LEDGER
+    MUTEX -. "conflict or timeout rolls back" .-> OUTBOX
+```
+
+The trust boundary is intentionally asymmetric: source connectors may inspect raw execution material but must emit only the redacted contract, while Brainbase authenticates, validates, serializes, and projects that contract. Brainbase never becomes the raw-log owner. The lock order is always receipt identity before shared-ledger transaction; no code inside the shared-ledger transaction may acquire a receipt identity lock.
+
 ## Scenario Clauses
 
 - S-001 `workflow state transition`: confirmed success maps to `success / closed / none` and is present in receipt listing.
