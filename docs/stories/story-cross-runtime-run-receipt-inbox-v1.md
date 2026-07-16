@@ -247,7 +247,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 ## 非目標
 
 - 4ソース固有のAPI接続・schedule・outbox実装と、本番runを使ったsource別canaryは後続の各connector Storyで扱う。本Storyのcompletedは共通control-plane基盤の完成を意味し、4ソース本接続の完了を意味しない。
-  - `story-mana-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-mana-run-receipt-connector-v1.md`（実装正本: `projects/mana/docs/specs/story-mana-run-receipt-connector-v1.md`）
+  - `story-mana-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-mana-run-receipt-connector-v1.md`（実装正本: `projects/mana@ddd49d23c8e61400403cbc8b19ce008025065ee2:docs/specs/story-mana-run-receipt-connector-v1.md`、branch: `codex/mana-run-receipt-connector`）
   - `story-codex-automations-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-codex-automations-run-receipt-connector-v1.md`（owner: `code/brainbase`、実装artifact: `scripts/run-receipt/codex-automations-reporter.mjs`）
   - `story-github-actions-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-github-actions-run-receipt-connector-v1.md`（owner: `code/brainbase`、実装artifact: `.github/actions/run-receipt-reporter/action.yml`）
   - `story-salestailor-run-receipt-connector-v1`: `docs/connectors/run-receipt/story-salestailor-run-receipt-connector-v1.md`（owner: `code/salestailor`、実装artifact: `src/services/run-receipt/run-receipt-outbox.ts`）
