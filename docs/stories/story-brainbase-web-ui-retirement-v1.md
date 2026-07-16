@@ -55,7 +55,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 |---|---|---|---|---|
 | `public/index.html` | Workspace、Project、Session等の主要shell | MCPへ移管。login/bootstrapだけ分離してWebに残す | `temporarily_keep` | shell内能力のMCP parity確認とauth/bootstrap分離 |
 | `public/workflows.html` | Workflow Mission Control、Run Detail、Agent Run Inbox | Core + MCP + Mac Companion | `temporarily_keep` | workflow/runのMCP操作、要介入runのCompanion投影、監査参照を検証 |
-| `public/meeting-workflow-pack.html` | Meeting Packの設計・確認 | MCP + Mac Companion | `temporarily_keep` | pack操作のMCP化と承認projectionのCompanion検証 |
+| `public/meeting-workflow-pack.html` | 廃止済みの固定データprototype | Workflow Core + MCP + Mac Companion | `deleted_prototype` | `TSK-WEBRET-002`で専用runtimeとdeep-linkを削除。Core/APIは維持 |
 | `public/sns-growth.html` | SNS運用cockpit | MCP/automation + Mac Companion approval | `temporarily_keep` | 生成・計測・投稿準備のMCP/automation化と承認境界を検証 |
 | `public/admin.html` | 管理・可視化の混合面 | browser必須設定だけWebへ分離し、残りはMCP | `temporarily_keep` | admin能力を機能別分類し、auth/consent/recovery以外を移管 |
 | `public/setup.html` | 初期設定 | Web候補 | `keep_web_review` | 各設定についてブラウザ必須理由を確認し、不要項目をMCPへ移管 |
@@ -102,7 +102,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 詳細なdependency map、実装順、完了evidenceは`docs/architecture/brainbase-web-surface-retirement-inventory.md`を正本とする。
 
 1. `TSK-WEBRET-001`（完了）: 参照のない`test-infrastructure.html`を削除し、static 404をcontract testで固定した。
-2. `TSK-WEBRET-002`: 実APIへ接続していないMeeting Pack mock prototypeとdeep-linkを削除する。
+2. `TSK-WEBRET-002`（完了）: 実APIへ接続していないMeeting Pack mock prototype、専用runtime、deep-link、専用E2E、CSP例外を削除した。
 3. `TSK-WEBRET-003`から`006`: MCP control plane、Workflow/Run/Inbox、Companion projection、Admin/SNS/setup parityを後継面として出荷する。
 4. `TSK-WEBRET-007`から`008`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
 

@@ -50,4 +50,21 @@ describe('static routes', () => {
 
         await request(app).get('/test-infrastructure.html').expect(404);
     });
+
+    it('does not serve the retired meeting workflow pack prototype', async () => {
+        const app = express();
+        registerStaticRoutes(app, {
+            publicDir: path.join(repoRoot, 'public'),
+            log: { error: () => {} }
+        });
+
+        await request(app).get('/meeting-workflow-pack.html').expect(404);
+    });
+
+    it('does not link the workflow mission control to the retired meeting prototype', async () => {
+        const workflowsHtml = await fs.readFile(path.join(repoRoot, 'public', 'workflows.html'), 'utf-8');
+
+        expect(workflowsHtml).not.toContain('meeting-workflow-pack.html');
+        expect(workflowsHtml).not.toContain('data-open-meeting-workflow-cockpit');
+    });
 });

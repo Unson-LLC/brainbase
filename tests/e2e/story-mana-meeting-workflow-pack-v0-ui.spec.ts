@@ -303,7 +303,7 @@ test(`${storyId} UI-001-UI-005 /workflowsにMeeting Workflow Pack Cockpitを表�
   await expect(pack.getByRole('heading', { name: 'Meeting Workflow Pack' })).toBeVisible();
   await expect(pack.getByText('Meeting Ops Agent')).toBeVisible();
   await expect(pack.getByRole('heading', { name: 'Workflow Definitions' })).toBeVisible();
-  await expect(pack.getByText('5')).toBeVisible();
+  await expect(pack.getByText('5', { exact: true })).toBeVisible();
   await expect(pack.locator('[data-meeting-trigger-lane="schedule"]')).toContainText('Pre-Meeting Briefing');
   await expect(pack.locator('[data-meeting-trigger-lane="event"]')).toContainText('Transcript → Meeting Note');
   await expect(pack.locator('[data-meeting-trigger-lane="event"]')).toContainText('Meeting Note → Tasks');

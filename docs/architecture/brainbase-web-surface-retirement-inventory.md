@@ -23,7 +23,7 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 | Surface | Current capability and dependency | Target owner | Current parity | Disposition | Retirement gate |
 |---|---|---|---|---|---|
 | `public/test-infrastructure.html` | 廃止済み。EventBus、Store、DI、HttpClientの手動デモで、実データではなく外部test APIへ通信していた | CLI/unit test | 完了。各componentは自動テスト対象で、production導線なし | `deleted` | `TSK-WEBRET-001`完了。参照0件、static 404、static route tests green |
-| `public/meeting-workflow-pack.html` | 画面内の固定`ORGS`、`WF`、`RUNS`で動くprototype。Workflow APIを呼ばない。`/workflows`からdeep-linkあり | Workflow Core + MCP + Companion | 実データparityなし。ただしprototype自体は正本能力ではない | `delete_prototype` | `/workflows`のdeep-linkを除去し、必要な設計知見をStory/Specへ残すこと |
+| `public/meeting-workflow-pack.html` | 廃止済み。画面内の固定`ORGS`、`WF`、`RUNS`だけで動き、Workflow APIを呼ばないprototypeだった | Workflow Core + MCP + Companion | prototype廃止。Workflow Core、Meeting Pack bootstrap、実データpanelは維持 | `deleted_prototype` | `TSK-WEBRET-002`完了。page、専用runtime、deep-link、専用E2E、CSP例外を削除し、設計文書を`retired`で保持 |
 | `public/admin.html` | overview、Graph、candidate store、Personal KG、context preview、data flow、healthのread-only visualization。JWT/localStorageとCSRFに依存 | MCP。接続不全はCompanion projection候補 | Graph/Wiki/Personal KGは一部あり。candidate、context preview、data flow、healthは未提供 | `move_to_mcp_then_delete` | admin read tools、project/actor scope、unavailable表現、audit evidenceをMCPで検証 |
 | `public/setup.html` | JWT取得後に`/api/setup/config`を読み、user/project情報と`config.yml`をdownload | MCP bootstrap/config export。必要ならauth完了結果だけWeb | 未提供 | `shrink_or_delete` | config生成・取得をMCP化し、ブラウザdownloadが必須か再判定 |
 | `public/device.html` | device code検証、Slack OAuth開始、approve/deny。sessionStorageとlocalStorageでcallbackを連結 | 最小Web | ブラウザ本人確認/OAuthのためWebが正規 | `keep_minimal_web` | verify、login、approve、deny以外の表示・依存を持たないこと |
@@ -62,7 +62,7 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 | Task | Scope | Completion evidence |
 |---|---|---|
 | `TSK-WEBRET-001` | `test-infrastructure.html`を削除 | 完了。参照0件、static 404、static route tests green |
-| `TSK-WEBRET-002` | Meeting Pack mock prototypeとdeep-linkを削除 | `/workflows`にdead linkなし、Workflow API/E2Eは維持、設計docは保持 |
+| `TSK-WEBRET-002` | Meeting Pack mock prototypeとdeep-linkを削除 | 完了。static 404、`/workflows`にdead linkなし、Workflow Core/API testsと残存panel E2E green、設計docは`retired`で保持 |
 | `TSK-WEBRET-003` | Brainbase MCP control-plane foundationを追加 | tool contract tests、auth/project scope、unavailable/error/audit evidence |
 | `TSK-WEBRET-004` | Workflow/Run/Run Receipt Inbox MCP parityを追加 | CRUD/draft/run/resolve/filter/historyとfailure statesのcontract tests |
 | `TSK-WEBRET-005` | Agent Run InboxをMac Companionへ投影 | 要介入だけ表示、取得不能を0件化しない、feedback loop evidence |
