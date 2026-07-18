@@ -766,7 +766,11 @@ export class AuthService {
         const now = Date.now();
         const expiresIn = Math.floor(this.deviceCodeTtlMs / 1000); // seconds
 
-        const publicUrl = process.env.BRAINBASE_PUBLIC_URL || 'http://localhost:31013';
+        const configuredPublicUrl = String(process.env.BRAINBASE_PUBLIC_URL || '').trim();
+        if (process.env.NODE_ENV === 'production' && !configuredPublicUrl) {
+            throw new Error('BRAINBASE_PUBLIC_URL is required in production');
+        }
+        const publicUrl = configuredPublicUrl || 'http://localhost:31013';
         const verificationUri = `${publicUrl}/device`;
         const verificationUriComplete = `${verificationUri}?user_code=${encodeURIComponent(userCode)}`;
 
