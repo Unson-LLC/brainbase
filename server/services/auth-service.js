@@ -352,9 +352,10 @@ export class AuthService {
     /**
      * Find user by Slack user ID (Permission System Phase 1)
      * @param {string} slackUserId - Slack user ID (e.g., 'U07LNUP582X')
+     * @param {string|null} slackWorkspaceId - Exact Slack workspace required during authentication
      * @returns {Promise<Object|null>} - User object or null if not found
      */
-    async findUserBySlackId(slackUserId) {
+    async findUserBySlackId(slackUserId, slackWorkspaceId = null) {
         logger.info(`[AUTH] findUserBySlackId called with: "${slackUserId}"`);
         if (!this.pool) {
             logger.error('[AUTH] findUserBySlackId: no pool!');
@@ -375,16 +376,24 @@ export class AuthService {
             logger.info(`[AUTH] findUserBySlackId: users table rows=${rows.length}`);
 
             // Always check auth_grants for role, project_codes, clearance
+            const requireExactWorkspace = typeof slackWorkspaceId === 'string' && slackWorkspaceId.length > 0;
             const { rows: grantRows } = await client.query(
                 `SELECT person_id, person_name as name, slack_user_id, slack_workspace_id as workspace_id,
                         role, project_codes, clearance, active as status
                  FROM auth_grants
                  WHERE slack_user_id = $1
+                   ${requireExactWorkspace ? 'AND slack_workspace_id = $2' : ''}
                    AND active = true
                  LIMIT 1`,
-                [slackUserId]
+                requireExactWorkspace ? [slackUserId, slackWorkspaceId] : [slackUserId]
             );
             logger.info(`[AUTH] findUserBySlackId: auth_grants rows=${grantRows.length}`);
+
+            // Login and refresh must use the same authorization SSOT. A legacy users
+            // row alone must never mint a token that the exact workspace grant cannot refresh.
+            if (requireExactWorkspace && !grantRows[0]) {
+                return null;
+            }
 
             if (rows[0]) {
                 const user = rows[0];
@@ -888,7 +897,7 @@ export class AuthService {
             const { slackUserId, slackWorkspaceId } = record;
 
             // Fetch user from database
-            const user = await this.findUserBySlackId(slackUserId);
+            const user = await this.findUserBySlackId(slackUserId, slackWorkspaceId);
             if (!user) {
                 await this.createAuditLog({
                     slackUserId,

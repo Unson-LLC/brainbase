@@ -22,6 +22,7 @@ depends_on:
   - auth_grants
 visibility_rules:
   - auth_grants.active must be true.
+  - Login, device flow, and refresh require an exact slack_user_id + slack_workspace_id match in auth_grants.
   - project_codes is copied into JWT access.projectCodes.
   - Browser localStorage may preserve stale access until refresh or relogin.
   - Empty projectCodes means unrestricted only in UI selector logic; protected APIs may still require explicit project codes.

@@ -77,7 +77,7 @@ SLACK_AUTH_MODE="oauth"
 SLACK_AUTH_USER_SCOPES="chat:write,files:write"
 PORT="31013"
 NODE_ENV="development"
-ALLOW_INSECURE_SSOT_HEADERS="true"
+ALLOW_INSECURE_SSOT_HEADERS="false"
 
 # ────────────── パス自動検出 ──────────────
 WORKSPACE_ROOT="$(cd "$BRAINBASE_DIR/.." && pwd)"

@@ -259,7 +259,7 @@ export class AuthController {
             }
 
             // Phase 1: PostgreSQLベース権限管理
-            const user = await this.authService.findUserBySlackId(slackUserId);
+            const user = await this.authService.findUserBySlackId(slackUserId, slackWorkspaceId);
             logger.info(`[AUTH] findUser: uid=${slackUserId} found=${!!user} name=${user?.name} role=${user?.role}`);
             if (!user) {
                 await this.authService.createAuditLog({
@@ -308,7 +308,7 @@ export class AuthController {
                     employmentType: user.employment_type,
                     personId: user.person_id,
                     slackUserId: user.slack_user_id,
-                    workspaceId: user.workspace_id,
+                    workspaceId: slackWorkspaceId,
                     name: user.name,
                     role: user.role,
                     projectCodes: user.project_codes || []
@@ -496,7 +496,7 @@ export class AuthController {
 
             // PostgreSQLからユーザー情報取得
             logger.info(`[AUTH] tokenExchange: findUserBySlackId uid=${slackUserId} wid=${slackWorkspaceId}`);
-            const user = await this.authService.findUserBySlackId(slackUserId);
+            const user = await this.authService.findUserBySlackId(slackUserId, slackWorkspaceId);
             logger.info(`[AUTH] tokenExchange: found=${!!user} name=${user?.name}`);
             if (!user) {
                 await this.authService.createAuditLog({

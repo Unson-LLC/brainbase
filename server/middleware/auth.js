@@ -10,8 +10,9 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 /**
  * @param {RequestLike} req
  * @param {AuthServiceLike} authService
+ * @param {{ allowInsecureHeaders?: boolean }} [options]
  */
-export function resolveAuthContext(req, authService) {
+export function resolveAuthContext(req, authService, options = {}) {
     if (req?.method === 'OPTIONS') {
         return { ok: true, bypass: true };
     }
@@ -44,7 +45,7 @@ export function resolveAuthContext(req, authService) {
         };
     }
 
-    if (isInsecureHeaderAuthAllowed()) {
+    if (options.allowInsecureHeaders !== false && isInsecureHeaderAuthAllowed()) {
         const role = (getHeader(req, 'x-brainbase-role') || getHeader(req, 'x-role') || '').toLowerCase();
         if (role) {
             const projectHeader = getHeader(req, 'x-brainbase-projects') || getHeader(req, 'x-projects') || '';
@@ -132,11 +133,12 @@ export function resolveAuthContext(req, authService) {
 
 /**
  * @param {AuthServiceLike} authService
+ * @param {{ allowInsecureHeaders?: boolean }} [options]
  * @returns {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown}
  */
-export function requireAuth(authService) {
+export function requireAuth(authService, options = {}) {
     return (req, res, next) => {
-        const result = resolveAuthContext(req, authService);
+        const result = resolveAuthContext(req, authService, options);
         if (result?.bypass) {
             return next();
         }

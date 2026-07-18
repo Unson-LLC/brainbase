@@ -5,7 +5,9 @@
 3. If using HTTP directly:
 
 ```bash
-curl -s -H "Authorization: Bearer $(cat ~/.brainbase/tokens.json | jq -r .access_token)" \
+TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json)
+
+curl -sS -H "Authorization: Bearer $TOKEN" \
   "https://bb.unson.jp/api/info/graph/entities?type=<type>&limit=500" | jq
 ```
 
@@ -13,7 +15,9 @@ curl -s -H "Authorization: Bearer $(cat ~/.brainbase/tokens.json | jq -r .access
 5. For Graph operations, load Philosophy Context:
 
 ```bash
-curl -s -H "Authorization: Bearer $(cat ~/.brainbase/tokens.json | jq -r .access_token)" \
+TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json)
+
+curl -sS -H "Authorization: Bearer $TOKEN" \
   "https://bb.unson.jp/api/info/context?project=brainbase&types=project&includePhilosophy=true&scope=graph" \
   | jq '.philosophy_context.prompt_block'
 ```

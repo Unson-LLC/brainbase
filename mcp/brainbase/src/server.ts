@@ -54,21 +54,18 @@ async function prependPhilosophyContext(
   defaults: { scope: string; objectType?: string; operation?: string }
 ): Promise<string> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
-  if (!includePhilosophy || !globalGraphSource) return body;
-
-  let context;
-  try {
-    context = await globalGraphSource.getPhilosophyContext({
-      projectCode: (args.project as string) || defaultProjectCode,
-      scope: (args.scope as string) || defaults.scope,
-      objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
-      operation: (args.operation as string) || defaults.operation,
-      maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
-    });
-  } catch (error) {
-    console.error('[brainbase] Failed to prepend philosophy context:', error);
-    return body;
+  if (!includePhilosophy) return body;
+  if (!globalGraphSource) {
+    throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
+
+  const context = await globalGraphSource.getPhilosophyContext({
+    projectCode: (args.project as string) || defaultProjectCode,
+    scope: (args.scope as string) || defaults.scope,
+    objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+    operation: (args.operation as string) || defaults.operation,
+    maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+  });
 
   return `${context.prompt_block}\n\n---\n\n${body}`;
 }
@@ -78,20 +75,18 @@ async function philosophyContextPrompt(
   defaults: { scope: string; objectType?: string; operation?: string }
 ): Promise<string | undefined> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
-  if (!includePhilosophy || !globalGraphSource) return undefined;
-
-  let context;
-  try {
-    context = await globalGraphSource.getPhilosophyContext({
-      projectCode: (args.project as string) || defaultProjectCode,
-      scope: (args.scope as string) || defaults.scope,
-      objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
-      operation: (args.operation as string) || defaults.operation,
-      maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
-    });
-  } catch {
-    return undefined;
+  if (!includePhilosophy) return undefined;
+  if (!globalGraphSource) {
+    throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
+
+  const context = await globalGraphSource.getPhilosophyContext({
+    projectCode: (args.project as string) || defaultProjectCode,
+    scope: (args.scope as string) || defaults.scope,
+    objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+    operation: (args.operation as string) || defaults.operation,
+    maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+  });
 
   return context.prompt_block;
 }

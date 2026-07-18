@@ -166,7 +166,11 @@ export function registerApiRoutes(app, {
         terminalRuntimeReconciler: sessionServices.runtime.reconciler
     }));
     app.use('/api/auth', createAuthRouter(authService));
-    app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
+    app.use(
+        '/api/info',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createInfoSSOTRouter(infoSSOTService)
+    );
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
     app.use('/api/companion', createCompanionRouter({
         replyDraftService: new ReplyDraftService({
