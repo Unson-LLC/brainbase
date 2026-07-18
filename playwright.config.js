@@ -14,6 +14,10 @@ export default defineConfig({
         'tests/e2e/**/*.test.@(js|ts)',
         'e2e/**/*.spec.@(js|ts)'
     ],
+    testIgnore: [
+        '**/.worktrees/**',
+        '**/.codex-worktrees/**',
+    ],
     outputDir: 'var/test-results',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
