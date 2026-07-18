@@ -39,6 +39,34 @@ const BACKUP_VERSION = 'graph-data-ssot-normalization.v1';
 const BACKUP_TABLES = Object.freeze(['graph_entities', 'graph_edges', 'people', 'auth_grants', 'raci_assignments']);
 const DEFAULT_BACKUP_ROOT = '/home/ubuntu/brainbase/var/graph-data-normalization/backups';
 const NORMALIZED_AT = '2026-07-18';
+const BACKUP_ROW_SCHEMAS = Object.freeze({
+  graph_entities: {
+    requiredStrings: ['id', 'entity_type', 'role_min', 'sensitivity'],
+    nullableStrings: ['project_id'],
+    objectFields: ['payload'],
+    timestampFields: ['created_at', 'updated_at'],
+  },
+  graph_edges: {
+    requiredStrings: ['id', 'from_id', 'to_id', 'rel_type', 'project_id', 'role_min', 'sensitivity'],
+    objectFields: ['payload'],
+    timestampFields: ['created_at', 'updated_at'],
+  },
+  people: {
+    requiredStrings: ['id', 'name', 'status'],
+  },
+  auth_grants: {
+    requiredStrings: ['id', 'person_name', 'role'],
+    nullableStrings: ['person_id', 'slack_user_id', 'slack_workspace_id'],
+    stringArrays: ['project_codes', 'clearance'],
+    booleanFields: ['active'],
+    timestampFields: ['created_at', 'updated_at'],
+  },
+  raci_assignments: {
+    requiredStrings: ['id', 'project_id', 'person_id', 'role_code', 'sensitivity_min', 'sensitivity'],
+    stringOrObjectFields: ['authority_scope'],
+    timestampFields: ['created_at', 'updated_at'],
+  },
+});
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -61,6 +89,36 @@ function stableJson(value) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value ?? null);
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateBackupRow(table, row) {
+  const schema = BACKUP_ROW_SCHEMAS[table];
+  assert(isPlainObject(row), `invalid backup schema: rows.${table} must contain objects`);
+  for (const field of schema.requiredStrings ?? []) {
+    assert(typeof row[field] === 'string' && row[field].trim(), `invalid backup schema: rows.${table}.${field} must be a non-empty string`);
+  }
+  for (const field of schema.nullableStrings ?? []) {
+    assert(row[field] === null || (typeof row[field] === 'string' && row[field].trim()), `invalid backup schema: rows.${table}.${field} must be null or a non-empty string`);
+  }
+  for (const field of schema.objectFields ?? []) {
+    assert(isPlainObject(row[field]), `invalid backup schema: rows.${table}.${field} must be an object`);
+  }
+  for (const field of schema.stringOrObjectFields ?? []) {
+    assert((typeof row[field] === 'string') || isPlainObject(row[field]), `invalid backup schema: rows.${table}.${field} must be a string or object`);
+  }
+  for (const field of schema.stringArrays ?? []) {
+    assert(Array.isArray(row[field]) && row[field].every((item) => typeof item === 'string'), `invalid backup schema: rows.${table}.${field} must be an array of strings`);
+  }
+  for (const field of schema.booleanFields ?? []) {
+    assert(typeof row[field] === 'boolean', `invalid backup schema: rows.${table}.${field} must be a boolean`);
+  }
+  for (const field of schema.timestampFields ?? []) {
+    assert(typeof row[field] === 'string' && row[field].trim() && !Number.isNaN(Date.parse(row[field])), `invalid backup schema: rows.${table}.${field} must be a valid timestamp string`);
+  }
 }
 
 export function summarizeAuditLogs(rows) {
@@ -99,7 +157,7 @@ export function validateBackup(backup) {
     assert(Array.isArray(rows), `invalid backup schema: rows.${table} must be an array`);
     assert(targetIds.every((id) => typeof id === 'string' && id.trim()), `invalid backup schema: target_ids.${table} must contain non-empty strings`);
     assert(new Set(targetIds).size === targetIds.length, `invalid backup schema: target_ids.${table} must not contain duplicates`);
-    assert(rows.every((row) => row && typeof row === 'object' && !Array.isArray(row) && typeof row.id === 'string' && row.id.trim()), `invalid backup schema: rows.${table} must contain objects with non-empty id`);
+    rows.forEach((row) => validateBackupRow(table, row));
     assert(rows.every((row) => targetIds.includes(row.id)), `invalid backup schema: rows.${table} contains an id outside target_ids`);
   }
   return backup;

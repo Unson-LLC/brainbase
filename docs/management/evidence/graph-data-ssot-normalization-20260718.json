@@ -141,18 +141,28 @@
       },
       {
         "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
-        "sha256": "612750407d1b1a23abf40a5d3596a2b58ca87649e258bddd76a9e1b32c5bec8f",
-        "source": "current worktree targeted Vitest JSON report"
+        "sha256": "4a15e2ab8471992850d47300ccaeb161e91dc20b624b2b57186fd12d0fe8c63d",
+        "source": "current worktree targeted Vitest JSON report (51 tests)"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/mcp-graphapi-tests.tap",
+        "sha256": "27f7186d0f9f352fa8598fcdf08e03e77846a69a754723dd4df1da3c4065ac26",
+        "source": "current worktree MCP GraphAPISource TAP report (8 tests)"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
+        "sha256": "f021193c019e31252342a7aaf84745f87d7af82bbd7dd4e2a38d9623b346a3b2",
+        "source": "current worktree Playwright Graph normalization contract report (1 test)"
       }
     ]
   },
   "verification": {
     "targeted_vitest": {
       "files": 9,
-      "tests": 50,
-      "passed": 50,
+      "tests": 51,
+      "passed": 51,
       "failed": 0,
-      "includes": ["rollback_rehearsal", "rollback_failure_injection", "malformed_backup_json", "schema_invalid_backup", "database_auth_denied", "persistence_failure", "backup_permissions", "finance_access_boundary", "finance_member_internal_denial", "legacy_alias_typed_get", "auth_person_canonicalization", "graph_context_route"]
+      "includes": ["rollback_rehearsal", "rollback_failure_injection", "malformed_backup_json", "schema_invalid_backup", "required_restore_columns", "database_auth_denied", "persistence_failure", "backup_permissions", "finance_access_boundary", "finance_member_internal_denial", "legacy_alias_typed_get", "auth_person_canonicalization", "graph_context_route"]
     },
     "targeted_mcp_graphapi": {
       "tests": 8,

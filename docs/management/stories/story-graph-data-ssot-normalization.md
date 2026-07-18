@@ -5,6 +5,7 @@ source_requirement:
   source: Codex task 019f64a6-8bde-7f33-bef9-21e3769c32e0
   approved_at: 2026-07-18
 architecture_docs: []
+architecture_reason: 既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で完結し、新規runtime境界・schema・外部APIを導入しないため
 related_tasks:
   - task_source: VibePro
     task_ids: []

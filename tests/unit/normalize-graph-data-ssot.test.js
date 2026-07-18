@@ -25,6 +25,7 @@ afterEach(async () => {
 });
 
 function backupFixture() {
+  const timestamp = '2026-07-18T00:00:00.000Z';
   return {
     version: 'graph-data-ssot-normalization.v1',
     created_at: '2026-07-18T00:00:00.000Z',
@@ -36,11 +37,11 @@ function backupFixture() {
       raci_assignments: ['raci-1'],
     },
     rows: {
-      graph_entities: [{ id: 'baao', entity_type: 'org', project_id: 'project-baao', payload: { name: 'BAAO' }, role_min: 'member', sensitivity: 'internal', created_at: null, updated_at: null }],
-      graph_edges: [{ id: 'edge-1', from_id: 'org_baao', to_id: 'baao', rel_type: 'alias_of', project_id: 'project-baao', payload: {}, role_min: 'member', sensitivity: 'internal', created_at: null, updated_at: null }],
+      graph_entities: [{ id: 'baao', entity_type: 'org', project_id: 'project-baao', payload: { name: 'BAAO' }, role_min: 'member', sensitivity: 'internal', created_at: timestamp, updated_at: timestamp }],
+      graph_edges: [{ id: 'edge-1', from_id: 'org_baao', to_id: 'baao', rel_type: 'alias_of', project_id: 'project-baao', payload: {}, role_min: 'member', sensitivity: 'internal', created_at: timestamp, updated_at: timestamp }],
       people: [{ id: IDS.canonicalPerson, name: '佐藤 圭吾', status: 'active' }],
-      auth_grants: [{ id: 'grant-1', person_id: IDS.canonicalPerson, person_name: '佐藤 圭吾', slack_user_id: null, slack_workspace_id: null, role: 'member', project_codes: ['brainbase'], clearance: ['internal'], active: true, created_at: null, updated_at: null }],
-      raci_assignments: [{ id: 'raci-1', project_id: 'project-baao', person_id: IDS.canonicalPerson, role_code: 'A', authority_scope: {}, sensitivity_min: 'internal', sensitivity: 'internal', created_at: null, updated_at: null }],
+      auth_grants: [{ id: 'grant-1', person_id: IDS.canonicalPerson, person_name: '佐藤 圭吾', slack_user_id: null, slack_workspace_id: null, role: 'member', project_codes: ['brainbase'], clearance: ['internal'], active: true, created_at: timestamp, updated_at: timestamp }],
+      raci_assignments: [{ id: 'raci-1', project_id: 'project-baao', person_id: IDS.canonicalPerson, role_code: 'A', authority_scope: {}, sensitivity_min: 'internal', sensitivity: 'internal', created_at: timestamp, updated_at: timestamp }],
     },
   };
 }
@@ -231,6 +232,16 @@ describe('normalize-graph-data-ssot', () => {
     const client = fakeRollbackClient();
 
     await expect(rollback(client, backupPath)).rejects.toThrow('invalid backup schema: rows.auth_grants must be an array');
+    expect(client.calls).toEqual([]);
+  });
+
+  it('rejects backup rows missing required restore columns before issuing SQL', async () => {
+    const backup = backupFixture();
+    delete backup.rows.graph_entities[0].entity_type;
+    const backupPath = await writeBackupFixture(backup);
+    const client = fakeRollbackClient();
+
+    await expect(rollback(client, backupPath)).rejects.toThrow('invalid backup schema: rows.graph_entities.entity_type must be a non-empty string');
     expect(client.calls).toEqual([]);
   });
 
