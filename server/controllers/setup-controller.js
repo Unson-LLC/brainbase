@@ -26,15 +26,15 @@ export class SetupController {
      * GET /api/setup/config
      * 認証済みユーザーのセットアップ設定を返す
      */
-    /** @param {Request & { access?: { slackUserId?: string, workspaceId?: string } }} req @param {Response} res */
+    /** @param {Request & { access?: { slackUserId?: string, slackWorkspaceId?: string } }} req @param {Response} res */
     getSetupConfig = async (req, res) => {
         try {
             const access = req.access;
-            if (!access || !access.slackUserId || !access.workspaceId) {
+            if (!access || !access.slackUserId || !access.slackWorkspaceId) {
                 return res.status(401).json({ ok: false, error: 'Unauthorized' });
             }
 
-            const { slackUserId, workspaceId } = access;
+            const { slackUserId, slackWorkspaceId: workspaceId } = access;
 
             // 1. 人物情報を取得
             const person = await this.infoSsotService.getPersonBySlackId(slackUserId, workspaceId);
