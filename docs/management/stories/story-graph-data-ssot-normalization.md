@@ -1,0 +1,117 @@
+---
+story_id: story-graph-data-ssot-normalization
+title: Graphデータ正本の重複・欠落を可逆的に正規化する
+source_requirement:
+  source: Codex task 019f64a6-8bde-7f33-bef9-21e3769c32e0
+  approved_at: 2026-07-18
+architecture_docs: []
+related_tasks:
+  - task_source: VibePro
+    task_ids: []
+status: approved
+created_at: 2026-07-18
+updated_at: 2026-07-18
+---
+
+# Graphデータ正本の重複・欠落を可逆的に正規化する
+
+## 背景
+
+ライブGraphでは、BAAOと雲孫の組織レコードがcanonical IDと旧IDで物理的に併存し、BAAO projectの表示名が空、BAAO固有のcore Philosophyが未設定になっている。佐藤圭吾のpersonも旧IDとcanonical IDが併存し、認可・RACI参照が分散している。
+
+加えて、CI `graph.decision.vibepro_metrics_ssot` が要求するdecision `dec_vibepro_ai_self_evaluation_metrics_japanese_ssot` がライブGraphから欠落している。監査/event/historyテーブルには同IDの削除記録がなく、意図的廃止を示す証跡もない。一方、2026-04-26の出荷証跡、Graph SSOT assessment、現行spec、現行CI契約はいずれも同IDを正本として参照している。そのため、これはgate廃止ではなくGraph driftとして扱い、過去の正本証跡とライブのVibePro frame・用語レコードを突き合わせて同一IDで復元する。
+
+## 正本境界
+
+| 対象 | 正本 | このStoryで行うこと |
+|---|---|---|
+| 組織・人物・project・decision・Philosophy・edge・RACI・認可参照 | ライブGraph/PostgreSQL | transaction内で正規化し、REST/MCPからreadbackする |
+| Graphの期待契約と運用証跡 | brainbase repo | Story、CI check、テスト、監査結果を保持する |
+| BAAO事業文書 | BAAO project repo | 参照はrepo相対パスのみ。本文や採用状態は変更しない |
+| 秘密・銀行口座 | Graphのfinance権限領域 | 平文をStory、ログ、PR、一般権限payloadへ出さない |
+
+個人の絶対パスをGraphへ保存しない。Graphデータの変更前に対象行の暗号化済み接続先内バックアップを権限`0600`で作り、バックアップ内容は標準出力へ出さない。
+
+## 対象レコード
+
+### BAAO
+
+- canonical org `baao`
+- legacy duplicate `org_baao`
+- project `prj_01KGCS8BC76XRHFCHRRQ8G25MY` (`code=baao`)
+- `org_baao`を参照する`has_raci` / `describes_org` edgeとpayload参照
+- BAAO固有のactive/core Philosophy
+
+### 雲孫
+
+- canonical org `unson`
+- legacy duplicate `org_unson`
+- `org_unson`を参照する`brand_of` / `role_at` edgeとrole payload参照
+- legacy payload内のfinance情報のアクセス境界
+
+### 人物・認可
+
+- canonical person `per_01KGYC7NNS0VXADK7NP48W4VR5`
+- legacy person `per_01KGYC7NNPNVRG527BGTFH5SGH`
+- legacy personを参照する`auth_grants` 1件、`raci_assignments` 8件
+- `users`とGraph person entityのcanonical ID一貫性
+- 旧IDの`auth_audit_logs` 14件は履歴として変更しない
+
+### VibePro
+
+- decision `dec_vibepro_ai_self_evaluation_metrics_japanese_ssot`
+- live frame `frm_vibepro`
+- 現行CIが要求する日本語自己評価指標8語
+
+## 変更方針
+
+1. canonical orgへ非秘密の最新属性を統合する。
+2. 旧org IDは物理削除せず、`canonical_entity_id`を持つretired aliasへ変更する。
+3. business edgeとpayload参照はcanonical IDへ付け替え、旧orgからcanonical orgへの`alias_of` edgeを残す。
+4. 雲孫のfinance情報は一般org payloadから分離し、`ceo`かつ`finance` clearanceでのみ読めるレコードに保持する。
+5. BAAO projectのGraph payloadへ表示名`BAAO`を設定する。
+6. BAAOの既存mission/valueを根拠に固有のcore Philosophyを登録する。Operation Handbook v3の正式採用decisionは作らない。
+7. legacy personは物理削除せずmerged状態にし、認可・RACIの現行参照だけcanonical personへ移す。監査ログは履歴のIDを保持する。
+8. VibePro decisionは過去証跡、live frame、live glossary terms、現行CI契約に一致する最小payloadで同一ID復元する。
+
+## スコープ外
+
+- Operation Handbook v3の正式採用、旧制度凍結、制度分離に関するdecision登録
+- BAAO制度の承認者、各Owner、台帳保存先、法務・会計判断の代行
+- 今回確認した佐藤圭吾以外のperson重複の一括整理
+- Graph外の事業文書本文、契約書、フォームの変更
+- 物理DELETE、監査ログの書き換え、秘密値のrepo保存
+- CI契約からVibePro decision要件を外す変更
+
+## 受け入れ基準
+
+- [ ] `baao`と`unson`がcanonical orgとして取得でき、旧IDはretired aliasとしてcanonical IDを指す。
+- [ ] 旧orgを指すbusiness edge/payload参照が0件で、`alias_of`だけが旧IDからcanonical IDを指す。
+- [ ] BAAO projectのGraph表示名が`BAAO`である。
+- [ ] BAAO Philosophy ContextがBAAO固有のactive/core Philosophyを返す。
+- [ ] 雲孫のfinance情報が一般org readから除外され、`ceo` + `finance`境界に隔離される。
+- [ ] `auth_grants`、`raci_assignments`、`users`の現行人物参照がcanonical person IDへ統一される。
+- [ ] 旧personの監査ログは変更されず、旧person自体はmerged/retiredとして監査可能に残る。
+- [ ] exact decision IDがライブRESTとMCPの両方で取得できる。
+- [ ] `node scripts/vibepro-graph-ssot-check.mjs`がライブGraphに対して成功する。
+- [ ] Graph関連の対象テストが成功する。
+- [ ] Graph書き込み前後の件数・ID・edge/readbackを秘密値なしの監査結果として記録できる。
+
+## ロールバックと監査
+
+- 書き込み直前に対象entity、edge、project、people、auth_grants、raci_assignmentsの完全なJSONバックアップを本番ホスト内に作り、所有者以外が読めない`0600`にする。
+- 変更は1 transactionで実行し、受け入れ基準に反する場合はcommitせずrollbackする。
+- commit後の巻き戻しは、同じ対象IDだけをバックアップ値へupsert/updateする専用rollback処理で行う。広域DELETEやDB全体restoreは行わない。
+- 監査ログの過去person IDは履歴として保持し、現在参照と履歴参照を区別する。
+- 実行結果には変更したID、変更しなかった対象、検証結果、未解決だけを残し、秘密payloadは残さない。
+
+## 実装タスク
+
+- [ ] Storyをコミットし、VibePro Story/Taskへ接続する。
+- [ ] GraphifyでGraph/API/認可/CIの影響面を記録する。
+- [ ] targeted backup・transaction・rollback対応の正規化スクリプトを用意する。
+- [ ] dry-runで変更予定と不変条件を確認する。
+- [ ] 本番Graphへtransactionを書き込む。
+- [ ] REST/MCP/Philosophy Context/人物認証IDをreadbackする。
+- [ ] CI checkと関連テストを実行する。
+- [ ] VibePro gate、PR、merge、本番反映を完了する。
