@@ -79,7 +79,7 @@ test(`${storyId} flow_replay artifact_replay scenario_clause_e2e Graph normaliza
     failed: 0
   });
   expect(evidence.verification, `${storyId} ac:13 targeted Graph tests`).toMatchObject({
-    targeted_vitest: { tests: 50, passed: 50, failed: 0 },
+    targeted_vitest: { tests: 51, passed: 51, failed: 0 },
     targeted_mcp_graphapi: { tests: 8, passed: 8, failed: 0 }
   });
   expect(evidence, `${storyId} ac:14 auditable secret-free artifact`).toMatchObject({

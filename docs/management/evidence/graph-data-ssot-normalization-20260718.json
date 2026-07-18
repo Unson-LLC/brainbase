@@ -151,7 +151,7 @@
       },
       {
         "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
-        "sha256": "f021193c019e31252342a7aaf84745f87d7af82bbd7dd4e2a38d9623b346a3b2",
+        "sha256": "cabe6dfb75966275b5c2df6cb843f286984ce9c8f913535c2301ccb0ce675900",
         "source": "current worktree Playwright Graph normalization contract report (1 test)"
       }
     ]
