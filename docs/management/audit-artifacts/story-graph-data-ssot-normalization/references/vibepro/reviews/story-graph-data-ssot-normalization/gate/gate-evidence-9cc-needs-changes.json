@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "reviewed_head_sha": "9cc01075bba7726caac4af27dc079ca81a75a107",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "Final-head gate review found two evidence consistency gaps before PR readiness.",
+  "findings": [
+    {
+      "id": "responsibility-authority-evidence",
+      "severity": "blocking",
+      "detail": "The current Responsibility Authority evaluation had not yet consumed the composite people SSOT verification evidence."
+    },
+    {
+      "id": "targeted-test-count",
+      "severity": "blocking",
+      "detail": "The Story stated 50 targeted tests while the current artifact contained 51."
+    }
+  ],
+  "resolution": "Both gaps were corrected in the later final HEAD before a fresh review was requested."
+}

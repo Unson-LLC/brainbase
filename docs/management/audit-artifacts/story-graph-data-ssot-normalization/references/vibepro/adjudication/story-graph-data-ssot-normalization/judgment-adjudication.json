@@ -1,0 +1,164 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-dag-adjudication-v1",
+  "story_id": "story-graph-data-ssot-normalization",
+  "updated_at": "2026-07-18T17:24:43.003Z",
+  "verdicts": [
+    {
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "reason": "証拠sourceはPlaywrightをartifact_replay、runtime_path_proof=false、scenario_clause_e2e=falseと明記し、premerge production negativeを保持し、PR/merge/deploy/postmerge closure順序も固定している。さらにverificationは3755029 strict-headで、旧8178 agent reviewはstaleとして別gateが検出しており、古いreviewでgreenになっていない。request上のscenario_clause一致表示はノイズだが実際のspineはneeds_evidenceのままでruntime完了を誤認していないため、追加のlifecycle failure itemを要求しないnot_required判断は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:43.002Z"
+    },
+    {
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "reason": "apply途中のpersistence failureとrestore statement failureを同一transactionでrollbackする否定系testがpassし、advisory lock、dry-run rollback、対象限定backup/restore、物理削除0も確認されている。covered判定はpartial state防止の実装・証拠に直接対応する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:42.680Z"
+    },
+    {
+      "item_id": "failure_mode:auth_denied",
+      "verdict": "judged_sound",
+      "reason": "DB authentication denial時にtransaction開始前でもpoolをcloseするtest、member/internal finance denialとCEO positive control、REST/service認可境界がcurrent-head evidenceにある。実credentialの本番拒否試験を過大主張せず、変更で必要な拒否・非漏えい挙動は検証されているため追加failure gate不要という判断は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:42.341Z"
+    },
+    {
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_sound",
+      "reason": "backup schema、必須restore columns、列型、列挙target ID境界を実装で検証し、schema-invalid、missing columns、outside target IDsをSQL前に拒否するcurrent-head testsがpassしている。not_requiredは追加証拠不要として問いへの答えが成立している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:41.928Z"
+    },
+    {
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_sound",
+      "reason": "機械上はnot_requiredだが、問いの実質である発生時挙動はcurrent-head testで検証済みである。rollback backupのmalformed JSONをSQL発行前に拒否するため、追加の未解決failure evidenceはなく、判断として成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:41.498Z"
+    },
+    {
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "reason": "実差分は12 files・11 commits・1847 additions/11 deletionsで、Story記載の10 commitsは最終1行docs同期commit分だけstaleだが、pr-prepareは12 files/11 commitsを把握している。全変更は同一Graph正規化/復旧Storyに属し、Story・本番証拠、CLI、REST/service/MCP、tests/artifact replayの4 review laneが示され、11件目も検証件数の文書同期のみであるため、一体レビューをaccepted_followupとする判断は実scopeでも維持できる。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:41.164Z"
+    },
+    {
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "reason": "accepted_followupは契約を完了扱いせず、current HEADのcontroller/service/MCP互換test passとpremerge productionのtyped-ID negativeを分離し、merge/deploy後に各requestがexactly one canonical recordを返すことを必須follow-upにしている。Playwrightはartifact_replayでruntime_path evidenceではない。残件・影響範囲・closure条件が具体的なのでaccepted_followup判断は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:40.835Z"
+    },
+    {
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "reason": "needs_evidenceはStory全体の最終完了がまだpostmerge証拠待ちであることを正しく表す。Storyはcurrent HEAD verification/judgment→VibePro PR/CI/merge→deploy SHA→本番旧typed REST・REST/MCP・idempotent dry-run・delete 0・Decision保持→postmerge記録/Story完了の順序を明示しているため、この未完了はPR作成前提ではなくclosure follow-upであり、循環blockにはしない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:40.445Z"
+    },
+    {
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "reason": "needs_evidenceはartifact_replayをworkflow runtime failure証拠へ昇格させない慎重な状態として妥当である。同時に実装レベルではmalformed JSON、schema invalid/missing columns/out-of-scope ID、DB auth denial、apply persistence failure、restore failureをstrict-head 51/51で検証済みで、未完なのはdeploy後runtime closureである。この境界がStoryとverificationで明示されているため判断は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:39.998Z"
+    },
+    {
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "reason": "既存controller/service/MCP、Graph entity/edge、transaction/backup境界内の変更であり、REST id/ids、typed alias解決、canonical list、MCP alias index、finance認可を別々に検証している。Playwrightはruntime境界証拠ではないが、strict-head integration、51/51 unit、MCP 8/8、finance readbackが境界判断を支える。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:39.597Z"
+    },
+    {
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "reason": "canonical listの重複排除、旧IDからcanonicalへのtyped解決、raw aliasの監査性、role_min/sensitivity・finance境界、物理削除0、single transaction/rollback、Decision payload/created_at保持がStory・実装・current-head testsで対応しているため、passed判定は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:39.215Z"
+    },
+    {
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "reason": "needs_evidenceは現状不明ではなく、current HEADの本番runtime互換を未証明のままgreenにしない適切な判定である。premerge productionでは旧typed-ID 3件が24/24/38件のtype-wide listを返しexact_single_canonical=falseというdeployment gapを観測済みで、current HEAD testsのpassと本番未反映を分離し、同一3 requestのpostmerge再確認をclosure条件にしている。Playwrightはartifact_replayのみでruntime証拠には用いない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:38.828Z"
+    },
+    {
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "reason": "Storyの14 ACはcanonical化、旧ID alias互換、認可・finance隔離、可逆migration、監査限界を明示し、12ファイルのcontroller/service/MCP/CLI/test差分がその意図へ対応する。intentのpassed判定は差分実体から推論の飛躍なく成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/judgment_current_head",
+        "session_ref": "agent:/root/judgment_current_head@3755029d-reassessment"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:24:38.499Z"
+    }
+  ]
+}

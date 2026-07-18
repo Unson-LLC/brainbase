@@ -1,0 +1,29 @@
+{
+  "status": "pass",
+  "head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+  "summary": "current HEADのgate evidenceは合格。architectureとresponsibility authorityを満たし、全検証は同一HEADへstrict bindingされている。",
+  "inspection_summary": "最新review request、pr-prepare、verification、production readback、provenance、Story差分を照合し、unit 51件、MCP 8件、typecheckを独立再実行した。",
+  "inspection_evidence": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+  "inspection_inputs": [
+    ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+    ".vibepro/pr/story-graph-data-ssot-normalization/pr-prepare.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/unit-current-head-composite.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e-current-head.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/typecheck-current-head.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+    "docs/management/evidence/graph-data-ssot-normalization-20260718.json"
+  ],
+  "independent_checks": {
+    "targeted_vitest": "51/51 passed",
+    "mcp_graphapi": "8/8 passed",
+    "typecheck": "passed",
+    "artifact_sha256": "10/10 matched"
+  },
+  "judgment_delta": [
+    "stale review concern resolved by strict binding all current verification to 8178fcd4",
+    "AC-7 is limited to count preservation and write-set exclusion and does not claim unavailable before hashes",
+    "finance negative controls, alias compatibility, backup/auth/persistence failures, and VibePro decision preservation are evidenced",
+    "this role passes while PR readiness remains subject to the other VibePro gates"
+  ],
+  "findings": []
+}

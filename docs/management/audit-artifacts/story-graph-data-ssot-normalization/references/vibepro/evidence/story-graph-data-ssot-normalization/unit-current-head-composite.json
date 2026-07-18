@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+  "root_vitest": {
+    "artifact": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest-current-head.json",
+    "sha256": "8869b71efc283168e93fa73dc989ba6da26f33c11da48b9f6b6f982a681e223e",
+    "tests": 51,
+    "passed": 51,
+    "failed": 0
+  },
+  "mcp_graphapi": {
+    "artifact": ".vibepro/evidence/story-graph-data-ssot-normalization/mcp-graphapi-tests-current-head.tap",
+    "sha256": "7d633853d0b83d91c323b9104dd7b93c47da8ab94a541547fbe7291ab2093e21",
+    "tests": 8,
+    "passed": 8,
+    "failed": 0
+  },
+  "people_ssot_owner_resolution": {
+    "artifact": ".vibepro/evidence/story-graph-data-ssot-normalization/people-ssot-owner-resolution-current-head.json",
+    "sha256": "77bd11d3b4d39854fe244f66f014bae18e5051531a9a772c6bf7d83d8dfdca87",
+    "tests": 118,
+    "passed": 118,
+    "failed": 0
+  }
+}
