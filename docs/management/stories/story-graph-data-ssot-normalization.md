@@ -104,10 +104,30 @@ updated_at: 2026-07-18
 - MCPはraw alias行をentity一覧へ混ぜず、canonical entityのalias索引へ旧IDを統合する。
 - VibePro decisionは既存payloadと`created_at=2026-04-25`を保持し、CI/MCP正本契約に必要なvisibilityだけ`gm`から`member`へ修復する。
 - CLIは`dry-run`をdefaultとし、`apply`と`rollback <backup>`だけを明示的に受け付ける。出力はID・件数・状態に限定し、秘密payloadを返さない。
+- current HEADでは旧ID typed getのcontroller/service/MCP契約テストが成功している。一方、merge前の本番REST readbackでは`id`条件がまだ適用されず型一覧が返ったため、本番互換は未反映と判定する。PR・CI・merge・deploy後に同じ3 requestを再実行し、各1件のcanonical IDだけが返ることを完了条件とする。
 
 ### レビュー境界
 
 このPRは、Story（対象と不変条件）、実行スクリプト（可逆transaction）、テスト（dry-run/backup/rollback/認可境界）、本番監査証跡の一つの復旧単位である。文書laneと実行laneを分離すると、実装だけでは正本判断を、文書だけでは再現・復旧をレビューできないため分割しない。各ファイルの責務をこの4点に限定し、BAAO制度採用などの業務decisionは含めない。
+
+current HEADの実レビュー規模は、`origin/develop`比で12 files、10 commits、約1.8k additionsである。単一ファイル修正ではないため、レビューは次の責務単位で行う。
+
+1. Story・本番証跡: 正本判断、対象境界、監査主張の妥当性
+2. 正規化CLI: backup、single transaction、rollback、idempotency
+3. REST/service/MCP互換: typed legacy get、canonical list、認可境界
+4. テスト: failure injectionとartifact replay契約
+
+Playwright 1件はブラウザや本番runtimeを操作しない`artifact_replay`であり、`runtime_path`または`scenario_clause_e2e`の証拠として扱わない。本番runtimeの証拠はREST/MCP readbackと、merge後の旧ID typed REST再確認で別に閉じる。
+
+### 完了証拠の順序
+
+PR作成前に必要なのは、current HEADの実装・否定系・型検査・artifact replay・既存本番データreadbackが再現可能であること。PR/CI/merge/deploy自体と、deploy後にしか成立しない旧ID typed REST readbackはPR作成の前提にせず、merge後のStory closure条件とする。したがって、`done_evidence`の未完了はPR作成を循環的に禁止せず、次の順で閉じる。
+
+1. current HEAD verificationとjudgmentを確定する。
+2. VibePro経由でPRを作成し、CIを確認してmergeする。
+3. 実運用ブランチと本番deploy SHAを確認する。
+4. 本番で旧ID typed REST、REST/MCP、idempotent dry-run、physical delete 0、VibePro decision payload/timestamps保持をread-only再確認する。
+5. post-merge evidenceを記録してStoryを完了にする。
 
 ## 受け入れ基準
 
@@ -119,7 +139,7 @@ updated_at: 2026-07-18
 - [x] `auth_grants`、`raci_assignments`、`users`の現行人物参照がcanonical person IDへ統一される。
 - [x] 適用前監査で旧personを参照する`auth_audit_logs`が14件と記録され、適用後transaction readbackと冪等dry-runでも14件である。正規化スクリプトの直接write-setに`auth_audit_logs`を含めず、旧person自体はmerged/retiredとして残る。適用前の行ID/hash/timestamp集合は保存されていないため、行内容の完全不変性までは主張しない。
 - [x] member/internalのservice readbackではfinance entityがID・型の双方で0件、ceo/financeのpositive controlでは1件である。
-- [x] 旧org/person IDのtyped REST/service取得とMCP alias索引がcanonicalへ解決し、型付き一覧にalias重複を出さない。
+- [x] current HEADの旧org/person ID typed REST/service契約テストとMCP alias索引テストがcanonical解決・型付き一覧の重複排除を示す。本番の同契約はmerge/deploy後readbackで閉じる。
 - [x] malformed backup JSON、schema-invalid backup、対象外backup ID、DB auth denied、persistence failureの否定系テストが成功する。
 - [x] exact decision IDがライブRESTとMCPの両方で取得できる。
 - [x] `node scripts/vibepro-graph-ssot-check.mjs`がライブGraphに対して成功する。
@@ -154,9 +174,10 @@ updated_at: 2026-07-18
 - 人物参照: canonical personにauth grant 1件、RACI 10件、users 3件。旧IDのauth audit logは適用前14件、適用後transaction readback 14件、冪等dry-run 14件。正規化write-setには含めない
 - 監査hash: 適用後のID集合・timestamp集合・内容hashを`audit-post-apply-hash-readback.json`へ保存。適用前hashは証跡がなく、完全不変性は非主張
 - finance否定系: member/internalではID・型取得とも0件、ceo/finance positive controlは1件
-- alias互換: typed getは旧IDからcanonicalへ解決し、一覧はcanonicalのみ。MCPはalias索引へ統合
+- alias互換: current HEADのtyped get契約テストは旧IDからcanonicalへ解決し、一覧はcanonicalのみ。MCPはalias索引へ統合。merge前の本番RESTは`id`条件未反映で型一覧を返したため、post-merge readbackを必須とする
 - VibePro decision: payload・created_atを保持し、`role_min`だけ`gm`から`member`へ修復
 - MCP: ブリッジ再起動後、exact decisionとBAAO Philosophy Contextを取得
 - REST/CI: `node scripts/vibepro-graph-ssot-check.mjs`の4 checksがすべてpassed
+- Playwright: committed artifactと実装・テストsourceの整合だけを検証する`artifact_replay` 1件。runtime-path証拠ではない
 - tests: rollback rehearsal、malformed/schema-invalid backup、DB auth denied、persistence failure、finance否定系、REST aliasを含むtargeted Vitest 50件が成功。MCP alias対象test 8件も成功。MCP全件実行の既知依存欠落は対象test単体実行で切り分ける
 - machine-readable evidence: `docs/management/evidence/graph-data-ssot-normalization-20260718.json`

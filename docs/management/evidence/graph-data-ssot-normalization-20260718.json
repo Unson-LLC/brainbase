@@ -1,7 +1,7 @@
 {
   "schema_version": "graph-data-ssot-normalization-evidence.v2",
   "story_id": "story-graph-data-ssot-normalization",
-  "observed_at": "2026-07-18T15:37:03Z",
+  "observed_at": "2026-07-18T17:00:17Z",
   "production_apply": {
     "status": "applied",
     "transactional": true,
@@ -96,10 +96,25 @@
     "status": "passed"
   },
   "alias_compatibility_contract": {
-    "typed_legacy_get_resolves_canonical": true,
+    "current_head_typed_legacy_get_contract_tests_passed": true,
     "canonical_lists_exclude_alias_rows": true,
     "raw_alias_types_remain_auditable": true,
-    "mcp_alias_index_includes_legacy_ids": true
+    "mcp_alias_index_includes_legacy_ids": true,
+    "production_premerge_exact_single_canonical": false,
+    "production_premerge_observation": "the deployed endpoint returned the authorized type list and did not apply the id filter",
+    "post_merge_readback_required": true
+  },
+  "playwright_contract": {
+    "classification": "artifact_replay",
+    "runtime_path_proof": false,
+    "scenario_clause_e2e": false,
+    "purpose": "verify committed evidence and executable contract sources remain mutually consistent"
+  },
+  "delivery_sequence": {
+    "pr_creation_requires": "current-head implementation, failure-mode, typecheck, artifact-replay, and existing production data evidence",
+    "pr_merge_then_requires": "CI green and merge",
+    "post_merge_closure_requires": "production deploy SHA plus legacy typed REST, REST/MCP, idempotent dry-run, physical delete zero, and VibePro decision preservation readbacks",
+    "prevents_pr_done_evidence_cycle": true
   },
   "artifact_provenance": {
     "hash_algorithm": "sha256",
@@ -116,8 +131,13 @@
       },
       {
         "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
-        "sha256": "dbed2a1169ede7ed375d3906786b155f24cb7dadbd616f49a20e84556eef12de",
+        "sha256": "50e8563293ff0c85e2ee8cdaded9e48aa8998f9a4203b42b41914aaf02f17697",
         "source": "composite REST MCP CI and database readback index"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/production-legacy-typed-rest-premerge.json",
+        "sha256": "8f588ff382903d0a6ee73c91e8fca09a2591df655db958f5d14db258c7f993db",
+        "source": "production read-only legacy typed REST pre-merge observation"
       },
       {
         "path": ".vibepro/evidence/story-graph-data-ssot-normalization/rest-readback.json",
@@ -151,8 +171,8 @@
       },
       {
         "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
-        "sha256": "cabe6dfb75966275b5c2df6cb843f286984ce9c8f913535c2301ccb0ce675900",
-        "source": "current worktree Playwright Graph normalization contract report (1 test)"
+        "sha256": "aa3d30e189f3b2c05883816300b89964402c02c301a9560710c6ce3fea4b1ca7",
+        "source": "current worktree Playwright artifact-replay contract report (1 test; not runtime-path evidence)"
       }
     ]
   },

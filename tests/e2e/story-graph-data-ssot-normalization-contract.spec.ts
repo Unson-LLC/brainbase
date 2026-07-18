@@ -8,7 +8,7 @@ async function readJson(path: string) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
 
-test(`${storyId} flow_replay artifact_replay scenario_clause_e2e Graph normalization contract`, async () => {
+test(`${storyId} artifact_replay Graph normalization evidence contract`, async () => {
   const evidence = await readJson('docs/management/evidence/graph-data-ssot-normalization-20260718.json');
   const script = await readFile('scripts/normalize-graph-data-ssot.mjs', 'utf8');
   const unitTests = await readFile('tests/unit/normalize-graph-data-ssot.test.js', 'utf8');
@@ -53,10 +53,12 @@ test(`${storyId} flow_replay artifact_replay scenario_clause_e2e Graph normaliza
     status: 'passed'
   });
   expect(evidence.alias_compatibility_contract, `${storyId} ac:9 legacy alias compatibility`).toMatchObject({
-    typed_legacy_get_resolves_canonical: true,
+    current_head_typed_legacy_get_contract_tests_passed: true,
     canonical_lists_exclude_alias_rows: true,
     raw_alias_types_remain_auditable: true,
-    mcp_alias_index_includes_legacy_ids: true
+    mcp_alias_index_includes_legacy_ids: true,
+    production_premerge_exact_single_canonical: false,
+    post_merge_readback_required: true
   });
   expect(unitTests + serviceTests + mcpTests, `${storyId} ac:9 executable compatibility assertions`).toContain(
     '旧org IDのtyped getはalias行ではなくcanonical orgへ解決する'
@@ -86,6 +88,11 @@ test(`${storyId} flow_replay artifact_replay scenario_clause_e2e Graph normaliza
     secrets_included: false,
     production_apply: { transactional: true, physical_deletes: 0 },
     post_apply_dry_run: { physical_deletes: 0 }
+  });
+  expect(evidence.playwright_contract, `${storyId} evidence classification`).toMatchObject({
+    classification: 'artifact_replay',
+    runtime_path_proof: false,
+    scenario_clause_e2e: false
   });
 
   expect(evidence.vibepro_decision_disposition, `${storyId} S-001 preserve existing decision SSOT`).toMatchObject({
