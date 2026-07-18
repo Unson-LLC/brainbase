@@ -8,7 +8,7 @@ architecture_docs: []
 related_tasks:
   - task_source: VibePro
     task_ids: []
-status: approved
+status: implemented
 created_at: 2026-07-18
 updated_at: 2026-07-18
 ---
@@ -19,7 +19,7 @@ updated_at: 2026-07-18
 
 ライブGraphでは、BAAOと雲孫の組織レコードがcanonical IDと旧IDで物理的に併存し、BAAO projectの表示名が空、BAAO固有のcore Philosophyが未設定になっている。佐藤圭吾のpersonも旧IDとcanonical IDが併存し、認可・RACI参照が分散している。
 
-加えて、CI `graph.decision.vibepro_metrics_ssot` が要求するdecision `dec_vibepro_ai_self_evaluation_metrics_japanese_ssot` がライブGraphから欠落している。監査/event/historyテーブルには同IDの削除記録がなく、意図的廃止を示す証跡もない。一方、2026-04-26の出荷証跡、Graph SSOT assessment、現行spec、現行CI契約はいずれも同IDを正本として参照している。そのため、これはgate廃止ではなくGraph driftとして扱い、過去の正本証跡とライブのVibePro frame・用語レコードを突き合わせて同一IDで復元する。
+加えて、CI `graph.decision.vibepro_metrics_ssot` が要求するdecision `dec_vibepro_ai_self_evaluation_metrics_japanese_ssot` がREST/MCPから取得できない。直接DB監査では2026-04-25作成の同一ID・正本payloadが残っていたが、`role_min=gm`のため現在のCI tokenとMCPから不可視だった。監査/event/historyテーブルに意図的廃止を示す証跡はなく、2026-04-26の出荷証跡、Graph SSOT assessment、現行spec、現行CI契約はいずれも同IDを正本として参照している。そのためpayloadは上書きせず、正本の可視性driftだけを修復する。将来レコード自体が欠落した場合のみ、過去証跡とlive frame・用語レコードを突き合わせて同一IDで復元する。
 
 ## 正本境界
 
@@ -72,7 +72,7 @@ updated_at: 2026-07-18
 5. BAAO projectのGraph payloadへ表示名`BAAO`を設定する。
 6. BAAOの既存mission/valueを根拠に固有のcore Philosophyを登録する。Operation Handbook v3の正式採用decisionは作らない。
 7. legacy personは物理削除せずmerged状態にし、認可・RACIの現行参照だけcanonical personへ移す。監査ログは履歴のIDを保持する。
-8. VibePro decisionは過去証跡、live frame、live glossary terms、現行CI契約に一致する最小payloadで同一ID復元する。
+8. VibePro decisionが存在する場合はpayloadを保持し、CI/MCP契約に必要な`member`可視性だけを修復する。欠落時のみ、過去証跡、live frame、live glossary terms、現行CI契約に一致する最小payloadで同一ID復元する。
 
 ## スコープ外
 
@@ -85,17 +85,17 @@ updated_at: 2026-07-18
 
 ## 受け入れ基準
 
-- [ ] `baao`と`unson`がcanonical orgとして取得でき、旧IDはretired aliasとしてcanonical IDを指す。
-- [ ] 旧orgを指すbusiness edge/payload参照が0件で、`alias_of`だけが旧IDからcanonical IDを指す。
-- [ ] BAAO projectのGraph表示名が`BAAO`である。
-- [ ] BAAO Philosophy ContextがBAAO固有のactive/core Philosophyを返す。
-- [ ] 雲孫のfinance情報が一般org readから除外され、`ceo` + `finance`境界に隔離される。
-- [ ] `auth_grants`、`raci_assignments`、`users`の現行人物参照がcanonical person IDへ統一される。
-- [ ] 旧personの監査ログは変更されず、旧person自体はmerged/retiredとして監査可能に残る。
-- [ ] exact decision IDがライブRESTとMCPの両方で取得できる。
-- [ ] `node scripts/vibepro-graph-ssot-check.mjs`がライブGraphに対して成功する。
-- [ ] Graph関連の対象テストが成功する。
-- [ ] Graph書き込み前後の件数・ID・edge/readbackを秘密値なしの監査結果として記録できる。
+- [x] `baao`と`unson`がcanonical orgとして取得でき、旧IDはretired aliasとしてcanonical IDを指す。
+- [x] 旧orgを指すbusiness edge/payload参照が0件で、`alias_of`だけが旧IDからcanonical IDを指す。
+- [x] BAAO projectのGraph表示名が`BAAO`である。
+- [x] BAAO Philosophy ContextがBAAO固有のactive/core Philosophyを返す。
+- [x] 雲孫のfinance情報が一般org payloadから除外され、`ceo` + `finance`境界に隔離される。
+- [x] `auth_grants`、`raci_assignments`、`users`の現行人物参照がcanonical person IDへ統一される。
+- [x] 旧personの監査ログは変更されず、旧person自体はmerged/retiredとして監査可能に残る。
+- [x] exact decision IDがライブRESTとMCPの両方で取得できる。
+- [x] `node scripts/vibepro-graph-ssot-check.mjs`がライブGraphに対して成功する。
+- [x] Graph関連の対象テストが成功する。
+- [x] Graph書き込み前後の件数・ID・edge/readbackを秘密値なしの監査結果として記録できる。
 
 ## ロールバックと監査
 
@@ -107,11 +107,22 @@ updated_at: 2026-07-18
 
 ## 実装タスク
 
-- [ ] Storyをコミットし、VibePro Story/Taskへ接続する。
-- [ ] GraphifyでGraph/API/認可/CIの影響面を記録する。
-- [ ] targeted backup・transaction・rollback対応の正規化スクリプトを用意する。
-- [ ] dry-runで変更予定と不変条件を確認する。
-- [ ] 本番Graphへtransactionを書き込む。
-- [ ] REST/MCP/Philosophy Context/人物認証IDをreadbackする。
-- [ ] CI checkと関連テストを実行する。
+- [x] Storyをコミットし、VibePro Story/Taskへ接続する。
+- [x] GraphifyでGraph/API/認可/CIの影響面を記録する。
+- [x] targeted backup・transaction・rollback対応の正規化スクリプトを用意する。
+- [x] dry-runで変更予定と不変条件を確認する。
+- [x] 本番Graphへtransactionを書き込む。
+- [x] REST/MCP/Philosophy Context/人物認証IDをreadbackする。
+- [x] CI checkと関連テストを実行する。
 - [ ] VibePro gate、PR、merge、本番反映を完了する。
+
+## 実行証跡
+
+- apply: 2026-07-19 00:20 JST、単一transaction、物理削除0件
+- rollback point: `2026-07-18T152024997Z.json`（本番ホスト内、mode `0600`）
+- 冪等readback: legacy business edge 0件、legacy payload参照0件、legacy auth grant 0件、legacy RACI 0件
+- 人物参照: canonical personにauth grant 1件、RACI 10件、users 3件。旧IDのauth audit log 14件は保持
+- VibePro decision: payload・created_atを保持し、`role_min`だけ`gm`から`member`へ修復
+- MCP: ブリッジ再起動後、exact decisionとBAAO Philosophy Contextを取得
+- REST/CI: `node scripts/vibepro-graph-ssot-check.mjs`の4 checksがすべてpassed
+- tests: 30 tests passed、DB未設定時のみskipされるGraph route tests 5件は対象外環境でskip
